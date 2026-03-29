@@ -176,8 +176,9 @@ class RiskManager:
             return RiskDecision(False, 0, "Daily loss limit reached")
 
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
+        # Skip in dry_run mode so the simulation can be tested at any hour.
         allowed = self.edge_cfg.allowed_hours_utc
-        if allowed:
+        if allowed and not CONFIG.dry_run:
             current_hour = datetime.datetime.utcnow().hour
             if current_hour not in allowed:
                 return RiskDecision(

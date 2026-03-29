@@ -457,8 +457,11 @@ class PolymarketFeed:
         n_bars = CONFIG.markets.history_bars
 
         for token_id, token in self.tokens.items():
-            # Each asset starts at a different base probability
-            base = {"BTC": 0.42, "ETH": 0.38, "SOL": 0.28}.get(token.asset, 0.35)
+            # Base prices reflect real Polymarket binary markets for BTC/ETH/SOL
+            # price questions (e.g. "Will BTC close above $X?"). Live data shows
+            # entries cluster at 0.24–0.26, so YES tokens start in EXTREME fee zone
+            # and within the max_entry_price=0.27 cap.
+            base = {"BTC": 0.24, "ETH": 0.21, "SOL": 0.18}.get(token.asset, 0.22)
             if token.side == "NO":
                 base = 1.0 - base
 
