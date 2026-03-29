@@ -59,6 +59,7 @@ class ExecutionConfig:
     ob_scan_interval: float = 1.0      # seconds between order-book refreshes
     hard_exit_seconds: int = 180       # forced exit if not profitable within 3 min
     cascade_levels: int = 3            # sell in 3 tranches
+    cascade_pct: float = 0.333        # fraction of position per tranche
     cascade_interval: float = 2.0     # seconds between cascade tranches
     slippage_tolerance: float = 0.02   # reject fill if slippage > 2 %
     retry_attempts: int = 3

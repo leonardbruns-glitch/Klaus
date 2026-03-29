@@ -145,14 +145,14 @@ class OrderManager:
         if CONFIG.dry_run:
             return self._simulate_fill(token_id, intended_price, stake_usd, OrderSide.BUY)
 
-        size = round(stake_usd / intended_price, 2) if intended_price > 0 else 0
-        if size <= 0:
-            return OrderResult(status=OrderStatus.FAILED, error="Invalid size")
+        if stake_usd <= 0 or intended_price <= 0:
+            return OrderResult(status=OrderStatus.FAILED, error="Invalid stake or price")
 
+        # Pass USDC notional to CLOB (MarketOrderArgs.amount = USDC spend)
         for attempt in range(self.cfg.retry_attempts):
             try:
                 result = await self._submit_market_order(
-                    token_id, OrderSide.BUY, size, intended_price
+                    token_id, OrderSide.BUY, stake_usd, intended_price
                 )
                 if result.status == OrderStatus.FILLED:
                     return result
@@ -238,7 +238,9 @@ class OrderManager:
                 return OrderResult(status=OrderStatus.FAILED, error="Empty response")
 
             fill_price = float(resp.get("average_price", intended_price))
-            fill_size = float(resp.get("size_matched", 0))
+            # size_matched is in USDC; convert to token shares
+            usdc_matched = float(resp.get("size_matched", size))
+            fill_size = usdc_matched / fill_price if fill_price > 0 else 0
             fee = float(resp.get("fee", 0))
             slippage = abs(fill_price - intended_price)
 

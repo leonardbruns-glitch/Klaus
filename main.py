@@ -120,7 +120,7 @@ class KlausBot:
             ob = await self.feed.fetch_order_book(token_id)
             if ob is None:
                 continue
-            current_price = ob.bids[0][0] if ob.bids else ob.mid
+            current_price = ob.bids[0][0] if len(ob.bids) > 0 else ob.mid
             exit_reason = self.risk.check_exit_conditions(token_id, current_price)
             if exit_reason:
                 await self._exit_position(token_id, reason=exit_reason)
@@ -241,25 +241,34 @@ class KlausBot:
 
         meta = self._open_meta.get(token_id, {})
 
+        # Fetch live price for cascade; fall back to TP/SL target only if OB unavailable
+        ob_now = await self.feed.fetch_order_book(token_id)
+        if ob_now and len(ob_now.bids) > 0:
+            live_price = ob_now.bids[0][0]
+        elif reason == "TAKE_PROFIT":
+            live_price = pos.tp
+        else:
+            live_price = pos.sl
+
         # Cascade sell
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
             total_shares=pos.shares,
-            current_price=pos.tp if reason == "TAKE_PROFIT" else pos.sl,
+            current_price=live_price,
             reason=reason,
         )
 
-        # Determine exit price from fills
+        # Determine exit price from fills (guard against zero total size)
+        total_size = sum(f.total_size for f in exit_fills)
         exit_price = (
-            sum(f.avg_fill_price * f.total_size for f in exit_fills)
-            / sum(f.total_size for f in exit_fills)
-            if exit_fills else pos.entry_price
+            sum(f.avg_fill_price * f.total_size for f in exit_fills) / total_size
+            if exit_fills and total_size > 0 else pos.entry_price
         )
 
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
         net_pnl = self.risk.close_position(token_id, exit_price, reason)
 
-        if net_pnl is not None:
+        if net_pnl is not None and meta.get("entry_fill") and meta.get("signal"):
             self.analytics.record_trade(
                 token_id=token_id,
                 asset=pos.asset,
@@ -268,10 +277,10 @@ class KlausBot:
                 exit_price=exit_price,
                 stake=pos.stake,
                 shares=pos.shares,
-                entry_fill=meta.get("entry_fill"),
+                entry_fill=meta["entry_fill"],
                 exit_fills=exit_fills,
                 exit_reason=reason,
-                signal=meta.get("signal"),
+                signal=meta["signal"],
                 ts_open=meta.get("ts_open", pos.open_ts),
                 ts_close=time.time(),
                 capital_before=capital_before,

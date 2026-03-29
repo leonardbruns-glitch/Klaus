@@ -200,10 +200,10 @@ def score_order_book(ob: Optional[OrderBook], cfg: MomentumConfig) -> tuple[floa
     threshold = cfg.ob_imbalance_thresh
 
     if imb >= threshold:
-        score = (imb - 0.5) / 0.5   # 0 at 0.5, 1 at 1.0
+        score = max(0.0, (imb - 0.5) / 0.5)   # 0 at 0.5, 1 at 1.0; clamped ≥ 0
         return score, Direction.BUY_YES
     elif imb <= (1 - threshold):
-        score = (0.5 - imb) / 0.5
+        score = max(0.0, (0.5 - imb) / 0.5)
         return score, Direction.BUY_NO
     else:
         return 0.0, Direction.NO_TRADE
@@ -305,11 +305,12 @@ class MomentumScorer:
         if sig.direction == Direction.BUY_YES:
             aligned_breakout = breakout_s if breakout_dir == Direction.BUY_YES else 0
             aligned_trend = trend_s if trend_dir == Direction.BUY_YES else 0
-            aligned_ob = ob_s if ob_dir != Direction.BUY_NO else 0
+            # Only count OB score when it explicitly agrees; NO_TRADE = neutral (zero)
+            aligned_ob = ob_s if ob_dir == Direction.BUY_YES else 0
         elif sig.direction == Direction.BUY_NO:
             aligned_breakout = breakout_s if breakout_dir == Direction.BUY_NO else 0
             aligned_trend = trend_s if trend_dir == Direction.BUY_NO else 0
-            aligned_ob = ob_s if ob_dir != Direction.BUY_YES else 0
+            aligned_ob = ob_s if ob_dir == Direction.BUY_NO else 0
         else:
             sig.composite = 0.0
             sig.confidence = 0.0
@@ -339,10 +340,8 @@ class MomentumScorer:
         else:
             sig.entry_price = 0.0
 
-        sig.fee_zone = classify_fee_zone(
-            sig.entry_price if sig.direction == Direction.BUY_YES
-            else (1.0 - sig.entry_price)
-        )
+        # Fee zone uses the actual token price being bought (already correct for both sides)
+        sig.fee_zone = classify_fee_zone(sig.entry_price)
 
         # ── Confidence & gate checks ──────────────────────────────────────────
         sig.confidence = min(1.0, sig.composite + sig.external_boost)

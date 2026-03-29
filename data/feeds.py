@@ -166,6 +166,8 @@ class PolymarketFeed:
         if not AIOHTTP_AVAILABLE:
             logger.warning("aiohttp not installed — feed running in stub mode")
             self._running = True
+            self._populate_stub_tokens()
+            await self._warmup_stub_bars()
             return
         self._session = aiohttp.ClientSession(
             headers={"Accept": "application/json"},
@@ -306,13 +308,23 @@ class PolymarketFeed:
 
     async def update_bars(self) -> None:
         """Push latest trade into bar builders for all tokens."""
+        import random
         now = time.time()
         for token_id in list(self.tokens.keys()):
             result = await self.fetch_last_trade(token_id)
             if result:
                 price, size = result
-                self.bar_builders_5m[token_id].update(price, size, now)
-                self.bar_builders_15m[token_id].update(price, size, now)
+            elif not self._session:
+                # Stub mode: derive tick from current OB mid with small walk
+                ob = self.order_books.get(token_id)
+                if ob is None:
+                    continue
+                price = max(0.01, min(0.99, ob.mid + random.gauss(0, 0.004)))
+                size = random.uniform(50, 500)
+            else:
+                continue
+            self.bar_builders_5m[token_id].update(price, size, now)
+            self.bar_builders_15m[token_id].update(price, size, now)
 
     # ── External signals ─────────────────────────────────────────────────────
 
@@ -380,16 +392,109 @@ class PolymarketFeed:
 
     # ── Stub helpers (dry-run / no-network mode) ──────────────────────────────
 
-    def _stub_order_book(self, token_id: str) -> OrderBook:
-        """Returns a synthetic order book for testing without network."""
+    def _populate_stub_tokens(self) -> None:
+        """Create synthetic YES+NO tokens for each tracked asset."""
+        import uuid
+        for asset in CONFIG.markets.tracked_assets:
+            for side in ("YES", "NO"):
+                token_id = f"stub_{asset}_{side}_{uuid.uuid4().hex[:8]}"
+                token = MarketToken(
+                    token_id=token_id,
+                    condition_id=f"stub_cond_{asset}",
+                    asset=asset,
+                    side=side,
+                    question=f"Will {asset} be above threshold on expiry?",
+                    end_date_iso="2099-12-31T00:00:00Z",
+                    active=True,
+                )
+                self.tokens[token_id] = token
+                self.asset_tokens.setdefault(asset, []).append(token_id)
+                self.bar_builders_5m[token_id] = BarBuilder(
+                    CONFIG.markets.bar_interval_primary,
+                    CONFIG.markets.history_bars,
+                )
+                self.bar_builders_15m[token_id] = BarBuilder(
+                    CONFIG.markets.bar_interval_secondary,
+                    CONFIG.markets.history_bars,
+                )
+        logger.info("Stub mode: created %d synthetic tokens", len(self.tokens))
+
+    async def _warmup_stub_bars(self) -> None:
+        """
+        Seed bar builders with 50 synthetic bars so the strategy has history.
+        Simulates realistic binary market price walk with occasional momentum bursts.
+        """
         import random
-        mid = random.uniform(0.20, 0.80)
-        spread = random.uniform(0.005, 0.02)
-        bids = [(round(mid - spread * (i + 1), 4), round(random.uniform(50, 500), 2))
-                for i in range(5)]
-        asks = [(round(mid + spread * (i + 1), 4), round(random.uniform(50, 500), 2))
-                for i in range(5)]
+        import math
+        now = time.time()
+        interval_5m = CONFIG.markets.bar_interval_primary
+        n_bars = CONFIG.markets.history_bars
+
+        for token_id, token in self.tokens.items():
+            # Each asset starts at a different base probability
+            base = {"BTC": 0.42, "ETH": 0.38, "SOL": 0.28}.get(token.asset, 0.35)
+            if token.side == "NO":
+                base = 1.0 - base
+
+            price = base
+            for i in range(n_bars):
+                bar_ts = now - (n_bars - i) * interval_5m
+                # Random walk with mean reversion + occasional momentum burst
+                drift = random.gauss(0, 0.012)
+                # Mean reversion toward 0.5
+                drift += (0.5 - price) * 0.03
+                # Momentum burst (20% chance)
+                if random.random() < 0.20:
+                    drift += random.choice([-1, 1]) * random.uniform(0.02, 0.05)
+
+                price = max(0.05, min(0.95, price + drift))
+                spread = random.uniform(0.005, 0.018)
+                high = min(0.99, price + random.uniform(0, spread * 2))
+                low = max(0.01, price - random.uniform(0, spread * 2))
+                volume = random.uniform(200, 3000)
+                # Volume spike on momentum bars
+                if abs(drift) > 0.025:
+                    volume *= random.uniform(1.5, 3.0)
+
+                # Push open + intermediate ticks into bar builders
+                for p, v, offset in [
+                    (price - drift, volume * 0.25, 0),
+                    (low,           volume * 0.25, interval_5m * 0.3),
+                    (high,          volume * 0.25, interval_5m * 0.6),
+                    (price,         volume * 0.25, interval_5m * 0.9),
+                ]:
+                    self.bar_builders_5m[token_id].update(p, v, bar_ts + offset)
+                    self.bar_builders_15m[token_id].update(p, v, bar_ts + offset)
+
+            # Seed initial order book from final price
+            self.order_books[token_id] = self._make_stub_order_book(
+                token_id, price
+            )
+
+        logger.info("Stub warmup complete: %d bars seeded per token", n_bars)
+
+    def _make_stub_order_book(self, token_id: str, mid: float) -> OrderBook:
+        """Build a realistic stub order book around a given mid price."""
+        import random
         token = self.tokens.get(token_id)
+        spread = random.uniform(0.005, 0.015)
+        bids = [
+            (round(max(0.01, mid - spread * (i + 1)), 4),
+             round(random.uniform(100, 800), 2))
+            for i in range(5)
+        ]
+        asks = [
+            (round(min(0.99, mid + spread * (i + 1)), 4),
+             round(random.uniform(100, 800), 2))
+            for i in range(5)
+        ]
+        # Occasionally skew depth to trigger OB imbalance signal
+        if random.random() < 0.35:
+            scale = random.uniform(1.5, 2.5)
+            if random.random() < 0.5:
+                bids = [(p, round(s * scale, 2)) for p, s in bids]
+            else:
+                asks = [(p, round(s * scale, 2)) for p, s in asks]
         return OrderBook(
             ts=time.time(),
             token_id=token_id,
@@ -398,3 +503,14 @@ class PolymarketFeed:
             bids=bids,
             asks=asks,
         )
+
+    def _stub_order_book(self, token_id: str) -> OrderBook:
+        """Refresh stub order book with a small random walk from last mid."""
+        import random
+        existing = self.order_books.get(token_id)
+        last_mid = existing.mid if existing else 0.35
+        drift = random.gauss(0, 0.008)
+        new_mid = max(0.05, min(0.95, last_mid + drift))
+        ob = self._make_stub_order_book(token_id, new_mid)
+        self.order_books[token_id] = ob
+        return ob

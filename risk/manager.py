@@ -145,9 +145,10 @@ class RiskManager:
 
         stake = self.bankroll.current_stake
 
-        # Ensure stake doesn't exceed available capital
-        if stake > self.bankroll.capital * 0.15:
-            stake = round(self.bankroll.capital * 0.05, 2)
+        # Cap stake to the configured percentage of current capital
+        # (protects against drawdown eroding safety margins)
+        max_pct = 0.10 if self.bankroll.is_heat_check_active else 0.05
+        stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
         # Risk/reward gate: only enter if RR ≥ 1.5
         if tpsl.risk_reward < 1.5:

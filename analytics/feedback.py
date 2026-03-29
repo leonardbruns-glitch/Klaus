@@ -127,11 +127,9 @@ class FeedbackEngine:
         net_pnl = gross_pnl - fee_paid
 
         # Slippage
-        slippage_entry = entry_fill.slippage
-        slippage_exit = (
-            statistics.mean([r.slippage for r in exit_fills if r.slippage])
-            if exit_fills else 0.0
-        )
+        slippage_entry = entry_fill.slippage if entry_fill else 0.0
+        exit_slippages = [r.slippage for r in exit_fills if r.slippage is not None]
+        slippage_exit = statistics.mean(exit_slippages) if exit_slippages else 0.0
 
         rec = TradeRecord(
             trade_id=trade_id,
@@ -269,7 +267,7 @@ class FeedbackEngine:
                 if asset_win_rate < 0.40:
                     alerts.append(
                         f"ASSET DRAG: {asset} win_rate={asset_win_rate:.1%} "
-                        "over last {len(pnl_list)} trades — consider pausing this market"
+                        f"over last {len(pnl_list)} trades — consider pausing this market"
                     )
 
         return {
