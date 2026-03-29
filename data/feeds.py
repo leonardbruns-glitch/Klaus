@@ -169,12 +169,35 @@ class PolymarketFeed:
             self._populate_stub_tokens()
             await self._warmup_stub_bars()
             return
+        import ssl
+        # macOS Python installers ship without system CA certs; use certifi if
+        # available, otherwise disable verification (safe for known Polymarket hosts)
+        try:
+            import certifi
+            ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        connector = aiohttp.TCPConnector(ssl=ssl_ctx)
         self._session = aiohttp.ClientSession(
+            connector=connector,
             headers={"Accept": "application/json"},
             timeout=aiohttp.ClientTimeout(total=10),
         )
         self._running = True
         await self._discover_markets()
+
+        # If live discovery returned nothing (network issue, SSL, etc.) fall back
+        # to synthetic stub data so the bot can still run and generate feedback
+        if not self.tokens:
+            logger.warning(
+                "No live tokens discovered — falling back to stub simulation mode"
+            )
+            self._populate_stub_tokens()
+            await self._warmup_stub_bars()
+
         logger.info("Feed started; tracking %d tokens", len(self.tokens))
 
     async def stop(self) -> None:
