@@ -188,12 +188,20 @@ class KlausBot:
                 condition_id=token.condition_id,
                 window_end_ts=getattr(token, "window_end_ts", 0.0),
             )
+            if signal.direction != Direction.NO_TRADE:
+                logger.info(
+                    "SCAN %s %s | score=%.2f conf=%.2f entry=%.4f | %s",
+                    token.asset, signal.direction.name,
+                    signal.composite, signal.confidence,
+                    signal.entry_price, signal.reason or "below threshold",
+                )
+
             if not decision.approved:
-                logger.debug("Trade rejected: %s", decision.reason)
+                logger.info("  └─ REJECTED: %s", decision.reason)
                 continue
 
             logger.info(
-                "SIGNAL %s | %s %s | entry=%.4f conf=%.2f score=%.2f | %s",
+                "  └─ SIGNAL %s | %s %s | entry=%.4f conf=%.2f score=%.2f | %s",
                 token.asset, signal.direction.name, signal.fee_zone.name,
                 signal.entry_price, signal.confidence, signal.composite,
                 signal.reason,

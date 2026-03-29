@@ -158,6 +158,7 @@ class PolymarketFeed:
         self.bar_builders_5m: Dict[str, BarBuilder] = {}
         self.bar_builders_15m: Dict[str, BarBuilder] = {}
         self._running = False
+        self._stub_mode = False   # True when using synthetic data (live discovery failed)
         self._last_ob_ts: Dict[str, float] = {}
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ class PolymarketFeed:
         if not AIOHTTP_AVAILABLE:
             logger.warning("aiohttp not installed — feed running in stub mode")
             self._running = True
+            self._stub_mode = True
             self._populate_stub_tokens()
             await self._warmup_stub_bars()
             return
@@ -195,6 +197,7 @@ class PolymarketFeed:
             logger.warning(
                 "No live tokens discovered — falling back to stub simulation mode"
             )
+            self._stub_mode = True
             self._populate_stub_tokens()
             await self._warmup_stub_bars()
 
@@ -264,7 +267,7 @@ class PolymarketFeed:
 
     async def fetch_order_book(self, token_id: str) -> Optional[OrderBook]:
         """Fetch and parse CLOB order book for one token."""
-        if not self._session:
+        if not self._session or self._stub_mode:
             return self._stub_order_book(token_id)
         url = f"{self.CLOB}/book"
         params = {"token_id": token_id}
@@ -337,7 +340,7 @@ class PolymarketFeed:
             result = await self.fetch_last_trade(token_id)
             if result:
                 price, size = result
-            elif not self._session:
+            elif not self._session or self._stub_mode:
                 # Stub mode: derive tick from current OB mid with small walk
                 ob = self.order_books.get(token_id)
                 if ob is None:
