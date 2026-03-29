@@ -71,6 +71,36 @@ class ExecutionConfig:
 
 
 @dataclass
+class EdgeConfig:
+    """
+    Parameters derived from baseline bot performance analysis (38 trades).
+
+    Key findings:
+      - 14:00 UTC: 46% WR, $+12.92  ← all the edge lives here
+      - 15:00+:     0% WR, -$5.98   ← pure capital destruction
+      - ETH: 30% WR  │  SOL: 17%  │  BTC: 6% (near-worthless)
+      - All P&L from PROFIT_1 exits; stop losses are small but frequent
+    """
+    # Trading hours gate (UTC). Only scan for entries during these hours.
+    # 14:00 UTC = US pre-market open = highest volatility window.
+    # Set to empty list [] to disable the filter.
+    allowed_hours_utc: List[int] = field(default_factory=lambda: [13, 14, 15])
+
+    # Per-asset minimum momentum score multiplier.
+    # BTC needs much higher confidence to overcome its 6% baseline WR.
+    # ETH gets a discount as the strongest performer.
+    asset_score_multiplier: dict = field(default_factory=lambda: {
+        "BTC": 1.40,   # BTC must score 40% higher than threshold
+        "ETH": 0.90,   # ETH gets a 10% easier entry
+        "SOL": 1.00,   # SOL at baseline
+    })
+
+    # Entry price sweet spot from data: best trades entered 0.245–0.260.
+    # Tighten max_entry from 0.30 to 0.27 to avoid overpriced tokens.
+    max_entry_price: float = 0.27
+
+
+@dataclass
 class MarketConfig:
     # Token IDs are looked up dynamically; these are human labels for filtering
     tracked_assets: List[str] = field(default_factory=lambda: ["BTC", "ETH", "SOL"])
@@ -103,6 +133,7 @@ class KlausConfig:
     execution: ExecutionConfig = field(default_factory=ExecutionConfig)
     markets: MarketConfig = field(default_factory=MarketConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
+    edge: EdgeConfig = field(default_factory=EdgeConfig)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     polymarket_api_key: str = field(

@@ -12,6 +12,7 @@ Exit logic ported from baseline bot v4:
 from __future__ import annotations
 
 import time
+import datetime
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Dict, List, Optional, Set
@@ -146,6 +147,7 @@ class RiskManager:
         self.cfg = CONFIG.bankroll
         self.fee_cfg = CONFIG.fees
         self.exec_cfg = CONFIG.execution
+        self.edge_cfg = CONFIG.edge
         self.bankroll = BankrollTracker()
         self.open_positions: Dict[str, PositionMeta] = {}
         self._traded_conditions: Set[str] = set()   # dedup within window
@@ -167,10 +169,21 @@ class RiskManager:
         tpsl: TPSLLevels,
         condition_id: str = "",
         window_end_ts: float = 0.0,
+        asset: str = "",
     ) -> RiskDecision:
         # Daily loss halt
         if self.bankroll.is_halted:
             return RiskDecision(False, 0, "Daily loss limit reached")
+
+        # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
+        allowed = self.edge_cfg.allowed_hours_utc
+        if allowed:
+            current_hour = datetime.datetime.utcnow().hour
+            if current_hour not in allowed:
+                return RiskDecision(
+                    False, 0,
+                    f"Outside trading hours (UTC {current_hour:02d}:xx — allowed: {allowed})",
+                )
 
         # Post-close cooldown
         if time.time() - self._last_close_ts < self.cfg.post_close_cooldown:
@@ -189,6 +202,26 @@ class RiskManager:
         # Min entry price floor (from old bot: reject < 3¢ tokens)
         if signal.entry_price < self.cfg.min_entry_price:
             return RiskDecision(False, 0, f"Entry price {signal.entry_price:.4f} below floor")
+
+        # Max entry price cap (data: sweet spot 0.245-0.260; cap at 0.27)
+        if signal.entry_price > self.edge_cfg.max_entry_price:
+            return RiskDecision(
+                False, 0,
+                f"Entry {signal.entry_price:.4f} above max {self.edge_cfg.max_entry_price}",
+            )
+
+        # ── Per-asset confidence multiplier (data-driven) ──────────────────────
+        # BTC: 6% WR → needs 40% higher score. ETH: 30% WR → 10% discount.
+        if asset:
+            multiplier = self.edge_cfg.asset_score_multiplier.get(asset.upper(), 1.0)
+            from config import CONFIG as _C
+            effective_min = _C.momentum.min_score * multiplier
+            if signal.composite < effective_min:
+                return RiskDecision(
+                    False, 0,
+                    f"{asset} score {signal.composite:.2f} < asset-adjusted min {effective_min:.2f} "
+                    f"(multiplier={multiplier}x)",
+                )
 
         # Already in this token
         if token_id in self.open_positions:

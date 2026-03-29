@@ -187,6 +187,7 @@ class KlausBot:
                 token_id, signal, tpsl,
                 condition_id=token.condition_id,
                 window_end_ts=getattr(token, "window_end_ts", 0.0),
+                asset=token.asset,
             )
             if signal.direction != Direction.NO_TRADE:
                 logger.info(
