@@ -7,6 +7,12 @@ from dataclasses import dataclass, field
 from typing import List
 import os
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 # ---------------------------------------------------------------------------
 # Sub-configs
@@ -136,21 +142,22 @@ class KlausConfig:
     edge: EdgeConfig = field(default_factory=EdgeConfig)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    polymarket_api_key: str = field(
-        default_factory=lambda: os.getenv("POLYMARKET_API_KEY", "")
-    )
-    polymarket_api_secret: str = field(
-        default_factory=lambda: os.getenv("POLYMARKET_API_SECRET", "")
-    )
-    polymarket_api_passphrase: str = field(
-        default_factory=lambda: os.getenv("POLYMARKET_API_PASSPHRASE", "")
-    )
+    # Accepts old-bot naming (PRIVATE_KEY / FUNDER_ADDRESS) or Klaus naming.
     wallet_private_key: str = field(
-        default_factory=lambda: os.getenv("WALLET_PRIVATE_KEY", "")
+        default_factory=lambda: os.getenv("PRIVATE_KEY", os.getenv("WALLET_PRIVATE_KEY", ""))
+    )
+    funder_address: str = field(
+        default_factory=lambda: os.getenv("FUNDER_ADDRESS", "")
+    )
+    signature_type: int = field(
+        default_factory=lambda: int(os.getenv("SIGNATURE_TYPE", "1"))
     )
 
     # ── Safety ───────────────────────────────────────────────────────────────
-    dry_run: bool = True   # ← set False only when live credentials are loaded
+    # Set DRY_RUN=false in .env (or change here) to go live.
+    dry_run: bool = field(
+        default_factory=lambda: os.getenv("DRY_RUN", "true").lower() != "false"
+    )
 
 
 CONFIG = KlausConfig()
