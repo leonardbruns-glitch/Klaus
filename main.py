@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
 import sys
 import time
@@ -30,6 +31,7 @@ from analytics.feedback import FeedbackEngine
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
+os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
