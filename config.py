@@ -20,6 +20,8 @@ class BankrollConfig:
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
     max_open_positions: int = 3       # never overexpose
     max_daily_loss: float = 60.0      # 20 % drawdown → halt
+    post_close_cooldown: float = 5.0  # seconds to wait after any close (old bot: 5s)
+    min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
 
 @dataclass
@@ -58,6 +60,8 @@ class MomentumConfig:
 class ExecutionConfig:
     ob_scan_interval: float = 1.0      # seconds between order-book refreshes
     hard_exit_seconds: int = 180       # forced exit if not profitable within 3 min
+    no_trade_last_sec: int = 20        # stop entering in final N seconds of window
+    entry_price_buffer: float = 0.05   # limit buy at price * (1 + buffer), capped at 0.30
     cascade_levels: int = 3            # sell in 3 tranches
     cascade_pct: float = 0.333        # fraction of position per tranche
     cascade_interval: float = 2.0     # seconds between cascade tranches

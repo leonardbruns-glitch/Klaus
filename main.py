@@ -109,23 +109,21 @@ class KlausBot:
             await asyncio.sleep(CONFIG.execution.ob_scan_interval)
 
     async def _check_open_positions(self) -> None:
-        # Hard-exit timer check
-        for pos in self.risk.positions_needing_hard_exit():
-            logger.warning(
-                "HARD EXIT triggered for %s %s (>%ds)",
-                pos.asset, pos.direction.name, CONFIG.execution.hard_exit_seconds,
-            )
-            await self._exit_position(pos.token_id, reason="HARD_EXIT")
-
-        # TP/SL check
         for token_id, pos in list(self.risk.open_positions.items()):
             ob = await self.feed.fetch_order_book(token_id)
             if ob is None:
                 continue
             current_price = ob.bids[0][0] if len(ob.bids) > 0 else ob.mid
-            exit_reason = self.risk.check_exit_conditions(token_id, current_price)
-            if exit_reason:
-                await self._exit_position(token_id, reason=exit_reason)
+
+            decision = self.risk.check_exit_conditions(token_id, current_price)
+            if decision is None:
+                continue
+
+            if decision.partial:
+                # Stage-1: sell 95 %, leave 5 % riding
+                await self._partial_exit(token_id, current_price, decision.reason)
+            else:
+                await self._exit_position(token_id, current_price, decision.reason)
 
     # ── 5-second signal loop: scan for new entries ────────────────────────────
 
@@ -185,7 +183,11 @@ class KlausBot:
                 ob,
             )
 
-            decision = self.risk.evaluate(token_id, signal, tpsl)
+            decision = self.risk.evaluate(
+                token_id, signal, tpsl,
+                condition_id=token.condition_id,
+                window_end_ts=getattr(token, "window_end_ts", 0.0),
+            )
             if not decision.approved:
                 logger.debug("Trade rejected: %s", decision.reason)
                 continue
@@ -216,6 +218,7 @@ class KlausBot:
             logger.error("Fill failed for %s", asset)
             return
 
+        token = self.feed.tokens.get(token_id)
         pos = self.risk.open_position(
             token_id=token_id,
             asset=asset,
@@ -223,6 +226,8 @@ class KlausBot:
             stake=decision.stake,
             entry_price=fill.avg_fill_price,
             tpsl=tpsl,
+            condition_id=getattr(token, "condition_id", ""),
+            window_end_ts=getattr(token, "window_end_ts", 0.0),
         )
 
         self._open_meta[token_id] = {
@@ -234,39 +239,50 @@ class KlausBot:
             "consecutive_wins": self.risk.bankroll.consecutive_wins,
         }
 
-    # ── Exit ──────────────────────────────────────────────────────────────────
+    # ── Exit helpers ──────────────────────────────────────────────────────────
 
-    async def _exit_position(self, token_id: str, reason: str) -> None:
+    def _calc_exit_price(self, exit_fills, fallback: float) -> float:
+        total_size = sum(f.total_size for f in exit_fills)
+        return (
+            sum(f.avg_fill_price * f.total_size for f in exit_fills) / total_size
+            if exit_fills and total_size > 0 else fallback
+        )
+
+    async def _partial_exit(self, token_id: str, live_price: float, reason: str) -> None:
+        """Stage-1: sell 95 % of position, leave 5 % riding to +45 %."""
+        pos = self.risk.open_positions.get(token_id)
+        if not pos:
+            return
+
+        sell_shares = round(pos.remaining_shares * 0.95, 4)
+        exit_fills = await self.orders.cascade_sell(
+            token_id=token_id,
+            total_shares=sell_shares,
+            current_price=live_price,
+            reason=reason,
+        )
+        sold = sum(f.total_size for f in exit_fills)
+        self.risk.record_stage1_sell(token_id, sold)
+        logger.info(
+            "STAGE-1 %s %s | sold=%.4f @ ~%.4f | reason=%s",
+            pos.asset, pos.direction.name, sold, live_price, reason,
+        )
+
+    async def _exit_position(self, token_id: str, live_price: float, reason: str) -> None:
         pos = self.risk.open_positions.get(token_id)
         if not pos:
             return
 
         meta = self._open_meta.get(token_id, {})
 
-        # Fetch live price for cascade; fall back to TP/SL target only if OB unavailable
-        ob_now = await self.feed.fetch_order_book(token_id)
-        if ob_now and len(ob_now.bids) > 0:
-            live_price = ob_now.bids[0][0]
-        elif reason == "TAKE_PROFIT":
-            live_price = pos.tp
-        else:
-            live_price = pos.sl
-
-        # Cascade sell
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
-            total_shares=pos.shares,
+            total_shares=pos.remaining_shares,
             current_price=live_price,
             reason=reason,
         )
 
-        # Determine exit price from fills (guard against zero total size)
-        total_size = sum(f.total_size for f in exit_fills)
-        exit_price = (
-            sum(f.avg_fill_price * f.total_size for f in exit_fills) / total_size
-            if exit_fills and total_size > 0 else pos.entry_price
-        )
-
+        exit_price = self._calc_exit_price(exit_fills, pos.entry_price)
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
         net_pnl = self.risk.close_position(token_id, exit_price, reason)
 
@@ -292,7 +308,6 @@ class KlausBot:
             )
 
         self._open_meta.pop(token_id, None)
-
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",

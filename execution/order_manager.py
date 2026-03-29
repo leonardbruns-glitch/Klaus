@@ -1,10 +1,13 @@
 """
 Klaus — Order Manager
 Handles Polymarket CLOB order placement, cascade selling, fill tracking,
-and slippage measurement.
+slippage measurement, and token approval.
 
-CLOB API reference: https://docs.polymarket.com/#create-order
-Auth: L1 auth (wallet private key + CLOB API credentials)
+Ported from baseline bot v4:
+  - Token approval (update_balance_allowance) before every sell
+  - Fill verification: only trust status=="matched" + takingAmount > 0
+  - Limit entry with 5 % buffer capped at max_entry_price
+  - Market order primary, limit order fallback in cascade (up to 15 attempts)
 """
 from __future__ import annotations
 
@@ -23,7 +26,12 @@ except ImportError:
 
 try:
     from py_clob_client.client import ClobClient
-    from py_clob_client.clob_types import MarketOrderArgs, OrderType
+    from py_clob_client.clob_types import (
+        MarketOrderArgs, OrderType, OrderArgs,
+        BalanceAllowanceParams, AssetType,
+        PartialCreateOrderOptions,
+    )
+    from py_clob_client.order_builder.constants import BUY as CLOB_BUY, SELL as CLOB_SELL
     CLOB_CLIENT_AVAILABLE = True
 except ImportError:
     CLOB_CLIENT_AVAILABLE = False
@@ -32,6 +40,10 @@ from config import CONFIG
 from strategy.momentum import Direction
 
 logger = logging.getLogger("execution")
+
+# Max entry price cap — mirrors old bot's 0.30 hard ceiling
+MAX_ENTRY_PRICE = 0.30
+TICK_SIZE = "0.01"
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +72,7 @@ class Fill:
     size: float
     fee: float
     ts: float = field(default_factory=time.time)
-    slippage: float = 0.0    # abs(intended_price - fill_price)
+    slippage: float = 0.0
 
 
 @dataclass
@@ -76,28 +88,29 @@ class OrderResult:
 
 
 # ---------------------------------------------------------------------------
-# CLOB auth helper
+# CLOB client builder
 # ---------------------------------------------------------------------------
 
 def _build_clob_client() -> Optional[Any]:
-    """Builds py-clob-client instance from config credentials."""
     if not CLOB_CLIENT_AVAILABLE:
-        logger.warning("py_clob_client not installed — running in stub mode")
+        logger.warning("py_clob_client not installed — stub mode")
         return None
-    cfg = CONFIG
-    if not cfg.wallet_private_key:
-        logger.warning("No wallet private key configured — stub mode")
+    if not CONFIG.wallet_private_key:
+        logger.warning("No wallet private key — stub mode")
         return None
     try:
         client = ClobClient(
-            host=cfg.markets.clob_api_url,
-            chain_id=137,       # Polygon mainnet
-            key=cfg.wallet_private_key,
-            creds=None,         # credentials set separately if needed
+            host=CONFIG.markets.clob_api_url,
+            chain_id=137,
+            key=CONFIG.wallet_private_key,
+            signature_type=int(CONFIG.polymarket_api_passphrase or "1"),
         )
+        api_creds = client.create_or_derive_api_creds()
+        client.set_api_creds(api_creds)
+        logger.info("CLOB client authenticated")
         return client
     except Exception as exc:
-        logger.error("Failed to build CLOB client: %s", exc)
+        logger.error("CLOB client build failed: %s", exc)
         return None
 
 
@@ -106,17 +119,11 @@ def _build_clob_client() -> Optional[Any]:
 # ---------------------------------------------------------------------------
 
 class OrderManager:
-    """
-    Places and manages orders on the Polymarket CLOB.
-    Supports: market buy, cascade sell (tranche exit), slippage tracking.
-    """
 
     def __init__(self) -> None:
         self.cfg = CONFIG.execution
-        self.fee_cfg = CONFIG.fees
         self._client = _build_clob_client() if not CONFIG.dry_run else None
         self._session: Optional[aiohttp.ClientSession] = None
-        self._pending_orders: Dict[str, Dict] = {}   # order_id → metadata
         self.fill_history: List[Fill] = []
 
     async def start(self) -> None:
@@ -129,9 +136,9 @@ class OrderManager:
         if self._session:
             await self._session.close()
 
-    # ── Market buy ────────────────────────────────────────────────────────────
+    # ── Limit buy with buffer ─────────────────────────────────────────────────
 
-    async def market_buy(
+    async def limit_buy(
         self,
         token_id: str,
         intended_price: float,
@@ -139,8 +146,9 @@ class OrderManager:
         direction: Direction,
     ) -> OrderResult:
         """
-        Buy `stake_usd` worth of YES or NO token at market.
-        Returns OrderResult with fills, average price, and slippage.
+        Place a limit buy at price * (1 + buffer), hard-capped at MAX_ENTRY_PRICE.
+        Ported from old bot: min(price * 1.05, 0.30).
+        Verifies fill before returning (status==matched + takingAmount > 0).
         """
         if CONFIG.dry_run:
             return self._simulate_fill(token_id, intended_price, stake_usd, OrderSide.BUY)
@@ -148,20 +156,60 @@ class OrderManager:
         if stake_usd <= 0 or intended_price <= 0:
             return OrderResult(status=OrderStatus.FAILED, error="Invalid stake or price")
 
-        # Pass USDC notional to CLOB (MarketOrderArgs.amount = USDC spend)
+        limit_price = round(
+            min(intended_price * (1 + self.cfg.entry_price_buffer), MAX_ENTRY_PRICE), 4
+        )
+        size = round(stake_usd / limit_price, 2)
+
         for attempt in range(self.cfg.retry_attempts):
             try:
-                result = await self._submit_market_order(
-                    token_id, OrderSide.BUY, stake_usd, intended_price
+                result = await self._submit_limit_order(
+                    token_id, OrderSide.BUY, limit_price, size
                 )
                 if result.status == OrderStatus.FILLED:
                     return result
                 await asyncio.sleep(self.cfg.retry_delay * (2 ** attempt))
             except Exception as exc:
-                logger.error("Buy attempt %d failed: %s", attempt + 1, exc)
+                logger.error("Limit buy attempt %d failed: %s", attempt + 1, exc)
                 await asyncio.sleep(self.cfg.retry_delay * (2 ** attempt))
 
         return OrderResult(status=OrderStatus.FAILED, error="All retry attempts exhausted")
+
+    # kept as alias for backward compatibility with main.py
+    async def market_buy(
+        self,
+        token_id: str,
+        intended_price: float,
+        stake_usd: float,
+        direction: Direction,
+    ) -> OrderResult:
+        return await self.limit_buy(token_id, intended_price, stake_usd, direction)
+
+    # ── Token approval ────────────────────────────────────────────────────────
+
+    async def approve_token_for_sell(self, token_id: str) -> bool:
+        """
+        Calls update_balance_allowance before any sell.
+        Critical for live trading — sells fail without this.
+        Ported from baseline bot v4.
+        """
+        if CONFIG.dry_run:
+            return True
+        if self._client is None:
+            return False
+        try:
+            self._client.update_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.CONDITIONAL,
+                    token_id=token_id,
+                )
+            )
+            await asyncio.sleep(1.0)  # approval propagation delay
+            logger.debug("Token approved for sell: %s", token_id[:8])
+            return True
+        except Exception as exc:
+            logger.error("Token approval failed %s: %s", token_id[:8], exc)
+            return False
 
     # ── Cascade sell ─────────────────────────────────────────────────────────
 
@@ -173,82 +221,216 @@ class OrderManager:
         reason: str = "cascade",
     ) -> List[OrderResult]:
         """
-        Exit a position in N tranches to minimise market impact.
-        Tranche sizes: 33% / 33% / 34% with `cascade_interval` seconds between.
-        Returns list of OrderResult per tranche.
+        Exit in tranches: market order primary, limit order fallback.
+        Up to 15 attempts per tranche (ported from baseline bot).
+        Approves token before first attempt.
         """
+        if total_shares <= 0:
+            return []
+
+        # Token approval before selling (critical for live)
+        await self.approve_token_for_sell(token_id)
+
         n = self.cfg.cascade_levels
         results = []
         remaining = total_shares
 
         for i in range(n):
             is_last = (i == n - 1)
-            tranche_size = (
-                remaining if is_last
-                else round(total_shares * self.cfg.cascade_pct, 4)
-            )
-            if tranche_size <= 0:
+            tranche = remaining if is_last else round(total_shares * self.cfg.cascade_pct, 4)
+            if tranche <= 0:
                 break
 
             logger.info(
-                "Cascade sell tranche %d/%d: size=%.4f @ ~%.4f | reason=%s",
-                i + 1, n, tranche_size, current_price, reason,
+                "Cascade %d/%d: %.4f shares @ ~%.4f | %s",
+                i + 1, n, tranche, current_price, reason,
             )
 
-            if CONFIG.dry_run:
-                result = self._simulate_fill(
-                    token_id, current_price, tranche_size * current_price, OrderSide.SELL
-                )
-            else:
-                result = await self._submit_market_order(
-                    token_id, OrderSide.SELL, tranche_size, current_price
-                )
-
+            result = await self._sell_tranche_with_fallback(
+                token_id, tranche, current_price
+            )
             results.append(result)
-            remaining -= tranche_size
 
-            if i < n - 1:
+            if result.status == OrderStatus.FILLED:
+                remaining -= result.total_size
+            else:
+                logger.warning("Tranche %d/%d unfilled — aborting cascade", i + 1, n)
+                break
+
+            if not is_last:
                 await asyncio.sleep(self.cfg.cascade_interval)
 
         return results
 
-    # ── CLOB submission ───────────────────────────────────────────────────────
+    async def _sell_tranche_with_fallback(
+        self,
+        token_id: str,
+        shares: float,
+        current_price: float,
+        max_attempts: int = 15,
+    ) -> OrderResult:
+        """
+        Market order first; limit order fallback with price stepping.
+        Mirrors baseline bot's cascade loop.
+        """
+        if CONFIG.dry_run:
+            return self._simulate_fill(
+                token_id, current_price, shares * current_price, OrderSide.SELL
+            )
+
+        sell_price = max(current_price * 0.90, 0.01)
+        orig_price = sell_price
+        total_sold = 0.0
+
+        for attempt in range(max_attempts):
+            if shares - total_sold < 0.01:
+                break
+
+            remaining = shares - total_sold
+
+            # Market order attempt
+            try:
+                sell_amount = round(remaining * sell_price, 4)
+                result = await self._submit_market_order_sell(token_id, sell_amount)
+                if result.status == OrderStatus.FILLED and result.total_size > 0:
+                    total_sold += result.total_size
+                    sell_price = orig_price
+                    continue
+            except Exception:
+                pass
+
+            # Limit order fallback
+            try:
+                result = await self._submit_limit_order(
+                    token_id, OrderSide.SELL, sell_price, remaining
+                )
+                if result.status == OrderStatus.FILLED and result.total_size > 0:
+                    total_sold += result.total_size
+                    continue
+            except Exception:
+                pass
+
+            # Step price down 10 %
+            sell_price = max(sell_price * 0.90, 0.01)
+            logger.debug("Sell retry %d: %.4f @ %.4f", attempt + 1, remaining, sell_price)
+
+        if total_sold > 0:
+            fill = Fill(
+                order_id=f"cascade_{token_id[:6]}_{int(time.time())}",
+                token_id=token_id,
+                side=OrderSide.SELL,
+                price=current_price,
+                size=total_sold,
+                fee=0.0,
+            )
+            return OrderResult(
+                status=OrderStatus.FILLED,
+                fills=[fill],
+                avg_fill_price=current_price,
+                total_size=total_sold,
+            )
+        return OrderResult(status=OrderStatus.FAILED, error="All cascade attempts failed")
+
+    # ── CLOB order submission ─────────────────────────────────────────────────
+
+    async def _submit_limit_order(
+        self,
+        token_id: str,
+        side: OrderSide,
+        price: float,
+        size: float,
+    ) -> OrderResult:
+        if self._client is None:
+            return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
+        try:
+            clob_side = CLOB_BUY if side == OrderSide.BUY else CLOB_SELL
+            order_args = OrderArgs(
+                token_id=token_id,
+                price=price,
+                size=size,
+                side=clob_side,
+            )
+            opts = PartialCreateOrderOptions(tick_size=TICK_SIZE, neg_risk=False)
+            signed = self._client.create_order(order_args, options=opts)
+            resp = self._client.post_order(signed, OrderType.GTC)
+
+            if not resp:
+                return OrderResult(status=OrderStatus.FAILED, error="Empty response")
+
+            # Fill verification: only trust matched orders with actual fill
+            status = resp.get("status", "")
+            taking = resp.get("takingAmount", "0")
+            making = resp.get("makingAmount", "0")
+
+            def _to_float(v) -> float:
+                try:
+                    return float(v) if str(v).replace(".", "").isdigit() else 0.0
+                except Exception:
+                    return 0.0
+
+            taking_f = _to_float(taking)
+
+            if status != "matched" or taking_f <= 0:
+                logger.info(
+                    "Order not filled (status=%s takingAmount=%s) — skipping",
+                    status, taking,
+                )
+                return OrderResult(status=OrderStatus.FAILED, error=f"Unfilled: {status}")
+
+            fill_size = taking_f
+            fill_cost = _to_float(making) or (fill_size * price)
+            fill_price = fill_cost / fill_size if fill_size > 0 else price
+            slippage = abs(fill_price - price)
+
+            fill = Fill(
+                order_id=resp.get("id", ""),
+                token_id=token_id,
+                side=side,
+                price=fill_price,
+                size=fill_size,
+                fee=0.0,
+                slippage=slippage,
+            )
+            self.fill_history.append(fill)
+            return OrderResult(
+                status=OrderStatus.FILLED,
+                fills=[fill],
+                avg_fill_price=fill_price,
+                total_size=fill_size,
+                slippage=slippage,
+                raw=resp,
+            )
+        except Exception as exc:
+            logger.error("Limit order error: %s", exc)
+            return OrderResult(status=OrderStatus.FAILED, error=str(exc))
 
     async def _submit_market_order(
         self,
         token_id: str,
         side: OrderSide,
-        size: float,
+        usdc_amount: float,
         intended_price: float,
     ) -> OrderResult:
-        """
-        Submit a market order via py-clob-client.
-        Validates slippage against tolerance threshold.
-        """
         if self._client is None:
             return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
-
         try:
-            args = MarketOrderArgs(
+            clob_side = CLOB_BUY if side == OrderSide.BUY else CLOB_SELL
+            mo = MarketOrderArgs(
                 token_id=token_id,
-                amount=size,
+                amount=usdc_amount,
+                side=clob_side,
             )
-            resp = self._client.create_market_order(args)
+            signed = self._client.create_market_order(mo)
+            resp = self._client.post_order(signed, OrderType.FOK)
+
             if not resp:
                 return OrderResult(status=OrderStatus.FAILED, error="Empty response")
 
             fill_price = float(resp.get("average_price", intended_price))
-            # size_matched is in USDC; convert to token shares
-            usdc_matched = float(resp.get("size_matched", size))
+            usdc_matched = float(resp.get("size_matched", usdc_amount))
             fill_size = usdc_matched / fill_price if fill_price > 0 else 0
             fee = float(resp.get("fee", 0))
             slippage = abs(fill_price - intended_price)
-
-            if slippage > self.cfg.slippage_tolerance:
-                logger.warning(
-                    "Slippage %.4f exceeds tolerance %.4f",
-                    slippage, self.cfg.slippage_tolerance,
-                )
 
             fill = Fill(
                 order_id=resp.get("order_id", ""),
@@ -260,7 +442,6 @@ class OrderManager:
                 slippage=slippage,
             )
             self.fill_history.append(fill)
-
             return OrderResult(
                 status=OrderStatus.FILLED,
                 fills=[fill],
@@ -270,54 +451,16 @@ class OrderManager:
                 slippage=slippage,
                 raw=resp,
             )
-
         except Exception as exc:
-            logger.error("Order submission error: %s", exc)
+            logger.error("Market order error: %s", exc)
             return OrderResult(status=OrderStatus.FAILED, error=str(exc))
 
-    # ── Dry-run simulation ────────────────────────────────────────────────────
-
-    def _simulate_fill(
-        self,
-        token_id: str,
-        price: float,
-        stake_usd: float,
-        side: OrderSide,
+    async def _submit_market_order_sell(
+        self, token_id: str, usdc_amount: float
     ) -> OrderResult:
-        """Simulates a fill for dry-run testing; adds tiny random slippage."""
-        import random
-        slip = random.uniform(0, 0.003)
-        fill_price = price + (slip if side == OrderSide.BUY else -slip)
-        fill_price = max(0.01, min(0.99, fill_price))
-        size = stake_usd / fill_price if fill_price > 0 else 0
-        fee = stake_usd * (
-            CONFIG.fees.extreme_fee_rate
-            if price < CONFIG.fees.extreme_low or price > CONFIG.fees.extreme_high
-            else CONFIG.fees.middle_fee_rate
+        return await self._submit_market_order(
+            token_id, OrderSide.SELL, usdc_amount, 0.0
         )
-
-        fill = Fill(
-            order_id=f"dry_{token_id[:6]}_{int(time.time())}",
-            token_id=token_id,
-            side=side,
-            price=fill_price,
-            size=size,
-            fee=fee,
-            slippage=slip,
-        )
-        self.fill_history.append(fill)
-        logger.debug("[DRY RUN] %s %.4f @ %.4f fee=%.4f", side.name, size, fill_price, fee)
-
-        return OrderResult(
-            status=OrderStatus.FILLED,
-            fills=[fill],
-            avg_fill_price=fill_price,
-            total_size=size,
-            total_fee=fee,
-            slippage=slip,
-        )
-
-    # ── Cancel ────────────────────────────────────────────────────────────────
 
     async def cancel_order(self, order_id: str) -> bool:
         if CONFIG.dry_run:
@@ -330,3 +473,55 @@ class OrderManager:
         except Exception as exc:
             logger.error("Cancel failed for %s: %s", order_id, exc)
             return False
+
+    async def cancel_all(self) -> bool:
+        if CONFIG.dry_run:
+            return True
+        if self._client is None:
+            return False
+        try:
+            self._client.cancel_all()
+            logger.info("All orders cancelled")
+            return True
+        except Exception as exc:
+            logger.error("Cancel all failed: %s", exc)
+            return False
+
+    # ── Dry-run simulation ────────────────────────────────────────────────────
+
+    def _simulate_fill(
+        self,
+        token_id: str,
+        price: float,
+        stake_usd: float,
+        side: OrderSide,
+    ) -> OrderResult:
+        import random
+        slip = random.uniform(0, 0.003)
+        fill_price = price + (slip if side == OrderSide.BUY else -slip)
+        fill_price = max(0.01, min(0.99, fill_price))
+        size = stake_usd / fill_price if fill_price > 0 else 0
+        fee = stake_usd * (
+            CONFIG.fees.extreme_fee_rate
+            if price < CONFIG.fees.extreme_low or price > CONFIG.fees.extreme_high
+            else CONFIG.fees.middle_fee_rate
+        )
+        fill = Fill(
+            order_id=f"dry_{token_id[:6]}_{int(time.time())}",
+            token_id=token_id,
+            side=side,
+            price=fill_price,
+            size=size,
+            fee=fee,
+            slippage=slip,
+        )
+        self.fill_history.append(fill)
+        logger.debug("[DRY] %s %.4f @ %.4f fee=%.4f", side.name, size, fill_price, fee)
+        return OrderResult(
+            status=OrderStatus.FILLED,
+            fills=[fill],
+            avg_fill_price=fill_price,
+            total_size=size,
+            total_fee=fee,
+            slippage=slip,
+        )
