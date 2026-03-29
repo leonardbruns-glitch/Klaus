@@ -156,11 +156,14 @@ class RiskManager:
                 f"RR {tpsl.risk_reward:.2f} < 1.5 minimum",
             )
 
-        # Fee awareness: fat-middle positions need edge to cover 1.8 % fee
+        # Fee awareness: fat-middle positions need edge to cover variable fee
         from strategy.momentum import FeeZone
         if signal.fee_zone == FeeZone.FAT_MIDDLE:
-            # Expected value check: confidence * TP% - (1 - confidence) * SL% - fee > 0
-            fee = self.fee_cfg.middle_fee_rate
+            # Polymarket fee: taker_rate * stake * min(odds, 1-odds) / 0.5
+            # Peaks at 0.50 odds (factor=1.0), falls toward extremes
+            odds = signal.entry_price
+            fee_factor = min(odds, 1.0 - odds) / 0.5
+            fee = self.fee_cfg.middle_fee_rate * fee_factor
             ev = (signal.confidence * tpsl.tp_pct / 100
                   - (1 - signal.confidence) * tpsl.sl_pct / 100
                   - fee)
