@@ -481,16 +481,28 @@ class KlausBot:
             )
             return
 
-        # Guard 2: significant partial fill → update remaining and retry.
-        # Triggers when we sold <80% of remaining shares AND remaining is non-dust
-        # (>0.10 shares). Protects against: partial SELL fill + cancel remainder,
-        # large tick-snap gap at prime-cent prices (e.g. 0.89 → 0.85 share gap).
-        # Dust residuals (<0.10 shares, <$0.10) are accepted and position is closed.
-        _PARTIAL_FILL_THRESH = 0.80   # require selling ≥80% of remaining
+        # Guard 1b: PROFIT_2 sold nothing — CLOB rejected residual (sub-$1 notional
+        # or network error). Keep position open so HARD_EXIT can force-close it.
+        # Root cause: stage-1 CLOB balance adjustment leaves more shares than expected
+        # (e.g. 0.9 instead of 0.245), and sub-$1 notional fails at the exchange.
         _DUST_SHARES = 0.10           # below this, accept residual as done
+        if this_sell <= 0 and stage1_done and expected_this_sell > _DUST_SHARES:
+            if token_id in self.risk.open_positions:
+                self.risk.open_positions[token_id].hard_exit_triggered = False
+            logger.warning(
+                "PROFIT_2 sold 0 of %.4f remaining %s shares — keeping open, "
+                "HARD_EXIT will force-close (BTC-residual-dust bug)",
+                expected_this_sell, pos.asset,
+            )
+            return
+
+        # Guard 2: significant partial fill → update remaining and retry.
+        # Applies to both full exits (not stage1_done) and PROFIT_2 (stage1_done):
+        # if <80% of remaining filled, update count and retry rather than ghost-closing.
+        # Dust residuals (<0.10 shares) are accepted and position is closed.
+        _PARTIAL_FILL_THRESH = 0.80   # require selling ≥80% of remaining
         if (this_sell < expected_this_sell * _PARTIAL_FILL_THRESH
-                and expected_this_sell > _DUST_SHARES
-                and not stage1_done):
+                and expected_this_sell > _DUST_SHARES):
             if token_id in self.risk.open_positions:
                 if this_sell > 0:
                     self.risk.open_positions[token_id].remaining_shares = max(
