@@ -370,7 +370,13 @@ class OrderManager:
                 size=size,
                 side=clob_side,
             )
-            opts = PartialCreateOrderOptions(tick_size=tick_size, neg_risk=neg_risk)
+            # neg_risk=False is falsy in py_clob_client — triggers auto-detection.
+            # tick_size: pass None unless non-default provided (auto-detect from CLOB,
+            # cached 300s) to avoid "invalid tick size" if Gamma data is stale.
+            opts = PartialCreateOrderOptions(
+                tick_size=tick_size if tick_size and tick_size != "0.01" else None,
+                neg_risk=True if neg_risk else None,
+            )
             signed = self._client.create_order(order_args, options=opts)
             resp = self._client.post_order(signed, OrderType.GTC)
 
