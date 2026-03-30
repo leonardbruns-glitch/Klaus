@@ -326,11 +326,14 @@ class OrderManager:
         reason: str = "cascade",
         neg_risk: bool = False,
         tick_size: str = TICK_SIZE,
+        force_exit: bool = False,
     ) -> List[OrderResult]:
         """
         Exit in tranches: market order primary, limit order fallback.
         Up to 15 attempts per tranche (ported from baseline bot).
         Approves token before first attempt.
+        force_exit=True bypasses the dust threshold — required for stop loss / hard exit
+        so a declining position can always be closed regardless of remaining notional value.
         """
         if total_shares <= 0:
             return []
@@ -348,9 +351,10 @@ class OrderManager:
         # Root cause: 5-share CLOB minimum produces ~4.85-share positions. At
         # 33% cascade split = 1.62 shares, and any exit price below $0.93 puts
         # the tranche under $1.50. One single sell avoids tranching entirely.
+        # force_exit: always single-shot since the whole position is already below threshold.
         tranche_est = total_shares / n
         worst_sell = max(current_price * 0.80, 0.01)
-        if tranche_est * worst_sell < 1.50:
+        if tranche_est * worst_sell < 1.50 or force_exit:
             n = 1
             logger.info(
                 "Single-shot sell: %.4f shares (tranche would be $%.2f < $1.50 at 80%% discount)",
@@ -373,7 +377,7 @@ class OrderManager:
 
             result = await self._sell_tranche_with_fallback(
                 token_id, tranche, current_price,
-                neg_risk=neg_risk, tick_size=tick_size,
+                neg_risk=neg_risk, tick_size=tick_size, force_exit=force_exit,
             )
             results.append(result)
 
@@ -396,6 +400,7 @@ class OrderManager:
         max_attempts: int = 15,
         neg_risk: bool = False,
         tick_size: str = TICK_SIZE,
+        force_exit: bool = False,
     ) -> OrderResult:
         """
         Market order first; limit order fallback with price stepping.
@@ -428,7 +433,9 @@ class OrderManager:
             # Skip dust: CLOB $1 minimum + 50% buffer = $1.50 threshold.
             # Consistent with cascade single-shot threshold so partial residuals
             # from snapping also settle cleanly at resolution.
-            if remaining * sell_price < 1.50:
+            # force_exit=True bypasses this check — stop loss / hard exit must always
+            # be able to close a position even when value has dropped below $1.50.
+            if remaining * sell_price < 1.50 and not force_exit:
                 logger.info(
                     "Dust skip: %.4f shares @ %.4f = $%.3f < $1.50 threshold — "
                     "will settle at resolution",
