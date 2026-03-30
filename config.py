@@ -28,7 +28,7 @@ class BankrollConfig:
     scaled_stake: float = 2.0         # 20 % — unlocked after heat_trigger_wins
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
     max_open_positions: int = 2       # limit exposure on small bankroll
-    max_daily_loss: float = 3.0       # 30 % drawdown → halt (live test: generous)
+    max_daily_loss: float = 999.0     # TEMP: daily halt bypassed (user monitoring live session)
     post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
