@@ -531,17 +531,56 @@ class OrderManager:
             taking_f = _to_float(taking)
 
             if status == "live":
-                # Order resting on book — cancel immediately for both buys and sells.
-                # Buys: means no liquidity at our limit price right now (unusual with +5% buffer).
-                # Sells: means no bid at our floor price.
                 order_id = resp.get("id", resp.get("orderID", ""))
-                if order_id:
-                    try:
-                        self._client.cancel(order_id)
-                        logger.info("Cancelled resting GTC %s %s", side.name, order_id[:12])
-                    except Exception:
-                        pass
-                return OrderResult(status=OrderStatus.FAILED, error="Order resting on book (live)")
+
+                if side == OrderSide.BUY and order_id:
+                    # BUY resting on book: price moved away during submission.
+                    # Scenario: ask jumped above our limit right after we signed.
+                    # Poll for up to 10s — price often reverts within seconds on Polymarket.
+                    # Only cancel if still unfilled after timeout.
+                    logger.info(
+                        "BUY order resting — polling for fill (up to 10s): %s",
+                        order_id[:12],
+                    )
+                    for _poll in range(5):
+                        await asyncio.sleep(2.0)
+                        try:
+                            order_info = self._client.get_order(order_id)
+                            poll_status = order_info.get("status", "live")
+                            if poll_status == "matched":
+                                taking = order_info.get("takingAmount", "0")
+                                taking_f = _to_float(taking)
+                                if taking_f > 0:
+                                    logger.info(
+                                        "BUY resting order filled after %ds: %s",
+                                        (_poll + 1) * 2, order_id[:12],
+                                    )
+                                    resp = order_info
+                                    status = "matched"
+                                    making = order_info.get("makingAmount", "0")
+                                    break
+                        except Exception as _poll_exc:
+                            logger.debug("Poll %d failed: %s", _poll, _poll_exc)
+
+                    if status != "matched":
+                        try:
+                            self._client.cancel(order_id)
+                            logger.info("Cancelled unfilled resting BUY %s", order_id[:12])
+                        except Exception:
+                            pass
+                        return OrderResult(
+                            status=OrderStatus.FAILED,
+                            error="BUY resting — cancelled after 10s timeout",
+                        )
+                else:
+                    # SELL resting: no bid at our floor price — cascade will retry lower.
+                    if order_id:
+                        try:
+                            self._client.cancel(order_id)
+                            logger.info("Cancelled resting GTC SELL %s", order_id[:12])
+                        except Exception:
+                            pass
+                    return OrderResult(status=OrderStatus.FAILED, error="SELL resting on book (live)")
 
             if status != "matched" or taking_f <= 0:
                 logger.info(
