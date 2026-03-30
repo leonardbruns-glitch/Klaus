@@ -20,13 +20,13 @@ except ImportError:
 
 @dataclass
 class BankrollConfig:
-    total: float = 300.0
-    base_stake: float = 15.0          # 5 % of capital
-    scaled_stake: float = 30.0        # 10 % — unlocked after heat_trigger_wins
+    total: float = 10.0
+    base_stake: float = 1.0           # $1 minimum viable CLOB order; ~10 % of capital
+    scaled_stake: float = 2.0         # 20 % — unlocked after heat_trigger_wins
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
-    max_open_positions: int = 3       # never overexpose
-    max_daily_loss: float = 60.0      # 20 % drawdown → halt
-    post_close_cooldown: float = 5.0  # seconds to wait after any close (old bot: 5s)
+    max_open_positions: int = 2       # limit exposure on small bankroll
+    max_daily_loss: float = 3.0       # 30 % drawdown → halt (live test: generous)
+    post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
 

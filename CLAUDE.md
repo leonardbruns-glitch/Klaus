@@ -21,11 +21,11 @@ Honesty overrides optimism. If the strategy has no edge, say so and stop trading
 ---
 
 ## CAPITAL & RISK RULES
-1. **Base Stake**: $15 (5% of capital)
-2. **Heat-Check**: Scale to $30 after 2 consecutive wins. Revert to $15 after any loss.
-3. **Daily Loss Halt**: Stop trading after -$60 in a single day. Resume next day.
-4. **Weekly Floor**: If bankroll drops below $225 (-25%), halt all trading and reassess strategy.
-5. **Ruin Floor**: If bankroll drops below $150 (-50%), shut down entirely. Do not attempt recovery trades.
+1. **Base Stake**: $1 (minimum viable CLOB order; ~10% of $10 test capital)
+2. **Heat-Check**: Scale to $2 after 2 consecutive wins. Revert to $1 after any loss.
+3. **Daily Loss Halt**: Stop trading after -$3 in a single day. Resume next day.
+4. **Weekly Floor**: If bankroll drops below $7.50 (-25%), halt all trading and reassess strategy.
+5. **Ruin Floor**: If bankroll drops below $5 (-50%), shut down entirely. Do not attempt recovery trades.
 6. **No Revenge Trading**: After a halt, wait for the next scheduled window. Never increase stake to recover losses.
 
 ---
@@ -143,10 +143,10 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 | max_entry_price | 0.27 | Target markets only; updown skip this cap |
 | updown_min_confidence | 0.0 | Gate disabled for updown; min_score covers it |
 | allowed_hours_utc | [] | Disabled — trade all hours, adapt from data |
-| base_stake | $15 | |
-| scaled_stake | $30 | After 2 wins |
-| max_open_positions | 3 | |
-| max_daily_loss | $60 | |
+| base_stake | $1 | Minimum viable CLOB order; ~10% of $10 capital |
+| scaled_stake | $2 | After 2 wins |
+| max_open_positions | 2 | Limit exposure on small bankroll |
+| max_daily_loss | $3 | 30% of $10 — live test mode |
 
 ### Development Branch
 `claude/momentum-scalper-bot-zcncG`
