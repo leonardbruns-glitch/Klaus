@@ -50,7 +50,8 @@ class SignalBreakdown:
     trend_score: float = 0.0
     volume_score: float = 0.0
     ob_score: float = 0.0
-    external_boost: float = 0.0   # additive bonus from external data
+    intrawindow_score: float = 0.0  # intra-window delta signal ("king signal")
+    external_boost: float = 0.0   # additive bonus/penalty from external data
     composite: float = 0.0
     direction: Direction = Direction.NO_TRADE
     entry_price: float = 0.0
@@ -209,26 +210,54 @@ def score_order_book(ob: Optional[OrderBook], cfg: MomentumConfig) -> tuple[floa
         return 0.0, Direction.NO_TRADE
 
 
+def score_intrawindow_delta(bars_5m: List[Bar], sensitivity: float = 0.03) -> tuple[float, Direction]:
+    """
+    Intra-window delta: current bar close vs open price movement.
+    "Window delta is king" — Archetapp research. The most direct predictor for
+    5-min binary outcomes: if the prediction token is already above window open,
+    the Up outcome is currently winning — strongest real-time signal available.
+
+    sensitivity: 3% intra-window move = full score (1.0). At 0.5% → score ≈ 0.17.
+    """
+    if not bars_5m:
+        return 0.0, Direction.NO_TRADE
+    bar = bars_5m[-1]
+    if bar.open <= 0:
+        return 0.0, Direction.NO_TRADE
+    delta_pct = (bar.close - bar.open) / bar.open
+    if abs(delta_pct) < 0.001:  # < 0.1% = noise, ignore
+        return 0.0, Direction.NO_TRADE
+    score = min(1.0, abs(delta_pct) / sensitivity)
+    direction = Direction.BUY_YES if delta_pct > 0 else Direction.BUY_NO
+    return score, direction
+
+
 def external_signal_boost(signal: Optional[ExternalSignal], direction: Direction) -> float:
     """
-    Additive boost from optional external data.
-    Never blocks a trade if missing. Max boost = 0.10 (keeps composite below 1).
+    Additive boost (or penalty) from optional external data.
+    Never blocks a trade if missing. Range: [-0.10, +0.10].
+    Opposition penalty: if spot momentum strongly opposes our direction, apply a
+    negative adjustment (previously only added, never subtracted).
     """
     if signal is None:
         return 0.0
 
     boost = 0.0
 
-    # Spot momentum alignment
+    # Spot momentum alignment or opposition penalty
     if signal.spot_momentum_5m is not None:
         spot_dir = Direction.BUY_YES if signal.spot_momentum_5m > 0 else Direction.BUY_NO
         if spot_dir == direction:
             boost += min(0.05, abs(signal.spot_momentum_5m) / 5 * 0.05)
+        elif abs(signal.spot_momentum_5m) > 0.3:  # strong opposition (>0.3% spot move)
+            boost -= min(0.05, abs(signal.spot_momentum_5m) / 5 * 0.05)
 
     if signal.spot_momentum_15m is not None:
         spot_dir_15 = Direction.BUY_YES if signal.spot_momentum_15m > 0 else Direction.BUY_NO
         if spot_dir_15 == direction:
             boost += min(0.03, abs(signal.spot_momentum_15m) / 5 * 0.03)
+        elif abs(signal.spot_momentum_15m) > 0.3:  # strong opposition
+            boost -= min(0.03, abs(signal.spot_momentum_15m) / 5 * 0.03)
 
     # Funding rate: extreme positive funding → contrarian NO signal
     if signal.funding_rate is not None:
@@ -237,7 +266,7 @@ def external_signal_boost(signal: Optional[ExternalSignal], direction: Direction
         elif signal.funding_rate < -20 and direction == Direction.BUY_YES:
             boost += 0.02
 
-    return min(0.10, boost)
+    return max(-0.10, min(0.10, boost))
 
 
 # ---------------------------------------------------------------------------
@@ -279,17 +308,21 @@ class MomentumScorer:
         trend_s, trend_dir = score_trend(bars_15m, self.cfg)
         volume_s = score_volume(bars_5m, self.cfg)
         ob_s, ob_dir = score_order_book(ob, self.cfg)
+        intrawindow_s, intrawindow_dir = score_intrawindow_delta(bars_5m)
 
         sig.breakout_score = breakout_s
         sig.trend_score = trend_s
         sig.volume_score = volume_s
         sig.ob_score = ob_s
+        sig.intrawindow_score = intrawindow_s
 
         # ── Direction consensus ───────────────────────────────────────────────
+        # Intrawindow delta included with its own weight; trend demoted to 0.10.
         direction_votes = [
             (breakout_dir, self.cfg.w_breakout),
             (trend_dir, self.cfg.w_trend),
             (ob_dir, self.cfg.w_ob),
+            (intrawindow_dir, self.cfg.w_intrawindow),
         ]
         yes_weight = sum(w for d, w in direction_votes if d == Direction.BUY_YES)
         no_weight = sum(w for d, w in direction_votes if d == Direction.BUY_NO)
@@ -305,12 +338,13 @@ class MomentumScorer:
         if sig.direction == Direction.BUY_YES:
             aligned_breakout = breakout_s if breakout_dir == Direction.BUY_YES else 0
             aligned_trend = trend_s if trend_dir == Direction.BUY_YES else 0
-            # Only count OB score when it explicitly agrees; NO_TRADE = neutral (zero)
             aligned_ob = ob_s if ob_dir == Direction.BUY_YES else 0
+            aligned_intrawindow = intrawindow_s if intrawindow_dir == Direction.BUY_YES else 0
         elif sig.direction == Direction.BUY_NO:
             aligned_breakout = breakout_s if breakout_dir == Direction.BUY_NO else 0
             aligned_trend = trend_s if trend_dir == Direction.BUY_NO else 0
             aligned_ob = ob_s if ob_dir == Direction.BUY_NO else 0
+            aligned_intrawindow = intrawindow_s if intrawindow_dir == Direction.BUY_NO else 0
         else:
             sig.composite = 0.0
             sig.confidence = 0.0
@@ -322,10 +356,30 @@ class MomentumScorer:
             + aligned_trend * self.cfg.w_trend
             + volume_s * self.cfg.w_volume
             + aligned_ob * self.cfg.w_ob
+            + aligned_intrawindow * self.cfg.w_intrawindow
         )
         sig.composite = min(1.0, composite)
 
-        # ── External boost ────────────────────────────────────────────────────
+        # ── Real-time confirmation gate ───────────────────────────────────────
+        # Require at least one real-time signal (breakout, OB, or intrawindow delta)
+        # to be active. Filters pure lagging-trend-only signals (EMA on 15-min bars
+        # lags 75+ minutes — no value without real-time confirmation).
+        _RT_CONFIRM_THRESH = 0.15
+        rt_confirmed = (
+            (breakout_dir == sig.direction and breakout_s > _RT_CONFIRM_THRESH)
+            or (ob_dir == sig.direction and ob_s > _RT_CONFIRM_THRESH)
+            or (intrawindow_dir == sig.direction and intrawindow_s > _RT_CONFIRM_THRESH)
+        )
+        if not rt_confirmed:
+            sig.direction = Direction.NO_TRADE
+            sig.reason = (
+                f"No real-time confirmation (bk={breakout_s:.2f}, "
+                f"ob={ob_s:.2f}, iwd={intrawindow_s:.2f}) — "
+                f"lagging trend-only signal filtered"
+            )
+            return sig
+
+        # ── External boost / penalty ──────────────────────────────────────────
         sig.external_boost = external_signal_boost(ext, sig.direction)
 
         # ── Entry price & fee zone ────────────────────────────────────────────
@@ -342,10 +396,10 @@ class MomentumScorer:
         sig.fee_zone = classify_fee_zone(sig.entry_price)
 
         # ── Confidence & gate checks ──────────────────────────────────────────
-        sig.confidence = min(1.0, sig.composite + sig.external_boost)
+        sig.confidence = min(1.0, max(0.0, sig.composite + sig.external_boost))
 
         # NOTE: Fat-middle confidence gate is handled in risk/manager.py
-        # (market-type-aware: 52% for updown, 80% for target).
+        # (market-type-aware: updown uses updown_min_confidence, target uses 80%).
         # Do NOT gate here — scorer doesn't know market_type.
 
         # Minimum score gate
@@ -358,16 +412,20 @@ class MomentumScorer:
 
         # ── Reason string ─────────────────────────────────────────────────────
         parts = []
-        if breakout_s > 0.4:
+        if breakout_s > 0.3:
             parts.append(f"breakout={breakout_s:.2f}")
-        if trend_s > 0.3:
+        if trend_s > 0.2:
             parts.append(f"trend={trend_s:.2f}")
         if volume_s > 0.3:
             parts.append(f"vol_surge={volume_s:.2f}")
         if ob_s > 0.3:
             parts.append(f"ob_imb={ob_s:.2f}")
+        if intrawindow_s > 0.1:
+            parts.append(f"iwd={intrawindow_s:.2f}")
         if sig.external_boost > 0.01:
-            parts.append(f"ext_boost={sig.external_boost:.2f}")
+            parts.append(f"ext_boost=+{sig.external_boost:.2f}")
+        elif sig.external_boost < -0.01:
+            parts.append(f"ext_penalty={sig.external_boost:.2f}")
         sig.reason = " | ".join(parts) if parts else "composite signal"
 
         return sig

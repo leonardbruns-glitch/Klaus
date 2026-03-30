@@ -62,10 +62,14 @@ class MomentumConfig:
     # ── Composite scoring thresholds ────────────────────────────────────────
     min_score: float = 0.45            # raised 0.40→0.45: 12-trade data shows weak signals losing
     # weights (must sum to 1.0)
-    w_breakout: float = 0.35
-    w_trend: float = 0.25
+    # Rebalanced 2026-03-30: added intrawindow_delta ("king signal" per Archetapp research);
+    # reduced trend weight (EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows);
+    # increased OB weight (R²=0.65 for short-interval price variance per academic research).
+    w_breakout: float = 0.25           # was 0.35
+    w_trend: float = 0.10             # was 0.25; lagging signal demoted
     w_volume: float = 0.20
-    w_ob: float = 0.20
+    w_ob: float = 0.25               # was 0.20; OB imbalance IR>0.65 → 58% accuracy
+    w_intrawindow: float = 0.20      # new: intra-window delta (most direct binary predictor)
 
 
 @dataclass
