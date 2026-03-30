@@ -422,12 +422,16 @@ def calculate_tp_sl(
     tp = min(0.98, entry_price + tp_distance)
     sl = max(0.01, entry_price - sl_distance)
 
-    rr = tp_distance / sl_distance if sl_distance > 0 else 0.0
+    # RR must use actual achievable profit, not raw ATR distance.
+    # At entry=0.998, tp is capped at 0.98 which is BELOW entry — actual profit = 0.
+    # Using raw tp_distance would show RR=2.0 even though the trade has no upside.
+    actual_tp_dist = max(0.0, tp - entry_price)
+    rr = actual_tp_dist / sl_distance if sl_distance > 0 and actual_tp_dist > 0 else 0.0
 
     return TPSLLevels(
         take_profit=round(tp, 4),
         stop_loss=round(sl, 4),
-        tp_pct=round(tp_distance / entry_price * 100, 2) if entry_price > 0 else 0.0,
+        tp_pct=round(actual_tp_dist / entry_price * 100, 2) if entry_price > 0 else 0.0,
         sl_pct=round(sl_distance / entry_price * 100, 2) if entry_price > 0 else 0.0,
         risk_reward=round(rr, 2),
     )

@@ -349,6 +349,15 @@ class RiskManager:
                         False, 0,
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
+        else:
+            # Updown: reject near-resolved markets (>0.90 or <0.10).
+            # At 0.998 the outcome is essentially decided — no momentum edge,
+            # no upside room (TP capped at 0.98 is below entry), order never fills.
+            if signal.entry_price > 0.90 or signal.entry_price < 0.10:
+                return RiskDecision(
+                    False, 0,
+                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.10, 0.90]",
+                )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
         # BTC: 6% WR → needs 40% higher score. ETH: 30% WR → 10% discount.
