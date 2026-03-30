@@ -141,16 +141,10 @@ def _build_clob_client() -> Optional[Any]:
         logger.warning("No wallet private key — stub mode")
         return None
     try:
-        key = CONFIG.wallet_private_key
-        logger.debug(
-            "CLOB auth: key_len=%d key_prefix=%r key_suffix=%r all_hex=%s",
-            len(key), key[:4], key[-4:],
-            all(c in "0123456789abcdefABCDEF" for c in key),
-        )
         kwargs = dict(
             host=CONFIG.markets.clob_api_url,
             chain_id=137,
-            key=key,
+            key=CONFIG.wallet_private_key,
             signature_type=CONFIG.signature_type,
         )
         if CONFIG.funder_address:
@@ -160,20 +154,7 @@ def _build_clob_client() -> Optional[Any]:
         # curl_cffi response is subtly incompatible with py_clob_client's httpx-based
         # PolyApiException, so we restore the stock httpx client during auth only.
         import httpx as _httpx
-        from eth_account import Account as _Account
         import py_clob_client.http_helpers.helpers as _h
-
-        # Warn if derived address doesn't match funder (common misconfiguration)
-        try:
-            derived_addr = _Account.from_key(key).address
-            if CONFIG.funder_address and derived_addr.lower() != CONFIG.funder_address.lower():
-                logger.warning(
-                    "Key derives address %s but FUNDER_ADDRESS=%s — "
-                    "key may be for a proxy wallet (sig_type=1) not EOA (sig_type=0)",
-                    derived_addr, CONFIG.funder_address,
-                )
-        except Exception:
-            pass
 
         _orig_client = _h._http_client
         _h._http_client = _httpx.Client(http2=False, timeout=15.0)  # HTTP/1.1 for auth — HTTP/2 hangs on Python 3.14
@@ -187,8 +168,7 @@ def _build_clob_client() -> Optional[Any]:
         logger.info("CLOB client authenticated (sig_type=%d)", CONFIG.signature_type)
         return client
     except Exception as exc:
-        import traceback
-        logger.error("CLOB client build failed: %s\n%s", exc, traceback.format_exc())
+        logger.error("CLOB client build failed: %s", exc)
         return None
 
 
