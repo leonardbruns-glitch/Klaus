@@ -340,6 +340,20 @@ class OrderManager:
         await self.approve_token_for_sell(token_id)
 
         n = self.cfg.cascade_levels
+        # If each tranche at worst-case 80% of current price would be below $1.50
+        # (the CLOB $1 minimum + 50% buffer), sell everything in one shot.
+        # Root cause: 5-share CLOB minimum produces ~4.85-share positions. At
+        # 33% cascade split = 1.62 shares, and any exit price below $0.93 puts
+        # the tranche under $1.50. One single sell avoids tranching entirely.
+        tranche_est = total_shares / n
+        worst_sell = max(current_price * 0.80, 0.01)
+        if tranche_est * worst_sell < 1.50:
+            n = 1
+            logger.info(
+                "Single-shot sell: %.4f shares (tranche would be $%.2f < $1.50 at 80%% discount)",
+                total_shares, tranche_est * worst_sell,
+            )
+
         results = []
         remaining = total_shares
 
@@ -706,13 +720,33 @@ class OrderManager:
 
             slippage = abs(fill_price - price)
 
+            # ── Actual fill reconciliation ──────────────────────────────────
+            # GET /data/trades?id=<order_id> returns actual fill price and fee.
+            # No CF blocking on GET. Worth 150-300ms for accurate analytics.
+            # If it fails, fall back to the values above (unchanged behaviour).
+            actual_fee = 0.0
+            order_id_str = resp.get("id", resp.get("orderID", ""))
+            if order_id_str:
+                actual = self.fetch_order_fills(order_id_str)
+                if actual and actual["total_size"] > 0:
+                    reconciled_price = actual["avg_price"]
+                    if 0.01 <= reconciled_price <= 0.99:
+                        fill_price = reconciled_price
+                        fill_size = actual["total_size"]
+                        slippage = abs(fill_price - price)
+                    actual_fee = actual["total_fee_usd"]
+                    logger.debug(
+                        "Fill reconciled from CLOB: price=%.4f size=%.4f fee=$%.5f (%g bps)",
+                        fill_price, fill_size, actual_fee, actual.get("fee_rate_bps", 0),
+                    )
+
             fill = Fill(
-                order_id=resp.get("id", ""),
+                order_id=order_id_str,
                 token_id=token_id,
                 side=side,
                 price=fill_price,
                 size=fill_size,
-                fee=0.0,
+                fee=actual_fee,     # actual fee from CLOB (not hardcoded 0.0)
                 slippage=slippage,
             )
             self.fill_history.append(fill)
@@ -721,6 +755,7 @@ class OrderManager:
                 fills=[fill],
                 avg_fill_price=fill_price,
                 total_size=fill_size,
+                total_fee=actual_fee,
                 slippage=slippage,
                 raw=resp,
             )
@@ -785,6 +820,74 @@ class OrderManager:
         return await self._submit_market_order(
             token_id, OrderSide.SELL, usdc_amount, 0.0
         )
+
+    # ── Polymarket data reconciliation (GET endpoints — no CF blocking) ──────
+
+    def fetch_usdc_balance(self) -> Optional[float]:
+        """
+        Fetch actual USDC balance from Polymarket CLOB.
+        Uses GET /balance-allowance — no Cloudflare restrictions, works from
+        any machine. Returns balance in USDC (None on failure).
+        """
+        if self._client is None:
+            return None
+        try:
+            ba = self._client.get_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.USDC,
+                    signature_type=CONFIG.signature_type,
+                )
+            )
+            raw = float(ba.get("balance", 0))
+            # CLOB returns balance in micro-USDC (1 USDC = 1,000,000 units)
+            usdc = raw / 1_000_000
+            logger.info("Polymarket USDC balance (actual): $%.4f", usdc)
+            return usdc
+        except Exception as exc:
+            logger.debug("fetch_usdc_balance failed: %s", exc)
+            return None
+
+    def fetch_order_fills(self, order_id: str) -> Optional[dict]:
+        """
+        Query CLOB for actual fill data after an order matches.
+        GET /data/trades?id=<order_id> — no CF blocking from any machine.
+        Returns dict with actual avg_price, total_size, total_fee_usd, fee_rate_bps.
+        Actual fee = price × size × fee_rate_bps / 10000.
+        """
+        if self._client is None or not order_id:
+            return None
+        try:
+            from py_clob_client.clob_types import TradeParams
+            trades = self._client.get_trades(TradeParams(id=order_id))
+            if not trades:
+                return None
+            total_size = sum(float(t.get("size", 0)) for t in trades)
+            total_value = sum(
+                float(t.get("price", 0)) * float(t.get("size", 0)) for t in trades
+            )
+            # fee_rate_bps per trade; actual fee = notional × bps / 10000
+            total_fee = sum(
+                float(t.get("price", 0)) * float(t.get("size", 0))
+                * float(t.get("fee_rate_bps", 0)) / 10_000
+                for t in trades
+            )
+            avg_price = total_value / total_size if total_size > 0 else 0
+            bps = float(trades[0].get("fee_rate_bps", 0)) if trades else 0
+            logger.debug(
+                "Order %s actual: size=%.4f avg_price=%.4f fee=$%.5f (%g bps)",
+                order_id[:12], total_size, avg_price, total_fee, bps,
+            )
+            return {
+                "order_id": order_id,
+                "total_size": total_size,
+                "avg_price": avg_price,
+                "total_fee_usd": total_fee,
+                "fee_rate_bps": bps,
+                "n_fills": len(trades),
+            }
+        except Exception as exc:
+            logger.debug("fetch_order_fills %s failed: %s", order_id[:12], exc)
+            return None
 
     async def post_heartbeat(self) -> None:
         """

@@ -71,10 +71,32 @@ class KlausBot:
         await self.orders.start()
         self._running = True
         mode = "DRY RUN" if CONFIG.dry_run else "LIVE"
+
+        # ── Bankroll sync: reconcile tracked capital with actual Polymarket balance ──
+        # GET /balance-allowance is not CF-blocked — works from any machine.
+        # Corrects drift from manual trades, crashed sessions, or manual deposits.
+        if not CONFIG.dry_run:
+            real_balance = self.orders.fetch_usdc_balance()
+            if real_balance is not None:
+                tracked = self.risk.bankroll.capital
+                delta = real_balance - tracked
+                if abs(delta) > 0.05:  # $0.05 tolerance for rounding
+                    logger.warning(
+                        "BANKROLL SYNC: tracked=$%.2f  actual=$%.2f  delta=%+$.2f — syncing to actual",
+                        tracked, real_balance, delta,
+                    )
+                else:
+                    logger.info(
+                        "Bankroll verified: tracked=$%.2f matches actual=$%.2f",
+                        tracked, real_balance,
+                    )
+                self.risk.bankroll.capital = real_balance
+                self.risk.bankroll._save()
+
         logger.info("=" * 50)
         logger.info("Klaus Momentum Scalper — %s", mode)
         logger.info("Capital: $%.2f | Base stake: $%.2f | Scaled: $%.2f",
-                    CONFIG.bankroll.total, CONFIG.bankroll.base_stake, CONFIG.bankroll.scaled_stake)
+                    self.risk.bankroll.capital, CONFIG.bankroll.base_stake, CONFIG.bankroll.scaled_stake)
         logger.info("Markets: %s", CONFIG.markets.tracked_assets)
         logger.info("=" * 50)
 
@@ -405,10 +427,21 @@ class KlausBot:
         all_shares = pos.shares
 
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
+
+        # Sum actual fees from all fill objects (CLOB-reconciled via fetch_order_fills).
+        # If fills have fee=0 (pre-reconciliation or dry-run), falls back to estimated.
+        actual_fee_total = sum(
+            f.fee for r in all_exit_fills for f in r.fills if f.fee > 0
+        ) or None  # None → risk manager uses config estimate
+
         # Pass full shares + weighted avg price so bankroll records 100% of trade PnL.
         # Without shares_override, close_position uses remaining_shares (5% after
         # stage-1 sell), silently missing the 95% stage-1 tranche in bankroll.
-        net_pnl = self.risk.close_position(token_id, analytics_exit_price, reason, shares_override=all_shares)
+        net_pnl = self.risk.close_position(
+            token_id, analytics_exit_price, reason,
+            shares_override=all_shares,
+            actual_fee=actual_fee_total,
+        )
 
         if net_pnl is not None:
             # entry_fill and signal: use from meta if available; construct

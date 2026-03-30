@@ -494,8 +494,14 @@ class RiskManager:
         exit_price: float,
         reason: str,
         shares_override: Optional[float] = None,
+        actual_fee: Optional[float] = None,
     ) -> Optional[float]:
-        """Close fully; returns net PnL. Uses remaining_shares for accuracy."""
+        """
+        Close fully; returns net PnL. Uses remaining_shares for accuracy.
+        actual_fee: real fee from CLOB fill reconciliation. If provided, used
+        directly instead of estimating from config fee rates — eliminates the
+        primary source of reporting drift vs actual Polymarket balance.
+        """
         pos = self.open_positions.pop(token_id, None)
         if pos is None:
             return None
@@ -505,20 +511,26 @@ class RiskManager:
         # Always: bought token at entry_price, selling at exit_price
         raw_pnl = (exit_price - pos.entry_price) * shares
 
-        fee_rate = (
-            CONFIG.fees.extreme_fee_rate
-            if exit_price < CONFIG.fees.extreme_low or exit_price > CONFIG.fees.extreme_high
-            else CONFIG.fees.middle_fee_rate
-        )
-        fee_cost = pos.stake * fee_rate
+        if actual_fee is not None and actual_fee >= 0:
+            fee_cost = actual_fee
+            fee_source = "actual"
+        else:
+            fee_rate = (
+                CONFIG.fees.extreme_fee_rate
+                if exit_price < CONFIG.fees.extreme_low or exit_price > CONFIG.fees.extreme_high
+                else CONFIG.fees.middle_fee_rate
+            )
+            fee_cost = pos.stake * fee_rate
+            fee_source = "estimated"
+
         net_pnl = raw_pnl - fee_cost
 
         self.bankroll.record_trade_result(net_pnl)
         self._last_close_ts = time.time()
         logger.info(
-            "CLOSE %s %s @ %.4f | PnL=$%.2f (fee=$%.3f) | reason=%s",
+            "CLOSE %s %s @ %.4f | PnL=$%.2f (fee=$%.3f %s) | reason=%s",
             pos.direction.name, pos.asset, exit_price,
-            net_pnl, fee_cost, reason,
+            net_pnl, fee_cost, fee_source, reason,
         )
         self._save_positions()
         return net_pnl

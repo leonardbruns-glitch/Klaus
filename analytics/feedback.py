@@ -192,6 +192,15 @@ class FeedbackEngine:
         # Gross PnL: token price movement × shares (always calculable)
         gross_pnl = (exit_price - entry_price) * shares
 
+        # fee_paid: actual fees from CLOB fill reconciliation if available,
+        # otherwise derive from gross - net (risk manager's estimate).
+        # Priority: (1) actual Fill.fee sum from CLOB → (2) gross - net_pnl_actual
+        actual_fee_from_fills = sum(
+            f.fee for r in (exit_fills or []) for f in r.fills if f.fee > 0
+        )
+        if entry_fill and entry_fill.fills:
+            actual_fee_from_fills += sum(f.fee for f in entry_fill.fills if f.fee > 0)
+
         # net_pnl: use risk manager's authoritative value (which includes fees and
         # matches the bankroll change exactly). Fall back to gross only if not provided.
         if net_pnl_actual is not None:
@@ -205,9 +214,12 @@ class FeedbackEngine:
             )
             net_pnl = gross_pnl - stake * fee_rate
 
-        # fee_paid is always derived from the authoritative numbers — never from
-        # Fill.fee (which is hardcoded to 0.0 in CLOB responses).
-        fee_paid = gross_pnl - net_pnl
+        if actual_fee_from_fills > 0:
+            # Actual fees captured from CLOB — most accurate source
+            fee_paid = actual_fee_from_fills
+        else:
+            # Fall back to derived: gross - net (risk manager's fee estimate)
+            fee_paid = gross_pnl - net_pnl
 
         # capital_after is always capital_before + net_pnl. Using the live bankroll
         # snapshot was wrong: if two positions close in the same cycle, the snapshot
