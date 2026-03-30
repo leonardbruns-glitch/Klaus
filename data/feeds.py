@@ -192,6 +192,7 @@ class PolymarketFeed:
             timeout=aiohttp.ClientTimeout(total=10),
         )
         self._running = True
+        self._last_discovery_ts = time.time()   # prevent double-discovery on first poll
         await self._discover_markets()
 
         # If live discovery returned nothing (network issue, SSL, etc.) fall back
@@ -246,18 +247,24 @@ class PolymarketFeed:
                 # Also include next window (already accepting orders 2-3 min early)
                 direct_slugs.append(f"{asset.lower()}-updown-{interval//60}m-{w_ts + interval}")
 
-        markets = []
-        for slug in direct_slugs:
+        async def _fetch_slug(slug: str):
             try:
                 async with self._session.get(url, params={"slug": slug}) as resp:
                     if resp.status == 200:
-                        data = await resp.json()
-                        if isinstance(data, list):
-                            markets.extend(data)
-                        elif isinstance(data, dict):
-                            markets.append(data)
+                        return await resp.json()
             except Exception:
-                pass  # will fall back to bulk scan
+                pass
+            return None
+
+        markets = []
+        slug_results = await asyncio.gather(*[_fetch_slug(s) for s in direct_slugs])
+        for data in slug_results:
+            if data is None:
+                continue
+            if isinstance(data, list):
+                markets.extend(data)
+            elif isinstance(data, dict):
+                markets.append(data)
 
         # Bulk scan fallback for target markets (price prediction, non-updown)
         try:
