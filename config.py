@@ -9,7 +9,10 @@ import os
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Load explicitly from the directory containing this file, not cwd.
+    # load_dotenv() without a path walks up the directory tree and can pick up
+    # a stale .env in a parent directory.
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 except ImportError:
     pass
 
