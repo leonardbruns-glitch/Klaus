@@ -437,9 +437,10 @@ class OrderManager:
             except Exception:
                 pass  # best-effort; if snap fails the server will reject with a clear error
 
-            # CLOB requires: makerAmount (USDC) max 2 decimal places, takerAmount (shares) max 4.
-            # makerAmount = price * size. Snap size so this product rounds to 2 decimal places.
-            maker = round(price * size, 2)
+            # CLOB requires: makerAmount (USDC) max 2dp, takerAmount (shares) max 4dp.
+            # Also enforces min order size of $1 for marketable (FAK) orders.
+            # Snap size so price * size rounds to 2dp and meets the $1 floor.
+            maker = max(round(price * size, 2), 1.00)
             if maker <= 0:
                 return OrderResult(status=OrderStatus.FAILED, error="Maker amount rounds to zero")
             size = round(maker / price, 4)
