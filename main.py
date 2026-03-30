@@ -227,11 +227,14 @@ class KlausBot:
         capital_before = self.risk.bankroll.capital
         ts_open = time.time()
 
+        token_meta = self.feed.tokens.get(token_id)
         fill = await self.orders.market_buy(
             token_id=token_id,
             intended_price=signal.entry_price,
             stake_usd=decision.stake,
             direction=signal.direction,
+            neg_risk=getattr(token_meta, "neg_risk", False),
+            tick_size=getattr(token_meta, "tick_size", "0.01"),
         )
 
         if fill.avg_fill_price == 0:
@@ -274,12 +277,15 @@ class KlausBot:
         if not pos:
             return
 
+        token_meta = self.feed.tokens.get(token_id)
         sell_shares = round(pos.remaining_shares * 0.95, 4)
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
             total_shares=sell_shares,
             current_price=live_price,
             reason=reason,
+            neg_risk=getattr(token_meta, "neg_risk", False),
+            tick_size=getattr(token_meta, "tick_size", "0.01"),
         )
         sold = sum(f.total_size for f in exit_fills)
         self.risk.record_stage1_sell(token_id, sold)
@@ -299,11 +305,14 @@ class KlausBot:
 
         meta = self._open_meta.get(token_id, {})
 
+        token_meta = self.feed.tokens.get(token_id)
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
             total_shares=pos.remaining_shares,
             current_price=live_price,
             reason=reason,
+            neg_risk=getattr(token_meta, "neg_risk", False),
+            tick_size=getattr(token_meta, "tick_size", "0.01"),
         )
 
         # stage-2 exit price for risk manager (uses remaining_shares)

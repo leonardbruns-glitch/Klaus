@@ -147,6 +147,8 @@ class OrderManager:
         intended_price: float,
         stake_usd: float,
         direction: Direction,
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
     ) -> OrderResult:
         """
         Place a limit buy at price * (1 + buffer), hard-capped at MAX_ENTRY_PRICE.
@@ -170,7 +172,8 @@ class OrderManager:
         for attempt in range(self.cfg.retry_attempts):
             try:
                 result = await self._submit_limit_order(
-                    token_id, OrderSide.BUY, limit_price, size
+                    token_id, OrderSide.BUY, limit_price, size,
+                    neg_risk=neg_risk, tick_size=tick_size,
                 )
                 if result.status == OrderStatus.FILLED:
                     return result
@@ -188,8 +191,11 @@ class OrderManager:
         intended_price: float,
         stake_usd: float,
         direction: Direction,
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
     ) -> OrderResult:
-        return await self.limit_buy(token_id, intended_price, stake_usd, direction)
+        return await self.limit_buy(token_id, intended_price, stake_usd, direction,
+                                    neg_risk=neg_risk, tick_size=tick_size)
 
     # ── Token approval ────────────────────────────────────────────────────────
 
@@ -225,6 +231,8 @@ class OrderManager:
         total_shares: float,
         current_price: float,
         reason: str = "cascade",
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
     ) -> List[OrderResult]:
         """
         Exit in tranches: market order primary, limit order fallback.
@@ -253,7 +261,8 @@ class OrderManager:
             )
 
             result = await self._sell_tranche_with_fallback(
-                token_id, tranche, current_price
+                token_id, tranche, current_price,
+                neg_risk=neg_risk, tick_size=tick_size,
             )
             results.append(result)
 
@@ -274,6 +283,8 @@ class OrderManager:
         shares: float,
         current_price: float,
         max_attempts: int = 15,
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
     ) -> OrderResult:
         """
         Market order first; limit order fallback with price stepping.
@@ -308,7 +319,8 @@ class OrderManager:
             # Limit order fallback
             try:
                 result = await self._submit_limit_order(
-                    token_id, OrderSide.SELL, sell_price, remaining
+                    token_id, OrderSide.SELL, sell_price, remaining,
+                    neg_risk=neg_risk, tick_size=tick_size,
                 )
                 if result.status == OrderStatus.FILLED and result.total_size > 0:
                     total_sold += result.total_size
@@ -345,6 +357,8 @@ class OrderManager:
         side: OrderSide,
         price: float,
         size: float,
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
     ) -> OrderResult:
         if self._client is None:
             return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
@@ -356,7 +370,7 @@ class OrderManager:
                 size=size,
                 side=clob_side,
             )
-            opts = PartialCreateOrderOptions(tick_size=TICK_SIZE, neg_risk=False)
+            opts = PartialCreateOrderOptions(tick_size=tick_size, neg_risk=neg_risk)
             signed = self._client.create_order(order_args, options=opts)
             resp = self._client.post_order(signed, OrderType.GTC)
 

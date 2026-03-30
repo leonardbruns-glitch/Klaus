@@ -78,6 +78,8 @@ class MarketToken:
     active: bool = True
     market_type: str = "target"     # "updown" (5M/15M) or "target" (price target)
     window_end_ts: float = 0.0      # unix ts when this market resolves
+    neg_risk: bool = False          # True for multi-outcome (neg-risk) markets
+    tick_size: str = "0.01"         # CLOB order price tick size per market
 
 
 @dataclass
@@ -341,6 +343,10 @@ class PolymarketFeed:
                     pass
 
             condition_id = market.get("conditionId", market.get("condition_id", ""))
+            neg_risk = bool(market.get("negRisk", False))
+            # tick_size: prefer orderPriceMinTickSize from market data; default "0.01"
+            raw_tick = market.get("orderPriceMinTickSize", market.get("minTickSize", "0.01"))
+            tick_size = str(raw_tick) if raw_tick else "0.01"
 
             # Gamma returns clobTokenIds + outcomes as JSON-encoded strings,
             # e.g. clobTokenIds = "[\"id1\",\"id2\"]" — must call json.loads().
@@ -396,6 +402,8 @@ class PolymarketFeed:
                     active=market.get("active", True),
                     market_type=market_type,
                     window_end_ts=window_end_ts,
+                    neg_risk=neg_risk,
+                    tick_size=tick_size,
                 )
                 self.tokens[token_id] = token
                 self.asset_tokens.setdefault(asset_match, []).append(token_id)
