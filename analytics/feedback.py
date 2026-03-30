@@ -116,11 +116,10 @@ class FeedbackEngine:
         self._trade_counter += 1
         trade_id = f"T{self._trade_counter:05d}_{asset}_{int(ts_open)}"
 
-        # Gross PnL (before fees)
-        if direction == Direction.BUY_YES:
-            gross_pnl = (exit_price - entry_price) * shares
-        else:
-            gross_pnl = (entry_price - exit_price) * shares
+        # Gross PnL (before fees).
+        # Both BUY_YES and BUY_NO: buy token at entry_price, sell at exit_price.
+        # Rising exit_price = profit for both (NO tokens also rise when NO wins).
+        gross_pnl = (exit_price - entry_price) * shares
 
         # Total fees
         fee_paid = sum(r.total_fee for r in [entry_fill] + exit_fills)
