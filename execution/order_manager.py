@@ -242,6 +242,14 @@ class OrderManager:
         if total_shares <= 0:
             return []
 
+        # Apply 0.99× sell factor to avoid CLOB balance cache bug (Issue #287):
+        # CLOB backend sometimes caches a balance slightly below the actual fill.
+        # Selling 99% avoids "not enough balance/allowance" failures; dust settles
+        # at market resolution.
+        total_shares = round(total_shares * 0.99, 4)
+        if total_shares <= 0:
+            return []
+
         # Token approval before selling (critical for live)
         await self.approve_token_for_sell(token_id)
 
@@ -364,6 +372,15 @@ class OrderManager:
             return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
         try:
             clob_side = CLOB_BUY if side == OrderSide.BUY else CLOB_SELL
+            # Snap price to valid tick — CLOB rejects prices not aligned to tick_size.
+            # round(p / 0.01) * 0.01 handles this; simple round(..., 4) can produce
+            # e.g. 0.2257 which is not a valid 0.01-tick price.
+            try:
+                tick_f = float(tick_size) if tick_size else 0.01
+                snap_decimals = len(tick_size.rstrip('0').split('.')[-1]) if '.' in tick_size else 0
+                price = round(round(price / tick_f) * tick_f, snap_decimals + 2)
+            except Exception:
+                pass  # best-effort; if snap fails the server will reject with a clear error
             order_args = OrderArgs(
                 token_id=token_id,
                 price=price,
@@ -395,6 +412,19 @@ class OrderManager:
                     return 0.0
 
             taking_f = _to_float(taking)
+
+            if status == "live":
+                # GTC order resting on book — cancel immediately to prevent orphaned
+                # orders. The CLOB heartbeat timeout (15s) would cancel it anyway, but
+                # explicit cancel is cleaner.
+                order_id = resp.get("id", resp.get("orderID", ""))
+                if order_id:
+                    try:
+                        self._client.cancel(order_id)
+                        logger.info("Cancelled resting GTC order %s", order_id[:12])
+                    except Exception:
+                        pass
+                return OrderResult(status=OrderStatus.FAILED, error="GTC order not immediately filled (resting)")
 
             if status != "matched" or taking_f <= 0:
                 logger.info(
@@ -487,6 +517,19 @@ class OrderManager:
         return await self._submit_market_order(
             token_id, OrderSide.SELL, usdc_amount, 0.0
         )
+
+    async def post_heartbeat(self) -> None:
+        """
+        Keep the CLOB session alive. CLOB cancels all GTC orders on book if no
+        heartbeat for 15 seconds. Call this every 10s during live trading.
+        No-op in dry-run or when client is not initialised.
+        """
+        if CONFIG.dry_run or self._client is None:
+            return
+        try:
+            self._client.post_heartbeat()
+        except Exception as exc:
+            logger.debug("Heartbeat failed: %s", exc)
 
     async def cancel_order(self, order_id: str) -> bool:
         if CONFIG.dry_run:

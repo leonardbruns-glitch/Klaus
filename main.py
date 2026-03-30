@@ -90,9 +90,10 @@ class KlausBot:
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
         report_task = asyncio.create_task(self._report_loop())
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
         try:
-            await asyncio.gather(ob_task, signal_task, report_task)
+            await asyncio.gather(ob_task, signal_task, report_task, heartbeat_task)
         except asyncio.CancelledError:
             pass
         finally:
@@ -354,6 +355,17 @@ class KlausBot:
             pos.asset, pos.direction.name, reason,
             net_pnl or 0, bankroll["capital"], bankroll["consecutive_wins"],
         )
+
+    # ── 10-second CLOB heartbeat ──────────────────────────────────────────────
+
+    async def _heartbeat_loop(self) -> None:
+        """Keep CLOB session alive; prevents silent GTC order cancellation."""
+        while self._running:
+            await asyncio.sleep(10)
+            try:
+                await self.orders.post_heartbeat()
+            except Exception as exc:
+                logger.debug("Heartbeat error: %s", exc)
 
     # ── 30-min report loop ────────────────────────────────────────────────────
 
