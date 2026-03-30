@@ -63,7 +63,7 @@ class KlausBot:
         self._last_report_ts = 0.0
         # track entry metadata for trade recording
         self._open_meta: Dict[str, dict] = {}
-
+        self._pos_log_ts: Dict[str, float] = {}   # last log time per position
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -128,6 +128,26 @@ class KlausBot:
             if not isinstance(ob, object) or ob is None or isinstance(ob, Exception):
                 continue
             current_price = ob.bids[0][0] if len(ob.bids) > 0 else ob.mid
+
+            # ── Position status log every 5s ─────────────────────────────────
+            now = time.time()
+            if now - self._pos_log_ts.get(token_id, 0) >= 5.0:
+                self._pos_log_ts[token_id] = now
+                held = now - pos.open_ts
+                move_pct = (current_price - pos.entry_price) / pos.entry_price * 100
+                unreal_pnl = (current_price - pos.entry_price) * pos.remaining_shares
+                win_str = "+" if unreal_pnl >= 0 else ""
+                win_emoji = "▲" if unreal_pnl >= 0 else "▼"
+                remaining_sec = max(0, pos.window_end_ts - now) if pos.window_end_ts > 0 else 0
+                logger.info(
+                    "POSITION %s %s %s | entry=%.4f curr=%.4f move=%+.1f%% | "
+                    "PnL=%s$%.3f | TP=%.4f SL=%.4f | hold=%ds%s",
+                    win_emoji, pos.asset, pos.direction.name,
+                    pos.entry_price, current_price, move_pct,
+                    win_str, abs(unreal_pnl),
+                    pos.tp, pos.sl, int(held),
+                    f" | window={remaining_sec:.0f}s" if remaining_sec > 0 else "",
+                )
 
             decision = self.risk.check_exit_conditions(token_id, current_price)
             if decision is None:
@@ -444,6 +464,7 @@ class KlausBot:
             )
 
         self._open_meta.pop(token_id, None)
+        self._pos_log_ts.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
