@@ -24,8 +24,8 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 100.0
-    base_stake: float = 5.0           # $5 base stake; ~5% of $100 capital
-    scaled_stake: float = 10.0        # $10 — unlocked after heat_trigger_wins (10% of capital)
+    base_stake: float = 10.0          # $10 base stake; ~10% of $100 capital
+    scaled_stake: float = 20.0        # $20 — unlocked after heat_trigger_wins (20% of capital)
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
     max_open_positions: int = 2       # limit exposure; max $20 deployed at once
     max_daily_loss: float = 999.0     # TEMP: daily halt bypassed (user monitoring live session)
