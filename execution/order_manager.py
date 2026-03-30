@@ -255,20 +255,20 @@ class OrderManager:
         )
         size = round(stake_usd / limit_price, 2)
 
-        for attempt in range(self.cfg.retry_attempts):
-            try:
-                result = await self._submit_limit_order(
-                    token_id, OrderSide.BUY, limit_price, size,
-                    neg_risk=neg_risk, tick_size=tick_size,
-                )
-                if result.status == OrderStatus.FILLED:
-                    return result
-                await asyncio.sleep(self.cfg.retry_delay * (2 ** attempt))
-            except Exception as exc:
-                logger.error("Limit buy attempt %d failed: %s", attempt + 1, exc)
-                await asyncio.sleep(self.cfg.retry_delay * (2 ** attempt))
+        # Single attempt only for 5-min window entries.
+        # Retrying a resting BUY wastes 3s × N attempts = up to 15s of a 240s window.
+        # If the order doesn't fill in 3s, the price has moved — abort cleanly.
+        try:
+            result = await self._submit_limit_order(
+                token_id, OrderSide.BUY, limit_price, size,
+                neg_risk=neg_risk, tick_size=tick_size,
+            )
+            if result.status == OrderStatus.FILLED:
+                return result
+        except Exception as exc:
+            logger.error("Limit buy failed: %s", exc)
 
-        return OrderResult(status=OrderStatus.FAILED, error="All retry attempts exhausted")
+        return OrderResult(status=OrderStatus.FAILED, error="Entry not filled — price moved")
 
     # kept as alias for backward compatibility with main.py
     async def market_buy(
@@ -587,21 +587,25 @@ class OrderManager:
 
                 if side == OrderSide.BUY and order_id:
                     # BUY resting: ask moved above our limit right after signing.
+                    # A marketable limit (+5% buffer) fills in <500ms if liquidity exists.
+                    # Wait max 3s — in a 5-min window wasting 10s per attempt burns
+                    # 12% of the tradeable window (240s after no_trade_last_sec=60).
                     # PRIMARY: wait on user channel WS fill event (sub-100ms).
                     # FALLBACK: poll REST every 1s if WS not connected.
-                    # Both paths timeout after 10s then cancel.
+                    # Both paths timeout after 3s then cancel.
+                    _FILL_TIMEOUT = 3.0
                     logger.info(
-                        "BUY order resting — awaiting fill via user WS (up to 10s): %s",
-                        order_id[:12],
+                        "BUY order resting — awaiting fill via user WS (up to %.0fs): %s",
+                        _FILL_TIMEOUT, order_id[:12],
                     )
 
                     fill_data = None
                     if self._fill_tracker.is_connected:
                         # Fast path: WS delivers fill event in ~50-200ms
-                        fill_data = await self._fill_tracker.wait_fill(order_id, timeout=10.0)
+                        fill_data = await self._fill_tracker.wait_fill(order_id, timeout=_FILL_TIMEOUT)
                     else:
                         # Slow path: poll REST at 1s intervals (WS down/reconnecting)
-                        for _poll in range(10):
+                        for _poll in range(int(_FILL_TIMEOUT)):
                             await asyncio.sleep(1.0)
                             try:
                                 order_info = self._client.get_order(order_id)
@@ -649,7 +653,7 @@ class OrderManager:
                             pass
                         return OrderResult(
                             status=OrderStatus.FAILED,
-                            error="BUY resting — cancelled after 10s (no fill)",
+                            error=f"BUY resting — cancelled after {_FILL_TIMEOUT:.0f}s (no fill)",
                         )
                 else:
                     # SELL resting: no bid at our floor price — cascade will retry lower.
