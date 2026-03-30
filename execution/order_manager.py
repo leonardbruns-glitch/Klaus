@@ -436,6 +436,14 @@ class OrderManager:
                 price = round(round(price / tick_f) * tick_f, snap_decimals + 2)
             except Exception:
                 pass  # best-effort; if snap fails the server will reject with a clear error
+
+            # CLOB requires: makerAmount (USDC) max 2 decimal places, takerAmount (shares) max 4.
+            # makerAmount = price * size. Snap size so this product rounds to 2 decimal places.
+            maker = round(price * size, 2)
+            if maker <= 0:
+                return OrderResult(status=OrderStatus.FAILED, error="Maker amount rounds to zero")
+            size = round(maker / price, 4)
+
             order_args = OrderArgs(
                 token_id=token_id,
                 price=price,
