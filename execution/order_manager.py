@@ -403,6 +403,17 @@ class OrderManager:
 
             remaining = shares - total_sold
 
+            # Skip dust: CLOB requires $1 minimum maker amount for limit orders.
+            # "not enough balance: balance 976570, order amount: 1000000" = dust below $1.
+            # Residual dust settles at market resolution (binary pays 0 or 1).
+            if remaining * sell_price < 1.00:
+                logger.info(
+                    "Dust skip: %.4f shares @ %.4f = $%.3f < $1 CLOB minimum — "
+                    "will settle at resolution",
+                    remaining, sell_price, remaining * sell_price,
+                )
+                break
+
             # Limit order sell. Market order (FOK SELL) removed: its amount
             # semantics differ from BUY (tokens vs USDC), causing under-sells.
             # Limit order at sell_price (starting at 90% of current) fills
@@ -529,8 +540,6 @@ class OrderManager:
                 tick_size=tick_size if tick_size and tick_size != "0.01" else None,
                 neg_risk=True if neg_risk else None,
             )
-            signed = self._client.create_order(order_args, options=opts)
-
             # GTC for all orders. FAK has an unsatisfiable integer maker-amount
             # constraint (maker_micro must be multiple of 10000) for any non-trivial
             # price. GTC limit orders have no such constraint and fill immediately
@@ -539,8 +548,11 @@ class OrderManager:
 
             # Cloudflare WAF blocks datacenter IPs on POST /order ~30-50% of the time.
             # Retry with exponential backoff; CF challenges are transient.
+            # CRITICAL: create_order INSIDE the retry loop — reusing the same signed
+            # order across retries triggers "order is invalid. Duplicated." from CLOB.
             resp = None
             for _cf_attempt in range(3):
+                signed = self._client.create_order(order_args, options=opts)
                 resp = self._client.post_order(signed, order_type)
                 err_str = str(resp) if resp else ""
                 if resp and "cloudflare" not in err_str.lower() and "403" not in err_str:
