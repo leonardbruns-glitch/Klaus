@@ -55,10 +55,15 @@ class TradeRecord:
     trend_score: float
     volume_score: float
     ob_score: float
+    intrawindow_score: float   # intra-window delta signal ("king signal")
     composite_score: float
     confidence: float
-    fee_zone: str            # EXTREME / FAT_MIDDLE
+    fee_zone: str              # EXTREME / FAT_MIDDLE
     external_boost: float
+    # Regime context (calibration data for Hurst hard gate + ATR threshold)
+    atr_percentile: float      # ATR(14) percentile in last 50 bars (0-1)
+    atr_current: float         # raw ATR(14) value at entry
+    hurst: float               # Hurst exponent estimate at entry (R/S method)
 
     # Duration
     hold_seconds: float
@@ -136,10 +141,14 @@ class FeedbackEngine:
                     trend_score=d.get("trend_score", 0.0),
                     volume_score=d.get("volume_score", 0.0),
                     ob_score=d.get("ob_score", 0.0),
+                    intrawindow_score=d.get("intrawindow_score", 0.0),
                     composite_score=d.get("composite_score", 0.0),
                     confidence=d.get("confidence", 0.0),
                     fee_zone=d.get("fee_zone", ""),
                     external_boost=d.get("external_boost", 0.0),
+                    atr_percentile=d.get("atr_percentile", 0.5),
+                    atr_current=d.get("atr_current", 0.0),
+                    hurst=d.get("hurst", 0.5),
                     hold_seconds=d.get("hold_seconds", 0.0),
                     heat_check_active=d.get("heat_check_active", False),
                     consecutive_wins_at_entry=d.get("consecutive_wins_at_entry", 0),
@@ -253,10 +262,14 @@ class FeedbackEngine:
             trend_score=round(signal.trend_score, 3),
             volume_score=round(signal.volume_score, 3),
             ob_score=round(signal.ob_score, 3),
+            intrawindow_score=round(signal.intrawindow_score, 3),
             composite_score=round(signal.composite, 3),
             confidence=round(signal.confidence, 3),
             fee_zone=signal.fee_zone.name,
             external_boost=round(signal.external_boost, 3),
+            atr_percentile=round(signal.atr_percentile, 3),
+            atr_current=round(signal.atr_current, 5),
+            hurst=round(signal.hurst, 3),
             hold_seconds=round(ts_close - ts_open, 1),
             heat_check_active=heat_check_active,
             consecutive_wins_at_entry=consecutive_wins,
@@ -319,6 +332,72 @@ class FeedbackEngine:
 
         live_trades = [t for t in trades if t.is_live]
 
+        # ── Signal breakdown: avg score for wins vs losses ─────────────────────
+        def _avg(lst: list) -> float:
+            return round(statistics.mean(lst), 3) if lst else 0.0
+
+        sig_wins = {
+            "breakout": _avg([t.breakout_score for t in wins]),
+            "trend": _avg([t.trend_score for t in wins]),
+            "volume": _avg([t.volume_score for t in wins]),
+            "ob": _avg([t.ob_score for t in wins]),
+            "intrawindow": _avg([t.intrawindow_score for t in wins]),
+            "composite": _avg([t.composite_score for t in wins]),
+        }
+        sig_losses = {
+            "breakout": _avg([t.breakout_score for t in losses]),
+            "trend": _avg([t.trend_score for t in losses]),
+            "volume": _avg([t.volume_score for t in losses]),
+            "ob": _avg([t.ob_score for t in losses]),
+            "intrawindow": _avg([t.intrawindow_score for t in losses]),
+            "composite": _avg([t.composite_score for t in losses]),
+        }
+
+        # ── Regime analysis: ATR buckets + Hurst buckets ─────────────────────
+        # ATR percentile buckets: low (<30%), mid (30-70%), high (>70%)
+        atr_low = [t for t in trades if t.atr_percentile < 0.30]
+        atr_mid = [t for t in trades if 0.30 <= t.atr_percentile <= 0.70]
+        atr_high = [t for t in trades if t.atr_percentile > 0.70]
+
+        def _wr(bucket: list) -> float:
+            if not bucket:
+                return 0.0
+            return round(sum(1 for t in bucket if t.net_pnl > 0) / len(bucket), 3)
+
+        regime_atr = {
+            "low_pct_<0.30": {"n": len(atr_low), "wr": _wr(atr_low)},
+            "mid_pct_0.30-0.70": {"n": len(atr_mid), "wr": _wr(atr_mid)},
+            "high_pct_>0.70": {"n": len(atr_high), "wr": _wr(atr_high)},
+            "avg_atr_pct_all": _avg([t.atr_percentile for t in trades]),
+            "avg_atr_pct_wins": _avg([t.atr_percentile for t in wins]),
+            "avg_atr_pct_losses": _avg([t.atr_percentile for t in losses]),
+        }
+
+        # Hurst buckets: mean-reverting (<0.45), random walk (0.45-0.55), trending (>0.55)
+        hurst_mr = [t for t in trades if t.hurst < 0.45]
+        hurst_rw = [t for t in trades if 0.45 <= t.hurst <= 0.55]
+        hurst_tr = [t for t in trades if t.hurst > 0.55]
+
+        regime_hurst = {
+            "mean_reverting_<0.45": {"n": len(hurst_mr), "wr": _wr(hurst_mr)},
+            "random_walk_0.45-0.55": {"n": len(hurst_rw), "wr": _wr(hurst_rw)},
+            "trending_>0.55": {"n": len(hurst_tr), "wr": _wr(hurst_tr)},
+            "avg_hurst_all": _avg([t.hurst for t in trades]),
+            "avg_hurst_wins": _avg([t.hurst for t in wins]),
+            "avg_hurst_losses": _avg([t.hurst for t in losses]),
+        }
+
+        # ── Intrawindow score vs outcome ──────────────────────────────────────
+        iwd_low = [t for t in trades if t.intrawindow_score < 0.30]
+        iwd_mid = [t for t in trades if 0.30 <= t.intrawindow_score < 0.60]
+        iwd_high = [t for t in trades if t.intrawindow_score >= 0.60]
+
+        intrawindow_buckets = {
+            "iwd_weak_<0.30": {"n": len(iwd_low), "wr": _wr(iwd_low)},
+            "iwd_mid_0.30-0.60": {"n": len(iwd_mid), "wr": _wr(iwd_mid)},
+            "iwd_strong_>=0.60": {"n": len(iwd_high), "wr": _wr(iwd_high)},
+        }
+
         metrics = {
             "sample_size": n,
             "live_trades": len(live_trades),
@@ -337,6 +416,12 @@ class FeedbackEngine:
             "extreme_count": len(extreme_trades),
             "pnl_by_asset": {a: round(sum(v), 3) for a, v in by_asset.items()},
             "pnl_by_market_type": {m: round(sum(v), 3) for m, v in by_market_type.items()},
+            # New: signal quality + regime analysis
+            "signal_scores_wins": sig_wins,
+            "signal_scores_losses": sig_losses,
+            "regime_atr": regime_atr,
+            "regime_hurst": regime_hurst,
+            "intrawindow_buckets": intrawindow_buckets,
         }
 
         # ── Alert generation ──────────────────────────────────────────────────
@@ -380,6 +465,41 @@ class FeedbackEngine:
                         f"ASSET DRAG: {asset} win_rate={asset_win_rate:.1%} "
                         f"over last {len(pnl_list)} trades — consider pausing this market"
                     )
+
+        # Hurst gate promotion: if mean-reverting trades (H<0.45) show materially
+        # worse win rate than trending trades, flag that Hurst should become a hard gate.
+        if regime_hurst["mean_reverting_<0.45"]["n"] >= 5:
+            mr_wr = regime_hurst["mean_reverting_<0.45"]["wr"]
+            tr_wr = regime_hurst["trending_>0.55"]["wr"] if regime_hurst["trending_>0.55"]["n"] >= 3 else None
+            if mr_wr < 0.40:
+                alerts.append(
+                    f"HURST SIGNAL: mean-reverting regime (H<0.45) win_rate={mr_wr:.1%} "
+                    f"{'vs trending=' + f'{tr_wr:.1%}' if tr_wr else ''} — "
+                    f"consider promoting Hurst to hard gate (hurst_min=0.45)"
+                )
+
+        # ATR gate calibration: if low-ATR trades (<30th pct) show poor win rate,
+        # the 30% floor may need raising.
+        if regime_atr["low_pct_<0.30"]["n"] >= 5:
+            low_atr_wr = regime_atr["low_pct_<0.30"]["wr"]
+            if low_atr_wr < 0.40:
+                alerts.append(
+                    f"ATR REGIME: low-ATR trades win_rate={low_atr_wr:.1%} — "
+                    f"consider raising atr_regime_percentile from 0.30 to 0.40"
+                )
+
+        # Intrawindow signal validation: flag if strong IWD (>0.60) is NOT
+        # outperforming weak IWD (<0.30) — if it doesn't help, something is wrong.
+        if (intrawindow_buckets["iwd_strong_>=0.60"]["n"] >= 5
+                and intrawindow_buckets["iwd_weak_<0.30"]["n"] >= 5):
+            strong_wr = intrawindow_buckets["iwd_strong_>=0.60"]["wr"]
+            weak_wr = intrawindow_buckets["iwd_weak_<0.30"]["wr"]
+            if strong_wr < weak_wr:
+                alerts.append(
+                    f"SIGNAL QUALITY: intrawindow_strong win_rate={strong_wr:.1%} < "
+                    f"intrawindow_weak={weak_wr:.1%} — IWD signal may not be predictive "
+                    f"for this market; review weight allocation"
+                )
 
         return {
             "alerts": alerts,
@@ -445,6 +565,44 @@ class FeedbackEngine:
         else:
             lines.append("ALERTS — None; strategy operating within parameters")
 
+        # Signal scores: wins vs losses
+        sw = metrics.get("signal_scores_wins", {})
+        sl_ = metrics.get("signal_scores_losses", {})
+        if sw and sl_:
+            lines += ["", "SIGNAL SCORES (wins vs losses)"]
+            for sig_name in ["breakout", "trend", "volume", "ob", "intrawindow", "composite"]:
+                lines.append(
+                    f"  {sig_name:12s}: win={sw.get(sig_name, 0):.3f}  "
+                    f"loss={sl_.get(sig_name, 0):.3f}  "
+                    f"diff={sw.get(sig_name, 0) - sl_.get(sig_name, 0):+.3f}"
+                )
+
+        # Regime analysis: ATR + Hurst
+        ra = metrics.get("regime_atr", {})
+        rh = metrics.get("regime_hurst", {})
+        if ra:
+            lines += ["", "REGIME ANALYSIS — ATR PERCENTILE (calibrate atr_regime_percentile)"]
+            lines.append(f"  Low  (<30th pct):  n={ra.get('low_pct_<0.30', {}).get('n', 0):3d}  WR={ra.get('low_pct_<0.30', {}).get('wr', 0):.1%}")
+            lines.append(f"  Mid  (30-70th pct): n={ra.get('mid_pct_0.30-0.70', {}).get('n', 0):3d}  WR={ra.get('mid_pct_0.30-0.70', {}).get('wr', 0):.1%}")
+            lines.append(f"  High (>70th pct):  n={ra.get('high_pct_>0.70', {}).get('n', 0):3d}  WR={ra.get('high_pct_>0.70', {}).get('wr', 0):.1%}")
+            lines.append(f"  Avg pct all={ra.get('avg_atr_pct_all', 0):.2f}  wins={ra.get('avg_atr_pct_wins', 0):.2f}  losses={ra.get('avg_atr_pct_losses', 0):.2f}")
+
+        if rh:
+            lines += ["", "REGIME ANALYSIS — HURST EXPONENT (promote to hard gate when n>=20)"]
+            lines.append(f"  Mean-reverting (<0.45): n={rh.get('mean_reverting_<0.45', {}).get('n', 0):3d}  WR={rh.get('mean_reverting_<0.45', {}).get('wr', 0):.1%}")
+            lines.append(f"  Random walk  (0.45-0.55): n={rh.get('random_walk_0.45-0.55', {}).get('n', 0):3d}  WR={rh.get('random_walk_0.45-0.55', {}).get('wr', 0):.1%}")
+            lines.append(f"  Trending     (>0.55): n={rh.get('trending_>0.55', {}).get('n', 0):3d}  WR={rh.get('trending_>0.55', {}).get('wr', 0):.1%}")
+            lines.append(f"  Avg H all={rh.get('avg_hurst_all', 0):.3f}  wins={rh.get('avg_hurst_wins', 0):.3f}  losses={rh.get('avg_hurst_losses', 0):.3f}")
+
+        # Intrawindow signal strength vs outcome
+        ib = metrics.get("intrawindow_buckets", {})
+        if ib:
+            lines += ["", "INTRAWINDOW SIGNAL STRENGTH (validate 'king signal' hypothesis)"]
+            lines.append(f"  Weak  (<0.30): n={ib.get('iwd_weak_<0.30', {}).get('n', 0):3d}  WR={ib.get('iwd_weak_<0.30', {}).get('wr', 0):.1%}")
+            lines.append(f"  Mid  (0.30-0.60): n={ib.get('iwd_mid_0.30-0.60', {}).get('n', 0):3d}  WR={ib.get('iwd_mid_0.30-0.60', {}).get('wr', 0):.1%}")
+            lines.append(f"  Strong (>=0.60): n={ib.get('iwd_strong_>=0.60', {}).get('n', 0):3d}  WR={ib.get('iwd_strong_>=0.60', {}).get('wr', 0):.1%}")
+            lines.append(f"  (Expected: strong > mid > weak WR if IWD is predictive)")
+
         # Last 5 trades quick summary
         if trades:
             lines += ["", "LAST 5 TRADES"]
@@ -453,7 +611,8 @@ class FeedbackEngine:
                 lines.append(
                     f"  {t.trade_id} | {t.asset} {t.direction} | "
                     f"entry={t.entry_price:.4f} exit={t.exit_price:.4f} | "
-                    f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s"
+                    f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s | "
+                    f"iwd={t.intrawindow_score:.2f} atr={t.atr_percentile:.2f} H={t.hurst:.3f}"
                 )
 
         lines.append("=" * 60)
