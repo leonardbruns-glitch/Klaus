@@ -420,6 +420,24 @@ class KlausBot:
         # avg price as analytics — not just the 5% stage-2 tranche.
         stage1_fills = meta.get("stage1_fills", [])
         all_exit_fills = stage1_fills + exit_fills
+        sold_shares = sum(f.total_size for f in all_exit_fills)
+
+        # If cascade sold NOTHING (network error, CLOB down) and stage-1 hasn't
+        # completed yet, keep the position open and retry on the next OB scan.
+        # Calling close_position on 0 fills would silently ghost the position —
+        # bot records $0 PnL while shares remain on Polymarket unsold.
+        stage1_done = pos.exit_stage.name == "STAGE_1_DONE"
+        if sold_shares <= 0 and not stage1_done:
+            # Reset hard_exit flag so the condition fires again next cycle
+            if token_id in self.risk.open_positions:
+                self.risk.open_positions[token_id].hard_exit_triggered = False
+            logger.warning(
+                "EXIT RETRY: cascade sold 0 shares for %s/%s (network/CLOB error) — "
+                "position kept open, retrying next OB scan",
+                pos.asset, pos.direction.name,
+            )
+            return
+
         stage2_fallback = self._calc_exit_price(exit_fills, pos.entry_price)
         # Weighted avg exit price across ALL tranches (stage-1 95% + stage-2 5%).
         analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)

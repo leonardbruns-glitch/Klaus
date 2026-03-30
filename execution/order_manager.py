@@ -266,7 +266,14 @@ class OrderManager:
             if result.status == OrderStatus.FILLED:
                 return result
         except Exception as exc:
-            logger.error("Limit buy failed: %s", exc)
+            err = str(exc)
+            # curl errno 7 = CURLE_COULDNT_CONNECT (network unreachable / CLOB down)
+            if "curl: (7)" in err or "Failed to connect" in err or "ConnectionError" in err:
+                logger.warning(
+                    "CLOB unreachable (network/geoblocking) — order skipped, will retry next cycle"
+                )
+            else:
+                logger.error("Limit buy failed: %s", exc)
 
         return OrderResult(status=OrderStatus.FAILED, error="Entry not filled — price moved")
 
