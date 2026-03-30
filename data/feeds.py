@@ -162,6 +162,7 @@ class PolymarketFeed:
         self._running = False
         self._stub_mode = False   # True when using synthetic data (live discovery failed)
         self._last_ob_ts: Dict[str, float] = {}
+        self._last_discovery_ts: float = 0.0    # for periodic re-discovery
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -415,9 +416,31 @@ class PolymarketFeed:
         self._last_ob_ts[token_id] = ob.ts
         return ob
 
+    async def refresh_markets(self) -> None:
+        """
+        Periodically re-discover markets to pick up new 5M/15M windows.
+        Called every ~60 seconds from poll_order_books.
+        Skipped in stub mode.
+        """
+        if self._stub_mode or not self._session:
+            return
+        now = time.time()
+        if now - self._last_discovery_ts < 60:
+            return
+        self._last_discovery_ts = now
+        prev_count = len(self.tokens)
+        await self._discover_markets()
+        new_count = len(self.tokens)
+        if new_count != prev_count:
+            logger.info(
+                "Market refresh: %d → %d tokens (+%d)",
+                prev_count, new_count, new_count - prev_count,
+            )
+
     async def poll_order_books(self) -> None:
-        """Poll all tracked tokens; respects scan interval."""
-        tasks = [self.fetch_order_book(tid) for tid in self.tokens]
+        """Poll all tracked tokens; re-discover new markets every 60s."""
+        await self.refresh_markets()
+        tasks = [self.fetch_order_book(tid) for tid in list(self.tokens)]
         await asyncio.gather(*tasks, return_exceptions=True)
 
     # ── Price bar updates from last trade ────────────────────────────────────
