@@ -141,10 +141,16 @@ def _build_clob_client() -> Optional[Any]:
         logger.warning("No wallet private key — stub mode")
         return None
     try:
+        key = CONFIG.wallet_private_key
+        logger.debug(
+            "CLOB auth: key_len=%d key_prefix=%r key_suffix=%r all_hex=%s",
+            len(key), key[:4], key[-4:],
+            all(c in "0123456789abcdefABCDEF" for c in key),
+        )
         kwargs = dict(
             host=CONFIG.markets.clob_api_url,
             chain_id=137,
-            key=CONFIG.wallet_private_key,
+            key=key,
             signature_type=CONFIG.signature_type,
         )
         if CONFIG.funder_address:
@@ -167,7 +173,8 @@ def _build_clob_client() -> Optional[Any]:
         logger.info("CLOB client authenticated (sig_type=%d)", CONFIG.signature_type)
         return client
     except Exception as exc:
-        logger.error("CLOB client build failed: %s", exc)
+        import traceback
+        logger.error("CLOB client build failed: %s\n%s", exc, traceback.format_exc())
         return None
 
 
