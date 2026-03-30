@@ -939,17 +939,20 @@ class PolymarketFeed:
         now = time.time()
         for token_id in list(self.tokens.keys()):
             result = await self.fetch_last_trade(token_id)
-            if result:
+            if result and result[0] > 0:
                 price, size = result
-            elif not self._session or self._stub_mode:
-                # Stub mode: derive tick from current OB mid with small walk
-                ob = self.order_books.get(token_id)
-                if ob is None:
-                    continue
-                price = max(0.01, min(0.99, ob.mid + random.gauss(0, 0.004)))
-                size = random.uniform(50, 500)
             else:
-                continue
+                # No last trade (stub mode, no recent trades, or zero price returned).
+                # Fall back to OB mid so bars stay current with the live market price.
+                ob = self.order_books.get(token_id)
+                if ob is None or ob.mid <= 0:
+                    continue
+                if self._stub_mode:
+                    price = max(0.01, min(0.99, ob.mid + random.gauss(0, 0.004)))
+                    size = random.uniform(50, 500)
+                else:
+                    price = ob.mid
+                    size = 1.0
             self.bar_builders_5m[token_id].update(price, size, now)
             self.bar_builders_15m[token_id].update(price, size, now)
 
