@@ -717,6 +717,19 @@ class PolymarketFeed:
             sum(1 for t in self.tokens.values() if t.market_type == "target"),
         )
 
+        # Warn if any tracked asset has zero updown tokens (slug mismatch or no active markets)
+        for asset in tracked:
+            has_updown = any(
+                t.asset == asset and t.market_type == "updown"
+                for t in self.tokens.values()
+            )
+            if not has_updown:
+                logger.warning(
+                    "DISCOVERY GAP: no updown tokens found for %s "
+                    "(slug lookup may have failed or no active markets)",
+                    asset,
+                )
+
     # ── Order book polling ────────────────────────────────────────────────────
 
     async def fetch_order_book(self, token_id: str) -> Optional[OrderBook]:

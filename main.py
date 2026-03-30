@@ -243,6 +243,13 @@ class KlausBot:
             if token_id in self.risk.open_positions:
                 continue
 
+            # Skip tokens that are in the no-trade final window — saves scan noise
+            # and avoids scoring dead markets (near-expiry prices are extreme/meaningless).
+            if token.window_end_ts > 0:
+                remaining_window = token.window_end_ts - time.time()
+                if remaining_window < CONFIG.execution.no_trade_last_sec:
+                    continue
+
             bars_5m = self.feed.get_bars_5m(token_id, n=30)
             bars_15m = self.feed.get_bars_15m(token_id, n=30)
             ob = self.feed.get_order_book(token_id)
