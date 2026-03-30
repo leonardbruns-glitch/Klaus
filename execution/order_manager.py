@@ -460,9 +460,11 @@ class OrderManager:
             )
             signed = self._client.create_order(order_args, options=opts)
 
-            # FAK (Fill-And-Kill/IOC) for buys: take liquidity now, cancel remainder.
-            # GTC for sells: must liquidate full position even if book is thin.
-            order_type = OrderType.FAK if side == OrderSide.BUY else OrderType.GTC
+            # GTC for all orders. FAK has an unsatisfiable integer maker-amount
+            # constraint (maker_micro must be multiple of 10000) for any non-trivial
+            # price. GTC limit orders have no such constraint and fill immediately
+            # when our +5% buffer limit price crosses the best ask.
+            order_type = OrderType.GTC
 
             # Cloudflare WAF blocks datacenter IPs on POST /order ~30-50% of the time.
             # Retry with exponential backoff; CF challenges are transient.
@@ -495,16 +497,16 @@ class OrderManager:
             taking_f = _to_float(taking)
 
             if status == "live":
-                # BUY orders use FAK so "live" shouldn't appear (FAK cancels remainder).
-                # SELL orders use GTC — "live" means order is resting, cancel immediately.
-                if side == OrderSide.SELL:
-                    order_id = resp.get("id", resp.get("orderID", ""))
-                    if order_id:
-                        try:
-                            self._client.cancel(order_id)
-                            logger.info("Cancelled resting GTC sell %s", order_id[:12])
-                        except Exception:
-                            pass
+                # Order resting on book — cancel immediately for both buys and sells.
+                # Buys: means no liquidity at our limit price right now (unusual with +5% buffer).
+                # Sells: means no bid at our floor price.
+                order_id = resp.get("id", resp.get("orderID", ""))
+                if order_id:
+                    try:
+                        self._client.cancel(order_id)
+                        logger.info("Cancelled resting GTC %s %s", side.name, order_id[:12])
+                    except Exception:
+                        pass
                 return OrderResult(status=OrderStatus.FAILED, error="Order resting on book (live)")
 
             if status != "matched" or taking_f <= 0:
