@@ -86,9 +86,71 @@ class FeedbackEngine:
         )
         self._session_trades: List[TradeRecord] = []
         self._trade_counter = 0
+        self._load_history_from_file()
 
     def _ensure_log_dir(self) -> None:
         os.makedirs(self.cfg.log_dir, exist_ok=True)
+
+    def _load_history_from_file(self) -> None:
+        """
+        Pre-populate _recent from trades.jsonl so generate_claude_report() has
+        data immediately after a restart (not just from the current session).
+        Only loads the last edge_drift_window records to keep the deque bounded.
+        """
+        records = self.load_trade_history()
+        if not records:
+            return
+        # Take the most recent window's worth
+        tail = records[-self.cfg.edge_drift_window:]
+        loaded = 0
+        for d in tail:
+            try:
+                # Reconstruct minimal TradeRecord from the stored dict.
+                # Fields added later (e.g. external_boost) may be absent — default to 0.
+                rec = TradeRecord(
+                    trade_id=d.get("trade_id", ""),
+                    token_id=d.get("token_id", ""),
+                    asset=d.get("asset", ""),
+                    direction=d.get("direction", ""),
+                    ts_open=d.get("ts_open", 0.0),
+                    ts_close=d.get("ts_close", 0.0),
+                    entry_price=d.get("entry_price", 0.0),
+                    exit_price=d.get("exit_price", 0.0),
+                    stake=d.get("stake", 0.0),
+                    shares=d.get("shares", 0.0),
+                    gross_pnl=d.get("gross_pnl", 0.0),
+                    fee_paid=d.get("fee_paid", 0.0),
+                    net_pnl=d.get("net_pnl", 0.0),
+                    slippage_entry=d.get("slippage_entry", 0.0),
+                    slippage_exit=d.get("slippage_exit", 0.0),
+                    exit_reason=d.get("exit_reason", ""),
+                    breakout_score=d.get("breakout_score", 0.0),
+                    trend_score=d.get("trend_score", 0.0),
+                    volume_score=d.get("volume_score", 0.0),
+                    ob_score=d.get("ob_score", 0.0),
+                    composite_score=d.get("composite_score", 0.0),
+                    confidence=d.get("confidence", 0.0),
+                    fee_zone=d.get("fee_zone", ""),
+                    external_boost=d.get("external_boost", 0.0),
+                    hold_seconds=d.get("hold_seconds", 0.0),
+                    heat_check_active=d.get("heat_check_active", False),
+                    consecutive_wins_at_entry=d.get("consecutive_wins_at_entry", 0),
+                    capital_before=d.get("capital_before", 0.0),
+                    capital_after=d.get("capital_after", 0.0),
+                )
+                self._recent.append(rec)
+                if d.get("trade_id", "").startswith("T"):
+                    try:
+                        num = int(d["trade_id"][1:6])
+                        if num > self._trade_counter:
+                            self._trade_counter = num
+                    except (ValueError, IndexError):
+                        pass
+                loaded += 1
+            except Exception:
+                pass
+        if loaded:
+            logger.info("FeedbackEngine: loaded %d historical trades from file", loaded)
 
     # ── Recording ─────────────────────────────────────────────────────────────
 

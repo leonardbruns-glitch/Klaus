@@ -11,6 +11,8 @@ Exit logic ported from baseline bot v4:
 """
 from __future__ import annotations
 
+import json
+import os
 import time
 import datetime
 from dataclasses import dataclass, field
@@ -20,6 +22,8 @@ import logging
 
 from config import CONFIG
 from strategy.momentum import Direction, SignalBreakdown, TPSLLevels
+
+POSITIONS_FILE = os.path.join("logs", "positions.json")
 
 logger = logging.getLogger("risk")
 
@@ -152,6 +156,77 @@ class RiskManager:
         self.open_positions: Dict[str, PositionMeta] = {}
         self._traded_conditions: Set[str] = set()   # dedup within window
         self._last_close_ts: float = 0.0
+        self._load_positions()
+
+    # ── Position persistence ─────────────────────────────────────────────────
+
+    def _save_positions(self) -> None:
+        """Persist open_positions to disk so bot restarts can resume monitoring."""
+        os.makedirs("logs", exist_ok=True)
+        try:
+            data = {}
+            for tid, pos in self.open_positions.items():
+                data[tid] = {
+                    "token_id": pos.token_id,
+                    "asset": pos.asset,
+                    "direction": pos.direction.name,
+                    "stake": pos.stake,
+                    "entry_price": pos.entry_price,
+                    "tp": pos.tp,
+                    "sl": pos.sl,
+                    "open_ts": pos.open_ts,
+                    "window_end_ts": pos.window_end_ts,
+                    "shares": pos.shares,
+                    "remaining_shares": pos.remaining_shares,
+                    "highest_price": pos.highest_price,
+                    "exit_stage": pos.exit_stage.name,
+                    "profit_trigger_ts": pos.profit_trigger_ts,
+                    "hard_exit_triggered": pos.hard_exit_triggered,
+                    "condition_id": pos.condition_id,
+                }
+            with open(POSITIONS_FILE, "w") as f:
+                json.dump(data, f)
+        except Exception as exc:
+            logger.warning("Failed to save positions: %s", exc)
+
+    def _load_positions(self) -> None:
+        """Restore open_positions from disk on startup."""
+        if not os.path.exists(POSITIONS_FILE):
+            return
+        try:
+            with open(POSITIONS_FILE) as f:
+                data = json.load(f)
+            if not data:
+                return
+            for tid, d in data.items():
+                pos = PositionMeta(
+                    token_id=d["token_id"],
+                    asset=d["asset"],
+                    direction=Direction[d["direction"]],
+                    stake=d["stake"],
+                    entry_price=d["entry_price"],
+                    tp=d["tp"],
+                    sl=d["sl"],
+                    open_ts=d["open_ts"],
+                    window_end_ts=d["window_end_ts"],
+                    shares=d["shares"],
+                    remaining_shares=d["remaining_shares"],
+                    highest_price=d["highest_price"],
+                    exit_stage=ExitStage[d["exit_stage"]],
+                    profit_trigger_ts=d["profit_trigger_ts"],
+                    hard_exit_triggered=d["hard_exit_triggered"],
+                    condition_id=d["condition_id"],
+                )
+                self.open_positions[tid] = pos
+                if pos.condition_id:
+                    self._traded_conditions.add(pos.condition_id)
+            logger.info(
+                "Restored %d open position(s) from disk: %s",
+                len(self.open_positions),
+                [f"{p.asset}/{p.direction.name}" for p in self.open_positions.values()],
+            )
+        except Exception as exc:
+            logger.warning("Failed to load positions from disk: %s", exc)
 
     # ── Window reset ─────────────────────────────────────────────────────────
 
@@ -335,6 +410,7 @@ class RiskManager:
             direction.name, asset, entry_price, stake,
             tpsl.take_profit, tpsl.stop_loss,
         )
+        self._save_positions()
         return pos
 
     def record_stage1_sell(self, token_id: str, shares_sold: float) -> None:
@@ -380,6 +456,7 @@ class RiskManager:
             pos.direction.name, pos.asset, exit_price,
             net_pnl, fee_cost, reason,
         )
+        self._save_positions()
         return net_pnl
 
     # ── Exit decision engine ─────────────────────────────────────────────────

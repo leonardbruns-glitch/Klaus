@@ -383,6 +383,8 @@ class OrderManager:
         """
         Market order first; limit order fallback with price stepping.
         Mirrors baseline bot's cascade loop.
+        Tracks actual fill prices from each successful attempt and returns
+        a weighted average — NOT the stale current_price snapshot.
         """
         if CONFIG.dry_run:
             return self._simulate_fill(
@@ -392,6 +394,8 @@ class OrderManager:
         sell_price = max(current_price * 0.90, 0.01)
         orig_price = sell_price
         total_sold = 0.0
+        # Track actual fill prices per attempt for accurate analytics
+        fill_value = 0.0   # sum(price * size) across all attempts
 
         for attempt in range(max_attempts):
             if shares - total_sold < 0.01:
@@ -405,6 +409,7 @@ class OrderManager:
                 result = await self._submit_market_order_sell(token_id, sell_amount)
                 if result.status == OrderStatus.FILLED and result.total_size > 0:
                     total_sold += result.total_size
+                    fill_value += result.avg_fill_price * result.total_size
                     sell_price = orig_price
                     continue
             except Exception:
@@ -418,6 +423,7 @@ class OrderManager:
                 )
                 if result.status == OrderStatus.FILLED and result.total_size > 0:
                     total_sold += result.total_size
+                    fill_value += result.avg_fill_price * result.total_size
                     continue
             except Exception:
                 pass
@@ -427,18 +433,27 @@ class OrderManager:
             logger.debug("Sell retry %d: %.4f @ %.4f", attempt + 1, remaining, sell_price)
 
         if total_sold > 0:
+            # Actual weighted average fill price across all successful attempts.
+            # Fall back to current_price ONLY if fill_value is 0 (e.g. market order
+            # returns no avg_fill_price — should not happen in practice).
+            actual_avg_price = fill_value / total_sold if fill_value > 0 else current_price
+            if actual_avg_price != current_price:
+                logger.debug(
+                    "Cascade sell actual avg price %.4f (snapshot was %.4f, delta %.4f)",
+                    actual_avg_price, current_price, actual_avg_price - current_price,
+                )
             fill = Fill(
                 order_id=f"cascade_{token_id[:6]}_{int(time.time())}",
                 token_id=token_id,
                 side=OrderSide.SELL,
-                price=current_price,
+                price=actual_avg_price,
                 size=total_sold,
                 fee=0.0,
             )
             return OrderResult(
                 status=OrderStatus.FILLED,
                 fills=[fill],
-                avg_fill_price=current_price,
+                avg_fill_price=actual_avg_price,
                 total_size=total_sold,
             )
         return OrderResult(status=OrderStatus.FAILED, error="All cascade attempts failed")
@@ -553,9 +568,12 @@ class OrderManager:
             making = resp.get("makingAmount", "0")
 
             def _to_float(v) -> float:
+                # Handles: "5.0000", "50000", "-3.5", "1.2e6", int, float.
+                # The old isdigit() check rejected negatives and scientific notation.
                 try:
-                    return float(v) if str(v).replace(".", "").isdigit() else 0.0
-                except Exception:
+                    result = float(v)
+                    return result if result >= 0 else 0.0   # negative fill size = invalid
+                except (TypeError, ValueError):
                     return 0.0
 
             taking_f = _to_float(taking)

@@ -24,9 +24,9 @@ from typing import Dict, Optional, Set
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
-from strategy.momentum import MomentumScorer, Direction, calculate_tp_sl
+from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
 from risk.manager import RiskManager
-from execution.order_manager import OrderManager
+from execution.order_manager import OrderManager, OrderResult, OrderStatus
 from analytics.feedback import FeedbackEngine
 from analytics.research import ResearchEngine
 
@@ -374,12 +374,49 @@ class KlausBot:
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
         net_pnl = self.risk.close_position(token_id, stage2_exit_price, reason)
 
-        if net_pnl is not None and meta.get("entry_fill") and meta.get("signal"):
+        if net_pnl is not None:
             # Combine stage-1 + stage-2 fills for accurate analytics
             # (stage-2 only gives inflated gross_pnl on 100% shares at wrong price)
             stage1_fills = meta.get("stage1_fills", [])
             all_exit_fills = stage1_fills + exit_fills
-            analytics_exit_price = self._calc_exit_price(all_exit_fills, pos.entry_price)
+
+            # Best available exit price: weighted avg of actual fills, or
+            # the stage2 price (already computed from exit_fills above), or
+            # fallback to entry_price so the trade is still recorded correctly
+            # as a loss/scratch rather than silently dropped.
+            analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_exit_price)
+
+            # entry_fill and signal: use from meta if available; construct
+            # minimal placeholders if the position was restored from disk and
+            # meta wasn't populated for this session.
+            entry_fill = meta.get("entry_fill")
+            signal = meta.get("signal")
+
+            if entry_fill is None:
+                # Position was recovered from disk; synthesize a minimal entry fill
+                # so analytics can still record the trade.
+                entry_fill = OrderResult(
+                    status=OrderStatus.FILLED,
+                    avg_fill_price=pos.entry_price,
+                    total_size=pos.shares,
+                    slippage=0.0,
+                )
+
+            if signal is None:
+                # Build a minimal signal stub so analytics doesn't crash.
+                signal = SignalBreakdown(
+                    direction=pos.direction,
+                    entry_price=pos.entry_price,
+                    composite=0.0,
+                    confidence=0.0,
+                    breakout_score=0.0,
+                    trend_score=0.0,
+                    volume_score=0.0,
+                    ob_score=0.0,
+                    fee_zone=FeeZone.FAT_MIDDLE,
+                    external_boost=0.0,
+                    reason="recovered_from_disk",
+                )
 
             self.analytics.record_trade(
                 token_id=token_id,
@@ -389,10 +426,10 @@ class KlausBot:
                 exit_price=analytics_exit_price,   # weighted avg all tranches
                 stake=pos.stake,
                 shares=pos.shares,
-                entry_fill=meta["entry_fill"],
+                entry_fill=entry_fill,
                 exit_fills=all_exit_fills,          # includes stage-1 fills
                 exit_reason=reason,
-                signal=meta["signal"],
+                signal=signal,
                 ts_open=meta.get("ts_open", pos.open_ts),
                 ts_close=time.time(),
                 capital_before=capital_before,
