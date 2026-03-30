@@ -442,7 +442,7 @@ class OrderManager:
 
             # Limit order sell. Market order (FOK SELL) removed: its amount
             # semantics differ from BUY (tokens vs USDC), causing under-sells.
-            # Limit order at sell_price (starting at 90% of current) fills
+            # Limit order at sell_price (starting at 95% of current) fills
             # immediately when marketable; steps down 10% each retry if resting.
             try:
                 result = await self._submit_limit_order(
@@ -454,8 +454,20 @@ class OrderManager:
                     fill_value += result.avg_fill_price * result.total_size
                     sell_price = orig_price
                     continue
-            except Exception:
-                pass
+            except Exception as _sell_exc:
+                err = str(_sell_exc)
+                # Network-level failure: no point retrying — break and let the
+                # OB scan retry on the next cycle (1s). Without this, 15 attempts
+                # each raising a curl errno 7 would burn ~30s of the window
+                # with no diagnostic, then ghost the position.
+                if "curl: (7)" in err or "Failed to connect" in err or "Could not connect" in err:
+                    logger.warning(
+                        "SELL aborted: CLOB unreachable (network error) after %d attempt(s) — "
+                        "position stays open, retrying next OB scan",
+                        attempt + 1,
+                    )
+                    break
+                logger.debug("Sell attempt %d error: %s", attempt + 1, _sell_exc)
 
             # Step price down 10 %
             sell_price = max(sell_price * 0.90, 0.01)

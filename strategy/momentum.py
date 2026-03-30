@@ -423,8 +423,10 @@ def calculate_tp_sl(
     sl = max(0.01, entry_price - sl_distance)
 
     # RR must use actual achievable profit, not raw ATR distance.
-    # At entry=0.998, tp is capped at 0.98 which is BELOW entry — actual profit = 0.
-    # Using raw tp_distance would show RR=2.0 even though the trade has no upside.
+    # At entry=0.89, tp is capped at 0.98 → actual_tp_dist=0.09 (not 0.15 ATR).
+    # sl_distance uses the ATR-based cap (representative of intra-window noise).
+    # High entries (>0.75) are rejected by the near-resolved guard in risk/manager.py
+    # before reaching this point, so ATR sl is appropriate for the remaining range.
     actual_tp_dist = max(0.0, tp - entry_price)
     rr = actual_tp_dist / sl_distance if sl_distance > 0 and actual_tp_dist > 0 else 0.0
 
