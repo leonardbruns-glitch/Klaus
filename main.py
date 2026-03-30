@@ -28,6 +28,7 @@ from strategy.momentum import MomentumScorer, Direction, calculate_tp_sl
 from risk.manager import RiskManager
 from execution.order_manager import OrderManager
 from analytics.feedback import FeedbackEngine
+from analytics.research import ResearchEngine
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -57,6 +58,7 @@ class KlausBot:
         self.risk = RiskManager()
         self.orders = OrderManager()
         self.analytics = FeedbackEngine()
+        self.research = ResearchEngine(self.feed, self.scorer)
         self._running = False
         self._last_report_ts = 0.0
         # track entry metadata for trade recording
@@ -92,9 +94,10 @@ class KlausBot:
         signal_task = asyncio.create_task(self._signal_loop())
         report_task = asyncio.create_task(self._report_loop())
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        research_task = asyncio.create_task(self.research.run())
 
         try:
-            await asyncio.gather(ob_task, signal_task, report_task, heartbeat_task)
+            await asyncio.gather(ob_task, signal_task, report_task, heartbeat_task, research_task)
         except asyncio.CancelledError:
             pass
         finally:
