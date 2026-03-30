@@ -526,7 +526,13 @@ class RiskManager:
                 if exit_price < CONFIG.fees.extreme_low or exit_price > CONFIG.fees.extreme_high
                 else CONFIG.fees.middle_fee_rate
             )
-            fee_cost = pos.stake * fee_rate
+            # Fee applies to BOTH sides: entry notional (pos.stake) + exit notional.
+            # Previous estimate only used pos.stake (buy-side), missing the sell fee.
+            # For entry=0.55→exit=0.75 on 4.85 shares:
+            #   old: $2.67 × 1.6% = $0.043  (missing sell-side fee)
+            #   new: ($2.67 + $3.64) × 1.6% = $0.101  (correct round-trip fee)
+            exit_notional = exit_price * shares
+            fee_cost = (pos.stake + exit_notional) * fee_rate
             fee_source = "estimated"
 
         net_pnl = raw_pnl - fee_cost

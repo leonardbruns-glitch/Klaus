@@ -743,9 +743,15 @@ class OrderManager:
             # GET /data/trades?id=<order_id> returns actual fill price and fee.
             # No CF blocking on GET. Worth 150-300ms for accurate analytics.
             # If it fails, fall back to the values above (unchanged behaviour).
+            #
+            # IMPORTANT: wait 400ms before querying. The CLOB REST /data/trades
+            # API has a propagation lag — calling immediately after "matched"
+            # returns an empty list, causing us to record fee=0 and fall back to
+            # the config estimate. 400ms covers the observed ~100-300ms lag.
             actual_fee = 0.0
             order_id_str = resp.get("id", resp.get("orderID", ""))
             if order_id_str:
+                await asyncio.sleep(0.4)
                 actual = self.fetch_order_fills(order_id_str)
                 if actual and actual["total_size"] > 0:
                     reconciled_price = actual["avg_price"]

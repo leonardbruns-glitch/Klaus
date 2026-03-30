@@ -75,7 +75,12 @@ class KlausBot:
         # ── Bankroll sync: reconcile tracked capital with actual Polymarket balance ──
         # GET /balance-allowance is not CF-blocked — works from any machine.
         # Corrects drift from manual trades, crashed sessions, or manual deposits.
-        if not CONFIG.dry_run:
+        #
+        # GUARD: skip sync when positions exist from a previous session.
+        # The USDC balance only reflects unspent cash — it does NOT include the
+        # value of open token positions. Syncing while positions are open would
+        # set capital = (capital − value_of_open_tokens), incorrectly lowering it.
+        if not CONFIG.dry_run and not self.risk.open_positions:
             real_balance = self.orders.fetch_usdc_balance()
             if real_balance is not None:
                 tracked = self.risk.bankroll.capital
@@ -446,11 +451,18 @@ class KlausBot:
 
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
 
-        # Sum actual fees from all fill objects (CLOB-reconciled via fetch_order_fills).
-        # If fills have fee=0 (pre-reconciliation or dry-run), falls back to estimated.
-        actual_fee_total = sum(
-            f.fee for r in all_exit_fills for f in r.fills if f.fee > 0
-        ) or None  # None → risk manager uses config estimate
+        # Sum actual fees from BOTH entry and exit fills (CLOB-reconciled).
+        # Polymarket charges taker fee on each side of the trade independently.
+        # Previous code only summed exit fees — missing the entry-side fee.
+        # Falls back to estimated (risk manager config) when actual=0 (timing lag,
+        # dry-run, or maker orders with zero fee).
+        entry_fill = meta.get("entry_fill")
+        entry_fee = (
+            sum(f.fee for f in entry_fill.fills if f.fee > 0)
+            if (entry_fill and entry_fill.fills) else 0.0
+        )
+        exit_fee = sum(f.fee for r in all_exit_fills for f in r.fills if f.fee > 0)
+        actual_fee_total = (entry_fee + exit_fee) if (entry_fee + exit_fee) > 0 else None
 
         # Pass full shares + weighted avg price so bankroll records 100% of trade PnL.
         # Without shares_override, close_position uses remaining_shares (5% after
