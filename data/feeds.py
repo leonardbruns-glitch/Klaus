@@ -419,21 +419,25 @@ class PolymarketFeed:
                     neg_risk=neg_risk,
                     tick_size=tick_size,
                 )
+                is_new = token_id not in self.tokens
                 self.tokens[token_id] = token
-                self.asset_tokens.setdefault(asset_match, []).append(token_id)
-                self.bar_builders_5m[token_id] = BarBuilder(
-                    CONFIG.markets.bar_interval_primary,
-                    CONFIG.markets.history_bars,
-                )
-                self.bar_builders_15m[token_id] = BarBuilder(
-                    CONFIG.markets.bar_interval_secondary,
-                    CONFIG.markets.history_bars,
-                )
-                # Seed order book from Gamma outcomePrices (saves first OB fetch)
-                if i < len(outcome_prices) and outcome_prices[i] > 0:
-                    self.order_books[token_id] = self._make_stub_order_book(
-                        token_id, outcome_prices[i]
+                if is_new:
+                    # Only add to index and initialise builders for new tokens.
+                    # Existing tokens keep their accumulated bar history.
+                    self.asset_tokens.setdefault(asset_match, []).append(token_id)
+                    self.bar_builders_5m[token_id] = BarBuilder(
+                        CONFIG.markets.bar_interval_primary,
+                        CONFIG.markets.history_bars,
                     )
+                    self.bar_builders_15m[token_id] = BarBuilder(
+                        CONFIG.markets.bar_interval_secondary,
+                        CONFIG.markets.history_bars,
+                    )
+                    # Seed order book from Gamma outcomePrices (saves first OB fetch)
+                    if i < len(outcome_prices) and outcome_prices[i] > 0:
+                        self.order_books[token_id] = self._make_stub_order_book(
+                            token_id, outcome_prices[i]
+                        )
 
         logger.info(
             "Discovered %d tokens across %s (updown=%d target=%d)",
