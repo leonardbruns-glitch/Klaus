@@ -65,7 +65,7 @@ class MomentumConfig:
     ob_imbalance_thresh: float = 0.60  # bid / (bid + ask) depth ratio
 
     # ── Composite scoring thresholds ────────────────────────────────────────
-    min_score: float = 0.37            # lowered 0.45→0.37: testing wider entry to capture signals at 20+ UTC
+    min_score: float = 0.44            # raised 0.37→0.44: tighten quality gate based on live session data
     # weights (must sum to 1.0)
     # Rebalanced 2026-03-30: added intrawindow_delta ("king signal" per Archetapp research);
     # reduced trend weight (EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows);
