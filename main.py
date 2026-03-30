@@ -283,6 +283,10 @@ class KlausBot:
         )
         sold = sum(f.total_size for f in exit_fills)
         self.risk.record_stage1_sell(token_id, sold)
+        # Store stage-1 fills so analytics can compute accurate weighted exit price
+        meta = self._open_meta.get(token_id)
+        if meta is not None:
+            meta.setdefault("stage1_fills", []).extend(exit_fills)
         logger.info(
             "STAGE-1 %s %s | sold=%.4f @ ~%.4f | reason=%s",
             pos.asset, pos.direction.name, sold, live_price, reason,
@@ -302,21 +306,28 @@ class KlausBot:
             reason=reason,
         )
 
-        exit_price = self._calc_exit_price(exit_fills, pos.entry_price)
+        # stage-2 exit price for risk manager (uses remaining_shares)
+        stage2_exit_price = self._calc_exit_price(exit_fills, pos.entry_price)
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
-        net_pnl = self.risk.close_position(token_id, exit_price, reason)
+        net_pnl = self.risk.close_position(token_id, stage2_exit_price, reason)
 
         if net_pnl is not None and meta.get("entry_fill") and meta.get("signal"):
+            # Combine stage-1 + stage-2 fills for accurate analytics
+            # (stage-2 only gives inflated gross_pnl on 100% shares at wrong price)
+            stage1_fills = meta.get("stage1_fills", [])
+            all_exit_fills = stage1_fills + exit_fills
+            analytics_exit_price = self._calc_exit_price(all_exit_fills, pos.entry_price)
+
             self.analytics.record_trade(
                 token_id=token_id,
                 asset=pos.asset,
                 direction=pos.direction,
                 entry_price=pos.entry_price,
-                exit_price=exit_price,
+                exit_price=analytics_exit_price,   # weighted avg all tranches
                 stake=pos.stake,
                 shares=pos.shares,
                 entry_fill=meta["entry_fill"],
-                exit_fills=exit_fills,
+                exit_fills=all_exit_fills,          # includes stage-1 fills
                 exit_reason=reason,
                 signal=meta["signal"],
                 ts_open=meta.get("ts_open", pos.open_ts),
