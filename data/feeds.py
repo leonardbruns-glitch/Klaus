@@ -216,11 +216,14 @@ class PolymarketFeed:
         """
         Fetch active markets from Gamma API and filter to tracked assets.
 
-        Gamma API returns:
-          clobTokenIds: ["token_id_up", "token_id_down"]   ← list of strings
-          outcomes:     ["Up", "Down"]  or  ["Yes", "No"]
-          conditionId:  "0x..."
-          endDate:      "2026-01-15T14:15:00Z"
+        Gamma API returns (all list fields are JSON-encoded strings):
+          clobTokenIds:  "[\"token_id_up\", \"token_id_down\"]"   ← JSON string!
+          outcomes:      "[\"Up\", \"Down\"]"                     ← JSON string!
+          outcomePrices: "[\"0.52\", \"0.48\"]"                   ← JSON string!
+          conditionId:   "0x..."
+          endDate:       "2026-01-15T14:15:00Z"
+          acceptingOrders: true / false
+          liquidityClob: 10000.0
         """
         if not self._session:
             return
@@ -238,12 +241,24 @@ class PolymarketFeed:
             logger.error("Market discovery failed: %s", exc)
             return
 
+        now = _dt.datetime.utcnow().timestamp()
         for market in markets:
+            # Skip non-tradeable markets early
+            if not market.get("acceptingOrders", True):
+                continue
+            if market.get("closed", False) or market.get("archived", False):
+                continue
+
             question = market.get("question", "")
             asset_match = next(
                 (a for a in tracked if a.upper() in question.upper()), None
             )
             if not asset_match:
+                continue
+
+            # Liquidity filter: skip very illiquid markets (< $200 on books)
+            liquidity = market.get("liquidityClob", market.get("liquidityNum", 0)) or 0
+            if float(liquidity) < 200:
                 continue
 
             # Detect market type: 5M/15M Up/Down vs longer-duration price target.
@@ -292,6 +307,14 @@ class PolymarketFeed:
 
             raw_ids = _parse_json_field(market.get("clobTokenIds"), [])
             outcomes = _parse_json_field(market.get("outcomes"), [])
+            # outcomePrices gives current market prices — use to seed OB on discovery
+            outcome_prices_raw = _parse_json_field(market.get("outcomePrices"), [])
+            outcome_prices = []
+            for p in outcome_prices_raw:
+                try:
+                    outcome_prices.append(float(p))
+                except (ValueError, TypeError):
+                    outcome_prices.append(0.0)
 
             if not raw_ids:
                 # Try legacy CLOB field name (tokens list of dicts)
@@ -308,6 +331,10 @@ class PolymarketFeed:
                 outcome_label = outcomes[i] if i < len(outcomes) else ("YES" if i == 0 else "NO")
                 # UP / YES → YES side; DOWN / NO → NO side
                 side = "YES" if outcome_label.upper() in ("YES", "UP", "TRUE", "1") else "NO"
+
+                # Skip already-expired tokens
+                if window_end_ts > 0 and window_end_ts < now:
+                    continue
 
                 token = MarketToken(
                     token_id=token_id,
@@ -330,6 +357,11 @@ class PolymarketFeed:
                     CONFIG.markets.bar_interval_secondary,
                     CONFIG.markets.history_bars,
                 )
+                # Seed order book from Gamma outcomePrices (saves first OB fetch)
+                if i < len(outcome_prices) and outcome_prices[i] > 0:
+                    self.order_books[token_id] = self._make_stub_order_book(
+                        token_id, outcome_prices[i]
+                    )
 
         logger.info(
             "Discovered %d tokens across %s (updown=%d target=%d)",
