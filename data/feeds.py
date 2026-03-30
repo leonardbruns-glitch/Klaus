@@ -249,9 +249,16 @@ class PolymarketFeed:
                 # Also include next window (already accepting orders 2-3 min early)
                 direct_slugs.append(f"{asset.lower()}-updown-{interval//60}m-{w_ts + interval}")
 
+        # Use a short per-request timeout for discovery so network outages
+        # fail fast (3s) instead of blocking for the full 10s session timeout.
+        import aiohttp as _aiohttp
+        _disc_timeout = _aiohttp.ClientTimeout(total=3)
+
         async def _fetch_slug(slug: str):
             try:
-                async with self._session.get(url, params={"slug": slug}) as resp:
+                async with self._session.get(
+                    url, params={"slug": slug}, timeout=_disc_timeout
+                ) as resp:
                     if resp.status == 200:
                         return await resp.json()
             except Exception:
@@ -268,19 +275,26 @@ class PolymarketFeed:
             elif isinstance(data, dict):
                 markets.append(data)
 
+        # Skip bulk scan if slug requests all failed (network is down)
+        network_ok = any(d is not None for d in slug_results)
+
         # Bulk scan fallback for target markets (price prediction, non-updown)
-        try:
-            async with self._session.get(
-                url, params={"active": "true", "closed": "false", "limit": 500}
-            ) as resp:
-                if resp.status == 200:
-                    bulk = await resp.json()
-                    if isinstance(bulk, list):
-                        markets.extend(bulk)
-        except Exception as exc:
-            if not markets:
-                logger.error("Market discovery failed: %s", exc)
-                return
+        if network_ok:
+            try:
+                async with self._session.get(
+                    url, params={"active": "true", "closed": "false", "limit": 500},
+                    timeout=_disc_timeout,
+                ) as resp:
+                    if resp.status == 200:
+                        bulk = await resp.json()
+                        if isinstance(bulk, list):
+                            markets.extend(bulk)
+            except Exception as exc:
+                if not markets:
+                    logger.error("Market discovery failed: %s", exc)
+        else:
+            logger.error("Market discovery failed: all slug requests failed (network down?)")
+            return
 
         # Deduplicate by conditionId
         seen_conditions: set = set()
@@ -292,6 +306,16 @@ class PolymarketFeed:
                 unique_markets.append(m)
         markets = unique_markets
         logger.debug("Market discovery: %d unique markets to process", len(markets))
+
+        import json as _json
+
+        def _parse_json_field(val, default):
+            if isinstance(val, str):
+                try:
+                    return _json.loads(val)
+                except Exception:
+                    return default
+            return val if val is not None else default
 
         now = _dt.datetime.utcnow().timestamp()
         for market in markets:
@@ -351,16 +375,6 @@ class PolymarketFeed:
             # Gamma returns clobTokenIds + outcomes as JSON-encoded strings,
             # e.g. clobTokenIds = "[\"id1\",\"id2\"]" — must call json.loads().
             # Guard: accept both string (Gamma) and list (legacy/CLOB) formats.
-            import json as _json
-
-            def _parse_json_field(val, default):
-                if isinstance(val, str):
-                    try:
-                        return _json.loads(val)
-                    except Exception:
-                        return default
-                return val if val is not None else default
-
             raw_ids = _parse_json_field(market.get("clobTokenIds"), [])
             outcomes = _parse_json_field(market.get("outcomes"), [])
             # outcomePrices gives current market prices — use to seed OB on discovery
@@ -476,6 +490,7 @@ class PolymarketFeed:
     async def refresh_markets(self) -> None:
         """
         Periodically re-discover markets to pick up new 5M/15M windows.
+        Also purges expired tokens from tracking (avoids scanning dead markets).
         Called every ~60 seconds from poll_order_books.
         Skipped in stub mode.
         """
@@ -485,6 +500,25 @@ class PolymarketFeed:
         if now - self._last_discovery_ts < 60:
             return
         self._last_discovery_ts = now
+
+        # Purge expired tokens (window_end_ts > 0 and in the past)
+        expired = [
+            tid for tid, t in self.tokens.items()
+            if t.window_end_ts > 0 and t.window_end_ts < now
+        ]
+        for tid in expired:
+            self.tokens.pop(tid, None)
+            self.order_books.pop(tid, None)
+            self.bar_builders_5m.pop(tid, None)
+            self.bar_builders_15m.pop(tid, None)
+            self._last_ob_ts.pop(tid, None)
+            # Clean up asset_tokens index
+            for asset_list in self.asset_tokens.values():
+                if tid in asset_list:
+                    asset_list.remove(tid)
+        if expired:
+            logger.info("Purged %d expired tokens", len(expired))
+
         prev_count = len(self.tokens)
         await self._discover_markets()
         new_count = len(self.tokens)
@@ -504,7 +538,7 @@ class PolymarketFeed:
 
     async def fetch_last_trade(self, token_id: str) -> Optional[Tuple[float, float]]:
         """Returns (price, size) of the most recent trade, or None."""
-        if not self._session:
+        if not self._session or self._stub_mode:
             return None
         url = f"{self.CLOB}/last-trade-price"
         params = {"token_id": token_id}
@@ -547,7 +581,7 @@ class PolymarketFeed:
         Source: Binance public API (no auth required).
         Only applied if they improve edge; never blocks a high-edge trade.
         """
-        if not self._session:
+        if not self._session or self._stub_mode:
             return None
         symbol_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
         symbol = symbol_map.get(asset.upper())
