@@ -176,7 +176,7 @@ def _build_clob_client() -> Optional[Any]:
             pass
 
         _orig_client = _h._http_client
-        _h._http_client = _httpx.Client(http2=True, timeout=15.0)
+        _h._http_client = _httpx.Client(http2=False, timeout=15.0)  # HTTP/1.1 for auth — HTTP/2 hangs on Python 3.14
         try:
             client = ClobClient(**kwargs)
             api_creds = client.create_or_derive_api_creds()
