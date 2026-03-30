@@ -216,9 +216,10 @@ class OrderManager:
         if stake_usd <= 0 or intended_price <= 0:
             return OrderResult(status=OrderStatus.FAILED, error="Invalid stake or price")
 
-        # BUY_YES: cap at MAX_ENTRY_PRICE (0.30) — don't overpay for YES tokens.
-        # BUY_NO:  NO tokens trade at 0.70+; cap doesn't apply, use 0.99 ceiling.
-        price_ceil = MAX_ENTRY_PRICE if direction == Direction.BUY_YES else 0.99
+        # Both sides: cap at 0.99 ceiling. Risk manager already filters by max_entry_price
+        # (0.27) before calling here; applying MAX_ENTRY_PRICE (0.30) here created ghost
+        # orders at wrong prices for updown YES tokens trading at 0.50–0.92.
+        price_ceil = 0.99
         limit_price = round(
             min(intended_price * (1 + self.cfg.entry_price_buffer), price_ceil), 4
         )
@@ -437,13 +438,44 @@ class OrderManager:
             except Exception:
                 pass  # best-effort; if snap fails the server will reject with a clear error
 
-            # CLOB requires: makerAmount (USDC) max 2dp, takerAmount (shares) max 4dp.
-            # Also enforces min order size of $1 for marketable (FAK) orders.
-            # Snap size so price * size rounds to 2dp and meets the $1 floor.
-            maker = max(round(price * size, 2), 1.00)
-            if maker <= 0:
-                return OrderResult(status=OrderStatus.FAILED, error="Maker amount rounds to zero")
-            size = round(maker / price, 4)
+            # Integer arithmetic to satisfy CLOB constraints exactly (no floating-point rounding):
+            #   maker_micro = price_cents × size_ticks  (both integers)
+            #   maker_micro must be divisible by 10000 (GTC/FAK constraint)
+            import math as _math
+            price_cents = round(price * 100)
+            if price_cents <= 0:
+                return OrderResult(status=OrderStatus.FAILED, error="Price rounds to zero cents")
+            step = 10000 // _math.gcd(price_cents, 10000)   # smallest valid size_ticks increment
+            requested_ticks = round(size * 10000)
+
+            if side == OrderSide.BUY:
+                # BUY: snap UP — must meet 5-share min AND $1 maker min
+                min_ticks = max(
+                    _math.ceil(1_000_000 / price_cents),    # $1 minimum maker amount
+                    50_000,                                   # 5-share minimum for resting buys
+                )
+                snapped_ticks = _math.ceil(max(requested_ticks, min_ticks) / step) * step
+                maker_usd = (price_cents * snapped_ticks) / 1_000_000
+                # Guard: skip if min compliant order far exceeds stake (e.g. 0.92 YES = $4.60 for 5 shares)
+                if maker_usd > CONFIG.bankroll.base_stake * 3:
+                    logger.info(
+                        "SKIP %s — min order $%.2f exceeds 3× stake (price=%.4f, 5-share min)",
+                        token_id[:12], maker_usd, price,
+                    )
+                    return OrderResult(
+                        status=OrderStatus.FAILED,
+                        error=f"Min order ${maker_usd:.2f} exceeds 3× stake (5-share min at price {price:.4f})",
+                    )
+            else:
+                # SELL: snap DOWN to nearest valid step — never oversell shares we own.
+                # Marketable sells (price below bid) fill immediately; no 5-share resting minimum.
+                snapped_ticks = max((requested_ticks // step) * step, step)
+
+            size = snapped_ticks / 10000
+            logger.debug(
+                "Order snap: side=%s price=%.4f size=%.4f maker=$%.4f (step=%d ticks)",
+                side.name, price, size, (price_cents * snapped_ticks) / 1_000_000, step,
+            )
 
             order_args = OrderArgs(
                 token_id=token_id,
