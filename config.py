@@ -44,10 +44,11 @@ class FeeConfig:
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.55   # raised 0.0→0.55: 7/12 fat-middle trades losing
-                                          # Break-even at 1.80% peak fee ≈ 51.8% (simple) but
-                                          # round-trip taker cost ≈ 3.6% → need ~53.6% true prob.
-                                          # 0.55 provides adequate safety margin above break-even.
+    updown_min_confidence: float = 0.60   # raised 0.55→0.60: live data shows FAT MIDDLE OVERWEIGHT;
+                                          # T00010 (SOL 0.56→0.30 -$1.314), T00011 (ETH 0.61→0.44 -$0.934),
+                                          # T00012 (ETH 0.50→0.27 -$1.169) all fat-middle stop losses.
+                                          # Tighter gate reduces these entries. Break-even at 1.80%
+                                          # peak fee ≈ 53.6%; 0.60 provides meaningful safety margin.
 
 
 @dataclass
@@ -71,16 +72,19 @@ class MomentumConfig:
     # reduced trend weight (EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows);
     # increased OB weight (R²=0.65 for short-interval price variance per academic research).
     w_breakout: float = 0.25           # was 0.35
-    w_trend: float = 0.10             # was 0.25; lagging signal demoted
+    w_trend: float = 0.05             # was 0.10→0.05: live data shows trend ANTI-predictive
+                                       # (loss avg trend=0.579 vs win avg=0.306, n=13 trades);
+                                       # EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows
     w_volume: float = 0.20
     w_ob: float = 0.25               # was 0.20; OB imbalance IR>0.65 → 58% accuracy
-    w_intrawindow: float = 0.20      # new: intra-window delta (most direct binary predictor)
+    w_intrawindow: float = 0.25      # raised 0.20→0.25: king signal confirmed; strong iwd (≥0.60) → 100% WR
+                                      # (n=1 but consistent with theory); weight shifted from trend
 
     # ── Regime filters ───────────────────────────────────────────────────────
-    # ATR percentile gate: skip entries when current ATR(14) is below the 30th
-    # percentile of the last 50 bars. Research: momentum edge concentrates in
-    # higher-vol regimes; sub-30th percentile is near-random walk territory.
-    atr_regime_percentile: float = 0.30
+    # ATR percentile gate: skip entries when current ATR(14) is below the 40th
+    # percentile of the last 50 bars. Raised 0.30→0.40: live data shows high ATR trades
+    # → 100% WR (n=1), mid ATR → 33% WR (n=12). Filtering more aggressively.
+    atr_regime_percentile: float = 0.40
 
     # Hurst exponent: estimated via R/S method on last hurst_window bars.
     # H < hurst_min = mean-reverting → currently logged only (soft gate).
@@ -138,11 +142,12 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.30,   # relaxed 1.40→1.30: BTC is most liquid + reliable Chainlink oracle
-        "ETH": 1.00,   # reset 1.60→1.00: prior 1.60 was based on poisoned data (CLOB exit bug
-                       # was active for all ETH losses; stop loss never executed). No clean live
-                       # data exists to justify a penalty. Collect 20+ trades with working exits
-                       # then re-evaluate.
+        "BTC": 1.05,   # reset 1.30→1.05: no clean live BTC data to justify penalty; baseline
+                       # 38-trade data was different bot/strategy. Equal footing with SOL until
+                       # 20+ clean bot-executed BTC trades available.
+        "ETH": 1.05,   # set 1.00→1.05: equal footing with SOL/BTC. Recent ETH data (T00011,
+                       # T00012 losses) is too small (n=3) to calibrate meaningfully; fat-middle
+                       # filter (updown_min_confidence=0.60) now handles the bad entries.
         "SOL": 1.05,   # slight increase vs baseline: SOL 2× BTC volatility = more false breakouts
     })
 
