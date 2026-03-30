@@ -58,6 +58,10 @@ class SignalBreakdown:
     fee_zone: FeeZone = FeeZone.FAT_MIDDLE
     confidence: float = 0.0       # final adjusted confidence
     reason: str = ""              # human-readable explanation
+    # Regime context (logged but not hard-gates in first pass)
+    atr_current: float = 0.0
+    atr_percentile: float = 0.5
+    hurst: float = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +99,98 @@ def atr(bars: List[Bar], period: int = 14) -> float:
     if not trs:
         return 0.0
     return sum(trs[-period:]) / min(len(trs), period)
+
+
+def atr_regime_check(bars_5m: List[Bar], percentile_floor: float = 0.30, period: int = 14) -> tuple[bool, float, float]:
+    """
+    ATR percentile regime gate.
+    Research: momentum edge concentrates in high-volatility regimes; below the
+    30th percentile the market is too quiet for 5-min binary momentum to work.
+
+    Returns:
+        (passes: bool, current_atr: float, percentile: float)
+    """
+    if len(bars_5m) < period + 5:
+        return True, 0.0, 0.5  # not enough data, don't block
+
+    window = 50  # 50-bar rolling window for percentile
+    bars_for_pct = bars_5m[-min(window, len(bars_5m)):]
+
+    # Compute ATR for each bar using a rolling period window
+    atrs = []
+    for i in range(period, len(bars_for_pct)):
+        segment = bars_for_pct[max(0, i - period):i + 1]
+        atrs.append(atr(segment, period))
+
+    if not atrs:
+        return True, 0.0, 0.5
+
+    current_atr = atrs[-1]
+    sorted_atrs = sorted(atrs)
+    rank = sum(1 for v in sorted_atrs if v <= current_atr) / len(sorted_atrs)
+
+    passes = rank >= percentile_floor
+    return passes, current_atr, rank
+
+
+def hurst_exponent(bars_5m: List[Bar], window: int = 60) -> float:
+    """
+    Hurst exponent estimate via R/S analysis on 5-min bar closes.
+    H > 0.55: trending (momentum-favorable)
+    H ≈ 0.50: random walk (neutral)
+    H < 0.45: mean-reverting (avoid momentum entries)
+
+    Research (arXiv:2402.11930): 5-min BTC H ≈ 0.494 near random walk;
+    10-second resolution H ≈ 0.7 (trending). Use as soft context signal.
+    """
+    n = min(window, len(bars_5m))
+    if n < 20:
+        return 0.5  # insufficient data → assume random walk
+    closes = [b.close for b in bars_5m[-n:]]
+
+    lags = [4, 8, 16, 32]
+    rs_values: list[float] = []
+    lag_values: list[float] = []
+
+    for lag in lags:
+        if lag >= n:
+            continue
+        chunks = [closes[i:i + lag] for i in range(0, n - lag + 1, lag)]
+        rs_chunk: list[float] = []
+        for chunk in chunks:
+            if len(chunk) < 2:
+                continue
+            mean = sum(chunk) / len(chunk)
+            deviations = [x - mean for x in chunk]
+            cum, running = [], 0.0
+            for d in deviations:
+                running += d
+                cum.append(running)
+            R = max(cum) - min(cum)
+            variance = sum((x - mean) ** 2 for x in chunk) / len(chunk)
+            S = math.sqrt(variance) if variance > 0 else 0.0
+            if S > 1e-10:
+                rs_chunk.append(R / S)
+        if rs_chunk:
+            avg_rs = sum(rs_chunk) / len(rs_chunk)
+            if avg_rs > 0:
+                rs_values.append(math.log(avg_rs))
+                lag_values.append(math.log(lag))
+
+    if len(lag_values) < 2:
+        return 0.5
+
+    # OLS slope = Hurst exponent
+    n_pts = len(lag_values)
+    sx = sum(lag_values)
+    sy = sum(rs_values)
+    sxy = sum(x * y for x, y in zip(lag_values, rs_values))
+    sxx = sum(x * x for x in lag_values)
+    denom = n_pts * sxx - sx * sx
+    if denom < 1e-10:
+        return 0.5
+    H = (n_pts * sxy - sx * sy) / denom
+    return max(0.0, min(1.0, H))
 
 
 # ---------------------------------------------------------------------------
@@ -303,6 +399,29 @@ class MomentumScorer:
 
         sig = SignalBreakdown()
 
+        # ── Regime gates ──────────────────────────────────────────────────────
+        # ATR percentile: skip when market is too quiet (bottom 30% of vol range).
+        # Research: momentum edge concentrates in higher-vol regimes; low-vol periods
+        # are near-random walks where our signal accuracy drops toward coin-flip.
+        atr_ok, sig.atr_current, sig.atr_percentile = atr_regime_check(
+            bars_5m, self.cfg.atr_regime_percentile
+        )
+        if not atr_ok:
+            sig.reason = (
+                f"ATR regime blocked: percentile={sig.atr_percentile:.2f} "
+                f"< {self.cfg.atr_regime_percentile} (low-volatility regime)"
+            )
+            return sig
+
+        # Hurst exponent (soft — logged only, not a hard gate until calibrated).
+        # H < 0.45 means mean-reverting territory; log for data collection.
+        sig.hurst = hurst_exponent(bars_5m, self.cfg.hurst_window)
+        if sig.hurst < self.cfg.hurst_min:
+            logger.debug(
+                "Hurst=%.3f < %.2f (mean-reverting) — soft flag, not blocking",
+                sig.hurst, self.cfg.hurst_min,
+            )
+
         # ── Sub-scores ────────────────────────────────────────────────────────
         breakout_s, breakout_dir = score_breakout(bars_5m, self.cfg)
         trend_s, trend_dir = score_trend(bars_15m, self.cfg)
@@ -426,6 +545,9 @@ class MomentumScorer:
             parts.append(f"ext_boost=+{sig.external_boost:.2f}")
         elif sig.external_boost < -0.01:
             parts.append(f"ext_penalty={sig.external_boost:.2f}")
+        # Always append regime context for logging
+        parts.append(f"atr_pct={sig.atr_percentile:.2f}")
+        parts.append(f"H={sig.hurst:.3f}")
         sig.reason = " | ".join(parts) if parts else "composite signal"
 
         return sig

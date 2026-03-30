@@ -50,7 +50,8 @@ class FeeConfig:
 class MomentumConfig:
     # ── 5-min breakout ──────────────────────────────────────────────────────
     breakout_lookback: int = 10        # bars for range high/low calculation
-    volume_surge_mult: float = 1.5     # volume vs rolling average to confirm breakout
+    volume_surge_mult: float = 2.0     # raised 1.5→2.0: research says ≥2× confirms genuine
+                                       # momentum vs noise (2-3× confirmed by practitioner data)
 
     # ── 15-min trend alignment ───────────────────────────────────────────────
     ema_fast: int = 5                  # 15-min fast EMA period
@@ -70,6 +71,18 @@ class MomentumConfig:
     w_volume: float = 0.20
     w_ob: float = 0.25               # was 0.20; OB imbalance IR>0.65 → 58% accuracy
     w_intrawindow: float = 0.20      # new: intra-window delta (most direct binary predictor)
+
+    # ── Regime filters ───────────────────────────────────────────────────────
+    # ATR percentile gate: skip entries when current ATR(14) is below the 30th
+    # percentile of the last 50 bars. Research: momentum edge concentrates in
+    # higher-vol regimes; sub-30th percentile is near-random walk territory.
+    atr_regime_percentile: float = 0.30
+
+    # Hurst exponent: estimated via R/S method on last hurst_window bars.
+    # H < hurst_min = mean-reverting → currently logged only (soft gate).
+    # Upgrade to hard gate once we have sufficient live data to calibrate.
+    hurst_window: int = 60             # bars for Hurst estimate
+    hurst_min: float = 0.45           # below this = mean-reverting regime (soft flag)
 
 
 @dataclass
