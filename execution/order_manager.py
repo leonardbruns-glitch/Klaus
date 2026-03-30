@@ -36,10 +36,52 @@ try:
 except ImportError:
     CLOB_CLIENT_AVAILABLE = False
 
+# ── Cloudflare bypass: curl_cffi Chrome TLS impersonation ─────────────────
+# py_clob_client sets User-Agent: py_clob_client + httpx TLS fingerprint.
+# Cloudflare correlates these as bot signals and blocks POST /order ~30-50%.
+# curl_cffi impersonates Chrome's exact TLS cipher suite + extensions,
+# eliminating the JA3 fingerprint signal. Used by OpenClaw ($7M Polymarket bot).
+# Requires: pip install curl_cffi
+# Docs: https://github.com/lexiforest/curl_cffi
+try:
+    import py_clob_client.http_helpers.helpers as _clob_helpers
+    from curl_cffi.requests import Session as _CffiSession
+
+    class _ChromeTransport:
+        """Drop-in replacement for py_clob_client's httpx transport.
+        Emits Chrome TLS fingerprint to bypass Cloudflare JA3 detection."""
+        _CHROME_UA = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+
+        def __init__(self):
+            self._sess = _CffiSession(impersonate="chrome")
+
+        def request(self, method, url, headers=None, content=None, json=None, **kw):
+            hdrs = dict(headers or {})
+            hdrs["User-Agent"] = self._CHROME_UA
+            return self._sess.request(
+                method, url, headers=hdrs,
+                data=content, json=json, **kw
+            )
+
+    _clob_helpers._http_client = _ChromeTransport()
+    _CURL_CFFI_ACTIVE = True
+except Exception as _cf_exc:
+    _CURL_CFFI_ACTIVE = False
+    _CURL_CFFI_ERR = str(_cf_exc)
+
 from config import CONFIG
 from strategy.momentum import Direction
 
 logger = logging.getLogger("execution")
+
+if _CURL_CFFI_ACTIVE:
+    logger.info("curl_cffi Chrome transport active — Cloudflare JA3 bypass enabled")
+else:
+    logger.debug("curl_cffi not available (%s) — using default httpx transport", _CURL_CFFI_ERR)
 
 # Max entry price cap — mirrors old bot's 0.30 hard ceiling
 MAX_ENTRY_PRICE = 0.30

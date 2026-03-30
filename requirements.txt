@@ -2,9 +2,16 @@
 aiohttp>=3.9.0
 python-dotenv>=1.0.0
 
-# ── Live trading only (not needed for dry-run) ───────────────────────────────
-# Uncomment when you have Polymarket credentials and are ready to go live.
-# py-clob-client and web3 7.x share compatible hexbytes>=1.2.0
-#
-# py-clob-client>=0.14.0
-# web3>=7.0.0
+# ── Live trading only ─────────────────────────────────────────────────────────
+py-clob-client>=0.14.0
+web3>=7.0.0
+
+# ── Cloudflare bypass (critical for live order submission) ───────────────────
+# py_clob_client uses httpx with a bot-like TLS fingerprint → CF blocks 30-50%
+# of POST /order calls from datacenter IPs. curl_cffi impersonates Chrome's
+# exact TLS cipher suite (JA3), eliminating this signal.
+# Reference: OpenClaw bot ($7M Polymarket, 2026), py-clob-client issue #143
+curl_cffi>=0.7.0
+
+# ── Optional: faster SSL cert verification ───────────────────────────────────
+certifi>=2024.0.0

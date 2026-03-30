@@ -150,17 +150,23 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 
 ### Infrastructure & VPS (researched 2026-03-30)
 - **Polymarket CLOB backend**: AWS eu-west-2 (London) — confirmed by latency measurements
-- **Best VPS location**: Dublin, Ireland (AWS eu-west-1 or equivalent)
-  - 0.83ms to clob.polymarket.com — confirmed by QuantVPS measurements
-  - London itself is **geoblocked** by Polymarket (UK FCA regulations)
-  - Ashburn VA (what most bots use): ~130ms — 160× worse than Dublin
-- **Binance API**: AWS ap-northeast-1 (Tokyo) — ~250ms from Dublin, irrelevant for 30s edge window
-- **Cloudflare WAF** sits in front of CLOB — blocks datacenter IPs on POST /order ~30-50%
-  - Mitigation: Cloudflare 403 retry with exponential backoff (implemented in order_manager.py)
-  - Use clean IPs (QuantVPS Dublin IPs are Polymarket-vetted)
-  - Reduce REST polling → WebSocket to lower request volume
-- **Polygon RPC**: Not needed directly — py_clob_client abstracts on-chain submission
-- **Competitive edge**: Most bots are in Ashburn (wrong answer). Dublin is correct but known only to serious operators.
+- **Best VPS location**: Dublin, Ireland — **0.83ms** to CLOB (vs 130ms from Ashburn)
+  - London itself is geoblocked by Polymarket (UK FCA regulations)
+  - **CRITICAL**: Standard cloud VPS (AWS, Hetzner, DigitalOcean, Vultr, OVH) ALL get blocked
+    by Cloudflare WAF regardless of geography — ASN/IP reputation is the gate, not location
+  - **Use QuantVPS Dublin** (~$42/mo) or TradoxVPS Dublin: purpose-built IPs not on CF blocklist
+- **Cloudflare WAF**: Two blocking signals on POST /order:
+  1. Datacenter ASN — standard cloud IPs pre-scored as bots
+  2. JA3 TLS fingerprint — py_clob_client uses httpx → distinctive non-browser TLS
+  - **Fix**: `curl_cffi` Chrome impersonation patches the JA3 signal (implemented)
+  - **Fix**: QuantVPS/TradoxVPS Dublin patches the ASN signal
+  - Both required together; either alone is insufficient
+  - Request whitelist: copy `cf-ray` header from 403 → post to Polymarket Discord #support
+- **Binance API**: AWS ap-northeast-1 (Tokyo) — ~250ms from Dublin, irrelevant for 30s edge
+- **Polygon RPC**: Not needed — py_clob_client abstracts on-chain submission
+- **WebSocket**: Less affected by CF than REST POST; Python aiohttp WS works from datacenter IPs
+- **Competitive edge**: Most bots are in Ashburn (160× worse latency). Dublin + curl_cffi + QuantVPS
+  is the correct stack. Standard Dublin VPS alone doesn't work.
 
 ### Development Branch
 `claude/momentum-scalper-bot-zcncG`
