@@ -37,10 +37,11 @@ Honesty overrides optimism. If the strategy has no edge, say so and stop trading
 - **Fee zones**:
   - Extreme odds (<0.35 or >0.65): low fee, prefer these
   - Fat middle (0.35–0.65): only enter at >80% confidence — taker fees peak at ~3.15% at 50% odds
-- **Edge window**: 13–15 UTC (data + academic research confirms NYSE open spillover)
-- **Macro window**: 13:30 UTC = CPI/NFP/PPI/claims release → 30s–2min Polymarket mispricing lag → lower score threshold by 0.08 during hours 13–14 UTC
+- **Edge window**: All hours — `allowed_hours_utc=[]` (gate disabled). Baseline 38-trade data suggested 13-15 UTC, but sample too small to restrict. Collect live data across all hours first; tighten later if drift detected.
+- **Macro window**: 13:30 UTC = CPI/NFP/PPI/claims release → 30s–2min Polymarket mispricing lag → score threshold lowered by 0.08 during hours 13–14 UTC
 - **Per-asset thresholds**: BTC needs 1.40× score (weak historical WR), ETH gets 0.90× discount
 - **Thursday bonus**: weekly jobless claims at 13:30 UTC = consistent edge every week
+- **5M window timing** (researched 2026-03-30): Chainlink resolves at T=0 snapshot (NOT TWAP). Entry sweet spot T+30s–T+120s (momentum confirmed, still 3+ min remaining). Last 60s: liquidity collapses + Chainlink heartbeat uncertainty → no new entries (`no_trade_last_sec=60`). Fee reform 2026-03-30: 8 new categories added; updown BTC/ETH/SOL rates unchanged (~1.56% at 50%).
 
 ## COMPETITION INTELLIGENCE (researched 2026-03-30)
 - 170+ bots active on Polymarket; top 3 wallets = $4.2M/yr automated
@@ -57,7 +58,7 @@ Honesty overrides optimism. If the strategy has no edge, say so and stop trading
 2. **Stage-2**: Sell remainder at +45%, or at cost+5% floor, or 20% trailing stop below peak
 3. **Dynamic SL**: 35% stop first 2.5min (wide for noise), 10% stop last 2min (tight to protect)
 4. **Hard Exit**: Force-close anything open after 180s regardless of PnL
-5. **Window Guard**: No new entries in final 20s of 5-min window
+5. **Window Guard**: No new entries in final 60s of 5-min window (Chainlink heartbeat 10-30s → settlement uncertainty)
 
 ---
 
@@ -141,7 +142,7 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 | min_score | 0.40 | Calibrate from live data |
 | max_entry_price | 0.27 | Target markets only; updown skip this cap |
 | updown_min_confidence | 0.0 | Gate disabled for updown; min_score covers it |
-| allowed_hours_utc | [13,14,15] | Live only |
+| allowed_hours_utc | [] | Disabled — trade all hours, adapt from data |
 | base_stake | $15 | |
 | scaled_stake | $30 | After 2 wins |
 | max_open_positions | 3 | |

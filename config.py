@@ -98,9 +98,10 @@ class EdgeConfig:
       - Simple arbitrage dead (2.7s avg); information lag arbitrage still viable
       - 170+ bots active; top 3 wallets made $4.2M/yr automated
     """
-    # Trading hours gate (UTC). Only scan during these hours.
-    # Set to [] to disable (e.g. dry_run testing).
-    allowed_hours_utc: List[int] = field(default_factory=lambda: [13, 14, 15])
+    # Trading hours gate (UTC). Set to [] to trade all hours.
+    # Was [13,14,15] based on 38-trade baseline data — too small a sample to restrict.
+    # Strategy: trade all hours, collect data, then tighten to proven edge windows.
+    allowed_hours_utc: List[int] = field(default_factory=lambda: [])
 
     # Macro event score discount: during 13:30 UTC macro window (CPI/NFP/claims),
     # lower the effective min_score threshold to capture the mispricing lag.
