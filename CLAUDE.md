@@ -111,6 +111,15 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 - Liquidity filter: skip markets with `liquidityClob < 200`
 - Markets accept orders 2-3 minutes before window start (pre-order window)
 - Bulk scan limit = 500 (not 100 as docs say)
+- `negRisk` field: True = multi-outcome neg-risk market (different exchange address 0xC5d563A36A...)
+- `orderPriceMinTickSize`: tick size per market (usually "0.01" for updown; also "0.1","0.001","0.0001")
+
+### py_clob_client PartialCreateOrderOptions
+- **neg_risk=False bug**: `if options and options.neg_risk` → False is falsy → auto-detects anyway (safe)
+- **Safe approach**: pass `neg_risk=True` only when explicitly True; pass `None` otherwise (auto-detects)
+- **tick_size**: pass `None` unless confirmed non-default; CLOB auto-detects with 300s TTL cache
+- `GET /neg-risk?token_id=...` = correct neg_risk per token
+- `GET /tick-size?token_id=...` = correct tick_size per token
 
 ### CLOB Order Types
 - `GTC` = limit, rests on book until filled or cancelled
@@ -118,6 +127,13 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 - `FAK` = market order, partial fills OK, remainder cancelled
 - Entry: `GTC` at `price * 1.05` (aggressive limit, should fill immediately)
 - Exit: cascade sell in 3 tranches, `GTC` with fallback price stepping
+
+### Stub Mode Performance (fixed 2026-03-30)
+- `fetch_last_trade`: returns None immediately in stub mode (was trying CLOB, blocking 10s/token)
+- `fetch_external_signals`: returns None in stub mode (was calling Binance, 3×10s per scan)
+- Market discovery: 3s timeout per request; skip bulk scan if all slug requests fail
+- Startup in network-unavailable environment: ~3s (was 20s before)
+- `test_discovery.py`: pre-run check of Gamma API connectivity + market details
 
 ### Current Parameters
 | Parameter | Value | Notes |
