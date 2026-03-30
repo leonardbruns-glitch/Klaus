@@ -106,6 +106,9 @@ class BankrollTracker:
         try:
             with open(BANKROLL_FILE) as f:
                 d = json.load(f)
+            if not isinstance(d, dict):
+                logger.warning("Bankroll file has wrong format — starting fresh")
+                return
             self.capital = float(d.get("capital", self.cfg.total))
             self.daily_start_capital = float(d.get("daily_start_capital", self.capital))
             self.consecutive_wins = int(d.get("consecutive_wins", 0))
@@ -236,6 +239,7 @@ class RiskManager:
                 data = json.load(f)
             if not data:
                 return
+            now = time.time()
             for tid, d in data.items():
                 pos = PositionMeta(
                     token_id=d["token_id"],
@@ -255,6 +259,16 @@ class RiskManager:
                     hard_exit_triggered=d["hard_exit_triggered"],
                     condition_id=d["condition_id"],
                 )
+                # Discard positions whose 5-min window has already expired.
+                # Keeping stale positions fills max_open_positions and blocks
+                # all new trades. The market resolved on-chain; we can't sell.
+                if pos.window_end_ts > 0 and pos.window_end_ts < now - 30:
+                    logger.warning(
+                        "Discarding expired position %s/%s — window ended %ds ago",
+                        pos.asset, pos.direction.name,
+                        int(now - pos.window_end_ts),
+                    )
+                    continue
                 self.open_positions[tid] = pos
                 if pos.condition_id:
                     self._traded_conditions.add(pos.condition_id)
