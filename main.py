@@ -163,7 +163,7 @@ class KlausBot:
                 held = now - pos.open_ts
                 move_pct = (current_price - pos.entry_price) / pos.entry_price * 100
                 unreal_pnl = (current_price - pos.entry_price) * pos.remaining_shares
-                win_str = "+" if unreal_pnl >= 0 else ""
+                win_str = "+" if unreal_pnl >= 0 else "-"
                 win_emoji = "▲" if unreal_pnl >= 0 else "▼"
                 remaining_sec = max(0, pos.window_end_ts - now) if pos.window_end_ts > 0 else 0
                 logger.info(

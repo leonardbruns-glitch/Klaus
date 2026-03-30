@@ -60,6 +60,7 @@ class PositionMeta:
     profit_trigger_ts: float = 0.0    # timestamp when +25 % first seen
     hard_exit_triggered: bool = False
     condition_id: str = ""            # Polymarket condition ID for dedup
+    sl_breach_ts: float = 0.0        # timestamp when wide SL first breached (0 = not breached)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -642,12 +643,33 @@ class RiskManager:
         if time_held >= 10:
             if remaining > 120:
                 sl_pct = 0.35  # First 2.5 min: wide stop
+                # Require 10s confirmation before firing wide stop.
+                # Updown mid-window prices spike and recover frequently; only the
+                # Chainlink T=0 snapshot resolves the market. A 12s fire at price 0.30
+                # with full recovery to 0.49 at 27s confirmed this: the wick was noise.
+                # Tight stop (last 2 min) fires immediately — no time for confirmation.
+                if current_price <= pos.entry_price * (1 - sl_pct):
+                    if pos.sl_breach_ts == 0.0:
+                        pos.sl_breach_ts = now  # first breach — start confirmation timer
+                        logger.debug(
+                            "Wide SL breached @ %.4f (entry=%.4f sl_pct=%.0f%%) — "
+                            "waiting 10s confirmation",
+                            current_price, pos.entry_price, sl_pct * 100,
+                        )
+                    elif now - pos.sl_breach_ts >= 10.0:
+                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                else:
+                    if pos.sl_breach_ts > 0.0:
+                        logger.debug(
+                            "Wide SL breach reset — price %.4f recovered above threshold %.4f",
+                            current_price, pos.entry_price * (1 - sl_pct),
+                        )
+                    pos.sl_breach_ts = 0.0  # price recovered — reset confirmation timer
             else:
-                sl_pct = 0.10  # Last 2 min: tight stop
-
-            # Stop loss fires when price falls below entry (same for BUY_YES and BUY_NO)
-            if current_price <= pos.entry_price * (1 - sl_pct):
-                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                sl_pct = 0.10  # Last 2 min: tight stop, fire immediately
+                # Stop loss fires when price falls below entry (same for BUY_YES and BUY_NO)
+                if current_price <= pos.entry_price * (1 - sl_pct):
+                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
         return None
 

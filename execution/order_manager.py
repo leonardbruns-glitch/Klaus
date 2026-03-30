@@ -457,12 +457,10 @@ class OrderManager:
                     fill_value += result.avg_fill_price * result.total_size
                     sell_price = orig_price
                     continue
-            except Exception as _sell_exc:
-                err = str(_sell_exc)
-                # Network-level failure: no point retrying — break and let the
-                # OB scan retry on the next cycle (1s). Without this, 15 attempts
-                # each raising a curl errno 7 would burn ~30s of the window
-                # with no diagnostic, then ghost the position.
+                # _submit_limit_order catches exceptions internally and returns FAILED.
+                # The except block below never fires for CLOB errors — check result.error.
+                err = result.error or ""
+                # Network-level failure: no point retrying immediately.
                 if "curl: (7)" in err or "Failed to connect" in err or "Could not connect" in err:
                     logger.warning(
                         "SELL aborted: CLOB unreachable (network error) after %d attempt(s) — "
@@ -472,15 +470,13 @@ class OrderManager:
                     break
                 # CLOB balance cache bug: CLOB cached balance is slightly below actual.
                 # Parse the actual available balance from the error and retry exactly.
-                # "not enough balance: balance XXXXXX, order amount: YYYYYY"
+                # Error format: "not enough balance ... -> balance: XXXXXX, order amount: YYYYYY"
+                # CLOB amounts are in micro-tokens (1 share = 1,000,000).
                 if "not enough balance" in err.lower() or "not enough allowance" in err.lower():
                     import re as _re
                     _m = _re.search(r'balance[:\s]+(\d+)', err, _re.IGNORECASE)
                     if _m:
                         actual_ticks = int(_m.group(1))
-                        # CLOB error amounts are in micro-tokens (1 share = 1,000,000).
-                        # Previous divisor of 10,000 produced 492 for a 5-share position
-                        # → condition 492 < 4.999 always false → 15 identical retries.
                         actual_shares = round(actual_ticks / 1_000_000, 6)
                         if 0.01 <= actual_shares < remaining - 0.001:
                             logger.info(
@@ -490,6 +486,15 @@ class OrderManager:
                             shares = actual_shares
                             remaining = actual_shares
                             continue  # retry immediately with corrected size
+            except Exception as _sell_exc:
+                # Safety net for exceptions that escape _submit_limit_order (rare).
+                err = str(_sell_exc)
+                if "curl: (7)" in err or "Failed to connect" in err or "Could not connect" in err:
+                    logger.warning(
+                        "SELL aborted: CLOB unreachable (network error) after %d attempt(s)",
+                        attempt + 1,
+                    )
+                    break
                 logger.debug("Sell attempt %d error: %s", attempt + 1, _sell_exc)
 
             # Step price down 10 %
