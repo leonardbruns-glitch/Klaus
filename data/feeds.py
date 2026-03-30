@@ -368,9 +368,16 @@ class PolymarketFeed:
 
             condition_id = market.get("conditionId", market.get("condition_id", ""))
             neg_risk = bool(market.get("negRisk", False))
-            # tick_size: prefer orderPriceMinTickSize from market data; default "0.01"
-            raw_tick = market.get("orderPriceMinTickSize", market.get("minTickSize", "0.01"))
-            tick_size = str(raw_tick) if raw_tick else "0.01"
+            # tick_size: clamp to one of the 4 valid SDK values to avoid KeyError
+            # in ROUNDING_CONFIG. str(float) can produce "0.10000000000000001" etc.
+            _VALID_TICKS = ("0.0001", "0.001", "0.01", "0.1")
+            raw_tick = market.get("orderPriceMinTickSize", market.get("minTickSize", 0.01))
+            try:
+                tick_f = float(raw_tick) if raw_tick else 0.01
+                # find smallest valid tick >= tick_f
+                tick_size = next((t for t in _VALID_TICKS if float(t) >= tick_f - 1e-9), "0.01")
+            except Exception:
+                tick_size = "0.01"
 
             # Gamma returns clobTokenIds + outcomes as JSON-encoded strings,
             # e.g. clobTokenIds = "[\"id1\",\"id2\"]" — must call json.loads().
