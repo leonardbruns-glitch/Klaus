@@ -534,7 +534,7 @@ class PolymarketFeed:
                 token_id = f"stub_{asset}_{side}_{uuid.uuid4().hex[:8]}"
                 token = MarketToken(
                     token_id=token_id,
-                    condition_id=f"stub_cond_{asset}",
+                    condition_id=f"stub_{asset}_{side}_{uuid.uuid4().hex[:6]}",
                     asset=asset,
                     side=side,
                     question=f"Will {asset} go up or down in the next 15 minutes? ({label})",
