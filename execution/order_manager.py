@@ -149,8 +149,20 @@ def _build_clob_client() -> Optional[Any]:
         )
         if CONFIG.funder_address:
             kwargs["funder"] = CONFIG.funder_address
-        client = ClobClient(**kwargs)
-        api_creds = client.create_or_derive_api_creds()
+
+        # Auth endpoints (/auth/api-key) don't need CF bypass — only POST /order does.
+        # curl_cffi response is subtly incompatible with py_clob_client's httpx-based
+        # PolyApiException, so we restore the stock httpx client during auth only.
+        import httpx as _httpx
+        import py_clob_client.http_helpers.helpers as _h
+        _orig_client = _h._http_client
+        _h._http_client = _httpx.Client(http2=True)
+        try:
+            client = ClobClient(**kwargs)
+            api_creds = client.create_or_derive_api_creds()
+        finally:
+            _h._http_client = _orig_client  # restore curl_cffi for order posting
+
         client.set_api_creds(api_creds)
         logger.info("CLOB client authenticated (sig_type=%d)", CONFIG.signature_type)
         return client
