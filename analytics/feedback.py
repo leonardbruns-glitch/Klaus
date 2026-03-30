@@ -34,6 +34,7 @@ class TradeRecord:
     token_id: str
     asset: str
     direction: str           # "BUY_YES" / "BUY_NO"
+    market_type: str         # "updown" / "target" — needed to split strategy analysis
     ts_open: float
     ts_close: float
 
@@ -43,8 +44,8 @@ class TradeRecord:
     stake: float
     shares: float
     gross_pnl: float
-    fee_paid: float
-    net_pnl: float
+    fee_paid: float          # derived: gross_pnl - net_pnl (always matches bankroll)
+    net_pnl: float           # authoritative: from risk manager (same number that updates bankroll)
     slippage_entry: float
     slippage_exit: float
     exit_reason: str         # TAKE_PROFIT / STOP_LOSS / HARD_EXIT / MANUAL
@@ -66,7 +67,8 @@ class TradeRecord:
     heat_check_active: bool
     consecutive_wins_at_entry: int
     capital_before: float
-    capital_after: float
+    capital_after: float     # always capital_before + net_pnl (not bankroll snapshot)
+    is_live: bool            # False = dry-run/stub; True = real CLOB trade
 
 
 # ---------------------------------------------------------------------------
@@ -107,11 +109,17 @@ class FeedbackEngine:
             try:
                 # Reconstruct minimal TradeRecord from the stored dict.
                 # Fields added later (e.g. external_boost) may be absent — default to 0.
+                # Skip stub/dry-run records — they have wrong capital/stakes
+                # and pollute strategy analysis. Filter by token_id prefix.
+                if d.get("token_id", "").startswith("stub_"):
+                    continue
+
                 rec = TradeRecord(
                     trade_id=d.get("trade_id", ""),
                     token_id=d.get("token_id", ""),
                     asset=d.get("asset", ""),
                     direction=d.get("direction", ""),
+                    market_type=d.get("market_type", "unknown"),
                     ts_open=d.get("ts_open", 0.0),
                     ts_close=d.get("ts_close", 0.0),
                     entry_price=d.get("entry_price", 0.0),
@@ -137,6 +145,7 @@ class FeedbackEngine:
                     consecutive_wins_at_entry=d.get("consecutive_wins_at_entry", 0),
                     capital_before=d.get("capital_before", 0.0),
                     capital_after=d.get("capital_after", 0.0),
+                    is_live=d.get("is_live", False),
                 )
                 self._recent.append(rec)
                 if d.get("trade_id", "").startswith("T"):
@@ -170,22 +179,40 @@ class FeedbackEngine:
         ts_open: float,
         ts_close: float,
         capital_before: float,
-        capital_after: float,
         heat_check_active: bool,
         consecutive_wins: int,
+        net_pnl_actual: Optional[float] = None,   # from risk manager — authoritative
+        market_type: str = "unknown",
+        is_live: bool = False,
     ) -> TradeRecord:
 
         self._trade_counter += 1
         trade_id = f"T{self._trade_counter:05d}_{asset}_{int(ts_open)}"
 
-        # Gross PnL (before fees).
-        # Both BUY_YES and BUY_NO: buy token at entry_price, sell at exit_price.
-        # Rising exit_price = profit for both (NO tokens also rise when NO wins).
+        # Gross PnL: token price movement × shares (always calculable)
         gross_pnl = (exit_price - entry_price) * shares
 
-        # Total fees
-        fee_paid = sum(r.total_fee for r in [entry_fill] + exit_fills)
-        net_pnl = gross_pnl - fee_paid
+        # net_pnl: use risk manager's authoritative value (which includes fees and
+        # matches the bankroll change exactly). Fall back to gross only if not provided.
+        if net_pnl_actual is not None:
+            net_pnl = net_pnl_actual
+        else:
+            # Legacy / dry-run fallback: estimate fees from config
+            fee_rate = (
+                CONFIG.fees.extreme_fee_rate
+                if (exit_price < CONFIG.fees.extreme_low or exit_price > CONFIG.fees.extreme_high)
+                else CONFIG.fees.middle_fee_rate
+            )
+            net_pnl = gross_pnl - stake * fee_rate
+
+        # fee_paid is always derived from the authoritative numbers — never from
+        # Fill.fee (which is hardcoded to 0.0 in CLOB responses).
+        fee_paid = gross_pnl - net_pnl
+
+        # capital_after is always capital_before + net_pnl. Using the live bankroll
+        # snapshot was wrong: if two positions close in the same cycle, the snapshot
+        # includes PnL from the *other* position too.
+        capital_after = capital_before + net_pnl
 
         # Slippage
         slippage_entry = entry_fill.slippage if entry_fill else 0.0
@@ -197,6 +224,7 @@ class FeedbackEngine:
             token_id=token_id,
             asset=asset,
             direction=direction.name,
+            market_type=market_type,
             ts_open=ts_open,
             ts_close=ts_close,
             entry_price=entry_price,
@@ -222,6 +250,7 @@ class FeedbackEngine:
             consecutive_wins_at_entry=consecutive_wins,
             capital_before=round(capital_before, 2),
             capital_after=round(capital_after, 2),
+            is_live=is_live,
         )
 
         self._recent.append(rec)
@@ -271,8 +300,16 @@ class FeedbackEngine:
         for t in trades:
             by_asset.setdefault(t.asset, []).append(t.net_pnl)
 
+        # market_type breakdown: updown vs target
+        by_market_type: Dict[str, List] = {}
+        for t in trades:
+            by_market_type.setdefault(t.market_type, []).append(t.net_pnl)
+
+        live_trades = [t for t in trades if t.is_live]
+
         metrics = {
             "sample_size": n,
+            "live_trades": len(live_trades),
             "win_rate": round(win_rate, 3),
             "avg_win_usd": round(avg_win, 3),
             "avg_loss_usd": round(avg_loss, 3),
@@ -287,6 +324,7 @@ class FeedbackEngine:
             "fat_middle_count": len(fat_middle_trades),
             "extreme_count": len(extreme_trades),
             "pnl_by_asset": {a: round(sum(v), 3) for a, v in by_asset.items()},
+            "pnl_by_market_type": {m: round(sum(v), 3) for m, v in by_market_type.items()},
         }
 
         # ── Alert generation ──────────────────────────────────────────────────
@@ -350,11 +388,13 @@ class FeedbackEngine:
         alerts = diag.get("alerts", [])
         trades = list(self._recent)
 
+        n_total = metrics.get('sample_size', 0)
+        n_live = metrics.get('live_trades', 0)
         lines = [
             "=" * 60,
             "FEEDBACK LOOP REPORT — Klaus Momentum Scalper",
             f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}",
-            f"Sample: last {metrics.get('sample_size', 0)} trades",
+            f"Sample: {n_total} trades ({n_live} live, {n_total - n_live} dry-run)",
             "=" * 60,
             "",
             "PERFORMANCE METRICS",
@@ -363,16 +403,21 @@ class FeedbackEngine:
             f"  Avg Win:        ${metrics.get('avg_win_usd', 0):.3f}",
             f"  Avg Loss:       ${metrics.get('avg_loss_usd', 0):.3f}",
             f"  Net PnL:        ${metrics.get('net_profit_usd', 0):.3f}",
-            f"  Fee Bleed:       {metrics.get('fee_bleed_pct', 0):.1f}% of gross",
+            f"  Fees (est):     ${metrics.get('total_fees_usd', 0):.3f}  "
+            f"({metrics.get('fee_bleed_pct', 0):.1f}% of gross)",
             f"  Avg Slippage:    {metrics.get('avg_slippage', 0):.5f}",
             f"  Avg Hold:        {metrics.get('avg_hold_seconds', 0):.0f}s",
             f"  Hard Exit Rate:  {metrics.get('hard_exit_rate', 0):.1%}",
             "",
-            "MARKET BREAKDOWN",
+            "BY ASSET",
         ]
 
         for asset, pnl in metrics.get("pnl_by_asset", {}).items():
             lines.append(f"  {asset}: PnL=${pnl:.3f}")
+
+        lines += ["", "BY MARKET TYPE"]
+        for mtype, pnl in metrics.get("pnl_by_market_type", {}).items():
+            lines.append(f"  {mtype}: PnL=${pnl:.3f}")
 
         lines += [
             "",

@@ -443,25 +443,32 @@ class KlausBot:
                     reason="recovered_from_disk",
                 )
 
-            self.analytics.record_trade(
-                token_id=token_id,
-                asset=pos.asset,
-                direction=pos.direction,
-                entry_price=pos.entry_price,
-                exit_price=analytics_exit_price,
-                stake=pos.stake,
-                shares=all_shares,
-                entry_fill=entry_fill,
-                exit_fills=all_exit_fills,
-                exit_reason=reason,
-                signal=signal,
-                ts_open=meta.get("ts_open", pos.open_ts),
-                ts_close=time.time(),
-                capital_before=capital_before,
-                capital_after=self.risk.bankroll.capital,
-                heat_check_active=meta.get("heat_check", False),
-                consecutive_wins=meta.get("consecutive_wins", 0),
-            )
+            token_meta = self.feed.tokens.get(token_id)
+            try:
+                self.analytics.record_trade(
+                    token_id=token_id,
+                    asset=pos.asset,
+                    direction=pos.direction,
+                    entry_price=pos.entry_price,
+                    exit_price=analytics_exit_price,
+                    stake=pos.stake,
+                    shares=all_shares,
+                    entry_fill=entry_fill,
+                    exit_fills=all_exit_fills,
+                    exit_reason=reason,
+                    signal=signal,
+                    ts_open=meta.get("ts_open", pos.open_ts),
+                    ts_close=time.time(),
+                    capital_before=capital_before,
+                    # capital_after computed inside record_trade as capital_before + net_pnl
+                    heat_check_active=meta.get("heat_check", False),
+                    consecutive_wins=meta.get("consecutive_wins", 0),
+                    net_pnl_actual=net_pnl,           # authoritative from risk manager
+                    market_type=getattr(token_meta, "market_type", "unknown"),
+                    is_live=not CONFIG.dry_run,
+                )
+            except Exception as _rec_exc:
+                logger.error("record_trade failed (trade still closed): %s", _rec_exc)
 
         self._open_meta.pop(token_id, None)
         self._pos_log_ts.pop(token_id, None)
