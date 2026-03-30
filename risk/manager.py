@@ -591,7 +591,10 @@ class RiskManager:
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")
 
         # ── 2. Window expiry guard ─────────────────────────────────────────────
-        if 0 < remaining < self.exec_cfg.no_trade_last_sec:
+        # Fire when entering the final no_trade_last_sec window OR when window has
+        # already passed (remaining <= 0). The original `0 < remaining` check meant
+        # positions stayed open forever once the window expired mid-session.
+        if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
             return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
 
         # ── 3. Stage-1 profit: +25 % with 2.5s confirmation ──────────────────

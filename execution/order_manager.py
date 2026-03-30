@@ -694,7 +694,37 @@ class OrderManager:
                             error=f"BUY resting — cancelled after {_FILL_TIMEOUT:.0f}s (no fill)",
                         )
                 else:
-                    # SELL resting: no bid at our floor price — cascade will retry lower.
+                    # SELL partially filled: POST response may carry a partial taker fill
+                    # in takingAmount even when status="live" (remainder resting on book).
+                    # Record the partial fill, cancel the resting remainder, and return
+                    # FILLED so cascade accounts for the shares already sold.
+                    # Without this, bot state diverges: Polymarket shows fewer tokens
+                    # than open_positions.remaining_shares → oversell attempt on next cycle.
+                    if taking_f > 0:
+                        logger.info(
+                            "SELL partial fill: %.4f shares @ ~%.4f — cancelling resting remainder",
+                            taking_f, price,
+                        )
+                        if order_id:
+                            try:
+                                self._client.cancel(order_id)
+                            except Exception:
+                                pass
+                        partial_fill = Fill(
+                            order_id=order_id or "",
+                            token_id=token_id,
+                            side=OrderSide.SELL,
+                            price=price,
+                            size=taking_f,
+                            fee=0.0,
+                        )
+                        return OrderResult(
+                            status=OrderStatus.FILLED,
+                            fills=[partial_fill],
+                            avg_fill_price=price,
+                            total_size=taking_f,
+                        )
+                    # No fill at all: cancel and retry at lower price in cascade
                     if order_id:
                         try:
                             self._client.cancel(order_id)

@@ -377,13 +377,24 @@ class KlausBot:
         )
 
     async def _partial_exit(self, token_id: str, live_price: float, reason: str) -> None:
-        """Stage-1: sell 95 % of position, leave 5 % riding to +45 %."""
+        """Stage-1: sell 95% if 5% residual is CLOB-sellable, else sell 100% to avoid dust."""
         pos = self.risk.open_positions.get(token_id)
         if not pos:
             return
 
+        # 5% residual only makes sense to keep when it can later be sold via CLOB ($1 min).
+        # Add 50% buffer → $1.50 threshold. At current $2-4 positions, 5% = $0.10-0.25
+        # → permanent dust. For future large positions ($30+), 5% = $1.50+ → keep the split.
+        residual_value = pos.remaining_shares * 0.05 * live_price
+        sell_pct = 0.95 if residual_value >= 1.50 else 1.0
+        if sell_pct == 1.0:
+            logger.info(
+                "Stage-1 selling 100%% — 5%% residual=$%.2f < $1.50 CLOB minimum (permanent dust avoided)",
+                residual_value,
+            )
+
         token_meta = self.feed.tokens.get(token_id)
-        sell_shares = round(pos.remaining_shares * 0.95, 4)
+        sell_shares = round(pos.remaining_shares * sell_pct, 4)
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
             total_shares=sell_shares,
