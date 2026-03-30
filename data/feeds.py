@@ -528,7 +528,6 @@ class PolymarketFeed:
     def _populate_stub_tokens(self) -> None:
         """Create synthetic UP/DOWN tokens for each tracked asset (5M/15M style)."""
         import uuid
-        window_end = time.time() + CONFIG.markets.bar_interval_primary  # 5 min from now
         for asset in CONFIG.markets.tracked_assets:
             for side in ("YES", "NO"):
                 label = "Up" if side == "YES" else "Down"
@@ -542,7 +541,7 @@ class PolymarketFeed:
                     end_date_iso="2099-12-31T00:00:00Z",
                     active=True,
                     market_type="updown",
-                    window_end_ts=window_end,
+                    window_end_ts=0.0,  # 0 = no expiry guard (stub only; live uses real endDate)
                 )
                 self.tokens[token_id] = token
                 self.asset_tokens.setdefault(asset, []).append(token_id)
