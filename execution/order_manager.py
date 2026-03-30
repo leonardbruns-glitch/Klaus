@@ -456,15 +456,17 @@ class OrderManager:
                 )
                 snapped_ticks = _math.ceil(max(requested_ticks, min_ticks) / step) * step
                 maker_usd = (price_cents * snapped_ticks) / 1_000_000
-                # Guard: skip if min compliant order far exceeds stake (e.g. 0.92 YES = $4.60 for 5 shares)
-                if maker_usd > CONFIG.bankroll.base_stake * 3:
+                # Guard: skip if min compliant order exceeds 50% of bankroll.
+                # 5-share min at high prices (e.g. $0.92 → $4.60 on $10 account) is too risky.
+                max_allowed = CONFIG.bankroll.total * 0.50
+                if maker_usd > max_allowed:
                     logger.info(
-                        "SKIP %s — min order $%.2f exceeds 3× stake (price=%.4f, 5-share min)",
-                        token_id[:12], maker_usd, price,
+                        "SKIP %s — min order $%.2f exceeds 50%% of bankroll $%.2f (price=%.4f)",
+                        token_id[:12], maker_usd, CONFIG.bankroll.total, price,
                     )
                     return OrderResult(
                         status=OrderStatus.FAILED,
-                        error=f"Min order ${maker_usd:.2f} exceeds 3× stake (5-share min at price {price:.4f})",
+                        error=f"Min order ${maker_usd:.2f} exceeds 50% of bankroll (5-share min at price {price:.4f})",
                     )
             else:
                 # SELL: snap DOWN to nearest valid step — never oversell shares we own.

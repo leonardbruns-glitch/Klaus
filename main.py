@@ -289,12 +289,18 @@ class KlausBot:
             logger.error("Fill failed for %s", asset)
             return
 
+        # Use actual fill cost as stake — CLOB 5-share minimum may require more than
+        # the risk-approved stake (e.g. $1 stake but minimum order is $3.45 at price 0.69).
+        actual_stake = fill.avg_fill_price * fill.total_size
+        if actual_stake <= 0:
+            actual_stake = decision.stake  # fallback to approved stake if fill data incomplete
+
         token = self.feed.tokens.get(token_id)
         pos = self.risk.open_position(
             token_id=token_id,
             asset=asset,
             direction=signal.direction,
-            stake=decision.stake,
+            stake=actual_stake,
             entry_price=fill.avg_fill_price,
             tpsl=tpsl,
             condition_id=getattr(token, "condition_id", ""),
