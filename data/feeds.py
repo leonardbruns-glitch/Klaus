@@ -470,8 +470,9 @@ class PolymarketFeed:
                 bar_ts = now - (n_bars - i) * interval_5m
                 # Random walk with mean reversion + occasional momentum burst
                 drift = random.gauss(0, 0.012)
-                # Mean reversion toward 0.5
-                drift += (0.5 - price) * 0.03
+                # Mean reversion toward base (keeps YES tokens near 0.20-0.25,
+                # NO tokens near 0.75-0.80 — stays in EXTREME fee zone)
+                drift += (base - price) * 0.05
                 # Momentum burst (20% chance)
                 if random.random() < 0.20:
                     drift += random.choice([-1, 1]) * random.uniform(0.02, 0.05)
