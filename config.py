@@ -38,8 +38,8 @@ class FeeConfig:
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.52   # confidence gate for 5M/15M Up/Down markets
-                                          # (just need to beat 50% + 1.56% fee)
+    updown_min_confidence: float = 0.0    # updown markets: gated by min_score + per-asset multiplier only
+                                          # (fat-middle gate adds no value; fee is 1.56% regardless)
 
 
 @dataclass

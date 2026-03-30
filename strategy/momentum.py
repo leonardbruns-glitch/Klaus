@@ -344,15 +344,9 @@ class MomentumScorer:
         # ── Confidence & gate checks ──────────────────────────────────────────
         sig.confidence = min(1.0, sig.composite + sig.external_boost)
 
-        # Fat-middle gate
-        if sig.fee_zone == FeeZone.FAT_MIDDLE:
-            if sig.confidence < self.fee_cfg.middle_min_confidence:
-                sig.direction = Direction.NO_TRADE
-                sig.reason = (
-                    f"Fat-middle gate: conf {sig.confidence:.2f} < "
-                    f"{self.fee_cfg.middle_min_confidence}"
-                )
-                return sig
+        # NOTE: Fat-middle confidence gate is handled in risk/manager.py
+        # (market-type-aware: 52% for updown, 80% for target).
+        # Do NOT gate here — scorer doesn't know market_type.
 
         # Minimum score gate
         if sig.composite < self.cfg.min_score:
