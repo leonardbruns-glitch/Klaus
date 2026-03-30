@@ -500,6 +500,22 @@ class PolymarketFeed:
         tracked = CONFIG.markets.tracked_assets
         url = f"{self.GAMMA}/markets"
 
+        # Polymarket uses full names in slugs/questions, not tickers:
+        #   BTC → "bitcoin-updown-5m-..." / question contains "Bitcoin"
+        #   ETH → "ethereum-updown-5m-..." or "eth-updown-5m-..." / question contains "Ethereum" or "ETH"
+        #   SOL → "solana-updown-5m-..." or "sol-updown-5m-..." / question contains "Solana" or "SOL"
+        # Use both ticker and full-name slug prefixes to cover all variants.
+        _SLUG_ALIASES: dict = {
+            "BTC": ["btc", "bitcoin"],
+            "ETH": ["eth", "ethereum"],
+            "SOL": ["sol", "solana"],
+        }
+        _QUESTION_ALIASES: dict = {
+            "BTC": ["BTC", "Bitcoin", "BITCOIN"],
+            "ETH": ["ETH", "Ethereum", "ETHEREUM"],
+            "SOL": ["SOL", "Solana", "SOLANA"],
+        }
+
         # Strategy: first try direct slug lookup for current 5M/15M windows
         # (slugs are deterministic: btc-updown-5m-{window_ts}).
         # Fall back to bulk scan if slug lookup returns nothing.
@@ -507,11 +523,12 @@ class PolymarketFeed:
         intervals = [300, 900]   # 5M and 15M
         direct_slugs = []
         for asset in tracked:
-            for interval in intervals:
-                w_ts = now_ts - (now_ts % interval)
-                direct_slugs.append(f"{asset.lower()}-updown-{interval//60}m-{w_ts}")
-                # Also include next window (already accepting orders 2-3 min early)
-                direct_slugs.append(f"{asset.lower()}-updown-{interval//60}m-{w_ts + interval}")
+            for slug_prefix in _SLUG_ALIASES.get(asset, [asset.lower()]):
+                for interval in intervals:
+                    w_ts = now_ts - (now_ts % interval)
+                    direct_slugs.append(f"{slug_prefix}-updown-{interval//60}m-{w_ts}")
+                    # Also include next window (already accepting orders 2-3 min early)
+                    direct_slugs.append(f"{slug_prefix}-updown-{interval//60}m-{w_ts + interval}")
 
         # Use a short per-request timeout for discovery so network outages
         # fail fast (3s) instead of blocking for the full 10s session timeout.
@@ -590,8 +607,15 @@ class PolymarketFeed:
                 continue
 
             question = market.get("question", "")
+            slug_field = market.get("slug", "").lower()
+            q_upper = question.upper()
             asset_match = next(
-                (a for a in tracked if a.upper() in question.upper()), None
+                (
+                    a for a in tracked
+                    if any(alias.upper() in q_upper for alias in _QUESTION_ALIASES.get(a, [a]))
+                    or any(alias in slug_field for alias in _SLUG_ALIASES.get(a, [a.lower()]))
+                ),
+                None,
             )
             if not asset_match:
                 continue
