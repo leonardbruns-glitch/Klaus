@@ -22,6 +22,21 @@ from config import CONFIG
 
 logger = logging.getLogger("feeds")
 
+# ---------------------------------------------------------------------------
+# Asset name aliases (module-level — reused across discovery, RTDS, and stubs)
+# Polymarket uses full names in slugs/questions; Chainlink oracle may send either.
+# ---------------------------------------------------------------------------
+_SLUG_ALIASES: Dict[str, List[str]] = {
+    "BTC": ["btc", "bitcoin"],
+    "ETH": ["eth", "ethereum"],
+    "SOL": ["sol", "solana"],
+}
+_QUESTION_ALIASES: Dict[str, List[str]] = {
+    "BTC": ["BTC", "Bitcoin", "BITCOIN"],
+    "ETH": ["ETH", "Ethereum", "ETHEREUM"],
+    "SOL": ["SOL", "Solana", "SOLANA"],
+}
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -370,7 +385,6 @@ class PolymarketFeed:
         PING every 5s required.
         """
         import json as _json
-        _ASSET_MAP = {"BTC": "BTC", "ETH": "ETH", "SOL": "SOL"}
         _PING_INTERVAL = 4.5
 
         while self._running:
@@ -408,9 +422,10 @@ class PolymarketFeed:
                                         ticker = ev.get("ticker", ev.get("asset", ""))
                                         price = ev.get("price", ev.get("outcome_price"))
                                         if price and ticker:
-                                            # Map ticker to asset (e.g. "BTC/USD" → "BTC")
-                                            for asset in _ASSET_MAP:
-                                                if asset in str(ticker).upper():
+                                            # Map ticker to asset (e.g. "BTC/USD" or "BITCOIN/USD" → "BTC")
+                                            ticker_up = str(ticker).upper()
+                                            for asset, aliases in _QUESTION_ALIASES.items():
+                                                if any(a.upper() in ticker_up for a in aliases):
                                                     try:
                                                         self.oracle_prices[asset] = float(price)
                                                     except Exception:
@@ -499,22 +514,6 @@ class PolymarketFeed:
         import math as _math
         tracked = CONFIG.markets.tracked_assets
         url = f"{self.GAMMA}/markets"
-
-        # Polymarket uses full names in slugs/questions, not tickers:
-        #   BTC → "bitcoin-updown-5m-..." / question contains "Bitcoin"
-        #   ETH → "ethereum-updown-5m-..." or "eth-updown-5m-..." / question contains "Ethereum" or "ETH"
-        #   SOL → "solana-updown-5m-..." or "sol-updown-5m-..." / question contains "Solana" or "SOL"
-        # Use both ticker and full-name slug prefixes to cover all variants.
-        _SLUG_ALIASES: dict = {
-            "BTC": ["btc", "bitcoin"],
-            "ETH": ["eth", "ethereum"],
-            "SOL": ["sol", "solana"],
-        }
-        _QUESTION_ALIASES: dict = {
-            "BTC": ["BTC", "Bitcoin", "BITCOIN"],
-            "ETH": ["ETH", "Ethereum", "ETHEREUM"],
-            "SOL": ["SOL", "Solana", "SOLANA"],
-        }
 
         # Strategy: first try direct slug lookup for current 5M/15M windows
         # (slugs are deterministic: btc-updown-5m-{window_ts}).

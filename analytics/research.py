@@ -192,7 +192,7 @@ class ResearchEngine:
 
         report_lines.append("")
         report_lines.append("BY-ASSET ANALYSIS")
-        for asset in ["BTC", "ETH", "SOL"]:
+        for asset in CONFIG.markets.tracked_assets:
             asset_ticks = by_asset.get(asset, [])
             if not asset_ticks:
                 report_lines.append(f"  {asset}: no data")
