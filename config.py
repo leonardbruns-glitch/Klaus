@@ -138,13 +138,12 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.30,   # relaxed 1.40→1.30: BTC is most liquid + reliable Chainlink oracle;
-                       # research confirms BTC as the primary viable momentum asset
-        "ETH": 1.60,   # raised 1.20→1.60: 176-trade production data from research shows ETH
-                       # net negative across multiple bot implementations; live data 20% WR
-                       # (5 trades). ETH near-excluded — needs very strong signal to enter.
-        "SOL": 1.05,   # slight increase (1.00→1.05): SOL 2× BTC volatility = more noise;
-                       # more opportunities but also more false breakouts; slight safety margin
+        "BTC": 1.30,   # relaxed 1.40→1.30: BTC is most liquid + reliable Chainlink oracle
+        "ETH": 1.00,   # reset 1.60→1.00: prior 1.60 was based on poisoned data (CLOB exit bug
+                       # was active for all ETH losses; stop loss never executed). No clean live
+                       # data exists to justify a penalty. Collect 20+ trades with working exits
+                       # then re-evaluate.
+        "SOL": 1.05,   # slight increase vs baseline: SOL 2× BTC volatility = more false breakouts
     })
 
     # Entry price sweet spot from data: best trades entered 0.245–0.260.
