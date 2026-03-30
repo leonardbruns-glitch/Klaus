@@ -171,13 +171,15 @@ class KlausConfig:
     # ── Auth ─────────────────────────────────────────────────────────────────
     # Accepts old-bot naming (PRIVATE_KEY / FUNDER_ADDRESS) or Klaus naming.
     wallet_private_key: str = field(
-        default_factory=lambda: os.getenv("PRIVATE_KEY", os.getenv("WALLET_PRIVATE_KEY", ""))
+        default_factory=lambda: (
+            lambda k: k[2:] if k.startswith(("0x", "0X")) else k
+        )(os.getenv("PRIVATE_KEY", os.getenv("WALLET_PRIVATE_KEY", "")).strip())
     )
     funder_address: str = field(
-        default_factory=lambda: os.getenv("FUNDER_ADDRESS", "")
+        default_factory=lambda: os.getenv("FUNDER_ADDRESS", "").strip()
     )
     signature_type: int = field(
-        default_factory=lambda: int(os.getenv("SIGNATURE_TYPE", "1"))
+        default_factory=lambda: int(os.getenv("SIGNATURE_TYPE", "0"))
     )
 
     # ── Safety ───────────────────────────────────────────────────────────────
