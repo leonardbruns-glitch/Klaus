@@ -241,6 +241,15 @@ class RiskManager:
                 return
             now = time.time()
             for tid, d in data.items():
+                # Reject stub/dry-run token IDs (real Polymarket IDs are 64-char hex strings).
+                # Prevents dry-run ghost positions from persisting into live sessions.
+                if len(tid) < 20 or not all(c in "0123456789abcdefABCDEF" for c in tid):
+                    logger.warning(
+                        "Discarding non-production token ID '%s' from positions file — "
+                        "likely a dry-run stub; skipping",
+                        tid,
+                    )
+                    continue
                 pos = PositionMeta(
                     token_id=d["token_id"],
                     asset=d["asset"],

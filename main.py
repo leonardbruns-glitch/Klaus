@@ -274,11 +274,29 @@ class KlausBot:
             if signal.direction == Direction.NO_TRADE:
                 continue
 
-            # Route YES tokens to BUY_YES trades, NO tokens to BUY_NO trades
+            # Route YES tokens to BUY_YES trades, NO tokens to BUY_NO trades.
+            # Special case: NO token with BUY_YES direction after flip = NO falling = YES rising.
+            # Redirect to the YES counterpart (same condition_id) so we trade the right token.
             if token.side == "YES" and signal.direction == Direction.BUY_NO:
                 continue
             if token.side == "NO" and signal.direction == Direction.BUY_YES:
-                continue
+                # Find YES counterpart with matching condition_id
+                yes_token_id = next(
+                    (tid for tid, t in self.feed.tokens.items()
+                     if t.condition_id and t.condition_id == token.condition_id
+                     and t.side == "YES" and tid not in self.risk.open_positions),
+                    None,
+                )
+                if not yes_token_id:
+                    continue  # no YES counterpart available
+                # Redirect: trade YES token at the mirror price (1 - no_price)
+                token_id = yes_token_id
+                token = self.feed.tokens[yes_token_id]
+                signal.entry_price = round(1.0 - signal.entry_price, 4)
+                logger.info(
+                    "  └─ REDIRECT NO→YES: using %s YES token @ %.4f (NO was %.4f)",
+                    token.asset, signal.entry_price, 1.0 - signal.entry_price,
+                )
 
             if signal.entry_price <= 0:
                 logger.warning("SKIP %s/%s — zero entry price (bad feed data)", token.asset, token.side)
