@@ -135,6 +135,11 @@ class BarBuilder:
             return closed
         return None
 
+    def seed(self, bars: List[Bar]) -> None:
+        """Prepopulate from historical data (e.g. on startup warmup)."""
+        for b in bars:
+            self.bars.append(b)
+
     def get_bars(self, n: int) -> List[Bar]:
         return list(self.bars)[-n:]
 
@@ -217,6 +222,8 @@ class PolymarketFeed:
             self._populate_stub_tokens()
             await self._warmup_stub_bars()
         else:
+            # Seed bar history from CLOB prices-history so scoring starts immediately
+            await self._warmup_live_bars()
             # Launch WebSocket subscriptions for real-time data
             self._ws_tasks = [
                 asyncio.create_task(self._run_clob_ws()),
@@ -830,6 +837,63 @@ class PolymarketFeed:
                 return price, size
         except Exception:
             return None
+
+    async def _warmup_live_bars(self) -> None:
+        """
+        Seed 5m and 15m bar builders from CLOB prices-history on startup.
+        Without this, the bot waits 60+ min for bars to accumulate from live ticks.
+        Fetches up to 2h of history per token (24+ 5m bars, 8+ 15m bars).
+        Uses a semaphore to avoid hammering the CLOB API with 56 concurrent requests.
+        """
+        if not self._session or not self.tokens:
+            return
+
+        now = int(time.time())
+        sem = asyncio.Semaphore(6)  # max 6 concurrent CLOB requests
+
+        async def _fetch_and_seed(token_id: str, interval_min: int, builder) -> int:
+            async with sem:
+                try:
+                    url = f"{self.CLOB}/prices-history"
+                    params = {
+                        "market": token_id,
+                        "startTs": now - 30 * interval_min * 60,  # 30 bars of history
+                        "endTs": now,
+                        "fidelity": interval_min,
+                    }
+                    async with self._session.get(
+                        url, params=params,
+                        timeout=aiohttp.ClientTimeout(total=8),
+                    ) as resp:
+                        if resp.status != 200:
+                            return 0
+                        data = await resp.json()
+                        history = data.get("history", [])
+                        if not history:
+                            return 0
+                        bars = []
+                        for entry in history[:-1]:  # skip last (in-progress bar)
+                            p = float(entry.get("p", 0))
+                            t = float(entry.get("t", 0))
+                            if p > 0 and t > 0:
+                                bars.append(Bar(ts=t, open=p, high=p, low=p, close=p, volume=100.0))
+                        builder.seed(bars)
+                        return len(bars)
+                except Exception:
+                    return 0
+
+        tasks = []
+        for token_id in list(self.tokens.keys()):
+            b5 = self.bar_builders_5m.get(token_id)
+            b15 = self.bar_builders_15m.get(token_id)
+            if b5:
+                tasks.append(_fetch_and_seed(token_id, 5, b5))   # 5-min candles for 5m builder
+            if b15:
+                tasks.append(_fetch_and_seed(token_id, 15, b15))  # 15-min candles for 15m builder
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        total = sum(r for r in results if isinstance(r, int))
+        logger.info("Bar warmup: seeded %d bars across %d tokens", total, len(self.tokens))
 
     async def update_bars(self) -> None:
         """Push latest trade into bar builders for all tokens."""
