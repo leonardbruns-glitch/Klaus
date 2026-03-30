@@ -481,11 +481,15 @@ class RiskManager:
         return pos
 
     def record_stage1_sell(self, token_id: str, shares_sold: float) -> None:
-        """Called after 95 % profit sell. Updates remaining shares."""
+        """Called after stage-1 sell. Updates remaining shares.
+        Only marks STAGE_1_DONE when shares were actually sold — prevents
+        the position from entering stage-2 logic if the cascade failed (0 fills).
+        """
         pos = self.open_positions.get(token_id)
         if pos:
             pos.remaining_shares = max(0.0, pos.remaining_shares - shares_sold)
-            pos.exit_stage = ExitStage.STAGE_1_DONE
+            if shares_sold > 0:
+                pos.exit_stage = ExitStage.STAGE_1_DONE
             logger.info(
                 "STAGE-1 SELL %s | sold=%.4f remaining=%.4f",
                 token_id[:8], shares_sold, pos.remaining_shares,

@@ -438,19 +438,45 @@ class KlausBot:
         all_exit_fills = stage1_fills + exit_fills
         sold_shares = sum(f.total_size for f in all_exit_fills)
 
-        # If cascade sold NOTHING (network error, CLOB down) and stage-1 hasn't
-        # completed yet, keep the position open and retry on the next OB scan.
-        # Calling close_position on 0 fills would silently ghost the position —
-        # bot records $0 PnL while shares remain on Polymarket unsold.
         stage1_done = pos.exit_stage.name == "STAGE_1_DONE"
+        this_sell = sum(f.total_size for f in exit_fills)   # this cascade attempt only
+        expected_this_sell = pos.remaining_shares            # what we tried to sell
+
+        # Guard 1: zero sell before stage-1 → network/CLOB error, retry next scan.
+        # Calling close_position on 0 fills ghosts the position: bot records a loss
+        # while shares remain on Polymarket (T00011: 4.9 ETH shares left to resolve).
         if sold_shares <= 0 and not stage1_done:
-            # Reset hard_exit flag so the condition fires again next cycle
             if token_id in self.risk.open_positions:
                 self.risk.open_positions[token_id].hard_exit_triggered = False
             logger.warning(
                 "EXIT RETRY: cascade sold 0 shares for %s/%s (network/CLOB error) — "
                 "position kept open, retrying next OB scan",
                 pos.asset, pos.direction.name,
+            )
+            return
+
+        # Guard 2: significant partial fill → update remaining and retry.
+        # Triggers when we sold <80% of remaining shares AND remaining is non-dust
+        # (>0.10 shares). Protects against: partial SELL fill + cancel remainder,
+        # large tick-snap gap at prime-cent prices (e.g. 0.89 → 0.85 share gap).
+        # Dust residuals (<0.10 shares, <$0.10) are accepted and position is closed.
+        _PARTIAL_FILL_THRESH = 0.80   # require selling ≥80% of remaining
+        _DUST_SHARES = 0.10           # below this, accept residual as done
+        if (this_sell < expected_this_sell * _PARTIAL_FILL_THRESH
+                and expected_this_sell > _DUST_SHARES
+                and not stage1_done):
+            if token_id in self.risk.open_positions:
+                if this_sell > 0:
+                    self.risk.open_positions[token_id].remaining_shares = max(
+                        0.0, expected_this_sell - this_sell
+                    )
+                self.risk.open_positions[token_id].hard_exit_triggered = False
+            logger.warning(
+                "PARTIAL EXIT %s/%s: sold %.4f of %.4f shares (%.0f%%) — "
+                "updating remaining, retrying next scan",
+                pos.asset, pos.direction.name,
+                this_sell, expected_this_sell,
+                100 * this_sell / expected_this_sell if expected_this_sell > 0 else 0,
             )
             return
 

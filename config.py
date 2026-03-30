@@ -41,8 +41,9 @@ class FeeConfig:
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.0    # updown markets: gated by min_score + per-asset multiplier only
-                                          # (fat-middle gate adds no value; fee is 1.56% regardless)
+    updown_min_confidence: float = 0.55   # raised 0.0→0.55: 7/12 fat-middle trades losing
+                                          # Break-even after ~3.1% round-trip fee ≈ 53% confidence.
+                                          # 0.55 provides safety margin above fee break-even.
 
 
 @dataclass
@@ -59,7 +60,7 @@ class MomentumConfig:
     ob_imbalance_thresh: float = 0.60  # bid / (bid + ask) depth ratio
 
     # ── Composite scoring thresholds ────────────────────────────────────────
-    min_score: float = 0.40            # minimum score to consider any entry
+    min_score: float = 0.45            # raised 0.40→0.45: 12-trade data shows weak signals losing
     # weights (must sum to 1.0)
     w_breakout: float = 0.35
     w_trend: float = 0.25
@@ -116,9 +117,10 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.40,   # BTC must score 40% higher than threshold
-        "ETH": 0.90,   # ETH gets a 10% easier entry
-        "SOL": 1.00,   # SOL at baseline
+        "BTC": 1.40,   # BTC must score 40% higher than threshold (weak baseline WR)
+        "ETH": 1.20,   # raised 0.90→1.20: live data shows 20% WR on ETH (5 trades)
+                       # was 0.90 (easier entry) based on old 38-trade data, now wrong
+        "SOL": 1.00,   # SOL at baseline — only asset with positive live PnL
     })
 
     # Entry price sweet spot from data: best trades entered 0.245–0.260.

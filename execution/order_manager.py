@@ -335,13 +335,9 @@ class OrderManager:
         if total_shares <= 0:
             return []
 
-        # Apply 0.99× sell factor to avoid CLOB balance cache bug (Issue #287):
-        # CLOB backend sometimes caches a balance slightly below the actual fill.
-        # Selling 99% avoids "not enough balance/allowance" failures; dust settles
-        # at market resolution.
-        total_shares = round(total_shares * 0.99, 4)
-        if total_shares <= 0:
-            return []
+        # NOTE: 0.99× factor removed. The SELL integer snap (floor-division) already
+        # ensures we never request more shares than we own, making the 0.99× redundant.
+        # "not enough balance" errors are now handled inline in the retry loop below.
 
         # Token approval before selling (critical for live)
         await self.approve_token_for_sell(token_id)
@@ -429,12 +425,12 @@ class OrderManager:
 
             remaining = shares - total_sold
 
-            # Skip dust: CLOB requires $1 minimum maker amount for limit orders.
-            # "not enough balance: balance 976570, order amount: 1000000" = dust below $1.
-            # Residual dust settles at market resolution (binary pays 0 or 1).
-            if remaining * sell_price < 1.00:
+            # Skip dust: CLOB $1 minimum + 50% buffer = $1.50 threshold.
+            # Consistent with cascade single-shot threshold so partial residuals
+            # from snapping also settle cleanly at resolution.
+            if remaining * sell_price < 1.50:
                 logger.info(
-                    "Dust skip: %.4f shares @ %.4f = $%.3f < $1 CLOB minimum — "
+                    "Dust skip: %.4f shares @ %.4f = $%.3f < $1.50 threshold — "
                     "will settle at resolution",
                     remaining, sell_price, remaining * sell_price,
                 )
@@ -467,6 +463,23 @@ class OrderManager:
                         attempt + 1,
                     )
                     break
+                # CLOB balance cache bug: CLOB cached balance is slightly below actual.
+                # Parse the actual available balance from the error and retry exactly.
+                # "not enough balance: balance XXXXXX, order amount: YYYYYY"
+                if "not enough balance" in err.lower() or "not enough allowance" in err.lower():
+                    import re as _re
+                    _m = _re.search(r'balance[:\s]+(\d+)', err, _re.IGNORECASE)
+                    if _m:
+                        actual_ticks = int(_m.group(1))
+                        actual_shares = round(actual_ticks / 10000, 4)
+                        if 0.01 <= actual_shares < remaining - 0.001:
+                            logger.info(
+                                "CLOB balance cache: adjusting sell %.4f → %.4f shares (cached lag)",
+                                remaining, actual_shares,
+                            )
+                            shares = actual_shares
+                            remaining = actual_shares
+                            continue  # retry immediately with corrected size
                 logger.debug("Sell attempt %d error: %s", attempt + 1, _sell_exc)
 
             # Step price down 10 %
