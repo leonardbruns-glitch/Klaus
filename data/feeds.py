@@ -246,13 +246,21 @@ class PolymarketFeed:
             if not asset_match:
                 continue
 
-            # Detect market type: 5M/15M Up/Down vs longer-duration price target
+            # Detect market type: 5M/15M Up/Down vs longer-duration price target.
+            # Gamma slugs encode resolution: btc-updown-15m-1768220100
             slug = market.get("slug", "")
+            slug_lo = slug.lower()
+            q_lo = question.lower()
             is_updown = (
-                "updown" in slug.lower()
-                or "up or down" in question.lower()
-                or "up-or-down" in slug.lower()
+                "updown" in slug_lo
+                or "up-or-down" in slug_lo
+                or "up or down" in q_lo
             )
+            # Only care about short-duration updown (5m or 15m)
+            if is_updown:
+                is_short = "5m" in slug_lo or "15m" in slug_lo or "5 min" in q_lo or "15 min" in q_lo
+                if not is_short:
+                    is_updown = False  # skip longer-duration updown markets
             market_type = "updown" if is_updown else "target"
 
             # Parse resolution timestamp
@@ -269,13 +277,24 @@ class PolymarketFeed:
 
             condition_id = market.get("conditionId", market.get("condition_id", ""))
 
-            # Gamma uses clobTokenIds (list of strings) + outcomes (list of strings).
-            # Fall back to CLOB-style tokens list of dicts if needed.
-            raw_ids = market.get("clobTokenIds", [])
-            outcomes = market.get("outcomes", [])
+            # Gamma returns clobTokenIds + outcomes as JSON-encoded strings,
+            # e.g. clobTokenIds = "[\"id1\",\"id2\"]" — must call json.loads().
+            # Guard: accept both string (Gamma) and list (legacy/CLOB) formats.
+            import json as _json
+
+            def _parse_json_field(val, default):
+                if isinstance(val, str):
+                    try:
+                        return _json.loads(val)
+                    except Exception:
+                        return default
+                return val if val is not None else default
+
+            raw_ids = _parse_json_field(market.get("clobTokenIds"), [])
+            outcomes = _parse_json_field(market.get("outcomes"), [])
 
             if not raw_ids:
-                # Try legacy CLOB field name
+                # Try legacy CLOB field name (tokens list of dicts)
                 raw_ids = [
                     t.get("token_id", "") for t in market.get("tokens", [])
                 ]
