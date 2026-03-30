@@ -391,7 +391,12 @@ class OrderManager:
                 token_id, current_price, shares * current_price, OrderSide.SELL
             )
 
-        sell_price = max(current_price * 0.90, 0.01)
+        # Start at 5% discount (was 10%).
+        # 10% caused dust failures at stage-1: 1.617 shares × (0.70 × 0.90) = $1.019 → $0.987
+        # when shares were rounded slightly below 1.617. 5% keeps us well above $1 minimum
+        # while still being immediately marketable (binary spreads are 1-3 ticks = 1-3%).
+        # Price steps down 10% per retry if the order rests, so fallback is unchanged.
+        sell_price = max(current_price * 0.95, 0.01)
         orig_price = sell_price
         total_sold = 0.0
         # Track actual fill prices per attempt for accurate analytics
