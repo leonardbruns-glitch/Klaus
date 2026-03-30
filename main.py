@@ -233,6 +233,10 @@ class KlausBot:
             if token.side == "NO" and signal.direction == Direction.BUY_YES:
                 continue
 
+            if signal.entry_price <= 0:
+                logger.warning("SKIP %s/%s — zero entry price (bad feed data)", token.asset, token.side)
+                continue
+
             tpsl = calculate_tp_sl(
                 signal.entry_price,
                 signal.direction,

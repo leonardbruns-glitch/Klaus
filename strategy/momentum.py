@@ -427,7 +427,7 @@ def calculate_tp_sl(
     return TPSLLevels(
         take_profit=round(tp, 4),
         stop_loss=round(sl, 4),
-        tp_pct=round(tp_distance / entry_price * 100, 2),
-        sl_pct=round(sl_distance / entry_price * 100, 2),
+        tp_pct=round(tp_distance / entry_price * 100, 2) if entry_price > 0 else 0.0,
+        sl_pct=round(sl_distance / entry_price * 100, 2) if entry_price > 0 else 0.0,
         risk_reward=round(rr, 2),
     )
