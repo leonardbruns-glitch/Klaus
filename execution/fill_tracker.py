@@ -65,8 +65,11 @@ class FillTracker:
 
     def set_creds(self, api_key: str, api_secret: str, api_passphrase: str) -> None:
         """Must be called before start() with credentials from ClobClient."""
+        # Polymarket user-channel WS subscription auth uses "apiKey" (not "key").
+        # Using "key" causes the server to close the connection immediately,
+        # triggering a reconnect loop every 2s.
         self._creds = {
-            "key": api_key,
+            "apiKey": api_key,
             "secret": api_secret,
             "passphrase": api_passphrase,
         }
