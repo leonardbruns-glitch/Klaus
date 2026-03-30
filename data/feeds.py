@@ -229,18 +229,60 @@ class PolymarketFeed:
         if not self._session:
             return
         import datetime as _dt
+        import math as _math
         tracked = CONFIG.markets.tracked_assets
         url = f"{self.GAMMA}/markets"
-        params = {"active": "true", "closed": "false", "limit": 500}
+
+        # Strategy: first try direct slug lookup for current 5M/15M windows
+        # (slugs are deterministic: btc-updown-5m-{window_ts}).
+        # Fall back to bulk scan if slug lookup returns nothing.
+        now_ts = int(time.time())
+        intervals = [300, 900]   # 5M and 15M
+        direct_slugs = []
+        for asset in tracked:
+            for interval in intervals:
+                w_ts = now_ts - (now_ts % interval)
+                direct_slugs.append(f"{asset.lower()}-updown-{interval//60}m-{w_ts}")
+                # Also include next window (already accepting orders 2-3 min early)
+                direct_slugs.append(f"{asset.lower()}-updown-{interval//60}m-{w_ts + interval}")
+
+        markets = []
+        for slug in direct_slugs:
+            try:
+                async with self._session.get(url, params={"slug": slug}) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if isinstance(data, list):
+                            markets.extend(data)
+                        elif isinstance(data, dict):
+                            markets.append(data)
+            except Exception:
+                pass  # will fall back to bulk scan
+
+        # Bulk scan fallback for target markets (price prediction, non-updown)
         try:
-            async with self._session.get(url, params=params) as resp:
-                if resp.status != 200:
-                    logger.error("Gamma API error %s", resp.status)
-                    return
-                markets = await resp.json()
+            async with self._session.get(
+                url, params={"active": "true", "closed": "false", "limit": 500}
+            ) as resp:
+                if resp.status == 200:
+                    bulk = await resp.json()
+                    if isinstance(bulk, list):
+                        markets.extend(bulk)
         except Exception as exc:
-            logger.error("Market discovery failed: %s", exc)
-            return
+            if not markets:
+                logger.error("Market discovery failed: %s", exc)
+                return
+
+        # Deduplicate by conditionId
+        seen_conditions: set = set()
+        unique_markets = []
+        for m in markets:
+            cid = m.get("conditionId", m.get("id", ""))
+            if cid and cid not in seen_conditions:
+                seen_conditions.add(cid)
+                unique_markets.append(m)
+        markets = unique_markets
+        logger.debug("Market discovery: %d unique markets to process", len(markets))
 
         now = _dt.datetime.utcnow().timestamp()
         for market in markets:
