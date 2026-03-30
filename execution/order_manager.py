@@ -395,7 +395,20 @@ class OrderManager:
                 neg_risk=True if neg_risk else None,
             )
             signed = self._client.create_order(order_args, options=opts)
-            resp = self._client.post_order(signed, OrderType.GTC)
+
+            # Cloudflare WAF blocks datacenter IPs on POST /order ~30-50% of the time.
+            # Retry with exponential backoff; CF challenges are transient.
+            resp = None
+            for _cf_attempt in range(3):
+                resp = self._client.post_order(signed, OrderType.GTC)
+                err_str = str(resp) if resp else ""
+                if resp and "cloudflare" not in err_str.lower() and "403" not in err_str:
+                    break
+                if _cf_attempt < 2:
+                    wait = 0.5 * (2 ** _cf_attempt)  # 0.5s, 1s
+                    logger.warning("Cloudflare block on order POST (attempt %d) — retry in %.1fs",
+                                   _cf_attempt + 1, wait)
+                    await asyncio.sleep(wait)
 
             if not resp:
                 return OrderResult(status=OrderStatus.FAILED, error="Empty response")

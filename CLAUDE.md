@@ -148,6 +148,20 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 | max_open_positions | 2 | Limit exposure on small bankroll |
 | max_daily_loss | $3 | 30% of $10 — live test mode |
 
+### Infrastructure & VPS (researched 2026-03-30)
+- **Polymarket CLOB backend**: AWS eu-west-2 (London) — confirmed by latency measurements
+- **Best VPS location**: Dublin, Ireland (AWS eu-west-1 or equivalent)
+  - 0.83ms to clob.polymarket.com — confirmed by QuantVPS measurements
+  - London itself is **geoblocked** by Polymarket (UK FCA regulations)
+  - Ashburn VA (what most bots use): ~130ms — 160× worse than Dublin
+- **Binance API**: AWS ap-northeast-1 (Tokyo) — ~250ms from Dublin, irrelevant for 30s edge window
+- **Cloudflare WAF** sits in front of CLOB — blocks datacenter IPs on POST /order ~30-50%
+  - Mitigation: Cloudflare 403 retry with exponential backoff (implemented in order_manager.py)
+  - Use clean IPs (QuantVPS Dublin IPs are Polymarket-vetted)
+  - Reduce REST polling → WebSocket to lower request volume
+- **Polygon RPC**: Not needed directly — py_clob_client abstracts on-chain submission
+- **Competitive edge**: Most bots are in Ashburn (wrong answer). Dublin is correct but known only to serious operators.
+
 ### Development Branch
 `claude/momentum-scalper-bot-zcncG`
 
