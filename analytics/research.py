@@ -24,7 +24,7 @@ from strategy.momentum import MomentumScorer
 logger = logging.getLogger("research")
 
 TICK_LOG = os.path.join(CONFIG.analytics.log_dir, "market_ticks.jsonl")
-TICK_INTERVAL = 5           # seconds between _record_tick calls — matches scan loop
+TICK_INTERVAL = 60          # seconds between _record_tick calls
 REPORT_INTERVAL = 1800      # seconds between _print_report calls
 HIGH_SCORE_THRESHOLD = 0.55 # ticks above this are worth examining
 MAX_REPORT_LINES = 500      # how many recent lines to load for report
