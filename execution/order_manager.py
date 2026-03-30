@@ -159,8 +159,11 @@ class OrderManager:
         if stake_usd <= 0 or intended_price <= 0:
             return OrderResult(status=OrderStatus.FAILED, error="Invalid stake or price")
 
+        # BUY_YES: cap at MAX_ENTRY_PRICE (0.30) — don't overpay for YES tokens.
+        # BUY_NO:  NO tokens trade at 0.70+; cap doesn't apply, use 0.99 ceiling.
+        price_ceil = MAX_ENTRY_PRICE if direction == Direction.BUY_YES else 0.99
         limit_price = round(
-            min(intended_price * (1 + self.cfg.entry_price_buffer), MAX_ENTRY_PRICE), 4
+            min(intended_price * (1 + self.cfg.entry_price_buffer), price_ceil), 4
         )
         size = round(stake_usd / limit_price, 2)
 

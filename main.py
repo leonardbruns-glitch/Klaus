@@ -166,6 +166,15 @@ class KlausBot:
             ext = ext_signals.get(token.asset)
             signal = self.scorer.score(bars_5m, bars_15m, ob, ext)
 
+            # For NO tokens: scorer labels uptrend as BUY_YES (rising token price).
+            # Flip so direction reflects the actual trade: rising NO = BUY_NO.
+            if token.side == "NO" and signal.direction != Direction.NO_TRADE:
+                signal.direction = (
+                    Direction.BUY_NO
+                    if signal.direction == Direction.BUY_YES
+                    else Direction.BUY_YES
+                )
+
             # Log every token scored, including NO_TRADE (for visibility)
             logger.info(
                 "SCAN %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
@@ -178,10 +187,9 @@ class KlausBot:
             if signal.direction == Direction.NO_TRADE:
                 continue
 
-            # Only trade YES tokens directly for simplicity;
-            # BUY_NO → buy the NO token (handled by token.side)
+            # Route YES tokens to BUY_YES trades, NO tokens to BUY_NO trades
             if token.side == "YES" and signal.direction == Direction.BUY_NO:
-                continue   # let the NO token handle this
+                continue
             if token.side == "NO" and signal.direction == Direction.BUY_YES:
                 continue
 

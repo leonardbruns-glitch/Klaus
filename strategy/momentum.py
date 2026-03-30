@@ -329,14 +329,12 @@ class MomentumScorer:
         sig.external_boost = external_signal_boost(ext, sig.direction)
 
         # ── Entry price & fee zone ────────────────────────────────────────────
+        # Always use the actual ask price of the token being evaluated.
+        # For YES tokens → YES ask (e.g. 0.24).
+        # For NO tokens  → NO ask  (e.g. 0.76).
+        # Direction flip for NO tokens is handled in main._scan_for_signals().
         if ob:
-            if sig.direction == Direction.BUY_YES:
-                # pay the ask for YES token
-                sig.entry_price = ob.asks[0][0] if ob.asks else ob.mid
-            else:
-                # BUY_NO = buy NO token; NO price ≈ 1 - YES ask
-                yes_ask = ob.asks[0][0] if ob.asks else ob.mid
-                sig.entry_price = round(1.0 - yes_ask, 4)
+            sig.entry_price = ob.asks[0][0] if ob.asks else ob.mid
         else:
             sig.entry_price = 0.0
 
@@ -424,12 +422,11 @@ def calculate_tp_sl(
     tp_distance = min(tp_distance, 0.15)
     sl_distance = min(sl_distance, 0.08)
 
-    if direction == Direction.BUY_YES:
-        tp = min(0.98, entry_price + tp_distance)
-        sl = max(0.01, entry_price - sl_distance)
-    else:  # BUY_NO
-        tp = max(0.02, entry_price - tp_distance)
-        sl = min(0.99, entry_price + sl_distance)
+    # Both BUY_YES and BUY_NO: we buy the token at entry and want price to rise.
+    # (For NO tokens the direction flip in main.py ensures entry_price is the
+    #  actual NO token ask, so rising NO price = profit — same math as BUY_YES.)
+    tp = min(0.98, entry_price + tp_distance)
+    sl = max(0.01, entry_price - sl_distance)
 
     rr = tp_distance / sl_distance if sl_distance > 0 else 0.0
 

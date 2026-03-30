@@ -204,12 +204,22 @@ class RiskManager:
         if signal.entry_price < self.cfg.min_entry_price:
             return RiskDecision(False, 0, f"Entry price {signal.entry_price:.4f} below floor")
 
-        # Max entry price cap (data: sweet spot 0.245-0.260; cap at 0.27)
-        if signal.entry_price > self.edge_cfg.max_entry_price:
-            return RiskDecision(
-                False, 0,
-                f"Entry {signal.entry_price:.4f} above max {self.edge_cfg.max_entry_price}",
-            )
+        # Max entry price cap (data: sweet spot at YES~0.245-0.260)
+        # BUY_YES: YES token must be cheap (< 0.27)
+        # BUY_NO:  NO token must be expensive (> 0.73 ≡ YES < 0.27)
+        if signal.direction == Direction.BUY_YES:
+            if signal.entry_price > self.edge_cfg.max_entry_price:
+                return RiskDecision(
+                    False, 0,
+                    f"YES entry {signal.entry_price:.4f} above max {self.edge_cfg.max_entry_price}",
+                )
+        else:  # BUY_NO
+            min_no = 1.0 - self.edge_cfg.max_entry_price  # e.g. 0.73
+            if signal.entry_price < min_no:
+                return RiskDecision(
+                    False, 0,
+                    f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
+                )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
         # BTC: 6% WR → needs 40% higher score. ETH: 30% WR → 10% discount.
@@ -323,10 +333,8 @@ class RiskManager:
 
         shares = shares_override if shares_override is not None else pos.remaining_shares
 
-        if pos.direction == Direction.BUY_YES:
-            raw_pnl = (exit_price - pos.entry_price) * shares
-        else:
-            raw_pnl = (pos.entry_price - exit_price) * shares
+        # Always: bought token at entry_price, selling at exit_price
+        raw_pnl = (exit_price - pos.entry_price) * shares
 
         fee_rate = (
             CONFIG.fees.extreme_fee_rate
@@ -376,17 +384,12 @@ class RiskManager:
         time_held = now - pos.open_ts
         remaining = pos.window_end_ts - now if pos.window_end_ts > 0 else 999
 
-        # Update peak price
-        if pos.direction == Direction.BUY_YES and current_price > pos.highest_price:
-            pos.highest_price = current_price
-        elif pos.direction == Direction.BUY_NO and current_price < pos.highest_price:
+        # Update peak price — both BUY_YES and BUY_NO profit from rising price
+        if current_price > pos.highest_price:
             pos.highest_price = current_price
 
-        # Normalise to "up-move" percent for direction-agnostic logic
-        if pos.direction == Direction.BUY_YES:
-            move_pct = (current_price - pos.entry_price) / pos.entry_price
-        else:
-            move_pct = (pos.entry_price - current_price) / pos.entry_price
+        # move_pct > 0 means profit for both directions
+        move_pct = (current_price - pos.entry_price) / pos.entry_price
 
         # ── 1. Hard-exit timer ────────────────────────────────────────────────
         if time_held >= self.exec_cfg.hard_exit_seconds and not pos.hard_exit_triggered:
@@ -418,15 +421,10 @@ class RiskManager:
             if move_pct <= 0.05:
                 return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
 
-            # Trailing stop after stage-1: 20 % below peak
-            if pos.direction == Direction.BUY_YES:
-                trail_stop = pos.highest_price * 0.80
-                if current_price <= trail_stop:
-                    return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
-            else:
-                trail_stop = pos.highest_price * 1.20
-                if current_price >= trail_stop:
-                    return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
+            # Trailing stop after stage-1: 20 % below peak (same for both sides)
+            trail_stop = pos.highest_price * 0.80
+            if current_price <= trail_stop:
+                return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
 
             return None
 
@@ -437,12 +435,9 @@ class RiskManager:
             else:
                 sl_pct = 0.10  # Last 2 min: tight stop
 
-            if pos.direction == Direction.BUY_YES:
-                if current_price <= pos.entry_price * (1 - sl_pct):
-                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-            else:
-                if current_price >= pos.entry_price * (1 + sl_pct):
-                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+            # Stop loss fires when price falls below entry (same for BUY_YES and BUY_NO)
+            if current_price <= pos.entry_price * (1 - sl_pct):
+                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
         return None
 
