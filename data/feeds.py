@@ -154,6 +154,11 @@ class PolymarketFeed:
     CLOB = CONFIG.markets.clob_api_url
     GAMMA = CONFIG.markets.gamma_api_url
 
+    # WebSocket endpoints
+    CLOB_WS = "wss://ws-subscriptions-clob.polymarket.com/ws/"
+    RTDS_WS = "wss://ws-live-data.polymarket.com"
+    BINANCE_WS = "wss://fstream.binance.com/ws"
+
     def __init__(self) -> None:
         self._session: Optional[aiohttp.ClientSession] = None
         self.tokens: Dict[str, MarketToken] = {}        # token_id → token
@@ -165,6 +170,11 @@ class PolymarketFeed:
         self._stub_mode = False   # True when using synthetic data (live discovery failed)
         self._last_ob_ts: Dict[str, float] = {}
         self._last_discovery_ts: float = 0.0    # for periodic re-discovery
+        # WebSocket live data
+        self.oracle_prices: Dict[str, float] = {}       # asset → Chainlink oracle price
+        self.funding_rates: Dict[str, float] = {}       # asset → annualised funding rate
+        self._ws_tasks: List[asyncio.Task] = []
+        self._ws_ob_ts: Dict[str, float] = {}           # token_id → last WS OB update ts
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -206,13 +216,260 @@ class PolymarketFeed:
             self._stub_mode = True
             self._populate_stub_tokens()
             await self._warmup_stub_bars()
+        else:
+            # Launch WebSocket subscriptions for real-time data
+            self._ws_tasks = [
+                asyncio.create_task(self._run_clob_ws()),
+                asyncio.create_task(self._run_rtds_ws()),
+                asyncio.create_task(self._run_binance_ws()),
+            ]
 
         logger.info("Feed started; tracking %d tokens", len(self.tokens))
 
     async def stop(self) -> None:
         self._running = False
+        for t in self._ws_tasks:
+            t.cancel()
+        self._ws_tasks.clear()
         if self._session:
             await self._session.close()
+
+    # ── WebSocket feeds ───────────────────────────────────────────────────────
+
+    async def _run_clob_ws(self) -> None:
+        """
+        Subscribe to Polymarket CLOB WebSocket for real-time order book updates.
+        Uses custom_feature_enabled=True to get best_bid_ask push events
+        (fires only on BBO change, lower noise than full book stream).
+        Reconnects automatically on disconnect. PING every 10s required.
+        """
+        import json as _json
+        _PING_INTERVAL = 9.0  # slightly under 10s CLOB timeout
+
+        while self._running:
+            try:
+                import ssl as _ssl
+                try:
+                    import certifi as _certifi
+                    _ssl_ctx = _ssl.create_default_context(cafile=_certifi.where())
+                except ImportError:
+                    _ssl_ctx = _ssl.create_default_context()
+                    _ssl_ctx.check_hostname = False
+                    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+                async with aiohttp.ClientSession() as ws_session:
+                    async with ws_session.ws_connect(
+                        self.CLOB_WS, ssl=_ssl_ctx, heartbeat=_PING_INTERVAL
+                    ) as ws:
+                        # Subscribe to all tracked tokens
+                        token_ids = list(self.tokens.keys())
+                        sub_msg = _json.dumps({
+                            "auth": {},
+                            "type": "subscribe",
+                            "channel": "market",
+                            "assets_ids": token_ids,
+                            "custom_feature_enabled": True,
+                        })
+                        await ws.send_str(sub_msg)
+                        logger.info("CLOB WebSocket: subscribed to %d tokens", len(token_ids))
+
+                        async for msg in ws:
+                            if not self._running:
+                                break
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    events = _json.loads(msg.data)
+                                    if not isinstance(events, list):
+                                        events = [events]
+                                    for ev in events:
+                                        await self._handle_clob_ws_event(ev)
+                                except Exception:
+                                    pass
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                break
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("CLOB WS disconnected (%s) — reconnecting in 2s", exc)
+                await asyncio.sleep(2)
+
+    async def _handle_clob_ws_event(self, ev: dict) -> None:
+        """Process a single CLOB WebSocket event and update order_books."""
+        import json as _json
+        ev_type = ev.get("event_type", ev.get("type", ""))
+        asset_id = ev.get("asset_id", ev.get("market", ""))
+
+        if ev_type in ("book", "price_change", "best_bid_ask"):
+            token = self.tokens.get(asset_id)
+            if token is None:
+                return
+            bids_raw = ev.get("bids", [])
+            asks_raw = ev.get("asks", [])
+            # best_bid_ask event has single price/size fields
+            if ev_type == "best_bid_ask":
+                best_bid = ev.get("best_bid")
+                best_ask = ev.get("best_ask")
+                # Merge with existing OB if we only have BBO update
+                existing = self.order_books.get(asset_id)
+                if existing and best_bid and best_ask:
+                    bids_raw = [[str(best_bid), str(existing.bids[0][1] if existing.bids else 100)]]
+                    asks_raw = [[str(best_ask), str(existing.asks[0][1] if existing.asks else 100)]]
+                    bids_raw += [[str(b[0]), str(b[1])] for b in existing.bids[1:5]]
+                    asks_raw += [[str(a[0]), str(a[1])] for a in existing.asks[1:5]]
+
+            def _parse_levels(levels):
+                result = []
+                for level in levels:
+                    try:
+                        p = float(level[0] if isinstance(level, (list, tuple)) else level.get("price", 0))
+                        s = float(level[1] if isinstance(level, (list, tuple)) else level.get("size", 0))
+                        if p > 0:
+                            result.append((p, s))
+                    except Exception:
+                        pass
+                return sorted(result, reverse=(ev_type != "asks"))
+
+            bids = sorted(_parse_levels(bids_raw), reverse=True)
+            asks = sorted(_parse_levels(asks_raw))
+
+            if bids or asks:
+                ob = OrderBook(
+                    ts=time.time(), token_id=asset_id,
+                    asset=token.asset, side=token.side,
+                    bids=bids, asks=asks,
+                )
+                self.order_books[asset_id] = ob
+                self._ws_ob_ts[asset_id] = time.time()
+
+        elif ev_type == "last_trade_price":
+            price = ev.get("price")
+            size = ev.get("size", 1.0)
+            if price and asset_id in self.tokens:
+                try:
+                    p, s = float(price), float(size)
+                    if p > 0:
+                        self.bar_builders_5m.get(asset_id) and self.bar_builders_5m[asset_id].update(p, s)
+                        self.bar_builders_15m.get(asset_id) and self.bar_builders_15m[asset_id].update(p, s)
+                        self._ws_ob_ts[asset_id] = time.time()
+                except Exception:
+                    pass
+
+    async def _run_rtds_ws(self) -> None:
+        """
+        Subscribe to Polymarket RTDS for real-time Chainlink oracle prices.
+        These are the exact prices Polymarket uses to settle 5M windows.
+        Stores in self.oracle_prices[asset] for use in risk/strategy.
+        Bug: market/event slug filters silently drop messages — use empty filter.
+        PING every 5s required.
+        """
+        import json as _json
+        _ASSET_MAP = {"BTC": "BTC", "ETH": "ETH", "SOL": "SOL"}
+        _PING_INTERVAL = 4.5
+
+        while self._running:
+            try:
+                import ssl as _ssl
+                try:
+                    import certifi as _certifi
+                    _ssl_ctx = _ssl.create_default_context(cafile=_certifi.where())
+                except ImportError:
+                    _ssl_ctx = _ssl.create_default_context()
+                    _ssl_ctx.check_hostname = False
+                    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+                async with aiohttp.ClientSession() as ws_session:
+                    async with ws_session.ws_connect(
+                        self.RTDS_WS, ssl=_ssl_ctx, heartbeat=_PING_INTERVAL
+                    ) as ws:
+                        # Empty assets_ids filter — use client-side filtering (known bug)
+                        sub_msg = _json.dumps({
+                            "type": "subscribe",
+                            "channel": "live_activity_updates",
+                            "assets_ids": [],
+                        })
+                        await ws.send_str(sub_msg)
+                        logger.info("RTDS WebSocket: subscribed to Chainlink oracle feed")
+
+                        async for msg in ws:
+                            if not self._running:
+                                break
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    data = _json.loads(msg.data)
+                                    events = data if isinstance(data, list) else [data]
+                                    for ev in events:
+                                        ticker = ev.get("ticker", ev.get("asset", ""))
+                                        price = ev.get("price", ev.get("outcome_price"))
+                                        if price and ticker:
+                                            # Map ticker to asset (e.g. "BTC/USD" → "BTC")
+                                            for asset in _ASSET_MAP:
+                                                if asset in str(ticker).upper():
+                                                    try:
+                                                        self.oracle_prices[asset] = float(price)
+                                                    except Exception:
+                                                        pass
+                                except Exception:
+                                    pass
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                break
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("RTDS WS disconnected (%s) — reconnecting in 3s", exc)
+                await asyncio.sleep(3)
+
+    async def _run_binance_ws(self) -> None:
+        """
+        Subscribe to Binance futures mark price WebSocket for real-time funding rates.
+        1-second updates. Replaces periodic REST polling for funding rate signal.
+        Extreme positive funding + price breakout = crowded momentum confirmation.
+        """
+        import json as _json
+        _SYMBOL_MAP = {"BTC": "btcusdt", "ETH": "ethusdt", "SOL": "solusdt"}
+        _STREAMS = "/".join(f"{s}@markPrice@1s" for s in _SYMBOL_MAP.values())
+        _URL = f"{self.BINANCE_WS}/{_STREAMS}"
+
+        while self._running:
+            try:
+                import ssl as _ssl
+                try:
+                    import certifi as _certifi
+                    _ssl_ctx = _ssl.create_default_context(cafile=_certifi.where())
+                except ImportError:
+                    _ssl_ctx = _ssl.create_default_context()
+                    _ssl_ctx.check_hostname = False
+                    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+                async with aiohttp.ClientSession() as ws_session:
+                    async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
+                        logger.info("Binance WS: subscribed to markPrice for BTC/ETH/SOL")
+                        async for msg in ws:
+                            if not self._running:
+                                break
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    data = _json.loads(msg.data)
+                                    # Combined stream wraps in {"stream":...,"data":{...}}
+                                    ev = data.get("data", data)
+                                    symbol = ev.get("s", "").upper()
+                                    funding = ev.get("r")  # current funding rate
+                                    if funding:
+                                        for asset, sym in _SYMBOL_MAP.items():
+                                            if symbol == sym.upper():
+                                                try:
+                                                    # Annualise: rate * 3 * 365 * 100
+                                                    self.funding_rates[asset] = float(funding) * 3 * 365 * 100
+                                                except Exception:
+                                                    pass
+                                except Exception:
+                                    pass
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                break
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("Binance WS disconnected (%s) — reconnecting in 5s", exc)
+                await asyncio.sleep(5)
 
     # ── Market discovery ─────────────────────────────────────────────────────
 
@@ -540,10 +797,20 @@ class PolymarketFeed:
             )
 
     async def poll_order_books(self) -> None:
-        """Poll all tracked tokens; re-discover new markets every 60s."""
+        """
+        Poll all tracked tokens; re-discover new markets every 60s.
+        Skips REST fetch for tokens whose OB was recently updated via WebSocket
+        (within 1.5s) to reduce REST load and Cloudflare trigger risk.
+        """
         await self.refresh_markets()
-        tasks = [self.fetch_order_book(tid) for tid in list(self.tokens)]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        now = time.time()
+        tokens_needing_rest = [
+            tid for tid in list(self.tokens)
+            if now - self._ws_ob_ts.get(tid, 0) > 1.5
+        ]
+        if tokens_needing_rest:
+            tasks = [self.fetch_order_book(tid) for tid in tokens_needing_rest]
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     # ── Price bar updates from last trade ────────────────────────────────────
 
@@ -601,15 +868,18 @@ class PolymarketFeed:
 
         signal = ExternalSignal(ts=time.time(), asset=asset)
 
-        # Funding rate (Binance perp)
-        try:
-            url = "https://fapi.binance.com/fapi/v1/premiumIndex"
-            async with self._session.get(url, params={"symbol": symbol}) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    signal.funding_rate = float(data.get("lastFundingRate", 0)) * 365 * 100
-        except Exception:
-            pass  # signal is optional; never blocks trade
+        # Funding rate: prefer live WebSocket data (1s updates), fall back to REST
+        if asset.upper() in self.funding_rates:
+            signal.funding_rate = self.funding_rates[asset.upper()]
+        else:
+            try:
+                url = "https://fapi.binance.com/fapi/v1/premiumIndex"
+                async with self._session.get(url, params={"symbol": symbol}) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        signal.funding_rate = float(data.get("lastFundingRate", 0)) * 365 * 100
+            except Exception:
+                pass  # signal is optional; never blocks trade
 
         # Spot klines for momentum
         try:

@@ -396,11 +396,15 @@ class OrderManager:
             )
             signed = self._client.create_order(order_args, options=opts)
 
+            # FAK (Fill-And-Kill/IOC) for buys: take liquidity now, cancel remainder.
+            # GTC for sells: must liquidate full position even if book is thin.
+            order_type = OrderType.FAK if side == OrderSide.BUY else OrderType.GTC
+
             # Cloudflare WAF blocks datacenter IPs on POST /order ~30-50% of the time.
             # Retry with exponential backoff; CF challenges are transient.
             resp = None
             for _cf_attempt in range(3):
-                resp = self._client.post_order(signed, OrderType.GTC)
+                resp = self._client.post_order(signed, order_type)
                 err_str = str(resp) if resp else ""
                 if resp and "cloudflare" not in err_str.lower() and "403" not in err_str:
                     break
@@ -427,17 +431,17 @@ class OrderManager:
             taking_f = _to_float(taking)
 
             if status == "live":
-                # GTC order resting on book — cancel immediately to prevent orphaned
-                # orders. The CLOB heartbeat timeout (15s) would cancel it anyway, but
-                # explicit cancel is cleaner.
-                order_id = resp.get("id", resp.get("orderID", ""))
-                if order_id:
-                    try:
-                        self._client.cancel(order_id)
-                        logger.info("Cancelled resting GTC order %s", order_id[:12])
-                    except Exception:
-                        pass
-                return OrderResult(status=OrderStatus.FAILED, error="GTC order not immediately filled (resting)")
+                # BUY orders use FAK so "live" shouldn't appear (FAK cancels remainder).
+                # SELL orders use GTC — "live" means order is resting, cancel immediately.
+                if side == OrderSide.SELL:
+                    order_id = resp.get("id", resp.get("orderID", ""))
+                    if order_id:
+                        try:
+                            self._client.cancel(order_id)
+                            logger.info("Cancelled resting GTC sell %s", order_id[:12])
+                        except Exception:
+                            pass
+                return OrderResult(status=OrderStatus.FAILED, error="Order resting on book (live)")
 
             if status != "matched" or taking_f <= 0:
                 logger.info(
