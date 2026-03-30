@@ -667,6 +667,30 @@ class OrderManager:
             fill_size = taking_f
             fill_cost = _to_float(making) or (fill_size * price)
             fill_price = fill_cost / fill_size if fill_size > 0 else price
+
+            # ── Unit sanity check ───────────────────────────────────────────
+            # Binary market prices must be in [0.01, 0.99].
+            # If fill_price is outside this range, takingAmount/makingAmount
+            # are in unexpected units (micro-USDC, token ticks, etc.).
+            # Recover gracefully: use the submitted limit price and recompute
+            # fill_size from fill_cost (or fall back to snapped size).
+            if not (0.01 <= fill_price <= 0.99):
+                logger.warning(
+                    "Fill price %.6f outside valid range [0.01,0.99] — "
+                    "raw taking=%s making=%s price=%.4f; recovering with limit price",
+                    fill_price, taking, making, price,
+                )
+                fill_price = price
+                fill_size = fill_cost / price if (fill_cost > 0 and price > 0) else size
+                if not (0.01 <= fill_price <= 0.99) or fill_size <= 0:
+                    logger.error(
+                        "Cannot recover fill price for order — aborting fill acceptance"
+                    )
+                    return OrderResult(
+                        status=OrderStatus.FAILED,
+                        error=f"Unrecoverable fill price {fill_price:.6f} (raw: taking={taking} making={making})",
+                    )
+
             slippage = abs(fill_price - price)
 
             fill = Fill(

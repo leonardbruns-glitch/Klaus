@@ -24,6 +24,7 @@ from config import CONFIG
 from strategy.momentum import Direction, SignalBreakdown, TPSLLevels
 
 POSITIONS_FILE = os.path.join("logs", "positions.json")
+BANKROLL_FILE  = os.path.join("logs", "bankroll.json")
 
 logger = logging.getLogger("risk")
 
@@ -96,6 +97,42 @@ class BankrollTracker:
         self.total_trades = 0
         self.total_pnl = 0.0
         self.session_start_ts = time.time()
+        self._load()
+
+    def _load(self) -> None:
+        """Restore capital and streak from disk so restarts don't reset state."""
+        if not os.path.exists(BANKROLL_FILE):
+            return
+        try:
+            with open(BANKROLL_FILE) as f:
+                d = json.load(f)
+            self.capital = float(d.get("capital", self.cfg.total))
+            self.daily_start_capital = float(d.get("daily_start_capital", self.capital))
+            self.consecutive_wins = int(d.get("consecutive_wins", 0))
+            self.total_trades = int(d.get("total_trades", 0))
+            self.total_pnl = float(d.get("total_pnl", 0.0))
+            logger.info(
+                "Bankroll restored: capital=$%.2f streak=%d trades=%d",
+                self.capital, self.consecutive_wins, self.total_trades,
+            )
+        except Exception as exc:
+            logger.warning("Failed to load bankroll state: %s", exc)
+
+    def _save(self) -> None:
+        """Persist capital and streak to disk after every trade."""
+        os.makedirs("logs", exist_ok=True)
+        try:
+            with open(BANKROLL_FILE, "w") as f:
+                json.dump({
+                    "capital": round(self.capital, 6),
+                    "daily_start_capital": round(self.daily_start_capital, 6),
+                    "consecutive_wins": self.consecutive_wins,
+                    "total_trades": self.total_trades,
+                    "total_pnl": round(self.total_pnl, 6),
+                    "saved_ts": time.time(),
+                }, f)
+        except Exception as exc:
+            logger.warning("Failed to save bankroll state: %s", exc)
 
     def record_trade_result(self, pnl: float) -> None:
         self.capital += pnl
@@ -105,6 +142,7 @@ class BankrollTracker:
             self.consecutive_wins += 1
         else:
             self.consecutive_wins = 0
+        self._save()
 
     @property
     def is_heat_check_active(self) -> bool:
@@ -423,6 +461,9 @@ class RiskManager:
                 "STAGE-1 SELL %s | sold=%.4f remaining=%.4f",
                 token_id[:8], shares_sold, pos.remaining_shares,
             )
+            # Persist immediately — if bot crashes before stage-2, we must not
+            # re-attempt to sell the already-sold 95% on restart.
+            self._save_positions()
 
     def close_position(
         self,

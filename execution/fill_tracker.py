@@ -51,6 +51,12 @@ class FillTracker:
         self._creds: Optional[dict] = None
         self._pending: Dict[str, asyncio.Event] = {}   # order_id → Event
         self._results: Dict[str, dict] = {}            # order_id → fill dict
+        # Buffer for fills that arrived before wait_fill() registered the order_id.
+        # Race: order fills within ~10ms of posting → WS event fires before wait_fill()
+        # sets up the asyncio.Event → event silently dropped → 10s timeout → cancel.
+        # Fix: _handle_event stores into _early_fills when order not yet in _pending;
+        # wait_fill() checks this buffer first before waiting.
+        self._early_fills: Dict[str, dict] = {}        # order_id → fill dict (pre-claim)
         self._ws_task: Optional[asyncio.Task] = None
         self._running = False
         self._connected = False
@@ -94,10 +100,21 @@ class FillTracker:
             {"order_id", "size", "price", "cost"}
         Returns None on timeout or if WS is not connected (caller should
         fall back to REST polling).
+
+        Race-condition safe: checks _early_fills buffer before registering,
+        so fills that arrive between order posting and wait_fill() call are
+        not dropped.
         """
         if not self._running or not self._connected:
             # WS not ready — signal caller to fall back to polling
             return None
+
+        # ── Check early-arrival buffer first ─────────────────────────────────
+        # Fill may have arrived before this call registered the order_id.
+        if order_id in self._early_fills:
+            fill = self._early_fills.pop(order_id)
+            logger.debug("FillTracker: early-buffer hit for order %s", order_id[:12])
+            return fill
 
         event = asyncio.Event()
         self._pending[order_id] = event
@@ -211,12 +228,24 @@ class FillTracker:
 
         for id_field in ("taker_order_id", "maker_order_id", "id", "order_id"):
             order_id = ev.get(id_field, "")
-            if order_id and order_id in self._pending:
-                fill["order_id"] = order_id
+            if not order_id:
+                continue
+            fill["order_id"] = order_id
+            if order_id in self._pending:
+                # Normal path: wait_fill() is already waiting
                 self._results[order_id] = fill
                 self._pending[order_id].set()
                 logger.info(
                     "FillTracker: fill event → order %s | size=%.4f @ %.4f",
+                    order_id[:12], size, price,
+                )
+                return
+            else:
+                # Early-arrival path: wait_fill() hasn't registered yet.
+                # Buffer the fill so wait_fill() can claim it immediately.
+                self._early_fills[order_id] = fill
+                logger.info(
+                    "FillTracker: early fill buffered for order %s | size=%.4f @ %.4f",
                     order_id[:12], size, price,
                 )
                 return
