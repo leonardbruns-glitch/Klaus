@@ -373,23 +373,24 @@ class KlausBot:
             tick_size=getattr(token_meta, "tick_size", "0.01"),
         )
 
-        # stage-2 exit price for risk manager (uses remaining_shares)
-        stage2_exit_price = self._calc_exit_price(exit_fills, pos.entry_price)
+        # Combine stage-1 + stage-2 fills for full-position PnL accounting.
+        # Must be done BEFORE close_position so bankroll uses the same weighted
+        # avg price as analytics — not just the 5% stage-2 tranche.
+        stage1_fills = meta.get("stage1_fills", [])
+        all_exit_fills = stage1_fills + exit_fills
+        stage2_fallback = self._calc_exit_price(exit_fills, pos.entry_price)
+        # Weighted avg exit price across ALL tranches (stage-1 95% + stage-2 5%).
+        analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
+        # Capture full share count before close_position pops pos from dict.
+        all_shares = pos.shares
+
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
-        net_pnl = self.risk.close_position(token_id, stage2_exit_price, reason)
+        # Pass full shares + weighted avg price so bankroll records 100% of trade PnL.
+        # Without shares_override, close_position uses remaining_shares (5% after
+        # stage-1 sell), silently missing the 95% stage-1 tranche in bankroll.
+        net_pnl = self.risk.close_position(token_id, analytics_exit_price, reason, shares_override=all_shares)
 
         if net_pnl is not None:
-            # Combine stage-1 + stage-2 fills for accurate analytics
-            # (stage-2 only gives inflated gross_pnl on 100% shares at wrong price)
-            stage1_fills = meta.get("stage1_fills", [])
-            all_exit_fills = stage1_fills + exit_fills
-
-            # Best available exit price: weighted avg of actual fills, or
-            # the stage2 price (already computed from exit_fills above), or
-            # fallback to entry_price so the trade is still recorded correctly
-            # as a loss/scratch rather than silently dropped.
-            analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_exit_price)
-
             # entry_fill and signal: use from meta if available; construct
             # minimal placeholders if the position was restored from disk and
             # meta wasn't populated for this session.
@@ -427,11 +428,11 @@ class KlausBot:
                 asset=pos.asset,
                 direction=pos.direction,
                 entry_price=pos.entry_price,
-                exit_price=analytics_exit_price,   # weighted avg all tranches
+                exit_price=analytics_exit_price,
                 stake=pos.stake,
-                shares=pos.shares,
+                shares=all_shares,
                 entry_fill=entry_fill,
-                exit_fills=all_exit_fills,          # includes stage-1 fills
+                exit_fills=all_exit_fills,
                 exit_reason=reason,
                 signal=signal,
                 ts_open=meta.get("ts_open", pos.open_ts),

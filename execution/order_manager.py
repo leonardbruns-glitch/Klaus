@@ -403,19 +403,10 @@ class OrderManager:
 
             remaining = shares - total_sold
 
-            # Market order attempt
-            try:
-                sell_amount = round(remaining * sell_price, 4)
-                result = await self._submit_market_order_sell(token_id, sell_amount)
-                if result.status == OrderStatus.FILLED and result.total_size > 0:
-                    total_sold += result.total_size
-                    fill_value += result.avg_fill_price * result.total_size
-                    sell_price = orig_price
-                    continue
-            except Exception:
-                pass
-
-            # Limit order fallback
+            # Limit order sell. Market order (FOK SELL) removed: its amount
+            # semantics differ from BUY (tokens vs USDC), causing under-sells.
+            # Limit order at sell_price (starting at 90% of current) fills
+            # immediately when marketable; steps down 10% each retry if resting.
             try:
                 result = await self._submit_limit_order(
                     token_id, OrderSide.SELL, sell_price, remaining,
@@ -424,6 +415,7 @@ class OrderManager:
                 if result.status == OrderStatus.FILLED and result.total_size > 0:
                     total_sold += result.total_size
                     fill_value += result.avg_fill_price * result.total_size
+                    sell_price = orig_price
                     continue
             except Exception:
                 pass
