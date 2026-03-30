@@ -155,7 +155,7 @@ class PolymarketFeed:
     GAMMA = CONFIG.markets.gamma_api_url
 
     # WebSocket endpoints
-    CLOB_WS = "wss://ws-subscriptions-clob.polymarket.com/ws/"
+    CLOB_WS = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
     RTDS_WS = "wss://ws-live-data.polymarket.com"
     BINANCE_WS = "wss://fstream.binance.com/ws"
 
