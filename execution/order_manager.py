@@ -478,10 +478,13 @@ class OrderManager:
                     _m = _re.search(r'balance[:\s]+(\d+)', err, _re.IGNORECASE)
                     if _m:
                         actual_ticks = int(_m.group(1))
-                        actual_shares = round(actual_ticks / 10000, 4)
+                        # CLOB error amounts are in micro-tokens (1 share = 1,000,000).
+                        # Previous divisor of 10,000 produced 492 for a 5-share position
+                        # → condition 492 < 4.999 always false → 15 identical retries.
+                        actual_shares = round(actual_ticks / 1_000_000, 6)
                         if 0.01 <= actual_shares < remaining - 0.001:
                             logger.info(
-                                "CLOB balance cache: adjusting sell %.4f → %.4f shares (cached lag)",
+                                "CLOB balance cache: adjusting sell %.4f → %.6f shares (cached lag)",
                                 remaining, actual_shares,
                             )
                             shares = actual_shares

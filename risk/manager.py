@@ -359,19 +359,19 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown: reject near-resolved markets (>0.75 or <0.25).
-            # At 0.75 the real RR (with 35% dynamic SL) is borderline acceptable.
-            # Above 0.75, upside to 0.98 cap < 23¢ while downside (35% SL) = 26¢
-            # → real RR < 0.9 and the trade has no business being taken.
-            # The ATR-based RR check below uses a capped sl_distance (0.08) which
-            # DOESN'T reflect the 35% stop, so it passes entries at 0.85-0.89
-            # with a fake RR of 1.12. This guard prevents those from slipping through.
+            # Updown: reject near-resolved markets.
             # Track record: all profitable trades were at 0.48-0.56 entry;
-            # all losses were 0.59+ entries (ETH 0.59, SOL 0.88, SOL 0.89).
-            if signal.entry_price > 0.75 or signal.entry_price < 0.25:
+            # all losses were 0.59+ entries (ETH 0.59, SOL 0.88, SOL 0.89, SOL 0.67 live).
+            # Tightened 0.75→0.60: above 0.60, upside to 0.98 cap < 38¢ while
+            # 35% dynamic SL = up to 21¢ downside at 0.60 → apparent RR OK but
+            # the ATR-based RR check uses capped sl_distance (0.08) which doesn't
+            # reflect the 35% stop → fake RR of 1.12 lets bad trades through.
+            # 0.60 hard cap eliminates the entire 0.59+ losing pattern.
+            # Mirror: below 0.40 → symmetric rejection (NO near-resolved).
+            if signal.entry_price > 0.60 or signal.entry_price < 0.40:
                 return RiskDecision(
                     False, 0,
-                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.25, 0.75]",
+                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.40, 0.60]",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
