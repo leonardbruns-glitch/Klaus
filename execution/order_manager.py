@@ -75,6 +75,7 @@ except Exception as _cf_exc:
 
 from config import CONFIG
 from strategy.momentum import Direction
+from execution.fill_tracker import FillTracker
 
 logger = logging.getLogger("execution")
 
@@ -183,14 +184,43 @@ class OrderManager:
         self._client = _build_clob_client() if not CONFIG.dry_run else None
         self._session: Optional[aiohttp.ClientSession] = None
         self.fill_history: List[Fill] = []
+        self._fill_tracker = FillTracker()
+        self._setup_fill_tracker()
+
+    def _setup_fill_tracker(self) -> None:
+        """Extract API creds from the CLOB client and give them to FillTracker."""
+        if self._client is None:
+            return
+        try:
+            # After set_api_creds(), py_clob_client stores creds at client.creds
+            creds = getattr(self._client, "creds", None)
+            if creds and hasattr(creds, "api_key"):
+                self._fill_tracker.set_creds(
+                    api_key=creds.api_key,
+                    api_secret=creds.api_secret,
+                    api_passphrase=creds.api_passphrase,
+                )
+                logger.debug("FillTracker: creds loaded from CLOB client")
+        except Exception as exc:
+            logger.debug("FillTracker creds not available: %s", exc)
 
     async def start(self) -> None:
         if AIOHTTP_AVAILABLE:
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=10)
             )
+        # Cancel any resting GTC orders left over from previous sessions.
+        # Stale orders tie up USDC balance and trigger "not enough balance" errors.
+        if self._client is not None:
+            try:
+                self._client.cancel_all()
+                logger.info("Startup: cancelled all stale open orders")
+            except Exception as exc:
+                logger.debug("Startup cancel_all failed (may be none): %s", exc)
+        await self._fill_tracker.start()
 
     async def stop(self) -> None:
+        await self._fill_tracker.stop()
         if self._session:
             await self._session.close()
 
@@ -534,35 +564,62 @@ class OrderManager:
                 order_id = resp.get("id", resp.get("orderID", ""))
 
                 if side == OrderSide.BUY and order_id:
-                    # BUY resting on book: price moved away during submission.
-                    # Scenario: ask jumped above our limit right after we signed.
-                    # Poll for up to 10s — price often reverts within seconds on Polymarket.
-                    # Only cancel if still unfilled after timeout.
+                    # BUY resting: ask moved above our limit right after signing.
+                    # PRIMARY: wait on user channel WS fill event (sub-100ms).
+                    # FALLBACK: poll REST every 1s if WS not connected.
+                    # Both paths timeout after 10s then cancel.
                     logger.info(
-                        "BUY order resting — polling for fill (up to 10s): %s",
+                        "BUY order resting — awaiting fill via user WS (up to 10s): %s",
                         order_id[:12],
                     )
-                    for _poll in range(5):
-                        await asyncio.sleep(2.0)
-                        try:
-                            order_info = self._client.get_order(order_id)
-                            poll_status = order_info.get("status", "live")
-                            if poll_status == "matched":
-                                taking = order_info.get("takingAmount", "0")
-                                taking_f = _to_float(taking)
-                                if taking_f > 0:
-                                    logger.info(
-                                        "BUY resting order filled after %ds: %s",
-                                        (_poll + 1) * 2, order_id[:12],
-                                    )
-                                    resp = order_info
-                                    status = "matched"
-                                    making = order_info.get("makingAmount", "0")
-                                    break
-                        except Exception as _poll_exc:
-                            logger.debug("Poll %d failed: %s", _poll, _poll_exc)
 
-                    if status != "matched":
+                    fill_data = None
+                    if self._fill_tracker.is_connected:
+                        # Fast path: WS delivers fill event in ~50-200ms
+                        fill_data = await self._fill_tracker.wait_fill(order_id, timeout=10.0)
+                    else:
+                        # Slow path: poll REST at 1s intervals (WS down/reconnecting)
+                        for _poll in range(10):
+                            await asyncio.sleep(1.0)
+                            try:
+                                order_info = self._client.get_order(order_id)
+                                if order_info.get("status") == "matched":
+                                    sz = _to_float(order_info.get("takingAmount", "0"))
+                                    if sz > 0:
+                                        fill_data = {
+                                            "size": sz,
+                                            "price": price,
+                                            "cost": _to_float(order_info.get("makingAmount", "0")) or sz * price,
+                                            "order_id": order_id,
+                                            "_rest_fallback": True,
+                                        }
+                                        logger.info(
+                                            "BUY resting filled via REST poll after %ds: %s",
+                                            _poll + 1, order_id[:12],
+                                        )
+                                        break
+                            except Exception as _pe:
+                                logger.debug("REST poll %d failed: %s", _poll, _pe)
+
+                    if fill_data:
+                        # Normalise WS/REST fill into REST response format for downstream
+                        sz = fill_data.get("size", 0)
+                        cost = fill_data.get("cost") or sz * price
+                        resp = {
+                            "id": order_id,
+                            "status": "matched",
+                            "takingAmount": str(sz),
+                            "makingAmount": str(cost),
+                        }
+                        status = "matched"
+                        taking = str(sz)
+                        taking_f = float(sz)
+                        making = str(cost)
+                        logger.info(
+                            "BUY fill confirmed: order %s size=%.4f price=~%.4f",
+                            order_id[:12], sz, price,
+                        )
+                    else:
                         try:
                             self._client.cancel(order_id)
                             logger.info("Cancelled unfilled resting BUY %s", order_id[:12])
@@ -570,7 +627,7 @@ class OrderManager:
                             pass
                         return OrderResult(
                             status=OrderStatus.FAILED,
-                            error="BUY resting — cancelled after 10s timeout",
+                            error="BUY resting — cancelled after 10s (no fill)",
                         )
                 else:
                     # SELL resting: no bid at our floor price — cascade will retry lower.
