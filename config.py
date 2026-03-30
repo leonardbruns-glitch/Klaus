@@ -32,12 +32,14 @@ class BankrollConfig:
 
 @dataclass
 class FeeConfig:
-    # Polymarket charges up to 1.80 % near 0.50 odds
+    # Polymarket taker fees: ~1.56% at 0.50 odds, near 0% at extremes
     extreme_fee_rate: float = 0.005   # < 0.35 or > 0.65 region
-    middle_fee_rate: float = 0.018    # 0.35 – 0.65 "fat middle"
+    middle_fee_rate: float = 0.016    # 0.35–0.65 "fat middle" (actual ~1.56% at 0.50)
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
-    middle_min_confidence: float = 0.80   # only enter fat middle at ≥ 80 % confidence
+    middle_min_confidence: float = 0.80   # confidence gate for price-target markets
+    updown_min_confidence: float = 0.52   # confidence gate for 5M/15M Up/Down markets
+                                          # (just need to beat 50% + 1.56% fee)
 
 
 @dataclass

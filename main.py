@@ -203,8 +203,9 @@ class KlausBot:
             decision = self.risk.evaluate(
                 token_id, signal, tpsl,
                 condition_id=token.condition_id,
-                window_end_ts=getattr(token, "window_end_ts", 0.0),
+                window_end_ts=token.window_end_ts,
                 asset=token.asset,
+                market_type=token.market_type,
             )
 
             if not decision.approved:

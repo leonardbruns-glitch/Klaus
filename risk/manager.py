@@ -170,6 +170,7 @@ class RiskManager:
         condition_id: str = "",
         window_end_ts: float = 0.0,
         asset: str = "",
+        market_type: str = "target",
     ) -> RiskDecision:
         # Daily loss halt
         if self.bankroll.is_halted:
@@ -204,22 +205,22 @@ class RiskManager:
         if signal.entry_price < self.cfg.min_entry_price:
             return RiskDecision(False, 0, f"Entry price {signal.entry_price:.4f} below floor")
 
-        # Max entry price cap (data: sweet spot at YES~0.245-0.260)
-        # BUY_YES: YES token must be cheap (< 0.27)
-        # BUY_NO:  NO token must be expensive (> 0.73 ≡ YES < 0.27)
-        if signal.direction == Direction.BUY_YES:
-            if signal.entry_price > self.edge_cfg.max_entry_price:
-                return RiskDecision(
-                    False, 0,
-                    f"YES entry {signal.entry_price:.4f} above max {self.edge_cfg.max_entry_price}",
-                )
-        else:  # BUY_NO
-            min_no = 1.0 - self.edge_cfg.max_entry_price  # e.g. 0.73
-            if signal.entry_price < min_no:
-                return RiskDecision(
-                    False, 0,
-                    f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
-                )
+        # Max entry price cap — applies only to price-target markets (0.20-0.27 sweet spot).
+        # Up/Down markets trade near $0.50 by design; price cap doesn't apply.
+        if market_type != "updown":
+            if signal.direction == Direction.BUY_YES:
+                if signal.entry_price > self.edge_cfg.max_entry_price:
+                    return RiskDecision(
+                        False, 0,
+                        f"YES entry {signal.entry_price:.4f} above max {self.edge_cfg.max_entry_price}",
+                    )
+            else:
+                min_no = 1.0 - self.edge_cfg.max_entry_price
+                if signal.entry_price < min_no:
+                    return RiskDecision(
+                        False, 0,
+                        f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
+                    )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
         # BTC: 6% WR → needs 40% higher score. ETH: 30% WR → 10% discount.
@@ -253,21 +254,37 @@ class RiskManager:
         max_pct = 0.10 if self.bankroll.is_heat_check_active else 0.05
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
-        # RR gate
-        if tpsl.risk_reward < 1.5:
-            return RiskDecision(False, 0, f"RR {tpsl.risk_reward:.2f} < 1.5")
+        # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
+        min_rr = 0.9 if market_type == "updown" else 1.5
+        if tpsl.risk_reward < min_rr:
+            return RiskDecision(False, 0, f"RR {tpsl.risk_reward:.2f} < {min_rr}")
 
-        # Fat-middle EV gate
+        # Fat-middle confidence gate
         from strategy.momentum import FeeZone
         if signal.fee_zone == FeeZone.FAT_MIDDLE:
-            odds = signal.entry_price
-            fee_factor = min(odds, 1.0 - odds) / 0.5
-            fee = self.fee_cfg.middle_fee_rate * fee_factor
-            ev = (signal.confidence * tpsl.tp_pct / 100
-                  - (1 - signal.confidence) * tpsl.sl_pct / 100
-                  - fee)
-            if ev <= 0:
-                return RiskDecision(False, 0, f"Fat-middle EV={ev:.4f} ≤ 0")
+            # Up/Down markets: just need to beat coin flip + fees (~52% confidence)
+            # Price-target markets: require high conviction (80%)
+            min_conf = (
+                self.fee_cfg.updown_min_confidence
+                if market_type == "updown"
+                else self.fee_cfg.middle_min_confidence
+            )
+            if signal.confidence < min_conf:
+                return RiskDecision(
+                    False, 0,
+                    f"Fat-middle conf {signal.confidence:.2f} < {min_conf:.2f} ({market_type})",
+                )
+
+            # EV gate for price-target markets only
+            if market_type != "updown":
+                odds = signal.entry_price
+                fee_factor = min(odds, 1.0 - odds) / 0.5
+                fee = self.fee_cfg.middle_fee_rate * fee_factor
+                ev = (signal.confidence * tpsl.tp_pct / 100
+                      - (1 - signal.confidence) * tpsl.sl_pct / 100
+                      - fee)
+                if ev <= 0:
+                    return RiskDecision(False, 0, f"Fat-middle EV={ev:.4f} ≤ 0")
 
         is_scaled = self.bankroll.is_heat_check_active
         return RiskDecision(

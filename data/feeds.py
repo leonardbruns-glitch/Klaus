@@ -72,10 +72,12 @@ class MarketToken:
     token_id: str
     condition_id: str
     asset: str          # BTC / ETH / SOL
-    side: str           # YES / NO
+    side: str           # YES / NO  (UP maps to YES, DOWN maps to NO)
     question: str
     end_date_iso: str
     active: bool = True
+    market_type: str = "target"     # "updown" (5M/15M) or "target" (price target)
+    window_end_ts: float = 0.0      # unix ts when this market resolves
 
 
 @dataclass
@@ -211,9 +213,18 @@ class PolymarketFeed:
     # ── Market discovery ─────────────────────────────────────────────────────
 
     async def _discover_markets(self) -> None:
-        """Fetch active markets from Gamma API and filter to tracked assets."""
+        """
+        Fetch active markets from Gamma API and filter to tracked assets.
+
+        Gamma API returns:
+          clobTokenIds: ["token_id_up", "token_id_down"]   ← list of strings
+          outcomes:     ["Up", "Down"]  or  ["Yes", "No"]
+          conditionId:  "0x..."
+          endDate:      "2026-01-15T14:15:00Z"
+        """
         if not self._session:
             return
+        import datetime as _dt
         tracked = CONFIG.markets.tracked_assets
         url = f"{self.GAMMA}/markets"
         params = {"active": "true", "closed": "false", "limit": 500}
@@ -229,26 +240,66 @@ class PolymarketFeed:
 
         for market in markets:
             question = market.get("question", "")
-            # Rough filter: keep only daily/weekly price resolution markets
             asset_match = next(
                 (a for a in tracked if a.upper() in question.upper()), None
             )
             if not asset_match:
                 continue
-            tokens_data = market.get("tokens", [])
-            for t in tokens_data:
-                token_id = t.get("token_id", "")
+
+            # Detect market type: 5M/15M Up/Down vs longer-duration price target
+            slug = market.get("slug", "")
+            is_updown = (
+                "updown" in slug.lower()
+                or "up or down" in question.lower()
+                or "up-or-down" in slug.lower()
+            )
+            market_type = "updown" if is_updown else "target"
+
+            # Parse resolution timestamp
+            end_date_str = market.get("endDate", market.get("end_date_iso", ""))
+            window_end_ts = 0.0
+            if end_date_str:
+                try:
+                    end_dt = _dt.datetime.fromisoformat(
+                        end_date_str.replace("Z", "+00:00")
+                    )
+                    window_end_ts = end_dt.timestamp()
+                except Exception:
+                    pass
+
+            condition_id = market.get("conditionId", market.get("condition_id", ""))
+
+            # Gamma uses clobTokenIds (list of strings) + outcomes (list of strings).
+            # Fall back to CLOB-style tokens list of dicts if needed.
+            raw_ids = market.get("clobTokenIds", [])
+            outcomes = market.get("outcomes", [])
+
+            if not raw_ids:
+                # Try legacy CLOB field name
+                raw_ids = [
+                    t.get("token_id", "") for t in market.get("tokens", [])
+                ]
+                outcomes = [
+                    t.get("outcome", "") for t in market.get("tokens", [])
+                ]
+
+            for i, token_id in enumerate(raw_ids):
                 if not token_id:
                     continue
-                side = "YES" if t.get("outcome", "").upper() == "YES" else "NO"
+                outcome_label = outcomes[i] if i < len(outcomes) else ("YES" if i == 0 else "NO")
+                # UP / YES → YES side; DOWN / NO → NO side
+                side = "YES" if outcome_label.upper() in ("YES", "UP", "TRUE", "1") else "NO"
+
                 token = MarketToken(
                     token_id=token_id,
-                    condition_id=market.get("condition_id", ""),
+                    condition_id=condition_id,
                     asset=asset_match,
                     side=side,
                     question=question,
-                    end_date_iso=market.get("end_date_iso", ""),
+                    end_date_iso=end_date_str,
                     active=market.get("active", True),
+                    market_type=market_type,
+                    window_end_ts=window_end_ts,
                 )
                 self.tokens[token_id] = token
                 self.asset_tokens.setdefault(asset_match, []).append(token_id)
@@ -261,7 +312,12 @@ class PolymarketFeed:
                     CONFIG.markets.history_bars,
                 )
 
-        logger.info("Discovered %d tokens across %s", len(self.tokens), tracked)
+        logger.info(
+            "Discovered %d tokens across %s (updown=%d target=%d)",
+            len(self.tokens), tracked,
+            sum(1 for t in self.tokens.values() if t.market_type == "updown"),
+            sum(1 for t in self.tokens.values() if t.market_type == "target"),
+        )
 
     # ── Order book polling ────────────────────────────────────────────────────
 
@@ -419,19 +475,23 @@ class PolymarketFeed:
     # ── Stub helpers (dry-run / no-network mode) ──────────────────────────────
 
     def _populate_stub_tokens(self) -> None:
-        """Create synthetic YES+NO tokens for each tracked asset."""
+        """Create synthetic UP/DOWN tokens for each tracked asset (5M/15M style)."""
         import uuid
+        window_end = time.time() + CONFIG.markets.bar_interval_primary  # 5 min from now
         for asset in CONFIG.markets.tracked_assets:
             for side in ("YES", "NO"):
+                label = "Up" if side == "YES" else "Down"
                 token_id = f"stub_{asset}_{side}_{uuid.uuid4().hex[:8]}"
                 token = MarketToken(
                     token_id=token_id,
                     condition_id=f"stub_cond_{asset}",
                     asset=asset,
                     side=side,
-                    question=f"Will {asset} be above threshold on expiry?",
+                    question=f"Will {asset} go up or down in the next 15 minutes? ({label})",
                     end_date_iso="2099-12-31T00:00:00Z",
                     active=True,
+                    market_type="updown",
+                    window_end_ts=window_end,
                 )
                 self.tokens[token_id] = token
                 self.asset_tokens.setdefault(asset, []).append(token_id)
@@ -457,13 +517,11 @@ class PolymarketFeed:
         n_bars = CONFIG.markets.history_bars
 
         for token_id, token in self.tokens.items():
-            # Base prices reflect real Polymarket binary markets for BTC/ETH/SOL
-            # price questions (e.g. "Will BTC close above $X?"). Live data shows
-            # entries cluster at 0.24–0.26, so YES tokens start in EXTREME fee zone
-            # and within the max_entry_price=0.27 cap.
-            base = {"BTC": 0.24, "ETH": 0.21, "SOL": 0.18}.get(token.asset, 0.22)
-            if token.side == "NO":
-                base = 1.0 - base
+            # 5M/15M Up/Down markets: UP and DOWN tokens both trade near $0.47-$0.53
+            # (roughly coin-flip probability). Small random offset per asset.
+            base_offsets = {"BTC": 0.02, "ETH": -0.01, "SOL": 0.03}
+            offset = base_offsets.get(token.asset, 0.0)
+            base = 0.50 + offset if token.side == "YES" else 0.50 - offset
 
             price = base
             for i in range(n_bars):
