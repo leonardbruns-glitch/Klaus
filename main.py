@@ -26,6 +26,7 @@ from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
 from risk.manager import RiskManager
+from analytics.lag_observations import log_lag_observation
 from execution.order_manager import OrderManager, OrderResult, OrderStatus
 from analytics.feedback import FeedbackEngine
 from analytics.research import ResearchEngine
@@ -277,6 +278,24 @@ class KlausBot:
                 signal.entry_price, signal.direction.name,
                 signal.reason or "no signal",
             )
+
+            # Lag research: record Binance price + Polymarket price every scan.
+            # No trading logic affected. Used by analytics/lag_analysis.py.
+            ext = ext_signals.get(token.asset)
+            if token.market_type == "updown" and ext is not None:
+                log_lag_observation(
+                    ts=time.time(),
+                    asset=token.asset,
+                    token_id=token_id,
+                    side=token.side,
+                    market_type=token.market_type,
+                    window_end_ts=token.window_end_ts,
+                    polymarket_price=signal.entry_price,
+                    binance_spot_price=ext.spot_price,
+                    binance_1m_pct=ext.spot_momentum_1m,
+                    binance_5m_pct=ext.spot_momentum_5m,
+                    binance_15m_pct=ext.spot_momentum_15m,
+                )
 
             if signal.direction == Direction.NO_TRADE:
                 continue

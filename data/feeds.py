@@ -106,6 +106,8 @@ class ExternalSignal:
     spot_momentum_5m: Optional[float] = None # % change on spot last 5 min
     spot_momentum_15m: Optional[float] = None
     realized_vol_1h: Optional[float] = None  # annualised
+    spot_price: Optional[float] = None       # current Binance spot price (absolute)
+    spot_momentum_1m: Optional[float] = None # % change on spot last 1 min
 
 
 # ---------------------------------------------------------------------------
@@ -986,10 +988,21 @@ class PolymarketFeed:
             except Exception:
                 pass  # signal is optional; never blocks trade
 
-        # Spot klines for momentum
+        # Spot klines for momentum (1m, 5m, 15m)
         try:
             url = "https://api.binance.com/api/v3/klines"
-            params = {"symbol": symbol, "interval": "5m", "limit": 4}
+            # 1-minute: absolute price + short-term momentum for lag research
+            params = {"symbol": symbol, "interval": "1m", "limit": 3}
+            async with self._session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    klines = await resp.json()
+                    if len(klines) >= 2:
+                        c1 = float(klines[-2][4])
+                        c0 = float(klines[-1][4])
+                        signal.spot_price = c0
+                        signal.spot_momentum_1m = (c0 - c1) / c1 * 100
+            params["interval"] = "5m"
+            params["limit"] = 4
             async with self._session.get(url, params=params) as resp:
                 if resp.status == 200:
                     klines = await resp.json()
