@@ -171,6 +171,7 @@ class RiskManager:
         window_end_ts: float = 0.0,
         asset: str = "",
         market_type: str = "target",
+        cascade_discount: float = 0.0,
     ) -> RiskDecision:
         # Daily loss halt
         if self.bankroll.is_halted:
@@ -234,6 +235,10 @@ class RiskManager:
             current_hour = datetime.datetime.utcnow().hour
             if current_hour in self.edge_cfg.macro_window_hours:
                 effective_min = max(0.20, effective_min - self.edge_cfg.macro_score_discount)
+
+            # Cross-asset cascade discount: lead asset fired → follower gets easier entry
+            if cascade_discount > 0:
+                effective_min = max(0.20, effective_min - cascade_discount)
 
             if signal.composite < effective_min:
                 return RiskDecision(

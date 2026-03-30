@@ -122,6 +122,16 @@ class EdgeConfig:
     # Tighten max_entry from 0.30 to 0.27 to avoid overpriced tokens.
     max_entry_price: float = 0.27
 
+    # Cross-asset cascade: when one asset fires a strong signal, correlated
+    # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.
+    # Research: crypto assets correlate within 10-30s on macro moves.
+    cascade_trigger_score: float = 0.55     # lead asset must score above this
+    cascade_score_discount: float = 0.06    # subtract from min_score for followers
+    cascade_assets: dict = field(default_factory=lambda: {
+        "BTC": ["ETH", "SOL"],   # BTC leads → discount ETH, SOL
+        "ETH": ["SOL"],          # ETH leads → discount SOL
+    })
+
 
 @dataclass
 class MarketConfig:

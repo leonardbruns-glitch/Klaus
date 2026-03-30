@@ -16,10 +16,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 import signal
 import sys
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
@@ -110,9 +111,18 @@ class KlausBot:
             await asyncio.sleep(CONFIG.execution.ob_scan_interval)
 
     async def _check_open_positions(self) -> None:
-        for token_id, pos in list(self.risk.open_positions.items()):
-            ob = await self.feed.fetch_order_book(token_id)
-            if ob is None:
+        positions = list(self.risk.open_positions.items())
+        if not positions:
+            return
+
+        # Fetch all OBs in parallel — no reason to wait sequentially
+        obs = await asyncio.gather(
+            *[self.feed.fetch_order_book(tid) for tid, _ in positions],
+            return_exceptions=True,
+        )
+
+        for (token_id, pos), ob in zip(positions, obs):
+            if not isinstance(ob, object) or ob is None or isinstance(ob, Exception):
                 continue
             current_price = ob.bids[0][0] if len(ob.bids) > 0 else ob.mid
 
@@ -143,14 +153,40 @@ class KlausBot:
             logger.warning("Trading HALTED — daily loss limit reached")
             return
 
-        # Fetch optional external signals per asset
-        ext_signals = {}
-        for asset in CONFIG.markets.tracked_assets:
-            try:
-                ext = await self.feed.fetch_external_signals(asset)
-                ext_signals[asset] = ext
-            except Exception:
-                ext_signals[asset] = None  # never block on missing external data
+        # Fetch optional external signals for all assets in parallel
+        ext_results = await asyncio.gather(
+            *[self.feed.fetch_external_signals(a) for a in CONFIG.markets.tracked_assets],
+            return_exceptions=True,
+        )
+        ext_signals = {
+            asset: (r if not isinstance(r, Exception) else None)
+            for asset, r in zip(CONFIG.markets.tracked_assets, ext_results)
+        }
+
+        # ── Cross-asset cascade: score all tokens, find lead signals ─────────
+        # When a strong leader (BTC) fires, follower assets (ETH, SOL) get a
+        # reduced effective min_score to catch the correlated wave.
+        lead_assets: Set[str] = set()
+        all_scores: Dict[str, float] = {}
+        for token_id, token in self.feed.tokens.items():
+            bars_5m = self.feed.get_bars_5m(token_id, n=30)
+            bars_15m = self.feed.get_bars_15m(token_id, n=30)
+            ob = self.feed.get_order_book(token_id)
+            if len(bars_5m) < 12:
+                continue
+            sig = self.scorer.score(bars_5m, bars_15m, ob, ext_signals.get(token.asset))
+            all_scores[token_id] = sig.composite
+            if (sig.composite >= CONFIG.edge.cascade_trigger_score
+                    and token.asset in CONFIG.edge.cascade_assets):
+                lead_assets.add(token.asset)
+
+        # Build set of follower assets that get score discount this cycle
+        discounted_assets: Set[str] = set()
+        for leader in lead_assets:
+            for follower in CONFIG.edge.cascade_assets.get(leader, []):
+                discounted_assets.add(follower)
+                logger.debug("CASCADE: %s lead → %s gets %.2f score discount",
+                             leader, follower, CONFIG.edge.cascade_score_discount)
 
         for token_id, token in self.feed.tokens.items():
             # Skip tokens already in open positions
@@ -207,18 +243,26 @@ class KlausBot:
                 window_end_ts=token.window_end_ts,
                 asset=token.asset,
                 market_type=token.market_type,
+                cascade_discount=CONFIG.edge.cascade_score_discount
+                    if token.asset in discounted_assets else 0.0,
             )
 
             if not decision.approved:
                 logger.info("  └─ REJECTED: %s", decision.reason)
                 continue
 
+            cascade_tag = " [CASCADE]" if token.asset in discounted_assets else ""
             logger.info(
-                "  └─ SIGNAL %s | %s %s | entry=%.4f conf=%.2f score=%.2f | %s",
-                token.asset, signal.direction.name, signal.fee_zone.name,
+                "  └─ SIGNAL%s %s | %s %s | entry=%.4f conf=%.2f score=%.2f | %s",
+                cascade_tag, token.asset, signal.direction.name, signal.fee_zone.name,
                 signal.entry_price, signal.confidence, signal.composite,
                 signal.reason,
             )
+
+            # ── Timing jitter: randomise submission by 0–200ms ───────────────
+            # Predictable entry timing lets competitors pattern-match our orders.
+            # Jitter makes us indistinguishable from organic flow.
+            await asyncio.sleep(random.uniform(0, 0.2))
 
             await self._enter_position(token_id, token.asset, signal, tpsl, decision)
 
