@@ -166,6 +166,15 @@ class KlausBot:
             ext = ext_signals.get(token.asset)
             signal = self.scorer.score(bars_5m, bars_15m, ob, ext)
 
+            # Log every token scored, including NO_TRADE (for visibility)
+            logger.info(
+                "SCAN %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
+                token.asset, token.side,
+                signal.composite, signal.confidence,
+                signal.entry_price, signal.direction.name,
+                signal.reason or "no signal",
+            )
+
             if signal.direction == Direction.NO_TRADE:
                 continue
 
@@ -189,13 +198,6 @@ class KlausBot:
                 window_end_ts=getattr(token, "window_end_ts", 0.0),
                 asset=token.asset,
             )
-            if signal.direction != Direction.NO_TRADE:
-                logger.info(
-                    "SCAN %s %s | score=%.2f conf=%.2f entry=%.4f | %s",
-                    token.asset, signal.direction.name,
-                    signal.composite, signal.confidence,
-                    signal.entry_price, signal.reason or "below threshold",
-                )
 
             if not decision.approved:
                 logger.info("  └─ REJECTED: %s", decision.reason)

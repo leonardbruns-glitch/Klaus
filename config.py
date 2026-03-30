@@ -54,7 +54,7 @@ class MomentumConfig:
     ob_imbalance_thresh: float = 0.60  # bid / (bid + ask) depth ratio
 
     # ── Composite scoring thresholds ────────────────────────────────────────
-    min_score: float = 0.60            # minimum score to consider any entry
+    min_score: float = 0.45            # minimum score to consider any entry
     # weights (must sum to 1.0)
     w_breakout: float = 0.35
     w_trend: float = 0.25
