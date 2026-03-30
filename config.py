@@ -35,15 +35,19 @@ class BankrollConfig:
 
 @dataclass
 class FeeConfig:
-    # Polymarket taker fees: ~1.56% at 0.50 odds, near 0% at extremes
+    # Polymarket taker fees — updated 2026-03-30: new fee categories added.
+    # Updown crypto (BTC/ETH/SOL): peak taker fee raised 1.56% → 1.80% at 0.50 odds.
+    # Formula: fee = C × p × feeRate × (p × (1-p))^exponent
+    # Near extremes (p < 0.35 or p > 0.65): fee approaches ~0%.
     extreme_fee_rate: float = 0.005   # < 0.35 or > 0.65 region
-    middle_fee_rate: float = 0.016    # 0.35–0.65 "fat middle" (actual ~1.56% at 0.50)
+    middle_fee_rate: float = 0.018    # raised 0.016→0.018: updown peak now 1.80% at p=0.50
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
     updown_min_confidence: float = 0.55   # raised 0.0→0.55: 7/12 fat-middle trades losing
-                                          # Break-even after ~3.1% round-trip fee ≈ 53% confidence.
-                                          # 0.55 provides safety margin above fee break-even.
+                                          # Break-even at 1.80% peak fee ≈ 51.8% (simple) but
+                                          # round-trip taker cost ≈ 3.6% → need ~53.6% true prob.
+                                          # 0.55 provides adequate safety margin above break-even.
 
 
 @dataclass
@@ -134,15 +138,27 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.40,   # BTC must score 40% higher than threshold (weak baseline WR)
-        "ETH": 1.20,   # raised 0.90→1.20: live data shows 20% WR on ETH (5 trades)
-                       # was 0.90 (easier entry) based on old 38-trade data, now wrong
-        "SOL": 1.00,   # SOL at baseline — only asset with positive live PnL
+        "BTC": 1.30,   # relaxed 1.40→1.30: BTC is most liquid + reliable Chainlink oracle;
+                       # research confirms BTC as the primary viable momentum asset
+        "ETH": 1.60,   # raised 1.20→1.60: 176-trade production data from research shows ETH
+                       # net negative across multiple bot implementations; live data 20% WR
+                       # (5 trades). ETH near-excluded — needs very strong signal to enter.
+        "SOL": 1.05,   # slight increase (1.00→1.05): SOL 2× BTC volatility = more noise;
+                       # more opportunities but also more false breakouts; slight safety margin
     })
 
     # Entry price sweet spot from data: best trades entered 0.245–0.260.
     # Tighten max_entry from 0.30 to 0.27 to avoid overpriced tokens.
     max_entry_price: float = 0.27
+
+    # Intrawindow delta cap for updown markets (which skip max_entry_price).
+    # Research (Archetapp token pricing model): BTC delta > 0.10% from window open
+    # → token already at $0.80–$0.97. At this point the market has fully priced
+    # the outcome and fee-adjusted edge shrinks dramatically. Skip entries where
+    # our intrawindow_score implies delta > this threshold.
+    # Calibrated: 0.10 sensitivity (3% token move = score 1.0 at sensitivity=0.03)
+    # → 0.08 delta score cap ≈ ~2.4% token move → entry price in $0.72–$0.80 range.
+    max_intrawindow_score: float = 0.85  # skip if intrawindow_s alone > 0.85 (fully priced)
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
     # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.

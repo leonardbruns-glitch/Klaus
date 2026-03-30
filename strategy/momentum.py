@@ -498,6 +498,22 @@ class MomentumScorer:
             )
             return sig
 
+        # ── Intrawindow overpriced gate ───────────────────────────────────────
+        # If intrawindow delta alone exceeds max_intrawindow_score, the prediction
+        # token has already moved so far that the market has fully priced the outcome.
+        # Research (Archetapp token model): >2.5% token move → token at $0.72-$0.80+;
+        # fee-adjusted edge shrinks as there is little room between current price and $1.00.
+        # This gate specifically protects updown markets (which skip max_entry_price cap).
+        if (intrawindow_dir == sig.direction
+                and intrawindow_s > self.cfg.max_intrawindow_score):
+            sig.direction = Direction.NO_TRADE
+            sig.reason = (
+                f"Overpriced: intrawindow_score={intrawindow_s:.2f} "
+                f"> {self.cfg.max_intrawindow_score} — market fully priced, "
+                f"fee-adjusted edge too small"
+            )
+            return sig
+
         # ── External boost / penalty ──────────────────────────────────────────
         sig.external_boost = external_signal_boost(ext, sig.direction)
 
