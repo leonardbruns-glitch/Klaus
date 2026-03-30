@@ -227,11 +227,18 @@ class RiskManager:
             multiplier = self.edge_cfg.asset_score_multiplier.get(asset.upper(), 1.0)
             from config import CONFIG as _C
             effective_min = _C.momentum.min_score * multiplier
+
+            # Macro window discount: 13:30 UTC (CPI/NFP/claims) creates 30s-2min
+            # mispricing lag — be more aggressive during this high-edge window.
+            current_hour = datetime.datetime.utcnow().hour
+            if current_hour in self.edge_cfg.macro_window_hours:
+                effective_min = max(0.20, effective_min - self.edge_cfg.macro_score_discount)
+
             if signal.composite < effective_min:
                 return RiskDecision(
                     False, 0,
-                    f"{asset} score {signal.composite:.2f} < asset-adjusted min {effective_min:.2f} "
-                    f"(multiplier={multiplier}x)",
+                    f"{asset} score {signal.composite:.2f} < effective_min {effective_min:.2f} "
+                    f"(multiplier={multiplier}x macro={'yes' if current_hour in self.edge_cfg.macro_window_hours else 'no'})",
                 )
 
         # Already in this token

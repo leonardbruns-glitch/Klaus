@@ -79,18 +79,30 @@ class ExecutionConfig:
 @dataclass
 class EdgeConfig:
     """
-    Parameters derived from baseline bot performance analysis (38 trades).
+    Parameters derived from baseline bot performance analysis + market research.
 
-    Key findings:
+    Baseline bot findings (38 trades):
       - 14:00 UTC: 46% WR, $+12.92  ← all the edge lives here
       - 15:00+:     0% WR, -$5.98   ← pure capital destruction
       - ETH: 30% WR  │  SOL: 17%  │  BTC: 6% (near-worthless)
       - All P&L from PROFIT_1 exits; stop losses are small but frequent
+
+    Market research findings:
+      - 13:30 UTC = CPI/NFP/PPI/claims release → 30s-2min Polymarket mispricing lag
+      - 14:00-15:00 UTC = NYSE open spillover (academic: Bitcoin options peak)
+      - Thursday 13:30 UTC = weekly jobless claims (consistent edge every week)
+      - Simple arbitrage dead (2.7s avg); information lag arbitrage still viable
+      - 170+ bots active; top 3 wallets made $4.2M/yr automated
     """
-    # Trading hours gate (UTC). Only scan for entries during these hours.
-    # 14:00 UTC = US pre-market open = highest volatility window.
-    # Set to empty list [] to disable the filter.
+    # Trading hours gate (UTC). Only scan during these hours.
+    # Set to [] to disable (e.g. dry_run testing).
     allowed_hours_utc: List[int] = field(default_factory=lambda: [13, 14, 15])
+
+    # Macro event score discount: during 13:30 UTC macro window (CPI/NFP/claims),
+    # lower the effective min_score threshold to capture the mispricing lag.
+    # Research: 30s-2min window after macro data release is the primary edge source.
+    macro_window_hours: List[int] = field(default_factory=lambda: [13, 14])
+    macro_score_discount: float = 0.08   # subtract from effective threshold during macro window
 
     # Per-asset minimum momentum score multiplier.
     # BTC needs much higher confidence to overcome its 6% baseline WR.

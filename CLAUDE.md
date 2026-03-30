@@ -36,9 +36,19 @@ Honesty overrides optimism. If the strategy has no edge, say so and stop trading
 - **Entry**: 4-factor momentum composite (breakout + EMA trend + volume surge + OB imbalance)
 - **Fee zones**:
   - Extreme odds (<0.35 or >0.65): low fee, prefer these
-  - Fat middle (0.35–0.65): only enter at >80% confidence
-- **Edge window**: 13–15 UTC only (data shows all edge lives here)
+  - Fat middle (0.35–0.65): only enter at >80% confidence — taker fees peak at ~3.15% at 50% odds
+- **Edge window**: 13–15 UTC (data + academic research confirms NYSE open spillover)
+- **Macro window**: 13:30 UTC = CPI/NFP/PPI/claims release → 30s–2min Polymarket mispricing lag → lower score threshold by 0.08 during hours 13–14 UTC
 - **Per-asset thresholds**: BTC needs 1.40× score (weak historical WR), ETH gets 0.90× discount
+- **Thursday bonus**: weekly jobless claims at 13:30 UTC = consistent edge every week
+
+## COMPETITION INTELLIGENCE (researched 2026-03-30)
+- 170+ bots active on Polymarket; top 3 wallets = $4.2M/yr automated
+- Simple arbitrage window: 2.7 seconds avg (down from 12.3s in 2024) — dead for us
+- **Our edge**: information lag arbitrage (30s–2min after macro data) — still viable
+- 73% of arb profits go to sub-100ms bots — don't compete on speed
+- Maker rebates exist (100% of taker fees redistributed) — consider maker strategy later
+- Taker fees dynamic: ~3.15% at 50% odds, near 0% at extremes — fat-middle gate critical
 
 ---
 
