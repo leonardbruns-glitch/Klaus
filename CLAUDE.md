@@ -97,15 +97,34 @@ analytics/feedback.py      — JSONL trade logging + 30-min diagnostic reports
 
 ### Key Design Decisions
 - NO token direction is flipped in `main.py` (rising NO price = BUY_NO); actual token price used throughout
-- Stub simulation anchors YES prices near 0.20–0.25, NO prices near 0.75–0.80
+- Stub simulation: updown tokens at $0.50 ± small offset; `window_end_ts=0` (no expiry guard)
 - Trading hours gate bypassed in `dry_run=True` for testing
 - `PRIVATE_KEY` + `FUNDER_ADDRESS` env vars (matches old polymarket-bot naming)
+- Fat-middle confidence gate removed from scorer; handled exclusively in risk/manager.py (market_type-aware)
+- updown markets: `updown_min_confidence=0.0` (fat-middle gate not applicable; gated by min_score only)
+
+### Gamma API Facts (researched 2026-03-30)
+- `clobTokenIds`, `outcomes`, `outcomePrices` are **JSON-encoded strings** — must `json.loads()`
+- Market slugs are **deterministic**: `btc-updown-5m-{window_ts}` where `window_ts = now - (now % 300)`
+- 5M windows resolve exactly at :00/:05/:10... past each hour; 15M at :00/:15/:30/:45
+- `acceptingOrders: false` = can't trade; filter these out on discovery
+- Liquidity filter: skip markets with `liquidityClob < 200`
+- Markets accept orders 2-3 minutes before window start (pre-order window)
+- Bulk scan limit = 500 (not 100 as docs say)
+
+### CLOB Order Types
+- `GTC` = limit, rests on book until filled or cancelled
+- `FOK` = market order, fill everything now or cancel (true market)
+- `FAK` = market order, partial fills OK, remainder cancelled
+- Entry: `GTC` at `price * 1.05` (aggressive limit, should fill immediately)
+- Exit: cascade sell in 3 tranches, `GTC` with fallback price stepping
 
 ### Current Parameters
 | Parameter | Value | Notes |
 |---|---|---|
 | min_score | 0.40 | Calibrate from live data |
-| max_entry_price | 0.27 | YES tokens; data sweet spot 0.245–0.260 |
+| max_entry_price | 0.27 | Target markets only; updown skip this cap |
+| updown_min_confidence | 0.0 | Gate disabled for updown; min_score covers it |
 | allowed_hours_utc | [13,14,15] | Live only |
 | base_stake | $15 | |
 | scaled_stake | $30 | After 2 wins |
