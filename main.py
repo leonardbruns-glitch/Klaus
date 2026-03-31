@@ -431,9 +431,10 @@ class KlausBot:
             if sniper_sig is not None:
                 _updown_fired += 1
                 # Log the sniper detection here; briefing decision logged after the call
+                _wlabel = f"{token.window_seconds//60}m" if token.window_seconds else "?"
                 logger.info(
-                    "SCAN [SNIPER] %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
-                    token.asset, token.side,
+                    "SCAN [SNIPER] %s/%s [%s] | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
+                    token.asset, token.side, _wlabel,
                     sniper_sig.composite, sniper_sig.confidence,
                     sniper_sig.entry_price, sniper_sig.direction.name,
                     sniper_sig.reason or "no signal",
@@ -507,10 +508,12 @@ class KlausBot:
             # Only log NO_TRADE at DEBUG — SCAN cycle summary covers the quiet state.
             # Log at INFO when something actionable is happening (score > 0 with direction).
             _log_fn = logger.debug if signal.direction == Direction.NO_TRADE else logger.info
+            _mtype = (f"{token.window_seconds//60}m" if token.market_type == "updown" and token.window_seconds
+                      else token.market_type)
             _log_fn(
-                "SCAN [%s] %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
+                "SCAN [%s] %s/%s [%s] | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
                 signal_source,
-                token.asset, token.side,
+                token.asset, token.side, _mtype,
                 signal.composite, signal.confidence,
                 signal.entry_price, signal.direction.name,
                 signal.reason or "no signal",
