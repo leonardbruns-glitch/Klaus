@@ -28,7 +28,7 @@ class BankrollConfig:
     scaled_stake: float = 10.0        # same as base — heat check irrelevant at this size
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
     max_open_positions: int = 4       # max 4 concurrent → max $40 deployed at once
-    max_daily_loss: float = 10.0      # hard halt after -$10/day (10% of $100 capital)
+    max_daily_loss: float = 25.0      # hard halt after -$25/day (25% of $100 capital)
     post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
