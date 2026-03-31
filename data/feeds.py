@@ -1068,6 +1068,10 @@ class PolymarketFeed:
         )
         self.order_books[token_id] = ob
         self._last_ob_ts[token_id] = ob.ts
+        # Also update _ws_ob_ts so poll_order_books doesn't re-poll this token for
+        # another 1.5s. Without this, every 0.2s scan cycle re-polls ALL tokens
+        # (since _ws_ob_ts is only set by WS events), causing 500+ req/s → CF blocks.
+        self._ws_ob_ts[token_id] = ob.ts
         return ob
 
     async def refresh_markets(self) -> None:
@@ -1125,6 +1129,8 @@ class PolymarketFeed:
         Poll all tracked tokens; re-discover new markets every 60s.
         Skips REST fetch for tokens whose OB was recently updated via WebSocket
         (within 1.5s) to reduce REST load and Cloudflare trigger risk.
+        fetch_order_book() now updates _ws_ob_ts on success, so the 1.5s
+        suppression applies equally to REST-fresh and WS-fresh OBs.
         """
         await self.refresh_markets()
         now = time.time()
@@ -1133,8 +1139,18 @@ class PolymarketFeed:
             if now - self._ws_ob_ts.get(tid, 0) > 1.5
         ]
         if tokens_needing_rest:
-            tasks = [self.fetch_order_book(tid) for tid in tokens_needing_rest]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # Limit concurrency to 10 parallel requests — prevents Cloudflare rate-limiting
+            # when many tokens need refresh simultaneously (e.g., after startup or WS gap).
+            sem = asyncio.Semaphore(10)
+
+            async def _bounded_fetch(tid: str) -> None:
+                async with sem:
+                    await self.fetch_order_book(tid)
+
+            await asyncio.gather(
+                *[_bounded_fetch(tid) for tid in tokens_needing_rest],
+                return_exceptions=True,
+            )
 
     # ── Price bar updates from last trade ────────────────────────────────────
 
