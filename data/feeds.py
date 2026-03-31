@@ -844,9 +844,9 @@ class PolymarketFeed:
                     markets.extend(clob_batch)
                     logger.info("CLOB /markets: %d markets fetched", len(clob_batch))
                 else:
-                    logger.debug("CLOB /markets returned %d", resp.status)
+                    logger.warning("CLOB /markets returned HTTP %d", resp.status)
         except Exception as exc:
-            logger.debug("CLOB /markets failed: %s", exc)
+            logger.warning("CLOB /markets failed: %s", exc)
 
         # ── Source 2: Gamma slug lookup (current + next windows) ──────────────
         slug_results = await asyncio.gather(*[_fetch_slug(s) for s in direct_slugs])
@@ -859,9 +859,12 @@ class PolymarketFeed:
             slug_hits += len(extracted)
 
         if slug_hits > 0:
-            logger.debug("Gamma slug lookup: %d markets found", slug_hits)
+            logger.info("Gamma slug lookup: %d markets found across %d slugs tried",
+                        slug_hits, len(direct_slugs))
         else:
-            logger.debug("Gamma slug lookup: no hits (404 or wrong format)")
+            logger.warning("Gamma slug lookup: 0 hits from %d slugs tried — "
+                           "updown markets may be missing (check network/slug format)",
+                           len(direct_slugs))
 
         # ── Source 3: Gamma bulk scan (price-target markets fallback) ──────────
         # Handles both list and {"data": [...]} paginated responses.

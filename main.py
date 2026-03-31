@@ -285,6 +285,27 @@ class KlausBot:
             logger.warning("Trading HALTED — daily loss limit reached")
             return
 
+        # Periodic updown token count — fires every ~60s to confirm discovery health
+        now_ts = time.time()
+        if now_ts - getattr(self, "_last_updown_log_ts", 0) > 60:
+            self._last_updown_log_ts = now_ts
+            updown_tokens = [t for t in self.feed.tokens.values() if t.market_type == "updown"]
+            if updown_tokens:
+                logger.info(
+                    "UPDOWN tokens in feed: %d | %s",
+                    len(updown_tokens),
+                    ", ".join(
+                        f"{t.asset}/{t.side}/{t.window_seconds//60}m"
+                        for t in updown_tokens[:8]
+                    ),
+                )
+            else:
+                logger.warning(
+                    "UPDOWN MISSING: no updown tokens in feed (total=%d tokens) — "
+                    "discovery failed to find 5M/15M updown markets",
+                    len(self.feed.tokens),
+                )
+
         # Fetch optional external signals for all assets in parallel
         ext_results = await asyncio.gather(
             *[self.feed.fetch_external_signals(a) for a in CONFIG.markets.tracked_assets],
@@ -435,6 +456,14 @@ class KlausBot:
                 # 19 live trades, WR=36.8%, losses score HIGHER than wins (0.531 vs 0.511).
                 # Breakout and trend signals are anti-predictive on updown markets.
                 # Only the Window Sniper (fair-value model) is allowed to enter updown.
+                if ob is not None:
+                    logger.debug(
+                        "UPDOWN SKIP %s/%s | sniper=None ask=%.3f | "
+                        "window_end=%s window=%ds",
+                        token.asset, token.side,
+                        ob.asks[0][0] if ob.asks else 0,
+                        token.window_end_ts, token.window_seconds,
+                    )
                 continue
             else:
                 # Non-updown (price-target markets): use momentum scorer
