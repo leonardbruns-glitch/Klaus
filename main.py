@@ -216,19 +216,21 @@ class KlausBot:
             for asset, r in zip(CONFIG.markets.tracked_assets, ext_results)
         }
 
-        # ── LLM Macro Engine: inject Claude signal into external signals ──────
-        # tick() only fires during 13:25-13:45 UTC macro window.
-        # Passes current BTC spot price; returns MacroSignal when LLM fires.
-        btc_spot = None
+        # ── LLM Signal Engine: inject Claude signal into external signals ────────
+        # Fires all day on sharp BTC moves (≥0.25% in active sessions, ≥0.40% quiet)
+        # OR when VPIN > 0.65 (informed order flow detected on Binance aggTrade).
         btc_ext = ext_signals.get("BTC")
-        if btc_ext and btc_ext.spot_price:
-            btc_spot = btc_ext.spot_price
-        macro_signal = await self.macro_engine.tick(btc_spot)
+        btc_spot = btc_ext.spot_price if btc_ext else None
+        btc_vpin = btc_ext.vpin_score if btc_ext else None
+        btc_vpin_dir = btc_ext.vpin_direction if btc_ext else None
+        macro_signal = await self.macro_engine.tick(
+            btc_spot, vpin_score=btc_vpin, vpin_direction=btc_vpin_dir
+        )
         if macro_signal is None:
-            macro_signal = self.macro_engine.get_signal()   # use cached if valid
+            macro_signal = self.macro_engine.get_signal()  # use cached if still valid
         if macro_signal:
             # Inject signed boost into ALL asset ext signals
-            # (BTC macro moves carry to ETH/SOL with short lag)
+            # BTC moves propagate to ETH/SOL within 10–30s (correlated assets)
             for asset in CONFIG.markets.tracked_assets:
                 ext = ext_signals.get(asset)
                 if ext is not None:

@@ -1,28 +1,26 @@
 """
-Klaus — LLM Macro Engine
+Klaus — LLM Signal Engine
 
-Uses Claude AI to interpret sudden BTC price moves during macro event windows
-and generate directional trading signals for Polymarket updown markets.
+Uses Claude AI to interpret sharp BTC price moves and VPIN order flow spikes,
+generating directional trading signals for Polymarket updown markets all day.
 
 Edge thesis:
-  - At 13:30 UTC (CPI, NFP, PPI, jobless claims), BTC often moves sharply
-  - Polymarket updown tokens reprice 30–120 seconds AFTER spot moves
-  - Claude interprets whether the initial move is likely to sustain or fade
-  - This generates a high-confidence directional boost for that 2-minute window
+  - Any time BTC moves sharply (≥ trigger threshold), Polymarket tokens lag
+    spot by 30–120 seconds before repricing
+  - Claude interprets whether the move is likely to sustain or fade
+  - VPIN > 0.65 from Binance aggTrade = informed order flow = additional trigger
 
-Architecture:
-  - Monitors 13:25–13:45 UTC (macro event window)
-  - Triggers when BTC moves ≥ TRIGGER_PCT in the last 60 seconds
-  - Calls Claude Haiku (~0.3s response, ~$0.001/call) for interpretation
-  - MacroSignal is valid for SIGNAL_VALID_SECONDS (120s)
-  - 3-minute cooldown between triggers to avoid spam
+Trigger thresholds by session (UTC):
+  - High-activity sessions (08:00, 13:30, 23:00): 0.25% BTC move
+  - All other hours: 0.40% BTC move
+  These windows cover London open, NYSE open/macro data, and Asia open.
 
-Setup:
-  Set ANTHROPIC_API_KEY in .env to enable. Engine silently disables if not set.
-  Cost estimate: at most 20 calls/day if macro window fires every day = ~$0.02/day
+Cooldown: 3 minutes between LLM calls (prevents spam, ~$0.001/call with Haiku).
+Signal validity: 120 seconds (the Polymarket repricing lag window).
 
-Thursday special: weekly jobless claims at 13:30 UTC = most consistent edge.
-Also fires on: CPI (monthly), NFP (first Friday), PPI (monthly), FOMC days.
+Max cost: ~30 calls/day in active market = ~$0.03/day. Negligible.
+
+Setup: set ANTHROPIC_API_KEY in .env to enable.
 """
 from __future__ import annotations
 
@@ -36,28 +34,34 @@ from typing import Optional
 
 logger = logging.getLogger("macro_engine")
 
-# ── Configuration ─────────────────────────────────────────────────────────────
-MACRO_WINDOW_HOUR = 13          # 13:xx UTC
-MACRO_WINDOW_MIN_START = 25     # start watching at 13:25
-MACRO_WINDOW_MIN_END = 45       # stop at 13:45
-TRIGGER_PCT = 0.35              # BTC 1m move ≥ 0.35% = possible macro reaction
-SIGNAL_VALID_SECONDS = 120      # signal expires after 2 minutes
-COOLDOWN_SECONDS = 180          # 3 min between LLM calls (prevent spam)
-PRICE_BASELINE_RESET_S = 90     # reset price baseline every 90s if no trigger
+# ── Trigger thresholds by session ─────────────────────────────────────────────
+# High-volume session hours UTC: London open, NYSE open/macro, Asia open
+_HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
+_TRIGGER_PCT_HIGH = 0.25    # 0.25% move during high-volume sessions
+_TRIGGER_PCT_LOW  = 0.40    # 0.40% move during quiet hours
+
+# ── Signal parameters ─────────────────────────────────────────────────────────
+SIGNAL_VALID_SECONDS = 120   # signal lasts 2 minutes
+COOLDOWN_SECONDS = 180       # 3 min between LLM calls
+PRICE_BASELINE_RESET_S = 90  # reset price reference every 90s if no trigger
+
+# ── VPIN trigger ──────────────────────────────────────────────────────────────
+VPIN_TRIGGER_THRESHOLD = 0.65  # VPIN above this = informed flow, also query LLM
 
 
 @dataclass
 class MacroSignal:
     """
-    Directional signal from LLM macro interpretation.
+    Directional signal from LLM interpretation of BTC price/flow data.
     direction: +1 = bullish (buy YES/UP token), -1 = bearish (buy NO/DOWN token)
     confidence: 0.5–0.95 (Claude's estimated probability the move sustains)
     """
     ts: float
     direction: int               # +1 = bullish, -1 = bearish
     confidence: float            # 0.5–0.95
-    trigger_pct: float           # BTC % move that triggered this
+    trigger_pct: float           # BTC % move that triggered this (0 = VPIN trigger)
     reasoning: str               # Claude's one-sentence explanation
+    trigger_type: str = "price"  # "price" or "vpin"
     valid_until: float = 0.0
 
     def __post_init__(self) -> None:
@@ -69,20 +73,20 @@ class MacroSignal:
 
     def boost_for_direction_yes(self) -> float:
         """
-        Returns a float in [-0.12, +0.12] for adding to external_boost.
-        Positive = supports BUY_YES, Negative = opposes BUY_YES.
+        Signed float in [-0.12, +0.12] added to external_boost in momentum scorer.
+        Positive = supports BUY_YES. Negative = supports BUY_NO.
+        Scales linearly: confidence 0.5 → 0, confidence 0.95 → ±0.12.
         """
         if not self.is_valid():
             return 0.0
-        # Scale: confidence 0.5 → 0 boost, 0.95 → 0.12 boost
         magnitude = (self.confidence - 0.5) / 0.45 * 0.12
-        return magnitude * self.direction  # +1=YES, -1=NO
+        return magnitude * self.direction
 
 
 class MacroEngine:
     """
-    LLM-powered macro event detector.
-    Call tick(btc_price) every 5 seconds from the main scan loop.
+    LLM-powered signal engine. Fires all day on sharp BTC moves or VPIN spikes.
+    Call tick() every scan cycle (~5s) from the main loop.
     """
 
     def __init__(self) -> None:
@@ -93,7 +97,9 @@ class MacroEngine:
         self._api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
         self._enabled: bool = bool(self._api_key)
         if not self._enabled:
-            logger.info("MacroEngine disabled (ANTHROPIC_API_KEY not set) — set in .env to enable LLM macro signals")
+            logger.info(
+                "MacroEngine disabled — set ANTHROPIC_API_KEY in .env to enable LLM signals"
+            )
 
     # ── Public interface ──────────────────────────────────────────────────────
 
@@ -103,66 +109,99 @@ class MacroEngine:
             return self.current_signal
         return None
 
-    async def tick(self, btc_price: Optional[float]) -> Optional[MacroSignal]:
+    async def tick(
+        self,
+        btc_price: Optional[float],
+        vpin_score: Optional[float] = None,
+        vpin_direction: Optional[int] = None,
+    ) -> Optional[MacroSignal]:
         """
-        Feed current BTC spot price. Returns a MacroSignal when LLM fires.
-        Call every ~5 seconds from the scan loop.
-        Safe to call when not in macro window — returns None immediately.
+        Feed current BTC spot price and optional VPIN data.
+        Triggers LLM when:
+          - BTC moves ≥ threshold (0.25% in active sessions, 0.40% in quiet hours)
+          - OR VPIN exceeds 0.65 with a clear direction
+
+        Returns MacroSignal when LLM fires, else None (cached signal still accessible
+        via get_signal()).
         """
         if not self._enabled:
-            return None
-        if not self._in_macro_window():
-            # Reset baseline when window closes
-            if self._baseline_price is not None:
-                self._baseline_price = None
             return None
         if btc_price is None or btc_price <= 0:
             return None
 
         now = time.time()
 
-        # Return existing valid signal (don't re-fire within validity window)
+        # Return existing valid signal
         if self.current_signal and self.current_signal.is_valid():
             return self.current_signal
 
-        # Initialise baseline
+        # Cooldown check
+        if now - self._last_trigger_ts < COOLDOWN_SECONDS:
+            return None
+
+        # Determine trigger threshold for current hour
+        hour_utc = datetime.now(timezone.utc).hour
+        trigger_pct = (
+            _TRIGGER_PCT_HIGH if hour_utc in _HIGH_VOLUME_HOURS
+            else _TRIGGER_PCT_LOW
+        )
+
+        # Initialise or refresh baseline price
         if self._baseline_price is None:
             self._baseline_price = btc_price
             self._baseline_ts = now
             return None
 
-        # Enforce cooldown
-        if now - self._last_trigger_ts < COOLDOWN_SECONDS:
-            return None
-
-        # Compute move vs baseline
         elapsed = now - self._baseline_ts
         pct_change = (btc_price - self._baseline_price) / self._baseline_price * 100
 
-        # Refresh baseline periodically even if no trigger
         if elapsed > PRICE_BASELINE_RESET_S:
             self._baseline_price = btc_price
             self._baseline_ts = now
 
-        # Check trigger threshold
-        if abs(pct_change) < TRIGGER_PCT:
+        # ── Check triggers ────────────────────────────────────────────────────
+        trigger_type = None
+        trigger_context = ""
+
+        if abs(pct_change) >= trigger_pct:
+            trigger_type = "price"
+            trigger_context = f"BTC moved {pct_change:+.3f}% in {elapsed:.0f}s"
+
+        elif (vpin_score is not None
+              and vpin_score > VPIN_TRIGGER_THRESHOLD
+              and vpin_direction is not None
+              and vpin_direction != 0):
+            trigger_type = "vpin"
+            flow_word = "buy" if vpin_direction == 1 else "sell"
+            trigger_context = (
+                f"VPIN={vpin_score:.3f} (>{VPIN_TRIGGER_THRESHOLD}) "
+                f"with dominant {flow_word} flow"
+            )
+            # Use recent price direction as the candidate trigger_pct for context
+            pct_change = (btc_price - self._baseline_price) / self._baseline_price * 100
+
+        if trigger_type is None:
             return None
 
-        # ── TRIGGER ──────────────────────────────────────────────────────────
+        # ── Fire LLM ──────────────────────────────────────────────────────────
         logger.info(
-            "MacroEngine TRIGGER: BTC %+.3f%% in %.0fs at %s — querying Claude Haiku",
-            pct_change, elapsed,
-            datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+            "MacroEngine TRIGGER [%s] at %s UTC: %s — querying Claude Haiku",
+            trigger_type,
+            datetime.now(timezone.utc).strftime("%H:%M:%S"),
+            trigger_context,
         )
         self._last_trigger_ts = now
         self._baseline_price = btc_price
         self._baseline_ts = now
 
-        signal = await self._query_claude(pct_change, btc_price, elapsed)
+        signal = await self._query_claude(
+            pct_change, btc_price, elapsed, trigger_type, vpin_score, vpin_direction
+        )
         if signal:
             self.current_signal = signal
             logger.info(
-                "MacroEngine SIGNAL: %s conf=%.2f expires_in=%.0fs | %s",
+                "MacroEngine SIGNAL [%s]: %s conf=%.2f expires_in=%.0fs | %s",
+                trigger_type,
                 "BULLISH (+YES)" if signal.direction > 0 else "BEARISH (+NO)",
                 signal.confidence,
                 signal.valid_until - now,
@@ -172,55 +211,65 @@ class MacroEngine:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _in_macro_window(self) -> bool:
-        now_utc = datetime.now(timezone.utc)
-        if now_utc.hour != MACRO_WINDOW_HOUR:
-            return False
-        return MACRO_WINDOW_MIN_START <= now_utc.minute <= MACRO_WINDOW_MIN_END
-
     async def _query_claude(
-        self, pct_change: float, btc_price: float, elapsed_s: float
+        self,
+        pct_change: float,
+        btc_price: float,
+        elapsed_s: float,
+        trigger_type: str,
+        vpin_score: Optional[float],
+        vpin_direction: Optional[int],
     ) -> Optional[MacroSignal]:
-        """
-        Call Claude Haiku to interpret the BTC price move.
-        Uses raw aiohttp (no anthropic SDK dependency).
-        Response time: typically 300–800ms with Haiku.
-        """
-        direction_word = "UP" if pct_change > 0 else "DOWN"
-        abs_pct = abs(pct_change)
+        """Call Claude Haiku for directional interpretation. ~300–800ms latency."""
         now_utc = datetime.now(timezone.utc)
+        hour = now_utc.hour
         time_str = now_utc.strftime("%H:%M UTC")
+        weekday = now_utc.weekday()
 
-        # Is today Thursday? Weekly jobless claims are the most consistent signal.
-        weekday = now_utc.weekday()  # 0=Mon, 3=Thu, 4=Fri
-        day_context = ""
-        if weekday == 3:
-            day_context = "Today is Thursday — very likely US weekly jobless claims data."
-        elif weekday == 4:
-            day_context = "Today is Friday — may be US NFP (Non-Farm Payrolls) if first Friday of month."
+        # Session context
+        if hour in (8, 9):
+            session = "London open (08:00 UTC) — elevated liquidity, trend-initiation phase"
+        elif hour in (13, 14, 15):
+            day_note = ""
+            if weekday == 3:
+                day_note = " — Thursday: likely US weekly jobless claims at 13:30"
+            elif weekday == 4:
+                day_note = " — Friday: possible NFP if first Friday of month"
+            session = f"NYSE open / US macro window (13:30 UTC){day_note}"
+        elif hour in (22, 23, 0):
+            session = "Asia open (23:00 UTC) — BTC-native liquidity, often trend-setting"
         else:
-            day_context = "Possible CPI, PPI, or other US macro data release."
+            session = f"mid-session ({time_str}) — lower liquidity"
 
-        move_context = (
-            "small/ambiguous" if abs_pct < 0.3 else
-            "moderate — consistent with macro surprise" if abs_pct < 0.8 else
-            "large — significant macro shock"
-        )
+        direction_word = "UP" if pct_change >= 0 else "DOWN"
+        abs_pct = abs(pct_change)
+
+        if trigger_type == "vpin":
+            flow_word = "aggressive buying" if (vpin_direction or 0) > 0 else "aggressive selling"
+            move_desc = (
+                f"Binance aggTrade stream shows VPIN={vpin_score:.3f} "
+                f"with {flow_word} (informed order flow signal). "
+                f"BTC is {direction_word} {abs_pct:.3f}% vs 90s ago at ${btc_price:,.0f}."
+            )
+        else:
+            move_desc = (
+                f"BTC moved {direction_word} {abs_pct:.3f}% to ${btc_price:,.0f} "
+                f"over {elapsed_s:.0f}s."
+            )
 
         prompt = (
-            f"You are a quant trader specialised in crypto reaction to macro data.\n"
-            f"BTC just moved {direction_word} {abs_pct:.3f}% (to ${btc_price:,.0f}) over {elapsed_s:.0f}s at {time_str}.\n"
-            f"{day_context}\n"
-            f"Move size assessment: {move_context}.\n\n"
-            f"Will BTC continue this {direction_word} move for the next 2–5 minutes, "
-            f"or fade back?\n"
-            f"Context: initial macro reactions have ~75% continuation rate; "
-            f"larger moves ({'>'}0.5%) tend to sustain; "
-            f"moves during low-liquidity windows can be noise.\n\n"
-            f'Respond ONLY with valid JSON (no markdown): '
-            f'{{"direction":"UP" or "DOWN","confidence":0.50-0.95,"reasoning":"one sentence max 20 words"}}'
+            f"You are a quant trader in crypto prediction markets.\n"
+            f"Session: {session}\n"
+            f"{move_desc}\n\n"
+            f"Will BTC continue {direction_word} for the next 2–5 minutes, or reverse?\n"
+            f"Consider: sharp moves in high-volume sessions sustain ~70% of the time; "
+            f"VPIN spikes precede directional moves; quiet-hour moves fade more often (~40%).\n\n"
+            f'Respond ONLY with valid JSON: '
+            f'{{"direction":"UP" or "DOWN","confidence":0.50-0.95,'
+            f'"reasoning":"max 15 words"}}'
         )
 
+        raw_text = ""
         try:
             import aiohttp
             headers = {
@@ -230,40 +279,33 @@ class MacroEngine:
             }
             payload = {
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 120,
+                "max_tokens": 100,
                 "messages": [{"role": "user", "content": prompt}],
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
+            async with aiohttp.ClientSession() as session_http:
+                async with session_http.post(
                     "https://api.anthropic.com/v1/messages",
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=8),
                 ) as resp:
                     if resp.status != 200:
-                        body = await resp.text()
-                        logger.debug("Claude API %d: %s", resp.status, body[:200])
+                        logger.debug("Claude API %d: %s", resp.status, await resp.text())
                         return None
                     data = await resp.json()
 
             raw_text = data["content"][0]["text"].strip()
-
-            # Strip markdown code fences if present
             if "```" in raw_text:
-                parts = raw_text.split("```")
-                # pick the part that looks like JSON
-                for part in parts:
+                for part in raw_text.split("```"):
                     part = part.strip().lstrip("json").strip()
                     if part.startswith("{"):
                         raw_text = part
                         break
 
             result = json.loads(raw_text)
-            direction_str = result.get("direction", "").upper()
-            direction = 1 if direction_str == "UP" else -1
-            confidence = float(result.get("confidence", 0.6))
-            confidence = max(0.5, min(0.95, confidence))
+            direction = 1 if result.get("direction", "").upper() == "UP" else -1
+            confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
             reasoning = str(result.get("reasoning", ""))
 
             return MacroSignal(
@@ -272,10 +314,11 @@ class MacroEngine:
                 confidence=confidence,
                 trigger_pct=pct_change,
                 reasoning=reasoning,
+                trigger_type=trigger_type,
             )
 
         except json.JSONDecodeError as exc:
-            logger.debug("MacroEngine JSON parse error: %s | raw=%s", exc, raw_text[:200] if 'raw_text' in dir() else "?")
+            logger.debug("MacroEngine JSON parse error: %s | raw=%s", exc, raw_text[:200])
             return None
         except Exception as exc:
             logger.debug("MacroEngine Claude call failed: %s", exc)
