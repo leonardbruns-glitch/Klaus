@@ -54,7 +54,7 @@ _DELTA_PCT_QUIET  = 0.06   # TEST MODE
 
 # 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
 # is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
-_DELTA_PCT_15M_ACTIVE = 0.03   # floor only — edge + score gates do real filtering
+_DELTA_PCT_15M_ACTIVE = 0.06   # proven threshold — all 15m wins were at this level
 _DELTA_PCT_15M_QUIET  = 0.10   # TEST MODE
 
 MIN_EDGE = 0.02             # minimum edge to enter
