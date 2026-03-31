@@ -80,6 +80,10 @@ PREARM_ELAPSED_MIN = 0.05       # enter at 5% elapsed when pre-armed (vs 0.25 no
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 0.5     # require only 50% of normal sustain (prev window = confirmation)
 PREARM_EXPIRY_S = 600           # pre-arm expires after 10 min (2 windows) if unused
+PREARM_MAX_ASK = 0.58           # PREARM entries capped tighter than normal (0.65/0.55)
+                                # T00036/37: pre-arm fired at 0.65+, market already priced in,
+                                # no edge → both stopped out at -$0.8. If price already
+                                # repriced in the new window, there's nothing left to capture.
 
 
 @dataclass
@@ -278,7 +282,9 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        max_ask = MAX_TOKEN_ASK_5M if not is_15m else MAX_TOKEN_ASK_15M
+        # PREARM entries use tighter cap — if new window already repriced to 0.58+,
+        # the move is priced in and there's no edge left to capture (T00036/37 data).
+        max_ask = PREARM_MAX_ASK if is_prearmed else (MAX_TOKEN_ASK_5M if not is_15m else MAX_TOKEN_ASK_15M)
         if token_ask > max_ask or token_ask < MIN_TOKEN_ASK:
             # If market has strongly repriced this token (>80%), arm early entry for next window.
             if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
@@ -289,7 +295,7 @@ class WindowSniper:
                 )
             logger.debug("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f] (%s)",
                          token.asset, token.side, token_ask, MIN_TOKEN_ASK, max_ask,
-                         "5m" if not is_15m else "15m")
+                         "PREARM" if is_prearmed else ("5m" if not is_15m else "15m"))
             return None
 
         edge = fair_value - token_ask
