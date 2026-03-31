@@ -95,10 +95,10 @@ def _session_min_delta() -> float:
 
 # Window-size-aware sustain period:
 #   5-min windows (≤300s): 20s — wicks reverse in <15s; 30s too narrow (only 90s
-#     first-breach window available between elapsed 40-70%). 20s still filters noise.
-#   15-min+ windows  (>300s): 30s — 330s first-breach window; stricter confirmation OK.
-_SUSTAINED_5M = 20.0
-_SUSTAINED_15M = 30.0
+#     first-breach window available between elapsed 40-70%). 10s still filters 5-15s wicks.
+#   15-min+ windows  (>300s): 20s — longer window; 20s sustain proportionally less costly.
+_SUSTAINED_5M = 10.0
+_SUSTAINED_15M = 20.0
 
 
 class WindowSniper:
