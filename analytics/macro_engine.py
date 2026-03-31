@@ -96,10 +96,15 @@ class MacroEngine:
         self._last_trigger_ts: float = 0.0
         self._api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
         self._enabled: bool = bool(self._api_key)
-        # Per-token sniper eval cache: {token_id: (ts, "ENTER"/"SKIP", confidence, reason)}
-        # Prevents re-querying Claude for the same opportunity every scan cycle.
-        self._sniper_eval_cache: dict = {}
-        self._sniper_eval_ttl: float = 45.0   # reuse cached decision for 45s
+        # market_briefing cache: (ts, {token_id: result_dict})
+        # Keyed by frozenset of candidate token_ids. 20s TTL — one call per scan burst.
+        self._briefing_cache: Optional[tuple] = None
+        self._briefing_cache_key: frozenset = frozenset()
+        self._briefing_ttl: float = 20.0
+        # advise_exit cache: {token_id: (ts, action, tighten_sl_pct, confidence, reason)}
+        # 30s TTL — don't re-query every OB scan second.
+        self._exit_advice_cache: dict = {}
+        self._exit_advice_ttl: float = 30.0
         if not self._enabled:
             logger.info(
                 "MacroEngine disabled — set ANTHROPIC_API_KEY in .env to enable LLM signals"
@@ -213,102 +218,279 @@ class MacroEngine:
             )
         return signal
 
-    async def evaluate_sniper_trade(
+    async def market_briefing(
+        self,
+        candidates: list,
+        open_count: int = 0,
+        capital: float = 100.0,
+    ) -> dict:
+        """
+        Holistic multi-candidate evaluation — ONE API call for ALL sniper opportunities.
+
+        Replaces per-token evaluate_sniper_trade(). The key upgrade: Claude sees the
+        FULL portfolio picture simultaneously:
+          - All competing opportunities ranked by quality
+          - Correlation between assets (don't double-up on BTC+ETH same direction)
+          - Capital context (already 2 positions open → be more selective)
+          - Session quality applied across all candidates at once
+
+        candidates: list of dicts with keys:
+            token_id, asset, side, delta_pct, fair_value, token_ask, edge,
+            elapsed_pct, window_seconds, vpin_score, vpin_direction
+
+        Returns: {token_id: {"decision": "ENTER"/"SKIP", "priority": int,
+                              "confidence": float, "reason": str}}
+        Defaults to ENTER for all candidates on any failure.
+        """
+        if not self._enabled:
+            return {c["token_id"]: {"decision": "ENTER", "priority": i+1,
+                                     "confidence": 0.5, "reason": "LLM disabled"}
+                    for i, c in enumerate(candidates)}
+
+        if not candidates:
+            return {}
+
+        now = time.time()
+        now_utc = datetime.now(timezone.utc)
+        cache_key = frozenset(c["token_id"] for c in candidates)
+
+        # Return cached briefing if still fresh and candidates unchanged
+        if (self._briefing_cache is not None
+                and cache_key == self._briefing_cache_key
+                and now - self._briefing_cache[0] < self._briefing_ttl):
+            _, cached_result = self._briefing_cache
+            logger.debug("BRIEFING (cached) %d candidates", len(candidates))
+            return cached_result
+
+        hour = now_utc.hour
+        if hour in (8, 9):
+            session_desc = "London open — high liquidity, strong trend initiation"
+        elif hour in (13, 14, 15):
+            day_note = " | Thursday=jobless claims" if now_utc.weekday() == 3 else ""
+            session_desc = f"NYSE open / US macro{day_note}"
+        elif hour in (22, 23, 0):
+            session_desc = "Asia open — BTC-native liquidity"
+        else:
+            session_desc = f"quiet hours ({now_utc.strftime('%H:%M')} UTC) — 40% reversal rate"
+
+        is_active = hour in _HIGH_VOLUME_HOURS
+        sustain_note = "moves sustain ~70% of the time" if is_active else "moves reverse ~40% — higher bar required"
+
+        # Build candidate table for the prompt
+        rows = []
+        short_ids = {}  # short_key → token_id
+        for i, c in enumerate(candidates):
+            key = f"T{i+1}"
+            short_ids[key] = c["token_id"]
+            direction_word = "UP" if c["delta_pct"] > 0 else "DOWN"
+            remaining = int(c["window_seconds"] * (1.0 - c["elapsed_pct"]))
+            vpin_str = ""
+            if c.get("vpin_score") and c["vpin_score"] > 0:
+                vpin_agrees = (
+                    (c["side"] == "YES" and (c.get("vpin_direction") or 0) > 0)
+                    or (c["side"] == "NO" and (c.get("vpin_direction") or 0) < 0)
+                )
+                vpin_str = f" | VPIN={c['vpin_score']:.2f} {'✓' if vpin_agrees else '✗'}"
+            rows.append(
+                f"[{key}] {c['asset']} {c['side']} | {direction_word} {abs(c['delta_pct']):.3f}% "
+                f"| FV={c['fair_value']:.3f} ask={c['token_ask']:.3f} edge={c['edge']:+.3f} "
+                f"| {c['elapsed_pct']:.0%} elapsed {remaining}s left{vpin_str}"
+            )
+        candidates_text = "\n".join(rows)
+
+        # Correlation warning context
+        assets_in_play = [c["asset"] for c in candidates]
+        correlation_note = ""
+        if len(set(assets_in_play)) < len(assets_in_play):
+            correlation_note = "NOTE: Multiple tokens for same asset — pick at most one.\n"
+        if open_count > 0:
+            correlation_note += f"NOTE: {open_count} position(s) already open — be selective.\n"
+
+        prompt = (
+            f"You are a quant trader. Time: {now_utc.strftime('%H:%M')} UTC | {session_desc}\n"
+            f"Capital: ${capital:.0f} | {sustain_note}\n\n"
+            f"BINARY MARKET OPPORTUNITIES (each resolves to 0 or 1):\n"
+            f"{candidates_text}\n\n"
+            f"{correlation_note}"
+            f"FV = sigmoid model fair probability. Edge = FV - ask. "
+            f"VPIN ✓ = order flow confirms direction. ✗ = opposes.\n"
+            f"Rank and decide ENTER or SKIP. Take at most 1–2 of the best. "
+            f"Skip correlated trades and weak-edge trades.\n\n"
+            f"Respond ONLY with JSON array (one entry per opportunity, sorted best-first):\n"
+            f'[{{"id":"T1","decision":"ENTER"or"SKIP","priority":1,'
+            f'"confidence":0.50-0.95,"reason":"max 10 words"}}]'
+        )
+
+        try:
+            import aiohttp
+            headers = {
+                "x-api-key": self._api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 300,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as resp:
+                    if resp.status != 200:
+                        logger.warning("BRIEFING API %d — defaulting all ENTER", resp.status)
+                        return {c["token_id"]: {"decision": "ENTER", "priority": i+1,
+                                                 "confidence": 0.5, "reason": "API error"}
+                                for i, c in enumerate(candidates)}
+                    data = await resp.json()
+
+            raw_text = data["content"][0]["text"].strip()
+            if "```" in raw_text:
+                for part in raw_text.split("```"):
+                    part = part.strip().lstrip("json").strip()
+                    if part.startswith("["):
+                        raw_text = part
+                        break
+
+            items = json.loads(raw_text)
+            result = {}
+            for item in items:
+                key = item.get("id", "")
+                full_token_id = short_ids.get(key)
+                if not full_token_id:
+                    continue
+                decision = item.get("decision", "ENTER").upper()
+                if decision not in ("ENTER", "SKIP"):
+                    decision = "ENTER"
+                result[full_token_id] = {
+                    "decision": decision,
+                    "priority": int(item.get("priority", 99)),
+                    "confidence": max(0.5, min(0.95, float(item.get("confidence", 0.6)))),
+                    "reason": str(item.get("reason", ""))[:80],
+                }
+
+            # Fill missing candidates with ENTER default
+            for c in candidates:
+                if c["token_id"] not in result:
+                    result[c["token_id"]] = {"decision": "ENTER", "priority": 99,
+                                              "confidence": 0.5, "reason": "not in briefing — default ENTER"}
+
+            # Cache result
+            self._briefing_cache = (now, result)
+            self._briefing_cache_key = cache_key
+
+            vetoed = sum(1 for v in result.values() if v["decision"] == "SKIP")
+            logger.info(
+                "BRIEFING: %d candidates | %d vetoed | session=%s",
+                len(candidates), vetoed,
+                "active" if is_active else "quiet",
+            )
+            for c in candidates:
+                r = result[c["token_id"]]
+                logger.info(
+                    "  [%s] %s/%s → %s p=%d conf=%.2f | %s",
+                    "✓" if r["decision"] == "ENTER" else "✗",
+                    c["asset"], c["side"], r["decision"],
+                    r["priority"], r["confidence"], r["reason"],
+                )
+            return result
+
+        except Exception as exc:
+            logger.warning("BRIEFING failed (%s) — defaulting all ENTER", exc)
+            return {c["token_id"]: {"decision": "ENTER", "priority": i+1,
+                                     "confidence": 0.5, "reason": f"briefing failed: {type(exc).__name__}"}
+                    for i, c in enumerate(candidates)}
+
+    async def advise_exit(
         self,
         token_id: str,
         asset: str,
-        side: str,
-        delta_pct: float,
-        fair_value: float,
-        token_ask: float,
-        edge: float,
-        elapsed_pct: float,
-        window_seconds: int,
+        direction: str,
+        entry_price: float,
+        current_price: float,
+        time_held_s: float,
+        time_remaining_s: float,
+        stake: float,
         vpin_score: Optional[float] = None,
         vpin_direction: Optional[int] = None,
     ) -> tuple:
         """
-        Ask Claude whether to ENTER or SKIP a specific sniper trade.
+        Exit management advisor for open positions.
 
-        Unlike tick() (which asks "will BTC go up?"), this asks:
-        "Given ALL the context of THIS trade — is the edge real and should we enter?"
+        The hardest problem in trading is exit timing — when to take profits vs hold,
+        when to cut early vs let it breathe. Our rule-based exits handle clear cases
+        (TP at +25%, SL at -35%) but miss the gray zone: +8% with 90s remaining,
+        or -5% with momentum reversing. This is where the LLM earns its keep.
 
-        Uses full position context: timing, mispricing magnitude, order flow, urgency.
-        Defaults to ENTER on any failure (non-blocking — never stops a valid trade).
+        Fires when a position is in the "uncertain zone":
+          - Rule-based exits haven't triggered yet
+          - Held > 60s (confirmed entry, not a wick)
+          - -20% < move < +22% (not yet at profit target or stop)
+          - > 60s remaining in window
 
-        Returns: ("ENTER" | "SKIP", confidence: float, reason: str)
+        Returns: (action, tighten_sl_pct, confidence, reason)
+          action: "HOLD" | "EXIT_NOW" | "TIGHTEN_STOP"
+          tighten_sl_pct: float (e.g. 0.05 = set SL at cost+5%) or None
+        Defaults to HOLD on any failure.
         """
         if not self._enabled:
-            return ("ENTER", 0.5, "LLM disabled — defaulting ENTER")
+            return ("HOLD", None, 0.5, "LLM disabled — default HOLD")
 
         now = time.time()
 
-        # Check cache: reuse recent decision for this token to avoid spam
-        cached = self._sniper_eval_cache.get(token_id)
+        # Check cache — don't re-query every second
+        cached = self._exit_advice_cache.get(token_id)
         if cached is not None:
-            cache_ts, decision, conf, reason = cached
-            if now - cache_ts < self._sniper_eval_ttl:
+            cache_ts, action, tighten_sl, conf, reason = cached
+            if now - cache_ts < self._exit_advice_ttl:
                 logger.debug(
-                    "SNIPER EVAL (cached) %s/%s → %s conf=%.2f | %s",
-                    asset, side, decision, conf, reason,
+                    "EXIT ADVICE (cached) %s → %s conf=%.2f | %s",
+                    asset, action, conf, reason,
                 )
-                return (decision, conf, reason)
+                return (action, tighten_sl, conf, reason)
 
         now_utc = datetime.now(timezone.utc)
         hour = now_utc.hour
+        move_pct = (current_price - entry_price) / entry_price
+        pnl_usd = (current_price - entry_price) * (stake / entry_price)
+        breakeven_price = entry_price * 1.018  # ~1.8% round-trip fee at 0.50 odds
 
-        # Session context
-        if hour in (8, 9):
-            session_desc = "London open (08:00 UTC) — high liquidity, strong trend initiation"
-        elif hour in (13, 14, 15):
-            weekday = now_utc.weekday()
-            day_note = ""
-            if weekday == 3:
-                day_note = " — Thursday: weekly US jobless claims at 13:30 UTC"
-            elif weekday == 4:
-                day_note = " — Friday: possible NFP"
-            session_desc = f"NYSE open / US macro{day_note}"
-        elif hour in (22, 23, 0):
-            session_desc = "Asia open (23:00 UTC) — BTC-native liquidity"
-        else:
-            session_desc = f"quiet hours ({now_utc.strftime('%H:%M')} UTC) — lower liquidity, higher reversal rate"
-
-        direction_word = "UP" if delta_pct > 0 else "DOWN"
-        abs_delta = abs(delta_pct)
-        remaining_seconds = int(window_seconds * (1.0 - elapsed_pct))
-
+        # VPIN context
         vpin_line = ""
-        if vpin_score is not None and vpin_score > 0:
-            flow_word = "aggressive buying" if (vpin_direction or 0) > 0 else "aggressive selling"
-            vpin_agrees = (
-                (side == "YES" and (vpin_direction or 0) > 0)
-                or (side == "NO" and (vpin_direction or 0) < 0)
-            )
-            agree_str = "AGREES with our trade" if vpin_agrees else "OPPOSES our trade"
-            vpin_line = (
-                f"- Binance VPIN (order flow toxicity): {vpin_score:.3f} — "
-                f"{flow_word} ({agree_str})\n"
-            )
+        if vpin_score is not None:
+            flow_word = "buying" if (vpin_direction or 0) > 0 else "selling"
+            vpin_line = f"VPIN={vpin_score:.3f} ({flow_word} flow) | "
+
+        # Is the price trend aligned with our direction?
+        # direction for sniper is always "token going UP = profit"
+        # move_pct > 0 always means we're in profit
+
+        is_active = hour in _HIGH_VOLUME_HOURS
 
         prompt = (
-            f"You are a quantitative trader reviewing a live Polymarket trade opportunity.\n"
-            f"Session: {session_desc}\n\n"
-            f"Trade: BUY {asset} {side} token on Polymarket binary updown market\n"
-            f"- Asset moved {direction_word} {abs_delta:.3f}% from window open\n"
-            f"- Window elapsed: {elapsed_pct:.0%} ({remaining_seconds}s remaining in {window_seconds}s window)\n"
-            f"- Fair value (sigmoid model): {fair_value:.3f} | Token ask: {token_ask:.3f} | Edge: {edge:+.3f}\n"
-            f"{vpin_line}"
-            f"\nKey context:\n"
-            f"- Edge = (model fair value) - (current market price). Positive = token underpriced.\n"
-            f"- This market resolves at the EXACT moment the window ends (T=0 snapshot).\n"
-            f"- A {abs_delta:.3f}% move at {session_desc.split(' —')[0]} "
-            f"{'typically sustains 65-70%' if hour in _HIGH_VOLUME_HOURS else 'reverses ~45% of the time during quiet hours'}.\n"
-            f"- We need the token to finish above {token_ask:.3f} (our cost) to profit.\n\n"
-            f"Should we ENTER this trade or SKIP it? Consider: edge quality, time remaining, "
-            f"session strength, move magnitude, and reversal risk.\n\n"
-            f'Respond ONLY with valid JSON: '
-            f'{{"decision":"ENTER" or "SKIP","confidence":0.50-0.95,'
-            f'"reasoning":"max 15 words"}}'
+            f"Managing open binary market position at {now_utc.strftime('%H:%M')} UTC.\n\n"
+            f"POSITION: {asset} {direction}\n"
+            f"Entry: {entry_price:.4f} | Current: {current_price:.4f} | Move: {move_pct:+.1%}\n"
+            f"Held: {time_held_s:.0f}s | Window closes in: {time_remaining_s:.0f}s\n"
+            f"Unrealized P&L: ${pnl_usd:+.3f} on ${stake:.2f} stake\n"
+            f"{vpin_line}Breakeven price (after fees): {breakeven_price:.4f}\n\n"
+            f"CONTEXT:\n"
+            f"- Binary market: resolves to 0 or 1 in {time_remaining_s:.0f}s\n"
+            f"- If thesis correct: token prices toward 0.95+ before expiry\n"
+            f"- If thesis wrong: token prices toward 0.05-\n"
+            f"- Current price {'above' if current_price > breakeven_price else 'BELOW'} breakeven\n"
+            f"- Session: {'active (moves sustain ~70%)' if is_active else 'quiet (40% reversal rate)'}\n\n"
+            f"OPTIONS:\n"
+            f"- HOLD: thesis still valid, more upside likely before window closes\n"
+            f"- EXIT_NOW: lock in P&L ({pnl_usd:+.3f}), risk/reward no longer favors holding\n"
+            f"- TIGHTEN_STOP: stay in but protect against reversal — "
+            f"set stop at cost+X% (specify tighten_sl_pct, e.g. 0.05 = stop at cost+5%)\n\n"
+            f'Respond ONLY with JSON: {{"action":"HOLD"or"EXIT_NOW"or"TIGHTEN_STOP",'
+            f'"tighten_sl_pct":null or 0.03-0.20,"confidence":0.50-0.95,"reason":"max 10 words"}}'
         )
 
         try:
@@ -324,16 +506,16 @@ class MacroEngine:
                 "messages": [{"role": "user", "content": prompt}],
             }
 
-            async with aiohttp.ClientSession() as session_http:
-                async with session_http.post(
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
                     "https://api.anthropic.com/v1/messages",
                     headers=headers,
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=6),
                 ) as resp:
                     if resp.status != 200:
-                        logger.debug("SniperEval API %d — defaulting ENTER", resp.status)
-                        return ("ENTER", 0.5, "API error — defaulting ENTER")
+                        logger.debug("EXIT ADVICE API %d — defaulting HOLD", resp.status)
+                        return ("HOLD", None, 0.5, "API error — HOLD")
                     data = await resp.json()
 
             raw_text = data["content"][0]["text"].strip()
@@ -345,24 +527,27 @@ class MacroEngine:
                         break
 
             result = json.loads(raw_text)
-            decision = result.get("decision", "ENTER").upper()
-            if decision not in ("ENTER", "SKIP"):
-                decision = "ENTER"
+            action = result.get("action", "HOLD").upper()
+            if action not in ("HOLD", "EXIT_NOW", "TIGHTEN_STOP"):
+                action = "HOLD"
+            tighten_sl = result.get("tighten_sl_pct")
+            if tighten_sl is not None:
+                tighten_sl = max(0.03, min(0.20, float(tighten_sl)))
             confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
-            reason = str(result.get("reasoning", ""))[:120]
+            reason = str(result.get("reason", ""))[:80]
 
-            # Cache the decision
-            self._sniper_eval_cache[token_id] = (now, decision, confidence, reason)
+            self._exit_advice_cache[token_id] = (now, action, tighten_sl, confidence, reason)
 
             logger.info(
-                "SNIPER EVAL %s/%s → %s conf=%.2f edge=%.3f elapsed=%.0f%% | %s",
-                asset, side, decision, confidence, edge, elapsed_pct * 100, reason,
+                "EXIT ADVICE %s/%s → %s conf=%.2f move=%+.1%% remaining=%.0fs | %s",
+                asset, direction, action, confidence,
+                move_pct, time_remaining_s, reason,
             )
-            return (decision, confidence, reason)
+            return (action, tighten_sl, confidence, reason)
 
         except Exception as exc:
-            logger.debug("SniperEval Claude call failed: %s — defaulting ENTER", exc)
-            return ("ENTER", 0.5, f"eval failed ({type(exc).__name__}) — defaulting ENTER")
+            logger.debug("EXIT ADVICE failed (%s) — defaulting HOLD", exc)
+            return ("HOLD", None, 0.5, f"failed ({type(exc).__name__}) — HOLD")
 
     # ── Internal ──────────────────────────────────────────────────────────────
 

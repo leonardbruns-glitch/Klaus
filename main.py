@@ -68,6 +68,9 @@ class KlausBot:
         # track entry metadata for trade recording
         self._open_meta: Dict[str, dict] = {}
         self._pos_log_ts: Dict[str, float] = {}   # last log time per position
+        # Last known external signals per asset — shared between signal loop (writer)
+        # and OB scan loop (reader). Used by advise_exit without a separate fetch.
+        self._last_ext_signals: Dict[str, object] = {}
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -204,7 +207,57 @@ class KlausBot:
                 )
 
             decision = self.risk.check_exit_conditions(token_id, current_price)
+
             if decision is None:
+                # ── LLM exit advisor: manage the uncertain zone ───────────────
+                # Rule-based exits haven't fired. Ask Claude for guidance when:
+                #   - Position is a windowed (sniper) trade
+                #   - Held > 60s (entry confirmed, not a wick entry)
+                #   - Move between -20% and +22% (not near TP or SL yet)
+                #   - Window has > 60s remaining (enough time to act)
+                # Claude reasons holistically: P&L, momentum, VPIN trend, session.
+                if pos.window_end_ts > 0:
+                    time_held = now - pos.open_ts
+                    remaining = max(0.0, pos.window_end_ts - now)
+                    move_pct = (current_price - pos.entry_price) / pos.entry_price
+                    in_uncertain_zone = (
+                        time_held > 60
+                        and -0.20 < move_pct < 0.22
+                        and remaining > 60
+                        and pos.exit_stage.name == "NONE"
+                    )
+                    if in_uncertain_zone:
+                        ext = self._last_ext_signals.get(pos.asset)
+                        action, tighten_sl, conf, adv_reason = await self.macro_engine.advise_exit(
+                            token_id=token_id,
+                            asset=pos.asset,
+                            direction=pos.direction.name,
+                            entry_price=pos.entry_price,
+                            current_price=current_price,
+                            time_held_s=time_held,
+                            time_remaining_s=remaining,
+                            stake=pos.stake,
+                            vpin_score=ext.vpin_score if ext else None,
+                            vpin_direction=ext.vpin_direction if ext else None,
+                        )
+                        if action == "EXIT_NOW" and conf >= 0.65:
+                            logger.info(
+                                "LLM EXIT NOW %s/%s (conf=%.2f move=%+.1f%%) | %s",
+                                pos.asset, pos.direction.name,
+                                conf, move_pct * 100, adv_reason,
+                            )
+                            await self._exit_position(token_id, current_price, "LLM_EXIT_NOW")
+                            continue
+                        elif action == "TIGHTEN_STOP" and tighten_sl is not None and conf >= 0.60:
+                            if pos.dynamic_sl_override == 0.0 or tighten_sl > pos.dynamic_sl_override:
+                                logger.info(
+                                    "LLM TIGHTEN STOP %s/%s → -%.0f%% (was -%.0f%%) | %s",
+                                    pos.asset, pos.direction.name,
+                                    tighten_sl * 100,
+                                    pos.dynamic_sl_override * 100,
+                                    adv_reason,
+                                )
+                                pos.dynamic_sl_override = tighten_sl
                 continue
 
             if decision.partial:
@@ -260,6 +313,9 @@ class KlausBot:
                 if ext is not None:
                     ext.macro_boost = macro_signal.boost_for_direction_yes()
 
+        # Cache for OB scan loop (advise_exit needs VPIN without a separate fetch)
+        self._last_ext_signals = ext_signals
+
         # ── Cross-asset cascade: score all tokens, find lead signals ─────────
         # When a strong leader (BTC) fires, follower assets (ETH, SOL) get a
         # reduced effective min_score to catch the correlated wave.
@@ -284,6 +340,11 @@ class KlausBot:
                 discounted_assets.add(follower)
                 logger.debug("CASCADE: %s lead → %s gets %.2f score discount",
                              leader, follower, CONFIG.edge.cascade_score_discount)
+
+        # ── Phase 1: scan all tokens, collect sniper candidates + run momentum ──
+        # Sniper candidates are queued for a single LLM briefing call (not per-token).
+        # Momentum (non-updown) tokens are evaluated and entered inline as before.
+        sniper_queue: list = []  # [(token_id, token, signal, tpsl, decision, ext)]
 
         for token_id, token in self.feed.tokens.items():
             # Skip tokens already in open positions
@@ -312,33 +373,47 @@ class KlausBot:
                 sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
 
             if sniper_sig is not None:
-                # ── LLM trade validator: ask Claude ENTER or SKIP this specific trade ──
-                # Upgrades macro engine from "will BTC go up?" to full context evaluator:
-                # timing, edge magnitude, order flow, session quality all fed to Claude.
-                # Non-blocking: any failure/timeout defaults to ENTER.
-                llm_decision, llm_conf, llm_reason = await self.macro_engine.evaluate_sniper_trade(
-                    token_id=token_id,
-                    asset=token.asset,
-                    side=token.side,
-                    delta_pct=sniper_sig.delta_pct,
-                    fair_value=sniper_sig.fair_value,
-                    token_ask=sniper_sig.token_ask,
-                    edge=sniper_sig.edge,
-                    elapsed_pct=sniper_sig.elapsed_pct,
-                    window_seconds=token.window_seconds,
-                    vpin_score=ext.vpin_score if ext else None,
-                    vpin_direction=ext.vpin_direction if ext else None,
+                # Log the sniper detection here; briefing decision logged after the call
+                logger.info(
+                    "SCAN [SNIPER] %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
+                    token.asset, token.side,
+                    sniper_sig.composite, sniper_sig.confidence,
+                    sniper_sig.entry_price, sniper_sig.direction.name,
+                    sniper_sig.reason or "no signal",
                 )
-                if llm_decision == "SKIP" and llm_conf >= 0.65:
-                    logger.info(
-                        "  └─ LLM VETO %s/%s (conf=%.2f): %s",
-                        token.asset, token.side, llm_conf, llm_reason,
+
+                if token.market_type == "updown" and ext is not None:
+                    log_lag_observation(
+                        ts=time.time(), asset=token.asset, token_id=token_id,
+                        side=token.side, market_type=token.market_type,
+                        window_end_ts=token.window_end_ts,
+                        polymarket_price=sniper_sig.entry_price,
+                        binance_spot_price=ext.spot_price,
+                        binance_1m_pct=ext.spot_momentum_1m,
+                        binance_5m_pct=ext.spot_momentum_5m,
+                        binance_15m_pct=ext.spot_momentum_15m,
                     )
+
+                if sniper_sig.entry_price <= 0:
+                    logger.warning("SKIP %s/%s — zero entry price", token.asset, token.side)
                     continue
 
-                # Sniper fired — use it as the signal; skip momentum scorer
-                signal = sniper_sig
-                signal_source = "SNIPER"
+                tpsl = calculate_tp_sl(sniper_sig.entry_price, sniper_sig.direction, bars_5m, ob)
+                decision = self.risk.evaluate(
+                    token_id, sniper_sig, tpsl,
+                    condition_id=token.condition_id,
+                    window_end_ts=token.window_end_ts,
+                    asset=token.asset,
+                    market_type=token.market_type,
+                    cascade_discount=0.0,
+                )
+
+                if not decision.approved:
+                    logger.info("  └─ REJECTED: %s", decision.reason)
+                else:
+                    sniper_queue.append((token_id, token, sniper_sig, tpsl, decision, ext))
+                continue  # updown token handled — skip momentum path
+
             elif token.market_type == "updown":
                 # Sniper didn't fire on this updown token → skip entirely.
                 # Momentum scorer on updown markets has confirmed ZERO edge:
@@ -373,9 +448,13 @@ class KlausBot:
                 signal.reason or "no signal",
             )
 
+            if signal.direction == Direction.NO_TRADE:
+                continue
+
             # Lag research: record Binance price + Polymarket price every scan.
             # No trading logic affected. Used by analytics/lag_analysis.py.
-            if token.market_type == "updown" and ext is not None:
+            # (Updown lag logging happens in the sniper path above.)
+            if ext is not None:
                 log_lag_observation(
                     ts=time.time(),
                     asset=token.asset,
@@ -390,50 +469,33 @@ class KlausBot:
                     binance_15m_pct=ext.spot_momentum_15m,
                 )
 
-            if signal.direction == Direction.NO_TRADE:
-                continue
-
             # Route YES tokens to BUY_YES trades, NO tokens to BUY_NO trades.
-            # Sniper: direction is always BUY_YES for the matched token side,
-            # so YES tokens execute directly; NO tokens also execute directly
-            # (sniper already verified NO token is the winning side).
             # Momentum path: NO token with BUY_YES after flip → redirect to YES counterpart.
             if token.side == "YES" and signal.direction == Direction.BUY_NO:
                 continue
             if token.side == "NO" and signal.direction == Direction.BUY_YES:
-                if signal_source == "SNIPER":
-                    # Sniper: BUY_YES on NO token = buy this NO token (already aligned)
-                    pass
-                else:
-                    # Momentum path: find YES counterpart for the redirect
-                    yes_token_id = next(
-                        (tid for tid, t in self.feed.tokens.items()
-                         if t.condition_id and t.condition_id == token.condition_id
-                         and t.side == "YES" and tid not in self.risk.open_positions),
-                        None,
-                    )
-                    if not yes_token_id:
-                        continue  # no YES counterpart available
-                    # Redirect: trade YES token at the mirror price (1 - no_price)
-                    token_id = yes_token_id
-                    token = self.feed.tokens[yes_token_id]
-                    signal.entry_price = round(1.0 - signal.entry_price, 4)
-                    logger.info(
-                        "  └─ REDIRECT NO→YES: using %s YES token @ %.4f (NO was %.4f)",
-                        token.asset, signal.entry_price, 1.0 - signal.entry_price,
-                    )
+                yes_token_id = next(
+                    (tid for tid, t in self.feed.tokens.items()
+                     if t.condition_id and t.condition_id == token.condition_id
+                     and t.side == "YES" and tid not in self.risk.open_positions),
+                    None,
+                )
+                if not yes_token_id:
+                    continue  # no YES counterpart available
+                # Redirect: trade YES token at the mirror price (1 - no_price)
+                token_id = yes_token_id
+                token = self.feed.tokens[yes_token_id]
+                signal.entry_price = round(1.0 - signal.entry_price, 4)
+                logger.info(
+                    "  └─ REDIRECT NO→YES: using %s YES token @ %.4f (NO was %.4f)",
+                    token.asset, signal.entry_price, 1.0 - signal.entry_price,
+                )
 
             if signal.entry_price <= 0:
                 logger.warning("SKIP %s/%s — zero entry price (bad feed data)", token.asset, token.side)
                 continue
 
-            tpsl = calculate_tp_sl(
-                signal.entry_price,
-                signal.direction,
-                bars_5m,
-                ob,
-            )
-
+            tpsl = calculate_tp_sl(signal.entry_price, signal.direction, bars_5m, ob)
             decision = self.risk.evaluate(
                 token_id, signal, tpsl,
                 condition_id=token.condition_id,
@@ -455,8 +517,63 @@ class KlausBot:
                 signal.entry_price, signal.confidence, signal.composite,
                 signal.reason,
             )
-
             await self._enter_position(token_id, token.asset, signal, tpsl, decision)
+
+        # ── Phase 2: LLM briefing for all sniper candidates ───────────────────
+        # ONE call with ALL candidates → Claude sees portfolio context, ranks by quality.
+        # Much more powerful than per-token calls: can avoid correlated duplicates,
+        # can deprioritize weak edges when capital is limited.
+        if sniper_queue:
+            briefing_candidates = [
+                {
+                    "token_id": tid,
+                    "asset": tok.asset,
+                    "side": tok.side,
+                    "delta_pct": sig.delta_pct,
+                    "fair_value": sig.fair_value,
+                    "token_ask": sig.token_ask,
+                    "edge": sig.edge,
+                    "elapsed_pct": sig.elapsed_pct,
+                    "window_seconds": tok.window_seconds,
+                    "vpin_score": (ex.vpin_score if ex else None),
+                    "vpin_direction": (ex.vpin_direction if ex else None),
+                }
+                for tid, tok, sig, tpsl, dec, ex in sniper_queue
+            ]
+            briefing = await self.macro_engine.market_briefing(
+                candidates=briefing_candidates,
+                open_count=len(self.risk.open_positions),
+                capital=self.risk.bankroll.capital,
+            )
+
+            # Sort by LLM priority (lower = better), then enter
+            sniper_queue.sort(key=lambda x: briefing.get(x[0], {}).get("priority", 99))
+
+            for token_id, token, signal, tpsl, decision, ext in sniper_queue:
+                # Re-check: another iteration may have filled max positions
+                if token_id in self.risk.open_positions:
+                    continue
+
+                b = briefing.get(token_id, {})
+                llm_decision = b.get("decision", "ENTER")
+                llm_conf = b.get("confidence", 0.5)
+                llm_reason = b.get("reason", "")
+
+                if llm_decision == "SKIP" and llm_conf >= 0.65:
+                    logger.info(
+                        "  └─ LLM VETO %s/%s (conf=%.2f): %s",
+                        token.asset, token.side, llm_conf, llm_reason,
+                    )
+                    continue
+
+                logger.info(
+                    "  └─ SNIPER ENTER %s/%s [p=%d conf=%.2f] | entry=%.4f edge=%.3f | %s",
+                    token.asset, token.side,
+                    b.get("priority", 99), llm_conf,
+                    signal.entry_price, signal.edge,
+                    llm_reason or signal.reason,
+                )
+                await self._enter_position(token_id, token.asset, signal, tpsl, decision)
 
     # ── Entry ─────────────────────────────────────────────────────────────────
 

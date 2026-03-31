@@ -61,6 +61,7 @@ class PositionMeta:
     hard_exit_triggered: bool = False
     condition_id: str = ""            # Polymarket condition ID for dedup
     sl_breach_ts: float = 0.0        # timestamp when wide SL first breached (0 = not breached)
+    dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -225,6 +226,7 @@ class RiskManager:
                     "profit_trigger_ts": pos.profit_trigger_ts,
                     "hard_exit_triggered": pos.hard_exit_triggered,
                     "condition_id": pos.condition_id,
+                    "dynamic_sl_override": pos.dynamic_sl_override,
                 }
             with open(POSITIONS_FILE, "w") as f:
                 json.dump(data, f)
@@ -269,6 +271,7 @@ class RiskManager:
                     hard_exit_triggered=d["hard_exit_triggered"],
                     condition_id=d["condition_id"],
                 )
+                pos.dynamic_sl_override = float(d.get("dynamic_sl_override", 0.0))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
@@ -656,6 +659,15 @@ class RiskManager:
                 return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
 
             return None
+
+        # ── 6b. LLM-tightened stop (set via advise_exit TIGHTEN_STOP) ──────────
+        # When the exit advisor tightens the stop, this overrides the wide 35% SL.
+        # e.g. dynamic_sl_override=0.05 → exit if price drops below entry * 0.95
+        # (protecting a +8% profit from reversing below breakeven)
+        if pos.dynamic_sl_override > 0 and time_held >= 10:
+            tight_price = pos.entry_price * (1 - pos.dynamic_sl_override)
+            if current_price <= tight_price:
+                return ExitDecision(True, f"LLM_TIGHT_SL({pos.dynamic_sl_override:.0%})", urgency="immediate")
 
         # ── 7. Dynamic SL (only before stage-1, after 10s grace) ─────────────
         if time_held >= 10:
