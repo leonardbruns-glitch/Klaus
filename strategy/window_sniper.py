@@ -51,8 +51,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
 _DELTA_PCT_ACTIVE = 0.15   # lowered 0.20→0.15: sustain gate now does wick-filtering
                            # 0.15% → FV=0.77, edge≥0.17 at ask≤0.60. ~2× more opportunities.
-                           # Old 0.20% was approximating "not a wick"; sustain gate does that now.
-_DELTA_PCT_QUIET  = 0.35   # 0.35% during quiet hours — raises bar to filter noise (unchanged)
+_DELTA_PCT_QUIET  = 0.35   # 0.35% during quiet hours — raises bar to filter noise
+
+# 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
+# is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
+_DELTA_PCT_15M_ACTIVE = 0.12   # 15m active hours: slightly below 5m (longer confirmation window)
+_DELTA_PCT_15M_QUIET  = 0.25   # 15m quiet hours: lower than 5m (15min drift is less noisy)
 
 MIN_EDGE = 0.04             # fair_value - token_ask ≥ this to enter
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
@@ -87,10 +91,13 @@ class SniperSignal:
     reason: str             # human-readable explanation
 
 
-def _session_min_delta() -> float:
+def _session_min_delta(is_15m: bool = False) -> float:
     """Return minimum asset % move required to fire, based on current UTC hour."""
     hour = datetime.now(timezone.utc).hour
-    return _DELTA_PCT_ACTIVE if hour in _HIGH_VOLUME_HOURS else _DELTA_PCT_QUIET
+    active = hour in _HIGH_VOLUME_HOURS
+    if is_15m:
+        return _DELTA_PCT_15M_ACTIVE if active else _DELTA_PCT_15M_QUIET
+    return _DELTA_PCT_ACTIVE if active else _DELTA_PCT_QUIET
 
 
 # Window-size-aware sustain period:
@@ -168,7 +175,8 @@ class WindowSniper:
         # ── Delta computation ──────────────────────────────────────────────────
         delta_pct = (spot_current - spot_window_open) / spot_window_open * 100
 
-        min_delta = _session_min_delta()
+        is_15m = token.window_seconds > 300
+        min_delta = _session_min_delta(is_15m=is_15m)
         if abs(delta_pct) < min_delta:
             # Delta below threshold — clear any sustained timers for this token.
             # If the move reverses/fades, we reset so next breach starts fresh.
