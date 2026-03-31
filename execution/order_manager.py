@@ -973,7 +973,7 @@ class OrderManager:
         try:
             ba = self._client.get_balance_allowance(
                 BalanceAllowanceParams(
-                    asset_type=AssetType.USDC,
+                    asset_type=AssetType.COLLATERAL,
                     signature_type=CONFIG.signature_type,
                 )
             )
