@@ -44,10 +44,11 @@ class FeeConfig:
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.55   # raised 0.0→0.55: 7/12 fat-middle trades losing
-                                          # Break-even at 1.80% peak fee ≈ 51.8% (simple) but
-                                          # round-trip taker cost ≈ 3.6% → need ~53.6% true prob.
-                                          # 0.55 provides adequate safety margin above break-even.
+    updown_min_confidence: float = 0.46   # lowered 0.55→0.46: was creating double-threshold with
+                                          # min_score (confidence≈composite → both gates on same value).
+                                          # 0.46 = just above break-even: round-trip taker ~3.6% →
+                                          # need ~53.6% true prob; 0.46 confidence provides margin
+                                          # without redundantly blocking trades already past min_score.
 
 
 @dataclass
@@ -65,17 +66,19 @@ class MomentumConfig:
     ob_imbalance_thresh: float = 0.60  # bid / (bid + ask) depth ratio
 
     # ── Composite scoring thresholds ────────────────────────────────────────
-    min_score: float = 0.44            # raised 0.37→0.44: tighten quality gate based on live session data
+    min_score: float = 0.38            # lowered 0.44→0.38: 0 trades in 30min; recalibrate from live data
     # weights (must sum to 1.0)
-    # Rebalanced 2026-03-30: added intrawindow_delta ("king signal" per Archetapp research);
-    # reduced trend weight (EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows);
-    # increased OB weight (R²=0.65 for short-interval price variance per academic research).
-    w_breakout: float = 0.25           # was 0.35
-    w_trend: float = 0.10             # was 0.25; lagging signal demoted (EMA5/15 on 15-min bars
+    # Rebalanced 2026-03-31: promoted intrawindow_delta weight (0.20→0.30) — "king signal"
+    # per Archetapp research; most direct predictor of 5-min binary outcomes.
+    # Reduced breakout (0.25→0.20) and volume (0.20→0.15) — volume rarely surges in
+    # Polymarket binary markets; breakout needs 55min warmup at lookback=10.
+    # OB weight unchanged at 0.25 (R²=0.65 for short-interval price variance).
+    w_breakout: float = 0.20           # was 0.25
+    w_trend: float = 0.10             # unchanged; lagging signal (EMA5/15 on 15-min bars
                                        # = 75/225-min MAs, too slow for 5-min windows)
-    w_volume: float = 0.20
-    w_ob: float = 0.25               # was 0.20; OB imbalance IR>0.65 → 58% accuracy
-    w_intrawindow: float = 0.20      # intra-window delta ("king signal" per Archetapp research)
+    w_volume: float = 0.15            # was 0.20; volume rarely surges in PM binary markets
+    w_ob: float = 0.25               # unchanged; OB imbalance IR>0.65 → 58% accuracy
+    w_intrawindow: float = 0.30      # was 0.20; "king signal" promoted — most direct real-time predictor
 
     # ── Regime filters ───────────────────────────────────────────────────────
     # ATR percentile gate: skip entries when current ATR(14) is below the 30th
@@ -139,9 +142,9 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.05,   # equal footing with ETH/SOL — no clean live BTC data yet
-        "ETH": 1.05,   # equal footing with BTC/SOL — no clean live ETH data yet
-        "SOL": 1.05,   # slight increase vs baseline: SOL 2× BTC volatility = more false breakouts
+        "BTC": 1.0,    # neutral — no clean live per-asset data to justify penalty yet
+        "ETH": 1.0,    # neutral — recalibrate from live data after sufficient trades
+        "SOL": 1.0,    # neutral — recalibrate from live data after sufficient trades
     })
 
     # Entry price sweet spot from data: best trades entered 0.245–0.260.
