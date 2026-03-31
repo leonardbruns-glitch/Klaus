@@ -221,13 +221,13 @@ class WindowSniper:
 
         elapsed_min = PREARM_ELAPSED_MIN if is_prearmed else WINDOW_ELAPSED_MIN
         if elapsed_pct < elapsed_min:
-            logger.info("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
-                        token.asset, token.side, elapsed_pct*100, elapsed_min*100,
-                        " (prearmed)" if is_prearmed else "")
+            logger.debug("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
+                         token.asset, token.side, elapsed_pct*100, elapsed_min*100,
+                         " (prearmed)" if is_prearmed else "")
             return None
         if elapsed_pct > WINDOW_ELAPSED_MAX:
-            logger.info("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%%",
-                        token.asset, token.side, elapsed_pct*100, WINDOW_ELAPSED_MAX*100)
+            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%%",
+                         token.asset, token.side, elapsed_pct*100, WINDOW_ELAPSED_MAX*100)
             return None
 
         # ── Sustained delta gate ───────────────────────────────────────────────
@@ -236,16 +236,16 @@ class WindowSniper:
             required_sustain = max(1.0, required_sustain * PREARM_SUSTAIN_FACTOR)
         sustained_for = now - self._delta_sustained_since[sustain_key]
         if sustained_for < required_sustain:
-            logger.info("SNIPER BLOCK %s/%s | sustain %.1fs / %.0fs delta=%.3f%%",
-                        token.asset, token.side, sustained_for, required_sustain, delta_pct)
+            logger.debug("SNIPER BLOCK %s/%s | sustain %.1fs / %.0fs delta=%.3f%%",
+                         token.asset, token.side, sustained_for, required_sustain, delta_pct)
             return None
 
         # ── Side alignment: only trade the winning token ───────────────────────
         if token.side == "YES" and asset_direction < 0:
-            logger.info("SNIPER BLOCK %s/YES | side_wrong (asset falling, YES loses)", token.asset)
+            logger.debug("SNIPER BLOCK %s/YES | side_wrong (asset falling, YES loses)", token.asset)
             return None
         if token.side == "NO" and asset_direction > 0:
-            logger.info("SNIPER BLOCK %s/NO | side_wrong (asset rising, NO loses)", token.asset)
+            logger.debug("SNIPER BLOCK %s/NO | side_wrong (asset rising, NO loses)", token.asset)
             return None
 
         # ── Fair value via sigmoid ─────────────────────────────────────────────
@@ -255,7 +255,7 @@ class WindowSniper:
         # ── Token ask and edge ─────────────────────────────────────────────────
         token_ask = ob.asks[0][0]
         if token_ask <= 0:
-            logger.info("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
+            logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
         if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
@@ -268,14 +268,14 @@ class WindowSniper:
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed (5%% elapsed)",
                     token.asset, token.side, token_ask,
                 )
-            logger.info("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f]",
-                        token.asset, token.side, token_ask, MIN_TOKEN_ASK, MAX_TOKEN_ASK)
+            logger.debug("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f]",
+                         token.asset, token.side, token_ask, MIN_TOKEN_ASK, MAX_TOKEN_ASK)
             return None
 
         edge = fair_value - token_ask
         if edge <= 0:
-            logger.info("SNIPER BLOCK %s/%s | edge=%.4f <= 0 (fv=%.3f ask=%.3f)",
-                        token.asset, token.side, edge, fair_value, token_ask)
+            logger.debug("SNIPER BLOCK %s/%s | edge=%.4f <= 0 (fv=%.3f ask=%.3f)",
+                         token.asset, token.side, edge, fair_value, token_ask)
             return None
 
         # ── Edge gate with confirmation signals ───────────────────────────────
