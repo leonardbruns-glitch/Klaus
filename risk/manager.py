@@ -721,10 +721,10 @@ class RiskManager:
                             pos.sl_breach_ts = now
                             logger.debug(
                                 "5m SL breached @ %.4f (entry=%.4f -%.0f%%) — "
-                                "waiting 3s wick confirmation",
+                                "waiting 12s wick confirmation",
                                 current_price, pos.entry_price, sl_pct * 100,
                             )
-                        elif now - pos.sl_breach_ts >= 3.0:
+                        elif now - pos.sl_breach_ts >= 12.0:
                             return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                     else:
                         # 15m markets: immediate — more capital at stake, genuine moves
