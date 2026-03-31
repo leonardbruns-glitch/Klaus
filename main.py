@@ -322,9 +322,11 @@ class KlausBot:
         lead_assets: Set[str] = set()
         all_scores: Dict[str, float] = {}
         for token_id, token in self.feed.tokens.items():
+            ob = self.feed.get_order_book(token_id)
+            if ob is not None and ob.mid > 0 and (ob.mid < 0.05 or ob.mid > 0.95):
+                continue  # near-resolved, skip
             bars_5m = self.feed.get_bars_5m(token_id, n=30)
             bars_15m = self.feed.get_bars_15m(token_id, n=30)
-            ob = self.feed.get_order_book(token_id)
             if len(bars_5m) < 12:
                 continue
             sig = self.scorer.score(bars_5m, bars_15m, ob, ext_signals.get(token.asset))
@@ -358,9 +360,18 @@ class KlausBot:
                 if remaining_window < CONFIG.execution.no_trade_last_sec:
                     continue
 
+            ob = self.feed.get_order_book(token_id)
+
+            # Skip near-resolved tokens (price < 5% or > 95%) — they will never
+            # produce a trade entry (risk manager floor=0.03, updown gate=[0.40,0.60]).
+            # Scanning them wastes CPU, floods logs with frozen scores, and hides
+            # real opportunities. OB mid is the most reliable real-time price proxy.
+            if ob is not None and ob.mid > 0:
+                if ob.mid < 0.05 or ob.mid > 0.95:
+                    continue
+
             bars_5m = self.feed.get_bars_5m(token_id, n=30)
             bars_15m = self.feed.get_bars_15m(token_id, n=30)
-            ob = self.feed.get_order_book(token_id)
             ext = ext_signals.get(token.asset)
 
             # ── Window Sniper: primary signal for updown markets ─────────────
