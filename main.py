@@ -71,6 +71,10 @@ class KlausBot:
         # Last known external signals per asset — shared between signal loop (writer)
         # and OB scan loop (reader). Used by advise_exit without a separate fetch.
         self._last_ext_signals: Dict[str, object] = {}
+        # Buy attempt tracking for session report
+        self._buy_tried: int = 0
+        self._buy_filled: int = 0
+        self._buy_failed_reasons: Dict[str, int] = {}
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -645,6 +649,7 @@ class KlausBot:
         ts_open = time.time()
 
         token_meta = self.feed.tokens.get(token_id)
+        self._buy_tried += 1
         fill = await self.orders.market_buy(
             token_id=token_id,
             intended_price=signal.entry_price,
@@ -655,8 +660,11 @@ class KlausBot:
         )
 
         if fill.avg_fill_price == 0:
-            logger.error("Fill failed for %s", asset)
+            reason = fill.error or "unknown"
+            self._buy_failed_reasons[reason] = self._buy_failed_reasons.get(reason, 0) + 1
+            logger.error("Fill failed for %s: %s", asset, reason)
             return
+        self._buy_filled += 1
 
         # Use actual fill cost as stake — CLOB 5-share minimum may require more than
         # the risk-approved stake (e.g. $1 stake but minimum order is $3.45 at price 0.69).
@@ -958,7 +966,22 @@ class KlausBot:
         while self._running:
             await asyncio.sleep(1800)
             report = self.analytics.generate_claude_report()
-            logger.info("\n%s", report)
+            # Append buy attempt stats to the report
+            failed = self._buy_tried - self._buy_filled
+            fail_rate = failed / self._buy_tried if self._buy_tried else 0
+            buy_lines = [
+                "",
+                "BUY EXECUTION",
+                f"  Attempted:  {self._buy_tried}",
+                f"  Filled:     {self._buy_filled}",
+                f"  Failed:     {failed}  ({fail_rate:.0%})",
+            ]
+            if self._buy_failed_reasons:
+                buy_lines.append("  Failure reasons:")
+                for reason, count in sorted(self._buy_failed_reasons.items(),
+                                            key=lambda x: -x[1]):
+                    buy_lines.append(f"    {count}× {reason}")
+            logger.info("\n%s\n%s", report, "\n".join(buy_lines))
 
 
 # ---------------------------------------------------------------------------
