@@ -813,34 +813,66 @@ class PolymarketFeed:
 
         markets = []
         slug_results = await asyncio.gather(*[_fetch_slug(s) for s in direct_slugs])
+        slug_hits = 0
         for data in slug_results:
             if data is None:
                 continue
             if isinstance(data, list):
                 markets.extend(data)
+                slug_hits += len(data)
             elif isinstance(data, dict):
                 markets.append(data)
+                slug_hits += 1
 
-        # Skip bulk scan if slug requests all failed (network is down)
-        network_ok = any(d is not None for d in slug_results)
-
-        # Bulk scan fallback for target markets (price prediction, non-updown)
-        if network_ok:
-            try:
-                async with self._session.get(
-                    url, params={"active": "true", "closed": "false", "limit": 500},
-                    timeout=_disc_timeout,
-                ) as resp:
-                    if resp.status == 200:
-                        bulk = await resp.json()
-                        if isinstance(bulk, list):
-                            markets.extend(bulk)
-            except Exception as exc:
-                if not markets:
-                    logger.error("Market discovery failed: %s", exc)
+        if slug_hits > 0:
+            logger.debug("Slug lookup: %d markets found", slug_hits)
         else:
-            logger.error("Market discovery failed: all slug requests failed (network down?)")
-            return
+            logger.debug("Slug lookup: no direct hits — falling back to bulk scan")
+
+        # ── Targeted scan for short-duration updown markets ────────────────────
+        # Sort by endDate ascending → soonest-expiring markets first.
+        # 5M/15M windows appear at the top, making this the most reliable way
+        # to find active updown markets (bulk all-market scan buries them).
+        try:
+            async with self._session.get(
+                url,
+                params={
+                    "active": "true",
+                    "closed": "false",
+                    "limit": 50,
+                    "order": "endDate",
+                    "ascending": "true",
+                },
+                timeout=_disc_timeout,
+            ) as resp:
+                if resp.status == 200:
+                    updown_batch = await resp.json()
+                    if isinstance(updown_batch, list):
+                        markets.extend(updown_batch)
+                        logger.debug(
+                            "Targeted updown scan: %d markets (soonest-expiring)",
+                            len(updown_batch),
+                        )
+        except Exception as exc:
+            logger.debug("Targeted updown scan failed: %s", exc)
+
+        # ── Bulk scan for price-target markets ─────────────────────────────────
+        # No network_ok guard — always run. Even if slug lookups time out,
+        # bulk scan is the only way to find non-updown markets.
+        # (Previously: network_ok guard caused zero discovery when slugs timed out.)
+        try:
+            async with self._session.get(
+                url, params={"active": "true", "closed": "false", "limit": 500},
+                timeout=_disc_timeout,
+            ) as resp:
+                if resp.status == 200:
+                    bulk = await resp.json()
+                    if isinstance(bulk, list):
+                        markets.extend(bulk)
+        except Exception as exc:
+            if not markets:
+                logger.error("Market discovery failed: %s", exc)
+                return
 
         # Deduplicate by conditionId
         seen_conditions: set = set()
@@ -1012,16 +1044,22 @@ class PolymarketFeed:
             sum(1 for t in self.tokens.values() if t.market_type == "target"),
         )
 
-        # Warn if any tracked asset has zero updown tokens (slug mismatch or no active markets)
+        # Per-asset breakdown to diagnose discovery gaps
         for asset in tracked:
-            has_updown = any(
-                t.asset == asset and t.market_type == "updown"
-                for t in self.tokens.values()
-            )
-            if not has_updown:
+            updown_toks = [t for t in self.tokens.values() if t.asset == asset and t.market_type == "updown"]
+            target_toks = [t for t in self.tokens.values() if t.asset == asset and t.market_type == "target"]
+            if updown_toks:
+                windows = set(t.window_seconds for t in updown_toks)
+                logger.info(
+                    "  %s: %d updown (%s) + %d target",
+                    asset, len(updown_toks),
+                    "/".join(f"{w//60}m" for w in sorted(windows)),
+                    len(target_toks),
+                )
+            else:
                 logger.warning(
-                    "DISCOVERY GAP: no updown tokens found for %s "
-                    "(slug lookup may have failed or no active markets)",
+                    "DISCOVERY GAP: no updown tokens for %s "
+                    "(targeted scan returned no 5M/15M updown markets)",
                     asset,
                 )
 
