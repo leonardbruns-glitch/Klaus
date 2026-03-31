@@ -392,12 +392,16 @@ class KlausBot:
 
             ob = self.feed.get_order_book(token_id)
 
-            # Skip near-resolved tokens (price < 5% or > 95%) — they will never
-            # produce a trade entry (risk manager floor=0.03, updown gate=[0.40,0.60]).
-            # Scanning them wastes CPU, floods logs with frozen scores, and hides
-            # real opportunities. OB mid is the most reliable real-time price proxy.
-            if ob is not None and ob.mid > 0:
-                if ob.mid < 0.05 or ob.mid > 0.95:
+            # Skip near-resolved tokens — they produce entry=0 and will never trade.
+            # Check ask price directly (mid can be 0 when there are no bids, which
+            # hides near-dead tokens from the mid-based filter).
+            if ob is not None:
+                _ask = ob.asks[0][0] if ob.asks else ob.mid
+                if _ask < 0.05 or _ask > 0.95:
+                    continue
+                # Target markets with no valid OB (ask=0) have no edge and no fills.
+                # Skip them rather than wasting a scan cycle on entry=0.0000 noise.
+                if token.market_type == "target" and _ask <= 0:
                     continue
 
             bars_5m = self.feed.get_bars_5m(token_id, n=30)
