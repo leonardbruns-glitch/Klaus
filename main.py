@@ -860,7 +860,7 @@ class KlausBot:
             for r in exit_fills
         )
         if ext_sold_detected:
-            live_price = current_price if current_price > 0 else pos.entry_price
+            live_price = live_price if live_price > 0 else pos.entry_price
             logger.warning(
                 "EXTERNALLY_SOLD purged: %s/%s — closing at current price %.4f. "
                 "Manual sell detected, stopping retry loop.",
