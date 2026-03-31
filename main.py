@@ -490,8 +490,10 @@ class KlausBot:
                         else Direction.BUY_YES
                     )
 
-            # Log every token scored, including NO_TRADE (for visibility)
-            logger.info(
+            # Only log NO_TRADE at DEBUG — SCAN cycle summary covers the quiet state.
+            # Log at INFO when something actionable is happening (score > 0 with direction).
+            _log_fn = logger.debug if signal.direction == Direction.NO_TRADE else logger.info
+            _log_fn(
                 "SCAN [%s] %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
                 signal_source,
                 token.asset, token.side,
