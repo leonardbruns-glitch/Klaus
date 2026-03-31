@@ -279,6 +279,9 @@ class PolymarketFeed:
         self.funding_rates: Dict[str, float] = {}       # asset → annualised funding rate
         self._ws_tasks: List[asyncio.Task] = []
         self._ws_ob_ts: Dict[str, float] = {}           # token_id → last WS OB update ts
+        # Queue for sending new token subscriptions to the running CLOB WS.
+        # refresh_markets() puts new token_id lists here; _run_clob_ws() drains it.
+        self._clob_ws_sub_queue: asyncio.Queue = asyncio.Queue()
         # VPIN trackers per asset (fed from Binance aggTrade WebSocket)
         self.vpin_trackers: Dict[str, VPINTracker] = {
             "BTC": VPINTracker(),
@@ -383,22 +386,63 @@ class PolymarketFeed:
                     async with ws_session.ws_connect(
                         self.CLOB_WS, ssl=_ssl_ctx, heartbeat=_PING_INTERVAL
                     ) as ws:
-                        # Subscribe to all tracked tokens
+                        # Subscribe to all currently tracked tokens
                         token_ids = list(self.tokens.keys())
-                        sub_msg = _json.dumps({
+                        subscribed: set = set(token_ids)
+                        await ws.send_str(_json.dumps({
                             "auth": {},
                             "type": "subscribe",
                             "channel": "market",
                             "assets_ids": token_ids,
                             "custom_feature_enabled": True,
-                        })
-                        await ws.send_str(sub_msg)
+                        }))
                         logger.info("CLOB WebSocket: subscribed to %d tokens", len(token_ids))
 
-                        async for msg in ws:
-                            if not self._running:
-                                break
+                        # Use wait_for loop instead of async-for so we can drain
+                        # the re-subscription queue between messages.
+                        # refresh_markets() puts newly discovered token IDs into
+                        # _clob_ws_sub_queue; we subscribe them here within 2s.
+                        while self._running:
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=2.0)
+                            except asyncio.TimeoutError:
+                                # No message — drain pending subscriptions
+                                while not self._clob_ws_sub_queue.empty():
+                                    new_ids = self._clob_ws_sub_queue.get_nowait()
+                                    truly_new = [i for i in new_ids if i not in subscribed]
+                                    if truly_new:
+                                        await ws.send_str(_json.dumps({
+                                            "auth": {},
+                                            "type": "subscribe",
+                                            "channel": "market",
+                                            "assets_ids": truly_new,
+                                            "custom_feature_enabled": True,
+                                        }))
+                                        subscribed.update(truly_new)
+                                        logger.info(
+                                            "CLOB WebSocket: re-subscribed to %d new tokens "
+                                            "(%d total)", len(truly_new), len(subscribed),
+                                        )
+                                continue
+
                             if msg.type == aiohttp.WSMsgType.TEXT:
+                                # Also drain sub queue after each message (low-traffic periods)
+                                while not self._clob_ws_sub_queue.empty():
+                                    new_ids = self._clob_ws_sub_queue.get_nowait()
+                                    truly_new = [i for i in new_ids if i not in subscribed]
+                                    if truly_new:
+                                        await ws.send_str(_json.dumps({
+                                            "auth": {},
+                                            "type": "subscribe",
+                                            "channel": "market",
+                                            "assets_ids": truly_new,
+                                            "custom_feature_enabled": True,
+                                        }))
+                                        subscribed.update(truly_new)
+                                        logger.info(
+                                            "CLOB WebSocket: re-subscribed to %d new tokens "
+                                            "(%d total)", len(truly_new), len(subscribed),
+                                        )
                                 try:
                                     events = _json.loads(msg.data)
                                     if not isinstance(events, list):
@@ -841,11 +885,6 @@ class PolymarketFeed:
             if not asset_match:
                 continue
 
-            # Liquidity filter: skip very illiquid markets (< $200 on books)
-            liquidity = market.get("liquidityClob", market.get("liquidityNum", 0)) or 0
-            if float(liquidity) < 200:
-                continue
-
             # Detect market type: 5M/15M Up/Down vs longer-duration price target.
             # Gamma slugs encode resolution: btc-updown-15m-1768220100
             slug = market.get("slug", "")
@@ -864,6 +903,14 @@ class PolymarketFeed:
                 if not is_short:
                     is_updown = False  # skip longer-duration updown markets
             market_type = "updown" if is_updown else "target"
+
+            # Liquidity filter for price-target markets only.
+            # Updown (5M/15M) windows start with thin books — filtering by liquidity
+            # drops fresh windows that haven't accumulated depth yet.
+            if market_type == "target":
+                liquidity = float(market.get("liquidityClob", market.get("liquidityNum", 0)) or 0)
+                if liquidity < 200:
+                    continue
 
             # Parse resolution timestamp
             end_date_str = market.get("endDate", market.get("end_date_iso", ""))
@@ -1058,6 +1105,7 @@ class PolymarketFeed:
             logger.info("Purged %d expired tokens", len(expired))
 
         prev_count = len(self.tokens)
+        prev_ids = set(self.tokens.keys())
         await self._discover_markets()
         new_count = len(self.tokens)
         if new_count != prev_count:
@@ -1065,6 +1113,12 @@ class PolymarketFeed:
                 "Market refresh: %d → %d tokens (+%d)",
                 prev_count, new_count, new_count - prev_count,
             )
+            # Enqueue new token IDs so the CLOB WS subscribes to them
+            # within 2 seconds (the wait_for timeout in _run_clob_ws).
+            new_ids = [tid for tid in self.tokens if tid not in prev_ids]
+            if new_ids and not self._stub_mode:
+                await self._clob_ws_sub_queue.put(new_ids)
+                logger.debug("Queued %d new tokens for WS re-subscription", len(new_ids))
 
     async def poll_order_books(self) -> None:
         """
