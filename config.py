@@ -29,7 +29,7 @@ class BankrollConfig:
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
     max_open_positions: int = 4       # max 4 concurrent → max $80 deployed at once
     max_daily_loss: float = 40.0      # hard halt after -$40/day (2 full losses at $20)
-    post_close_cooldown: float = 2.0  # seconds to wait after any close
+    post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
 
@@ -62,7 +62,7 @@ class MomentumConfig:
     ob_imbalance_thresh: float = 0.60  # bid / (bid + ask) depth ratio
 
     # ── Composite scoring thresholds ────────────────────────────────────────
-    min_score: float = 0.25            # AGGRESSIVE MODE — low floor, edge+LLM do the filtering
+    min_score: float = 0.35            # 15m only mode — sniper composite threshold
     # weights (must sum to 1.0)
     # Rebalanced 2026-03-30: added intrawindow_delta ("king signal" per Archetapp research);
     # reduced trend weight (EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows);
