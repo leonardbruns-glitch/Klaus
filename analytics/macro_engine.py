@@ -37,8 +37,8 @@ logger = logging.getLogger("macro_engine")
 # ── Trigger thresholds by session ─────────────────────────────────────────────
 # High-volume session hours UTC: London open, NYSE open/macro, Asia open
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
-_TRIGGER_PCT_HIGH = 0.25    # 0.25% move during high-volume sessions
-_TRIGGER_PCT_LOW  = 0.40    # 0.40% move during quiet hours
+_TRIGGER_PCT_HIGH = 0.25    # flat — same threshold all hours, collect data first
+_TRIGGER_PCT_LOW  = 0.25    # same as active (no quiet-hour penalty)
 
 # ── Signal parameters ─────────────────────────────────────────────────────────
 SIGNAL_VALID_SECONDS = 120   # signal lasts 2 minutes

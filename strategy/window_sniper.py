@@ -116,12 +116,10 @@ class SniperSignal:
 
 
 def _session_min_delta(is_15m: bool = False) -> float:
-    """Return minimum asset % move required to fire, based on current UTC hour."""
-    hour = datetime.now(timezone.utc).hour
-    active = hour in _HIGH_VOLUME_HOURS
+    """Flat delta threshold — no hour-based variation. Collect data across all hours first."""
     if is_15m:
-        return _DELTA_PCT_15M_ACTIVE if active else _DELTA_PCT_15M_QUIET
-    return _DELTA_PCT_ACTIVE if active else _DELTA_PCT_QUIET
+        return _DELTA_PCT_15M_ACTIVE
+    return _DELTA_PCT_ACTIVE
 
 
 # Window-size-aware sustain period:
