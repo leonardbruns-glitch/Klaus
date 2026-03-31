@@ -304,7 +304,7 @@ class KlausBot:
 
             # ── Window Sniper: primary signal for updown markets ─────────────
             # Detects mid-window mispriced certainty (fair value vs token ask).
-            # Fires when: 25–80% elapsed, asset moved >0.06%, edge ≥ 0.02–0.04.
+            # Fires when: 35–80% elapsed, asset moved >0.20% (active) / >0.35% (quiet), edge ≥ 0.02–0.04.
             # SniperSignal is compatible with risk manager (same fields: composite,
             # confidence, entry_price, direction, fee_zone, reason).
             sniper_sig = None
@@ -312,6 +312,30 @@ class KlausBot:
                 sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
 
             if sniper_sig is not None:
+                # ── LLM trade validator: ask Claude ENTER or SKIP this specific trade ──
+                # Upgrades macro engine from "will BTC go up?" to full context evaluator:
+                # timing, edge magnitude, order flow, session quality all fed to Claude.
+                # Non-blocking: any failure/timeout defaults to ENTER.
+                llm_decision, llm_conf, llm_reason = await self.macro_engine.evaluate_sniper_trade(
+                    token_id=token_id,
+                    asset=token.asset,
+                    side=token.side,
+                    delta_pct=sniper_sig.delta_pct,
+                    fair_value=sniper_sig.fair_value,
+                    token_ask=sniper_sig.token_ask,
+                    edge=sniper_sig.edge,
+                    elapsed_pct=sniper_sig.elapsed_pct,
+                    window_seconds=token.window_seconds,
+                    vpin_score=ext.vpin_score if ext else None,
+                    vpin_direction=ext.vpin_direction if ext else None,
+                )
+                if llm_decision == "SKIP" and llm_conf >= 0.65:
+                    logger.info(
+                        "  └─ LLM VETO %s/%s (conf=%.2f): %s",
+                        token.asset, token.side, llm_conf, llm_reason,
+                    )
+                    continue
+
                 # Sniper fired — use it as the signal; skip momentum scorer
                 signal = sniper_sig
                 signal_source = "SNIPER"

@@ -33,6 +33,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Optional
 import logging
 
@@ -43,7 +44,14 @@ logger = logging.getLogger("window_sniper")
 
 # ── Tunable parameters ─────────────────────────────────────────────────────────
 SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
-MIN_DELTA_PCT = 0.06        # minimum asset move from window open to fire
+
+# Session-aware minimum delta: quiet-hour moves <0.20% are noise (40% sustain rate).
+# Matches macro_engine thresholds so both engines agree on what constitutes a signal.
+# All 3 sniper losses (T00020/22/25) were quiet-hour trades at 0.066–0.079% delta.
+_HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
+_DELTA_PCT_ACTIVE = 0.20   # 0.20% during London/NYSE/Asia open — ~70% sustain rate
+_DELTA_PCT_QUIET  = 0.35   # 0.35% during quiet hours — raises bar to filter noise
+
 MIN_EDGE = 0.04             # fair_value - token_ask ≥ this to enter
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
 MIN_EDGE_BOOST = 0.02       # reduced gate when LLM macro_boost confirms
@@ -75,6 +83,12 @@ class SniperSignal:
     fee_zone: FeeZone       # EXTREME or FAT_MIDDLE (for risk manager gate)
     elapsed_pct: float      # fraction of window elapsed when signal fired
     reason: str             # human-readable explanation
+
+
+def _session_min_delta() -> float:
+    """Return minimum asset % move required to fire, based on current UTC hour."""
+    hour = datetime.now(timezone.utc).hour
+    return _DELTA_PCT_ACTIVE if hour in _HIGH_VOLUME_HOURS else _DELTA_PCT_QUIET
 
 
 class WindowSniper:
@@ -139,7 +153,13 @@ class WindowSniper:
         # ── Delta computation ──────────────────────────────────────────────────
         delta_pct = (spot_current - spot_window_open) / spot_window_open * 100
 
-        if abs(delta_pct) < MIN_DELTA_PCT:
+        min_delta = _session_min_delta()
+        if abs(delta_pct) < min_delta:
+            logger.debug(
+                "SNIPER SKIP %s/%s | delta=%.3f%% < session_min=%.2f%% (%s)",
+                token.asset, token.side, delta_pct, min_delta,
+                "active" if datetime.now(timezone.utc).hour in _HIGH_VOLUME_HOURS else "quiet",
+            )
             return None  # asset hasn't moved enough to create a mispricing gap
 
         asset_direction = 1 if delta_pct > 0 else -1

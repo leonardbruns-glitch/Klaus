@@ -96,6 +96,10 @@ class MacroEngine:
         self._last_trigger_ts: float = 0.0
         self._api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
         self._enabled: bool = bool(self._api_key)
+        # Per-token sniper eval cache: {token_id: (ts, "ENTER"/"SKIP", confidence, reason)}
+        # Prevents re-querying Claude for the same opportunity every scan cycle.
+        self._sniper_eval_cache: dict = {}
+        self._sniper_eval_ttl: float = 45.0   # reuse cached decision for 45s
         if not self._enabled:
             logger.info(
                 "MacroEngine disabled — set ANTHROPIC_API_KEY in .env to enable LLM signals"
@@ -208,6 +212,157 @@ class MacroEngine:
                 signal.reasoning[:120],
             )
         return signal
+
+    async def evaluate_sniper_trade(
+        self,
+        token_id: str,
+        asset: str,
+        side: str,
+        delta_pct: float,
+        fair_value: float,
+        token_ask: float,
+        edge: float,
+        elapsed_pct: float,
+        window_seconds: int,
+        vpin_score: Optional[float] = None,
+        vpin_direction: Optional[int] = None,
+    ) -> tuple:
+        """
+        Ask Claude whether to ENTER or SKIP a specific sniper trade.
+
+        Unlike tick() (which asks "will BTC go up?"), this asks:
+        "Given ALL the context of THIS trade — is the edge real and should we enter?"
+
+        Uses full position context: timing, mispricing magnitude, order flow, urgency.
+        Defaults to ENTER on any failure (non-blocking — never stops a valid trade).
+
+        Returns: ("ENTER" | "SKIP", confidence: float, reason: str)
+        """
+        if not self._enabled:
+            return ("ENTER", 0.5, "LLM disabled — defaulting ENTER")
+
+        now = time.time()
+
+        # Check cache: reuse recent decision for this token to avoid spam
+        cached = self._sniper_eval_cache.get(token_id)
+        if cached is not None:
+            cache_ts, decision, conf, reason = cached
+            if now - cache_ts < self._sniper_eval_ttl:
+                logger.debug(
+                    "SNIPER EVAL (cached) %s/%s → %s conf=%.2f | %s",
+                    asset, side, decision, conf, reason,
+                )
+                return (decision, conf, reason)
+
+        now_utc = datetime.now(timezone.utc)
+        hour = now_utc.hour
+
+        # Session context
+        if hour in (8, 9):
+            session_desc = "London open (08:00 UTC) — high liquidity, strong trend initiation"
+        elif hour in (13, 14, 15):
+            weekday = now_utc.weekday()
+            day_note = ""
+            if weekday == 3:
+                day_note = " — Thursday: weekly US jobless claims at 13:30 UTC"
+            elif weekday == 4:
+                day_note = " — Friday: possible NFP"
+            session_desc = f"NYSE open / US macro{day_note}"
+        elif hour in (22, 23, 0):
+            session_desc = "Asia open (23:00 UTC) — BTC-native liquidity"
+        else:
+            session_desc = f"quiet hours ({now_utc.strftime('%H:%M')} UTC) — lower liquidity, higher reversal rate"
+
+        direction_word = "UP" if delta_pct > 0 else "DOWN"
+        abs_delta = abs(delta_pct)
+        remaining_seconds = int(window_seconds * (1.0 - elapsed_pct))
+
+        vpin_line = ""
+        if vpin_score is not None and vpin_score > 0:
+            flow_word = "aggressive buying" if (vpin_direction or 0) > 0 else "aggressive selling"
+            vpin_agrees = (
+                (side == "YES" and (vpin_direction or 0) > 0)
+                or (side == "NO" and (vpin_direction or 0) < 0)
+            )
+            agree_str = "AGREES with our trade" if vpin_agrees else "OPPOSES our trade"
+            vpin_line = (
+                f"- Binance VPIN (order flow toxicity): {vpin_score:.3f} — "
+                f"{flow_word} ({agree_str})\n"
+            )
+
+        prompt = (
+            f"You are a quantitative trader reviewing a live Polymarket trade opportunity.\n"
+            f"Session: {session_desc}\n\n"
+            f"Trade: BUY {asset} {side} token on Polymarket binary updown market\n"
+            f"- Asset moved {direction_word} {abs_delta:.3f}% from window open\n"
+            f"- Window elapsed: {elapsed_pct:.0%} ({remaining_seconds}s remaining in {window_seconds}s window)\n"
+            f"- Fair value (sigmoid model): {fair_value:.3f} | Token ask: {token_ask:.3f} | Edge: {edge:+.3f}\n"
+            f"{vpin_line}"
+            f"\nKey context:\n"
+            f"- Edge = (model fair value) - (current market price). Positive = token underpriced.\n"
+            f"- This market resolves at the EXACT moment the window ends (T=0 snapshot).\n"
+            f"- A {abs_delta:.3f}% move at {session_desc.split(' —')[0]} "
+            f"{'typically sustains 65-70%' if hour in _HIGH_VOLUME_HOURS else 'reverses ~45% of the time during quiet hours'}.\n"
+            f"- We need the token to finish above {token_ask:.3f} (our cost) to profit.\n\n"
+            f"Should we ENTER this trade or SKIP it? Consider: edge quality, time remaining, "
+            f"session strength, move magnitude, and reversal risk.\n\n"
+            f'Respond ONLY with valid JSON: '
+            f'{{"decision":"ENTER" or "SKIP","confidence":0.50-0.95,'
+            f'"reasoning":"max 15 words"}}'
+        )
+
+        try:
+            import aiohttp
+            headers = {
+                "x-api-key": self._api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 80,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+
+            async with aiohttp.ClientSession() as session_http:
+                async with session_http.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=6),
+                ) as resp:
+                    if resp.status != 200:
+                        logger.debug("SniperEval API %d — defaulting ENTER", resp.status)
+                        return ("ENTER", 0.5, "API error — defaulting ENTER")
+                    data = await resp.json()
+
+            raw_text = data["content"][0]["text"].strip()
+            if "```" in raw_text:
+                for part in raw_text.split("```"):
+                    part = part.strip().lstrip("json").strip()
+                    if part.startswith("{"):
+                        raw_text = part
+                        break
+
+            result = json.loads(raw_text)
+            decision = result.get("decision", "ENTER").upper()
+            if decision not in ("ENTER", "SKIP"):
+                decision = "ENTER"
+            confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
+            reason = str(result.get("reasoning", ""))[:120]
+
+            # Cache the decision
+            self._sniper_eval_cache[token_id] = (now, decision, confidence, reason)
+
+            logger.info(
+                "SNIPER EVAL %s/%s → %s conf=%.2f edge=%.3f elapsed=%.0f%% | %s",
+                asset, side, decision, confidence, edge, elapsed_pct * 100, reason,
+            )
+            return (decision, confidence, reason)
+
+        except Exception as exc:
+            logger.debug("SniperEval Claude call failed: %s — defaulting ENTER", exc)
+            return ("ENTER", 0.5, f"eval failed ({type(exc).__name__}) — defaulting ENTER")
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
