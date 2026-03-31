@@ -128,9 +128,9 @@ class WindowSniper:
         # Per-(token_id, direction) timestamp of first threshold breach.
         # Cleared when delta reverses or falls below min_delta.
         self._delta_sustained_since: dict = {}
-        # Pre-arm state: (asset, side) → timestamp when armed.
+        # Pre-arm state: (asset, side) → (set_at, armed_window_end_ts).
         # Set when current window is fully repriced (ask > 0.80).
-        # Allows early entry (5% elapsed) in the next window.
+        # Only fires for tokens whose window_end_ts > armed_window_end_ts (next window).
         self._prearm: dict = {}
 
     def score(
@@ -203,13 +203,16 @@ class WindowSniper:
         prearm_key = (token.asset, token.side)
         is_prearmed = False
         if prearm_key in self._prearm:
-            age = now - self._prearm[prearm_key]
-            if age < PREARM_EXPIRY_S:
+            prearm_set_at, prearm_window_end = self._prearm[prearm_key]
+            age = now - prearm_set_at
+            if age >= PREARM_EXPIRY_S:
+                del self._prearm[prearm_key]  # expired
+            elif token.window_end_ts > prearm_window_end:
+                # This token is from a LATER window — pre-arm applies
                 is_prearmed = True
                 logger.debug("SNIPER PREARMED %s/%s | age=%.0fs — using early entry gate",
                              token.asset, token.side, age)
-            else:
-                del self._prearm[prearm_key]  # expired
+            # else: same window that triggered the pre-arm — don't apply
 
         # ── Time gate ──────────────────────────────────────────────────────────
         if token.window_end_ts <= 0 or token.window_seconds <= 0:
@@ -255,10 +258,10 @@ class WindowSniper:
         # ── Token ask and edge ─────────────────────────────────────────────────
         token_ask = ob.asks[0][0]
         if is_prearmed:
-            logger.info("SNIPER PREARMED_EVAL %s/%s | elapsed=%.1f%% delta=%+.3f%% "
-                        "fv=%.3f ask=%.3f edge=%+.4f",
-                        token.asset, token.side, elapsed_pct*100, delta_pct,
-                        fair_value, token_ask, fair_value - token_ask)
+            logger.debug("SNIPER PREARMED_EVAL %s/%s | elapsed=%.1f%% delta=%+.3f%% "
+                         "fv=%.3f ask=%.3f edge=%+.4f",
+                         token.asset, token.side, elapsed_pct*100, delta_pct,
+                         fair_value, token_ask, fair_value - token_ask)
         if token_ask <= 0:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
@@ -268,7 +271,7 @@ class WindowSniper:
             # Side is already aligned here (wrong-side tokens were filtered above), so this
             # token IS the winning side — next window it resets to ~0.50 and we enter fast.
             if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
-                self._prearm[prearm_key] = now
+                self._prearm[prearm_key] = (now, token.window_end_ts)
                 logger.info(
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed (5%% elapsed)",
                     token.asset, token.side, token_ask,
