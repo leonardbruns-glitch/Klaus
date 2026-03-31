@@ -854,7 +854,9 @@ class PolymarketFeed:
             is_updown = (
                 "updown" in slug_lo
                 or "up-or-down" in slug_lo
+                or "up-down" in slug_lo
                 or "up or down" in q_lo
+                or "go up or down" in q_lo
             )
             # Only care about short-duration updown (5m or 15m)
             if is_updown:
