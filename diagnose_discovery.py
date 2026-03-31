@@ -46,10 +46,15 @@ def is_updown(m: dict) -> bool:
 
 
 async def run():
+    import ssl as _ssl
+    ssl_ctx = _ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = _ssl.CERT_NONE
+    connector = aiohttp.TCPConnector(ssl=ssl_ctx)
     timeout = aiohttp.ClientTimeout(total=10)
     headers = {"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
 
-    async with aiohttp.ClientSession(headers=headers, timeout=timeout) as sess:
+    async with aiohttp.ClientSession(connector=connector, headers=headers, timeout=timeout) as sess:
 
         # ── Test 1: Gamma bulk scan ────────────────────────────────────────────
         print("\n=== Test 1: Gamma bulk scan (active, limit=500) ===")
