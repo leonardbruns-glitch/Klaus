@@ -196,49 +196,50 @@ class WindowSniper:
         elapsed_pct = elapsed / token.window_seconds
 
         if elapsed_pct < WINDOW_ELAPSED_MIN:
-            return None  # too early — sustain timer is running; fire as soon as gate opens
+            logger.info("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%",
+                        token.asset, token.side, elapsed_pct*100, WINDOW_ELAPSED_MIN*100)
+            return None
         if elapsed_pct > WINDOW_ELAPSED_MAX:
-            return None  # too late
+            logger.info("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%%",
+                        token.asset, token.side, elapsed_pct*100, WINDOW_ELAPSED_MAX*100)
+            return None
 
         # ── Sustained delta gate ───────────────────────────────────────────────
         required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
         sustained_for = now - self._delta_sustained_since[sustain_key]
         if sustained_for < required_sustain:
-            logger.debug(
-                "SNIPER SUSTAIN_WAIT %s/%s | delta=%.3f%% held %.1fs / %.0fs",
-                token.asset, token.side, delta_pct, sustained_for, required_sustain,
-            )
+            logger.info("SNIPER BLOCK %s/%s | sustain %.1fs / %.0fs delta=%.3f%%",
+                        token.asset, token.side, sustained_for, required_sustain, delta_pct)
             return None
 
         # ── Side alignment: only trade the winning token ───────────────────────
-        # YES wins when asset goes up; NO wins when asset goes down.
-        # Skip the losing side — we never short; we only buy the correct token.
         if token.side == "YES" and asset_direction < 0:
-            return None  # asset falling → YES token goes to 0 → not a buy
+            logger.info("SNIPER BLOCK %s/YES | side_wrong (asset falling, YES loses)")
+            return None
         if token.side == "NO" and asset_direction > 0:
-            return None  # asset rising → NO token goes to 0 → not a buy
+            logger.info("SNIPER BLOCK %s/NO | side_wrong (asset rising, NO loses)")
+            return None
 
         # ── Fair value via sigmoid ─────────────────────────────────────────────
-        # sigmoid(k * |delta|) gives probability the winning side wins.
-        # For YES: delta > 0 → sigmoid(positive) → near 1.0
-        # For NO:  delta < 0 → sigmoid(|delta|) → near 1.0 (since NO is the winner)
         directional_delta = abs(delta_pct)
         fair_value = 1.0 / (1.0 + math.exp(-SIGMOID_K * directional_delta))
 
         # ── Token ask and edge ─────────────────────────────────────────────────
         token_ask = ob.asks[0][0]
         if token_ask <= 0:
+            logger.info("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        # Skip near-resolved tokens: mirrors risk/manager.py updown gate [0.40, 0.60].
-        # Above 0.60: market has priced in the move; insufficient edge remains.
-        # Below 0.40: near-resolved the other way; we'd be fighting the resolved side.
         if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
+            logger.info("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f]",
+                        token.asset, token.side, token_ask, MIN_TOKEN_ASK, MAX_TOKEN_ASK)
             return None
 
         edge = fair_value - token_ask
         if edge <= 0:
-            return None  # token overpriced relative to fair value
+            logger.info("SNIPER BLOCK %s/%s | edge=%.4f <= 0 (fv=%.3f ask=%.3f)",
+                        token.asset, token.side, edge, fair_value, token_ask)
+            return None
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0
