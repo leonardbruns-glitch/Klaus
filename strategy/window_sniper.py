@@ -254,6 +254,11 @@ class WindowSniper:
 
         # ── Token ask and edge ─────────────────────────────────────────────────
         token_ask = ob.asks[0][0]
+        if is_prearmed:
+            logger.info("SNIPER PREARMED_EVAL %s/%s | elapsed=%.1f%% delta=%+.3f%% "
+                        "fv=%.3f ask=%.3f edge=%+.4f",
+                        token.asset, token.side, elapsed_pct*100, delta_pct,
+                        fair_value, token_ask, fair_value - token_ask)
         if token_ask <= 0:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
