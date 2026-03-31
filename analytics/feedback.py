@@ -860,12 +860,15 @@ class FeedbackEngine:
             for t in trades[-5:]:
                 pnl_str = f"+${t.net_pnl:.3f}" if t.net_pnl > 0 else f"-${abs(t.net_pnl):.3f}"
                 if t.signal_source == "SNIPER":
+                    wsize = "5m" if t.window_size_s == 300 else ("15m" if t.window_size_s == 900 else f"{t.window_size_s}s")
+                    trigger = "PREARM" if t.sniper_prearm else "NORMAL"
                     lines.append(
-                        f"  {t.trade_id} | {t.asset} {t.direction} [SNIPER] | "
+                        f"  {t.trade_id} | {t.asset}/{t.sniper_side} [{wsize}/{trigger}] "
+                        f"{t.hour_utc:02d}:xx UTC | "
                         f"entry={t.entry_price:.4f} exit={t.exit_price:.4f} | "
                         f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s | "
-                        f"delta={t.sniper_delta_pct:+.3f}% FV={t.sniper_fair_value:.3f} "
-                        f"edge={t.sniper_edge:.3f} elapsed={t.sniper_elapsed_pct:.0%}"
+                        f"delta={t.sniper_delta_pct:+.3f}% edge={t.sniper_edge:.3f} "
+                        f"elapsed={t.sniper_elapsed_pct:.0%}"
                     )
                 else:
                     lines.append(
