@@ -585,11 +585,13 @@ class KlausBot:
             if _ext and _ext.spot_price and _ext.spot_window_open_5m:
                 _d = (_ext.spot_price - _ext.spot_window_open_5m) / _ext.spot_window_open_5m * 100
                 _delta_parts.append(f"{_a}={_d:+.3f}%")
+        _threshold = _session_min_delta()
+        _status = "SNIPER WAITING" if _updown_fired == 0 else f"SNIPER FIRED={_updown_fired}"
         logger.info(
-            "SCAN cycle: %d updown (fired=%d) | deltas: %s | need ≥%.2f%%",
-            _updown_scanned, _updown_fired,
-            " ".join(_delta_parts) if _delta_parts else "no data",
-            _session_min_delta(),
+            "[SNIPER] %s | %d updown scanned | deltas: %s | need ≥%.2f%%",
+            _status, _updown_scanned,
+            " ".join(_delta_parts) if _delta_parts else "no Binance data",
+            _threshold,
         )
 
         # ── Phase 2: LLM briefing for all sniper candidates ───────────────────
