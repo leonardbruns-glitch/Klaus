@@ -860,18 +860,29 @@ class KlausBot:
             for r in exit_fills
         )
         if ext_sold_detected:
-            live_price = live_price if live_price > 0 else pos.entry_price
+            # Use the sell_price embedded in the error string (the price the cascade
+            # was attempting when it detected dust). This reflects what the shares
+            # were actually sold at, not the decayed live_price at detection time.
+            import re as _re
+            exit_price = live_price
+            for _r in exit_fills:
+                _err = getattr(_r, "error", "") or ""
+                _m = _re.search(r'price=([0-9.]+)', _err)
+                if _m:
+                    exit_price = float(_m.group(1))
+                    break
+            exit_price = exit_price if exit_price > 0 else pos.entry_price
             logger.warning(
-                "EXTERNALLY_SOLD purged: %s/%s — closing at current price %.4f. "
-                "Manual sell detected, stopping retry loop.",
-                pos.asset, pos.direction.name, live_price,
+                "EXTERNALLY_SOLD purged: %s/%s — closing at sell_price %.4f. "
+                "Shares already sold externally, stopping retry loop.",
+                pos.asset, pos.direction.name, exit_price,
             )
-            pnl = self.risk.close_position(token_id, live_price, "EXTERNALLY_SOLD")
+            pnl = self.risk.close_position(token_id, exit_price, "EXTERNALLY_SOLD")
             meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
             if pnl is not None:
                 await self.feedback.record_trade(
-                    pos=pos, exit_price=live_price, exit_reason="EXTERNALLY_SOLD",
+                    pos=pos, exit_price=exit_price, exit_reason="EXTERNALLY_SOLD",
                     pnl_usd=pnl, meta=meta,
                     window_size_s=meta.get("window_size_s", 0),
                 )

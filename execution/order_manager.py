@@ -467,7 +467,7 @@ class OrderManager:
                 )
                 return [OrderResult(
                     status=OrderStatus.FAILED,
-                    error=f"EXTERNALLY_SOLD:balance={int(remaining * 1_000_000)}",
+                    error=f"EXTERNALLY_SOLD:balance={int(remaining * 1_000_000)}:price={sell_price:.4f}",
                 )]
 
             # Limit order sell. Market order (FOK SELL) removed: its amount
