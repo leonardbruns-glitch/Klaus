@@ -983,7 +983,7 @@ class OrderManager:
             logger.info("Polymarket USDC balance (actual): $%.4f", usdc)
             return usdc
         except Exception as exc:
-            logger.debug("fetch_usdc_balance failed: %s", exc)
+            logger.warning("fetch_usdc_balance failed: %s", exc)
             return None
 
     def fetch_order_fills(self, order_id: str) -> Optional[dict]:
