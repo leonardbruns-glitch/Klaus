@@ -214,10 +214,10 @@ class WindowSniper:
 
         # ── Side alignment: only trade the winning token ───────────────────────
         if token.side == "YES" and asset_direction < 0:
-            logger.info("SNIPER BLOCK %s/YES | side_wrong (asset falling, YES loses)")
+            logger.info("SNIPER BLOCK %s/YES | side_wrong (asset falling, YES loses)", token.asset)
             return None
         if token.side == "NO" and asset_direction > 0:
-            logger.info("SNIPER BLOCK %s/NO | side_wrong (asset rising, NO loses)")
+            logger.info("SNIPER BLOCK %s/NO | side_wrong (asset rising, NO loses)", token.asset)
             return None
 
         # ── Fair value via sigmoid ─────────────────────────────────────────────
