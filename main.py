@@ -292,8 +292,15 @@ class KlausBot:
                 # Sniper fired — use it as the signal; skip momentum scorer
                 signal = sniper_sig
                 signal_source = "SNIPER"
+            elif token.market_type == "updown":
+                # Sniper didn't fire on this updown token → skip entirely.
+                # Momentum scorer on updown markets has confirmed ZERO edge:
+                # 19 live trades, WR=36.8%, losses score HIGHER than wins (0.531 vs 0.511).
+                # Breakout and trend signals are anti-predictive on updown markets.
+                # Only the Window Sniper (fair-value model) is allowed to enter updown.
+                continue
             else:
-                # Fallback: momentum scorer (also covers non-updown markets)
+                # Non-updown (price-target markets): use momentum scorer
                 if len(bars_5m) < 12:
                     continue  # not enough bar history yet
 

@@ -139,9 +139,11 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.05,   # equal footing with ETH/SOL — no clean live BTC data yet
-        "ETH": 1.05,   # equal footing with BTC/SOL — no clean live ETH data yet
-        "SOL": 1.05,   # slight increase vs baseline: SOL 2× BTC volatility = more false breakouts
+        "BTC": 1.05,   # slight edge from live data (+$0.135)
+        "ETH": 9.99,   # PAUSED: 28.6% WR over 7 live trades, -$5.302 (worst asset by far)
+                       # Set to 9.99 so effective_min = 0.44 * 9.99 ≈ 4.4 → impossible to pass
+                       # Re-enable when Sniper accumulates 20+ ETH-specific trades
+        "SOL": 1.05,   # neutral — small sample, slight negative but recoverable
     })
 
     # Entry price sweet spot from data: best trades entered 0.245–0.260.

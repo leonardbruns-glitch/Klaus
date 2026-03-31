@@ -657,11 +657,14 @@ class RiskManager:
         if time_held >= 10:
             if remaining > 120:
                 sl_pct = 0.35  # First 2.5 min: wide stop
-                # Require 10s confirmation before firing wide stop.
-                # Updown mid-window prices spike and recover frequently; only the
-                # Chainlink T=0 snapshot resolves the market. A 12s fire at price 0.30
-                # with full recovery to 0.49 at 27s confirmed this: the wick was noise.
-                # Tight stop (last 2 min) fires immediately — no time for confirmation.
+                # Catastrophic drop (>50%): exit immediately — not a wick, genuine move.
+                # T00016 ETH: entered 0.56, exited 0.10 (-$2.32) because 10s confirmation
+                # window delayed SL until hard exit fired. At -50%+ the confirmation
+                # window costs more than it saves.
+                if current_price <= pos.entry_price * 0.50:
+                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                # Normal wide SL: require 10s confirmation to filter wick noise.
+                # Updown mid-window prices spike and recover frequently.
                 if current_price <= pos.entry_price * (1 - sl_pct):
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now  # first breach — start confirmation timer
@@ -681,7 +684,6 @@ class RiskManager:
                     pos.sl_breach_ts = 0.0  # price recovered — reset confirmation timer
             else:
                 sl_pct = 0.10  # Last 2 min: tight stop, fire immediately
-                # Stop loss fires when price falls below entry (same for BUY_YES and BUY_NO)
                 if current_price <= pos.entry_price * (1 - sl_pct):
                     return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
