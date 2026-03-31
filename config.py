@@ -44,10 +44,10 @@ class FeeConfig:
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.65   # raised 0.55→0.65: all live trades fat-middle,
-                                          # signals conf<0.65 net losers in live data.
-                                          # Production delta≥0.15% generates fewer, stronger
-                                          # signals — raise bar to match signal quality.
+    updown_min_confidence: float = 0.60   # lowered 0.65→0.60: MIN_EDGE=0.04 is the real
+                                          # quality gate; conf gate was over-filtering.
+                                          # Both wins (T00024/T00025) were at conf~0.60-0.64.
+                                          # Lowering to match signal quality at delta≥0.08%.
 
 
 @dataclass

@@ -49,8 +49,8 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 # Matches macro_engine thresholds so both engines agree on what constitutes a signal.
 # All 3 sniper losses (T00020/22/25) were quiet-hour trades at 0.066–0.079% delta.
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
-_DELTA_PCT_ACTIVE = 0.15   # 5m active hours: ≥0.15% move to fire
-_DELTA_PCT_QUIET  = 0.35   # 5m quiet hours: higher bar (noise floor is higher)
+_DELTA_PCT_ACTIVE = 0.08   # 5m active hours: pre-filter only — MIN_EDGE=0.04 does real work
+_DELTA_PCT_QUIET  = 0.15   # 5m quiet hours: slightly higher (noise floor higher off-session)
 
 # 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
 # is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
