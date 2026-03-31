@@ -60,7 +60,7 @@ _DELTA_PCT_15M_QUIET  = 0.25   # 15m quiet hours: lower than 5m (15min drift is 
 MIN_EDGE = 0.005            # TEST MODE — restore to 0.04 after confirming buy/sell works
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
 MIN_EDGE_BOOST = 0.02       # reduced gate when LLM macro_boost confirms
-WINDOW_ELAPSED_MIN = 0.40   # raised 0.35→0.40: 20-trade data — all 3 losses at ≤35% elapsed; both wins at 40-45%
+WINDOW_ELAPSED_MIN = 0.25   # lowered 0.40→0.25: market reprices in <120s — at 40% we arrive too late; sustain timer handles false moves
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
