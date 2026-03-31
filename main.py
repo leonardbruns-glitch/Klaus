@@ -24,7 +24,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
-from strategy.window_sniper import WindowSniper
+from strategy.window_sniper import WindowSniper, _session_min_delta
 from risk.manager import RiskManager
 from analytics.lag_observations import log_lag_observation
 from analytics.macro_engine import MacroEngine
@@ -568,10 +568,18 @@ class KlausBot:
             await self._enter_position(token_id, token.asset, signal, tpsl, decision)
 
         # ── Scan cycle summary ─────────────────────────────────────────────────
+        # Show asset deltas so user can see why sniper is/isn't firing
+        _delta_parts = []
+        for _a in CONFIG.markets.tracked_assets:
+            _ext = ext_signals.get(_a)
+            if _ext and _ext.spot_price and _ext.spot_window_open_5m:
+                _d = (_ext.spot_price - _ext.spot_window_open_5m) / _ext.spot_window_open_5m * 100
+                _delta_parts.append(f"{_a}={_d:+.3f}%")
         logger.info(
-            "SCAN cycle: %d updown (sniper fired=%d, waiting=%d) | %d target (momentum)",
-            _updown_scanned, _updown_fired, _updown_scanned - _updown_fired,
-            len(self.feed.tokens) - _updown_scanned,
+            "SCAN cycle: %d updown (fired=%d) | deltas: %s | need ≥%.2f%%",
+            _updown_scanned, _updown_fired,
+            " ".join(_delta_parts) if _delta_parts else "no data",
+            _session_min_delta(),
         )
 
         # ── Phase 2: LLM briefing for all sniper candidates ───────────────────
