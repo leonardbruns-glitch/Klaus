@@ -312,6 +312,7 @@ class RiskManager:
         asset: str = "",
         market_type: str = "target",
         cascade_discount: float = 0.0,
+        is_sniper: bool = False,
     ) -> RiskDecision:
         # Ruin floor: capital < $50 → hard stop (CLAUDE.md rule)
         if self.bankroll.capital < 50.0:
@@ -414,8 +415,14 @@ class RiskManager:
         if len(self.open_positions) >= self.cfg.max_open_positions:
             return RiskDecision(False, 0, f"Max positions reached")
 
-        stake = self.bankroll.current_stake
-        max_pct = 0.10 if self.bankroll.is_heat_check_active else 0.05
+        # Sniper bypasses heat check — strategy unvalidated at <20 live trades.
+        # Heat check caused T00022 to scale to 8 shares at bad entry → -$1.97 loss.
+        # Re-enable after 20+ sniper trades with WR >55%.
+        if is_sniper:
+            stake = self.cfg.base_stake
+        else:
+            stake = self.bankroll.current_stake
+        max_pct = 0.10 if (self.bankroll.is_heat_check_active and not is_sniper) else 0.05
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)

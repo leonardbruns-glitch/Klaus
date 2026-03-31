@@ -459,6 +459,7 @@ class KlausBot:
                     asset=token.asset,
                     market_type=token.market_type,
                     cascade_discount=0.0,
+                    is_sniper=True,
                 )
 
                 if not decision.approved:
@@ -677,6 +678,30 @@ class KlausBot:
             self._buy_failed_reasons[reason] = self._buy_failed_reasons.get(reason, 0) + 1
             logger.error("Fill failed for %s: %s", asset, reason)
             return
+
+        # Slippage guard: if fill is >10¢ below limit, the market moved hard against
+        # us mid-order — signal is invalidated. Close immediately rather than enter
+        # a position anchored to a stale thesis. (T00026: limit=0.495 fill=0.310)
+        slippage_on_entry = signal.entry_price - fill.avg_fill_price
+        if slippage_on_entry > 0.10:
+            self._buy_failed_reasons["slippage_abort"] = \
+                self._buy_failed_reasons.get("slippage_abort", 0) + 1
+            logger.warning(
+                "SLIPPAGE ABORT %s: fill=%.4f vs limit=%.4f (slippage=%.4f > 0.10) "
+                "— market moved against signal mid-order, not opening position",
+                asset, fill.avg_fill_price, signal.entry_price, slippage_on_entry,
+            )
+            # Immediately sell back what we just bought to recover capital
+            await self.orders.cascade_sell(
+                token_id=token_id,
+                shares=fill.total_size,
+                current_price=fill.avg_fill_price,
+                reason="SLIPPAGE_ABORT",
+                neg_risk=getattr(self.feed.tokens.get(token_id), "neg_risk", False),
+                tick_size=getattr(self.feed.tokens.get(token_id), "tick_size", "0.01"),
+            )
+            return
+
         self._buy_filled += 1
 
         # Use actual fill cost as stake — CLOB 5-share minimum may require more than
@@ -874,6 +899,19 @@ class KlausBot:
         analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
         # Capture full share count before close_position pops pos from dict.
         all_shares = pos.shares
+
+        # Residual share warning: if we sold less than we held, shares remain on-chain.
+        # These will resolve at settlement but are invisible to the bot.
+        # (T00026: 5.7 of 6.0 shares sold → 0.3 stranded, redeemed manually for +$0.48)
+        _DUST_THRESHOLD = 0.10
+        if sold_shares < all_shares - _DUST_THRESHOLD:
+            residual = all_shares - sold_shares
+            logger.warning(
+                "RESIDUAL SHARES: %.4f %s shares NOT sold (sold %.4f of %.4f) — "
+                "still open on Polymarket, will resolve at settlement. "
+                "Redeem manually if market resolved in our favour.",
+                residual, pos.asset, sold_shares, all_shares,
+            )
 
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
 

@@ -44,10 +44,10 @@ class FeeConfig:
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
     middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.55   # raised 0.0→0.55: 7/12 fat-middle trades losing
-                                          # Break-even at 1.80% peak fee ≈ 51.8% (simple) but
-                                          # round-trip taker cost ≈ 3.6% → need ~53.6% true prob.
-                                          # 0.55 provides adequate safety margin above break-even.
+    updown_min_confidence: float = 0.65   # raised 0.55→0.65: all live trades fat-middle,
+                                          # signals conf<0.65 net losers in live data.
+                                          # Production delta≥0.15% generates fewer, stronger
+                                          # signals — raise bar to match signal quality.
 
 
 @dataclass
