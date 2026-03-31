@@ -62,7 +62,7 @@ class MomentumConfig:
     ob_imbalance_thresh: float = 0.60  # bid / (bid + ask) depth ratio
 
     # ── Composite scoring thresholds ────────────────────────────────────────
-    min_score: float = 0.44            # raised 0.37→0.44: tighten quality gate based on live session data
+    min_score: float = 0.35            # TEST MODE (prod=0.44) — let sniper composite through
     # weights (must sum to 1.0)
     # Rebalanced 2026-03-30: added intrawindow_delta ("king signal" per Archetapp research);
     # reduced trend weight (EMA5/15 on 15-min bars = 75/225-min MAs, too slow for 5-min windows);
@@ -136,10 +136,9 @@ class EdgeConfig:
     # BTC needs much higher confidence to overcome its 6% baseline WR.
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.05,   # slight edge from live data (+$0.135)
-        "ETH": 1.05,   # 28.6% WR on momentum scorer — but that scorer is now killed for updown.
-                       # Sniper uses fair-value math, not TA, so prior ETH WR is irrelevant.
-        "SOL": 1.05,   # neutral — small sample, slight negative but recoverable
+        "BTC": 1.0,   # TEST MODE — no multiplier penalty (prod=1.05)
+        "ETH": 1.0,
+        "SOL": 1.0,
     })
 
     # Entry price sweet spot from data: best trades entered 0.245–0.260.
