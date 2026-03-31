@@ -310,6 +310,10 @@ class RiskManager:
         market_type: str = "target",
         cascade_discount: float = 0.0,
     ) -> RiskDecision:
+        # Ruin floor: capital < $50 → hard stop (CLAUDE.md rule)
+        if self.bankroll.capital < 50.0:
+            return RiskDecision(False, 0, f"RUIN FLOOR: capital=${self.bankroll.capital:.2f} < $50 — halt until manual review")
+
         # Daily loss halt
         if self.bankroll.is_halted:
             return RiskDecision(False, 0, "Daily loss limit reached")
