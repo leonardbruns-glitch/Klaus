@@ -701,6 +701,24 @@ class KlausBot:
         this_sell = sum(f.total_size for f in exit_fills)   # this cascade attempt only
         expected_this_sell = pos.remaining_shares            # what we tried to sell
 
+        # Ghost position guard: MUST run BEFORE Guard 1 (which returns early on 0 fills).
+        # CLOB balance=0 means we never owned these tokens — cancel-race false positive.
+        # Close at 0 immediately so bot stops retrying and capital tracking stays honest.
+        ghost_detected = any(
+            "GHOST_POSITION" in (getattr(r, "error", "") or "")
+            for r in exit_fills
+        )
+        if ghost_detected:
+            logger.error(
+                "GHOST POSITION purged: %s/%s — stake=$%.2f recorded as total loss. "
+                "Cancel-race false positive in earlier session.",
+                pos.asset, pos.direction.name, pos.stake,
+            )
+            self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
+            self._open_meta.pop(token_id, None)
+            self._pos_log_ts.pop(token_id, None)
+            return
+
         # Guard 1: zero sell before stage-1 → network/CLOB error, retry next scan.
         # Calling close_position on 0 fills ghosts the position: bot records a loss
         # while shares remain on Polymarket (T00011: 4.9 ETH shares left to resolve).
@@ -753,24 +771,6 @@ class KlausBot:
 
         stage2_fallback = self._calc_exit_price(exit_fills, pos.entry_price)
 
-        # Ghost position guard: CLOB says balance=0 — we never owned these tokens.
-        # Cancel-race recovery in a previous session recorded a fill that never settled.
-        # Close immediately at 0, recording the stake as a complete loss, so the bot
-        # stops retrying and capital tracking is honest.
-        ghost_detected = any(
-            "GHOST_POSITION" in (getattr(r, "error", "") or "")
-            for r in exit_fills
-        )
-        if ghost_detected:
-            logger.error(
-                "GHOST POSITION purged: %s/%s — stake=$%.2f recorded as total loss. "
-                "Cancel-race false positive in earlier session.",
-                pos.asset, pos.direction.name, pos.stake,
-            )
-            self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
-            self._open_meta.pop(token_id, None)
-            self._pos_log_ts.pop(token_id, None)
-            return
         # Weighted avg exit price across ALL tranches (stage-1 95% + stage-2 5%).
         analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
         # Capture full share count before close_position pops pos from dict.
