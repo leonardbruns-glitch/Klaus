@@ -57,9 +57,9 @@ _DELTA_PCT_QUIET  = 0.06   # TEST MODE
 _DELTA_PCT_15M_ACTIVE = 0.06   # TEST MODE
 _DELTA_PCT_15M_QUIET  = 0.10   # TEST MODE
 
-MIN_EDGE = 0.02             # minimum edge to enter — filters noise (0.005 was too loose)
-MIN_EDGE_VPIN = 0.015       # reduced gate when VPIN confirms direction
-MIN_EDGE_BOOST = 0.01       # reduced gate when LLM macro_boost confirms
+MIN_EDGE = 0.01             # AGGRESSIVE MODE — any positive edge enters
+MIN_EDGE_VPIN = 0.008       # VPIN confirmed
+MIN_EDGE_BOOST = 0.005      # LLM macro confirmed
 WINDOW_ELAPSED_MIN = 0.10   # TEST MODE — enter at 10% elapsed (30s into 5m window)
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow

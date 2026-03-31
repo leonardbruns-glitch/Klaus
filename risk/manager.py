@@ -696,23 +696,22 @@ class RiskManager:
             if current_price <= tight_price:
                 return ExitDecision(True, f"LLM_TIGHT_SL({pos.dynamic_sl_override:.0%})", urgency="immediate")
 
-        # ── 7. Dynamic SL (only before stage-1, after 10s grace) ─────────────
-        if time_held >= 10:
-            if remaining > 120:
-                # Windowed markets: 20% SL (breakeven WR ~46% vs 69% at 35%).
-                # Data: T00021 exit=0.28 entry=0.56 (-50%), T00022 exit=0.35 entry=0.58 (-40%),
-                # T00023 exit=0.31 entry=0.54 (-43%) — all would have exited at 20% SL.
-                # Avg win=$0.539 vs avg loss=$1.196 (2.22×): 35% SL makes breakeven 69% WR.
-                # At 20% SL: avg loss ~$0.57 → breakeven ~46% WR, achievable with new filters.
-                sl_pct = 0.20 if pos.window_end_ts > 0 else 0.35
-                is_5m = pos.window_end_ts > 0 and (pos.window_end_ts - pos.open_ts + time_held) <= 360
+        # ── 7. Dynamic SL ────────────────────────────────────────────────────────
+        is_15m_pos = pos.window_end_ts > 0 and (pos.window_end_ts - pos.open_ts) > 360
+        is_5m = pos.window_end_ts > 0 and not is_15m_pos
 
-                # Catastrophic drop (≥40% in 5m, ≥50% in 15m): always immediate.
-                # T00032: 0.58→0.22 in <1s — no wick, genuine move. Confirmation would
-                # have made it far worse.
-                catastro_thresh = 0.60 if is_5m else 0.50  # 40% drop / 50% drop
-                if current_price <= pos.entry_price * catastro_thresh:
-                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+        # Catastrophic drop: always immediate, no grace period.
+        # 15m: ≥50% drop. 5m: ≥40% drop.
+        if pos.window_end_ts > 0:
+            catastro_thresh = 0.60 if is_5m else 0.50
+            if current_price <= pos.entry_price * catastro_thresh:
+                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+
+        # Grace period: 60s for 15m (first minute = wick zone), 10s for 5m
+        sl_grace = 60 if is_15m_pos else 10
+        if time_held >= sl_grace:
+            if remaining > 120:
+                sl_pct = 0.20 if pos.window_end_ts > 0 else 0.35
 
                 if current_price <= pos.entry_price * (1 - sl_pct):
                     # Wick confirmation timer — bots paint stops to shake out positions.
