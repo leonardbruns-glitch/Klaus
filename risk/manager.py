@@ -702,33 +702,38 @@ class RiskManager:
                 # Avg win=$0.539 vs avg loss=$1.196 (2.22×): 35% SL makes breakeven 69% WR.
                 # At 20% SL: avg loss ~$0.57 → breakeven ~46% WR, achievable with new filters.
                 sl_pct = 0.20 if pos.window_end_ts > 0 else 0.35
-                # Catastrophic drop (>50%): exit immediately — not a wick, genuine move.
-                # T00016 ETH: entered 0.56, exited 0.10 (-$2.32) because 10s confirmation
-                # window delayed SL until hard exit fired. At -50%+ the confirmation
-                # window costs more than it saves.
-                if current_price <= pos.entry_price * 0.50:
+                is_5m = pos.window_end_ts > 0 and (pos.window_end_ts - pos.open_ts + time_held) <= 360
+
+                # Catastrophic drop (≥40% in 5m, ≥50% in 15m): always immediate.
+                # T00032: 0.58→0.22 in <1s — no wick, genuine move. Confirmation would
+                # have made it far worse.
+                catastro_thresh = 0.60 if is_5m else 0.50  # 40% drop / 50% drop
+                if current_price <= pos.entry_price * catastro_thresh:
                     return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                # Normal wide SL: require 10s confirmation to filter wick noise.
-                # Updown mid-window prices spike and recover frequently.
+
                 if current_price <= pos.entry_price * (1 - sl_pct):
-                    # Windowed markets (updown sniper): immediate exit — no confirmation.
-                    # 10s window causes 15-20% extra loss as price falls through the stop.
-                    # Sniper entry already confirms direction; a 35% adverse move = thesis wrong.
-                    if pos.window_end_ts > 0:
-                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                    if pos.sl_breach_ts == 0.0:
-                        pos.sl_breach_ts = now  # first breach — start confirmation timer
-                        logger.debug(
-                            "Wide SL breached @ %.4f (entry=%.4f sl_pct=%.0f%%) — "
-                            "waiting 10s confirmation",
-                            current_price, pos.entry_price, sl_pct * 100,
-                        )
-                    elif now - pos.sl_breach_ts >= 10.0:
+                    if is_5m:
+                        # 5m markets: 3s confirmation to filter wick noise.
+                        # Updown 5m prices spike 20%+ and recover within 1-2s frequently.
+                        # T00040: exited in 17s — a timer would have let the wick clear.
+                        # Catastrophic case (≥40%) already caught above.
+                        if pos.sl_breach_ts == 0.0:
+                            pos.sl_breach_ts = now
+                            logger.debug(
+                                "5m SL breached @ %.4f (entry=%.4f -%.0f%%) — "
+                                "waiting 3s wick confirmation",
+                                current_price, pos.entry_price, sl_pct * 100,
+                            )
+                        elif now - pos.sl_breach_ts >= 3.0:
+                            return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                    else:
+                        # 15m markets: immediate — more capital at stake, genuine moves
+                        # take longer to reverse and the 1s scan misses the recovery anyway.
                         return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                 else:
                     if pos.sl_breach_ts > 0.0:
                         logger.debug(
-                            "Wide SL breach reset — price %.4f recovered above threshold %.4f",
+                            "SL breach reset — price %.4f recovered above threshold %.4f",
                             current_price, pos.entry_price * (1 - sl_pct),
                         )
                     pos.sl_breach_ts = 0.0  # price recovered — reset confirmation timer
