@@ -57,7 +57,7 @@ _DELTA_PCT_QUIET  = 0.01   # TEST MODE — restore to 0.35 after confirming buy/
 _DELTA_PCT_15M_ACTIVE = 0.12   # 15m active hours: slightly below 5m (longer confirmation window)
 _DELTA_PCT_15M_QUIET  = 0.25   # 15m quiet hours: lower than 5m (15min drift is less noisy)
 
-MIN_EDGE = 0.04             # fair_value - token_ask ≥ this to enter
+MIN_EDGE = 0.005            # TEST MODE — restore to 0.04 after confirming buy/sell works
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
 MIN_EDGE_BOOST = 0.02       # reduced gate when LLM macro_boost confirms
 WINDOW_ELAPSED_MIN = 0.40   # raised 0.35→0.40: 20-trade data — all 3 losses at ≤35% elapsed; both wins at 40-45%
