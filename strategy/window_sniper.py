@@ -60,12 +60,20 @@ _DELTA_PCT_15M_QUIET  = 0.25   # 15m quiet hours: lower than 5m (15min drift is 
 MIN_EDGE = 0.005            # TEST MODE — restore to 0.04 after confirming buy/sell works
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
 MIN_EDGE_BOOST = 0.02       # reduced gate when LLM macro_boost confirms
-WINDOW_ELAPSED_MIN = 0.25   # lowered 0.40→0.25: market reprices in <120s — at 40% we arrive too late; sustain timer handles false moves
+WINDOW_ELAPSED_MIN = 0.25   # normal entry gate: 25% elapsed (75s into 5m window)
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
 MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens
 MAX_TOKEN_ASK = 0.65        # allow partially-priced moves — edge still exists at 0.62 ask if FV=0.80
+
+# ── Pre-arm: early entry when previous window already repriced ─────────────────
+# If current window's token repriced past 0.80, next window will open at ~0.50.
+# We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
+PREARM_ELAPSED_MIN = 0.05       # enter at 5% elapsed when pre-armed (vs 0.25 normal)
+PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
+PREARM_SUSTAIN_FACTOR = 0.5     # require only 50% of normal sustain (prev window = confirmation)
+PREARM_EXPIRY_S = 600           # pre-arm expires after 10 min (2 windows) if unused
 
 
 @dataclass
@@ -120,6 +128,10 @@ class WindowSniper:
         # Per-(token_id, direction) timestamp of first threshold breach.
         # Cleared when delta reverses or falls below min_delta.
         self._delta_sustained_since: dict = {}
+        # Pre-arm state: (asset, side) → timestamp when armed.
+        # Set when current window is fully repriced (ask > 0.80).
+        # Allows early entry (5% elapsed) in the next window.
+        self._prearm: dict = {}
 
     def score(
         self,
@@ -187,6 +199,18 @@ class WindowSniper:
                 _SUSTAINED_5M if not is_15m else _SUSTAINED_15M,
             )
 
+        # ── Pre-arm check: allow early entry if previous window was fully repriced ─
+        prearm_key = (token.asset, token.side)
+        is_prearmed = False
+        if prearm_key in self._prearm:
+            age = now - self._prearm[prearm_key]
+            if age < PREARM_EXPIRY_S:
+                is_prearmed = True
+                logger.debug("SNIPER PREARMED %s/%s | age=%.0fs — using early entry gate",
+                             token.asset, token.side, age)
+            else:
+                del self._prearm[prearm_key]  # expired
+
         # ── Time gate ──────────────────────────────────────────────────────────
         if token.window_end_ts <= 0 or token.window_seconds <= 0:
             return None
@@ -195,9 +219,11 @@ class WindowSniper:
         elapsed = now - window_start
         elapsed_pct = elapsed / token.window_seconds
 
-        if elapsed_pct < WINDOW_ELAPSED_MIN:
-            logger.info("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%",
-                        token.asset, token.side, elapsed_pct*100, WINDOW_ELAPSED_MIN*100)
+        elapsed_min = PREARM_ELAPSED_MIN if is_prearmed else WINDOW_ELAPSED_MIN
+        if elapsed_pct < elapsed_min:
+            logger.info("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
+                        token.asset, token.side, elapsed_pct*100, elapsed_min*100,
+                        " (prearmed)" if is_prearmed else "")
             return None
         if elapsed_pct > WINDOW_ELAPSED_MAX:
             logger.info("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%%",
@@ -206,6 +232,8 @@ class WindowSniper:
 
         # ── Sustained delta gate ───────────────────────────────────────────────
         required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
+        if is_prearmed:
+            required_sustain = max(1.0, required_sustain * PREARM_SUSTAIN_FACTOR)
         sustained_for = now - self._delta_sustained_since[sustain_key]
         if sustained_for < required_sustain:
             logger.info("SNIPER BLOCK %s/%s | sustain %.1fs / %.0fs delta=%.3f%%",
@@ -231,6 +259,15 @@ class WindowSniper:
             return None
 
         if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
+            # If market has strongly repriced this token (>80%), arm early entry for next window.
+            # Side is already aligned here (wrong-side tokens were filtered above), so this
+            # token IS the winning side — next window it resets to ~0.50 and we enter fast.
+            if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
+                self._prearm[prearm_key] = now
+                logger.info(
+                    "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed (5%% elapsed)",
+                    token.asset, token.side, token_ask,
+                )
             logger.info("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f]",
                         token.asset, token.side, token_ask, MIN_TOKEN_ASK, MAX_TOKEN_ASK)
             return None
@@ -307,8 +344,14 @@ class WindowSniper:
         entry_price = min(0.97, round(token_ask + 0.005, 4))
 
         # ── Reason string ─────────────────────────────────────────────────────
+        # ── Clear pre-arm on signal — one-shot per window ─────────────────────
+        if is_prearmed and prearm_key in self._prearm:
+            del self._prearm[prearm_key]
+            logger.info("SNIPER PREARM FIRED %s/%s | early entry used, pre-arm cleared",
+                        token.asset, token.side)
+
         reason = (
-            f"Sniper: {token.asset} {delta_pct:+.3f}% from window open | "
+            f"Sniper{'[PREARMED]' if is_prearmed else ''}: {token.asset} {delta_pct:+.3f}% from window open | "
             f"{elapsed_pct:.0%} elapsed | FV={fair_value:.3f} ask={token_ask:.3f} "
             f"edge={edge:+.3f}"
         )
