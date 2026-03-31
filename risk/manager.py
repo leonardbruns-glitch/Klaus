@@ -632,9 +632,15 @@ class RiskManager:
         if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
             return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
 
-        # ── 3. Stage-1 profit: +25 % with 2.5s confirmation ──────────────────
+        # ── 3. Stage-1 profit: +25 % ─────────────────────────────────────────
         if pos.exit_stage == ExitStage.NONE:
             if move_pct >= 0.25:
+                if pos.window_end_ts > 0:
+                    # Windowed markets: exit immediately — no confirmation timer.
+                    # Data: avg profit decays rapidly as window nears expiry.
+                    # 2.5s timer risks missing the exit near window close.
+                    return ExitDecision(True, "PROFIT_1", partial=True, urgency="cascade")
+                # Price-target markets: 2.5s confirmation to filter wicks
                 if pos.profit_trigger_ts == 0.0:
                     pos.profit_trigger_ts = now
                     return None  # Start confirmation timer
@@ -672,7 +678,12 @@ class RiskManager:
         # ── 7. Dynamic SL (only before stage-1, after 10s grace) ─────────────
         if time_held >= 10:
             if remaining > 120:
-                sl_pct = 0.35  # First 2.5 min: wide stop
+                # Windowed markets: 20% SL (breakeven WR ~46% vs 69% at 35%).
+                # Data: T00021 exit=0.28 entry=0.56 (-50%), T00022 exit=0.35 entry=0.58 (-40%),
+                # T00023 exit=0.31 entry=0.54 (-43%) — all would have exited at 20% SL.
+                # Avg win=$0.539 vs avg loss=$1.196 (2.22×): 35% SL makes breakeven 69% WR.
+                # At 20% SL: avg loss ~$0.57 → breakeven ~46% WR, achievable with new filters.
+                sl_pct = 0.20 if pos.window_end_ts > 0 else 0.35
                 # Catastrophic drop (>50%): exit immediately — not a wick, genuine move.
                 # T00016 ETH: entered 0.56, exited 0.10 (-$2.32) because 10s confirmation
                 # window delayed SL until hard exit fired. At -50%+ the confirmation
