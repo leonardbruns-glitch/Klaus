@@ -462,10 +462,13 @@ class OrderManager:
             if remaining * sell_price < 1.50 and not force_exit:
                 logger.info(
                     "Dust skip: %.4f shares @ %.4f = $%.3f < $1.50 threshold — "
-                    "will settle at resolution",
+                    "flagging EXTERNALLY_SOLD so position closes cleanly",
                     remaining, sell_price, remaining * sell_price,
                 )
-                break
+                return [OrderResult(
+                    status=OrderStatus.FAILED,
+                    error=f"EXTERNALLY_SOLD:balance={int(remaining * 1_000_000)}",
+                )]
 
             # Limit order sell. Market order (FOK SELL) removed: its amount
             # semantics differ from BUY (tokens vs USDC), causing under-sells.
@@ -515,13 +518,13 @@ class OrderManager:
                                 status=OrderStatus.FAILED,
                                 error="GHOST_POSITION:balance=0",
                             )
-                        if actual_shares < 0.01:
-                            # Dust balance — position was sold externally (manual sell).
-                            # balance=460 micro-tokens = 0.00046 shares, not worth retrying.
-                            # Retrying floods the log and hammers the CLOB with bad orders.
+                        if actual_shares < 0.05:
+                            # Dust balance — position was sold externally (manual sell) or
+                            # cascade partial-filled and leftover is sub-$1.50 dust.
+                            # 0.05 shares @ any reasonable price = < $0.05. Not worth retrying.
                             logger.warning(
                                 "EXTERNALLY_SOLD %s: CLOB balance=%d micro-tokens (%.6f shares) "
-                                "— position was likely sold manually. Treating as closed.",
+                                "— dust remainder, treating as closed.",
                                 token_id[:12], actual_ticks, actual_shares,
                             )
                             return OrderResult(
