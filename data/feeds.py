@@ -1159,16 +1159,39 @@ class PolymarketFeed:
         logger.info("Bar warmup: seeded %d bars across %d tokens", total, len(self.tokens))
 
     async def update_bars(self) -> None:
-        """Push latest trade into bar builders for all tokens."""
+        """
+        Push latest trade into bar builders for all active tokens.
+
+        Fixes two performance issues from sequential implementation:
+        1. Sequential REST calls (50+ tokens × 50ms each = 2-3s blocking the scan cycle)
+           → replaced with asyncio.gather for parallel fetching
+        2. Near-resolved tokens (price <0.05 or >0.95) waste REST calls and will
+           never qualify for entry → skip them, use OB mid directly
+        """
         import random
         now = time.time()
-        for token_id in list(self.tokens.keys()):
-            result = await self.fetch_last_trade(token_id)
-            if result and result[0] > 0:
-                price, size = result
+        token_ids = list(self.tokens.keys())
+
+        # Skip REST for near-resolved tokens — they'll never enter and just waste calls.
+        # Use OB mid directly for them (they're not trading anyway).
+        rest_ids = []
+        ob_only_ids = []
+        for tid in token_ids:
+            ob = self.order_books.get(tid)
+            mid = ob.mid if ob else 0.0
+            if not self._stub_mode and 0.05 < mid < 0.95:
+                rest_ids.append(tid)
             else:
-                # No last trade (stub mode, no recent trades, or zero price returned).
-                # Fall back to OB mid so bars stay current with the live market price.
+                ob_only_ids.append(tid)
+
+        # Parallel REST fetch for active tokens
+        results = await asyncio.gather(
+            *[self.fetch_last_trade(tid) for tid in rest_ids],
+            return_exceptions=True,
+        )
+
+        for token_id, result in zip(rest_ids, results):
+            if isinstance(result, Exception) or result is None or result[0] <= 0:
                 ob = self.order_books.get(token_id)
                 if ob is None or ob.mid <= 0:
                     continue
@@ -1178,6 +1201,22 @@ class PolymarketFeed:
                 else:
                     price = ob.mid
                     size = 1.0
+            else:
+                price, size = result
+            self.bar_builders_5m[token_id].update(price, size, now)
+            self.bar_builders_15m[token_id].update(price, size, now)
+
+        # OB-only path for near-resolved tokens (no REST)
+        for token_id in ob_only_ids:
+            ob = self.order_books.get(token_id)
+            if ob is None or ob.mid <= 0:
+                continue
+            if self._stub_mode:
+                price = max(0.01, min(0.99, ob.mid + random.gauss(0, 0.004)))
+                size = random.uniform(50, 500)
+            else:
+                price = ob.mid
+                size = 1.0
             self.bar_builders_5m[token_id].update(price, size, now)
             self.bar_builders_15m[token_id].update(price, size, now)
 
