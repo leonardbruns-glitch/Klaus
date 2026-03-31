@@ -49,9 +49,8 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 # Matches macro_engine thresholds so both engines agree on what constitutes a signal.
 # All 3 sniper losses (T00020/22/25) were quiet-hour trades at 0.066–0.079% delta.
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
-_DELTA_PCT_ACTIVE = 0.15   # lowered 0.20→0.15: sustain gate now does wick-filtering
-                           # 0.15% → FV=0.77, edge≥0.17 at ask≤0.60. ~2× more opportunities.
-_DELTA_PCT_QUIET  = 0.35   # 0.35% during quiet hours — raises bar to filter noise
+_DELTA_PCT_ACTIVE = 0.01   # TEST MODE — restore to 0.15 after confirming buy/sell works
+_DELTA_PCT_QUIET  = 0.01   # TEST MODE — restore to 0.35 after confirming buy/sell works
 
 # 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
 # is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
@@ -104,8 +103,8 @@ def _session_min_delta(is_15m: bool = False) -> float:
 #   5-min windows (≤300s): 20s — wicks reverse in <15s; 30s too narrow (only 90s
 #     first-breach window available between elapsed 40-70%). 10s still filters 5-15s wicks.
 #   15-min+ windows  (>300s): 20s — longer window; 20s sustain proportionally less costly.
-_SUSTAINED_5M = 10.0
-_SUSTAINED_15M = 20.0
+_SUSTAINED_5M = 2.0    # TEST MODE — restore to 10.0
+_SUSTAINED_15M = 2.0   # TEST MODE — restore to 20.0
 
 
 class WindowSniper:
