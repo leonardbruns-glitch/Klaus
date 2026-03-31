@@ -351,9 +351,6 @@ class KlausBot:
             await asyncio.sleep(CONFIG.markets.scan_interval)
 
     async def _scan_for_signals(self) -> None:
-        if self.risk.bankroll.is_halted:
-            logger.warning("Trading HALTED — daily loss limit reached")
-            return
 
         # Periodic updown token count — fires every ~10s to confirm discovery health
         now_ts = time.time()
