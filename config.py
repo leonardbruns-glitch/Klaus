@@ -140,9 +140,8 @@ class EdgeConfig:
     # ETH gets a discount as the strongest performer.
     asset_score_multiplier: dict = field(default_factory=lambda: {
         "BTC": 1.05,   # slight edge from live data (+$0.135)
-        "ETH": 9.99,   # PAUSED: 28.6% WR over 7 live trades, -$5.302 (worst asset by far)
-                       # Set to 9.99 so effective_min = 0.44 * 9.99 ≈ 4.4 → impossible to pass
-                       # Re-enable when Sniper accumulates 20+ ETH-specific trades
+        "ETH": 1.05,   # 28.6% WR on momentum scorer — but that scorer is now killed for updown.
+                       # Sniper uses fair-value math, not TA, so prior ETH WR is irrelevant.
         "SOL": 1.05,   # neutral — small sample, slight negative but recoverable
     })
 
