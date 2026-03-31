@@ -632,13 +632,27 @@ class RiskManager:
         if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
             return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
 
-        # ── 3. Stage-1 profit: +25 % ─────────────────────────────────────────
+        # ── 3. Stage-1 profit: time-aware target ────────────────────────────────
+        # Windowed markets: target scales with time remaining.
+        #   >120s remaining: hold for +30% (enough time; better R/R — breakeven WR ~40%)
+        #   60-120s remaining: standard +25%
+        #   <60s remaining: take +18% (window closing; don't die waiting for a higher target)
+        # Fee math: round-trip fees ~3.6% → breakeven WR at 25%/20% = ~50%;
+        #           at 30%/20% = ~40%. Raising TP to 30% when time allows crosses break-even.
         if pos.exit_stage == ExitStage.NONE:
-            if move_pct >= 0.25:
+            if pos.window_end_ts > 0:
+                if remaining > 120:
+                    profit1_pct = 0.30
+                elif remaining > 60:
+                    profit1_pct = 0.25
+                else:
+                    profit1_pct = 0.18   # take what's available near window expiry
+            else:
+                profit1_pct = 0.25       # price-target markets: unchanged
+
+            if move_pct >= profit1_pct:
                 if pos.window_end_ts > 0:
-                    # Windowed markets: exit immediately — no confirmation timer.
-                    # Data: avg profit decays rapidly as window nears expiry.
-                    # 2.5s timer risks missing the exit near window close.
+                    # Windowed markets: no confirmation timer — price decays near expiry.
                     return ExitDecision(True, "PROFIT_1", partial=True, urgency="cascade")
                 # Price-target markets: 2.5s confirmation to filter wicks
                 if pos.profit_trigger_ts == 0.0:

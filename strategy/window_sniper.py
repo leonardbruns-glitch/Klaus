@@ -91,6 +91,12 @@ def _session_min_delta() -> float:
     return _DELTA_PCT_ACTIVE if hour in _HIGH_VOLUME_HOURS else _DELTA_PCT_QUIET
 
 
+SUSTAINED_DELTA_SECS = 30.0   # delta must hold for this long before entry fires
+                               # Wicks reverse in <15s; genuine macro moves sustain 30s+
+                               # Effectively shifts entry from 40% to ~50% elapsed — still
+                               # well within the 40-80% window but filtered for direction.
+
+
 class WindowSniper:
     """
     Mid-window fair-value arbitrage engine.
@@ -99,6 +105,11 @@ class WindowSniper:
     Returns SniperSignal when entry conditions are met, else None.
     Only fires for the correct side: YES token when asset up, NO token when asset down.
     """
+
+    def __init__(self) -> None:
+        # Per-(token_id, direction) timestamp of first threshold breach.
+        # Cleared when delta reverses or falls below min_delta.
+        self._delta_sustained_since: dict = {}
 
     def score(
         self,
@@ -155,6 +166,10 @@ class WindowSniper:
 
         min_delta = _session_min_delta()
         if abs(delta_pct) < min_delta:
+            # Delta below threshold — clear any sustained timers for this token.
+            # If the move reverses/fades, we reset so next breach starts fresh.
+            self._delta_sustained_since.pop((token.token_id, 1), None)
+            self._delta_sustained_since.pop((token.token_id, -1), None)
             logger.debug(
                 "SNIPER SKIP %s/%s | delta=%.3f%% < session_min=%.2f%% (%s)",
                 token.asset, token.side, delta_pct, min_delta,
@@ -163,6 +178,31 @@ class WindowSniper:
             return None  # asset hasn't moved enough to create a mispricing gap
 
         asset_direction = 1 if delta_pct > 0 else -1
+
+        # ── Sustained delta gate ───────────────────────────────────────────────
+        # Require delta to hold above threshold for 30s before firing.
+        # Filters out wicks (5-15s spike that reverses) vs genuine macro moves (30s+).
+        # Data rationale: all 3 sniper losses were likely wick entries — delta at entry
+        # was quickly fading, not a sustained directional move.
+        sustain_key = (token.token_id, asset_direction)
+        opp_key = (token.token_id, -asset_direction)
+        self._delta_sustained_since.pop(opp_key, None)  # clear reversed-direction timer
+
+        if sustain_key not in self._delta_sustained_since:
+            self._delta_sustained_since[sustain_key] = now
+            logger.debug(
+                "SNIPER SUSTAIN_START %s/%s | delta=%.3f%% — waiting %.0fs confirmation",
+                token.asset, token.side, delta_pct, SUSTAINED_DELTA_SECS,
+            )
+            return None  # first breach — start sustain timer
+
+        sustained_for = now - self._delta_sustained_since[sustain_key]
+        if sustained_for < SUSTAINED_DELTA_SECS:
+            logger.debug(
+                "SNIPER SUSTAIN_WAIT %s/%s | delta=%.3f%% held %.1fs / %.0fs",
+                token.asset, token.side, delta_pct, sustained_for, SUSTAINED_DELTA_SECS,
+            )
+            return None  # not yet sustained — wait
 
         # ── Side alignment: only trade the winning token ───────────────────────
         # YES wins when asset goes up; NO wins when asset goes down.
