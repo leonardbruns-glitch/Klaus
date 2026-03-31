@@ -313,6 +313,7 @@ class RiskManager:
         market_type: str = "target",
         cascade_discount: float = 0.0,
         is_sniper: bool = False,
+        window_seconds: int = 0,
     ) -> RiskDecision:
         # Ruin floor: capital < $50 → hard stop (CLAUDE.md rule)
         if self.bankroll.capital < 50.0:
@@ -369,13 +370,14 @@ class RiskManager:
                     )
         else:
             # Updown: reject near-resolved markets.
-            # TEST MODE: widened to [0.35, 0.65] to match sniper's ask range gate.
-            # Prod cap was 0.60 based on live loss pattern (0.59+ entries all lost).
-            # Revert to 0.60/0.40 after dataset collected.
-            if signal.entry_price > 0.65 or signal.entry_price < 0.35:
+            # 5m markets: tight cap 0.55 — fast reversals make high entries lethal
+            #   (T00030/32/34 all entered 0.58-0.63, SL in <16s, price crashed past stop)
+            # 15m markets: 0.65 — more time, slower repricing
+            _updown_max = 0.55 if window_seconds <= 300 else 0.65
+            if signal.entry_price > _updown_max or signal.entry_price < 0.35:
                 return RiskDecision(
                     False, 0,
-                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.35, 0.65]",
+                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.35, {_updown_max}] ({'5m' if window_seconds <= 300 else '15m'})",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────

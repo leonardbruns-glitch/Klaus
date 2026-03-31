@@ -465,6 +465,7 @@ class KlausBot:
                     market_type=token.market_type,
                     cascade_discount=0.0,
                     is_sniper=True,
+                    window_seconds=getattr(token, "window_seconds", 0),
                 )
 
                 if not decision.approved:
@@ -575,6 +576,7 @@ class KlausBot:
                 market_type=token.market_type,
                 cascade_discount=CONFIG.edge.cascade_score_discount
                     if token.asset in discounted_assets else 0.0,
+                window_seconds=getattr(token, "window_seconds", 0),
             )
 
             if not decision.approved:
