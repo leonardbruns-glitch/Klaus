@@ -25,6 +25,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
+from strategy.window_sniper import WindowSniper
 from risk.manager import RiskManager
 from analytics.lag_observations import log_lag_observation
 from analytics.macro_engine import MacroEngine
@@ -62,6 +63,7 @@ class KlausBot:
         self.analytics = FeedbackEngine()
         self.research = ResearchEngine(self.feed, self.scorer)
         self.macro_engine = MacroEngine()
+        self.sniper = WindowSniper()
         self._running = False
         self._last_report_ts = 0.0
         # track entry metadata for trade recording
@@ -276,25 +278,42 @@ class KlausBot:
             bars_5m = self.feed.get_bars_5m(token_id, n=30)
             bars_15m = self.feed.get_bars_15m(token_id, n=30)
             ob = self.feed.get_order_book(token_id)
-
-            if len(bars_5m) < 12:
-                continue  # not enough history yet
-
             ext = ext_signals.get(token.asset)
-            signal = self.scorer.score(bars_5m, bars_15m, ob, ext)
 
-            # For NO tokens: scorer labels uptrend as BUY_YES (rising token price).
-            # Flip so direction reflects the actual trade: rising NO = BUY_NO.
-            if token.side == "NO" and signal.direction != Direction.NO_TRADE:
-                signal.direction = (
-                    Direction.BUY_NO
-                    if signal.direction == Direction.BUY_YES
-                    else Direction.BUY_YES
-                )
+            # ── Window Sniper: primary signal for updown markets ─────────────
+            # Detects mid-window mispriced certainty (fair value vs token ask).
+            # Fires when: 25–80% elapsed, asset moved >0.06%, edge ≥ 0.02–0.04.
+            # SniperSignal is compatible with risk manager (same fields: composite,
+            # confidence, entry_price, direction, fee_zone, reason).
+            sniper_sig = None
+            if token.market_type == "updown":
+                sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
+
+            if sniper_sig is not None:
+                # Sniper fired — use it as the signal; skip momentum scorer
+                signal = sniper_sig
+                signal_source = "SNIPER"
+            else:
+                # Fallback: momentum scorer (also covers non-updown markets)
+                if len(bars_5m) < 12:
+                    continue  # not enough bar history yet
+
+                signal = self.scorer.score(bars_5m, bars_15m, ob, ext)
+                signal_source = "MOMENTUM"
+
+                # For NO tokens: scorer labels uptrend as BUY_YES (rising token price).
+                # Flip so direction reflects the actual trade: rising NO = BUY_NO.
+                if token.side == "NO" and signal.direction != Direction.NO_TRADE:
+                    signal.direction = (
+                        Direction.BUY_NO
+                        if signal.direction == Direction.BUY_YES
+                        else Direction.BUY_YES
+                    )
 
             # Log every token scored, including NO_TRADE (for visibility)
             logger.info(
-                "SCAN %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
+                "SCAN [%s] %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
+                signal_source,
                 token.asset, token.side,
                 signal.composite, signal.confidence,
                 signal.entry_price, signal.direction.name,
@@ -303,7 +322,6 @@ class KlausBot:
 
             # Lag research: record Binance price + Polymarket price every scan.
             # No trading logic affected. Used by analytics/lag_analysis.py.
-            ext = ext_signals.get(token.asset)
             if token.market_type == "updown" and ext is not None:
                 log_lag_observation(
                     ts=time.time(),
@@ -323,28 +341,34 @@ class KlausBot:
                 continue
 
             # Route YES tokens to BUY_YES trades, NO tokens to BUY_NO trades.
-            # Special case: NO token with BUY_YES direction after flip = NO falling = YES rising.
-            # Redirect to the YES counterpart (same condition_id) so we trade the right token.
+            # Sniper: direction is always BUY_YES for the matched token side,
+            # so YES tokens execute directly; NO tokens also execute directly
+            # (sniper already verified NO token is the winning side).
+            # Momentum path: NO token with BUY_YES after flip → redirect to YES counterpart.
             if token.side == "YES" and signal.direction == Direction.BUY_NO:
                 continue
             if token.side == "NO" and signal.direction == Direction.BUY_YES:
-                # Find YES counterpart with matching condition_id
-                yes_token_id = next(
-                    (tid for tid, t in self.feed.tokens.items()
-                     if t.condition_id and t.condition_id == token.condition_id
-                     and t.side == "YES" and tid not in self.risk.open_positions),
-                    None,
-                )
-                if not yes_token_id:
-                    continue  # no YES counterpart available
-                # Redirect: trade YES token at the mirror price (1 - no_price)
-                token_id = yes_token_id
-                token = self.feed.tokens[yes_token_id]
-                signal.entry_price = round(1.0 - signal.entry_price, 4)
-                logger.info(
-                    "  └─ REDIRECT NO→YES: using %s YES token @ %.4f (NO was %.4f)",
-                    token.asset, signal.entry_price, 1.0 - signal.entry_price,
-                )
+                if signal_source == "SNIPER":
+                    # Sniper: BUY_YES on NO token = buy this NO token (already aligned)
+                    pass
+                else:
+                    # Momentum path: find YES counterpart for the redirect
+                    yes_token_id = next(
+                        (tid for tid, t in self.feed.tokens.items()
+                         if t.condition_id and t.condition_id == token.condition_id
+                         and t.side == "YES" and tid not in self.risk.open_positions),
+                        None,
+                    )
+                    if not yes_token_id:
+                        continue  # no YES counterpart available
+                    # Redirect: trade YES token at the mirror price (1 - no_price)
+                    token_id = yes_token_id
+                    token = self.feed.tokens[yes_token_id]
+                    signal.entry_price = round(1.0 - signal.entry_price, 4)
+                    logger.info(
+                        "  └─ REDIRECT NO→YES: using %s YES token @ %.4f (NO was %.4f)",
+                        token.asset, signal.entry_price, 1.0 - signal.entry_price,
+                    )
 
             if signal.entry_price <= 0:
                 logger.warning("SKIP %s/%s — zero entry price (bad feed data)", token.asset, token.side)

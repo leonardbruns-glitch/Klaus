@@ -93,6 +93,7 @@ class MarketToken:
     active: bool = True
     market_type: str = "target"     # "updown" (5M/15M) or "target" (price target)
     window_end_ts: float = 0.0      # unix ts when this market resolves
+    window_seconds: int = 300       # window duration: 300 (5M) or 900 (15M)
     neg_risk: bool = False          # True for multi-outcome (neg-risk) markets
     tick_size: str = "0.01"         # CLOB order price tick size per market
 
@@ -117,6 +118,10 @@ class ExternalSignal:
     # LLM macro signal: signed confidence in [−0.12, +0.12]
     # Positive = bullish (BUY_YES), Negative = bearish (BUY_NO)
     macro_boost: Optional[float] = None
+    # Window open prices (Binance candle open = asset price at window start)
+    # Used by WindowSniper to compute delta from window open → fair value
+    spot_window_open_5m: Optional[float] = None   # Binance price at 5M window open
+    spot_window_open_15m: Optional[float] = None  # Binance price at 15M window open
 
 
 # ---------------------------------------------------------------------------
@@ -826,6 +831,7 @@ class PolymarketFeed:
                     active=market.get("active", True),
                     market_type=market_type,
                     window_end_ts=window_end_ts,
+                    window_seconds=900 if "15m" in slug.lower() else 300,
                     neg_risk=neg_risk,
                     tick_size=tick_size,
                 )
@@ -1122,8 +1128,12 @@ class PolymarketFeed:
                     klines = await resp.json()
                     if len(klines) >= 2:
                         c1 = float(klines[-2][4])  # prev close
-                        c0 = float(klines[-1][4])  # last close
+                        c0 = float(klines[-1][4])  # current candle close
                         signal.spot_momentum_5m = (c0 - c1) / c1 * 100
+                    if len(klines) >= 1:
+                        # Current 5M candle open = asset price at window start
+                        # Critical for WindowSniper fair-value delta calculation
+                        signal.spot_window_open_5m = float(klines[-1][1])
             params["interval"] = "15m"
             async with self._session.get(url, params=params) as resp:
                 if resp.status == 200:
@@ -1132,6 +1142,8 @@ class PolymarketFeed:
                         c1 = float(klines[-2][4])
                         c0 = float(klines[-1][4])
                         signal.spot_momentum_15m = (c0 - c1) / c1 * 100
+                    if len(klines) >= 1:
+                        signal.spot_window_open_15m = float(klines[-1][1])
         except Exception:
             pass
 
