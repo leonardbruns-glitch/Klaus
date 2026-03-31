@@ -64,8 +64,14 @@ WINDOW_ELAPSED_MIN = 0.10   # TEST MODE — enter at 10% elapsed (30s into 5m wi
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
-MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens
-MAX_TOKEN_ASK = 0.65        # allow partially-priced moves — edge still exists at 0.62 ask if FV=0.80
+MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens (both 5m and 15m)
+MAX_TOKEN_ASK_5M  = 0.55   # 5m markets: tight cap — fast reversals make high entries lethal
+                            # T00030/32/34 all entered 0.58-0.63 → SL in <16s, price blew past stop
+MAX_TOKEN_ASK_15M = 0.65   # 15m markets: wider — more time, slower repricing (3W/0L at 0.59-0.62)
+MAX_TOKEN_ASK = MAX_TOKEN_ASK_15M   # fallback for non-updown paths
+
+WINDOW_ELAPSED_MAX_5M  = 0.65  # 5m: stop entering after 65% (90s left too little time to recover)
+WINDOW_ELAPSED_MAX_15M = 0.80  # 15m: full 80% (still 3 min left at 80%)
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
@@ -232,9 +238,11 @@ class WindowSniper:
                          token.asset, token.side, elapsed_pct*100, elapsed_min*100,
                          " (prearmed)" if is_prearmed else "")
             return None
-        if elapsed_pct > WINDOW_ELAPSED_MAX:
-            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%%",
-                         token.asset, token.side, elapsed_pct*100, WINDOW_ELAPSED_MAX*100)
+        elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
+        if elapsed_pct > elapsed_max:
+            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
+                         token.asset, token.side, elapsed_pct*100, elapsed_max*100,
+                         "5m" if not is_15m else "15m")
             return None
 
         # ── Sustained delta gate ───────────────────────────────────────────────
@@ -270,18 +278,18 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
+        max_ask = MAX_TOKEN_ASK_5M if not is_15m else MAX_TOKEN_ASK_15M
+        if token_ask > max_ask or token_ask < MIN_TOKEN_ASK:
             # If market has strongly repriced this token (>80%), arm early entry for next window.
-            # Side is already aligned here (wrong-side tokens were filtered above), so this
-            # token IS the winning side — next window it resets to ~0.50 and we enter fast.
             if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
                 self._prearm[prearm_key] = (now, token.window_end_ts)
                 logger.info(
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed (5%% elapsed)",
                     token.asset, token.side, token_ask,
                 )
-            logger.debug("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f]",
-                         token.asset, token.side, token_ask, MIN_TOKEN_ASK, MAX_TOKEN_ASK)
+            logger.debug("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f] (%s)",
+                         token.asset, token.side, token_ask, MIN_TOKEN_ASK, max_ask,
+                         "5m" if not is_15m else "15m")
             return None
 
         edge = fair_value - token_ask
