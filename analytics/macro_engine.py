@@ -42,7 +42,8 @@ _TRIGGER_PCT_LOW  = 0.40    # 0.40% move during quiet hours
 
 # ── Signal parameters ─────────────────────────────────────────────────────────
 SIGNAL_VALID_SECONDS = 120   # signal lasts 2 minutes
-COOLDOWN_SECONDS = 180       # 3 min between LLM calls
+COOLDOWN_ACTIVE = 60         # 1 min cooldown during high-volume sessions
+COOLDOWN_QUIET = 180         # 3 min cooldown during quiet hours
 PRICE_BASELINE_RESET_S = 90  # reset price reference every 90s if no trigger
 
 # ── VPIN trigger ──────────────────────────────────────────────────────────────
@@ -105,6 +106,8 @@ class MacroEngine:
         # 30s TTL — don't re-query every OB scan second.
         self._exit_advice_cache: dict = {}
         self._exit_advice_ttl: float = 30.0
+        # Pre-session brief: track last briefed session hour to fire once per session
+        self._last_session_brief_hour: int = -1
         if not self._enabled:
             logger.info(
                 "MacroEngine disabled — set ANTHROPIC_API_KEY in .env to enable LLM signals"
@@ -123,12 +126,16 @@ class MacroEngine:
         btc_price: Optional[float],
         vpin_score: Optional[float] = None,
         vpin_direction: Optional[int] = None,
+        ext_signals: Optional[dict] = None,
     ) -> Optional[MacroSignal]:
         """
-        Feed current BTC spot price and optional VPIN data.
+        Feed current BTC spot price, optional VPIN data, and full ext_signals dict.
         Triggers LLM when:
           - BTC moves ≥ threshold (0.25% in active sessions, 0.40% in quiet hours)
           - OR VPIN exceeds 0.65 with a clear direction
+
+        ext_signals: {asset: ExternalSignal} — if provided, enriches Claude context
+        with ETH/SOL moves and cross-asset VPIN.
 
         Returns MacroSignal when LLM fires, else None (cached signal still accessible
         via get_signal()).
@@ -139,21 +146,26 @@ class MacroEngine:
             return None
 
         now = time.time()
+        hour_utc = datetime.now(timezone.utc).hour
+        is_active = hour_utc in _HIGH_VOLUME_HOURS
+
+        # ── Pre-session brief: fire once at the start of each session window ──
+        session_start_hours = {8, 13, 22}
+        if hour_utc in session_start_hours and hour_utc != self._last_session_brief_hour:
+            self._last_session_brief_hour = hour_utc
+            await self._session_brief(btc_price, hour_utc, ext_signals)
 
         # Return existing valid signal
         if self.current_signal and self.current_signal.is_valid():
             return self.current_signal
 
-        # Cooldown check
-        if now - self._last_trigger_ts < COOLDOWN_SECONDS:
+        # Session-aware cooldown: 60s active sessions, 180s quiet hours
+        cooldown = COOLDOWN_ACTIVE if is_active else COOLDOWN_QUIET
+        if now - self._last_trigger_ts < cooldown:
             return None
 
         # Determine trigger threshold for current hour
-        hour_utc = datetime.now(timezone.utc).hour
-        trigger_pct = (
-            _TRIGGER_PCT_HIGH if hour_utc in _HIGH_VOLUME_HOURS
-            else _TRIGGER_PCT_LOW
-        )
+        trigger_pct = _TRIGGER_PCT_HIGH if is_active else _TRIGGER_PCT_LOW
 
         # Initialise or refresh baseline price
         if self._baseline_price is None:
@@ -204,7 +216,8 @@ class MacroEngine:
         self._baseline_ts = now
 
         signal = await self._query_claude(
-            pct_change, btc_price, elapsed, trigger_type, vpin_score, vpin_direction
+            pct_change, btc_price, elapsed, trigger_type, vpin_score, vpin_direction,
+            ext_signals=ext_signals,
         )
         if signal:
             self.current_signal = signal
@@ -306,8 +319,16 @@ class MacroEngine:
         if open_count > 0:
             correlation_note += f"NOTE: {open_count} position(s) already open — be selective.\n"
 
+        briefing_system = (
+            "You are an expert quant trader specializing in Polymarket crypto binary markets. "
+            "You evaluate 5-minute and 15-minute BTC/ETH/SOL up/down contracts. "
+            "Your edge is the 30-120s information lag between Binance spot moves and Polymarket repricing. "
+            "FV is computed via sigmoid model calibrated to historical Polymarket pricing. "
+            "Prioritize high-edge, low-correlation, VPIN-confirmed opportunities."
+        )
+
         prompt = (
-            f"You are a quant trader. Time: {now_utc.strftime('%H:%M')} UTC | {session_desc}\n"
+            f"Time: {now_utc.strftime('%H:%M')} UTC | {session_desc}\n"
             f"Capital: ${capital:.0f} | {sustain_note}\n\n"
             f"BINARY MARKET OPPORTUNITIES (each resolves to 0 or 1):\n"
             f"{candidates_text}\n\n"
@@ -331,6 +352,7 @@ class MacroEngine:
             payload = {
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 300,
+                "system": briefing_system,
                 "messages": [{"role": "user", "content": prompt}],
             }
 
@@ -417,6 +439,8 @@ class MacroEngine:
         stake: float,
         vpin_score: Optional[float] = None,
         vpin_direction: Optional[int] = None,
+        spot_price: Optional[float] = None,
+        spot_change_pct: Optional[float] = None,
     ) -> tuple:
         """
         Exit management advisor for open positions.
@@ -465,30 +489,44 @@ class MacroEngine:
             flow_word = "buying" if (vpin_direction or 0) > 0 else "selling"
             vpin_line = f"VPIN={vpin_score:.3f} ({flow_word} flow) | "
 
-        # Is the price trend aligned with our direction?
-        # direction for sniper is always "token going UP = profit"
-        # move_pct > 0 always means we're in profit
-
         is_active = hour in _HIGH_VOLUME_HOURS
 
+        # Spot price momentum context: is the underlying asset confirming the trade?
+        spot_line = ""
+        if spot_price and spot_price > 0:
+            spot_line = f"Spot {asset}: ${spot_price:,.2f}"
+            if spot_change_pct is not None:
+                move_word = "moving WITH" if (
+                    (direction == "BUY_YES" and spot_change_pct > 0)
+                    or (direction == "BUY_NO" and spot_change_pct < 0)
+                ) else "moving AGAINST"
+                spot_line += f" ({spot_change_pct:+.3f}% — {move_word} thesis)"
+            spot_line += " | "
+
+        exit_system = (
+            "You are an expert quant trader managing open positions in Polymarket crypto binary markets. "
+            "These are 5-minute and 15-minute up/down binary contracts. A token resolves to 0 (loss) or 1 (full win). "
+            "Round-trip taker fees are ~3.6% at p=0.50. Exit timing is the hardest part — "
+            "lock in gains too early and you miss the full move; hold too long and reversals erase profits. "
+            "VPIN declining = informed flow leaving = reversal risk rising."
+        )
+
         prompt = (
-            f"Managing open binary market position at {now_utc.strftime('%H:%M')} UTC.\n\n"
+            f"Managing open binary position at {now_utc.strftime('%H:%M')} UTC.\n\n"
             f"POSITION: {asset} {direction}\n"
             f"Entry: {entry_price:.4f} | Current: {current_price:.4f} | Move: {move_pct:+.1%}\n"
             f"Held: {time_held_s:.0f}s | Window closes in: {time_remaining_s:.0f}s\n"
             f"Unrealized P&L: ${pnl_usd:+.3f} on ${stake:.2f} stake\n"
-            f"{vpin_line}Breakeven price (after fees): {breakeven_price:.4f}\n\n"
+            f"{spot_line}{vpin_line}Breakeven (after fees): {breakeven_price:.4f}\n\n"
             f"CONTEXT:\n"
-            f"- Binary market: resolves to 0 or 1 in {time_remaining_s:.0f}s\n"
-            f"- If thesis correct: token prices toward 0.95+ before expiry\n"
-            f"- If thesis wrong: token prices toward 0.05-\n"
-            f"- Current price {'above' if current_price > breakeven_price else 'BELOW'} breakeven\n"
+            f"- Binary: resolves 0 or 1 in {time_remaining_s:.0f}s\n"
+            f"- If thesis holds: token approaches 0.95+ before expiry\n"
+            f"- Current price {'ABOVE' if current_price > breakeven_price else 'BELOW'} breakeven\n"
             f"- Session: {'active (moves sustain ~70%)' if is_active else 'quiet (40% reversal rate)'}\n\n"
             f"OPTIONS:\n"
-            f"- HOLD: thesis still valid, more upside likely before window closes\n"
-            f"- EXIT_NOW: lock in P&L ({pnl_usd:+.3f}), risk/reward no longer favors holding\n"
-            f"- TIGHTEN_STOP: stay in but protect against reversal — "
-            f"set stop at cost+X% (specify tighten_sl_pct, e.g. 0.05 = stop at cost+5%)\n\n"
+            f"- HOLD: thesis valid, more upside before window closes\n"
+            f"- EXIT_NOW: lock in P&L ({pnl_usd:+.3f}), risk/reward deteriorated\n"
+            f"- TIGHTEN_STOP: stay in but set trailing stop at cost+X%\n\n"
             f'Respond ONLY with JSON: {{"action":"HOLD"or"EXIT_NOW"or"TIGHTEN_STOP",'
             f'"tighten_sl_pct":null or 0.03-0.20,"confidence":0.50-0.95,"reason":"max 10 words"}}'
         )
@@ -503,6 +541,7 @@ class MacroEngine:
             payload = {
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 80,
+                "system": exit_system,
                 "messages": [{"role": "user", "content": prompt}],
             }
 
@@ -559,6 +598,7 @@ class MacroEngine:
         trigger_type: str,
         vpin_score: Optional[float],
         vpin_direction: Optional[int],
+        ext_signals: Optional[dict] = None,
     ) -> Optional[MacroSignal]:
         """Call Claude Haiku for directional interpretation. ~300–800ms latency."""
         now_utc = datetime.now(timezone.utc)
@@ -597,13 +637,52 @@ class MacroEngine:
                 f"over {elapsed_s:.0f}s."
             )
 
+        # Multi-asset context: ETH and SOL correlated moves within 10-30s
+        cross_asset_lines = []
+        if ext_signals:
+            for asset in ("ETH", "SOL"):
+                ext = ext_signals.get(asset)
+                if ext and ext.spot_price and ext.spot_price > 0:
+                    vpin_str = ""
+                    if ext.vpin_score and ext.vpin_score > 0:
+                        flow = "buy" if (ext.vpin_direction or 0) > 0 else "sell"
+                        vpin_str = f" VPIN={ext.vpin_score:.2f}({flow})"
+                    cross_asset_lines.append(
+                        f"{asset}: ${ext.spot_price:,.2f}{vpin_str}"
+                    )
+            # Funding rate context
+            for asset in ("BTC", "ETH"):
+                ext = ext_signals.get(asset)
+                if ext and ext.funding_rate and abs(ext.funding_rate) > 0.0001:
+                    apr = ext.funding_rate * 3 * 365 * 100  # 8h rate → APR%
+                    if abs(apr) > 30:
+                        bias = "crowded longs" if apr > 0 else "crowded shorts"
+                        cross_asset_lines.append(
+                            f"{asset} funding: {apr:+.0f}% APR ({bias})"
+                        )
+
+        cross_asset_text = ""
+        if cross_asset_lines:
+            cross_asset_text = "Cross-asset: " + " | ".join(cross_asset_lines) + "\n"
+
+        system_prompt = (
+            "You are an expert quant trader specializing in Polymarket crypto binary markets. "
+            "You have deep knowledge of BTC/ETH/SOL microstructure, VPIN order flow analysis, "
+            "and Polymarket's 30-120s repricing lag after sharp spot moves. "
+            "Your job is to assess whether a triggered move will sustain for 2-5 minutes "
+            "so Polymarket updown tokens can reprice. Be concise and precise."
+        )
+
         prompt = (
-            f"You are a quant trader in crypto prediction markets.\n"
             f"Session: {session}\n"
-            f"{move_desc}\n\n"
+            f"Trigger: {move_desc}\n"
+            f"{cross_asset_text}\n"
             f"Will BTC continue {direction_word} for the next 2–5 minutes, or reverse?\n"
-            f"Consider: sharp moves in high-volume sessions sustain ~70% of the time; "
-            f"VPIN spikes precede directional moves; quiet-hour moves fade more often (~40%).\n\n"
+            f"Key factors:\n"
+            f"- High-volume session moves sustain ~70%; quiet-hour moves reverse ~40%\n"
+            f"- VPIN>0.65 = institutional flow, strong sustain signal\n"
+            f"- Cross-asset confirmation (ETH/SOL same direction) = more conviction\n"
+            f"- Funding rate extremes (>80% APR) = crowded → higher reversal risk\n\n"
             f'Respond ONLY with valid JSON: '
             f'{{"direction":"UP" or "DOWN","confidence":0.50-0.95,'
             f'"reasoning":"max 15 words"}}'
@@ -620,6 +699,7 @@ class MacroEngine:
             payload = {
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 100,
+                "system": system_prompt,
                 "messages": [{"role": "user", "content": prompt}],
             }
 
@@ -663,3 +743,127 @@ class MacroEngine:
         except Exception as exc:
             logger.debug("MacroEngine Claude call failed: %s", exc)
             return None
+
+    async def _session_brief(
+        self,
+        btc_price: float,
+        hour: int,
+        ext_signals: Optional[dict] = None,
+    ) -> None:
+        """
+        Fire a single LLM call at the start of each session window (08/13/22 UTC)
+        to establish session context and prime the macro engine's outlook.
+        Result is stored in current_signal if conviction is high enough.
+        ~$0.001 per call, fires 3×/day max.
+        """
+        if not self._enabled:
+            return
+
+        now_utc = datetime.now(timezone.utc)
+        weekday = now_utc.weekday()
+
+        if hour == 8:
+            session_name = "London open"
+            session_note = "high-liquidity trend-initiation; EUR macro data often releases here"
+        elif hour == 13:
+            day_note = ""
+            if weekday == 3:
+                day_note = " Thursday = weekly US jobless claims at 13:30 — strongest weekly edge"
+            elif weekday == 4:
+                day_note = " Check if it's first Friday (NFP)"
+            session_name = f"NYSE open{day_note}"
+            session_note = "highest-edge window; US macro drives BTC 0.3-1.5% moves in seconds"
+        else:
+            session_name = "Asia open"
+            session_note = "BTC-native liquidity; Shanghai/Tokyo traders set overnight direction"
+
+        # Cross-asset snapshot
+        asset_lines = []
+        if ext_signals:
+            for asset in ("BTC", "ETH", "SOL"):
+                ext = ext_signals.get(asset)
+                if ext and ext.spot_price and ext.spot_price > 0:
+                    funding_str = ""
+                    if ext.funding_rate and abs(ext.funding_rate) > 0.0001:
+                        apr = ext.funding_rate * 3 * 365 * 100
+                        funding_str = f" funding={apr:+.0f}%APR"
+                    asset_lines.append(f"{asset}=${ext.spot_price:,.2f}{funding_str}")
+
+        asset_text = " | ".join(asset_lines) if asset_lines else f"BTC=${btc_price:,.0f}"
+
+        system_prompt = (
+            "You are an expert quant trader specializing in Polymarket crypto binary markets. "
+            "You trade BTC/ETH/SOL 5-minute and 15-minute up/down binary contracts. "
+            "Your edge is the 30-120 second information lag between Binance spot moves "
+            "and Polymarket token repricing."
+        )
+
+        prompt = (
+            f"Session: {session_name} just opened ({now_utc.strftime('%H:%M')} UTC)\n"
+            f"Markets: {asset_text}\n"
+            f"Context: {session_note}\n\n"
+            f"Based on the current price levels and session characteristics, "
+            f"what is the directional bias for BTC over the next 30-90 minutes? "
+            f"Are there any structural reasons to be bullish or bearish?\n\n"
+            f'Respond ONLY with JSON: {{"direction":"UP"or"DOWN"or"NEUTRAL","confidence":0.50-0.95,'
+            f'"reasoning":"max 20 words"}}'
+        )
+
+        try:
+            import aiohttp
+            headers = {
+                "x-api-key": self._api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 100,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as resp:
+                    if resp.status != 200:
+                        return
+                    data = await resp.json()
+
+            raw_text = data["content"][0]["text"].strip()
+            if "```" in raw_text:
+                for part in raw_text.split("```"):
+                    part = part.strip().lstrip("json").strip()
+                    if part.startswith("{"):
+                        raw_text = part
+                        break
+
+            result = json.loads(raw_text)
+            direction_str = result.get("direction", "NEUTRAL").upper()
+            confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
+            reasoning = str(result.get("reasoning", ""))
+
+            logger.info(
+                "SESSION BRIEF [%s %02d:00 UTC] → %s conf=%.2f | %s",
+                session_name, hour, direction_str, confidence, reasoning,
+            )
+
+            # Only prime current_signal if Claude has real conviction (>0.65)
+            # and a clear direction — don't bias signal on NEUTRAL
+            if direction_str in ("UP", "DOWN") and confidence >= 0.65:
+                self.current_signal = MacroSignal(
+                    ts=time.time(),
+                    direction=1 if direction_str == "UP" else -1,
+                    confidence=confidence,
+                    trigger_pct=0.0,
+                    reasoning=f"[Session brief] {reasoning}",
+                    trigger_type="session_brief",
+                    valid_until=time.time() + SIGNAL_VALID_SECONDS * 3,  # 6-min validity
+                )
+
+        except Exception as exc:
+            logger.debug("Session brief failed: %s", exc)

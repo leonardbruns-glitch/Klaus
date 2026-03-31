@@ -239,6 +239,8 @@ class KlausBot:
                             stake=pos.stake,
                             vpin_score=ext.vpin_score if ext else None,
                             vpin_direction=ext.vpin_direction if ext else None,
+                            spot_price=ext.spot_price if ext else None,
+                            spot_change_pct=ext.spot_momentum_5m if ext else None,
                         )
                         if action == "EXIT_NOW" and conf >= 0.65:
                             logger.info(
@@ -301,7 +303,8 @@ class KlausBot:
         btc_vpin = btc_ext.vpin_score if btc_ext else None
         btc_vpin_dir = btc_ext.vpin_direction if btc_ext else None
         macro_signal = await self.macro_engine.tick(
-            btc_spot, vpin_score=btc_vpin, vpin_direction=btc_vpin_dir
+            btc_spot, vpin_score=btc_vpin, vpin_direction=btc_vpin_dir,
+            ext_signals=ext_signals,
         )
         if macro_signal is None:
             macro_signal = self.macro_engine.get_signal()  # use cached if still valid
