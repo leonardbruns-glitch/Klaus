@@ -371,6 +371,8 @@ class KlausBot:
         # Sniper candidates are queued for a single LLM briefing call (not per-token).
         # Momentum (non-updown) tokens are evaluated and entered inline as before.
         sniper_queue: list = []  # [(token_id, token, signal, tpsl, decision, ext)]
+        _updown_scanned = 0
+        _updown_fired = 0
 
         for token_id, token in self.feed.tokens.items():
             # Skip tokens already in open positions
@@ -406,9 +408,11 @@ class KlausBot:
             sniper_sig = None
             if (token.market_type == "updown"
                     and token.asset not in CONFIG.edge.sniper_excluded_assets):
+                _updown_scanned += 1
                 sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
 
             if sniper_sig is not None:
+                _updown_fired += 1
                 # Log the sniper detection here; briefing decision logged after the call
                 logger.info(
                     "SCAN [SNIPER] %s/%s | score=%.2f conf=%.2f entry=%.4f dir=%s | %s",
@@ -562,6 +566,13 @@ class KlausBot:
                 signal.reason,
             )
             await self._enter_position(token_id, token.asset, signal, tpsl, decision)
+
+        # ── Scan cycle summary ─────────────────────────────────────────────────
+        logger.info(
+            "SCAN cycle: %d updown (sniper fired=%d, waiting=%d) | %d target (momentum)",
+            _updown_scanned, _updown_fired, _updown_scanned - _updown_fired,
+            len(self.feed.tokens) - _updown_scanned,
+        )
 
         # ── Phase 2: LLM briefing for all sniper candidates ───────────────────
         # ONE call with ALL candidates → Claude sees portfolio context, ranks by quality.
