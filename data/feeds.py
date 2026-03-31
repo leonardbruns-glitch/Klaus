@@ -459,8 +459,8 @@ class PolymarketFeed:
                                         events = [events]
                                     for ev in events:
                                         await self._handle_clob_ws_event(ev)
-                                except Exception:
-                                    pass
+                                except Exception as _e:
+                                    logger.debug("WS handler error: %s", type(_e).__name__)
                             elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                                 break
             except asyncio.CancelledError:
@@ -503,8 +503,8 @@ class PolymarketFeed:
                         s = float(level[1] if isinstance(level, (list, tuple)) else level.get("size", 0))
                         if p > 0:
                             result.append((p, s))
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("WS handler error: %s", type(_e).__name__)
                 return sorted(result, reverse=(ev_type != "asks"))
 
             bids = sorted(_parse_levels(bids_raw), reverse=True)
@@ -529,8 +529,8 @@ class PolymarketFeed:
                         self.bar_builders_5m.get(asset_id) and self.bar_builders_5m[asset_id].update(p, s)
                         self.bar_builders_15m.get(asset_id) and self.bar_builders_15m[asset_id].update(p, s)
                         self._ws_ob_ts[asset_id] = time.time()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug("WS handler error: %s", type(_e).__name__)
 
     async def _run_rtds_ws(self) -> None:
         """
@@ -567,8 +567,15 @@ class PolymarketFeed:
                         await ws.send_str(sub_msg)
                         logger.info("RTDS WebSocket: subscribed to Chainlink oracle feed")
 
-                        async for msg in ws:
+                        while self._running:
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=45.0)
+                            except asyncio.TimeoutError:
+                                logger.warning("RTDS WS silence timeout (45s) — forcing reconnect")
+                                break
                             if not self._running:
+                                break
+                            if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                                 break
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 try:
@@ -584,12 +591,10 @@ class PolymarketFeed:
                                                 if any(a.upper() in ticker_up for a in aliases):
                                                     try:
                                                         self.oracle_prices[asset] = float(price)
-                                                    except Exception:
-                                                        pass
-                                except Exception:
-                                    pass
-                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                                break
+                                                    except Exception as _e:
+                                                        logger.debug("WS handler error: %s", type(_e).__name__)
+                                except Exception as _e:
+                                    logger.debug("WS handler error: %s", type(_e).__name__)
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -631,8 +636,15 @@ class PolymarketFeed:
                 async with aiohttp.ClientSession() as ws_session:
                     async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
                         logger.info("Binance WS: subscribed to markPrice + aggTrade for BTC/ETH/SOL")
-                        async for msg in ws:
+                        while self._running:
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                            except asyncio.TimeoutError:
+                                logger.warning("Binance WS silence timeout (30s) — forcing reconnect")
+                                break
                             if not self._running:
+                                break
+                            if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                                 break
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 try:
@@ -652,8 +664,8 @@ class PolymarketFeed:
                                                     try:
                                                         # Annualise: rate * 3 intervals/day * 365 * 100
                                                         self.funding_rates[asset] = float(funding) * 3 * 365 * 100
-                                                    except Exception:
-                                                        pass
+                                                    except Exception as _e:
+                                                        logger.debug("WS handler error: %s", type(_e).__name__)
 
                                     elif event_type == "aggTrade":
                                         # ── VPIN computation ───────────────
@@ -669,13 +681,11 @@ class PolymarketFeed:
                                                             price, qty, is_buyer_maker
                                                         )
                                                         break
-                                        except Exception:
-                                            pass
+                                        except Exception as _e:
+                                            logger.debug("WS handler error: %s", type(_e).__name__)
 
-                                except Exception:
-                                    pass
-                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                                break
+                                except Exception as _e:
+                                    logger.debug("WS handler error: %s", type(_e).__name__)
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -716,8 +726,15 @@ class PolymarketFeed:
                     async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
                         logger.info("Binance kline WS: subscribed to 1m/5m/15m for BTC/ETH/SOL")
                         _last_price_log = 0.0
-                        async for msg in ws:
+                        while self._running:
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                            except asyncio.TimeoutError:
+                                logger.warning("Binance kline WS silence timeout (30s) — forcing reconnect")
+                                break
                             if not self._running:
+                                break
+                            if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                                 break
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 try:
@@ -778,10 +795,8 @@ class PolymarketFeed:
                                         if is_closed:
                                             self._spot_prev_15m[asset] = close
 
-                                except Exception:
-                                    pass
-                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
-                                break
+                                except Exception as _e:
+                                    logger.debug("WS handler error: %s", type(_e).__name__)
             except asyncio.CancelledError:
                 break
             except Exception as exc:

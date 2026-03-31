@@ -19,6 +19,7 @@ import os
 import signal
 import sys
 import time
+import traceback
 from typing import Dict, Optional, Set
 
 from config import CONFIG
@@ -284,13 +285,24 @@ class KlausBot:
     # ── 5-second signal loop: scan for new entries ────────────────────────────
 
     async def _signal_loop(self) -> None:
+        _consecutive_errors = 0
         while self._running:
             try:
                 await self.feed.poll_order_books()
                 await self.feed.update_bars()
                 await self._scan_for_signals()
+                _consecutive_errors = 0  # reset on success
             except Exception as exc:
-                logger.error("Signal loop error: %s", exc)
+                _consecutive_errors += 1
+                tb = traceback.format_exc()
+                if _consecutive_errors > 3:
+                    logger.critical(
+                        "Signal loop CRITICAL: %d consecutive errors — bot is blind. "
+                        "Last error: %s\n%s",
+                        _consecutive_errors, exc, tb,
+                    )
+                else:
+                    logger.error("Signal loop error: %s\n%s", exc, tb)
             await asyncio.sleep(CONFIG.markets.scan_interval)
 
     async def _scan_for_signals(self) -> None:
@@ -336,10 +348,17 @@ class KlausBot:
         btc_spot = btc_ext.spot_price if btc_ext else None
         btc_vpin = btc_ext.vpin_score if btc_ext else None
         btc_vpin_dir = btc_ext.vpin_direction if btc_ext else None
-        macro_signal = await self.macro_engine.tick(
-            btc_spot, vpin_score=btc_vpin, vpin_direction=btc_vpin_dir,
-            ext_signals=ext_signals,
-        )
+        try:
+            macro_signal = await asyncio.wait_for(
+                self.macro_engine.tick(
+                    btc_spot, vpin_score=btc_vpin, vpin_direction=btc_vpin_dir,
+                    ext_signals=ext_signals,
+                ),
+                timeout=8.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("MacroEngine tick timeout (8s) — skipping LLM signal this cycle")
+            macro_signal = None
         if macro_signal is None:
             macro_signal = self.macro_engine.get_signal()  # use cached if still valid
         if macro_signal:
@@ -1098,9 +1117,13 @@ class KlausBot:
             if r["attempts"] >= 10:
                 logger.error(
                     "RESIDUAL ABANDONED: %.4f %s shares after 10 attempts (~10 min) — "
-                    "will settle automatically at market resolution.",
+                    "forcing bankroll update and removing from pending.",
                     r["shares"], r["asset"],
                 )
+                try:
+                    self.risk.close_position(token_id, 0.50, "RESIDUAL_ABANDONED", shares_override=r["shares"])
+                except Exception as _close_err:
+                    logger.error("RESIDUAL ABANDONED close_position failed: %s", _close_err)
                 to_remove.append(token_id)
                 continue
             r["attempts"] += 1
@@ -1134,13 +1157,22 @@ class KlausBot:
 
     async def _heartbeat_loop(self) -> None:
         """Keep CLOB session alive; prevents silent GTC order cancellation."""
+        _hb_failures = 0
         while self._running:
             await asyncio.sleep(10)
             try:
                 await self.orders.post_heartbeat()
                 await self._sweep_residuals()
+                _hb_failures = 0  # reset on success
             except Exception as exc:
-                logger.debug("Heartbeat error: %s", exc)
+                _hb_failures += 1
+                if _hb_failures >= 2:
+                    logger.critical(
+                        "Heartbeat CRITICAL failure #%d: %s — GTC orders may expire",
+                        _hb_failures, exc,
+                    )
+                else:
+                    logger.warning("Heartbeat failure #%d: %s", _hb_failures, exc)
 
     # ── 250s prewarm loop: refresh py_clob_client cache before 300s TTL expires ──
 

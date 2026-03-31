@@ -791,6 +791,7 @@ class OrderManager:
                                 order_id[:12], _cancel_err,
                             )
                             try:
+                                await asyncio.sleep(0.3)  # wait for fill to propagate to read replica
                                 order_info = self._client.get_order(order_id)
                                 if order_info.get("status") == "matched":
                                     sz = _to_float(order_info.get("takingAmount", "0"))
