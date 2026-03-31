@@ -112,6 +112,11 @@ class FeedbackEngine:
         self._session_trades: List[TradeRecord] = []
         self._trade_counter = 0
         self._load_history_from_file()
+        self._telemetry: dict = {}  # injected from main.py before each report
+
+    def inject_telemetry(self, connectivity: dict, order_latency: dict) -> None:
+        """Called by main.py before generating report — passes live infra metrics."""
+        self._telemetry = {"connectivity": connectivity, "order_latency": order_latency}
 
     def _ensure_log_dir(self) -> None:
         os.makedirs(self.cfg.log_dir, exist_ok=True)
@@ -679,6 +684,7 @@ class FeedbackEngine:
         """
         diag = self.run_diagnostics()
         metrics = diag.get("metrics", {})
+        metrics.update(self._telemetry)  # inject connectivity + latency
         alerts = diag.get("alerts", [])
         trades = list(self._recent)
 
@@ -877,6 +883,27 @@ class FeedbackEngine:
                         f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s | "
                         f"iwd={t.intrawindow_score:.2f} atr={t.atr_percentile:.2f} H={t.hurst:.3f}"
                     )
+
+        # ── Connectivity telemetry ────────────────────────────────────────────
+        conn = metrics.get("connectivity", {})
+        lat = metrics.get("order_latency", {})
+        if conn or lat:
+            lines += ["", "CONNECTIVITY (VPS JUSTIFICATION DATA)"]
+            if conn:
+                total_rc = conn.get("total_reconnects", 0)
+                rph = conn.get("reconnects_per_hour", 0)
+                uptime = conn.get("uptime_hours", 0)
+                verdict = "OK" if total_rc == 0 else ("WARN" if rph < 2 else "BAD — VPS recommended")
+                lines.append(f"  WS reconnects: {total_rc} total | {rph:.1f}/hr | {uptime:.1f}h uptime → {verdict}")
+                by_feed = conn.get("by_feed", {})
+                if any(v > 0 for v in by_feed.values()):
+                    lines.append(f"  by feed: clob={by_feed.get('clob_ws',0)} rtds={by_feed.get('rtds_ws',0)} "
+                                 f"binance={by_feed.get('binance_ws',0)} kline={by_feed.get('binance_kline',0)}")
+            if lat and lat.get("n", 0) > 0:
+                slow_pct = lat.get("slow_pct", 0)
+                verdict = "OK" if slow_pct < 5 else ("WARN" if slow_pct < 20 else "BAD — VPS recommended")
+                lines.append(f"  Order latency: avg={lat['avg_ms']:.0f}ms max={lat['max_ms']:.0f}ms "
+                             f"slow(>500ms)={slow_pct:.0f}% → {verdict}")
 
         lines.append("=" * 60)
         return "\n".join(lines)

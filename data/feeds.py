@@ -297,6 +297,16 @@ class PolymarketFeed:
         self._spot_open_5m: Dict[str, float] = {}     # asset → current 5m candle open
         self._spot_open_15m: Dict[str, float] = {}    # asset → current 15m candle open
         self._kline_ts: Dict[str, float] = {}         # asset → last kline update ts
+        # ── Connectivity telemetry (VPS justification data) ──────────────────
+        # Each reconnect = a period where the bot had no live data.
+        # Export via connectivity_stats() for session report.
+        self.reconnects: Dict[str, int] = {
+            "clob_ws": 0,       # Polymarket order book WS
+            "rtds_ws": 0,       # Polymarket real-time data WS
+            "binance_ws": 0,    # Binance futures aggTrade WS
+            "binance_kline": 0, # Binance spot kline WS
+        }
+        self._session_start_ts: float = time.time()
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -456,7 +466,9 @@ class PolymarketFeed:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.debug("CLOB WS disconnected (%s) — reconnecting in 2s", exc)
+                self.reconnects["clob_ws"] += 1
+                logger.warning("CLOB WS disconnected (%s) — reconnecting in 2s [total drops: %d]",
+                               exc, self.reconnects["clob_ws"])
                 await asyncio.sleep(2)
 
     async def _handle_clob_ws_event(self, ev: dict) -> None:
@@ -581,7 +593,9 @@ class PolymarketFeed:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.debug("RTDS WS disconnected (%s) — reconnecting in 3s", exc)
+                self.reconnects["rtds_ws"] += 1
+                logger.warning("RTDS WS disconnected (%s) — reconnecting in 3s [total drops: %d]",
+                               exc, self.reconnects["rtds_ws"])
                 await asyncio.sleep(3)
 
     async def _run_binance_ws(self) -> None:
@@ -665,7 +679,9 @@ class PolymarketFeed:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.debug("Binance WS disconnected (%s) — reconnecting in 5s", exc)
+                self.reconnects["binance_ws"] += 1
+                logger.warning("Binance WS disconnected (%s) — reconnecting in 5s [total drops: %d]",
+                               exc, self.reconnects["binance_ws"])
                 await asyncio.sleep(5)
 
     async def _run_binance_kline_ws(self) -> None:
@@ -769,7 +785,9 @@ class PolymarketFeed:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.warning("Binance kline WS disconnected (%s) — reconnecting in 5s", exc)
+                self.reconnects["binance_kline"] += 1
+                logger.warning("Binance kline WS disconnected (%s) — reconnecting in 5s [total drops: %d]",
+                               exc, self.reconnects["binance_kline"])
                 await asyncio.sleep(5)
 
     # ── Market discovery ─────────────────────────────────────────────────────
@@ -1136,6 +1154,18 @@ class PolymarketFeed:
         # (since _ws_ob_ts is only set by WS events), causing 500+ req/s → CF blocks.
         self._ws_ob_ts[token_id] = ob.ts
         return ob
+
+    def connectivity_stats(self) -> dict:
+        """Return connectivity telemetry for session report and VPS justification."""
+        total = sum(self.reconnects.values())
+        uptime_s = time.time() - self._session_start_ts
+        uptime_h = uptime_s / 3600
+        return {
+            "uptime_hours": round(uptime_h, 2),
+            "total_reconnects": total,
+            "reconnects_per_hour": round(total / max(uptime_h, 0.01), 2),
+            "by_feed": dict(self.reconnects),
+        }
 
     async def refresh_markets(self) -> None:
         """

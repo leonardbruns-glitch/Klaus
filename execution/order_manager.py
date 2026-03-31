@@ -186,6 +186,10 @@ class OrderManager:
         self.fill_history: List[Fill] = []
         self._fill_tracker = FillTracker()
         self._setup_fill_tracker()
+        # ── Order latency telemetry (VPS justification data) ─────────────────
+        # Measures round-trip time from order submission to CLOB response.
+        # High latency (>500ms) = network is the bottleneck.
+        self._order_latencies_ms: List[float] = []  # all order RTTs this session
 
     def _setup_fill_tracker(self) -> None:
         """Extract API creds from the CLOB client and give them to FillTracker."""
@@ -671,6 +675,7 @@ class OrderManager:
             # CRITICAL: create_order INSIDE the retry loop — reusing the same signed
             # order across retries triggers "order is invalid. Duplicated." from CLOB.
             resp = None
+            _order_t0 = time.time()
             for _cf_attempt in range(3):
                 signed = self._client.create_order(order_args, options=opts)
                 resp = self._client.post_order(signed, order_type)
@@ -682,6 +687,11 @@ class OrderManager:
                     logger.warning("Cloudflare block on order POST (attempt %d) — retry in %.1fs",
                                    _cf_attempt + 1, wait)
                     await asyncio.sleep(wait)
+            _order_ms = (time.time() - _order_t0) * 1000
+            self._order_latencies_ms.append(_order_ms)
+            if _order_ms > 500:
+                logger.warning("SLOW ORDER: %.0fms round-trip (cf_attempts=%d) — VPS may help",
+                               _order_ms, _cf_attempt + 1)
 
             if not resp:
                 return OrderResult(status=OrderStatus.FAILED, error="Empty response")
@@ -988,6 +998,19 @@ class OrderManager:
         return await self._submit_market_order(
             token_id, OrderSide.SELL, usdc_amount, 0.0
         )
+
+    def latency_stats(self) -> dict:
+        """Return order placement latency stats for session report."""
+        lats = self._order_latencies_ms
+        if not lats:
+            return {"n": 0, "avg_ms": 0, "max_ms": 0, "slow_pct": 0}
+        slow = sum(1 for l in lats if l > 500)
+        return {
+            "n": len(lats),
+            "avg_ms": round(sum(lats) / len(lats), 1),
+            "max_ms": round(max(lats), 1),
+            "slow_pct": round(slow / len(lats) * 100, 1),  # % of orders taking >500ms
+        }
 
     # ── Polymarket data reconciliation (GET endpoints — no CF blocking) ──────
 

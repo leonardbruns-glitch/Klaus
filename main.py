@@ -1156,6 +1156,10 @@ class KlausBot:
     async def _report_loop(self) -> None:
         while self._running:
             await asyncio.sleep(1800)
+            self.analytics.inject_telemetry(
+                connectivity=self.feed.connectivity_stats(),
+                order_latency=self.orders.latency_stats(),
+            )
             report = self.analytics.generate_claude_report()
             # Append buy attempt stats to the report
             failed = self._buy_tried - self._buy_filled
