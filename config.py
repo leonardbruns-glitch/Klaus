@@ -158,6 +158,11 @@ class EdgeConfig:
     # → 0.08 delta score cap ≈ ~2.4% token move → entry price in $0.72–$0.80 range.
     max_intrawindow_score: float = 0.85  # skip if intrawindow_s alone > 0.85 (fully priced)
 
+    # Assets paused from the Window Sniper based on live WR data.
+    # SOL paused: 28.6% WR over 7 sniper trades (live data 2026-03-31).
+    # Revisit when SOL has 20+ sniper trades with confirmed edge.
+    sniper_excluded_assets: List[str] = field(default_factory=lambda: ["SOL"])
+
     # Cross-asset cascade: when one asset fires a strong signal, correlated
     # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.
     # Research: crypto assets correlate within 10-30s on macro moves.

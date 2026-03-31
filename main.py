@@ -369,7 +369,8 @@ class KlausBot:
             # SniperSignal is compatible with risk manager (same fields: composite,
             # confidence, entry_price, direction, fee_zone, reason).
             sniper_sig = None
-            if token.market_type == "updown":
+            if (token.market_type == "updown"
+                    and token.asset not in CONFIG.edge.sniper_excluded_assets):
                 sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
 
             if sniper_sig is not None:
@@ -751,6 +752,25 @@ class KlausBot:
             return
 
         stage2_fallback = self._calc_exit_price(exit_fills, pos.entry_price)
+
+        # Ghost position guard: CLOB says balance=0 — we never owned these tokens.
+        # Cancel-race recovery in a previous session recorded a fill that never settled.
+        # Close immediately at 0, recording the stake as a complete loss, so the bot
+        # stops retrying and capital tracking is honest.
+        ghost_detected = any(
+            "GHOST_POSITION" in (getattr(r, "error", "") or "")
+            for r in exit_fills
+        )
+        if ghost_detected:
+            logger.error(
+                "GHOST POSITION purged: %s/%s — stake=$%.2f recorded as total loss. "
+                "Cancel-race false positive in earlier session.",
+                pos.asset, pos.direction.name, pos.stake,
+            )
+            self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
+            self._open_meta.pop(token_id, None)
+            self._pos_log_ts.pop(token_id, None)
+            return
         # Weighted avg exit price across ALL tranches (stage-1 95% + stage-2 5%).
         analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
         # Capture full share count before close_position pops pos from dict.

@@ -502,6 +502,19 @@ class OrderManager:
                     if _m:
                         actual_ticks = int(_m.group(1))
                         actual_shares = round(actual_ticks / 1_000_000, 6)
+                        # GHOST POSITION: balance=0 means we never owned these tokens.
+                        # Cancel-race false positive recorded a fill that never settled.
+                        # Retrying forever is useless — flag as ghost for main.py to purge.
+                        if actual_ticks == 0:
+                            logger.error(
+                                "GHOST POSITION %s: CLOB balance=0 — tokens never received. "
+                                "Flagging for immediate position purge.",
+                                token_id[:12],
+                            )
+                            return OrderResult(
+                                status=OrderStatus.FAILED,
+                                error="GHOST_POSITION:balance=0",
+                            )
                         if 0.01 <= actual_shares < remaining - 0.001:
                             logger.info(
                                 "CLOB balance cache: adjusting sell %.4f → %.6f shares (cached lag)",
