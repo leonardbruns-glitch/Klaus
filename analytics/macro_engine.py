@@ -578,7 +578,7 @@ class MacroEngine:
             self._exit_advice_cache[token_id] = (now, action, tighten_sl, confidence, reason)
 
             logger.info(
-                "EXIT ADVICE %s/%s → %s conf=%.2f move=%+.1%% remaining=%.0fs | %s",
+                "EXIT ADVICE %s/%s → %s conf=%.2f move=%+.1f%% remaining=%.0fs | %s",
                 asset, direction, action, confidence,
                 move_pct, time_remaining_s, reason,
             )
