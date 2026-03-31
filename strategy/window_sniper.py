@@ -65,8 +65,8 @@ WINDOW_ELAPSED_MIN = 0.40   # raised 0.35→0.40: 20-trade data — all 3 losses
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
-MIN_TOKEN_ASK = 0.40        # skip near-resolved tokens (mirrors risk manager gate)
-MAX_TOKEN_ASK = 0.60        # skip if market has already priced in the move (>60¢)
+MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens
+MAX_TOKEN_ASK = 0.65        # allow partially-priced moves — edge still exists at 0.62 ask if FV=0.80
 
 
 @dataclass
@@ -159,65 +159,57 @@ class WindowSniper:
         if not spot_current or spot_current <= 0:
             return None
 
+        # ── Delta computation + sustain timer (runs before time gate) ────────────
+        # Sustain timer must start as soon as delta crosses threshold — even if the
+        # window hasn't reached 40% elapsed yet. Otherwise: a token at 35% elapsed
+        # with a 0.3% move gets the time gate blocked, timer never starts, and when
+        # it hits 40% the 10s sustain starts from zero — missing the entire move.
+        delta_pct = (spot_current - spot_window_open) / spot_window_open * 100
+
+        is_15m = token.window_seconds > 300
+        min_delta = _session_min_delta(is_15m=is_15m)
+        asset_direction = 1 if delta_pct > 0 else -1
+        sustain_key = (token.token_id, asset_direction)
+        opp_key = (token.token_id, -asset_direction)
+
+        if abs(delta_pct) < min_delta:
+            # Delta below threshold — clear any sustained timers for this token.
+            self._delta_sustained_since.pop((token.token_id, 1), None)
+            self._delta_sustained_since.pop((token.token_id, -1), None)
+            return None
+
+        # Start/maintain sustain timer regardless of time gate
+        self._delta_sustained_since.pop(opp_key, None)  # clear reversed-direction timer
+        if sustain_key not in self._delta_sustained_since:
+            self._delta_sustained_since[sustain_key] = now
+            logger.debug(
+                "SNIPER SUSTAIN_START %s/%s | delta=%.3f%% — waiting %.0fs confirmation",
+                token.asset, token.side, delta_pct,
+                _SUSTAINED_5M if not is_15m else _SUSTAINED_15M,
+            )
+
         # ── Time gate ──────────────────────────────────────────────────────────
         if token.window_end_ts <= 0 or token.window_seconds <= 0:
-            return None  # no timing data (stub mode without window expiry set)
+            return None
 
         window_start = token.window_end_ts - token.window_seconds
         elapsed = now - window_start
         elapsed_pct = elapsed / token.window_seconds
 
         if elapsed_pct < WINDOW_ELAPSED_MIN:
-            return None  # too early — wait for move to confirm
+            return None  # too early — sustain timer is running; fire as soon as gate opens
         if elapsed_pct > WINDOW_ELAPSED_MAX:
-            return None  # too late — margin too thin; hard exit looming
-
-        # ── Delta computation ──────────────────────────────────────────────────
-        delta_pct = (spot_current - spot_window_open) / spot_window_open * 100
-
-        is_15m = token.window_seconds > 300
-        min_delta = _session_min_delta(is_15m=is_15m)
-        if abs(delta_pct) < min_delta:
-            # Delta below threshold — clear any sustained timers for this token.
-            # If the move reverses/fades, we reset so next breach starts fresh.
-            self._delta_sustained_since.pop((token.token_id, 1), None)
-            self._delta_sustained_since.pop((token.token_id, -1), None)
-            logger.debug(
-                "SNIPER SKIP %s/%s | delta=%.3f%% < session_min=%.2f%% (%s)",
-                token.asset, token.side, delta_pct, min_delta,
-                "active" if datetime.now(timezone.utc).hour in _HIGH_VOLUME_HOURS else "quiet",
-            )
-            return None  # asset hasn't moved enough to create a mispricing gap
-
-        asset_direction = 1 if delta_pct > 0 else -1
+            return None  # too late
 
         # ── Sustained delta gate ───────────────────────────────────────────────
-        # Require delta to hold above threshold before firing.
-        # Period is window-size-aware: 20s for 5-min (≤300s), 30s for 15-min+.
-        # Filters out wicks (5-15s spike that reverses) vs genuine macro moves (20s+).
-        # Data rationale: all 3 sniper losses were likely wick entries — delta at entry
-        # was quickly fading, not a sustained directional move.
-        required_sustain = _SUSTAINED_5M if token.window_seconds <= 300 else _SUSTAINED_15M
-
-        sustain_key = (token.token_id, asset_direction)
-        opp_key = (token.token_id, -asset_direction)
-        self._delta_sustained_since.pop(opp_key, None)  # clear reversed-direction timer
-
-        if sustain_key not in self._delta_sustained_since:
-            self._delta_sustained_since[sustain_key] = now
-            logger.debug(
-                "SNIPER SUSTAIN_START %s/%s | delta=%.3f%% — waiting %.0fs confirmation",
-                token.asset, token.side, delta_pct, required_sustain,
-            )
-            return None  # first breach — start sustain timer
-
+        required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
         sustained_for = now - self._delta_sustained_since[sustain_key]
         if sustained_for < required_sustain:
             logger.debug(
                 "SNIPER SUSTAIN_WAIT %s/%s | delta=%.3f%% held %.1fs / %.0fs",
                 token.asset, token.side, delta_pct, sustained_for, required_sustain,
             )
-            return None  # not yet sustained — wait
+            return None
 
         # ── Side alignment: only trade the winning token ───────────────────────
         # YES wins when asset goes up; NO wins when asset goes down.
