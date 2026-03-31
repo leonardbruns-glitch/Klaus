@@ -72,6 +72,16 @@ class TradeRecord:
     sniper_fair_value: float = 0.0    # sigmoid fair value at entry
     sniper_edge: float = 0.0          # fair_value - token_ask at entry
     sniper_elapsed_pct: float = 0.0   # fraction of window elapsed at entry
+    sniper_side: str = ""             # "YES" or "NO" — which side of the binary was bought
+    sniper_vpin: float = 0.0          # VPIN at entry (0.5=neutral, >0.60=elevated toxicity)
+    sniper_llm_boost: float = 0.0     # abs(macro_boost) at entry (0=no LLM signal active)
+    sniper_prearm: bool = False       # True if pre-arm triggered early entry (<25% elapsed)
+
+    # Window context
+    window_size_s: int = 0            # 300 (5m) or 900 (15m) — key for separate analysis
+
+    # Time enrichment
+    hour_utc: int = 0                 # UTC hour at entry — for hourly performance breakdown
 
     # Duration
     hold_seconds: float = 0.0
@@ -162,6 +172,12 @@ class FeedbackEngine:
                     sniper_fair_value=d.get("sniper_fair_value", 0.0),
                     sniper_edge=d.get("sniper_edge", 0.0),
                     sniper_elapsed_pct=d.get("sniper_elapsed_pct", 0.0),
+                    sniper_side=d.get("sniper_side", ""),
+                    sniper_vpin=d.get("sniper_vpin", 0.0),
+                    sniper_llm_boost=d.get("sniper_llm_boost", 0.0),
+                    sniper_prearm=d.get("sniper_prearm", False),
+                    window_size_s=d.get("window_size_s", 0),
+                    hour_utc=d.get("hour_utc", 0),
                     hold_seconds=d.get("hold_seconds", 0.0),
                     heat_check_active=d.get("heat_check_active", False),
                     consecutive_wins_at_entry=d.get("consecutive_wins_at_entry", 0),
@@ -207,6 +223,7 @@ class FeedbackEngine:
         market_type: str = "unknown",
         is_live: bool = False,
         signal_source: str = "MOMENTUM",
+        window_size_s: int = 0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -293,6 +310,12 @@ class FeedbackEngine:
             sniper_fair_value=round(getattr(signal, "fair_value", 0.0), 4) if is_sniper else 0.0,
             sniper_edge=round(getattr(signal, "edge", 0.0), 4) if is_sniper else 0.0,
             sniper_elapsed_pct=round(getattr(signal, "elapsed_pct", 0.0), 3) if is_sniper else 0.0,
+            sniper_side=getattr(signal, "side", "") if is_sniper else "",
+            sniper_vpin=round(getattr(signal, "vpin_at_entry", 0.0), 4) if is_sniper else 0.0,
+            sniper_llm_boost=round(getattr(signal, "llm_boost_at_entry", 0.0), 4) if is_sniper else 0.0,
+            sniper_prearm=bool(getattr(signal, "is_prearm", False)) if is_sniper else False,
+            window_size_s=window_size_s,
+            hour_utc=int(time.gmtime(ts_open).tm_hour),
             hold_seconds=round(ts_close - ts_open, 1),
             heat_check_active=heat_check_active,
             consecutive_wins_at_entry=consecutive_wins,
@@ -452,6 +475,79 @@ class FeedbackEngine:
             "fv_losses": _avg([t.sniper_fair_value for t in sniper_losses]),
         }
 
+        # ── 5m vs 15m window performance split ────────────────────────────────
+        w5m = [t for t in trades if t.window_size_s == 300]
+        w15m = [t for t in trades if t.window_size_s == 900]
+        by_window = {
+            "5m":  {"n": len(w5m),  "wr": _wr(w5m),  "net_pnl": round(sum(t.net_pnl for t in w5m), 3)},
+            "15m": {"n": len(w15m), "wr": _wr(w15m), "net_pnl": round(sum(t.net_pnl for t in w15m), 3)},
+        }
+
+        # ── Hourly breakdown (UTC hour at entry) ──────────────────────────────
+        by_hour: Dict[int, list] = {}
+        for t in trades:
+            by_hour.setdefault(t.hour_utc, []).append(t)
+        hourly_stats = {
+            h: {
+                "n": len(bucket),
+                "wr": _wr(bucket),
+                "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
+            }
+            for h, bucket in sorted(by_hour.items())
+        }
+
+        # ── VPIN impact (sniper trades only) ──────────────────────────────────
+        vpin_none  = [t for t in sniper_trades if t.sniper_vpin < 0.55]
+        vpin_elev  = [t for t in sniper_trades if 0.55 <= t.sniper_vpin < 0.70]
+        vpin_high  = [t for t in sniper_trades if t.sniper_vpin >= 0.70]
+        vpin_impact = {
+            "no_signal_<0.55":   {"n": len(vpin_none), "wr": _wr(vpin_none)},
+            "elevated_0.55-0.70": {"n": len(vpin_elev), "wr": _wr(vpin_elev)},
+            "high_>=0.70":       {"n": len(vpin_high), "wr": _wr(vpin_high)},
+        }
+
+        # ── LLM boost impact (sniper trades only) ─────────────────────────────
+        llm_none   = [t for t in sniper_trades if t.sniper_llm_boost < 0.05]
+        llm_active = [t for t in sniper_trades if t.sniper_llm_boost >= 0.05]
+        llm_impact = {
+            "no_boost_<0.05":  {"n": len(llm_none),   "wr": _wr(llm_none)},
+            "boosted_>=0.05":  {"n": len(llm_active), "wr": _wr(llm_active)},
+        }
+
+        # ── Pre-arm vs normal entry stats (sniper only) ───────────────────────
+        prearm_trades  = [t for t in sniper_trades if t.sniper_prearm]
+        normal_entries = [t for t in sniper_trades if not t.sniper_prearm]
+        prearm_stats = {
+            "prearm":  {"n": len(prearm_trades),  "wr": _wr(prearm_trades),
+                        "net_pnl": round(sum(t.net_pnl for t in prearm_trades), 3)},
+            "normal":  {"n": len(normal_entries), "wr": _wr(normal_entries),
+                        "net_pnl": round(sum(t.net_pnl for t in normal_entries), 3)},
+        }
+
+        # ── YES vs NO side performance (sniper only) ──────────────────────────
+        yes_trades = [t for t in sniper_trades if t.sniper_side == "YES"]
+        no_trades  = [t for t in sniper_trades if t.sniper_side == "NO"]
+        side_stats = {
+            "YES": {"n": len(yes_trades), "wr": _wr(yes_trades),
+                    "net_pnl": round(sum(t.net_pnl for t in yes_trades), 3)},
+            "NO":  {"n": len(no_trades),  "wr": _wr(no_trades),
+                    "net_pnl": round(sum(t.net_pnl for t in no_trades), 3)},
+        }
+
+        # ── Exit reason breakdown ─────────────────────────────────────────────
+        exit_reasons: Dict[str, list] = {}
+        for t in trades:
+            exit_reasons.setdefault(t.exit_reason, []).append(t)
+        by_exit_reason = {
+            reason: {
+                "n": len(bucket),
+                "wr": _wr(bucket),
+                "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
+                "avg_hold_s": round(_avg([t.hold_seconds for t in bucket]), 1),
+            }
+            for reason, bucket in sorted(exit_reasons.items())
+        }
+
         metrics = {
             "sample_size": n,
             "live_trades": len(live_trades),
@@ -481,6 +577,13 @@ class FeedbackEngine:
                 "MOMENTUM": _source_stats(momentum_trades),
             },
             "sniper_edge_analysis": sniper_edge_analysis,
+            "by_window_size": by_window,
+            "by_hour_utc": hourly_stats,
+            "vpin_impact": vpin_impact,
+            "llm_impact": llm_impact,
+            "prearm_stats": prearm_stats,
+            "side_stats": side_stats,
+            "by_exit_reason": by_exit_reason,
         }
 
         # ── Alert generation ──────────────────────────────────────────────────
@@ -689,6 +792,67 @@ class FeedbackEngine:
             lines.append(f"  elapsed%   : win={ea.get('elapsed_wins', 0):.1%}  loss={ea.get('elapsed_losses', 0):.1%}")
             lines.append(f"  delta_pct  : win={ea.get('delta_wins', 0):.3f}%  loss={ea.get('delta_losses', 0):.3f}%")
             lines.append(f"  (Higher edge + lower elapsed% in wins = model is working)")
+
+        # ── Window size split ─────────────────────────────────────────────────
+        bw = metrics.get("by_window_size", {})
+        if bw:
+            lines += ["", "BY WINDOW SIZE"]
+            for wlabel, ws in bw.items():
+                lines.append(f"  {wlabel:4s}: n={ws['n']:3d}  WR={ws['wr']:.1%}  PnL=${ws['net_pnl']:.3f}")
+
+        # ── Hourly breakdown ──────────────────────────────────────────────────
+        bh = metrics.get("by_hour_utc", {})
+        if bh:
+            lines += ["", "BY HOUR UTC (edge window: 08,13-15,22-23)"]
+            for h, hs in bh.items():
+                marker = " ←" if h in {8, 9, 13, 14, 15, 22, 23, 0} else ""
+                lines.append(f"  {h:02d}:00  n={hs['n']:3d}  WR={hs['wr']:.1%}  PnL=${hs['net_pnl']:.3f}{marker}")
+
+        # ── YES vs NO side performance ────────────────────────────────────────
+        ss = metrics.get("side_stats", {})
+        yes_s = ss.get("YES", {})
+        no_s  = ss.get("NO", {})
+        if yes_s.get("n", 0) + no_s.get("n", 0) > 0:
+            lines += ["", "BY SIDE (sniper trades)"]
+            lines.append(f"  YES: n={yes_s.get('n',0):3d}  WR={yes_s.get('wr',0):.1%}  PnL=${yes_s.get('net_pnl',0):.3f}  (asset moved UP)")
+            lines.append(f"  NO:  n={no_s.get('n',0):3d}  WR={no_s.get('wr',0):.1%}  PnL=${no_s.get('net_pnl',0):.3f}  (asset moved DOWN)")
+
+        # ── VPIN signal impact ────────────────────────────────────────────────
+        vi = metrics.get("vpin_impact", {})
+        if vi and any(v.get("n", 0) > 0 for v in vi.values()):
+            lines += ["", "VPIN IMPACT (sniper trades — does order flow confirm edge?)"]
+            for label, vs in vi.items():
+                lines.append(f"  {label:22s}: n={vs['n']:3d}  WR={vs['wr']:.1%}")
+            lines.append(f"  (Expected: higher VPIN = higher WR if toxicity signal works)")
+
+        # ── LLM boost impact ──────────────────────────────────────────────────
+        li = metrics.get("llm_impact", {})
+        if li and any(v.get("n", 0) > 0 for v in li.values()):
+            lines += ["", "LLM BOOST IMPACT (sniper trades — does macro engine help?)"]
+            for label, ls in li.items():
+                lines.append(f"  {label:20s}: n={ls['n']:3d}  WR={ls['wr']:.1%}")
+            lines.append(f"  (Expected: boosted WR > no-boost WR if LLM signal is valuable)")
+
+        # ── Pre-arm stats ─────────────────────────────────────────────────────
+        pa = metrics.get("prearm_stats", {})
+        prearm_n = pa.get("prearm", {}).get("n", 0)
+        normal_n = pa.get("normal", {}).get("n", 0)
+        if prearm_n + normal_n > 0:
+            lines += ["", "PRE-ARM vs NORMAL ENTRY (sniper trades)"]
+            pre = pa.get("prearm", {})
+            norm = pa.get("normal", {})
+            lines.append(f"  Pre-armed: n={prearm_n:3d}  WR={pre.get('wr',0):.1%}  PnL=${pre.get('net_pnl',0):.3f}")
+            lines.append(f"  Normal:    n={normal_n:3d}  WR={norm.get('wr',0):.1%}  PnL=${norm.get('net_pnl',0):.3f}")
+
+        # ── Exit reason breakdown ─────────────────────────────────────────────
+        ber = metrics.get("by_exit_reason", {})
+        if ber:
+            lines += ["", "BY EXIT REASON"]
+            for reason, rs in ber.items():
+                lines.append(
+                    f"  {reason:15s}: n={rs['n']:3d}  WR={rs['wr']:.1%}  "
+                    f"PnL=${rs['net_pnl']:.3f}  avg_hold={rs['avg_hold_s']:.0f}s"
+                )
 
         # Last 5 trades quick summary
         if trades:

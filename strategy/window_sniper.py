@@ -96,6 +96,10 @@ class SniperSignal:
     fee_zone: FeeZone       # EXTREME or FAT_MIDDLE (for risk manager gate)
     elapsed_pct: float      # fraction of window elapsed when signal fired
     reason: str             # human-readable explanation
+    # Analytics enrichment — recorded in TradeRecord for post-session analysis
+    is_prearm: bool = False         # True if pre-arm mechanism triggered early entry
+    vpin_at_entry: float = 0.0      # VPIN score at time of signal (0.5=neutral, >0.6=toxic)
+    llm_boost_at_entry: float = 0.0 # macro_boost magnitude at entry (0=no LLM signal)
 
 
 def _session_min_delta(is_15m: bool = False) -> float:
@@ -390,4 +394,7 @@ class WindowSniper:
             fee_zone=fee_zone,
             elapsed_pct=elapsed_pct,
             reason=reason,
+            is_prearm=is_prearmed,
+            vpin_at_entry=round(vpin, 4) if vpin > 0 else 0.0,
+            llm_boost_at_entry=round(abs(macro_boost), 4) if macro_boost else 0.0,
         )

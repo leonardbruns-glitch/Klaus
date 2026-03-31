@@ -747,6 +747,7 @@ class KlausBot:
             "capital_before": capital_before,
             "heat_check": decision.is_scaled,
             "consecutive_wins": self.risk.bankroll.consecutive_wins,
+            "window_size_s": getattr(token, "window_seconds", 0),
         }
 
     # ── Exit helpers ──────────────────────────────────────────────────────────
@@ -994,6 +995,7 @@ class KlausBot:
                     market_type=getattr(token_meta, "market_type", "unknown"),
                     is_live=not CONFIG.dry_run,
                     signal_source=meta.get("signal_source", "MOMENTUM"),
+                    window_size_s=meta.get("window_size_s", 0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
