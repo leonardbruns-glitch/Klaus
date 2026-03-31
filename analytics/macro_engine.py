@@ -284,10 +284,10 @@ class MacroEngine:
         elif hour in (22, 23, 0):
             session_desc = "Asia open — BTC-native liquidity"
         else:
-            session_desc = f"quiet hours ({now_utc.strftime('%H:%M')} UTC) — 40% reversal rate"
+            session_desc = f"off-peak hours ({now_utc.strftime('%H:%M')} UTC)"
 
         is_active = hour in _HIGH_VOLUME_HOURS
-        sustain_note = "moves sustain ~70% of the time" if is_active else "moves reverse ~40% — higher bar required"
+        sustain_note = "high-liquidity session — strong trend initiation" if is_active else "standard session — evaluate edge on merit"
 
         # Build candidate table for the prompt
         rows = []
@@ -324,7 +324,8 @@ class MacroEngine:
             "You evaluate 5-minute and 15-minute BTC/ETH/SOL up/down contracts. "
             "Your edge is the 30-120s information lag between Binance spot moves and Polymarket repricing. "
             "FV is computed via sigmoid model calibrated to historical Polymarket pricing. "
-            "Prioritize high-edge, low-correlation, VPIN-confirmed opportunities."
+            "Default to ENTER — the sniper signal already passed multiple gates. "
+            "Only SKIP if edge is clearly negative, correlation is a problem, or conviction is genuinely low."
         )
 
         prompt = (
@@ -335,8 +336,7 @@ class MacroEngine:
             f"{correlation_note}"
             f"FV = sigmoid model fair probability. Edge = FV - ask. "
             f"VPIN ✓ = order flow confirms direction. ✗ = opposes.\n"
-            f"Rank and decide ENTER or SKIP. Take at most 1–2 of the best. "
-            f"Skip correlated trades and weak-edge trades.\n\n"
+            f"Rank and decide ENTER or SKIP. Prefer ENTER — skip only clear negatives.\n\n"
             f"Respond ONLY with JSON array (one entry per opportunity, sorted best-first):\n"
             f'[{{"id":"T1","decision":"ENTER"or"SKIP","priority":1,'
             f'"confidence":0.50-0.95,"reason":"max 10 words"}}]'
