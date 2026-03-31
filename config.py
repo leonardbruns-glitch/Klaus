@@ -24,11 +24,11 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 100.0
-    base_stake: float = 10.0          # $10 per trade (raised from $3)
-    scaled_stake: float = 10.0        # same as base — heat check irrelevant at this size
+    base_stake: float = 20.0          # $20 per trade
+    scaled_stake: float = 20.0        # same as base — heat check irrelevant at this size
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
-    max_open_positions: int = 4       # max 4 concurrent → max $40 deployed at once
-    max_daily_loss: float = 25.0      # hard halt after -$25/day (25% of $100 capital)
+    max_open_positions: int = 4       # max 4 concurrent → max $80 deployed at once
+    max_daily_loss: float = 40.0      # hard halt after -$40/day (2 full losses at $20)
     post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 

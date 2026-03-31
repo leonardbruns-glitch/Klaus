@@ -419,7 +419,9 @@ class RiskManager:
             stake = self.cfg.base_stake
         else:
             stake = self.bankroll.current_stake
-        max_pct = 0.10 if (self.bankroll.is_heat_check_active and not is_sniper) else 0.05
+        # Cap at 25% of capital per position — allows $20 on $80+ capital.
+        # Previous cap was 5% ($5 max) which silently overrode base_stake=$10.
+        max_pct = 0.10 if (self.bankroll.is_heat_check_active and not is_sniper) else 0.25
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
