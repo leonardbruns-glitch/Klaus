@@ -853,6 +853,30 @@ class KlausBot:
             self._pos_log_ts.pop(token_id, None)
             return
 
+        # Externally sold guard: balance < 0.01 shares = sold manually outside the bot.
+        # Close the position at current price so PnL tracking stays accurate.
+        ext_sold_detected = any(
+            "EXTERNALLY_SOLD" in (getattr(r, "error", "") or "")
+            for r in exit_fills
+        )
+        if ext_sold_detected:
+            live_price = current_price if current_price > 0 else pos.entry_price
+            logger.warning(
+                "EXTERNALLY_SOLD purged: %s/%s — closing at current price %.4f. "
+                "Manual sell detected, stopping retry loop.",
+                pos.asset, pos.direction.name, live_price,
+            )
+            pnl = self.risk.close_position(token_id, live_price, "EXTERNALLY_SOLD")
+            meta = self._open_meta.pop(token_id, {})
+            self._pos_log_ts.pop(token_id, None)
+            if pnl is not None:
+                await self.feedback.record_trade(
+                    pos=pos, exit_price=live_price, exit_reason="EXTERNALLY_SOLD",
+                    pnl_usd=pnl, meta=meta,
+                    window_size_s=meta.get("window_size_s", 0),
+                )
+            return
+
         # Guard 1: zero sell before stage-1 → network/CLOB error, retry next scan.
         # Calling close_position on 0 fills ghosts the position: bot records a loss
         # while shares remain on Polymarket (T00011: 4.9 ETH shares left to resolve).

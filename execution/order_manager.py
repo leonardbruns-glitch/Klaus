@@ -515,6 +515,19 @@ class OrderManager:
                                 status=OrderStatus.FAILED,
                                 error="GHOST_POSITION:balance=0",
                             )
+                        if actual_shares < 0.01:
+                            # Dust balance — position was sold externally (manual sell).
+                            # balance=460 micro-tokens = 0.00046 shares, not worth retrying.
+                            # Retrying floods the log and hammers the CLOB with bad orders.
+                            logger.warning(
+                                "EXTERNALLY_SOLD %s: CLOB balance=%d micro-tokens (%.6f shares) "
+                                "— position was likely sold manually. Treating as closed.",
+                                token_id[:12], actual_ticks, actual_shares,
+                            )
+                            return OrderResult(
+                                status=OrderStatus.FAILED,
+                                error=f"EXTERNALLY_SOLD:balance={actual_ticks}",
+                            )
                         if 0.01 <= actual_shares < remaining - 0.001:
                             logger.info(
                                 "CLOB balance cache: adjusting sell %.4f → %.6f shares (cached lag)",
