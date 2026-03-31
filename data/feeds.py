@@ -811,68 +811,75 @@ class PolymarketFeed:
                 pass
             return None
 
+        def _extract_list(raw) -> list:
+            """Handle both direct list and paginated {data: [...]} responses."""
+            if isinstance(raw, list):
+                return raw
+            if isinstance(raw, dict):
+                # CLOB and newer Gamma API return {"data": [...], "count": N, ...}
+                if "data" in raw and isinstance(raw["data"], list):
+                    return raw["data"]
+                # Some endpoints return {"markets": [...]}
+                if "markets" in raw and isinstance(raw["markets"], list):
+                    return raw["markets"]
+                # Single market object
+                if raw.get("conditionId") or raw.get("condition_id"):
+                    return [raw]
+            return []
+
         markets = []
+
+        # ── Source 1: CLOB /markets — most reliable for live updown windows ────
+        # CLOB returns paginated {data: [...], next_cursor: ...} format.
+        # Active updown 5M/15M markets are always present here.
+        clob_url = self.CLOB + "/markets"
+        try:
+            async with self._session.get(
+                clob_url,
+                params={"active": "true", "accepting_orders": "true", "limit": "500"},
+                timeout=_disc_timeout,
+            ) as resp:
+                if resp.status == 200:
+                    clob_batch = _extract_list(await resp.json())
+                    markets.extend(clob_batch)
+                    logger.info("CLOB /markets: %d markets fetched", len(clob_batch))
+                else:
+                    logger.debug("CLOB /markets returned %d", resp.status)
+        except Exception as exc:
+            logger.debug("CLOB /markets failed: %s", exc)
+
+        # ── Source 2: Gamma slug lookup (current + next windows) ──────────────
         slug_results = await asyncio.gather(*[_fetch_slug(s) for s in direct_slugs])
         slug_hits = 0
         for data in slug_results:
             if data is None:
                 continue
-            if isinstance(data, list):
-                markets.extend(data)
-                slug_hits += len(data)
-            elif isinstance(data, dict):
-                markets.append(data)
-                slug_hits += 1
+            extracted = _extract_list(data)
+            markets.extend(extracted)
+            slug_hits += len(extracted)
 
         if slug_hits > 0:
-            logger.debug("Slug lookup: %d markets found", slug_hits)
+            logger.debug("Gamma slug lookup: %d markets found", slug_hits)
         else:
-            logger.debug("Slug lookup: no direct hits — falling back to bulk scan")
+            logger.debug("Gamma slug lookup: no hits (404 or wrong format)")
 
-        # ── Targeted scan for short-duration updown markets ────────────────────
-        # Sort by endDate ascending → soonest-expiring markets first.
-        # 5M/15M windows appear at the top, making this the most reliable way
-        # to find active updown markets (bulk all-market scan buries them).
+        # ── Source 3: Gamma bulk scan (price-target markets fallback) ──────────
+        # Handles both list and {"data": [...]} paginated responses.
         try:
             async with self._session.get(
-                url,
-                params={
-                    "active": "true",
-                    "closed": "false",
-                    "limit": 50,
-                    "order": "endDate",
-                    "ascending": "true",
-                },
+                url, params={"active": "true", "closed": "false", "limit": "500"},
                 timeout=_disc_timeout,
             ) as resp:
                 if resp.status == 200:
-                    updown_batch = await resp.json()
-                    if isinstance(updown_batch, list):
-                        markets.extend(updown_batch)
-                        logger.debug(
-                            "Targeted updown scan: %d markets (soonest-expiring)",
-                            len(updown_batch),
-                        )
+                    bulk = _extract_list(await resp.json())
+                    markets.extend(bulk)
+                    logger.debug("Gamma bulk scan: %d markets", len(bulk))
         except Exception as exc:
-            logger.debug("Targeted updown scan failed: %s", exc)
+            logger.debug("Gamma bulk scan failed: %s", exc)
 
-        # ── Bulk scan for price-target markets ─────────────────────────────────
-        # No network_ok guard — always run. Even if slug lookups time out,
-        # bulk scan is the only way to find non-updown markets.
-        # (Previously: network_ok guard caused zero discovery when slugs timed out.)
-        try:
-            async with self._session.get(
-                url, params={"active": "true", "closed": "false", "limit": 500},
-                timeout=_disc_timeout,
-            ) as resp:
-                if resp.status == 200:
-                    bulk = await resp.json()
-                    if isinstance(bulk, list):
-                        markets.extend(bulk)
-        except Exception as exc:
-            if not markets:
-                logger.error("Market discovery failed: %s", exc)
-                return
+        if not markets:
+            logger.error("Market discovery: all sources returned 0 markets — network down?")
+            return
 
         # Deduplicate by conditionId
         seen_conditions: set = set()
@@ -904,7 +911,8 @@ class PolymarketFeed:
                 continue
 
             question = market.get("question", "")
-            slug_field = market.get("slug", "").lower()
+            # CLOB uses "market_slug"; Gamma uses "slug"
+            slug_field = (market.get("slug") or market.get("market_slug") or "").lower()
             q_upper = question.upper()
             asset_match = next(
                 (
@@ -919,7 +927,8 @@ class PolymarketFeed:
 
             # Detect market type: 5M/15M Up/Down vs longer-duration price target.
             # Gamma slugs encode resolution: btc-updown-15m-1768220100
-            slug = market.get("slug", "")
+            # CLOB uses market_slug field instead of slug.
+            slug = market.get("slug") or market.get("market_slug") or ""
             slug_lo = slug.lower()
             q_lo = question.lower()
             is_updown = (
