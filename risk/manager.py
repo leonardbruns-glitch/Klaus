@@ -369,18 +369,13 @@ class RiskManager:
                     )
         else:
             # Updown: reject near-resolved markets.
-            # Track record: all profitable trades were at 0.48-0.56 entry;
-            # all losses were 0.59+ entries (ETH 0.59, SOL 0.88, SOL 0.89, SOL 0.67 live).
-            # Tightened 0.75→0.60: above 0.60, upside to 0.98 cap < 38¢ while
-            # 35% dynamic SL = up to 21¢ downside at 0.60 → apparent RR OK but
-            # the ATR-based RR check uses capped sl_distance (0.08) which doesn't
-            # reflect the 35% stop → fake RR of 1.12 lets bad trades through.
-            # 0.60 hard cap eliminates the entire 0.59+ losing pattern.
-            # Mirror: below 0.40 → symmetric rejection (NO near-resolved).
-            if signal.entry_price > 0.60 or signal.entry_price < 0.40:
+            # TEST MODE: widened to [0.35, 0.65] to match sniper's ask range gate.
+            # Prod cap was 0.60 based on live loss pattern (0.59+ entries all lost).
+            # Revert to 0.60/0.40 after dataset collected.
+            if signal.entry_price > 0.65 or signal.entry_price < 0.35:
                 return RiskDecision(
                     False, 0,
-                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.40, 0.60]",
+                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.35, 0.65]",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
