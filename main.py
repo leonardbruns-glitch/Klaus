@@ -80,6 +80,10 @@ class KlausBot:
         self._buy_tried: int = 0
         self._buy_filled: int = 0
         self._buy_failed_reasons: Dict[str, int] = {}
+        # Residual share tracker: shares that survived a partial cascade_sell at close.
+        # Format: token_id → {shares, asset, neg_risk, tick_size, attempts, last_try}
+        # Background sweep retries every 60s up to 10 attempts (~10 min).
+        self._residual_pending: Dict[str, dict] = {}
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -901,18 +905,49 @@ class KlausBot:
         # Capture full share count before close_position pops pos from dict.
         all_shares = pos.shares
 
-        # Residual share warning: if we sold less than we held, shares remain on-chain.
-        # These will resolve at settlement but are invisible to the bot.
-        # (T00026: 5.7 of 6.0 shares sold → 0.3 stranded, redeemed manually for +$0.48)
+        # Residual share recovery: if cascade_sell partially filled, try one immediate
+        # retry before closing the position. If that also fails, queue for background sweep.
         _DUST_THRESHOLD = 0.10
         if sold_shares < all_shares - _DUST_THRESHOLD:
-            residual = all_shares - sold_shares
+            residual = round(all_shares - sold_shares, 4)
             logger.warning(
-                "RESIDUAL SHARES: %.4f %s shares NOT sold (sold %.4f of %.4f) — "
-                "still open on Polymarket, will resolve at settlement. "
-                "Redeem manually if market resolved in our favour.",
+                "RESIDUAL SHARES: %.4f %s unsold (sold %.4f of %.4f) — attempting immediate sweep",
                 residual, pos.asset, sold_shares, all_shares,
             )
+            try:
+                sweep_fills = await self.orders.cascade_sell(
+                    token_id=token_id,
+                    total_shares=residual,
+                    current_price=live_price,
+                    reason="RESIDUAL_SWEEP",
+                    neg_risk=getattr(token_meta, "neg_risk", False),
+                    tick_size=getattr(token_meta, "tick_size", "0.01"),
+                    force_exit=True,
+                )
+                swept = sum(f.total_size for f in sweep_fills)
+                if swept > 0:
+                    all_exit_fills.extend(sweep_fills)
+                    sold_shares += swept
+                    residual = round(all_shares - sold_shares, 4)
+                    analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
+                    logger.info("RESIDUAL SWEEP: recovered %.4f shares immediately", swept)
+            except Exception as _sweep_exc:
+                logger.warning("RESIDUAL SWEEP failed: %s", _sweep_exc)
+
+            if residual > _DUST_THRESHOLD:
+                # Queue for background retry — sweep loop will retry every 60s
+                self._residual_pending[token_id] = {
+                    "shares": residual,
+                    "asset": pos.asset,
+                    "neg_risk": getattr(token_meta, "neg_risk", False),
+                    "tick_size": getattr(token_meta, "tick_size", "0.01"),
+                    "attempts": 0,
+                    "last_try": 0.0,
+                }
+                logger.warning(
+                    "RESIDUAL QUEUED: %.4f %s shares → background sweep will retry every 60s",
+                    residual, pos.asset,
+                )
 
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
 
@@ -1009,6 +1044,52 @@ class KlausBot:
             net_pnl or 0, bankroll["capital"], bankroll["consecutive_wins"],
         )
 
+    # ── Residual share sweep ──────────────────────────────────────────────────
+
+    async def _sweep_residuals(self) -> None:
+        """Retry selling shares that survived partial cascade_sell at position close."""
+        if not self._residual_pending:
+            return
+        now = time.time()
+        to_remove = []
+        for token_id, r in list(self._residual_pending.items()):
+            if now - r["last_try"] < 60:
+                continue
+            if r["attempts"] >= 10:
+                logger.error(
+                    "RESIDUAL ABANDONED: %.4f %s shares after 10 attempts (~10 min) — "
+                    "will settle automatically at market resolution.",
+                    r["shares"], r["asset"],
+                )
+                to_remove.append(token_id)
+                continue
+            r["attempts"] += 1
+            r["last_try"] = now
+            try:
+                fills = await self.orders.cascade_sell(
+                    token_id=token_id,
+                    total_shares=round(r["shares"], 4),
+                    current_price=0.50,   # mid estimate; CLOB adjusts to actual bid
+                    reason="RESIDUAL_RETRY",
+                    neg_risk=r["neg_risk"],
+                    tick_size=r["tick_size"],
+                    force_exit=True,
+                )
+                sold = sum(f.total_size for f in fills)
+                if sold > 0:
+                    r["shares"] = round(r["shares"] - sold, 4)
+                    logger.info(
+                        "RESIDUAL RETRY %s: sold %.4f shares (attempt %d, %.4f remaining)",
+                        r["asset"], sold, r["attempts"], r["shares"],
+                    )
+                if r["shares"] <= 0.05:
+                    to_remove.append(token_id)
+            except Exception as exc:
+                logger.warning("RESIDUAL RETRY %s attempt %d failed: %s",
+                               r["asset"], r["attempts"], exc)
+        for tid in to_remove:
+            self._residual_pending.pop(tid, None)
+
     # ── 10-second CLOB heartbeat ──────────────────────────────────────────────
 
     async def _heartbeat_loop(self) -> None:
@@ -1017,6 +1098,7 @@ class KlausBot:
             await asyncio.sleep(10)
             try:
                 await self.orders.post_heartbeat()
+                await self._sweep_residuals()
             except Exception as exc:
                 logger.debug("Heartbeat error: %s", exc)
 
