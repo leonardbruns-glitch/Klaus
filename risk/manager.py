@@ -600,7 +600,21 @@ class RiskManager:
         move_pct = (current_price - pos.entry_price) / pos.entry_price
 
         # ── 1. Hard-exit timer ────────────────────────────────────────────────
-        if time_held >= self.exec_cfg.hard_exit_seconds and not pos.hard_exit_triggered:
+        # Scale to window size: 180s flat is correct for 5-min windows but exits
+        # 15-min positions far too early (3 min into a 10-min remaining window).
+        # Adaptive: 60% of time remaining at entry, capped at 480s, floor at 180s.
+        #   5-min window, 225s remaining at entry  → max(180, min(135, 480)) = 180s
+        #   15-min window, 600s remaining at entry → max(180, min(360, 480)) = 360s (6 min)
+        #   15-min window, 840s remaining at entry → max(180, min(504, 480)) = 480s (8 min)
+        if pos.window_end_ts > 0:
+            remaining_at_entry = pos.window_end_ts - pos.open_ts
+            adaptive_hard_exit = max(
+                self.exec_cfg.hard_exit_seconds,
+                min(int(remaining_at_entry * 0.60), 480),
+            )
+        else:
+            adaptive_hard_exit = self.exec_cfg.hard_exit_seconds
+        if time_held >= adaptive_hard_exit and not pos.hard_exit_triggered:
             pos.hard_exit_triggered = True
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")
 
@@ -676,12 +690,20 @@ class RiskManager:
     # ── Convenience ──────────────────────────────────────────────────────────
 
     def positions_needing_hard_exit(self) -> List[PositionMeta]:
-        """Returns positions that hit the 180s timer."""
+        """Returns positions that hit the adaptive hard-exit timer."""
         now = time.time()
         result = []
         for pos in self.open_positions.values():
             age = now - pos.open_ts
-            if age >= self.exec_cfg.hard_exit_seconds and not pos.hard_exit_triggered:
+            if pos.window_end_ts > 0:
+                remaining_at_entry = pos.window_end_ts - pos.open_ts
+                adaptive = max(
+                    self.exec_cfg.hard_exit_seconds,
+                    min(int(remaining_at_entry * 0.60), 480),
+                )
+            else:
+                adaptive = self.exec_cfg.hard_exit_seconds
+            if age >= adaptive and not pos.hard_exit_triggered:
                 pos.hard_exit_triggered = True
                 result.append(pos)
         return result
