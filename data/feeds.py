@@ -699,6 +699,7 @@ class PolymarketFeed:
                 async with aiohttp.ClientSession() as ws_session:
                     async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
                         logger.info("Binance kline WS: subscribed to 1m/5m/15m for BTC/ETH/SOL")
+                        _last_price_log = 0.0
                         async for msg in ws:
                             if not self._running:
                                 break
@@ -738,6 +739,18 @@ class PolymarketFeed:
                                         # Only update prev when candle actually closes
                                         if is_closed:
                                             self._spot_prev_1m[asset] = close
+                                        # Periodic price health log every 30s
+                                        if now_ts - _last_price_log > 30 and asset == "BTC":
+                                            _last_price_log = now_ts
+                                            _open5m = self._spot_open_5m.get("BTC", 0)
+                                            _delta = (close - _open5m) / _open5m * 100 if _open5m else 0
+                                            logger.info(
+                                                "Binance BTC: price=%.2f open5m=%.2f delta=%+.3f%%"
+                                                " | ETH=%.2f SOL=%.2f",
+                                                close, _open5m, _delta,
+                                                self._spot_price.get("ETH", 0),
+                                                self._spot_price.get("SOL", 0),
+                                            )
 
                                     elif interval == "5m":
                                         self._spot_open_5m[asset] = open_
@@ -756,7 +769,7 @@ class PolymarketFeed:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.debug("Binance kline WS disconnected (%s) — reconnecting in 5s", exc)
+                logger.warning("Binance kline WS disconnected (%s) — reconnecting in 5s", exc)
                 await asyncio.sleep(5)
 
     # ── Market discovery ─────────────────────────────────────────────────────
