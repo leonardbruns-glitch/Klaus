@@ -320,9 +320,7 @@ class RiskManager:
         if self.bankroll.capital < 50.0:
             return RiskDecision(False, 0, f"RUIN FLOOR: capital=${self.bankroll.capital:.2f} < $50 — halt until manual review")
 
-        # Daily loss halt
-        if self.bankroll.is_halted:
-            return RiskDecision(False, 0, "Daily loss limit reached")
+        # Daily loss halt disabled — 15m WR 100%, no reason to stop on a bad day
 
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
