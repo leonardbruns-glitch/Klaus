@@ -696,11 +696,25 @@ class RiskManager:
     # ── Convenience ──────────────────────────────────────────────────────────
 
     def positions_needing_hard_exit(self) -> List[PositionMeta]:
-        """Returns positions that hit the adaptive hard-exit timer."""
+        """Returns positions that hit the adaptive hard-exit timer or window expiry."""
         now = time.time()
         result = []
         for pos in self.open_positions.values():
+            if pos.hard_exit_triggered:
+                continue
             age = now - pos.open_ts
+
+            # Absolute window expiry guard: force exit when within no_trade_last_sec
+            # of window close, regardless of the adaptive timer. This prevents positions
+            # from ever reaching market resolution (tokens go to 0 / 1 at T=0).
+            if pos.window_end_ts > 0:
+                time_to_expiry = pos.window_end_ts - now
+                if time_to_expiry <= self.exec_cfg.no_trade_last_sec:
+                    pos.hard_exit_triggered = True
+                    result.append(pos)
+                    continue
+
+            # Adaptive timer: 60% of remaining time at entry, capped at 480s, floor at 180s
             if pos.window_end_ts > 0:
                 remaining_at_entry = pos.window_end_ts - pos.open_ts
                 adaptive = max(
@@ -709,7 +723,7 @@ class RiskManager:
                 )
             else:
                 adaptive = self.exec_cfg.hard_exit_seconds
-            if age >= adaptive and not pos.hard_exit_triggered:
+            if age >= adaptive:
                 pos.hard_exit_triggered = True
                 result.append(pos)
         return result
