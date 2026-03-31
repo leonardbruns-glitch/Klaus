@@ -285,9 +285,9 @@ class KlausBot:
             logger.warning("Trading HALTED — daily loss limit reached")
             return
 
-        # Periodic updown token count — fires every ~60s to confirm discovery health
+        # Periodic updown token count — fires every ~10s to confirm discovery health
         now_ts = time.time()
-        if now_ts - getattr(self, "_last_updown_log_ts", 0) > 60:
+        if now_ts - getattr(self, "_last_updown_log_ts", 0) > 10:
             self._last_updown_log_ts = now_ts
             updown_tokens = [t for t in self.feed.tokens.values() if t.market_type == "updown"]
             if updown_tokens:
