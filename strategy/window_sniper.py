@@ -70,7 +70,10 @@ MAX_TOKEN_ASK_5M  = 0.55   # 5m markets: tight cap — fast reversals make high 
 MAX_TOKEN_ASK_15M = 0.65   # 15m markets: wider — more time, slower repricing (3W/0L at 0.59-0.62)
 MAX_TOKEN_ASK = MAX_TOKEN_ASK_15M   # fallback for non-updown paths
 
-WINDOW_ELAPSED_MAX_5M  = 0.65  # 5m: stop entering after 65% (90s left too little time to recover)
+WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
+                                # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
+                                # T00035: entered at 18% elapsed → +$0.992 (early = room to breathe)
+                                # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
 WINDOW_ELAPSED_MAX_15M = 0.80  # 15m: full 80% (still 3 min left at 80%)
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
