@@ -24,10 +24,10 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 100.0
-    base_stake: float = 3.0           # $3 base stake; 3% of $100 — validation mode
-    scaled_stake: float = 5.0         # $5 — unlocked after heat_trigger_wins
+    base_stake: float = 10.0          # $10 per trade (raised from $3)
+    scaled_stake: float = 10.0        # same as base — heat check irrelevant at this size
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
-    max_open_positions: int = 2       # limit exposure; max $20 deployed at once
+    max_open_positions: int = 4       # max 4 concurrent → max $40 deployed at once
     max_daily_loss: float = 10.0      # hard halt after -$10/day (10% of $100 capital)
     post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
