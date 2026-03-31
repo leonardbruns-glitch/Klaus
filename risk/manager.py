@@ -714,23 +714,22 @@ class RiskManager:
                     return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
                 if current_price <= pos.entry_price * (1 - sl_pct):
-                    if is_5m:
-                        # 5m markets: 3s confirmation to filter wick noise.
-                        # Updown 5m prices spike 20%+ and recover within 1-2s frequently.
-                        # T00040: exited in 17s — a timer would have let the wick clear.
-                        # Catastrophic case (≥40%) already caught above.
-                        if pos.sl_breach_ts == 0.0:
-                            pos.sl_breach_ts = now
-                            logger.debug(
-                                "5m SL breached @ %.4f (entry=%.4f -%.0f%%) — "
-                                "waiting 12s wick confirmation",
-                                current_price, pos.entry_price, sl_pct * 100,
-                            )
-                        elif now - pos.sl_breach_ts >= 12.0:
-                            return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                    else:
-                        # 15m markets: immediate — more capital at stake, genuine moves
-                        # take longer to reverse and the 1s scan misses the recovery anyway.
+                    # Wick confirmation timer — bots paint stops to shake out positions.
+                    # T00042: ETH/NO entered 0.59, dropped to 0.44 (25%), SL fired at 25s,
+                    # price recovered to 0.78 — a clean wick, not a genuine reversal.
+                    # 5m: 12s confirmation (fast windows, wicks clear quickly)
+                    # 15m: 20s confirmation (slower market, more time to wait out noise)
+                    # Catastrophic drops (≥40%/50%) are always immediate (caught above).
+                    confirm_secs = 12.0 if is_5m else 20.0
+                    if pos.sl_breach_ts == 0.0:
+                        pos.sl_breach_ts = now
+                        logger.debug(
+                            "%s SL breached @ %.4f (entry=%.4f -%.0f%%) — "
+                            "waiting %.0fs wick confirmation",
+                            "5m" if is_5m else "15m",
+                            current_price, pos.entry_price, sl_pct * 100, confirm_secs,
+                        )
+                    elif now - pos.sl_breach_ts >= confirm_secs:
                         return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                 else:
                     if pos.sl_breach_ts > 0.0:
