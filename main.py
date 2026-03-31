@@ -223,22 +223,67 @@ class KlausBot:
             decision = self.risk.check_exit_conditions(token_id, current_price)
 
             if decision is None:
-                # ── LLM exit advisor: manage the uncertain zone ───────────────
-                # Rule-based exits haven't fired. Ask Claude for guidance when:
-                #   - Position is a windowed (sniper) trade
-                #   - Held > 60s (entry confirmed, not a wick entry)
-                #   - Move between -20% and +22% (not near TP or SL yet)
-                #   - Window has > 60s remaining (enough time to act)
-                # Claude reasons holistically: P&L, momentum, VPIN trend, session.
                 if pos.window_end_ts > 0:
                     time_held = now - pos.open_ts
                     remaining = max(0.0, pos.window_end_ts - now)
                     move_pct = (current_price - pos.entry_price) / pos.entry_price
+
+                    # ── LLM SL-breach override: wick vs genuine reversal ──────
+                    # When the SL timer is running but hasn't expired, ask Claude once.
+                    # T00042: 0.59→0.44 in 25s (bot-painted stop), price recovered 0.78.
+                    # Mechanical timer is blind to this. LLM sees VPIN/spot context.
+                    if pos.sl_breach_ts > 0 and not pos.sl_breach_llm_queried:
+                        pos.sl_breach_llm_queried = True
+                        # Bypass stale cache — fresh read on breach
+                        self.macro_engine._exit_advice_cache.pop(token_id, None)
+                        ext = self._last_ext_signals.get(pos.asset)
+                        action, tighten_sl, conf, adv_reason = await self.macro_engine.advise_exit(
+                            token_id=token_id,
+                            asset=pos.asset,
+                            direction=pos.direction.name,
+                            entry_price=pos.entry_price,
+                            current_price=current_price,
+                            time_held_s=time_held,
+                            time_remaining_s=remaining,
+                            stake=pos.stake,
+                            vpin_score=ext.vpin_score if ext else None,
+                            vpin_direction=ext.vpin_direction if ext else None,
+                            spot_price=ext.spot_price if ext else None,
+                            spot_change_pct=ext.spot_momentum_5m if ext else None,
+                        )
+                        if action == "HOLD" and conf >= 0.65:
+                            # LLM says wick — reset breach timer, stay in
+                            pos.sl_breach_ts = 0.0
+                            pos.sl_breach_llm_queried = False  # allow re-query if price dips again
+                            logger.info(
+                                "LLM WICK OVERRIDE %s/%s (conf=%.2f move=%+.1f%%) — SL breach reset | %s",
+                                pos.asset, pos.direction.name, conf, move_pct * 100, adv_reason,
+                            )
+                        elif action == "EXIT_NOW" and conf >= 0.65:
+                            logger.info(
+                                "LLM CONFIRMS EXIT %s/%s (conf=%.2f move=%+.1f%%) — not a wick | %s",
+                                pos.asset, pos.direction.name, conf, move_pct * 100, adv_reason,
+                            )
+                            await self._exit_position(token_id, current_price, "LLM_CONFIRMS_SL")
+                            continue
+                        else:
+                            logger.info(
+                                "LLM SL CONSULT %s/%s → %s conf=%.2f — letting timer run | %s",
+                                pos.asset, pos.direction.name, action, conf, adv_reason,
+                            )
+
+                    # ── LLM exit advisor: manage the uncertain zone ───────────
+                    # Rule-based exits haven't fired. Ask Claude when:
+                    #   - Held > 15s (entry confirmed, not a noise tick)
+                    #   - Move between -35% and +22% (covers SL approach zone too)
+                    #   - Window has > 60s remaining (enough time to act)
+                    # Claude reasons holistically: P&L, momentum, VPIN, session.
                     in_uncertain_zone = (
-                        time_held > 60
-                        and -0.20 < move_pct < 0.22
+                        time_held > 15
+                        and -0.35 < move_pct < 0.22
                         and remaining > 60
                         and pos.exit_stage.name == "NONE"
+                        and pos.sl_breach_ts == 0.0  # breach handled above
                     )
                     if in_uncertain_zone:
                         ext = self._last_ext_signals.get(pos.asset)
@@ -668,7 +713,7 @@ class KlausBot:
                 llm_conf = b.get("confidence", 0.5)
                 llm_reason = b.get("reason", "")
 
-                if llm_decision == "SKIP" and llm_conf >= 0.90:  # TEST MODE (prod=0.65)
+                if llm_decision == "SKIP" and llm_conf >= 0.65:
                     logger.info(
                         "  └─ LLM VETO %s/%s (conf=%.2f): %s",
                         token.asset, token.side, llm_conf, llm_reason,

@@ -61,6 +61,7 @@ class PositionMeta:
     hard_exit_triggered: bool = False
     condition_id: str = ""            # Polymarket condition ID for dedup
     sl_breach_ts: float = 0.0        # timestamp when wide SL first breached (0 = not breached)
+    sl_breach_llm_queried: bool = False  # True once LLM has been asked about this breach
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
 
     def __post_init__(self) -> None:
@@ -737,7 +738,8 @@ class RiskManager:
                             "SL breach reset — price %.4f recovered above threshold %.4f",
                             current_price, pos.entry_price * (1 - sl_pct),
                         )
-                    pos.sl_breach_ts = 0.0  # price recovered — reset confirmation timer
+                    pos.sl_breach_ts = 0.0           # price recovered — reset confirmation timer
+                    pos.sl_breach_llm_queried = False  # allow fresh LLM consult on next breach
             else:
                 sl_pct = 0.10  # Last 2 min: tight stop, fire immediately
                 if current_price <= pos.entry_price * (1 - sl_pct):
