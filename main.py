@@ -451,6 +451,8 @@ class KlausBot:
 
         self._open_meta[token_id] = {
             "signal": signal,
+            "signal_source": getattr(signal, "signal_source", "SNIPER")
+                             if hasattr(signal, "delta_pct") else "MOMENTUM",
             "entry_fill": fill,
             "ts_open": ts_open,
             "capital_before": capital_before,
@@ -667,9 +669,10 @@ class KlausBot:
                     # capital_after computed inside record_trade as capital_before + net_pnl
                     heat_check_active=meta.get("heat_check", False),
                     consecutive_wins=meta.get("consecutive_wins", 0),
-                    net_pnl_actual=net_pnl,           # authoritative from risk manager
+                    net_pnl_actual=net_pnl,
                     market_type=getattr(token_meta, "market_type", "unknown"),
                     is_live=not CONFIG.dry_run,
+                    signal_source=meta.get("signal_source", "MOMENTUM"),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

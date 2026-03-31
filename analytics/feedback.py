@@ -50,30 +50,38 @@ class TradeRecord:
     slippage_exit: float
     exit_reason: str         # TAKE_PROFIT / STOP_LOSS / HARD_EXIT / MANUAL
 
-    # Signal breakdown (for Claude analysis)
-    breakout_score: float
-    trend_score: float
-    volume_score: float
-    ob_score: float
-    intrawindow_score: float   # intra-window delta signal ("king signal")
-    composite_score: float
-    confidence: float
-    fee_zone: str              # EXTREME / FAT_MIDDLE
-    external_boost: float
-    # Regime context (calibration data for Hurst hard gate + ATR threshold)
-    atr_percentile: float      # ATR(14) percentile in last 50 bars (0-1)
-    atr_current: float         # raw ATR(14) value at entry
-    hurst: float               # Hurst exponent estimate at entry (R/S method)
+    # Signal source — determines which analysis section applies
+    signal_source: str = "MOMENTUM"   # "SNIPER" or "MOMENTUM"
+
+    # Momentum scorer breakdown (populated for MOMENTUM trades, zero for SNIPER)
+    breakout_score: float = 0.0
+    trend_score: float = 0.0
+    volume_score: float = 0.0
+    ob_score: float = 0.0
+    intrawindow_score: float = 0.0
+    composite_score: float = 0.0
+    confidence: float = 0.0
+    fee_zone: str = ""
+    external_boost: float = 0.0
+    atr_percentile: float = 0.0
+    atr_current: float = 0.0
+    hurst: float = 0.0
+
+    # Window Sniper fields (populated for SNIPER trades, zero for MOMENTUM)
+    sniper_delta_pct: float = 0.0     # asset % move from window open (signed)
+    sniper_fair_value: float = 0.0    # sigmoid fair value at entry
+    sniper_edge: float = 0.0          # fair_value - token_ask at entry
+    sniper_elapsed_pct: float = 0.0   # fraction of window elapsed at entry
 
     # Duration
-    hold_seconds: float
+    hold_seconds: float = 0.0
 
     # Meta
-    heat_check_active: bool
-    consecutive_wins_at_entry: int
-    capital_before: float
-    capital_after: float     # always capital_before + net_pnl (not bankroll snapshot)
-    is_live: bool            # False = dry-run/stub; True = real CLOB trade
+    heat_check_active: bool = False
+    consecutive_wins_at_entry: int = 0
+    capital_before: float = 0.0
+    capital_after: float = 0.0   # always capital_before + net_pnl (not bankroll snapshot)
+    is_live: bool = False         # False = dry-run/stub; True = real CLOB trade
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +145,7 @@ class FeedbackEngine:
                     slippage_entry=d.get("slippage_entry", 0.0),
                     slippage_exit=d.get("slippage_exit", 0.0),
                     exit_reason=d.get("exit_reason", ""),
+                    signal_source=d.get("signal_source", "MOMENTUM"),
                     breakout_score=d.get("breakout_score", 0.0),
                     trend_score=d.get("trend_score", 0.0),
                     volume_score=d.get("volume_score", 0.0),
@@ -146,9 +155,13 @@ class FeedbackEngine:
                     confidence=d.get("confidence", 0.0),
                     fee_zone=d.get("fee_zone", ""),
                     external_boost=d.get("external_boost", 0.0),
-                    atr_percentile=d.get("atr_percentile", 0.5),
+                    atr_percentile=d.get("atr_percentile", 0.0),
                     atr_current=d.get("atr_current", 0.0),
-                    hurst=d.get("hurst", 0.5),
+                    hurst=d.get("hurst", 0.0),
+                    sniper_delta_pct=d.get("sniper_delta_pct", 0.0),
+                    sniper_fair_value=d.get("sniper_fair_value", 0.0),
+                    sniper_edge=d.get("sniper_edge", 0.0),
+                    sniper_elapsed_pct=d.get("sniper_elapsed_pct", 0.0),
                     hold_seconds=d.get("hold_seconds", 0.0),
                     heat_check_active=d.get("heat_check_active", False),
                     consecutive_wins_at_entry=d.get("consecutive_wins_at_entry", 0),
@@ -184,15 +197,16 @@ class FeedbackEngine:
         entry_fill: OrderResult,
         exit_fills: List[OrderResult],
         exit_reason: str,
-        signal: SignalBreakdown,
+        signal,                            # SignalBreakdown or SniperSignal
         ts_open: float,
         ts_close: float,
         capital_before: float,
         heat_check_active: bool,
         consecutive_wins: int,
-        net_pnl_actual: Optional[float] = None,   # from risk manager — authoritative
+        net_pnl_actual: Optional[float] = None,
         market_type: str = "unknown",
         is_live: bool = False,
+        signal_source: str = "MOMENTUM",
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -240,6 +254,8 @@ class FeedbackEngine:
         exit_slippages = [r.slippage for r in exit_fills if r.slippage is not None]
         slippage_exit = statistics.mean(exit_slippages) if exit_slippages else 0.0
 
+        # Extract signal fields — handle both SniperSignal and SignalBreakdown
+        is_sniper = signal_source == "SNIPER"
         rec = TradeRecord(
             trade_id=trade_id,
             token_id=token_id,
@@ -258,18 +274,25 @@ class FeedbackEngine:
             slippage_entry=round(slippage_entry, 5),
             slippage_exit=round(slippage_exit, 5),
             exit_reason=exit_reason,
-            breakout_score=round(signal.breakout_score, 3),
-            trend_score=round(signal.trend_score, 3),
-            volume_score=round(signal.volume_score, 3),
-            ob_score=round(signal.ob_score, 3),
-            intrawindow_score=round(signal.intrawindow_score, 3),
-            composite_score=round(signal.composite, 3),
-            confidence=round(signal.confidence, 3),
-            fee_zone=signal.fee_zone.name,
-            external_boost=round(signal.external_boost, 3),
-            atr_percentile=round(signal.atr_percentile, 3),
-            atr_current=round(signal.atr_current, 5),
-            hurst=round(signal.hurst, 3),
+            signal_source=signal_source,
+            # Momentum fields (zero for sniper trades)
+            breakout_score=0.0 if is_sniper else round(getattr(signal, "breakout_score", 0.0), 3),
+            trend_score=0.0 if is_sniper else round(getattr(signal, "trend_score", 0.0), 3),
+            volume_score=0.0 if is_sniper else round(getattr(signal, "volume_score", 0.0), 3),
+            ob_score=0.0 if is_sniper else round(getattr(signal, "ob_score", 0.0), 3),
+            intrawindow_score=0.0 if is_sniper else round(getattr(signal, "intrawindow_score", 0.0), 3),
+            composite_score=round(getattr(signal, "composite", 0.0), 3),
+            confidence=round(getattr(signal, "confidence", 0.0), 3),
+            fee_zone=signal.fee_zone.name if hasattr(signal, "fee_zone") and signal.fee_zone else "",
+            external_boost=0.0 if is_sniper else round(getattr(signal, "external_boost", 0.0), 3),
+            atr_percentile=0.0 if is_sniper else round(getattr(signal, "atr_percentile", 0.0), 3),
+            atr_current=0.0 if is_sniper else round(getattr(signal, "atr_current", 0.0), 5),
+            hurst=0.0 if is_sniper else round(getattr(signal, "hurst", 0.0), 3),
+            # Sniper fields (zero for momentum trades)
+            sniper_delta_pct=round(getattr(signal, "delta_pct", 0.0), 4) if is_sniper else 0.0,
+            sniper_fair_value=round(getattr(signal, "fair_value", 0.0), 4) if is_sniper else 0.0,
+            sniper_edge=round(getattr(signal, "edge", 0.0), 4) if is_sniper else 0.0,
+            sniper_elapsed_pct=round(getattr(signal, "elapsed_pct", 0.0), 3) if is_sniper else 0.0,
             hold_seconds=round(ts_close - ts_open, 1),
             heat_check_active=heat_check_active,
             consecutive_wins_at_entry=consecutive_wins,
@@ -398,6 +421,37 @@ class FeedbackEngine:
             "iwd_strong_>=0.60": {"n": len(iwd_high), "wr": _wr(iwd_high)},
         }
 
+        # ── Sniper vs Momentum split ──────────────────────────────────────────
+        sniper_trades = [t for t in trades if t.signal_source == "SNIPER"]
+        momentum_trades = [t for t in trades if t.signal_source == "MOMENTUM"]
+
+        def _source_stats(src_trades: list) -> dict:
+            if not src_trades:
+                return {"n": 0, "wr": 0.0, "net_pnl": 0.0, "avg_edge": 0.0,
+                        "avg_elapsed_pct": 0.0, "avg_delta_pct": 0.0}
+            sw = [t for t in src_trades if t.net_pnl > 0]
+            return {
+                "n": len(src_trades),
+                "wr": round(len(sw) / len(src_trades), 3),
+                "net_pnl": round(sum(t.net_pnl for t in src_trades), 3),
+                "avg_edge": _avg([t.sniper_edge for t in src_trades if t.sniper_edge > 0]),
+                "avg_elapsed_pct": _avg([t.sniper_elapsed_pct for t in src_trades if t.sniper_elapsed_pct > 0]),
+                "avg_delta_pct": _avg([t.sniper_delta_pct for t in src_trades if t.sniper_delta_pct != 0]),
+            }
+
+        sniper_wins = [t for t in sniper_trades if t.net_pnl > 0]
+        sniper_losses = [t for t in sniper_trades if t.net_pnl <= 0]
+        sniper_edge_analysis = {
+            "edge_wins":   _avg([t.sniper_edge for t in sniper_wins]),
+            "edge_losses": _avg([t.sniper_edge for t in sniper_losses]),
+            "elapsed_wins":   _avg([t.sniper_elapsed_pct for t in sniper_wins]),
+            "elapsed_losses": _avg([t.sniper_elapsed_pct for t in sniper_losses]),
+            "delta_wins":   _avg([t.sniper_delta_pct for t in sniper_wins]),
+            "delta_losses": _avg([t.sniper_delta_pct for t in sniper_losses]),
+            "fv_wins":   _avg([t.sniper_fair_value for t in sniper_wins]),
+            "fv_losses": _avg([t.sniper_fair_value for t in sniper_losses]),
+        }
+
         metrics = {
             "sample_size": n,
             "live_trades": len(live_trades),
@@ -422,6 +476,11 @@ class FeedbackEngine:
             "regime_atr": regime_atr,
             "regime_hurst": regime_hurst,
             "intrawindow_buckets": intrawindow_buckets,
+            "by_signal_source": {
+                "SNIPER": _source_stats(sniper_trades),
+                "MOMENTUM": _source_stats(momentum_trades),
+            },
+            "sniper_edge_analysis": sniper_edge_analysis,
         }
 
         # ── Alert generation ──────────────────────────────────────────────────
@@ -603,17 +662,54 @@ class FeedbackEngine:
             lines.append(f"  Strong (>=0.60): n={ib.get('iwd_strong_>=0.60', {}).get('n', 0):3d}  WR={ib.get('iwd_strong_>=0.60', {}).get('wr', 0):.1%}")
             lines.append(f"  (Expected: strong > mid > weak WR if IWD is predictive)")
 
+        # Signal source split: SNIPER vs MOMENTUM
+        src = metrics.get("by_signal_source", {})
+        ea = metrics.get("sniper_edge_analysis", {})
+        sniper_src = src.get("SNIPER", {})
+        momentum_src = src.get("MOMENTUM", {})
+        lines += ["", "BY SIGNAL SOURCE"]
+        lines.append(
+            f"  SNIPER:   n={sniper_src.get('n', 0):3d}  "
+            f"WR={sniper_src.get('wr', 0):.1%}  "
+            f"PnL=${sniper_src.get('net_pnl', 0):.3f}  "
+            f"avg_edge={sniper_src.get('avg_edge', 0):.3f}  "
+            f"avg_elapsed={sniper_src.get('avg_elapsed_pct', 0):.0%}"
+        )
+        lines.append(
+            f"  MOMENTUM: n={momentum_src.get('n', 0):3d}  "
+            f"WR={momentum_src.get('wr', 0):.1%}  "
+            f"PnL=${momentum_src.get('net_pnl', 0):.3f}  "
+            f"(updown disabled — price-target only)"
+        )
+
+        if sniper_src.get("n", 0) >= 3:
+            lines += ["", "SNIPER EDGE ANALYSIS (wins vs losses)"]
+            lines.append(f"  edge       : win={ea.get('edge_wins', 0):.3f}  loss={ea.get('edge_losses', 0):.3f}  diff={ea.get('edge_wins', 0)-ea.get('edge_losses', 0):+.3f}")
+            lines.append(f"  fair_value : win={ea.get('fv_wins', 0):.3f}  loss={ea.get('fv_losses', 0):.3f}  diff={ea.get('fv_wins', 0)-ea.get('fv_losses', 0):+.3f}")
+            lines.append(f"  elapsed%   : win={ea.get('elapsed_wins', 0):.1%}  loss={ea.get('elapsed_losses', 0):.1%}")
+            lines.append(f"  delta_pct  : win={ea.get('delta_wins', 0):.3f}%  loss={ea.get('delta_losses', 0):.3f}%")
+            lines.append(f"  (Higher edge + lower elapsed% in wins = model is working)")
+
         # Last 5 trades quick summary
         if trades:
             lines += ["", "LAST 5 TRADES"]
             for t in trades[-5:]:
                 pnl_str = f"+${t.net_pnl:.3f}" if t.net_pnl > 0 else f"-${abs(t.net_pnl):.3f}"
-                lines.append(
-                    f"  {t.trade_id} | {t.asset} {t.direction} | "
-                    f"entry={t.entry_price:.4f} exit={t.exit_price:.4f} | "
-                    f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s | "
-                    f"iwd={t.intrawindow_score:.2f} atr={t.atr_percentile:.2f} H={t.hurst:.3f}"
-                )
+                if t.signal_source == "SNIPER":
+                    lines.append(
+                        f"  {t.trade_id} | {t.asset} {t.direction} [SNIPER] | "
+                        f"entry={t.entry_price:.4f} exit={t.exit_price:.4f} | "
+                        f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s | "
+                        f"delta={t.sniper_delta_pct:+.3f}% FV={t.sniper_fair_value:.3f} "
+                        f"edge={t.sniper_edge:.3f} elapsed={t.sniper_elapsed_pct:.0%}"
+                    )
+                else:
+                    lines.append(
+                        f"  {t.trade_id} | {t.asset} {t.direction} [MOMENTUM] | "
+                        f"entry={t.entry_price:.4f} exit={t.exit_price:.4f} | "
+                        f"PnL={pnl_str} | {t.exit_reason} | {t.hold_seconds:.0f}s | "
+                        f"iwd={t.intrawindow_score:.2f} atr={t.atr_percentile:.2f} H={t.hurst:.3f}"
+                    )
 
         lines.append("=" * 60)
         return "\n".join(lines)
