@@ -47,7 +47,7 @@ MIN_DELTA_PCT = 0.06        # minimum asset move from window open to fire
 MIN_EDGE = 0.04             # fair_value - token_ask ≥ this to enter
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
 MIN_EDGE_BOOST = 0.02       # reduced gate when LLM macro_boost confirms
-WINDOW_ELAPSED_MIN = 0.25   # enter only after 25% of window elapsed
+WINDOW_ELAPSED_MIN = 0.35   # raised 0.25→0.35: live data shows losses avg 28.7% vs wins 44.8% elapsed
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms

@@ -670,6 +670,11 @@ class RiskManager:
                 # Normal wide SL: require 10s confirmation to filter wick noise.
                 # Updown mid-window prices spike and recover frequently.
                 if current_price <= pos.entry_price * (1 - sl_pct):
+                    # Windowed markets (updown sniper): immediate exit — no confirmation.
+                    # 10s window causes 15-20% extra loss as price falls through the stop.
+                    # Sniper entry already confirms direction; a 35% adverse move = thesis wrong.
+                    if pos.window_end_ts > 0:
+                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now  # first breach — start confirmation timer
                         logger.debug(
