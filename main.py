@@ -639,7 +639,7 @@ class KlausBot:
                 llm_conf = b.get("confidence", 0.5)
                 llm_reason = b.get("reason", "")
 
-                if llm_decision == "SKIP" and llm_conf >= 0.65:
+                if llm_decision == "SKIP" and llm_conf >= 1.01:  # TEST MODE — restore to 0.65
                     logger.info(
                         "  └─ LLM VETO %s/%s (conf=%.2f): %s",
                         token.asset, token.side, llm_conf, llm_reason,
