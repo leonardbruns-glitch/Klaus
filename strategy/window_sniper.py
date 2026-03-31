@@ -49,8 +49,10 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 # Matches macro_engine thresholds so both engines agree on what constitutes a signal.
 # All 3 sniper losses (T00020/22/25) were quiet-hour trades at 0.066–0.079% delta.
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
-_DELTA_PCT_ACTIVE = 0.20   # 0.20% during London/NYSE/Asia open — ~70% sustain rate
-_DELTA_PCT_QUIET  = 0.35   # 0.35% during quiet hours — raises bar to filter noise
+_DELTA_PCT_ACTIVE = 0.15   # lowered 0.20→0.15: sustain gate now does wick-filtering
+                           # 0.15% → FV=0.77, edge≥0.17 at ask≤0.60. ~2× more opportunities.
+                           # Old 0.20% was approximating "not a wick"; sustain gate does that now.
+_DELTA_PCT_QUIET  = 0.35   # 0.35% during quiet hours — raises bar to filter noise (unchanged)
 
 MIN_EDGE = 0.04             # fair_value - token_ask ≥ this to enter
 MIN_EDGE_VPIN = 0.03        # reduced gate when VPIN confirms direction
@@ -91,10 +93,12 @@ def _session_min_delta() -> float:
     return _DELTA_PCT_ACTIVE if hour in _HIGH_VOLUME_HOURS else _DELTA_PCT_QUIET
 
 
-SUSTAINED_DELTA_SECS = 30.0   # delta must hold for this long before entry fires
-                               # Wicks reverse in <15s; genuine macro moves sustain 30s+
-                               # Effectively shifts entry from 40% to ~50% elapsed — still
-                               # well within the 40-80% window but filtered for direction.
+# Window-size-aware sustain period:
+#   5-min windows (≤300s): 20s — wicks reverse in <15s; 30s too narrow (only 90s
+#     first-breach window available between elapsed 40-70%). 20s still filters noise.
+#   15-min+ windows  (>300s): 30s — 330s first-breach window; stricter confirmation OK.
+_SUSTAINED_5M = 20.0
+_SUSTAINED_15M = 30.0
 
 
 class WindowSniper:
@@ -180,10 +184,13 @@ class WindowSniper:
         asset_direction = 1 if delta_pct > 0 else -1
 
         # ── Sustained delta gate ───────────────────────────────────────────────
-        # Require delta to hold above threshold for 30s before firing.
-        # Filters out wicks (5-15s spike that reverses) vs genuine macro moves (30s+).
+        # Require delta to hold above threshold before firing.
+        # Period is window-size-aware: 20s for 5-min (≤300s), 30s for 15-min+.
+        # Filters out wicks (5-15s spike that reverses) vs genuine macro moves (20s+).
         # Data rationale: all 3 sniper losses were likely wick entries — delta at entry
         # was quickly fading, not a sustained directional move.
+        required_sustain = _SUSTAINED_5M if token.window_seconds <= 300 else _SUSTAINED_15M
+
         sustain_key = (token.token_id, asset_direction)
         opp_key = (token.token_id, -asset_direction)
         self._delta_sustained_since.pop(opp_key, None)  # clear reversed-direction timer
@@ -192,15 +199,15 @@ class WindowSniper:
             self._delta_sustained_since[sustain_key] = now
             logger.debug(
                 "SNIPER SUSTAIN_START %s/%s | delta=%.3f%% — waiting %.0fs confirmation",
-                token.asset, token.side, delta_pct, SUSTAINED_DELTA_SECS,
+                token.asset, token.side, delta_pct, required_sustain,
             )
             return None  # first breach — start sustain timer
 
         sustained_for = now - self._delta_sustained_since[sustain_key]
-        if sustained_for < SUSTAINED_DELTA_SECS:
+        if sustained_for < required_sustain:
             logger.debug(
                 "SNIPER SUSTAIN_WAIT %s/%s | delta=%.3f%% held %.1fs / %.0fs",
-                token.asset, token.side, delta_pct, sustained_for, SUSTAINED_DELTA_SECS,
+                token.asset, token.side, delta_pct, sustained_for, required_sustain,
             )
             return None  # not yet sustained — wait
 
