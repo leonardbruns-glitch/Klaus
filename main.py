@@ -639,7 +639,7 @@ class KlausBot:
                 llm_conf = b.get("confidence", 0.5)
                 llm_reason = b.get("reason", "")
 
-                if llm_decision == "SKIP" and llm_conf >= 1.01:  # TEST MODE — restore to 0.65
+                if llm_decision == "SKIP" and llm_conf >= 0.65:
                     logger.info(
                         "  └─ LLM VETO %s/%s (conf=%.2f): %s",
                         token.asset, token.side, llm_conf, llm_reason,
@@ -685,7 +685,23 @@ class KlausBot:
         if actual_stake <= 0:
             actual_stake = decision.stake  # fallback to approved stake if fill data incomplete
 
+        # Recalculate TP/SL from actual fill price if it differs significantly from the
+        # limit price (>2 ticks). Pre-fill tpsl uses signal.entry_price which can be
+        # far from actual fill when the market moves between signal and execution —
+        # e.g. limit=0.495 fill=0.310 would put SL=0.480 above entry, triggering instantly.
         token = self.feed.tokens.get(token_id)
+        fill_slippage = abs(fill.avg_fill_price - signal.entry_price)
+        if fill_slippage > 0.02:
+            ob_now = self.feed.get_order_book(token_id)
+            bars_now = self.feed.get_bars_5m(token_id)
+            tpsl = calculate_tp_sl(fill.avg_fill_price, signal.direction, bars_now, ob_now)
+            logger.info(
+                "TP/SL recalculated from actual fill %.4f (limit was %.4f, slippage=%.4f): "
+                "TP=%.4f SL=%.4f",
+                fill.avg_fill_price, signal.entry_price, fill_slippage,
+                tpsl.take_profit, tpsl.stop_loss,
+            )
+
         pos = self.risk.open_position(
             token_id=token_id,
             asset=asset,
