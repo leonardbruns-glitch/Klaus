@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import random
 import signal
 import sys
 import time
@@ -402,11 +401,6 @@ class KlausBot:
                 signal.entry_price, signal.confidence, signal.composite,
                 signal.reason,
             )
-
-            # ── Timing jitter: randomise submission by 0–200ms ───────────────
-            # Predictable entry timing lets competitors pattern-match our orders.
-            # Jitter makes us indistinguishable from organic flow.
-            await asyncio.sleep(random.uniform(0, 0.2))
 
             await self._enter_position(token_id, token.asset, signal, tpsl, decision)
 

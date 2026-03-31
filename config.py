@@ -180,7 +180,7 @@ class MarketConfig:
     bar_interval_secondary: int = 900  # 15-min bars in seconds
     history_bars: int = 50             # bars to keep in rolling window
 
-    scan_interval: float = 1.0         # seconds between full market sweeps (was 5s)
+    scan_interval: float = 0.2         # seconds between full market sweeps (was 1.0s; 0.2 = 5× faster detection)
 
 
 @dataclass

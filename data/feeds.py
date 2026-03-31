@@ -285,6 +285,15 @@ class PolymarketFeed:
             "ETH": VPINTracker(),
             "SOL": VPINTracker(),
         }
+        # Binance spot kline cache — populated by _run_binance_kline_ws()
+        # Replaces REST kline polling in fetch_external_signals() (saves 150-450ms/scan)
+        self._spot_price: Dict[str, float] = {}       # asset → latest 1m close
+        self._spot_prev_1m: Dict[str, float] = {}     # asset → last CLOSED 1m close
+        self._spot_prev_5m: Dict[str, float] = {}     # asset → last CLOSED 5m close
+        self._spot_prev_15m: Dict[str, float] = {}    # asset → last CLOSED 15m close
+        self._spot_open_5m: Dict[str, float] = {}     # asset → current 5m candle open
+        self._spot_open_15m: Dict[str, float] = {}    # asset → current 15m candle open
+        self._kline_ts: Dict[str, float] = {}         # asset → last kline update ts
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -334,6 +343,7 @@ class PolymarketFeed:
                 asyncio.create_task(self._run_clob_ws()),
                 asyncio.create_task(self._run_rtds_ws()),
                 asyncio.create_task(self._run_binance_ws()),
+                asyncio.create_task(self._run_binance_kline_ws()),
             ]
 
         logger.info("Feed started; tracking %d tokens", len(self.tokens))
@@ -612,6 +622,97 @@ class PolymarketFeed:
                 break
             except Exception as exc:
                 logger.debug("Binance WS disconnected (%s) — reconnecting in 5s", exc)
+                await asyncio.sleep(5)
+
+    async def _run_binance_kline_ws(self) -> None:
+        """
+        Subscribe to Binance SPOT kline streams (1m/5m/15m) for BTC/ETH/SOL.
+        Caches: spot_price, spot_window_open_5m/15m, momentum values.
+        Replaces 9 REST calls per scan with zero-latency in-memory lookups.
+        Reconnects automatically on disconnect.
+        """
+        import json as _json
+        _SYMBOL_MAP = {"BTC": "btcusdt", "ETH": "ethusdt", "SOL": "solusdt"}
+        _INTERVALS = ["1m", "5m", "15m"]
+        _STREAMS = "/".join(
+            f"{sym}@kline_{iv}"
+            for sym in _SYMBOL_MAP.values()
+            for iv in _INTERVALS
+        )
+        _URL = f"wss://stream.binance.com:9443/stream?streams={_STREAMS}"
+
+        while self._running:
+            try:
+                import ssl as _ssl
+                try:
+                    import certifi as _certifi
+                    _ssl_ctx = _ssl.create_default_context(cafile=_certifi.where())
+                except ImportError:
+                    _ssl_ctx = _ssl.create_default_context()
+                    _ssl_ctx.check_hostname = False
+                    _ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+                async with aiohttp.ClientSession() as ws_session:
+                    async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
+                        logger.info("Binance kline WS: subscribed to 1m/5m/15m for BTC/ETH/SOL")
+                        async for msg in ws:
+                            if not self._running:
+                                break
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    data = _json.loads(msg.data)
+                                    ev = data.get("data", data)
+                                    if ev.get("e") != "kline":
+                                        continue
+
+                                    k = ev["k"]
+                                    symbol = ev.get("s", "").upper()   # e.g. "BTCUSDT"
+                                    interval = k.get("i", "")          # "1m", "5m", "15m"
+                                    is_closed = k.get("x", False)      # True = candle closed
+
+                                    # Resolve asset name
+                                    asset = None
+                                    for a, sym in _SYMBOL_MAP.items():
+                                        if symbol == sym.upper():
+                                            asset = a
+                                            break
+                                    if asset is None:
+                                        continue
+
+                                    close = float(k.get("c", 0))
+                                    open_ = float(k.get("o", 0))
+                                    if close <= 0:
+                                        continue
+
+                                    now_ts = time.time()
+
+                                    if interval == "1m":
+                                        # spot_price = latest 1m close (ticks on every trade)
+                                        self._spot_price[asset] = close
+                                        self._kline_ts[asset] = now_ts
+                                        # momentum = (current - prev_closed) / prev_closed
+                                        # Only update prev when candle actually closes
+                                        if is_closed:
+                                            self._spot_prev_1m[asset] = close
+
+                                    elif interval == "5m":
+                                        self._spot_open_5m[asset] = open_
+                                        if is_closed:
+                                            self._spot_prev_5m[asset] = close
+
+                                    elif interval == "15m":
+                                        self._spot_open_15m[asset] = open_
+                                        if is_closed:
+                                            self._spot_prev_15m[asset] = close
+
+                                except Exception:
+                                    pass
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                break
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.debug("Binance kline WS disconnected (%s) — reconnecting in 5s", exc)
                 await asyncio.sleep(5)
 
     # ── Market discovery ─────────────────────────────────────────────────────
@@ -1108,44 +1209,71 @@ class PolymarketFeed:
             except Exception:
                 pass  # signal is optional; never blocks trade
 
-        # Spot klines for momentum (1m, 5m, 15m)
-        try:
-            url = "https://api.binance.com/api/v3/klines"
-            # 1-minute: absolute price + short-term momentum for lag research
-            params = {"symbol": symbol, "interval": "1m", "limit": 3}
-            async with self._session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    klines = await resp.json()
-                    if len(klines) >= 2:
-                        c1 = float(klines[-2][4])
-                        c0 = float(klines[-1][4])
-                        signal.spot_price = c0
-                        signal.spot_momentum_1m = (c0 - c1) / c1 * 100
-            params["interval"] = "5m"
-            params["limit"] = 4
-            async with self._session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    klines = await resp.json()
-                    if len(klines) >= 2:
-                        c1 = float(klines[-2][4])  # prev close
-                        c0 = float(klines[-1][4])  # current candle close
-                        signal.spot_momentum_5m = (c0 - c1) / c1 * 100
-                    if len(klines) >= 1:
-                        # Current 5M candle open = asset price at window start
-                        # Critical for WindowSniper fair-value delta calculation
-                        signal.spot_window_open_5m = float(klines[-1][1])
-            params["interval"] = "15m"
-            async with self._session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    klines = await resp.json()
-                    if len(klines) >= 2:
-                        c1 = float(klines[-2][4])
-                        c0 = float(klines[-1][4])
-                        signal.spot_momentum_15m = (c0 - c1) / c1 * 100
-                    if len(klines) >= 1:
-                        signal.spot_window_open_15m = float(klines[-1][1])
-        except Exception:
-            pass
+        # Spot klines: use WebSocket cache (zero-latency) or fall back to REST.
+        # _run_binance_kline_ws() keeps these dicts updated in real-time.
+        _KLINE_STALE_S = 3.0  # fall back to REST if cache not updated in 3s
+        kline_fresh = (time.time() - self._kline_ts.get(asset.upper(), 0)) < _KLINE_STALE_S
+
+        if kline_fresh:
+            # ── Fast path: serve from in-memory kline cache (sub-millisecond) ──
+            c0 = self._spot_price.get(asset.upper())
+            c1_1m = self._spot_prev_1m.get(asset.upper())
+            c1_5m = self._spot_prev_5m.get(asset.upper())
+            c1_15m = self._spot_prev_15m.get(asset.upper())
+            open_5m = self._spot_open_5m.get(asset.upper())
+            open_15m = self._spot_open_15m.get(asset.upper())
+
+            if c0:
+                signal.spot_price = c0
+            if c0 and c1_1m and c1_1m > 0:
+                signal.spot_momentum_1m = (c0 - c1_1m) / c1_1m * 100
+            if c0 and c1_5m and c1_5m > 0:
+                signal.spot_momentum_5m = (c0 - c1_5m) / c1_5m * 100
+            if c0 and c1_15m and c1_15m > 0:
+                signal.spot_momentum_15m = (c0 - c1_15m) / c1_15m * 100
+            if open_5m:
+                signal.spot_window_open_5m = open_5m
+            if open_15m:
+                signal.spot_window_open_15m = open_15m
+        else:
+            # ── Slow path: REST fallback when WS hasn't delivered data yet ──
+            # Happens during initial startup (~5s) before first kline event arrives.
+            try:
+                url = "https://api.binance.com/api/v3/klines"
+                params = {"symbol": symbol, "interval": "1m", "limit": 3}
+                async with self._session.get(url, params=params) as resp:
+                    if resp.status == 200:
+                        klines = await resp.json()
+                        if len(klines) >= 2:
+                            c1 = float(klines[-2][4])
+                            c0 = float(klines[-1][4])
+                            signal.spot_price = c0
+                            signal.spot_momentum_1m = (c0 - c1) / c1 * 100
+                params["interval"] = "5m"
+                params["limit"] = 4
+                async with self._session.get(url, params=params) as resp:
+                    if resp.status == 200:
+                        klines = await resp.json()
+                        if len(klines) >= 2:
+                            signal.spot_momentum_5m = (
+                                (float(klines[-1][4]) - float(klines[-2][4]))
+                                / float(klines[-2][4]) * 100
+                            )
+                        if len(klines) >= 1:
+                            signal.spot_window_open_5m = float(klines[-1][1])
+                params["interval"] = "15m"
+                async with self._session.get(url, params=params) as resp:
+                    if resp.status == 200:
+                        klines = await resp.json()
+                        if len(klines) >= 2:
+                            signal.spot_momentum_15m = (
+                                (float(klines[-1][4]) - float(klines[-2][4]))
+                                / float(klines[-2][4]) * 100
+                            )
+                        if len(klines) >= 1:
+                            signal.spot_window_open_15m = float(klines[-1][1])
+            except Exception:
+                pass
 
         # VPIN: from aggTrade WebSocket (live only, not available in stub)
         vpin_tracker = self.vpin_trackers.get(asset.upper())
