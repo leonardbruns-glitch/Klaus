@@ -109,6 +109,12 @@ class KlausBot:
         logger.info("Markets: %s", CONFIG.markets.tracked_assets)
         logger.info("=" * 50)
 
+        # Pre-warm py_clob_client caches (neg_risk + fee_rate) for all tracked tokens.
+        # Without this, the first order per token triggers GET /neg-risk + GET /fee-rate
+        # before submitting, adding ~2s of latency and causing the sniper to miss fills.
+        if not CONFIG.dry_run:
+            self.orders.prewarm_token_caches(self.feed.tokens)
+
     async def stop(self) -> None:
         self._running = False
         await self.feed.stop()
@@ -126,9 +132,10 @@ class KlausBot:
         report_task = asyncio.create_task(self._report_loop())
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         research_task = asyncio.create_task(self.research.run())
+        prewarm_task = asyncio.create_task(self._prewarm_loop())
 
         try:
-            await asyncio.gather(ob_task, signal_task, report_task, heartbeat_task, research_task)
+            await asyncio.gather(ob_task, signal_task, report_task, heartbeat_task, research_task, prewarm_task)
         except asyncio.CancelledError:
             pass
         finally:
@@ -696,6 +703,15 @@ class KlausBot:
                 await self.orders.post_heartbeat()
             except Exception as exc:
                 logger.debug("Heartbeat error: %s", exc)
+
+    # ── 250s prewarm loop: refresh py_clob_client cache before 300s TTL expires ──
+
+    async def _prewarm_loop(self) -> None:
+        """Refresh neg_risk + fee_rate caches every 250s (TTL=300s in py_clob_client)."""
+        while self._running:
+            await asyncio.sleep(250)
+            if not CONFIG.dry_run:
+                self.orders.prewarm_token_caches(self.feed.tokens)
 
     # ── 30-min report loop ────────────────────────────────────────────────────
 

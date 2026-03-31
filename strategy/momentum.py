@@ -456,14 +456,15 @@ class MomentumScorer:
             )
             return sig
 
-        # Hurst exponent (soft — logged only, not a hard gate until calibrated).
-        # H < 0.45 means mean-reverting territory; log for data collection.
+        # Hurst exponent — promoted to hard gate (20-trade data: H<0.45 WR=33.3% vs 50%).
+        # Mean-reverting regime has no momentum edge; skip entries.
         sig.hurst = hurst_exponent(bars_5m, self.cfg.hurst_window)
         if sig.hurst < self.cfg.hurst_min:
-            logger.debug(
-                "Hurst=%.3f < %.2f (mean-reverting) — soft flag, not blocking",
-                sig.hurst, self.cfg.hurst_min,
+            sig.reason = (
+                f"Hurst regime blocked: H={sig.hurst:.3f} "
+                f"< {self.cfg.hurst_min} (mean-reverting; WR=33% vs 50% trending)"
             )
+            return sig
 
         # ── Sub-scores ────────────────────────────────────────────────────────
         breakout_s, breakout_dir = score_breakout(bars_5m, self.cfg)

@@ -219,6 +219,30 @@ class OrderManager:
                 logger.debug("Startup cancel_all failed (may be none): %s", exc)
         await self._fill_tracker.start()
 
+    def prewarm_token_caches(self, tokens: dict) -> None:
+        """
+        Pre-populate py_clob_client's internal neg_risk and fee_rate caches
+        for all tracked tokens. Without this, the first order per token triggers
+        GET /neg-risk and GET /fee-rate before the order is submitted (~2s each).
+        Call this after token discovery and again every 250s before the 300s TTL expires.
+        """
+        if self._client is None:
+            return
+        for token_id, token_meta in tokens.items():
+            try:
+                self._client.get_neg_risk(token_id)
+            except Exception:
+                pass
+            try:
+                # Fee-rate cache: keyed by (condition_id, token_id) in py_clob_client.
+                # Calling get_fee_rate_per_order() populates the cache used by create_order().
+                cid = getattr(token_meta, "condition_id", "")
+                if cid:
+                    self._client.get_fee_rate_per_order(cid, token_id)
+            except Exception:
+                pass
+        logger.info("prewarm_token_caches: populated neg_risk + fee_rate for %d tokens", len(tokens))
+
     async def stop(self) -> None:
         await self._fill_tracker.stop()
         if self._session:
@@ -599,12 +623,13 @@ class OrderManager:
                 size=size,
                 side=clob_side,
             )
-            # neg_risk=False is falsy in py_clob_client — triggers auto-detection.
-            # tick_size: pass None unless non-default provided (auto-detect from CLOB,
-            # cached 300s) to avoid "invalid tick size" if Gamma data is stale.
+            # Always pass explicit tick_size and neg_risk — prevents py_clob_client
+            # from making GET /tick-size and GET /neg-risk before every order.
+            # tick_size "0.01" is valid; passing None triggers an unnecessary API call.
+            # neg_risk: py_clob_client checks `is None`, so False is safe to pass.
             opts = PartialCreateOrderOptions(
-                tick_size=tick_size if tick_size and tick_size != "0.01" else None,
-                neg_risk=True if neg_risk else None,
+                tick_size=tick_size or "0.01",
+                neg_risk=neg_risk if neg_risk else None,
             )
             # GTC for all orders. FAK has an unsatisfiable integer maker-amount
             # constraint (maker_micro must be multiple of 10000) for any non-trivial

@@ -81,7 +81,7 @@ class MomentumConfig:
     # ATR percentile gate: skip entries when current ATR(14) is below the 30th
     # percentile of the last 50 bars. Research: momentum edge concentrates in
     # higher-vol regimes; sub-30th percentile is near-random walk territory.
-    atr_regime_percentile: float = 0.30
+    atr_regime_percentile: float = 0.40    # raised 0.30→0.40: 20-trade data low-ATR WR=33% vs high-ATR=50%
 
     # Hurst exponent: estimated via R/S method on last hurst_window bars.
     # H < hurst_min = mean-reverting → currently logged only (soft gate).
