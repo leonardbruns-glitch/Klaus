@@ -27,6 +27,7 @@ from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
 from risk.manager import RiskManager
 from analytics.lag_observations import log_lag_observation
+from analytics.macro_engine import MacroEngine
 from execution.order_manager import OrderManager, OrderResult, OrderStatus
 from analytics.feedback import FeedbackEngine
 from analytics.research import ResearchEngine
@@ -60,6 +61,7 @@ class KlausBot:
         self.orders = OrderManager()
         self.analytics = FeedbackEngine()
         self.research = ResearchEngine(self.feed, self.scorer)
+        self.macro_engine = MacroEngine()
         self._running = False
         self._last_report_ts = 0.0
         # track entry metadata for trade recording
@@ -213,6 +215,24 @@ class KlausBot:
             asset: (r if not isinstance(r, Exception) else None)
             for asset, r in zip(CONFIG.markets.tracked_assets, ext_results)
         }
+
+        # ── LLM Macro Engine: inject Claude signal into external signals ──────
+        # tick() only fires during 13:25-13:45 UTC macro window.
+        # Passes current BTC spot price; returns MacroSignal when LLM fires.
+        btc_spot = None
+        btc_ext = ext_signals.get("BTC")
+        if btc_ext and btc_ext.spot_price:
+            btc_spot = btc_ext.spot_price
+        macro_signal = await self.macro_engine.tick(btc_spot)
+        if macro_signal is None:
+            macro_signal = self.macro_engine.get_signal()   # use cached if valid
+        if macro_signal:
+            # Inject signed boost into ALL asset ext signals
+            # (BTC macro moves carry to ETH/SOL with short lag)
+            for asset in CONFIG.markets.tracked_assets:
+                ext = ext_signals.get(asset)
+                if ext is not None:
+                    ext.macro_boost = macro_signal.boost_for_direction_yes()
 
         # ── Cross-asset cascade: score all tokens, find lead signals ─────────
         # When a strong leader (BTC) fires, follower assets (ETH, SOL) get a

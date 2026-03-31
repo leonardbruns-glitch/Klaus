@@ -99,7 +99,7 @@ class MarketToken:
 
 @dataclass
 class ExternalSignal:
-    """Optional external data (funding rate, spot momentum, etc.)."""
+    """Optional external data (funding rate, spot momentum, VPIN, macro)."""
     ts: float
     asset: str
     funding_rate: Optional[float] = None     # annualised perp funding
@@ -108,6 +108,83 @@ class ExternalSignal:
     realized_vol_1h: Optional[float] = None  # annualised
     spot_price: Optional[float] = None       # current Binance spot price (absolute)
     spot_momentum_1m: Optional[float] = None # % change on spot last 1 min
+    # VPIN (Volume-Synchronized Probability of Informed Trading)
+    # Measures order flow toxicity from Binance aggTrade stream.
+    # vpin_score: 0-1 (0.5=neutral, >0.60=elevated toxicity → big move imminent)
+    # vpin_direction: +1=buy-dominant, -1=sell-dominant (sign of recent imbalance)
+    vpin_score: Optional[float] = None
+    vpin_direction: Optional[int] = None
+    # LLM macro signal: signed confidence in [−0.12, +0.12]
+    # Positive = bullish (BUY_YES), Negative = bearish (BUY_NO)
+    macro_boost: Optional[float] = None
+
+
+# ---------------------------------------------------------------------------
+# VPIN — Volume-Synchronized Probability of Informed Trading
+# ---------------------------------------------------------------------------
+
+class VPINTracker:
+    """
+    Computes VPIN from Binance aggTrade stream using volume buckets.
+
+    Algorithm (Easley, López de Prado, O'Hara 2010):
+      1. Accumulate notional volume into equal-sized buckets
+      2. Within each bucket, classify trades as BUY (m=False) or SELL (m=True)
+      3. VPIN = rolling mean of |buy_vol - sell_vol| / total_vol over N buckets
+      4. VPIN direction = sign of recent imbalance sum
+
+    Thresholds (crypto-calibrated):
+      VPIN > 0.60 → elevated toxicity, directional move likely
+      VPIN > 0.70 → extreme — strong move loading
+      Direction +1 = buy-dominated (bullish), -1 = sell-dominated (bearish)
+
+    Bucket size $2M chosen so buckets close every ~30-90s on BTC futures,
+    giving a 50-bucket window of ~25-75 minutes of market microstructure.
+    """
+
+    BUCKET_USD = 2_000_000   # $2M notional per bucket
+    N_BUCKETS = 50           # rolling 50-bucket window
+
+    def __init__(self) -> None:
+        from collections import deque
+        self._buy_vol: float = 0.0
+        self._sell_vol: float = 0.0
+        self._total_vol: float = 0.0
+        self._imbalances: deque = deque(maxlen=self.N_BUCKETS)  # signed imbalances
+        self.vpin: float = 0.5        # neutral start
+        self.direction: int = 0       # 0=unknown, +1=bullish, -1=bearish
+        self._trade_count: int = 0    # trades processed (for startup diagnostics)
+
+    def update(self, price: float, qty: float, is_buyer_maker: bool) -> None:
+        """
+        Feed one aggTrade event.
+        is_buyer_maker=True  → seller was aggressor (SELL market order) → sell pressure
+        is_buyer_maker=False → buyer was aggressor (BUY market order)  → buy pressure
+        """
+        notional = price * qty
+        if is_buyer_maker:
+            self._sell_vol += notional
+        else:
+            self._buy_vol += notional
+        self._total_vol += notional
+        self._trade_count += 1
+
+        if self._total_vol >= self.BUCKET_USD:
+            total = self._buy_vol + self._sell_vol
+            if total > 1e-9:
+                signed_imb = (self._buy_vol - self._sell_vol) / total
+                self._imbalances.append(signed_imb)
+
+            # Recompute VPIN + direction
+            if self._imbalances:
+                self.vpin = sum(abs(b) for b in self._imbalances) / len(self._imbalances)
+                avg_imb = sum(self._imbalances) / len(self._imbalances)
+                self.direction = 1 if avg_imb > 0.05 else (-1 if avg_imb < -0.05 else 0)
+
+            # Reset bucket
+            self._buy_vol = 0.0
+            self._sell_vol = 0.0
+            self._total_vol = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +274,12 @@ class PolymarketFeed:
         self.funding_rates: Dict[str, float] = {}       # asset → annualised funding rate
         self._ws_tasks: List[asyncio.Task] = []
         self._ws_ob_ts: Dict[str, float] = {}           # token_id → last WS OB update ts
+        # VPIN trackers per asset (fed from Binance aggTrade WebSocket)
+        self.vpin_trackers: Dict[str, VPINTracker] = {
+            "BTC": VPINTracker(),
+            "ETH": VPINTracker(),
+            "SOL": VPINTracker(),
+        }
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -444,13 +527,21 @@ class PolymarketFeed:
 
     async def _run_binance_ws(self) -> None:
         """
-        Subscribe to Binance futures mark price WebSocket for real-time funding rates.
-        1-second updates. Replaces periodic REST polling for funding rate signal.
-        Extreme positive funding + price breakout = crowded momentum confirmation.
+        Subscribe to Binance futures WebSocket for:
+          1. markPrice@1s  — real-time funding rates (annualised)
+          2. aggTrade      — individual trade stream for VPIN computation
+
+        VPIN (Volume-Synchronized Probability of Informed Trading) measures order
+        flow toxicity. VPIN > 0.60 + directional imbalance = momentum signal.
+        This replaces the broken volume signal in the composite scorer.
         """
         import json as _json
         _SYMBOL_MAP = {"BTC": "btcusdt", "ETH": "ethusdt", "SOL": "solusdt"}
-        _STREAMS = "/".join(f"{s}@markPrice@1s" for s in _SYMBOL_MAP.values())
+        # Combined stream: markPrice (funding) + aggTrade (VPIN)
+        _STREAMS = "/".join(
+            f"{s}@markPrice@1s/{s}@aggTrade"
+            for s in _SYMBOL_MAP.values()
+        )
         _URL = f"{self.BINANCE_WS}/{_STREAMS}"
 
         while self._running:
@@ -466,25 +557,48 @@ class PolymarketFeed:
 
                 async with aiohttp.ClientSession() as ws_session:
                     async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
-                        logger.info("Binance WS: subscribed to markPrice for BTC/ETH/SOL")
+                        logger.info("Binance WS: subscribed to markPrice + aggTrade for BTC/ETH/SOL")
                         async for msg in ws:
                             if not self._running:
                                 break
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 try:
                                     data = _json.loads(msg.data)
-                                    # Combined stream wraps in {"stream":...,"data":{...}}
+                                    # Combined stream format: {"stream":"btcusdt@markPrice@1s","data":{...}}
+                                    stream_name = data.get("stream", "")
                                     ev = data.get("data", data)
-                                    symbol = ev.get("s", "").upper()
-                                    funding = ev.get("r")  # current funding rate
-                                    if funding:
-                                        for asset, sym in _SYMBOL_MAP.items():
-                                            if symbol == sym.upper():
-                                                try:
-                                                    # Annualise: rate * 3 * 365 * 100
-                                                    self.funding_rates[asset] = float(funding) * 3 * 365 * 100
-                                                except Exception:
-                                                    pass
+                                    event_type = ev.get("e", "")
+
+                                    if event_type == "markPriceUpdate":
+                                        # ── Funding rate ───────────────────
+                                        symbol = ev.get("s", "").upper()
+                                        funding = ev.get("r")  # current funding rate
+                                        if funding:
+                                            for asset, sym in _SYMBOL_MAP.items():
+                                                if symbol == sym.upper():
+                                                    try:
+                                                        # Annualise: rate * 3 intervals/day * 365 * 100
+                                                        self.funding_rates[asset] = float(funding) * 3 * 365 * 100
+                                                    except Exception:
+                                                        pass
+
+                                    elif event_type == "aggTrade":
+                                        # ── VPIN computation ───────────────
+                                        symbol = ev.get("s", "").upper()
+                                        try:
+                                            price = float(ev.get("p", 0))
+                                            qty = float(ev.get("q", 0))
+                                            is_buyer_maker = bool(ev.get("m", False))
+                                            if price > 0 and qty > 0:
+                                                for asset, sym in _SYMBOL_MAP.items():
+                                                    if symbol == sym.upper():
+                                                        self.vpin_trackers[asset].update(
+                                                            price, qty, is_buyer_maker
+                                                        )
+                                                        break
+                                        except Exception:
+                                            pass
+
                                 except Exception:
                                     pass
                             elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
@@ -1020,6 +1134,13 @@ class PolymarketFeed:
                         signal.spot_momentum_15m = (c0 - c1) / c1 * 100
         except Exception:
             pass
+
+        # VPIN: from aggTrade WebSocket (live only, not available in stub)
+        vpin_tracker = self.vpin_trackers.get(asset.upper())
+        if vpin_tracker and vpin_tracker._trade_count > 100:
+            # Only include once we have enough trade history (>100 trades)
+            signal.vpin_score = round(vpin_tracker.vpin, 4)
+            signal.vpin_direction = vpin_tracker.direction
 
         return signal
 

@@ -331,38 +331,80 @@ def score_intrawindow_delta(bars_5m: List[Bar], sensitivity: float = 0.03) -> tu
 def external_signal_boost(signal: Optional[ExternalSignal], direction: Direction) -> float:
     """
     Additive boost (or penalty) from optional external data.
-    Never blocks a trade if missing. Range: [-0.10, +0.10].
-    Opposition penalty: if spot momentum strongly opposes our direction, apply a
-    negative adjustment (previously only added, never subtracted).
+    Never blocks a trade if missing. Range: [-0.15, +0.15].
+
+    Signal hierarchy (highest → lowest impact):
+      1. Macro LLM signal    ±0.12  — Claude interprets 13:30 UTC macro moves
+      2. VPIN order flow     ±0.07  — order flow toxicity from aggTrade stream
+      3. Spot momentum       ±0.05  — Binance 5m/15m momentum alignment
+      4. Funding rate        ±0.02  — extreme funding contrarian signal
     """
     if signal is None:
         return 0.0
 
     boost = 0.0
 
-    # Spot momentum alignment or opposition penalty
+    # ── 1. Macro LLM signal (highest priority) ────────────────────────────────
+    # macro_boost is pre-computed in main.py as signed float in [-0.12, +0.12]
+    # where positive = bullish (supports BUY_YES), negative = bearish (supports BUY_NO).
+    if signal.macro_boost is not None and abs(signal.macro_boost) > 0.01:
+        if signal.macro_boost > 0 and direction == Direction.BUY_YES:
+            boost += signal.macro_boost       # aligned: strong boost
+        elif signal.macro_boost > 0 and direction == Direction.BUY_NO:
+            boost -= signal.macro_boost       # opposed: strong penalty
+        elif signal.macro_boost < 0 and direction == Direction.BUY_NO:
+            boost += abs(signal.macro_boost)  # aligned: bearish → NO boost
+        elif signal.macro_boost < 0 and direction == Direction.BUY_YES:
+            boost -= abs(signal.macro_boost)  # opposed: penalty
+
+    # ── 2. VPIN order flow signal ─────────────────────────────────────────────
+    # VPIN > 0.60 = elevated toxicity (smart money moving aggressively).
+    # Direction +1 = buy-dominated (bullish), -1 = sell-dominated (bearish).
+    # Max ±0.07 boost. Scales linearly from 0.60 (0 boost) to 0.80 (0.07 boost).
+    if (signal.vpin_score is not None
+            and signal.vpin_direction is not None
+            and signal.vpin_score > 0.60):
+        vpin_strength = min(1.0, (signal.vpin_score - 0.60) / 0.20)  # 0 at 0.60, 1 at 0.80
+        vpin_boost = vpin_strength * 0.07
+        vpin_is_bullish = signal.vpin_direction == 1
+        if vpin_is_bullish and direction == Direction.BUY_YES:
+            boost += vpin_boost
+        elif vpin_is_bullish and direction == Direction.BUY_NO:
+            boost -= vpin_boost
+        elif not vpin_is_bullish and direction == Direction.BUY_NO:
+            boost += vpin_boost
+        elif not vpin_is_bullish and direction == Direction.BUY_YES:
+            boost -= vpin_boost
+
+    # ── 3. Spot momentum alignment ────────────────────────────────────────────
     if signal.spot_momentum_5m is not None:
         spot_dir = Direction.BUY_YES if signal.spot_momentum_5m > 0 else Direction.BUY_NO
         if spot_dir == direction:
             boost += min(0.05, abs(signal.spot_momentum_5m) / 5 * 0.05)
-        elif abs(signal.spot_momentum_5m) > 0.3:  # strong opposition (>0.3% spot move)
+        elif abs(signal.spot_momentum_5m) > 0.3:  # strong opposition
             boost -= min(0.05, abs(signal.spot_momentum_5m) / 5 * 0.05)
 
     if signal.spot_momentum_15m is not None:
         spot_dir_15 = Direction.BUY_YES if signal.spot_momentum_15m > 0 else Direction.BUY_NO
         if spot_dir_15 == direction:
             boost += min(0.03, abs(signal.spot_momentum_15m) / 5 * 0.03)
-        elif abs(signal.spot_momentum_15m) > 0.3:  # strong opposition
+        elif abs(signal.spot_momentum_15m) > 0.3:
             boost -= min(0.03, abs(signal.spot_momentum_15m) / 5 * 0.03)
 
-    # Funding rate: extreme positive funding → contrarian NO signal
+    # ── 4. Funding rate extremes (contrarian) ─────────────────────────────────
+    # Extreme positive funding → overcrowded longs → mean-reversion risk → prefer NO
+    # Extreme negative funding → overcrowded shorts → squeeze risk → prefer YES
     if signal.funding_rate is not None:
-        if signal.funding_rate > 50 and direction == Direction.BUY_NO:
+        if signal.funding_rate > 80 and direction == Direction.BUY_NO:
+            # Longs paying >80% APR to shorts = extremely crowded → bearish contrarian
+            boost += 0.03
+        elif signal.funding_rate > 50 and direction == Direction.BUY_NO:
             boost += 0.02
-        elif signal.funding_rate < -20 and direction == Direction.BUY_YES:
+        elif signal.funding_rate < -30 and direction == Direction.BUY_YES:
+            # Shorts paying longs = extremely crowded short → bullish contrarian
             boost += 0.02
 
-    return max(-0.10, min(0.10, boost))
+    return max(-0.15, min(0.15, boost))
 
 
 # ---------------------------------------------------------------------------
