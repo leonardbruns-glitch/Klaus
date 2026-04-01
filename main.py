@@ -1504,6 +1504,7 @@ class KlausBot:
             try:
                 await self.orders.post_heartbeat()
                 await self._sweep_residuals()
+                await self._window_end_balance_sweep()
                 _hb_failures = 0  # reset on success
             except Exception as exc:
                 _hb_failures += 1
@@ -1514,6 +1515,101 @@ class KlausBot:
                     )
                 else:
                     logger.warning("Heartbeat failure #%d: %s", _hb_failures, exc)
+
+    # ── Window-end CLOB balance sweep ─────────────────────────────────────────
+
+    async def _window_end_balance_sweep(self) -> None:
+        """
+        For every tracked updown token within 120s of window close, fetch the
+        actual CLOB balance and force-sell any non-zero holding.
+
+        Catches shares that survived partial cascades or came from sessions the
+        bot didn't track — anything sitting in the wallet that will resolve at
+        0 or 1 without being sold.
+
+        Also runs at startup (called once with window_seconds=0 guard bypassed)
+        to sell orphans from previous sessions.
+        """
+        if CONFIG.dry_run:
+            return
+        now = time.time()
+        _WINDOW_END_HORIZON = 120  # seconds before close to start checking
+
+        for token_id, token in list(self.feed.tokens.items()):
+            if token.market_type != "updown":
+                continue
+            if token.window_end_ts <= 0:
+                continue
+            time_to_close = token.window_end_ts - now
+            # Only act in the final 120s window, or if already past close (up to 60s after)
+            if not (-60 <= time_to_close <= _WINDOW_END_HORIZON):
+                continue
+
+            # Rate-limit: don't hammer CLOB for the same token more than once per 30s
+            _last_key = f"_webs_{token_id}"
+            if now - self._open_meta.get(_last_key, 0) < 30:
+                continue
+            self._open_meta[_last_key] = now
+
+            balance = self.orders.fetch_token_balance(token_id)
+            if balance is None or balance < 0.05:
+                continue
+
+            asset = token.asset
+            side = getattr(token, "side", "?")
+
+            # Update tracked position's remaining_shares if we have one
+            if token_id in self.risk.open_positions:
+                pos = self.risk.open_positions[token_id]
+                if abs(balance - pos.remaining_shares) > 0.05:
+                    logger.warning(
+                        "WINDOW-END SYNC %s/%s: tracked=%.4f CLOB=%.4f — correcting",
+                        asset, side, pos.remaining_shares, balance,
+                    )
+                    pos.remaining_shares = round(balance, 4)
+                # Let the normal exit loop handle it (will fire HARD_EXIT or FLOOR_SELL)
+                continue
+
+            # Orphaned balance — not in tracked positions. Force-sell immediately.
+            if token_id in self._exit_in_progress:
+                continue
+            logger.warning(
+                "WINDOW-END ORPHAN %s/%s: %.4f shares in CLOB wallet, not tracked — force-selling",
+                asset, side, balance,
+            )
+            self._exit_in_progress.add(token_id)
+            try:
+                token_meta = self.feed.tokens.get(token_id)
+                ob = self.feed.get_order_book(token_id)
+                sell_price = ob.bids[0][0] if (ob and ob.bids) else 0.50
+                orphan_fills = await self.orders.cascade_sell(
+                    token_id=token_id,
+                    total_shares=balance,
+                    current_price=sell_price,
+                    reason="ORPHAN_SELL",
+                    neg_risk=getattr(token_meta, "neg_risk", False),
+                    tick_size=getattr(token_meta, "tick_size", "0.01"),
+                    force_exit=True,
+                )
+                sold = sum(f.total_size for f in orphan_fills)
+                avg_price = (
+                    sum(f.avg_fill_price * f.total_size for f in orphan_fills) / sold
+                    if sold > 0 else sell_price
+                )
+                if sold > 0:
+                    logger.info(
+                        "ORPHAN SOLD %s/%s: %.4f shares @ %.4f",
+                        asset, side, sold, avg_price,
+                    )
+                else:
+                    logger.warning(
+                        "ORPHAN SELL FAILED %s/%s: %.4f shares unsold",
+                        asset, side, balance,
+                    )
+            except Exception as _e:
+                logger.error("ORPHAN SELL error %s: %s", token_id[:12], _e)
+            finally:
+                self._exit_in_progress.discard(token_id)
 
     # ── 250s prewarm loop: refresh py_clob_client cache before 300s TTL expires ──
 
