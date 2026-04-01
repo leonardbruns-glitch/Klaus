@@ -699,9 +699,11 @@ class RiskManager:
         is_5m = pos.window_end_ts > 0 and not is_15m_pos
 
         # Catastrophic drop: always immediate, no grace period.
-        # 15m: ≥50% drop. 5m: ≥40% drop.
+        # During grace (first 60s): 30% threshold — T00051 collapsed 38% in 66s, we held the whole way.
+        # After grace: 50% threshold — full protection only after wick window passes.
         if pos.window_end_ts > 0:
-            catastro_thresh = 0.60 if is_5m else 0.50
+            in_grace = is_15m_pos and time_held < 60
+            catastro_thresh = 0.60 if is_5m else (0.70 if in_grace else 0.50)
             if current_price <= pos.entry_price * catastro_thresh:
                 return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
