@@ -93,9 +93,12 @@ async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed",
         ask = ob.asks[0][0] if (ob and ob.asks) else None
         results[f"ask_at_{int(delay)}s"] = ask
 
-    # Wait for window close to get final ask (resolution proxy)
+    # Wait for window close to get final ask (resolution proxy).
+    # Cap at 1200s (20 min) to cover 15m windows blocked early in the window.
+    # Previous cap of 120s was too short — most blocks happen at 25-60% elapsed,
+    # leaving 6-11 minutes until close which was silently skipped.
     window_close_wait = block.window_end_ts - time.time()
-    if 0 < window_close_wait <= 120:
+    if 0 < window_close_wait <= 1200:
         await asyncio.sleep(window_close_wait + 2.0)  # +2s settle
         ob = feed.get_order_book(block.token_id)
         ask_final = ob.asks[0][0] if (ob and ob.asks) else None
