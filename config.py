@@ -27,7 +27,7 @@ class BankrollConfig:
     base_stake: float = 10.0          # $10 per trade (intentional — user override)
     scaled_stake: float = 10.0        # flat — heat-check disabled
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
-    max_open_positions: int = 2       # max 2 concurrent → max $6 deployed at once (CLAUDE.md)
+    max_open_positions: int = 4       # max 4 concurrent — data collection mode
     max_daily_loss: float = 10.0      # stop after -$10/day (CLAUDE.md); was $40 — too permissive
     post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
