@@ -45,6 +45,39 @@ logger = logging.getLogger("window_sniper")
 # ── Tunable parameters ─────────────────────────────────────────────────────────
 SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 
+# ── Fair value model: sigmoid + time confidence ──────────────────────────────
+#
+# Base model:  FV = sigmoid(K × |delta_pct|)
+#   delta_pct  →  FV(YES token)
+#     0.00%   →  0.50  (coin flip at window open)
+#     0.05%   →  0.60
+#     0.10%   →  0.69
+#     0.20%   →  0.83
+#
+# LIMITATION (time-agnostic):
+#   The base model gives identical FV at 18% elapsed vs 80% elapsed for the
+#   same delta. This is wrong. Polymarket correctly prices a -0.083% move at
+#   75% elapsed as ~0.85 (sustained for 11min, likely to hold) — our model
+#   says 0.66. The gap looks like a lag but isn't: PM is right, we're wrong.
+#   Observed: (fv=0.661 ask=0.850 delta=-0.083%) → "no lag" block was correct
+#   but for the wrong reason (edge negative). Should be: FV_adj ≈ 0.79–0.85.
+#
+# FIX: time_confidence scales the effective delta by how much of the window
+# has elapsed. A move that has persisted for 75% of the window is equivalent
+# in certainty to a larger move at window open.
+#
+# Rationale: variance of remaining price path ∝ sqrt(time_remaining/window).
+# Scaling delta by 1/sqrt(remaining_fraction) normalises for this uncertainty.
+#
+#   elapsed  → time_confidence  → FV for 0.083% delta
+#   18%      → 1.10            → 0.68  (barely adjusted — early entry)
+#   50%      → 1.41            → 0.74  (meaningfully more certain)
+#   75%      → 2.00            → 0.80  (sustained move, high confidence)
+#   80%      → 2.24            → 0.83  (close to PM ask — minimal false lag)
+#
+# Capped at 2.5× to prevent runaway near expiry (last 5% of window).
+TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
+
 # Session-aware minimum delta: quiet-hour moves <0.20% are noise (40% sustain rate).
 # Matches macro_engine thresholds so both engines agree on what constitutes a signal.
 # All 3 sniper losses (T00020/22/25) were quiet-hour trades at 0.066–0.079% delta.
@@ -279,9 +312,15 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/NO | side_wrong (asset rising, NO loses)", token.asset)
             return None
 
-        # ── Fair value via sigmoid ─────────────────────────────────────────────
+        # ── Fair value via sigmoid (time-adjusted) ────────────────────────────
+        # Scale delta by time_confidence: a move that has persisted for X% of
+        # the window is more likely to hold than the same move at window open.
+        # This prevents late-window "false lag" where PM correctly prices high
+        # and our model under-estimates because it ignores elapsed time.
         directional_delta = abs(delta_pct)
-        fair_value = 1.0 / (1.0 + math.exp(-SIGMOID_K * directional_delta))
+        time_remaining_frac = max(0.05, 1.0 - elapsed_pct)  # floor at 5%
+        time_confidence = min(TIME_CONFIDENCE_CAP, 1.0 / math.sqrt(time_remaining_frac))
+        fair_value = 1.0 / (1.0 + math.exp(-SIGMOID_K * directional_delta * time_confidence))
 
         # ── Token ask and edge ─────────────────────────────────────────────────
         token_ask = ob.asks[0][0]
