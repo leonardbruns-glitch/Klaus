@@ -399,10 +399,17 @@ class WindowSniper:
         pm_drift = (token_ask - ask_at_trigger) if ask_at_trigger > 0 else 0.0
         expected_move = fair_value - 0.50
         lag_remaining_pct = max(0.0, (fair_value - token_ask) / expected_move) if expected_move > 0.01 else 0.0
-        # Gate: require sufficient lag remaining — adaptive to move magnitude
+        # Gate: require sufficient lag remaining — adaptive to move magnitude.
+        # Override: if absolute edge is very large (≥0.10), the lag% floor is relaxed
+        # to 15% regardless. Rationale: FV=0.979, ask=0.840 → lag=29%, edge=+0.139.
+        # The lag% penalises extreme FV (large denominator) even when uncaptured
+        # repricing in dollar terms is huge. Edge ≥ 0.10 is strong evidence either way.
+        MIN_EDGE_OVERRIDE = 0.10
         min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING
         if is_prearmed:
             min_lag = min_lag * 0.80  # pre-arm: slightly relaxed (prior window confirms direction)
+        if edge >= MIN_EDGE_OVERRIDE:
+            min_lag = min(min_lag, 0.15)   # absolute edge overrides lag% floor
         if lag_remaining_pct < min_lag:
             logger.info(
                 "SNIPER BLOCK %s/%s | lag=%.0f%% < %.0f%% min (fv=%.3f ask=%.3f delta=%+.3f%%) — PM mostly repriced",

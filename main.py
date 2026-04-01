@@ -58,7 +58,8 @@ logger = logging.getLogger("main")
 # Shadow monitor — counterfactual analysis for blocked sniper signals
 # ---------------------------------------------------------------------------
 
-async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed") -> None:
+async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed",
+                          active_set: set, dedup_key: tuple) -> None:
     """
     After the sniper blocks a candidate trade, watch the token's ask price at
     +30s, +60s, +120s, and at window close. Log what would have happened if
@@ -113,6 +114,8 @@ async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed") -> None:
         results.get("ask_at_30s"), results.get("ask_at_60s"),
         results.get("ask_at_120s"), ask_final
     ] if v is not None), default=None)
+    active_set.discard(dedup_key)  # allow future windows to register new monitors
+
     if max_ask is not None:
         pnl = (max_ask - block.token_ask) / block.token_ask
         would_win = max_ask >= block.token_ask * 1.20
@@ -145,6 +148,9 @@ class KlausBot:
         # track entry metadata for trade recording
         self._open_meta: Dict[str, dict] = {}
         self._pos_log_ts: Dict[str, float] = {}   # last log time per position
+        # Shadow monitor dedup: track (token_id, window_end_ts) already being monitored
+        # to avoid spawning a new task every 0.2s scan cycle for the same block.
+        self._shadow_active: Set[tuple] = set()
         # Last known external signals per asset — shared between signal loop (writer)
         # and OB scan loop (reader). Used by advise_exit without a separate fetch.
         self._last_ext_signals: Dict[str, object] = {}
@@ -679,15 +685,18 @@ class KlausBot:
                         ob.asks[0][0] if ob.asks else 0,
                         token.window_end_ts, token.window_seconds,
                     )
-                # Shadow monitor: if the sniper stored a meaningful block for
-                # this (asset, side), spawn a background task to track the
-                # counterfactual outcome and log it to shadow_blocks.jsonl.
+                # Shadow monitor: spawn once per (token_id, window_end_ts) —
+                # not every scan cycle. The sniper repopulates last_block every
+                # 0.2s; dedup via _shadow_active prevents duplicate tasks.
                 block = self.sniper.last_block.pop((token.asset, token.side), None)
                 if block is not None and block.token_id == token_id:
-                    asyncio.create_task(
-                        _shadow_monitor(block, self.feed),
-                        name=f"shadow_{token.asset}_{token.side}",
-                    )
+                    dedup_key = (block.token_id, block.window_end_ts)
+                    if dedup_key not in self._shadow_active:
+                        self._shadow_active.add(dedup_key)
+                        asyncio.create_task(
+                            _shadow_monitor(block, self.feed, self._shadow_active, dedup_key),
+                            name=f"shadow_{token.asset}_{token.side}",
+                        )
                 continue
             else:
                 # Non-updown (price-target markets): use momentum scorer
