@@ -35,9 +35,8 @@ import time
 from dataclasses import asdict
 from typing import Optional
 
-# Allow running as a script from the Klaus root directory
-if __name__ == "__main__":
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure Klaus root is on sys.path — safe whether imported or run as a script
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from strategy.window_sniper import SniperBlock
 
