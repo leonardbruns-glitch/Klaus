@@ -1005,14 +1005,51 @@ class KlausBot:
                 pos.asset, pos.direction.name, exit_price,
             )
             pnl = self.risk.close_position(token_id, exit_price, "EXTERNALLY_SOLD")
-            meta = self._open_meta.pop(token_id, {})
+            _ext_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
             if pnl is not None:
-                await self.feedback.record_trade(
-                    pos=pos, exit_price=exit_price, exit_reason="EXTERNALLY_SOLD",
-                    pnl_usd=pnl, meta=meta,
-                    window_size_s=meta.get("window_size_s", 0),
-                )
+                _signal = _ext_meta.get("signal")
+                if _signal is None:
+                    _signal = SignalBreakdown(
+                        direction=pos.direction,
+                        entry_price=pos.entry_price,
+                        composite=0.0, confidence=0.0, breakout_score=0.0,
+                        trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                        fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                        reason="externally_sold",
+                    )
+                capital_before = self.risk.bankroll.summary()["bankroll"] - pnl
+                try:
+                    self.analytics.record_trade(
+                        token_id=token_id,
+                        asset=pos.asset,
+                        direction=pos.direction,
+                        entry_price=pos.entry_price,
+                        exit_price=exit_price,
+                        stake=pos.stake,
+                        shares=pos.shares,
+                        entry_fill=_ext_meta.get("entry_fill"),
+                        exit_fills=all_exit_fills,
+                        exit_reason="EXTERNALLY_SOLD",
+                        signal=_signal,
+                        ts_open=_ext_meta.get("ts_open", pos.open_ts),
+                        ts_close=time.time(),
+                        capital_before=capital_before,
+                        heat_check_active=_ext_meta.get("heat_check", False),
+                        consecutive_wins=_ext_meta.get("consecutive_wins", 0),
+                        net_pnl_actual=pnl,
+                        market_type=getattr(token_meta, "market_type", "unknown"),
+                        is_live=not CONFIG.dry_run,
+                        signal_source=_ext_meta.get("signal_source", "SNIPER"),
+                        window_size_s=_ext_meta.get("window_size_s", 0),
+                        spot_at_entry=_ext_meta.get("spot_at_entry", 0.0),
+                        spot_at_exit=spot_at_exit,
+                        signal_to_fill_ms=_ext_meta.get("signal_to_fill_ms", 0.0),
+                        ob_depth_at_entry=_ext_meta.get("ob_depth_at_entry", 0.0),
+                        pre_entry_momentum_pct=_ext_meta.get("pre_entry_momentum_pct", 0.0),
+                    )
+                except Exception as _rec_exc:
+                    logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
             return
 
         # Guard 1: zero sell before stage-1 → network/CLOB error, retry next scan.
