@@ -499,21 +499,28 @@ class KlausBot:
 
     async def _signal_loop(self) -> None:
         _consecutive_errors = 0
+        _entries_blocked = False
         while self._running:
             try:
                 await self.feed.poll_order_books()
                 await self.feed.update_bars()
-                await self._scan_for_signals()
+                if _entries_blocked:
+                    logger.info("Signal loop recovered — entries unblocked")
+                    _entries_blocked = False
                 _consecutive_errors = 0  # reset on success
+                await self._scan_for_signals()
             except Exception as exc:
                 _consecutive_errors += 1
                 tb = traceback.format_exc()
                 if _consecutive_errors > 3:
-                    logger.critical(
-                        "Signal loop CRITICAL: %d consecutive errors — bot is blind. "
-                        "Last error: %s\n%s",
-                        _consecutive_errors, exc, tb,
-                    )
+                    if not _entries_blocked:
+                        logger.critical(
+                            "Signal loop CRITICAL: %d consecutive errors — entries BLOCKED. "
+                            "Last error: %s\n%s",
+                            _consecutive_errors, exc, tb,
+                        )
+                        _entries_blocked = True
+                    # Skip _scan_for_signals when data pipeline is broken
                 else:
                     logger.error("Signal loop error: %s\n%s", exc, tb)
             await asyncio.sleep(CONFIG.markets.scan_interval)
@@ -1678,6 +1685,10 @@ class KlausBot:
     async def _heartbeat_loop(self) -> None:
         """Keep CLOB session alive; prevents silent GTC order cancellation."""
         _hb_failures = 0
+        _last_reconcile_ts = 0.0
+        _RECONCILE_INTERVAL = 3600  # reconcile bankroll vs actual USDC every hour
+        _RECONCILE_DRIFT_WARN = 0.50  # warn if internal vs actual diverges > $0.50
+        _RECONCILE_DRIFT_CORRECT = 2.00  # auto-correct if divergence > $2.00
         while self._running:
             await asyncio.sleep(10)
             try:
@@ -1685,6 +1696,39 @@ class KlausBot:
                 await self._sweep_residuals()
                 await self._window_end_balance_sweep()
                 _hb_failures = 0  # reset on success
+
+                # ── Hourly bankroll reconciliation ───────────────────────────
+                # Compare internal capital estimate to actual Polymarket USDC balance.
+                # Drift sources: fee estimation errors, orphan sells, crash-recovery gaps.
+                # Auto-corrects large divergences; warns on small ones.
+                now = time.time()
+                has_open = bool(self.risk.open_positions)
+                if (now - _last_reconcile_ts >= _RECONCILE_INTERVAL
+                        and not CONFIG.dry_run
+                        and not has_open):  # only reconcile when flat — open positions distort USDC
+                    _last_reconcile_ts = now
+                    actual_usdc = self.orders.fetch_usdc_balance()
+                    if actual_usdc is not None:
+                        internal = self.risk.bankroll.capital
+                        drift = actual_usdc - internal
+                        if abs(drift) >= _RECONCILE_DRIFT_WARN:
+                            logger.warning(
+                                "BANKROLL DRIFT: internal=$%.2f actual=$%.2f drift=%+.2f",
+                                internal, actual_usdc, drift,
+                            )
+                        if abs(drift) >= _RECONCILE_DRIFT_CORRECT:
+                            logger.warning(
+                                "BANKROLL AUTO-CORRECT: $%.2f → $%.2f (drift=%+.2f)",
+                                internal, actual_usdc, drift,
+                            )
+                            self.risk.bankroll.capital = actual_usdc
+                            self.risk.bankroll._save()
+                        else:
+                            logger.debug(
+                                "Bankroll reconcile OK: internal=$%.2f actual=$%.2f drift=%+.2f",
+                                internal, actual_usdc, drift,
+                            )
+
             except Exception as exc:
                 _hb_failures += 1
                 if _hb_failures >= 2:
