@@ -371,15 +371,16 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown: reject near-resolved markets.
-            # 5m markets: tight cap 0.55 — fast reversals make high entries lethal
-            #   (T00030/32/34 all entered 0.58-0.63, SL in <16s, price crashed past stop)
-            # 15m markets: 0.65 — more time, slower repricing
-            _updown_max = 0.55 if window_seconds <= 300 else 0.65
+            # Updown: hard ceiling defers to sniper's MAX_TOKEN_ASK (0.90).
+            # Old caps (0.55/0.65) were set before lag_remaining gate existed —
+            # T00030/32/34 high-ask losses are now caught by lag_remaining < min_lag.
+            # A token at 0.795 with FV=0.90 and lag=30% is a valid trade; blanket
+            # price caps block it for no reason. Let the sniper decide.
+            _updown_max = 0.90  # matches sniper MAX_TOKEN_ASK
             if signal.entry_price > _updown_max or signal.entry_price < 0.35:
                 return RiskDecision(
                     False, 0,
-                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.35, {_updown_max}] ({'5m' if window_seconds <= 300 else '15m'})",
+                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.35, {_updown_max}]",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
