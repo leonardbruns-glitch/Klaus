@@ -126,8 +126,8 @@ def _session_min_delta(is_15m: bool = False) -> float:
 #   5-min windows (≤300s): 20s — wicks reverse in <15s; 30s too narrow (only 90s
 #     first-breach window available between elapsed 40-70%). 10s still filters 5-15s wicks.
 #   15-min+ windows  (>300s): 20s — longer window; 20s sustain proportionally less costly.
-_SUSTAINED_5M = 2.0   # TEST MODE — minimal sustain, any real move triggers
-_SUSTAINED_15M = 2.0  # TEST MODE
+_SUSTAINED_5M = 0.0   # 0s sustain — PM ask snapshot check replaces sustain as confirmation
+_SUSTAINED_15M = 0.0  # Burning 2s here wastes most of the 2.7s Polymarket lag window
 
 
 class WindowSniper:
@@ -210,10 +210,10 @@ class WindowSniper:
         # Start/maintain sustain timer regardless of time gate
         self._delta_sustained_since.pop(opp_key, None)  # clear reversed-direction timer
         if sustain_key not in self._delta_sustained_since:
-            self._delta_sustained_since[sustain_key] = now
+            self._delta_sustained_since[sustain_key] = (now, ob.asks[0][0] if ob.asks else 0.0)
             logger.debug(
-                "SNIPER SUSTAIN_START %s/%s | delta=%.3f%% — waiting %.0fs confirmation",
-                token.asset, token.side, delta_pct,
+                "SNIPER SUSTAIN_START %s/%s | delta=%.3f%% ask=%.3f — waiting %.0fs confirmation",
+                token.asset, token.side, delta_pct, ob.asks[0][0] if ob.asks else 0,
                 _SUSTAINED_5M if not is_15m else _SUSTAINED_15M,
             )
 
@@ -256,8 +256,9 @@ class WindowSniper:
         # ── Sustained delta gate ───────────────────────────────────────────────
         required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
         if is_prearmed:
-            required_sustain = max(1.0, required_sustain * PREARM_SUSTAIN_FACTOR)
-        sustained_for = now - self._delta_sustained_since[sustain_key]
+            required_sustain = max(0.2, required_sustain * PREARM_SUSTAIN_FACTOR)
+        trigger_ts, ask_at_trigger = self._delta_sustained_since[sustain_key]
+        sustained_for = now - trigger_ts
         if sustained_for < required_sustain:
             logger.debug("SNIPER BLOCK %s/%s | sustain %.1fs / %.0fs delta=%.3f%%",
                          token.asset, token.side, sustained_for, required_sustain, delta_pct)
@@ -308,6 +309,26 @@ class WindowSniper:
             logger.info("SNIPER BLOCK %s/%s | edge=%.4f (fv=%.3f ask=%.3f delta=%+.3f%%) — no lag",
                         token.asset, token.side, edge, fair_value, token_ask, delta_pct)
             return None
+
+        # ── Direct Polymarket lag check ────────────────────────────────────────
+        # Edge thesis: Polymarket takes ~2.7s to reprice after Binance moves.
+        # If PM has already moved since our Binance trigger fired, lag is closing.
+        # ask_at_trigger = PM ask at the moment Binance delta crossed threshold.
+        # If PM ask moved >3¢ absolute since trigger → market repricing → skip.
+        if ask_at_trigger > 0:
+            pm_drift = token_ask - ask_at_trigger
+            # For YES tokens (asset up): ask rises as market reprices → positive drift = lag closing
+            # For NO tokens (asset down): ask rises as market reprices the NO direction too
+            if abs(pm_drift) > 0.03:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | PM repricing: ask %.3f→%.3f (%+.3f) in %.2fs — lag closing",
+                    token.asset, token.side, ask_at_trigger, token_ask, pm_drift, sustained_for,
+                )
+                return None
+            logger.debug(
+                "SNIPER LAG_OPEN %s/%s | PM drift %+.3f in %.2fs — lag still open",
+                token.asset, token.side, pm_drift, sustained_for,
+            )
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0
