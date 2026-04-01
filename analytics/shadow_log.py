@@ -166,17 +166,30 @@ if __name__ == "__main__":
                 print(f"    lag {bucket:<10}  WR={wr:.0%}  n={len(group)}")
 
         print(f"\n  Recent blocks (last 10):")
-        print(f"  {'time':<8} {'asset':<6} {'side':<4} {'reason':<22} {'ask':<6} {'fv':<6} {'lag':<6} {'outcome'}")
+        print(f"  {'time':<8} {'asset':<6} {'side':<4} {'reason':<22} {'entry':<7} {'end':<7} {'pnl':<9} {'result'}")
         for r in rows[-10:]:
             ts = datetime.fromtimestamp(r["ts"], tz=timezone.utc).strftime("%H:%M:%S")
-            outcome = (
-                f"+{r['pnl_if_entered']:+.0%}" if r.get("pnl_if_entered") is not None
-                else "pending"
+            entry_ask = r["token_ask"]
+            end_ask   = r.get("ask_at_window_end")
+            max_ask   = r.get("max_ask_seen")
+            if end_ask is not None:
+                pnl_str = f"{(end_ask - entry_ask) / entry_ask:+.1%}"
+                end_str = f"{end_ask:.3f}"
+            else:
+                pnl_str = "pending"
+                end_str = "---"
+            if max_ask is not None and entry_ask > 0:
+                peak_pnl = (max_ask - entry_ask) / entry_ask
+                peak_str = f" (peak {peak_pnl:+.1%})"
+            else:
+                peak_str = ""
+            result = (
+                "WIN" if r.get("would_win_20pct") is True
+                else "LOSS" if r.get("would_win_20pct") is False
+                else "..."
             )
-            win_flag = " WIN" if r.get("would_win_20pct") else (" LOSS" if r.get("would_win_20pct") is False else "")
             print(f"  {ts:<8} {r['asset']:<6} {r['side']:<4} {r['block_reason']:<22} "
-                  f"{r['token_ask']:.3f}  {r['fair_value']:.3f}  {r.get('lag_remaining_pct',0):.0%}   "
-                  f"{outcome}{win_flag}")
+                  f"{entry_ask:.3f}  {end_str:<7} {pnl_str:<9}{peak_str}  {result}")
     else:
         print("  No completed blocks yet (monitors still running or no data).")
 
