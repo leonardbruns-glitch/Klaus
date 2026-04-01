@@ -881,6 +881,29 @@ class KlausBot:
         sold = sum(f.total_size for f in exit_fills)
 
         if sold == 0:
+            # Reconcile against actual CLOB balance — fills may have landed on Polymarket
+            # but WS confirmation was dropped. Without this, bot retries with stale quantity,
+            # CLOB rejects (insufficient balance), shares left unsold at window resolution.
+            actual_balance = self.orders.fetch_token_balance(token_id)
+            if actual_balance is not None:
+                discrepancy = pos.remaining_shares - actual_balance
+                if discrepancy > 0.05:
+                    logger.warning(
+                        "FILL RECONCILE %s/%s: bot=%.4f shares CLOB=%.4f — "
+                        "%.4f sold without confirmation, updating tracking",
+                        pos.asset, pos.direction.name,
+                        pos.remaining_shares, actual_balance, discrepancy,
+                    )
+                    pos.remaining_shares = round(actual_balance, 4)
+                if actual_balance < 0.05:
+                    logger.info(
+                        "FILL RECONCILE %s/%s: CLOB balance=0 — all shares sold, "
+                        "forcing STAGE_1_DONE",
+                        pos.asset, pos.direction.name,
+                    )
+                    pos.exit_stage = ExitStage.STAGE_1_DONE
+                    return
+
             pos.stage1_attempts += 1
             if pos.stage1_attempts >= 3:
                 logger.warning(

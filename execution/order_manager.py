@@ -1015,6 +1015,34 @@ class OrderManager:
 
     # ── Polymarket data reconciliation (GET endpoints — no CF blocking) ──────
 
+    def fetch_token_balance(self, token_id: str) -> Optional[float]:
+        """
+        Fetch actual token (share) balance from Polymarket CLOB.
+        Uses GET /balance-allowance?asset_type=CONDITIONAL&token_id=...
+        Returns shares held (None on failure).
+
+        Called after cascade_sell returns 0 fills to reconcile against reality.
+        Catches the case where fills landed on Polymarket but WS confirmation
+        was dropped — bot retries with stale quantity, CLOB rejects due to
+        insufficient balance, shares remain unsold at window resolution.
+        """
+        if self._client is None or CONFIG.dry_run:
+            return None
+        try:
+            ba = self._client.get_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.CONDITIONAL,
+                    token_id=token_id,
+                    signature_type=CONFIG.signature_type,
+                )
+            )
+            raw = float(ba.get("balance", 0))
+            shares = raw / 1_000_000
+            return shares
+        except Exception as exc:
+            logger.warning("fetch_token_balance %s failed: %s", token_id[:8], exc)
+            return None
+
     def fetch_usdc_balance(self) -> Optional[float]:
         """
         Fetch actual USDC balance from Polymarket CLOB.
