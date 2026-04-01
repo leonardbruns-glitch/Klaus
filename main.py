@@ -897,19 +897,20 @@ class KlausBot:
         )
 
     async def _partial_exit(self, token_id: str, live_price: float, reason: str) -> None:
-        """Stage-1: sell 95% if 5% residual is CLOB-sellable, else sell 100% to avoid dust."""
+        """Stage-1: sell 60% single-shot if 40% residual is CLOB-sellable, else sell 100%."""
         pos = self.risk.open_positions.get(token_id)
         if not pos:
             return
 
-        # 5% residual only makes sense to keep when it can later be sold via CLOB ($1 min).
-        # Add 50% buffer → $1.50 threshold. At current $2-4 positions, 5% = $0.10-0.25
-        # → permanent dust. For future large positions ($30+), 5% = $1.50+ → keep the split.
-        residual_value = pos.remaining_shares * 0.05 * live_price
-        sell_pct = 0.95 if residual_value >= 1.50 else 1.0
+        # P6: changed 95/5 split → 60/40 split to let winning trades run to Stage-2 (+45%).
+        # Previous 5% residual was ~$0.10-0.25 = permanent dust, contributing nothing.
+        # 40% residual at current stake (~$4) = $1.60-2.40 = meaningful Stage-2 upside.
+        # P5: force_exit=True makes cascade single-shot (no 3-tranche CLOB lag issue).
+        residual_value = pos.remaining_shares * 0.40 * live_price
+        sell_pct = 0.60 if residual_value >= 1.50 else 1.0
         if sell_pct == 1.0:
             logger.info(
-                "Stage-1 selling 100%% — 5%% residual=$%.2f < $1.50 CLOB minimum (permanent dust avoided)",
+                "Stage-1 selling 100%% — 40%% residual=$%.2f < $1.50 CLOB minimum (dust avoided)",
                 residual_value,
             )
 
@@ -922,6 +923,7 @@ class KlausBot:
             reason=reason,
             neg_risk=getattr(token_meta, "neg_risk", False),
             tick_size=getattr(token_meta, "tick_size", "0.01"),
+            force_exit=True,  # P5: single-shot — eliminates 3-tranche CLOB lag partial-sell bug
         )
         sold = sum(f.total_size for f in exit_fills)
 

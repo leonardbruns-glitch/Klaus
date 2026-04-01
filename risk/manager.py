@@ -600,9 +600,9 @@ class RiskManager:
         Priority:
           1. Hard-exit timer (unconditional)
           2. Window expiry guard
-          3. Stage-1 profit: +25 % with 2.5s confirmation → sell 95 %
-          4. Stage-2 profit: +45 % (on remaining 5 %)
-          5. Stage-2 floor: remaining at cost+5 %
+          3. Stage-1 profit: +25 % with 2.5s confirmation → sell 60 %
+          4. Stage-2 profit: +45 % (on remaining 40 %)
+          5. Stage-2 floor: remaining at cost+15 %
           6. Trailing stop (after stage-1): 20 % below peak
           7. Time-aware dynamic SL (no stop in first 10s)
              - First 2.5 min: 35 % stop
@@ -686,8 +686,10 @@ class RiskManager:
             if move_pct >= 0.45:
                 return ExitDecision(True, "PROFIT_2", urgency="cascade")
 
-            # Floor: don't let stage-2 give back to cost+5 %
-            if move_pct <= 0.05:
+            # Floor: don't let stage-2 give back to cost+15 %
+            # P8: raised from 5% — cost+5% barely covered fees ($0.33), net ~$0.20.
+            # cost+15% ensures minimum ~$1.00 net per winning trade.
+            if move_pct <= 0.15:
                 return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
 
             # Trailing stop after stage-1: 20 % below peak (same for both sides)
