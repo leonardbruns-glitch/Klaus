@@ -87,13 +87,21 @@ _DELTA_PCT_QUIET  = 0.06   # TEST MODE
 
 # 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
 # is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
-_DELTA_PCT_15M_ACTIVE = 0.08   # require 0.08% move — filters sub-0.07% noise entries
-_DELTA_PCT_15M_QUIET  = 0.12   # quiet hours: slightly higher bar
+# Adaptive: below 40% elapsed (early window), require 1.5× — move hasn't had time
+# to confirm. T00088: 0.086% at 18% elapsed reversed immediately. Above 40% the
+# move has been running 6+ minutes and is far more likely to persist to close.
+_DELTA_PCT_15M_ACTIVE       = 0.08   # base bar ≥40% elapsed
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.12   # raised bar <40% elapsed (1.5×)
+_DELTA_PCT_15M_QUIET        = 0.12   # quiet hours: same as early-window bar
+_EARLY_ELAPSED_CUTOFF       = 0.40   # below this = "early window" for 15m
 
 MIN_EDGE = 0.06             # require clear mispricing — 0.02 was too loose (T00070-76 had 0.057-0.082)
 MIN_EDGE_VPIN = 0.04        # VPIN confirmation reduces bar
 MIN_EDGE_BOOST = 0.03       # LLM boost confirmation
-WINDOW_ELAPSED_MIN = 0.18   # 18% elapsed (2.7min into 15m) — data shows <17% is 6L/0W
+WINDOW_ELAPSED_MIN = 0.25   # raised 0.18→0.25: T00088 entered at 18% elapsed, delta=0.086%
+                            # (barely above threshold) → reversed immediately, -$4.40
+                            # 25% = 3.75min into 15m window: meaningful confirmation time
+                            # data: <17% was 6L/0W; 18% is effectively the same zone
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
@@ -181,9 +189,14 @@ class SniperSignal:
     lag_remaining_pct: float = 0.0  # fraction of expected PM move not yet priced in (1.0=max lag, 0=closed)
 
 
-def _session_min_delta(is_15m: bool = False) -> float:
-    """Flat delta threshold — no hour-based variation. Collect data across all hours first."""
+def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
+    """
+    Minimum delta threshold. For 15m windows, early entries (< 40% elapsed)
+    require 1.5× the normal threshold — move hasn't confirmed yet.
+    """
     if is_15m:
+        if elapsed_pct < _EARLY_ELAPSED_CUTOFF:
+            return _DELTA_PCT_15M_ACTIVE_EARLY
         return _DELTA_PCT_15M_ACTIVE
     return _DELTA_PCT_ACTIVE
 
@@ -266,7 +279,12 @@ class WindowSniper:
         # 5m re-enabled: lag_remaining gate replaces fixed ask cap as quality filter.
         # Old 50% WR on 5m was with fixed caps; lag_remaining > 0.65 should filter the noise.
 
-        min_delta = _session_min_delta(is_15m=is_15m)
+        # Compute elapsed_pct early so adaptive delta threshold can use it
+        _elapsed_pct_early = (
+            (now - (token.window_end_ts - token.window_seconds)) / token.window_seconds
+            if token.window_end_ts > 0 and token.window_seconds > 0 else 1.0
+        )
+        min_delta = _session_min_delta(is_15m=is_15m, elapsed_pct=_elapsed_pct_early)
         asset_direction = 1 if delta_pct > 0 else -1
         sustain_key = (token.token_id, asset_direction)
         opp_key = (token.token_id, -asset_direction)
