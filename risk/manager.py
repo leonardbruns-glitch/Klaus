@@ -647,13 +647,13 @@ class RiskManager:
         if pos.exit_stage == ExitStage.NONE:
             if pos.window_end_ts > 0:
                 if remaining > 120:
-                    profit1_pct = 0.30
+                    profit1_pct = 0.20
                 elif remaining > 60:
-                    profit1_pct = 0.25
+                    profit1_pct = 0.18
                 else:
-                    profit1_pct = 0.18   # take what's available near window expiry
+                    profit1_pct = 0.15   # take what's available near window expiry
             else:
-                profit1_pct = 0.25       # price-target markets: unchanged
+                profit1_pct = 0.20       # price-target markets
 
             if move_pct >= profit1_pct:
                 if pos.window_end_ts > 0:
