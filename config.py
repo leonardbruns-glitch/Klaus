@@ -24,11 +24,11 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 100.0
-    base_stake: float = 20.0          # $20 per trade
-    scaled_stake: float = 20.0        # same as base — heat check irrelevant at this size
+    base_stake: float = 10.0          # $10 per trade
+    scaled_stake: float = 10.0        # flat — no heat check scaling
     heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
-    max_open_positions: int = 4       # max 4 concurrent → max $80 deployed at once
-    max_daily_loss: float = 40.0      # hard halt after -$40/day (2 full losses at $20)
+    max_open_positions: int = 4       # max 4 concurrent → max $40 deployed at once
+    max_daily_loss: float = 40.0      # reference only — halt disabled in code
     post_close_cooldown: float = 5.0  # seconds to wait after any close
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
@@ -157,7 +157,7 @@ class EdgeConfig:
     # Assets paused from the Window Sniper based on live WR data.
     # SOL paused: 28.6% WR over 7 sniper trades (live data 2026-03-31).
     # Revisit when SOL has 20+ sniper trades with confirmed edge.
-    sniper_excluded_assets: List[str] = field(default_factory=lambda: ["SOL"])
+    sniper_excluded_assets: List[str] = field(default_factory=lambda: [])  # SOL re-enabled for data collection
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
     # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.

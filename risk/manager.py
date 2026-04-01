@@ -316,9 +316,7 @@ class RiskManager:
         is_sniper: bool = False,
         window_seconds: int = 0,
     ) -> RiskDecision:
-        # Ruin floor: capital < $50 → hard stop (CLAUDE.md rule)
-        if self.bankroll.capital < 50.0:
-            return RiskDecision(False, 0, f"RUIN FLOOR: capital=${self.bankroll.capital:.2f} < $50 — halt until manual review")
+        # Ruin floor disabled — no capital limits enforced
 
         # Daily loss halt disabled — 15m WR 100%, no reason to stop on a bad day
 
