@@ -879,6 +879,23 @@ class KlausBot:
             tick_size=getattr(token_meta, "tick_size", "0.01"),
         )
         sold = sum(f.total_size for f in exit_fills)
+
+        if sold == 0:
+            pos.stage1_attempts += 1
+            if pos.stage1_attempts >= 3:
+                logger.warning(
+                    "STAGE-1 FORCE-DONE %s/%s: %d failed attempts (0 fills each) — "
+                    "forcing STAGE_1_DONE, hard exit will close remaining %.4f shares",
+                    pos.asset, pos.direction.name, pos.stage1_attempts, pos.remaining_shares,
+                )
+                pos.exit_stage = ExitStage.STAGE_1_DONE
+            else:
+                logger.warning(
+                    "STAGE-1 ZERO FILLS %s/%s (attempt %d/3) — will retry next scan",
+                    pos.asset, pos.direction.name, pos.stage1_attempts,
+                )
+            return
+
         self.risk.record_stage1_sell(token_id, sold)
         # Store stage-1 fills so analytics can compute accurate weighted exit price
         meta = self._open_meta.get(token_id)

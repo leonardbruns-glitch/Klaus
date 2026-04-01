@@ -64,6 +64,7 @@ class PositionMeta:
     sl_breach_ts: float = 0.0        # timestamp when wide SL first breached (0 = not breached)
     sl_breach_llm_queried: bool = False  # True once LLM has been asked about this breach
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
+    stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -275,6 +276,7 @@ class RiskManager:
                 )
                 pos.dynamic_sl_override = float(d.get("dynamic_sl_override", 0.0))
                 pos.window_seconds = int(d.get("window_seconds", 0))
+                pos.stage1_attempts = int(d.get("stage1_attempts", 0))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
