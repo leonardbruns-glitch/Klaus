@@ -1149,6 +1149,96 @@ class KlausBot:
             net_pnl or 0, bankroll["capital"], bankroll["consecutive_wins"],
         )
 
+        # Post-exit price tracking — answers "was our exit right?"
+        # Samples token price at T+30s, T+60s, T+120s after exit.
+        # Logs to logs/post_exit.jsonl for strategy analysis.
+        asyncio.create_task(self._track_post_exit(
+            token_id=token_id,
+            trade_id=self.analytics.last_trade_id,
+            asset=pos.asset,
+            direction=pos.direction.name,
+            exit_price=analytics_exit_price,
+            exit_reason=reason,
+            entry_price=pos.entry_price,
+        ))
+
+    async def _track_post_exit(
+        self,
+        token_id: str,
+        trade_id: str,
+        asset: str,
+        direction: str,
+        exit_price: float,
+        exit_reason: str,
+        entry_price: float,
+    ) -> None:
+        """Sample token price at T+30s, T+60s, T+120s after exit.
+        Tells us whether the exit was correct (price continued) or premature (price recovered).
+        """
+        import json as _json
+        log_path = os.path.join("logs", "post_exit.jsonl")
+        samples = {}
+        elapsed = 0
+        for delay in (30, 60, 120):
+            await asyncio.sleep(delay - elapsed)
+            elapsed = delay
+            try:
+                token = self.feed.tokens.get(token_id)
+                if token and hasattr(token, "best_ask") and token.best_ask > 0:
+                    price = token.best_ask
+                else:
+                    ob = self.feed._order_books.get(token_id, {})
+                    price = ob.get("ask", 0.0) if ob else 0.0
+                samples[f"t{delay}s"] = round(price, 4)
+            except Exception:
+                samples[f"t{delay}s"] = None
+
+        if not any(v for v in samples.values()):
+            return
+
+        # Was the exit correct?
+        # For a win exit: price should stay high or go higher (exit was right)
+        # For a loss exit: price should continue falling (exit was right) or recover (premature)
+        move_from_exit = {}
+        for k, p in samples.items():
+            if p and exit_price > 0:
+                move_from_exit[k] = round((p - exit_price) / exit_price * 100, 2)
+
+        record = {
+            "trade_id": trade_id,
+            "asset": asset,
+            "direction": direction,
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "exit_reason": exit_reason,
+            **samples,
+            "move_from_exit_pct": move_from_exit,
+        }
+
+        try:
+            os.makedirs("logs", exist_ok=True)
+            with open(log_path, "a") as f:
+                f.write(_json.dumps(record) + "\n")
+            verdict = ""
+            for k, m in move_from_exit.items():
+                if m is not None:
+                    if exit_reason in ("STOP_LOSS", "LLM_CONFIRMS_SL", "LLM_TIGHT_SL(8%)", "LLM_EXIT_NOW"):
+                        verdict = "EXIT_CORRECT" if m < 0 else "EXIT_PREMATURE"
+                    else:
+                        verdict = "EXIT_CORRECT" if m >= 0 else "EXIT_EARLY"
+                    break
+            logger.info(
+                "POST_EXIT %s/%s [%s] | exit=%.4f | +30s=%.4f +60s=%.4f +120s=%.4f | %s",
+                asset, direction, exit_reason,
+                exit_price,
+                samples.get("t30s") or 0,
+                samples.get("t60s") or 0,
+                samples.get("t120s") or 0,
+                verdict,
+            )
+        except Exception as exc:
+            logger.debug("post_exit log failed: %s", exc)
+
     # ── Residual share sweep ──────────────────────────────────────────────────
 
     async def _sweep_residuals(self) -> None:

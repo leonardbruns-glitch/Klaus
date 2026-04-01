@@ -111,6 +111,7 @@ class FeedbackEngine:
         )
         self._session_trades: List[TradeRecord] = []
         self._trade_counter = 0
+        self.last_trade_id = ""
         self._load_history_from_file()
         self._telemetry: dict = {}  # injected from main.py before each report
 
@@ -233,6 +234,7 @@ class FeedbackEngine:
 
         self._trade_counter += 1
         trade_id = f"T{self._trade_counter:05d}_{asset}_{int(ts_open)}"
+        self.last_trade_id = trade_id
 
         # Gross PnL: token price movement × shares (always calculable)
         gross_pnl = (exit_price - entry_price) * shares
