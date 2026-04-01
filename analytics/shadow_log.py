@@ -82,6 +82,7 @@ def log_shadow_result(
         "window_end_ts": block.window_end_ts,
         "window_seconds": block.window_seconds,
         "block_reason": block.block_reason,
+        "regime": block.regime,
         "token_ask": block.token_ask,
         "fair_value": round(block.fair_value, 4),
         "edge": round(block.edge, 4),

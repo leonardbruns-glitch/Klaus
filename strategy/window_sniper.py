@@ -39,6 +39,7 @@ import logging
 
 from data.feeds import MarketToken, OrderBook, ExternalSignal
 from strategy.momentum import Direction, FeeZone
+from analytics.regime import classify_regime
 
 logger = logging.getLogger("window_sniper")
 
@@ -149,6 +150,7 @@ class SniperBlock:
     window_end_ts: float
     window_seconds: int
     block_reason: str           # "lag_too_low" | "edge_negative" | "edge_insufficient" | "vpin_offpeak"
+    regime: str                 # market regime at block time
     token_ask: float            # PM ask at block moment
     fair_value: float           # time-adjusted sigmoid FV
     edge: float                 # fair_value - token_ask (can be negative)
@@ -187,6 +189,7 @@ class SniperSignal:
     pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first crossed threshold
     pm_drift_at_entry: float = 0.0  # PM ask change since trigger (analytics only — not a gate)
     lag_remaining_pct: float = 0.0  # fraction of expected PM move not yet priced in (1.0=max lag, 0=closed)
+    regime: str = ""                # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
 
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
@@ -352,6 +355,12 @@ class WindowSniper:
                          token.asset, token.side, sustained_for, required_sustain, delta_pct)
             return None
 
+        # ── Regime classification (available for all subsequent blocks) ──────────
+        hour_utc = datetime.now(timezone.utc).hour
+        _vpin_now = ext.vpin_score or 0.0
+        _regime = classify_regime(hour_utc, _vpin_now)
+        is_active_session = hour_utc in _HIGH_VOLUME_HOURS
+
         # ── Side alignment: only trade the winning token ───────────────────────
         if token.side == "YES" and asset_direction < 0:
             logger.debug("SNIPER BLOCK %s/YES | side_wrong (asset falling, YES loses)", token.asset)
@@ -401,7 +410,7 @@ class WindowSniper:
             self.last_block[(token.asset, token.side)] = SniperBlock(
                 asset=token.asset, side=token.side, token_id=token.token_id,
                 window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                block_reason="edge_negative",
+                block_reason="edge_negative", regime=_regime,
                 token_ask=token_ask, fair_value=fair_value, edge=edge,
                 lag_remaining_pct=0.0, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
                 vpin=ext.vpin_score or 0.0, ts=now,
@@ -437,7 +446,7 @@ class WindowSniper:
             self.last_block[(token.asset, token.side)] = SniperBlock(
                 asset=token.asset, side=token.side, token_id=token.token_id,
                 window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                block_reason="lag_too_low",
+                block_reason="lag_too_low", regime=_regime,
                 token_ask=token_ask, fair_value=fair_value, edge=edge,
                 lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
                 vpin=ext.vpin_score or 0.0, ts=now,
@@ -454,8 +463,6 @@ class WindowSniper:
         # During high-info sessions (13-15 UTC), information events drive real lag.
         # Off-peak: require minimum VPIN to confirm informed flow — filters the
         # 0/8 WR at 18-23 UTC without a hard hour block (preserves data collection).
-        hour_utc = datetime.now(timezone.utc).hour
-        is_active_session = hour_utc in _HIGH_VOLUME_HOURS
         if not is_active_session:
             vpin_for_gate = ext.vpin_score or 0.0
             if vpin_for_gate < VPIN_OFFPEAK_REQUIRED:
@@ -466,7 +473,7 @@ class WindowSniper:
                 self.last_block[(token.asset, token.side)] = SniperBlock(
                     asset=token.asset, side=token.side, token_id=token.token_id,
                     window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                    block_reason="vpin_offpeak",
+                    block_reason="vpin_offpeak", regime=_regime,
                     token_ask=token_ask, fair_value=fair_value, edge=edge,
                     lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
                     vpin=vpin_for_gate, ts=now,
@@ -509,7 +516,7 @@ class WindowSniper:
             self.last_block[(token.asset, token.side)] = SniperBlock(
                 asset=token.asset, side=token.side, token_id=token.token_id,
                 window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                block_reason="edge_insufficient",
+                block_reason="edge_insufficient", regime=_regime,
                 token_ask=token_ask, fair_value=fair_value, edge=edge,
                 lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
                 vpin=vpin or 0.0, ts=now,
@@ -593,4 +600,5 @@ class WindowSniper:
             pm_ask_at_trigger=round(ask_at_trigger, 4) if ask_at_trigger > 0 else 0.0,
             pm_drift_at_entry=round(pm_drift, 4),
             lag_remaining_pct=round(lag_remaining_pct, 3),
+            regime=_regime,
         )

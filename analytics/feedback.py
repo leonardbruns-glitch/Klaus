@@ -80,6 +80,7 @@ class TradeRecord:
     sniper_pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first fired
     sniper_pm_drift_at_entry: float = 0.0  # PM ask drift from trigger→entry (analytics only)
     sniper_lag_remaining: float = 0.0      # fraction of expected PM move unpriced at entry (1.0=max lag)
+    regime: str = ""                       # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
 
     # Window context
     window_size_s: int = 0            # 300 (5m) or 900 (15m) — key for separate analysis
@@ -196,6 +197,7 @@ class FeedbackEngine:
                     sniper_pm_ask_at_trigger=d.get("sniper_pm_ask_at_trigger", 0.0),
                     sniper_pm_drift_at_entry=d.get("sniper_pm_drift_at_entry", 0.0),
                     sniper_lag_remaining=d.get("sniper_lag_remaining", 0.0),
+                    regime=d.get("regime", ""),
                     window_size_s=d.get("window_size_s", 0),
                     hour_utc=d.get("hour_utc", 0),
                     hold_seconds=d.get("hold_seconds", 0.0),
@@ -348,6 +350,7 @@ class FeedbackEngine:
             sniper_pm_ask_at_trigger=round(getattr(signal, "pm_ask_at_trigger", 0.0), 4) if is_sniper else 0.0,
             sniper_pm_drift_at_entry=round(getattr(signal, "pm_drift_at_entry", 0.0), 4) if is_sniper else 0.0,
             sniper_lag_remaining=round(getattr(signal, "lag_remaining_pct", 0.0), 3) if is_sniper else 0.0,
+            regime=getattr(signal, "regime", ""),
             window_size_s=window_size_s,
             hour_utc=int(time.gmtime(ts_open).tm_hour),
             hold_seconds=round(ts_close - ts_open, 1),
