@@ -285,7 +285,11 @@ class FeedbackEngine:
                 if (exit_price < CONFIG.fees.extreme_low or exit_price > CONFIG.fees.extreme_high)
                 else CONFIG.fees.middle_fee_rate
             )
-            net_pnl = gross_pnl - stake * fee_rate
+            # Round-trip fee: entry notional (stake) + exit notional.
+            # stake = entry_price × shares; exit_notional = exit_price × shares.
+            shares_est = stake / max(entry_price, 0.01) if entry_price else 0
+            exit_notional_est = exit_price * shares_est
+            net_pnl = gross_pnl - (stake + exit_notional_est) * fee_rate
 
         if actual_fee_from_fills > 0:
             # Actual fees captured from CLOB — most accurate source

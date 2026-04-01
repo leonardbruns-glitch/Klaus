@@ -429,6 +429,11 @@ class RiskManager:
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
         min_rr = 0.9 if market_type == "updown" else 1.5
         if tpsl.risk_reward < min_rr:
+            logger.info(
+                "RISK BLOCK %s/%s | RR=%.2f < %.1f (tp=%.4f sl=%.4f ask=%.4f)",
+                signal.asset, signal.side, tpsl.risk_reward, min_rr,
+                tpsl.take_profit, tpsl.stop_loss, signal.entry_price,
+            )
             return RiskDecision(False, 0, f"RR {tpsl.risk_reward:.2f} < {min_rr}")
 
         # Fat-middle confidence gate

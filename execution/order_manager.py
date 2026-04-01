@@ -300,6 +300,7 @@ class OrderManager:
                 logger.warning(
                     "CLOB unreachable (network/geoblocking) — order skipped, will retry next cycle"
                 )
+                return OrderResult(status=OrderStatus.FAILED, error="network error — CLOB unreachable")
             else:
                 logger.error("Limit buy failed: %s", exc)
 
