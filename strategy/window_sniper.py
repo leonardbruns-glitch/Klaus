@@ -67,7 +67,7 @@ LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
 MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens (both 5m and 15m)
 MAX_TOKEN_ASK_5M  = 0.55   # 5m markets: tight cap — fast reversals make high entries lethal
                             # T00030/32/34 all entered 0.58-0.63 → SL in <16s, price blew past stop
-MAX_TOKEN_ASK_15M = 0.65   # 15m markets: wider — more time, slower repricing (3W/0L at 0.59-0.62)
+MAX_TOKEN_ASK_15M = 0.58   # tighter cap — 457ms latency causes slippage, need buffer
 MAX_TOKEN_ASK = MAX_TOKEN_ASK_15M   # fallback for non-updown paths
 
 WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)

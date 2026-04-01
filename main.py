@@ -278,8 +278,12 @@ class KlausBot:
                     #   - Move between -35% and +22% (covers SL approach zone too)
                     #   - Window has > 60s remaining (enough time to act)
                     # Claude reasons holistically: P&L, momentum, VPIN, session.
+                    # LLM exit gate: 15m trades need 3 min before LLM can exit.
+                    # T00050: LLM_EXIT_NOW at 80s was premature — 69% window remaining.
+                    is_15m_trade = (pos.window_end_ts - pos.open_ts) > 360
+                    llm_min_hold = 180 if is_15m_trade else 15
                     in_uncertain_zone = (
-                        time_held > 15
+                        time_held > llm_min_hold
                         and -0.35 < move_pct < 0.22
                         and remaining > 60
                         and pos.exit_stage.name == "NONE"
