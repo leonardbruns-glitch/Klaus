@@ -848,6 +848,27 @@ class KlausBot:
             window_seconds=getattr(token, "window_seconds", 0),
         )
 
+        # Verify actual CLOB balance immediately after fill — CLOB may credit slightly
+        # fewer shares than stake/price due to rounding or fee deduction from token amount.
+        # Using the authoritative balance eliminates "not enough balance" errors at exit
+        # and ensures the cascade sells exactly what we own, not what we computed we own.
+        if not CONFIG.dry_run:
+            _clob_balance = self.orders.fetch_token_balance(token_id)
+            if _clob_balance is not None and _clob_balance > 0:
+                computed = pos.shares
+                if abs(_clob_balance - computed) > 0.05:
+                    logger.info(
+                        "BALANCE VERIFY %s: computed=%.4f CLOB=%.4f — using CLOB value",
+                        asset, computed, _clob_balance,
+                    )
+                pos.shares = round(_clob_balance, 4)
+                pos.remaining_shares = round(_clob_balance, 4)
+            else:
+                logger.warning(
+                    "BALANCE VERIFY %s: CLOB returned %.4f — keeping computed %.4f",
+                    asset, _clob_balance or 0.0, pos.shares,
+                )
+
         signal_to_fill_ms = (time.time() - ts_open) * 1000.0
 
         self._open_meta[token_id] = {
