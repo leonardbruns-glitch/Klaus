@@ -975,9 +975,36 @@ class KlausBot:
                 "Cancel-race false positive in earlier session.",
                 pos.asset, pos.direction.name, pos.stake,
             )
-            self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
-            self._open_meta.pop(token_id, None)
+            ghost_pnl = self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
+            _ghost_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
+            if ghost_pnl is not None:
+                _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
+                    direction=pos.direction, entry_price=pos.entry_price,
+                    composite=0.0, confidence=0.0, breakout_score=0.0,
+                    trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                    fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                    reason="ghost_position",
+                )
+                try:
+                    self.analytics.record_trade(
+                        token_id=token_id, asset=pos.asset, direction=pos.direction,
+                        entry_price=pos.entry_price, exit_price=0.0,
+                        stake=pos.stake, shares=pos.shares,
+                        entry_fill=_ghost_meta.get("entry_fill"), exit_fills=[],
+                        exit_reason="GHOST_POSITION", signal=_ghost_signal,
+                        ts_open=_ghost_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                        capital_before=self.risk.bankroll.summary()["bankroll"] - ghost_pnl,
+                        heat_check_active=_ghost_meta.get("heat_check", False),
+                        consecutive_wins=_ghost_meta.get("consecutive_wins", 0),
+                        net_pnl_actual=ghost_pnl,
+                        market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                        is_live=not CONFIG.dry_run,
+                        signal_source=_ghost_meta.get("signal_source", "SNIPER"),
+                        window_size_s=_ghost_meta.get("window_size_s", 0),
+                    )
+                except Exception as _e:
+                    logger.error("record_trade GHOST_POSITION failed: %s", _e)
             return
 
         # Externally sold guard: balance < 0.01 shares = sold manually outside the bot.
@@ -1147,6 +1174,12 @@ class KlausBot:
                     "tick_size": getattr(token_meta, "tick_size", "0.01"),
                     "attempts": 0,
                     "last_try": 0.0,
+                    "entry_price": pos.entry_price,
+                    "stake": pos.stake,
+                    "ts_open": meta.get("ts_open", pos.open_ts),
+                    "signal_source": meta.get("signal_source", "SNIPER"),
+                    "window_size_s": meta.get("window_size_s", 0),
+                    "market_type": getattr(token_meta, "market_type", "unknown"),
                 }
                 logger.warning(
                     "RESIDUAL QUEUED: %.4f %s shares → background sweep will retry every 60s",
@@ -1361,7 +1394,32 @@ class KlausBot:
                     r["shares"], r["asset"],
                 )
                 try:
-                    self.risk.close_position(token_id, 0.50, "RESIDUAL_ABANDONED", shares_override=r["shares"])
+                    _res_pnl = self.risk.close_position(token_id, 0.50, "RESIDUAL_ABANDONED", shares_override=r["shares"])
+                    if _res_pnl is not None:
+                        try:
+                            self.analytics.record_trade(
+                                token_id=token_id, asset=r["asset"], direction=Direction.BUY_YES,
+                                entry_price=r.get("entry_price", 0.50), exit_price=0.50,
+                                stake=r.get("stake", 0.0), shares=r["shares"],
+                                entry_fill=None, exit_fills=[],
+                                exit_reason="RESIDUAL_ABANDONED", signal=SignalBreakdown(
+                                    direction=Direction.BUY_YES, entry_price=0.50,
+                                    composite=0.0, confidence=0.0, breakout_score=0.0,
+                                    trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                                    fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                                    reason="residual_abandoned",
+                                ),
+                                ts_open=r.get("ts_open", time.time()), ts_close=time.time(),
+                                capital_before=self.risk.bankroll.summary()["bankroll"] - _res_pnl,
+                                heat_check_active=False, consecutive_wins=0,
+                                net_pnl_actual=_res_pnl,
+                                market_type=r.get("market_type", "unknown"),
+                                is_live=not CONFIG.dry_run,
+                                signal_source=r.get("signal_source", "SNIPER"),
+                                window_size_s=r.get("window_size_s", 0),
+                            )
+                        except Exception as _re:
+                            logger.error("record_trade RESIDUAL_ABANDONED failed: %s", _re)
                 except Exception as _close_err:
                     logger.error("RESIDUAL ABANDONED close_position failed: %s", _close_err)
                 to_remove.append(token_id)

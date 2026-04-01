@@ -197,6 +197,11 @@ class FeedbackEngine:
                     capital_before=d.get("capital_before", 0.0),
                     capital_after=d.get("capital_after", 0.0),
                     is_live=d.get("is_live", False),
+                    spot_at_entry=d.get("spot_at_entry", 0.0),
+                    spot_at_exit=d.get("spot_at_exit", 0.0),
+                    signal_to_fill_ms=d.get("signal_to_fill_ms", 0.0),
+                    ob_depth_at_entry=d.get("ob_depth_at_entry", 0.0),
+                    pre_entry_momentum_pct=d.get("pre_entry_momentum_pct", 0.0),
                 )
                 self._recent.append(rec)
                 if d.get("trade_id", "").startswith("T"):
