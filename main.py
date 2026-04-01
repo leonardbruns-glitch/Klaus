@@ -280,7 +280,7 @@ class KlausBot:
                     # Claude reasons holistically: P&L, momentum, VPIN, session.
                     # LLM exit gate: 15m trades need 3 min before LLM can exit.
                     # T00050: LLM_EXIT_NOW at 80s was premature — 69% window remaining.
-                    is_15m_trade = (pos.window_end_ts - pos.open_ts) > 360
+                    is_15m_trade = pos.window_seconds >= 900
                     llm_min_hold = 180 if is_15m_trade else 15
                     in_uncertain_zone = (
                         time_held > llm_min_hold
@@ -821,6 +821,7 @@ class KlausBot:
             tpsl=tpsl,
             condition_id=getattr(token, "condition_id", ""),
             window_end_ts=getattr(token, "window_end_ts", 0.0),
+            window_seconds=getattr(token, "window_seconds", 0),
         )
 
         signal_to_fill_ms = (time.time() - ts_open) * 1000.0

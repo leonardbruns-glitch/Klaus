@@ -52,7 +52,8 @@ class PositionMeta:
     tp: float                          # ATR-based TP (still used as fallback)
     sl: float                          # ATR-based SL (overridden by time-aware SL)
     open_ts: float = field(default_factory=time.time)
-    window_end_ts: float = 0.0         # unix ts when the 5-min window closes
+    window_end_ts: float = 0.0         # unix ts when the window closes
+    window_seconds: int = 0            # actual window duration (300=5m, 900=15m) — DO NOT use window_end_ts - open_ts (late entries skew this)
     shares: float = 0.0
     remaining_shares: float = 0.0     # updated after partial sells
     highest_price: float = 0.0        # peak since open (for trailing stop)
@@ -273,6 +274,7 @@ class RiskManager:
                     condition_id=d["condition_id"],
                 )
                 pos.dynamic_sl_override = float(d.get("dynamic_sl_override", 0.0))
+                pos.window_seconds = int(d.get("window_seconds", 0))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
@@ -473,6 +475,7 @@ class RiskManager:
         tpsl: TPSLLevels,
         condition_id: str = "",
         window_end_ts: float = 0.0,
+        window_seconds: int = 0,
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -488,6 +491,7 @@ class RiskManager:
             highest_price=entry_price,
             condition_id=condition_id,
             window_end_ts=window_end_ts,
+            window_seconds=window_seconds,
         )
         self.open_positions[token_id] = pos
         if condition_id:
@@ -693,7 +697,10 @@ class RiskManager:
                 return ExitDecision(True, f"LLM_TIGHT_SL({pos.dynamic_sl_override:.0%})", urgency="immediate")
 
         # ── 7. Dynamic SL ────────────────────────────────────────────────────────
-        is_15m_pos = pos.window_end_ts > 0 and (pos.window_end_ts - pos.open_ts) > 360
+        # Use stored window_seconds (actual window duration) not window_end_ts - open_ts.
+        # Late entries (79% elapsed) would make window_end_ts - open_ts = 189s < 360s,
+        # falsely classifying a 15m trade as 5m → wrong SL thresholds.
+        is_15m_pos = pos.window_end_ts > 0 and pos.window_seconds >= 900
         is_5m = pos.window_end_ts > 0 and not is_15m_pos
 
         # Catastrophic drop: always immediate, no grace period.
