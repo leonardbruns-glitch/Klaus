@@ -31,14 +31,11 @@ from __future__ import annotations
 import json
 import os
 import sys
-import time
-from dataclasses import asdict
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-# Ensure Klaus root is on sys.path — safe whether imported or run as a script
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from strategy.window_sniper import SniperBlock
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from strategy.window_sniper import SniperBlock
 
 _SHADOW_LOG = "logs/shadow_blocks.jsonl"
 
