@@ -688,6 +688,20 @@ class OrderManager:
                     logger.warning("Cloudflare block on order POST (attempt %d) — retry in %.1fs",
                                    _cf_attempt + 1, wait)
                     await asyncio.sleep(wait)
+                    # Before retrying, check if the previous attempt actually filled
+                    # despite the CF 403 response. If the WS buffered a fill for this
+                    # token, skip the retry — a second order would create double-fill orphans.
+                    if self._fill_tracker and self._fill_tracker.is_connected:
+                        _early = self._fill_tracker.pop_fill_for_token(token_id)
+                        if _early is not None:
+                            logger.warning(
+                                "CF retry cancelled — attempt %d already filled token %s",
+                                _cf_attempt + 1, token_id[:12],
+                            )
+                            resp = {"status": "matched", "takingAmount": str(_early["size"]),
+                                    "makingAmount": str(_early["cost"]),
+                                    "id": _early["order_id"], "_from_early_fill": True}
+                            break
             _order_ms = (time.time() - _order_t0) * 1000
             self._order_latencies_ms.append(_order_ms)
             if _order_ms > 500:

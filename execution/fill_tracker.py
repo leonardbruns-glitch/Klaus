@@ -129,6 +129,28 @@ class FillTracker:
         finally:
             self._pending.pop(order_id, None)
 
+    def pop_fill_for_token(self, token_id: str) -> Optional[dict]:
+        """
+        Check if any buffered early fill exists for a given token_id.
+
+        Used by the CF retry loop: if attempt-1 returned 403 but actually
+        filled (WS buffered the event in _early_fills), this detects it so
+        attempt-2 is skipped — preventing double-fill / orphan shares.
+
+        Returns the fill dict and removes it from the buffer, or None if
+        no fill exists for this token.
+        """
+        for order_id, fill in list(self._early_fills.items()):
+            if fill.get("raw", {}).get("asset_id") == token_id:
+                self._early_fills.pop(order_id, None)
+                logger.warning(
+                    "pop_fill_for_token: found fill for token %s (order %s) "
+                    "— CF block was a false alarm, order already filled",
+                    token_id[:12], order_id[:12],
+                )
+                return fill
+        return None
+
     @property
     def is_connected(self) -> bool:
         return self._connected
