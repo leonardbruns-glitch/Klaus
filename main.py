@@ -85,6 +85,11 @@ class KlausBot:
         # Format: token_id → {shares, asset, neg_risk, tick_size, attempts, last_try}
         # Background sweep retries every 60s up to 10 attempts (~10 min).
         self._residual_pending: Dict[str, dict] = {}
+        # Exit concurrency guard: prevents multiple cascade_sells firing on the same
+        # token while the first is still awaiting CLOB fills (OB scan runs every 200ms,
+        # stage-1 cascade takes ~6s — without this lock, 30 concurrent cascades drain
+        # the CLOB balance to near-zero by tranche 3, leaving shares unsold).
+        self._exit_in_progress: set = set()
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -325,11 +330,21 @@ class KlausBot:
                                 pos.dynamic_sl_override = tighten_sl
                 continue
 
+            if token_id in self._exit_in_progress:
+                continue  # cascade already running for this token — skip to avoid concurrent sells
             if decision.partial:
                 # Stage-1: sell 95 %, leave 5 % riding
-                await self._partial_exit(token_id, current_price, decision.reason)
+                self._exit_in_progress.add(token_id)
+                try:
+                    await self._partial_exit(token_id, current_price, decision.reason)
+                finally:
+                    self._exit_in_progress.discard(token_id)
             else:
-                await self._exit_position(token_id, current_price, decision.reason)
+                self._exit_in_progress.add(token_id)
+                try:
+                    await self._exit_position(token_id, current_price, decision.reason)
+                finally:
+                    self._exit_in_progress.discard(token_id)
 
     # ── 5-second signal loop: scan for new entries ────────────────────────────
 
