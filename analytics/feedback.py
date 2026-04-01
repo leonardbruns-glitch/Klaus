@@ -86,6 +86,13 @@ class TradeRecord:
     # Duration
     hold_seconds: float = 0.0
 
+    # Execution quality / thesis validation
+    spot_at_entry: float = 0.0          # Binance spot price at entry (thesis: did underlying move?)
+    spot_at_exit: float = 0.0           # Binance spot price at exit
+    signal_to_fill_ms: float = 0.0      # ms from signal eval to fill (infra latency per trade)
+    ob_depth_at_entry: float = 0.0      # total OB depth (top-5 bids+asks in shares) at entry
+    pre_entry_momentum_pct: float = 0.0 # spot 1m price change at entry (momentum context)
+
     # Meta
     heat_check_active: bool = False
     consecutive_wins_at_entry: int = 0
@@ -230,6 +237,11 @@ class FeedbackEngine:
         is_live: bool = False,
         signal_source: str = "MOMENTUM",
         window_size_s: int = 0,
+        spot_at_entry: float = 0.0,
+        spot_at_exit: float = 0.0,
+        signal_to_fill_ms: float = 0.0,
+        ob_depth_at_entry: float = 0.0,
+        pre_entry_momentum_pct: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -324,6 +336,11 @@ class FeedbackEngine:
             window_size_s=window_size_s,
             hour_utc=int(time.gmtime(ts_open).tm_hour),
             hold_seconds=round(ts_close - ts_open, 1),
+            spot_at_entry=round(spot_at_entry, 2),
+            spot_at_exit=round(spot_at_exit, 2),
+            signal_to_fill_ms=round(signal_to_fill_ms, 1),
+            ob_depth_at_entry=round(ob_depth_at_entry, 2),
+            pre_entry_momentum_pct=round(pre_entry_momentum_pct, 4),
             heat_check_active=heat_check_active,
             consecutive_wins_at_entry=consecutive_wins,
             capital_before=round(capital_before, 2),

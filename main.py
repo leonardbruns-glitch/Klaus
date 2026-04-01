@@ -736,6 +736,17 @@ class KlausBot:
         capital_before = self.risk.bankroll.capital
         ts_open = time.time()
 
+        # Capture entry-context data before placing order
+        _ext_entry = self._last_ext_signals.get(asset)
+        spot_at_entry = _ext_entry.spot_price if _ext_entry and _ext_entry.spot_price else 0.0
+        pre_entry_momentum_pct = _ext_entry.spot_momentum_1m if _ext_entry and _ext_entry.spot_momentum_1m else 0.0
+        _ob_entry = self.feed.get_order_book(token_id)
+        ob_depth_at_entry = 0.0
+        if _ob_entry:
+            _bid_depth = sum(qty for _, qty in (_ob_entry.bids[:5] if _ob_entry.bids else []))
+            _ask_depth = sum(qty for _, qty in (_ob_entry.asks[:5] if _ob_entry.asks else []))
+            ob_depth_at_entry = _bid_depth + _ask_depth
+
         token_meta = self.feed.tokens.get(token_id)
         self._buy_tried += 1
         fill = await self.orders.market_buy(
@@ -812,6 +823,8 @@ class KlausBot:
             window_end_ts=getattr(token, "window_end_ts", 0.0),
         )
 
+        signal_to_fill_ms = (time.time() - ts_open) * 1000.0
+
         self._open_meta[token_id] = {
             "signal": signal,
             "signal_source": getattr(signal, "signal_source", "SNIPER")
@@ -822,6 +835,10 @@ class KlausBot:
             "heat_check": decision.is_scaled,
             "consecutive_wins": self.risk.bankroll.consecutive_wins,
             "window_size_s": getattr(token, "window_seconds", 0),
+            "spot_at_entry": spot_at_entry,
+            "pre_entry_momentum_pct": pre_entry_momentum_pct,
+            "ob_depth_at_entry": ob_depth_at_entry,
+            "signal_to_fill_ms": signal_to_fill_ms,
         }
 
     # ── Exit helpers ──────────────────────────────────────────────────────────
@@ -877,6 +894,8 @@ class KlausBot:
             return
 
         meta = self._open_meta.get(token_id, {})
+        _ext_exit = self._last_ext_signals.get(pos.asset)
+        spot_at_exit = _ext_exit.spot_price if _ext_exit and _ext_exit.spot_price else 0.0
 
         token_meta = self.feed.tokens.get(token_id)
         exit_fills = await self.orders.cascade_sell(
@@ -1136,6 +1155,11 @@ class KlausBot:
                     is_live=not CONFIG.dry_run,
                     signal_source=meta.get("signal_source", "MOMENTUM"),
                     window_size_s=meta.get("window_size_s", 0),
+                    spot_at_entry=meta.get("spot_at_entry", 0.0),
+                    spot_at_exit=spot_at_exit,
+                    signal_to_fill_ms=meta.get("signal_to_fill_ms", 0.0),
+                    ob_depth_at_entry=meta.get("ob_depth_at_entry", 0.0),
+                    pre_entry_momentum_pct=meta.get("pre_entry_momentum_pct", 0.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
