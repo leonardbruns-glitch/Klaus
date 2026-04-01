@@ -421,9 +421,8 @@ class RiskManager:
             stake = self.cfg.base_stake
         else:
             stake = self.bankroll.current_stake
-        # Cap at 10% of capital per position — $3 base on $48 capital = 6.25%, well within.
-        # Hard ceiling prevents oversizing if base_stake is ever raised without capital growing.
-        max_pct = 0.10
+        # Cap at 25% of capital per position — allows $10 stake on $48+ capital.
+        max_pct = 0.25
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)

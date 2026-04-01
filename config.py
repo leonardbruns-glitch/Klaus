@@ -24,8 +24,8 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 100.0
-    base_stake: float = 3.0           # $3 validation mode (CLAUDE.md: raise to $5 after WR>55% over 20 trades)
-    scaled_stake: float = 5.0         # heat-check disabled (999 trigger) — kept at $5 for future re-enable
+    base_stake: float = 10.0          # $10 per trade (intentional — user override)
+    scaled_stake: float = 10.0        # flat — heat-check disabled
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 2       # max 2 concurrent → max $6 deployed at once (CLAUDE.md)
     max_daily_loss: float = 10.0      # stop after -$10/day (CLAUDE.md); was $40 — too permissive
