@@ -297,15 +297,16 @@ class WindowSniper:
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed (5%% elapsed)",
                     token.asset, token.side, token_ask,
                 )
-            logger.debug("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f] (%s)",
-                         token.asset, token.side, token_ask, MIN_TOKEN_ASK, max_ask,
-                         "PREARM" if is_prearmed else ("5m" if not is_15m else "15m"))
+            _block_reason = "already_priced_in" if token_ask > max_ask else "near_resolved"
+            logger.info("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f] — %s (delta=%+.3f%%)",
+                        token.asset, token.side, token_ask, MIN_TOKEN_ASK, max_ask,
+                        _block_reason, delta_pct)
             return None
 
         edge = fair_value - token_ask
         if edge <= 0:
-            logger.debug("SNIPER BLOCK %s/%s | edge=%.4f <= 0 (fv=%.3f ask=%.3f)",
-                         token.asset, token.side, edge, fair_value, token_ask)
+            logger.info("SNIPER BLOCK %s/%s | edge=%.4f (fv=%.3f ask=%.3f delta=%+.3f%%) — no lag",
+                        token.asset, token.side, edge, fair_value, token_ask, delta_pct)
             return None
 
         # ── Edge gate with confirmation signals ───────────────────────────────
@@ -339,6 +340,8 @@ class WindowSniper:
             min_edge = MIN_EDGE
 
         if edge < min_edge:
+            logger.info("SNIPER BLOCK %s/%s | edge=%.4f < min=%.4f (fv=%.3f ask=%.3f delta=%+.3f%%) — insufficient lag",
+                        token.asset, token.side, edge, min_edge, fair_value, token_ask, delta_pct)
             return None
 
         # ── Confidence ────────────────────────────────────────────────────────
