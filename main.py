@@ -752,6 +752,7 @@ class KlausBot:
                     "fair_value": sig.fair_value,
                     "token_ask": sig.token_ask,
                     "edge": sig.edge,
+                    "lag_remaining_pct": sig.lag_remaining_pct,
                     "elapsed_pct": sig.elapsed_pct,
                     "window_seconds": tok.window_seconds,
                     "vpin_score": (ex.vpin_score if ex else None),

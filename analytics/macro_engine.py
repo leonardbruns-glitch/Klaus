@@ -297,6 +297,7 @@ class MacroEngine:
             short_ids[key] = c["token_id"]
             direction_word = "UP" if c["delta_pct"] > 0 else "DOWN"
             remaining = int(c["window_seconds"] * (1.0 - c["elapsed_pct"]))
+            lag_pct = c.get("lag_remaining_pct", 0.0)
             vpin_str = ""
             if c.get("vpin_score") and c["vpin_score"] > 0:
                 vpin_agrees = (
@@ -305,8 +306,8 @@ class MacroEngine:
                 )
                 vpin_str = f" | VPIN={c['vpin_score']:.2f} {'✓' if vpin_agrees else '✗'}"
             rows.append(
-                f"[{key}] {c['asset']} {c['side']} | {direction_word} {abs(c['delta_pct']):.3f}% "
-                f"| FV={c['fair_value']:.3f} ask={c['token_ask']:.3f} edge={c['edge']:+.3f} "
+                f"[{key}] {c['asset']} {c['side']} | Binance {direction_word} {abs(c['delta_pct']):.3f}% "
+                f"| PM lag={lag_pct:.0%} remaining (FV={c['fair_value']:.3f} ask={c['token_ask']:.3f}) "
                 f"| {c['elapsed_pct']:.0%} elapsed {remaining}s left{vpin_str}"
             )
         candidates_text = "\n".join(rows)
@@ -321,22 +322,24 @@ class MacroEngine:
 
         briefing_system = (
             "You are an expert quant trader specializing in Polymarket crypto binary markets. "
-            "You evaluate 5-minute and 15-minute BTC/ETH/SOL up/down contracts. "
-            "Your edge is the 30-120s information lag between Binance spot moves and Polymarket repricing. "
-            "FV is computed via sigmoid model calibrated to historical Polymarket pricing. "
-            "Default to ENTER — the sniper signal already passed multiple gates. "
-            "Only SKIP if edge is clearly negative, correlation is a problem, or conviction is genuinely low."
+            "You evaluate 15-minute BTC/ETH/SOL up/down contracts. "
+            "Your edge: Binance spot moves, but Polymarket takes 30-120s to fully reprice. "
+            "PM lag % = how much of the expected Binance move Polymarket has NOT yet priced in. "
+            "lag=100% means PM hasn't moved at all — maximum opportunity. "
+            "lag=20% means PM has mostly repriced — thin edge, be selective. "
+            "FV = sigmoid fair value given Binance delta. High lag + high FV = strong entry. "
+            "Only SKIP if lag is thin, correlation conflicts, or session quality is poor."
         )
 
         prompt = (
             f"Time: {now_utc.strftime('%H:%M')} UTC | {session_desc}\n"
             f"Capital: ${capital:.0f} | {sustain_note}\n\n"
-            f"BINARY MARKET OPPORTUNITIES (each resolves to 0 or 1):\n"
+            f"OPPORTUNITIES (Binance moved, Polymarket hasn't fully repriced yet):\n"
             f"{candidates_text}\n\n"
             f"{correlation_note}"
-            f"FV = sigmoid model fair probability. Edge = FV - ask. "
-            f"VPIN ✓ = order flow confirms direction. ✗ = opposes.\n"
-            f"Rank and decide ENTER or SKIP. Prefer ENTER — skip only clear negatives.\n\n"
+            f"PM lag % = fraction of expected move still unpriced. Higher = more edge remaining. "
+            f"VPIN ✓ = informed order flow confirms direction.\n"
+            f"Rank and decide ENTER or SKIP. High lag (>70%) = strong prior for ENTER.\n\n"
             f"Respond ONLY with JSON array (one entry per opportunity, sorted best-first):\n"
             f'[{{"id":"T1","decision":"ENTER"or"SKIP","priority":1,'
             f'"confidence":0.50-0.95,"reason":"max 10 words"}}]'

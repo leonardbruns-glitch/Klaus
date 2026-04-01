@@ -115,7 +115,8 @@ class SniperSignal:
     llm_boost_at_entry: float = 0.0 # macro_boost magnitude at entry (0=no LLM signal)
     # Polymarket lag analytics — core edge thesis validation
     pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first crossed threshold
-    pm_drift_at_entry: float = 0.0  # PM ask change since trigger (0=lag open, >0.03=repricing)
+    pm_drift_at_entry: float = 0.0  # PM ask change since trigger (analytics only — not a gate)
+    lag_remaining_pct: float = 0.0  # fraction of expected PM move not yet priced in (1.0=max lag, 0=closed)
 
 
 def _session_min_delta(is_15m: bool = False) -> float:
@@ -313,25 +314,20 @@ class WindowSniper:
                         token.asset, token.side, edge, fair_value, token_ask, delta_pct)
             return None
 
-        # ── Direct Polymarket lag check ────────────────────────────────────────
-        # Edge thesis: Polymarket takes ~2.7s to reprice after Binance moves.
-        # If PM has already moved since our Binance trigger fired, lag is closing.
-        # ask_at_trigger = PM ask at the moment Binance delta crossed threshold.
-        # If PM ask moved >3¢ absolute since trigger → market repricing → skip.
-        if ask_at_trigger > 0:
-            pm_drift = token_ask - ask_at_trigger
-            # For YES tokens (asset up): ask rises as market reprices → positive drift = lag closing
-            # For NO tokens (asset down): ask rises as market reprices the NO direction too
-            if abs(pm_drift) > 0.03:
-                logger.info(
-                    "SNIPER BLOCK %s/%s | PM repricing: ask %.3f→%.3f (%+.3f) in %.2fs — lag closing",
-                    token.asset, token.side, ask_at_trigger, token_ask, pm_drift, sustained_for,
-                )
-                return None
-            logger.debug(
-                "SNIPER LAG_OPEN %s/%s | PM drift %+.3f in %.2fs — lag still open",
-                token.asset, token.side, pm_drift, sustained_for,
-            )
+        # ── Polymarket lag measurement (analytics — not a gate) ──────────────
+        # How much of the Binance move has PM already priced in?
+        # lag_remaining = (FV - ask) / (FV - 0.50): fraction of expected move still unpriced.
+        # 1.0 = PM hasn't moved at all (maximum lag, ideal entry).
+        # 0.0 = PM fully repriced (no lag left).
+        # pm_drift = mechanical repricing since trigger fired (pure data, not a block).
+        pm_drift = (token_ask - ask_at_trigger) if ask_at_trigger > 0 else 0.0
+        expected_move = fair_value - 0.50
+        lag_remaining_pct = max(0.0, (fair_value - token_ask) / expected_move) if expected_move > 0.01 else 0.0
+        logger.debug(
+            "SNIPER LAG %s/%s | remaining=%.0f%% pm_drift=%+.3f (ask %.3f→%.3f) fv=%.3f",
+            token.asset, token.side, lag_remaining_pct * 100,
+            pm_drift, ask_at_trigger if ask_at_trigger > 0 else token_ask, token_ask, fair_value,
+        )
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0
@@ -443,5 +439,6 @@ class WindowSniper:
             vpin_at_entry=round(vpin, 4) if vpin > 0 else 0.0,
             llm_boost_at_entry=round(abs(macro_boost), 4) if macro_boost else 0.0,
             pm_ask_at_trigger=round(ask_at_trigger, 4) if ask_at_trigger > 0 else 0.0,
-            pm_drift_at_entry=round(token_ask - ask_at_trigger, 4) if ask_at_trigger > 0 else 0.0,
+            pm_drift_at_entry=round(pm_drift, 4),
+            lag_remaining_pct=round(lag_remaining_pct, 3),
         )
