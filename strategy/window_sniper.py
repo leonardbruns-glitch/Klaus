@@ -65,10 +65,13 @@ WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
 MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens (both 5m and 15m)
-MAX_TOKEN_ASK_5M  = 0.55   # 5m markets: tight cap — fast reversals make high entries lethal
-                            # T00030/32/34 all entered 0.58-0.63 → SL in <16s, price blew past stop
-MAX_TOKEN_ASK_15M = 0.58   # tighter cap — 457ms latency causes slippage, need buffer
-MAX_TOKEN_ASK = MAX_TOKEN_ASK_15M   # fallback for non-updown paths
+MAX_TOKEN_ASK = 0.90        # hard ceiling — near-fully-resolved tokens only
+# Fixed ask caps (0.55/0.58) replaced by lag_remaining gate:
+# A large Binance move can push ask to 0.65+ while still having 70%+ lag remaining.
+# Fixed cap would block this; lag_remaining gate allows it and blocks weak moves correctly.
+MIN_LAG_REMAINING = 0.55    # require 55%+ of expected PM move to be unpriced at entry
+MIN_LAG_REMAINING_5M = 0.65 # 5m: tighter — faster dynamics, need stronger lag to enter
+VPIN_OFFPEAK_REQUIRED = 0.55  # off-peak hours: require minimum VPIN (informed flow gate)
 
 WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
                                 # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
@@ -197,8 +200,8 @@ class WindowSniper:
         delta_pct = (spot_current - spot_window_open) / spot_window_open * 100
 
         is_15m = token.window_seconds > 300
-        if not is_15m:
-            return None  # 15m only — 5m WR was 50%, 15m WR was 100%. Focus the edge.
+        # 5m re-enabled: lag_remaining gate replaces fixed ask cap as quality filter.
+        # Old 50% WR on 5m was with fixed caps; lag_remaining > 0.65 should filter the noise.
 
         min_delta = _session_min_delta(is_15m=is_15m)
         asset_direction = 1 if delta_pct > 0 else -1
@@ -291,21 +294,17 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        # PREARM entries use tighter cap — if new window already repriced to 0.58+,
-        # the move is priced in and there's no edge left to capture (T00036/37 data).
-        max_ask = PREARM_MAX_ASK if is_prearmed else (MAX_TOKEN_ASK_5M if not is_15m else MAX_TOKEN_ASK_15M)
-        if token_ask > max_ask or token_ask < MIN_TOKEN_ASK:
-            # If market has strongly repriced this token (>80%), arm early entry for next window.
+        # Hard ceiling: near-resolved tokens only (>90% priced)
+        if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
             if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
                 self._prearm[prearm_key] = (now, token.window_end_ts)
                 logger.info(
-                    "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed (5%% elapsed)",
+                    "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed",
                     token.asset, token.side, token_ask,
                 )
-            _block_reason = "already_priced_in" if token_ask > max_ask else "near_resolved"
-            logger.info("SNIPER BLOCK %s/%s | ask=%.3f outside [%.2f, %.2f] — %s (delta=%+.3f%%)",
-                        token.asset, token.side, token_ask, MIN_TOKEN_ASK, max_ask,
-                        _block_reason, delta_pct)
+            _block_reason = "near_ceiling" if token_ask > MAX_TOKEN_ASK else "near_resolved"
+            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (delta=%+.3f%%)",
+                        token.asset, token.side, token_ask, _block_reason, delta_pct)
             return None
 
         edge = fair_value - token_ask
@@ -314,7 +313,7 @@ class WindowSniper:
                         token.asset, token.side, edge, fair_value, token_ask, delta_pct)
             return None
 
-        # ── Polymarket lag measurement (analytics — not a gate) ──────────────
+        # ── Polymarket lag measurement + lag_remaining gate ───────────────────
         # How much of the Binance move has PM already priced in?
         # lag_remaining = (FV - ask) / (FV - 0.50): fraction of expected move still unpriced.
         # 1.0 = PM hasn't moved at all (maximum lag, ideal entry).
@@ -323,11 +322,38 @@ class WindowSniper:
         pm_drift = (token_ask - ask_at_trigger) if ask_at_trigger > 0 else 0.0
         expected_move = fair_value - 0.50
         lag_remaining_pct = max(0.0, (fair_value - token_ask) / expected_move) if expected_move > 0.01 else 0.0
+        # Gate: require sufficient lag remaining — adaptive to move magnitude
+        min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING
+        if is_prearmed:
+            min_lag = min_lag * 0.80  # pre-arm: slightly relaxed (prior window confirms direction)
+        if lag_remaining_pct < min_lag:
+            logger.info(
+                "SNIPER BLOCK %s/%s | lag=%.0f%% < %.0f%% min (fv=%.3f ask=%.3f delta=%+.3f%%) — PM mostly repriced",
+                token.asset, token.side, lag_remaining_pct * 100, min_lag * 100,
+                fair_value, token_ask, delta_pct,
+            )
+            return None
+
         logger.debug(
             "SNIPER LAG %s/%s | remaining=%.0f%% pm_drift=%+.3f (ask %.3f→%.3f) fv=%.3f",
             token.asset, token.side, lag_remaining_pct * 100,
             pm_drift, ask_at_trigger if ask_at_trigger > 0 else token_ask, token_ask, fair_value,
         )
+
+        # ── VPIN off-peak gate ────────────────────────────────────────────────
+        # During high-info sessions (13-15 UTC), information events drive real lag.
+        # Off-peak: require minimum VPIN to confirm informed flow — filters the
+        # 0/8 WR at 18-23 UTC without a hard hour block (preserves data collection).
+        hour_utc = datetime.now(timezone.utc).hour
+        is_active_session = hour_utc in _HIGH_VOLUME_HOURS
+        if not is_active_session:
+            vpin_for_gate = ext.vpin_score or 0.0
+            if vpin_for_gate < VPIN_OFFPEAK_REQUIRED:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | off-peak VPIN=%.3f < %.2f — no informed flow (hour=%d UTC)",
+                    token.asset, token.side, vpin_for_gate, VPIN_OFFPEAK_REQUIRED, hour_utc,
+                )
+                return None
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0

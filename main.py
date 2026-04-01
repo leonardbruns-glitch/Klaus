@@ -779,10 +779,17 @@ class KlausBot:
                 llm_conf = b.get("confidence", 0.5)
                 llm_reason = b.get("reason", "")
 
-                if llm_decision == "SKIP" and llm_conf >= 0.65:
+                # Session-weighted SKIP threshold:
+                # Off-peak hours are structurally weaker — LLM should veto more aggressively.
+                # 12-15 UTC (active): require high confidence to skip (don't block good trades).
+                # All other hours: lower bar — default to caution outside proven windows.
+                _hour_now = datetime.now(timezone.utc).hour
+                _active_hours = {8, 9, 12, 13, 14, 15, 22, 23, 0}
+                _skip_threshold = 0.65 if _hour_now in _active_hours else 0.55
+                if llm_decision == "SKIP" and llm_conf >= _skip_threshold:
                     logger.info(
-                        "  └─ LLM VETO %s/%s (conf=%.2f): %s",
-                        token.asset, token.side, llm_conf, llm_reason,
+                        "  └─ LLM VETO %s/%s (conf=%.2f >= %.2f @%dUTC): %s",
+                        token.asset, token.side, llm_conf, _skip_threshold, _hour_now, llm_reason,
                     )
                     continue
 
