@@ -30,9 +30,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 from dataclasses import asdict
 from typing import Optional
+
+# Allow running as a script from the Klaus root directory
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from strategy.window_sniper import SniperBlock
 
@@ -102,3 +107,81 @@ def log_shadow_result(
     os.makedirs("logs", exist_ok=True)
     with open(_SHADOW_LOG, "a") as f:
         f.write(json.dumps(record) + "\n")
+
+
+if __name__ == "__main__":
+    import sys
+    from datetime import datetime, timezone
+
+    log_file = _SHADOW_LOG
+    if not os.path.exists(log_file):
+        print(f"No shadow log yet: {log_file}")
+        print("Run the bot — blocks are recorded automatically.")
+        sys.exit(0)
+
+    rows = [json.loads(l) for l in open(log_file) if l.strip()]
+    if not rows:
+        print("Shadow log is empty.")
+        sys.exit(0)
+
+    rated = [r for r in rows if r.get("would_win_20pct") is not None]
+    unrated = len(rows) - len(rated)
+
+    print(f"\n{'='*60}")
+    print(f"  SHADOW BLOCK ANALYSIS  ({len(rows)} blocks, {unrated} still pending)")
+    print(f"{'='*60}")
+
+    if rated:
+        overall_wr = sum(r["would_win_20pct"] for r in rated) / len(rated)
+        avg_pnl = sum(r["pnl_if_entered"] for r in rated if r.get("pnl_if_entered") is not None) / len(rated)
+        print(f"\n  Overall WR (would +20%): {overall_wr:.0%} over {len(rated)} completed blocks")
+        print(f"  Avg P&L if entered:      {avg_pnl:+.1%}")
+
+        print(f"\n  By block reason:")
+        by_reason: dict = {}
+        for r in rated:
+            by_reason.setdefault(r["block_reason"], []).append(r)
+        for reason, group in sorted(by_reason.items()):
+            wr = sum(r["would_win_20pct"] for r in group) / len(group)
+            pnls = [r["pnl_if_entered"] for r in group if r.get("pnl_if_entered") is not None]
+            avg = sum(pnls) / len(pnls) if pnls else 0.0
+            print(f"    {reason:<22} WR={wr:.0%}  avg_pnl={avg:+.1%}  n={len(group)}")
+
+        print(f"\n  By asset:")
+        by_asset: dict = {}
+        for r in rated:
+            by_asset.setdefault(r["asset"], []).append(r)
+        for asset, group in sorted(by_asset.items()):
+            wr = sum(r["would_win_20pct"] for r in group) / len(group)
+            print(f"    {asset:<6}  WR={wr:.0%}  n={len(group)}")
+
+        print(f"\n  Lag remaining vs WR:")
+        buckets = {"0-20%": [], "20-40%": [], "40-60%": [], "60-80%": [], "80-100%": []}
+        for r in rated:
+            lag = r.get("lag_remaining_pct", 0) * 100
+            if lag < 20:   buckets["0-20%"].append(r)
+            elif lag < 40: buckets["20-40%"].append(r)
+            elif lag < 60: buckets["40-60%"].append(r)
+            elif lag < 80: buckets["60-80%"].append(r)
+            else:           buckets["80-100%"].append(r)
+        for bucket, group in buckets.items():
+            if group:
+                wr = sum(r["would_win_20pct"] for r in group) / len(group)
+                print(f"    lag {bucket:<10}  WR={wr:.0%}  n={len(group)}")
+
+        print(f"\n  Recent blocks (last 10):")
+        print(f"  {'time':<8} {'asset':<6} {'side':<4} {'reason':<22} {'ask':<6} {'fv':<6} {'lag':<6} {'outcome'}")
+        for r in rows[-10:]:
+            ts = datetime.fromtimestamp(r["ts"], tz=timezone.utc).strftime("%H:%M:%S")
+            outcome = (
+                f"+{r['pnl_if_entered']:+.0%}" if r.get("pnl_if_entered") is not None
+                else "pending"
+            )
+            win_flag = " WIN" if r.get("would_win_20pct") else (" LOSS" if r.get("would_win_20pct") is False else "")
+            print(f"  {ts:<8} {r['asset']:<6} {r['side']:<4} {r['block_reason']:<22} "
+                  f"{r['token_ask']:.3f}  {r['fair_value']:.3f}  {r.get('lag_remaining_pct',0):.0%}   "
+                  f"{outcome}{win_flag}")
+    else:
+        print("  No completed blocks yet (monitors still running or no data).")
+
+    print()
