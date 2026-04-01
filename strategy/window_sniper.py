@@ -126,6 +126,32 @@ PREARM_MAX_ASK = 0.58           # PREARM entries capped tighter than normal (0.6
 
 
 @dataclass
+class SniperBlock:
+    """
+    Emitted when the sniper had a real candidate but blocked it for a signal-quality reason.
+    Stored on WindowSniper._last_block[(asset, side)] so main.py can shadow-monitor the outcome.
+
+    Only populated for meaningful blocks (lag too low, edge too low, VPIN off-peak).
+    Trivial blocks (no data, time gate, wrong side, hard ceiling) are NOT tracked —
+    they have no counterfactual value.
+    """
+    asset: str
+    side: str
+    token_id: str
+    window_end_ts: float
+    window_seconds: int
+    block_reason: str           # "lag_too_low" | "edge_negative" | "edge_insufficient" | "vpin_offpeak"
+    token_ask: float            # PM ask at block moment
+    fair_value: float           # time-adjusted sigmoid FV
+    edge: float                 # fair_value - token_ask (can be negative)
+    lag_remaining_pct: float    # fraction of expected PM move not yet priced in
+    delta_pct: float            # Binance move from window open (signed)
+    elapsed_pct: float          # fraction of window elapsed
+    vpin: float                 # VPIN at block time
+    ts: float                   # unix timestamp of block
+
+
+@dataclass
 class SniperSignal:
     """
     Output of WindowSniper.score().
@@ -187,6 +213,10 @@ class WindowSniper:
         # Set when current window is fully repriced (ask > 0.80).
         # Only fires for tokens whose window_end_ts > armed_window_end_ts (next window).
         self._prearm: dict = {}
+        # Shadow monitoring: last meaningful block per (asset, side).
+        # main.py reads this after each score() → None to spawn a shadow monitor.
+        # Populated only for signal-quality blocks (lag, edge, VPIN) — not structural ones.
+        self.last_block: dict = {}   # (asset, side) → SniperBlock
 
     def score(
         self,
@@ -350,6 +380,14 @@ class WindowSniper:
         if edge <= 0:
             logger.info("SNIPER BLOCK %s/%s | edge=%.4f (fv=%.3f ask=%.3f delta=%+.3f%%) — no lag",
                         token.asset, token.side, edge, fair_value, token_ask, delta_pct)
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason="edge_negative",
+                token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=0.0, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
+                vpin=ext.vpin_score or 0.0, ts=now,
+            )
             return None
 
         # ── Polymarket lag measurement + lag_remaining gate ───────────────────
@@ -371,6 +409,14 @@ class WindowSniper:
                 token.asset, token.side, lag_remaining_pct * 100, min_lag * 100,
                 fair_value, token_ask, delta_pct,
             )
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason="lag_too_low",
+                token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
+                vpin=ext.vpin_score or 0.0, ts=now,
+            )
             return None
 
         logger.debug(
@@ -391,6 +437,14 @@ class WindowSniper:
                 logger.info(
                     "SNIPER BLOCK %s/%s | off-peak VPIN=%.3f < %.2f — no informed flow (hour=%d UTC)",
                     token.asset, token.side, vpin_for_gate, VPIN_OFFPEAK_REQUIRED, hour_utc,
+                )
+                self.last_block[(token.asset, token.side)] = SniperBlock(
+                    asset=token.asset, side=token.side, token_id=token.token_id,
+                    window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                    block_reason="vpin_offpeak",
+                    token_ask=token_ask, fair_value=fair_value, edge=edge,
+                    lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
+                    vpin=vpin_for_gate, ts=now,
                 )
                 return None
 
@@ -427,6 +481,14 @@ class WindowSniper:
         if edge < min_edge:
             logger.info("SNIPER BLOCK %s/%s | edge=%.4f < min=%.4f (fv=%.3f ask=%.3f delta=%+.3f%%) — insufficient lag",
                         token.asset, token.side, edge, min_edge, fair_value, token_ask, delta_pct)
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason="edge_insufficient",
+                token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
+                vpin=vpin or 0.0, ts=now,
+            )
             return None
 
         # ── Confidence ────────────────────────────────────────────────────────

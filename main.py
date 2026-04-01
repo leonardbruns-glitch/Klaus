@@ -25,7 +25,8 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
-from strategy.window_sniper import WindowSniper, _session_min_delta
+from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta
+from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager
 from analytics.lag_observations import log_lag_observation
 from analytics.macro_engine import MacroEngine
@@ -51,6 +52,76 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("aiohttp").setLevel(logging.WARNING)
 logging.getLogger("asyncio").setLevel(logging.WARNING)
 logger = logging.getLogger("main")
+
+
+# ---------------------------------------------------------------------------
+# Shadow monitor — counterfactual analysis for blocked sniper signals
+# ---------------------------------------------------------------------------
+
+async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed") -> None:
+    """
+    After the sniper blocks a candidate trade, watch the token's ask price at
+    +30s, +60s, +120s, and at window close. Log what would have happened if
+    we had entered at block.token_ask.
+
+    This gives us the data to answer: "Are our blocks correct, or are we
+    leaving profitable trades on the table?"
+
+    Analysis: check logs/shadow_blocks.jsonl after 50+ blocks.
+    """
+    checkpoints = [30.0, 60.0, 120.0]
+    results: dict = {}
+    start = time.time()
+    time_remaining = block.window_end_ts - start
+
+    if time_remaining <= 5:
+        return  # window almost over — no useful data to collect
+
+    for delay in checkpoints:
+        target_ts = start + delay
+        sleep_for = target_ts - time.time()
+        if sleep_for > 0:
+            await asyncio.sleep(sleep_for)
+
+        # Window expired before checkpoint — record None and stop
+        if time.time() >= block.window_end_ts:
+            break
+
+        ob = feed.get_order_book(block.token_id)
+        ask = ob.asks[0][0] if (ob and ob.asks) else None
+        results[f"ask_at_{int(delay)}s"] = ask
+
+    # Wait for window close to get final ask (resolution proxy)
+    window_close_wait = block.window_end_ts - time.time()
+    if 0 < window_close_wait <= 120:
+        await asyncio.sleep(window_close_wait + 2.0)  # +2s settle
+        ob = feed.get_order_book(block.token_id)
+        ask_final = ob.asks[0][0] if (ob and ob.asks) else None
+    else:
+        ask_final = None
+
+    log_shadow_result(
+        block=block,
+        ask_at_30s=results.get("ask_at_30s"),
+        ask_at_60s=results.get("ask_at_60s"),
+        ask_at_120s=results.get("ask_at_120s"),
+        ask_at_window_end=ask_final,
+    )
+
+    label = f"{block.asset}/{block.side} [{block.block_reason}]"
+    max_ask = max((v for v in [
+        results.get("ask_at_30s"), results.get("ask_at_60s"),
+        results.get("ask_at_120s"), ask_final
+    ] if v is not None), default=None)
+    if max_ask is not None:
+        pnl = (max_ask - block.token_ask) / block.token_ask
+        would_win = max_ask >= block.token_ask * 1.20
+        logger.info(
+            "SHADOW %s | entry_ask=%.3f max_ask=%.3f pnl=%+.1f%% would_win=%s "
+            "(lag=%.0f%% edge=%+.3f fv=%.3f)",
+            label, block.token_ask, max_ask, pnl * 100, would_win,
+            block.lag_remaining_pct * 100, block.edge, block.fair_value,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +678,15 @@ class KlausBot:
                         token.asset, token.side,
                         ob.asks[0][0] if ob.asks else 0,
                         token.window_end_ts, token.window_seconds,
+                    )
+                # Shadow monitor: if the sniper stored a meaningful block for
+                # this (asset, side), spawn a background task to track the
+                # counterfactual outcome and log it to shadow_blocks.jsonl.
+                block = self.sniper.last_block.pop((token.asset, token.side), None)
+                if block is not None and block.token_id == token_id:
+                    asyncio.create_task(
+                        _shadow_monitor(block, self.feed),
+                        name=f"shadow_{token.asset}_{token.side}",
                     )
                 continue
             else:
