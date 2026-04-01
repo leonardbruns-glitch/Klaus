@@ -662,9 +662,16 @@ class KlausBot:
         _delta_parts = []
         for _a in CONFIG.markets.tracked_assets:
             _ext = ext_signals.get(_a)
-            if _ext and _ext.spot_price and _ext.spot_window_open_5m:
-                _d = (_ext.spot_price - _ext.spot_window_open_5m) / _ext.spot_window_open_5m * 100
-                _delta_parts.append(f"{_a}={_d:+.3f}%")
+            if _ext and _ext.spot_price:
+                _parts = []
+                if _ext.spot_window_open_5m:
+                    _d5 = (_ext.spot_price - _ext.spot_window_open_5m) / _ext.spot_window_open_5m * 100
+                    _parts.append(f"5m={_d5:+.3f}%")
+                if _ext.spot_window_open_15m:
+                    _d15 = (_ext.spot_price - _ext.spot_window_open_15m) / _ext.spot_window_open_15m * 100
+                    _parts.append(f"15m={_d15:+.3f}%")
+                if _parts:
+                    _delta_parts.append(f"{_a}[{' '.join(_parts)}]")
         _thr_5m = _session_min_delta(is_15m=False)
         _thr_15m = _session_min_delta(is_15m=True)
         _threshold_str = f"5m≥{_thr_5m:.2f}% / 15m≥{_thr_15m:.2f}%"
