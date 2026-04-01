@@ -726,7 +726,7 @@ class RiskManager:
         sl_grace = 60 if is_15m_pos else 10
         if time_held >= sl_grace:
             if remaining > 120:
-                sl_pct = 0.20 if pos.window_end_ts > 0 else 0.35
+                sl_pct = 0.12 if pos.window_end_ts > 0 else 0.35  # tightened 20→12%: SL fires earlier when liquidity still exists
 
                 if current_price <= pos.entry_price * (1 - sl_pct):
                     # Wick confirmation timer — bots paint stops to shake out positions.

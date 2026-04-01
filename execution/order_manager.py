@@ -442,11 +442,12 @@ class OrderManager:
             )
 
         # Start at 5% discount (was 10%).
-        # 10% caused dust failures at stage-1: 1.617 shares × (0.70 × 0.90) = $1.019 → $0.987
-        # when shares were rounded slightly below 1.617. 5% keeps us well above $1 minimum
-        # while still being immediately marketable (binary spreads are 1-3 ticks = 1-3%).
-        # Price steps down 10% per retry if the order rests, so fallback is unchanged.
-        sell_price = max(current_price * 0.95, 0.01)
+        # For profit-taking (not force_exit): 5% below mid ensures immediate fill vs resting orders.
+        # For SL/hard exits (force_exit=True): start AT current price — market has already moved
+        # against us and the bid may be below our limit. Starting at 100% (not 95%) reduces
+        # the number of retries needed and prevents the cascade from stepping down into terrible
+        # prices (20% SL entry at 0.57 → first try 0.456*0.95=0.433 → multiple misses → exit at 0.32).
+        sell_price = max(current_price * (1.00 if force_exit else 0.95), 0.01)
         orig_price = sell_price
         total_sold = 0.0
         # Track actual fill prices per attempt for accurate analytics
