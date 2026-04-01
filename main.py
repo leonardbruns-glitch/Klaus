@@ -976,44 +976,13 @@ class KlausBot:
             pos.asset, pos.direction.name, sold, live_price, reason,
         )
 
-        # ── Post-stage1 balance verification ─────────────────────────────────
-        # The cascade splits into 3 tranches. The 3rd tranche frequently fails
-        # because CLOB reports a stale balance (lag after the first two fills).
-        # Rather than waiting for the 60s background sweep, verify immediately:
-        # wait 1s for CLOB to reconcile, then fetch actual balance and sell it.
-        if not CONFIG.dry_run:
-            await asyncio.sleep(1.0)
-            clob_balance = self.orders.fetch_token_balance(token_id)
-            if clob_balance is not None and clob_balance > 0.10:
-                logger.info(
-                    "POST-STAGE1 SWEEP %s: CLOB shows %.4f shares still held — selling now",
-                    pos.asset, clob_balance,
-                )
-                token_meta = self.feed.tokens.get(token_id)
-                sweep_fills = await self.orders.cascade_sell(
-                    token_id=token_id,
-                    total_shares=clob_balance,
-                    current_price=live_price,
-                    reason="POST_STAGE1_SWEEP",
-                    neg_risk=getattr(token_meta, "neg_risk", False),
-                    tick_size=getattr(token_meta, "tick_size", "0.01"),
-                    force_exit=True,
-                )
-                swept = sum(f.total_size for f in sweep_fills)
-                if swept > 0:
-                    self.risk.record_stage1_sell(token_id, swept)
-                    if meta is not None:
-                        meta.setdefault("stage1_fills", []).extend(sweep_fills)
-                    logger.info(
-                        "POST-STAGE1 SWEEP %s: sold %.4f more shares (total stage-1: %.4f)",
-                        pos.asset, swept, sold + swept,
-                    )
-                else:
-                    logger.warning(
-                        "POST-STAGE1 SWEEP %s: %.4f shares unsold — CLOB still lagging, "
-                        "stage-2 will handle",
-                        pos.asset, clob_balance,
-                    )
+        # POST-STAGE1 SWEEP REMOVED:
+        # Originally needed when stage-1 used 3 tranches — tranche 3 failed due to
+        # CLOB balance lag, leaving shares unsold. Sweep caught them immediately.
+        # Now stage-1 is single-shot (force_exit=True), so no tranche lag occurs.
+        # More importantly: with 60/40 split, the 40% remaining after stage-1 is
+        # INTENTIONAL stage-2 inventory. Sweep was selling it at the stale stage-1
+        # price instead of letting it ride to +45% / trailing stop.
 
     async def _exit_position(self, token_id: str, live_price: float, reason: str) -> None:
         pos = self.risk.open_positions.get(token_id)
