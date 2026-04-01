@@ -318,7 +318,15 @@ class KlausBot:
                     # When the SL timer is running but hasn't expired, ask Claude once.
                     # T00042: 0.59→0.44 in 25s (bot-painted stop), price recovered 0.78.
                     # Mechanical timer is blind to this. LLM sees VPIN/spot context.
-                    if pos.sl_breach_ts > 0 and not pos.sl_breach_llm_queried:
+                    # Guard: skip LLM query on weak entries (edge < 0.06, elapsed < 30%) —
+                    # LLM has no signal advantage at 10-22s into a 5m window; let the
+                    # mechanical 12s wick timer run without LLM interference. T00090.
+                    _meta = self._open_meta.get(token_id, {})
+                    _sig = _meta.get("signal")
+                    _entry_edge = getattr(_sig, "edge", 1.0) if _sig else 1.0
+                    _entry_elapsed = getattr(_sig, "elapsed_pct", 1.0) if _sig else 1.0
+                    _weak_entry = _entry_edge < 0.06 and _entry_elapsed < 0.40
+                    if pos.sl_breach_ts > 0 and not pos.sl_breach_llm_queried and not _weak_entry:
                         pos.sl_breach_llm_queried = True
                         # Bypass stale cache — fresh read on breach
                         self.macro_engine._exit_advice_cache.pop(token_id, None)
@@ -347,12 +355,32 @@ class KlausBot:
                                 pos.asset, pos.direction.name, conf, move_pct * 100, adv_reason,
                             )
                         elif action == "EXIT_NOW" and conf >= 0.65:
-                            logger.info(
-                                "LLM CONFIRMS EXIT %s/%s (conf=%.2f move=%+.1f%%) — not a wick | %s",
-                                pos.asset, pos.direction.name, conf, move_pct * 100, adv_reason,
-                            )
-                            await self._exit_position(token_id, current_price, "LLM_CONFIRMS_SL")
-                            continue
+                            # LLM confirms reversal — but don't bypass wick timer entirely.
+                            # T00090: BTC/YES wicked to -27% at 22s, LLM said EXIT_NOW, price
+                            # then recovered to +40%. The LLM has almost no signal at 22s.
+                            # Fix: LLM vote REDUCES wick confirmation window (12s → 4s for 5m,
+                            # 20s → 8s for 15m), but doesn't bypass it. If price recovers
+                            # above threshold before the reduced timer expires, the position
+                            # is saved — the wick cleared before LLM could do damage.
+                            is_5m_pos = pos.window_seconds < 900
+                            reduced_confirm = 4 if is_5m_pos else 8
+                            breach_age = now - pos.sl_breach_ts
+                            if breach_age >= reduced_confirm:
+                                logger.info(
+                                    "LLM CONFIRMS EXIT %s/%s (conf=%.2f move=%+.1f%% held %.0fs) "
+                                    "— breach age %.0fs ≥ %ds | %s",
+                                    pos.asset, pos.direction.name, conf, move_pct * 100,
+                                    time_held, breach_age, reduced_confirm, adv_reason,
+                                )
+                                await self._exit_position(token_id, current_price, "LLM_CONFIRMS_SL")
+                                continue
+                            else:
+                                logger.info(
+                                    "LLM EXIT_NOW %s/%s but breach only %.0fs old (need %ds) "
+                                    "— waiting for wick to clear | %s",
+                                    pos.asset, pos.direction.name, breach_age,
+                                    reduced_confirm, adv_reason,
+                                )
                         else:
                             logger.info(
                                 "LLM SL CONSULT %s/%s → %s conf=%.2f — letting timer run | %s",
