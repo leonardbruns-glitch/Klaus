@@ -54,13 +54,13 @@ _DELTA_PCT_QUIET  = 0.06   # TEST MODE
 
 # 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
 # is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
-_DELTA_PCT_15M_ACTIVE = 0.12   # require 0.12% move — filters noise (<0.10% moves have no edge)
-_DELTA_PCT_15M_QUIET  = 0.18   # quiet hours: higher bar (thinner book, wider spreads)
+_DELTA_PCT_15M_ACTIVE = 0.08   # require 0.08% move — filters sub-0.07% noise entries
+_DELTA_PCT_15M_QUIET  = 0.12   # quiet hours: slightly higher bar
 
-MIN_EDGE = 0.10             # require meaningful mispricing — 0.02 was letting in noise entries
-MIN_EDGE_VPIN = 0.08        # VPIN confirmation reduces bar but still requires real edge
-MIN_EDGE_BOOST = 0.06       # LLM boost confirmation — still requires edge above noise floor
-WINDOW_ELAPSED_MIN = 0.20   # wait 20% of window before entry (3min into 15m) — direction must establish
+MIN_EDGE = 0.06             # require clear mispricing — 0.02 was too loose (T00070-76 had 0.057-0.082)
+MIN_EDGE_VPIN = 0.04        # VPIN confirmation reduces bar
+MIN_EDGE_BOOST = 0.03       # LLM boost confirmation
+WINDOW_ELAPSED_MIN = 0.15   # wait 15% elapsed (2.25min into 15m) — direction establishes faster than 20%
 WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
