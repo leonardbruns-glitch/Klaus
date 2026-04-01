@@ -76,6 +76,9 @@ class TradeRecord:
     sniper_vpin: float = 0.0          # VPIN at entry (0.5=neutral, >0.60=elevated toxicity)
     sniper_llm_boost: float = 0.0     # abs(macro_boost) at entry (0=no LLM signal active)
     sniper_prearm: bool = False       # True if pre-arm triggered early entry (<25% elapsed)
+    # Polymarket lag analytics — core edge thesis validation
+    sniper_pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first fired
+    sniper_pm_drift_at_entry: float = 0.0  # PM ask drift from trigger→entry (0=lag open)
 
     # Window context
     window_size_s: int = 0            # 300 (5m) or 900 (15m) — key for separate analysis
@@ -189,6 +192,8 @@ class FeedbackEngine:
                     sniper_vpin=d.get("sniper_vpin", 0.0),
                     sniper_llm_boost=d.get("sniper_llm_boost", 0.0),
                     sniper_prearm=d.get("sniper_prearm", False),
+                    sniper_pm_ask_at_trigger=d.get("sniper_pm_ask_at_trigger", 0.0),
+                    sniper_pm_drift_at_entry=d.get("sniper_pm_drift_at_entry", 0.0),
                     window_size_s=d.get("window_size_s", 0),
                     hour_utc=d.get("hour_utc", 0),
                     hold_seconds=d.get("hold_seconds", 0.0),
@@ -338,6 +343,8 @@ class FeedbackEngine:
             sniper_vpin=round(getattr(signal, "vpin_at_entry", 0.0), 4) if is_sniper else 0.0,
             sniper_llm_boost=round(getattr(signal, "llm_boost_at_entry", 0.0), 4) if is_sniper else 0.0,
             sniper_prearm=bool(getattr(signal, "is_prearm", False)) if is_sniper else False,
+            sniper_pm_ask_at_trigger=round(getattr(signal, "pm_ask_at_trigger", 0.0), 4) if is_sniper else 0.0,
+            sniper_pm_drift_at_entry=round(getattr(signal, "pm_drift_at_entry", 0.0), 4) if is_sniper else 0.0,
             window_size_s=window_size_s,
             hour_utc=int(time.gmtime(ts_open).tm_hour),
             hold_seconds=round(ts_close - ts_open, 1),

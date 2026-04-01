@@ -113,6 +113,9 @@ class SniperSignal:
     is_prearm: bool = False         # True if pre-arm mechanism triggered early entry
     vpin_at_entry: float = 0.0      # VPIN score at time of signal (0.5=neutral, >0.6=toxic)
     llm_boost_at_entry: float = 0.0 # macro_boost magnitude at entry (0=no LLM signal)
+    # Polymarket lag analytics — core edge thesis validation
+    pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first crossed threshold
+    pm_drift_at_entry: float = 0.0  # PM ask change since trigger (0=lag open, >0.03=repricing)
 
 
 def _session_min_delta(is_15m: bool = False) -> float:
@@ -439,4 +442,6 @@ class WindowSniper:
             is_prearm=is_prearmed,
             vpin_at_entry=round(vpin, 4) if vpin > 0 else 0.0,
             llm_boost_at_entry=round(abs(macro_boost), 4) if macro_boost else 0.0,
+            pm_ask_at_trigger=round(ask_at_trigger, 4) if ask_at_trigger > 0 else 0.0,
+            pm_drift_at_entry=round(token_ask - ask_at_trigger, 4) if ask_at_trigger > 0 else 0.0,
         )
