@@ -969,8 +969,63 @@ class FeedbackEngine:
         try:
             with open(path, "a") as f:
                 f.write(json.dumps(data) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
         except Exception as exc:
             logger.error("Failed to write log %s: %s", path, exc)
+
+    def record_orphan_sell(
+        self,
+        token_id: str,
+        asset: str,
+        side: str,
+        shares_sold: float,
+        avg_exit_price: float,
+        is_live: bool = True,
+    ) -> None:
+        """
+        Log an ORPHAN_SELL event to trades.jsonl.
+
+        Orphan shares arise from CF retry double-fills — the second order fills
+        but the position tracker only knows about the first. At window-end these
+        are detected and sold; without logging the financial result is invisible.
+
+        Entry price is unknown (position was never tracked), so gross_pnl and
+        net_pnl are left as 0. The record exists purely for audit/reconciliation:
+        bankroll.reconcile_usdc() should be called after any orphan sell to sync
+        the internal bankroll to the actual CLOB balance.
+        """
+        self._trade_counter += 1
+        trade_id = f"T{self._trade_counter:05d}_{asset}_{int(time.time())}_ORPHAN"
+        self.last_trade_id = trade_id
+        now = time.time()
+        record = {
+            "trade_id": trade_id,
+            "token_id": token_id,
+            "asset": asset,
+            "direction": f"BUY_{side}",
+            "market_type": "updown",
+            "signal_source": "ORPHAN",
+            "exit_reason": "ORPHAN_SELL",
+            "ts_open": 0.0,           # unknown — position was never tracked
+            "ts_close": now,
+            "entry_price": 0.0,       # unknown
+            "exit_price": round(avg_exit_price, 4),
+            "stake": 0.0,             # unknown
+            "shares": round(shares_sold, 4),
+            "gross_pnl": 0.0,         # unknown without entry price
+            "fee_paid": 0.0,
+            "net_pnl": 0.0,           # unknown
+            "is_live": is_live,
+            "hour_utc": int(time.gmtime(now).tm_hour),
+            "note": "double-fill orphan — entry cost unknown, bankroll reconciliation required",
+        }
+        self._write_jsonl(self.cfg.trade_log, record)
+        logger.warning(
+            "ORPHAN_SELL logged: %s/%s %.4f shares @ %.4f (trade_id=%s) — "
+            "run bankroll reconciliation to sync USDC balance",
+            asset, side, shares_sold, avg_exit_price, trade_id,
+        )
 
     def load_trade_history(self, path: Optional[str] = None) -> List[dict]:
         path = path or self.cfg.trade_log

@@ -1752,6 +1752,14 @@ class KlausBot:
                         "ORPHAN SOLD %s/%s: %.4f shares @ %.4f",
                         asset, side, sold, avg_price,
                     )
+                    self.analytics.record_orphan_sell(
+                        token_id=token_id,
+                        asset=asset,
+                        side=side,
+                        shares_sold=sold,
+                        avg_exit_price=avg_price,
+                        is_live=not CONFIG.dry_run,
+                    )
                 else:
                     logger.warning(
                         "ORPHAN SELL FAILED %s/%s: %.4f shares unsold",
