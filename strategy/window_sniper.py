@@ -102,9 +102,9 @@ MAX_TOKEN_ASK = 0.90        # hard ceiling — near-fully-resolved tokens only
 # Fixed ask caps (0.55/0.58) replaced by lag_remaining gate:
 # A large Binance move can push ask to 0.65+ while still having 70%+ lag remaining.
 # Fixed cap would block this; lag_remaining gate allows it and blocks weak moves correctly.
-MIN_LAG_REMAINING = 0.55    # require 55%+ of expected PM move to be unpriced at entry
-MIN_LAG_REMAINING_5M = 0.65 # 5m: tighter — faster dynamics, need stronger lag to enter
-VPIN_OFFPEAK_REQUIRED = 0.55  # off-peak hours: require minimum VPIN (informed flow gate)
+MIN_LAG_REMAINING = 0.30    # loosened 0.55→0.30: collect data across wider lag range
+MIN_LAG_REMAINING_5M = 0.40 # loosened 0.65→0.40: 5m still slightly tighter than 15m
+VPIN_OFFPEAK_REQUIRED = 0.40  # loosened 0.55→0.40: allow more off-peak flow through
 
 WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
                                 # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
