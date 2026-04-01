@@ -60,11 +60,42 @@ CURRENT = {
 # Data loading + normalisation
 # ─────────────────────────────────────────────────────────────────────────────
 
+_WIN_PNL  =  0.20   # stage-1 exit at +20%
+_LOSS_PNL = -0.28   # approximate dynamic SL; update from live trade avg once available
+
+
+def _realistic_pnl(won: bool, max_ask: Optional[float], entry_ask: float) -> float:
+    """
+    Return a realistic P&L estimate instead of the raw window-end P&L.
+
+    For wins: use actual peak gain (capped at +25% for stage-1) if max_ask available,
+              otherwise assume +20%.
+    For losses: use -0.28 (dynamic SL approximation).
+              Do NOT use window-end P&L — losing tokens expire at 0.01 → -98%.
+    """
+    if won:
+        if max_ask and entry_ask > 0:
+            return min((max_ask - entry_ask) / entry_ask, 0.25)
+        return _WIN_PNL
+    return _LOSS_PNL
+
+
 def load_records(include_backtest: bool = False) -> List[dict]:
     """
     Load and normalise all available data sources into a unified schema:
       lag, edge, delta_pct, elapsed_pct, vpin, hour_utc, asset, side,
       window_seconds, won (bool or None), pnl (float or None)
+
+    P&L model (realistic, not window-expiry):
+      Shadow blocks store pnl_if_entered = (ask_at_window_end - entry) / entry.
+      Losing tokens expire at ~0.01 → pnl = -98%. That's "held to death" P&L,
+      not what the bot actually does. Real exit is stop-loss at -25 to -35%.
+
+      Realistic model used here:
+        win  → +0.20 (stage-1 exit at +20%, conservative)
+        loss → -0.28 (approximate dynamic SL, calibrate from live trades later)
+
+      Once enough live trades accumulate, replace these with empirical averages.
     """
     records = []
 
@@ -92,7 +123,8 @@ def load_records(include_backtest: bool = False) -> List[dict]:
                 "vpin":     r.get("vpin", 0.0),
                 "entry_ask": r.get("token_ask", 0.0),
                 "won":      bool(won),
-                "pnl":      r.get("pnl_if_entered"),
+                "pnl":      _realistic_pnl(bool(won), r.get("max_ask_seen"),
+                                           r.get("token_ask", 0.0)),
                 "block_reason": r.get("block_reason", ""),
             })
 
@@ -124,6 +156,7 @@ def load_records(include_backtest: bool = False) -> List[dict]:
                 "entry_ask": r.get("entry_price", 0.0),
                 "won":      won,
                 "pnl":      pnl / max(r.get("stake", 1.0), 0.01) if pnl else None,
+                # live trades use actual P&L (real exits, not window-expiry)
                 "block_reason": "",
             })
 
@@ -149,7 +182,8 @@ def load_records(include_backtest: bool = False) -> List[dict]:
                 "vpin":     0.0,  # not available in backtest
                 "entry_ask": r.get("entry_ask", 0.0),
                 "won":      bool(won),
-                "pnl":      r.get("pnl"),
+                "pnl":      _realistic_pnl(bool(won), r.get("peak_ask"),
+                                           r.get("entry_ask", 0.0)),
                 "block_reason": "",
             })
 
