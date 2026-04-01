@@ -26,7 +26,7 @@ class BankrollConfig:
     total: float = 100.0
     base_stake: float = 10.0          # $10 per trade
     scaled_stake: float = 10.0        # flat — no heat check scaling
-    heat_trigger_wins: int = 2        # consecutive wins to unlock scaling
+    heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 4       # max 4 concurrent → max $40 deployed at once
     max_daily_loss: float = 40.0      # reference only — halt disabled in code
     post_close_cooldown: float = 5.0  # seconds to wait after any close
