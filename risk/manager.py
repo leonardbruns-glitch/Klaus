@@ -62,6 +62,7 @@ class PositionMeta:
     hard_exit_triggered: bool = False
     condition_id: str = ""            # Polymarket condition ID for dedup
     sl_breach_ts: float = 0.0        # timestamp when wide SL first breached (0 = not breached)
+    sl_breach_price: float = 0.0     # token price at the moment SL was first breached
     sl_breach_llm_queried: bool = False  # True once LLM has been asked about this breach
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
@@ -740,6 +741,7 @@ class RiskManager:
                     confirm_secs = 12.0 if is_5m else 20.0
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now
+                        pos.sl_breach_price = current_price  # L6: track price at breach for wick detection
                         logger.debug(
                             "%s SL breached @ %.4f (entry=%.4f -%.0f%%) — "
                             "waiting %.0fs wick confirmation",

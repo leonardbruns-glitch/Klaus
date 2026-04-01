@@ -441,6 +441,7 @@ class MacroEngine:
         vpin_direction: Optional[int] = None,
         spot_price: Optional[float] = None,
         spot_change_pct: Optional[float] = None,
+        breach_price: Optional[float] = None,
     ) -> tuple:
         """
         Exit management advisor for open positions.
@@ -503,12 +504,25 @@ class MacroEngine:
                 spot_line += f" ({spot_change_pct:+.3f}% — {move_word} thesis)"
             spot_line += " | "
 
+        # L6: breach drift — is adverse move slowing (wick) or accelerating (genuine reversal)?
+        breach_line = ""
+        if breach_price is not None and breach_price > 0:
+            drift_pct = (current_price - breach_price) / breach_price
+            if drift_pct > 0.005:
+                drift_desc = f"RECOVERING +{drift_pct:.1%} since breach — wick signal"
+            elif drift_pct < -0.005:
+                drift_desc = f"CONTINUING {drift_pct:.1%} since breach — genuine reversal signal"
+            else:
+                drift_desc = f"FLAT {drift_pct:+.1%} since breach — inconclusive"
+            breach_line = f"Price at SL breach: {breach_price:.4f} | Drift since breach: {drift_desc} | "
+
         exit_system = (
             "You are an expert quant trader managing open positions in Polymarket crypto binary markets. "
             "These are 5-minute and 15-minute up/down binary contracts. A token resolves to 0 (loss) or 1 (full win). "
             "Round-trip taker fees are ~3.6% at p=0.50. Exit timing is the hardest part — "
             "lock in gains too early and you miss the full move; hold too long and reversals erase profits. "
-            "VPIN declining = informed flow leaving = reversal risk rising."
+            "VPIN declining = informed flow leaving = reversal risk rising. "
+            "RECOVERING breach drift = price bouncing after SL hit = likely wick, prefer HOLD."
         )
 
         prompt = (
@@ -517,7 +531,7 @@ class MacroEngine:
             f"Entry: {entry_price:.4f} | Current: {current_price:.4f} | Move: {move_pct:+.1%}\n"
             f"Held: {time_held_s:.0f}s | Window closes in: {time_remaining_s:.0f}s\n"
             f"Unrealized P&L: ${pnl_usd:+.3f} on ${stake:.2f} stake\n"
-            f"{spot_line}{vpin_line}Breakeven (after fees): {breakeven_price:.4f}\n\n"
+            f"{breach_line}{spot_line}{vpin_line}Breakeven (after fees): {breakeven_price:.4f}\n\n"
             f"CONTEXT:\n"
             f"- Binary: resolves 0 or 1 in {time_remaining_s:.0f}s\n"
             f"- If thesis holds: token approaches 0.95+ before expiry\n"

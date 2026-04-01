@@ -255,6 +255,7 @@ class KlausBot:
                             vpin_direction=ext.vpin_direction if ext else None,
                             spot_price=ext.spot_price if ext else None,
                             spot_change_pct=ext.spot_momentum_5m if ext else None,
+                            breach_price=pos.sl_breach_price if pos.sl_breach_price > 0 else None,
                         )
                         if action == "HOLD" and conf >= 0.65:
                             # LLM says wick — reset breach timer, stay in
@@ -328,6 +329,45 @@ class KlausBot:
                                     adv_reason,
                                 )
                                 pos.dynamic_sl_override = tighten_sl
+
+                    # ── LLM stage-2 advisor: protect 40% patient inventory ────
+                    # L6: stage-2 positions (STAGE_1_DONE) were excluded from uncertain zone.
+                    # After stage-1 sold 60% at +20%, the 40% remainder rides to +45%.
+                    # LLM can tighten the trailing stop as profit grows.
+                    # EXIT_NOW on stage-2 is treated as TIGHTEN_STOP (protect profit, don't force exit).
+                    if (pos.exit_stage.name == "STAGE_1_DONE"
+                            and time_held > 15
+                            and 0.15 < move_pct < 0.45
+                            and remaining > 60
+                            and pos.sl_breach_ts == 0.0):
+                        ext = self._last_ext_signals.get(pos.asset)
+                        s2_action, s2_tighten, s2_conf, s2_reason = await self.macro_engine.advise_exit(
+                            token_id=token_id,
+                            asset=pos.asset,
+                            direction=pos.direction.name,
+                            entry_price=pos.entry_price,
+                            current_price=current_price,
+                            time_held_s=time_held,
+                            time_remaining_s=remaining,
+                            stake=pos.stake * 0.40,  # only 40% remains
+                            vpin_score=ext.vpin_score if ext else None,
+                            vpin_direction=ext.vpin_direction if ext else None,
+                            spot_price=ext.spot_price if ext else None,
+                            spot_change_pct=ext.spot_momentum_5m if ext else None,
+                        )
+                        # Stage-2: tighten stop to protect profit; don't force-exit patient inventory
+                        effective_tighten = s2_tighten
+                        if s2_action == "EXIT_NOW" and s2_conf >= 0.70:
+                            # Convert EXIT_NOW → tighten to +18% floor (just above FLOOR_SELL)
+                            effective_tighten = 0.18
+                        if effective_tighten is not None and s2_conf >= 0.60:
+                            if pos.dynamic_sl_override == 0.0 or effective_tighten > pos.dynamic_sl_override:
+                                logger.info(
+                                    "LLM STAGE2 TIGHTEN %s/%s → -%.0f%% floor (move=%+.1f%%) | %s",
+                                    pos.asset, pos.direction.name,
+                                    effective_tighten * 100, move_pct * 100, s2_reason,
+                                )
+                                pos.dynamic_sl_override = effective_tighten
                 continue
 
             if token_id in self._exit_in_progress:
