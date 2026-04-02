@@ -95,8 +95,8 @@ WINDOW_ELAPSED_MIN = 0.20
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
-MIN_TOKEN_ASK = 0.33
-MAX_TOKEN_ASK = 0.62
+MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
+MAX_TOKEN_ASK = 0.50   # lowered 0.62→0.50: entries >0.50 consistently underperforming (ETH $0.61, BTC $0.63 both SL)
 MIN_LAG_REMAINING_5M = 0.40   # raised 0.30→0.40: scanner WR=85% at lag≥0.40 vs 76% at 0.30, EV=+0.168
 MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)

@@ -152,7 +152,7 @@ Primary edge: **information lag arbitrage**
 
 ## ENTRY & EXIT RULES
 - **Entry**: lag_remaining ≥ threshold + edge ≥ MIN_EDGE + time gate
-- **Token price**: 0.03–0.62 (above 0.62 = nearly fully priced, fee-adjusted EV negative)
+- **Token price**: 0.35–0.50 (above 0.50 = fat-middle fees + stop-hunting zone; below 0.35 = low liquidity/noisy signal)
 - **No entry**: final 60s of any window (Chainlink heartbeat uncertainty)
 - **Stage-1 exit**: sell 60% at +20% gain
 - **Stage-2 exit**: remaining 40% at +35%, or floor +12%, or 20% trailing stop
@@ -231,7 +231,8 @@ analytics/shadow_log.py       — counterfactual analysis for blocked signals
 |---|---|---|
 | min_lag_5m | 0.30 | Scanner: WR=80% at ≥0.30 |
 | min_lag_15m | 0.25 | Data collection — WR unconfirmed |
-| MAX_TOKEN_ASK | 0.62 | All entries >0.62 have been stop-losses |
+| MIN_TOKEN_ASK | 0.35 | Raised from 0.33 — entry floor |
+| MAX_TOKEN_ASK | 0.50 | Lowered from 0.62 — entries 0.56-0.63 consistently SL'd |
 | PREARM_ELAPSED_MIN | 0.20 | 20% = 60s min before PREARM fires |
 | base_stake | $3 | Raise to $5 after WR >55% over 20 trades |
 | max_open_positions | 2 | Max $10 deployed at once |
