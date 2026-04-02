@@ -125,6 +125,17 @@ VPIN_OFFPEAK_REQUIRED = 0.40  # loosened 0.55→0.40: allow more off-peak flow t
 # In quiet hours, PM reprices 15m tokens too quickly — no lag window survives 15m.
 _15M_ACTIVE_ONLY = True  # if True: block 15m entries in non-active sessions
 
+# ── Contrarian (mean-reversion) parameters ────────────────────────────────────
+# When a token is nearly resolved (≥0.90) in the first 40% of a window,
+# the complementary cheap token (~0.10) may offer mean-reversion value.
+# Thesis: large early Polymarket moves overreact (YES tokens overpriced per Reichenbach 2025).
+# Break-even WR at TP=+150% / SL=−50%: (1−wr)×0.50 = wr×1.50 → wr ≥ 25%.
+# If early-window extreme moves reverse ≥25% of the time, EV is positive.
+CONTRARIAN_OPPONENT_MIN = 0.90  # opponent token ask must be ≥ this to trigger
+CONTRARIAN_MAX_ASK = 0.15       # we buy the cheap side at ≤ this price
+CONTRARIAN_ELAPSED_MAX = 0.40   # only first 40% of window (≈first 2min of 5m, 6min of 15m)
+CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
+
 WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
                                 # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
                                 # T00035: entered at 18% elapsed → +$0.992 (early = room to breathe)
@@ -200,6 +211,7 @@ class SniperSignal:
     pm_drift_at_entry: float = 0.0  # PM ask change since trigger (analytics only — not a gate)
     lag_remaining_pct: float = 0.0  # fraction of expected PM move not yet priced in (1.0=max lag, 0=closed)
     regime: str = ""                # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
+    signal_source: str = "SNIPER"   # "SNIPER" or "CONTRARIAN" — for trade analytics split
 
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
@@ -632,4 +644,86 @@ class WindowSniper:
             pm_drift_at_entry=round(pm_drift, 4),
             lag_remaining_pct=round(lag_remaining_pct, 3),
             regime=_regime,
+        )
+
+    def score_contrarian(
+        self,
+        token: MarketToken,
+        ob: Optional[OrderBook],
+        opponent_ask: float,
+        ext: Optional[ExternalSignal],
+        now: Optional[float] = None,
+    ) -> Optional[SniperSignal]:
+        """
+        Contrarian mean-reversion signal.
+
+        Fires when the OPPOSITE token is at ≥0.90 in the first 40% of the window.
+        We buy the cheap side (~0.10) betting on reversal before resolution.
+
+        Conditions:
+          - token ask ≤ CONTRARIAN_MAX_ASK (0.15)
+          - opponent ask ≥ CONTRARIAN_OPPONENT_MIN (0.90)
+          - CONTRARIAN_ELAPSED_MIN ≤ elapsed < CONTRARIAN_ELAPSED_MAX (5%–40%)
+
+        Break-even WR: 25% (TP=+150%, SL=−50%, RR=3:1).
+        Fee zone is EXTREME (<0.35) → ~0.5% taker fee, almost negligible.
+        """
+        if now is None:
+            now = time.time()
+
+        if ob is None or not ob.asks:
+            return None
+
+        token_ask = ob.asks[0][0]
+        if token_ask <= 0 or token_ask > CONTRARIAN_MAX_ASK:
+            return None
+        if opponent_ask < CONTRARIAN_OPPONENT_MIN:
+            return None
+        if token.window_end_ts <= 0 or token.window_seconds <= 0:
+            return None
+
+        window_start = token.window_end_ts - token.window_seconds
+        elapsed_pct = (now - window_start) / token.window_seconds
+
+        if elapsed_pct < CONTRARIAN_ELAPSED_MIN or elapsed_pct > CONTRARIAN_ELAPSED_MAX:
+            return None
+
+        # delta_pct for logging context
+        delta_pct = 0.0
+        if ext and ext.spot_price and ext.spot_window_open_5m:
+            ref = ext.spot_window_open_5m if token.window_seconds <= 300 else (ext.spot_window_open_15m or 0)
+            if ref > 0:
+                delta_pct = (ext.spot_price - ref) / ref * 100
+
+        entry_price = min(0.97, round(token_ask + 0.005, 4))
+
+        reason = (
+            f"CONTRARIAN {token.asset}/{token.side}: opponent={opponent_ask:.3f} "
+            f"(≥{CONTRARIAN_OPPONENT_MIN}) | {elapsed_pct:.0%} elapsed | "
+            f"cheap side ask={token_ask:.3f} δ={delta_pct:+.3f}%"
+        )
+        logger.info(
+            "SNIPER CONTRARIAN %s/%s | elapsed=%.0f%% | cheap=%.3f opponent=%.3f δ=%+.3f%%",
+            token.asset, token.side, elapsed_pct * 100, token_ask, opponent_ask, delta_pct,
+        )
+
+        return SniperSignal(
+            asset=token.asset,
+            side=token.side,
+            asset_direction=-1 if token.side == "YES" else 1,
+            delta_pct=delta_pct,
+            fair_value=round(1.0 - opponent_ask, 4),
+            token_ask=token_ask,
+            edge=0.0,
+            entry_price=entry_price,
+            confidence=0.60,
+            composite=0.50,
+            direction=Direction.BUY_YES,
+            fee_zone=FeeZone.EXTREME,
+            elapsed_pct=elapsed_pct,
+            reason=reason,
+            signal_source="CONTRARIAN",
+            vpin_at_entry=round(ext.vpin_score, 4) if ext and ext.vpin_score else 0.0,
+            pm_ask_at_trigger=token_ask,
+            regime="CONTRARIAN",
         )

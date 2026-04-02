@@ -25,7 +25,7 @@ from typing import Dict, Optional, Set
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
-from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl
+from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
 from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager
@@ -758,6 +758,64 @@ class KlausBot:
                 continue  # updown token handled — skip momentum path
 
             elif token.market_type == "updown":
+                # ── Contrarian check: buy cheap side when opponent is ≥0.90 early ──
+                # When the opposite token is at ≥0.90 in the first 40% of the window,
+                # the cheap side (~0.10) may offer mean-reversion value.
+                # Normal sniper skips this token (ask < MIN_TOKEN_ASK=0.35 or wrong side).
+                # This path catches the contrarian opportunity independently.
+                if (ob is not None and ob.asks
+                        and ob.asks[0][0] <= 0.15
+                        and token.asset not in CONFIG.edge.sniper_excluded_assets):
+                    # Find the paired opposite token for this window
+                    _opponent_ask = 0.0
+                    for _tid, _t in self.feed.tokens.items():
+                        if (_t.asset == token.asset
+                                and _t.side != token.side
+                                and abs(_t.window_end_ts - token.window_end_ts) < 5):
+                            _opp_ob = self.feed.get_order_book(_tid)
+                            if _opp_ob and _opp_ob.asks:
+                                _opponent_ask = _opp_ob.asks[0][0]
+                            break
+                    if _opponent_ask > 0:
+                        _cntr_sig = self.sniper.score_contrarian(token, ob, _opponent_ask, ext, now=time.time())
+                        if _cntr_sig is not None:
+                            _wlabel = f"{token.window_seconds//60}m" if token.window_seconds else "?"
+                            logger.info(
+                                "SCAN [CONTRARIAN] %s/%s [%s] | entry=%.4f opponent=%.3f elapsed=%.0f%%",
+                                token.asset, token.side, _wlabel,
+                                _cntr_sig.entry_price, _opponent_ask, _cntr_sig.elapsed_pct * 100,
+                            )
+                            # Custom TP/SL: fixed percentages sized for low-price reversal plays.
+                            # TP=+150% (buy 0.10, target 0.25), SL=−50% (0.10→0.05). RR=3:1.
+                            # Break-even WR=25%. Normal calculate_tp_sl uses ATR which is
+                            # tiny for a 0.10 token → would produce useless tight targets.
+                            _ep = _cntr_sig.entry_price
+                            _cntr_tpsl = TPSLLevels(
+                                take_profit=round(min(0.98, _ep * 2.5), 4),
+                                stop_loss=round(max(0.01, _ep * 0.50), 4),
+                                tp_pct=150.0,
+                                sl_pct=50.0,
+                                risk_reward=3.0,
+                            )
+                            _cntr_decision = self.risk.evaluate(
+                                token_id, _cntr_sig, _cntr_tpsl,
+                                condition_id=token.condition_id,
+                                window_end_ts=token.window_end_ts,
+                                asset=token.asset,
+                                market_type=token.market_type,
+                                cascade_discount=0.0,
+                                is_sniper=True,
+                                window_seconds=getattr(token, "window_seconds", 0),
+                            )
+                            if _cntr_decision.approved:
+                                # Half stake: contrarian is speculative — cap at $2.50
+                                _cntr_decision.stake = max(1.0, round(_cntr_decision.stake / 2, 2))
+                                sniper_queue.append(
+                                    (token_id, token, _cntr_sig, _cntr_tpsl, _cntr_decision, ext)
+                                )
+                            else:
+                                logger.info("  └─ CONTRARIAN REJECTED: %s", _cntr_decision.reason)
+
                 # Sniper didn't fire on this updown token → skip entirely.
                 # Momentum scorer on updown markets has confirmed ZERO edge:
                 # 19 live trades, WR=36.8%, losses score HIGHER than wins (0.531 vs 0.511).
