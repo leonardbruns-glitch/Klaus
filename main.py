@@ -331,10 +331,23 @@ class KlausBot:
                 remaining_ts = pos.window_end_ts - now_ts if pos.window_end_ts > 0 else 999
                 if pos.window_end_ts > 0 and remaining_ts <= 45:
                     logger.warning(
-                        "OB UNAVAILABLE near window end %s — forcing EXIT_WINDOW_END (%.0fs remaining)",
+                        "OB UNAVAILABLE near window end %s (%.0fs remaining) — "
+                        "checking CLOB balance then force-purging",
                         token_id[:12], remaining_ts,
                     )
-                    if token_id not in self._exit_in_progress:
+                    # Verify shares actually exist before trying to sell.
+                    # If balance=0 the position was already sold (manually or by previous exit).
+                    _balance = self.orders.fetch_token_balance(token_id)
+                    if _balance is None or _balance < 0.05:
+                        # Nothing to sell — just purge the tracking record.
+                        logger.warning(
+                            "OB_NOOB_PURGE %s: balance=%.4f — position closed externally, purging record",
+                            token_id[:12], _balance or 0.0,
+                        )
+                        _pnl = self.risk.close_position(token_id, pos.entry_price, "NOOB_EXTERNALLY_SOLD")
+                        self._open_meta.pop(token_id, None)
+                        self._pos_log_ts.pop(token_id, None)
+                    elif token_id not in self._exit_in_progress:
                         self._exit_in_progress.add(token_id)
                         try:
                             await self._exit_position(token_id, pos.entry_price, "EXIT_WINDOW_END_NOOB")
@@ -2016,16 +2029,72 @@ class KlausBot:
 
     async def _startup_orphan_sweep(self) -> None:
         """
-        Sell any untracked token balances from previous sessions immediately on
-        startup, rather than waiting up to 13 minutes for the normal window-end
-        sweep to reach each token.
+        On startup:
+        1. Validate tracked positions — if CLOB balance = 0, the user sold manually
+           last session. Close the position record immediately rather than tracking
+           a ghost forever.
+        2. Sell any untracked token balances from previous sessions.
 
-        Waits 10s for the feed to populate the token list before scanning.
+        Waits 10s for feed to populate before scanning.
         """
         if CONFIG.dry_run:
             return
         await asyncio.sleep(10.0)
-        logger.info("STARTUP ORPHAN SWEEP: scanning for untracked token balances...")
+        logger.info("STARTUP ORPHAN SWEEP: validating tracked positions and orphan balances...")
+
+        # Step 1: validate tracked positions have actual CLOB balances
+        for token_id, pos in list(self.risk.open_positions.items()):
+            try:
+                balance = self.orders.fetch_token_balance(token_id)
+                if balance is None:
+                    logger.warning(
+                        "STARTUP: can't verify balance for tracked %s/%s — will retry via normal loop",
+                        pos.asset, pos.direction.name,
+                    )
+                    continue
+                if balance < 0.05:
+                    # Shares are gone — sold manually last session. Close the record.
+                    logger.warning(
+                        "STARTUP: %s/%s has 0 CLOB balance (manually sold) — purging tracked position",
+                        pos.asset, pos.direction.name,
+                    )
+                    pnl = self.risk.close_position(token_id, pos.entry_price, "STARTUP_EXTERNALLY_SOLD")
+                    meta = self._open_meta.get(token_id, {})
+                    _sig = meta.get("signal") or SignalBreakdown(
+                        direction=pos.direction, entry_price=pos.entry_price,
+                        composite=0.0, confidence=0.0, breakout_score=0.0,
+                        trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                        fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                        reason="startup_externally_sold",
+                    )
+                    try:
+                        self.analytics.record_trade(
+                            token_id=token_id, asset=pos.asset, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=pos.entry_price,
+                            stake=pos.stake, shares=pos.shares,
+                            entry_fill=meta.get("entry_fill"), exit_fills=[],
+                            exit_reason="STARTUP_EXTERNALLY_SOLD", signal=_sig,
+                            ts_open=meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                            capital_before=self.risk.bankroll.summary()["bankroll"],
+                            heat_check_active=False, consecutive_wins=0,
+                            net_pnl_actual=0.0,
+                            market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                            is_live=not CONFIG.dry_run,
+                            signal_source=meta.get("signal_source", "SNIPER"),
+                            window_size_s=meta.get("window_size_s") or pos.window_seconds or 0,
+                        )
+                    except Exception as _e:
+                        logger.error("record_trade STARTUP_EXTERNALLY_SOLD failed: %s", _e)
+                    self._open_meta.pop(token_id, None)
+                else:
+                    logger.info(
+                        "STARTUP: %s/%s confirmed %.4f shares on CLOB — tracking continues",
+                        pos.asset, pos.direction.name, balance,
+                    )
+            except Exception as _e:
+                logger.error("STARTUP balance check failed for %s: %s", token_id[:12], _e)
+
+        # Step 2: sell untracked orphan balances from previous sessions
         await self._window_end_balance_sweep(force_all=True)
         logger.info("STARTUP ORPHAN SWEEP: complete")
 
