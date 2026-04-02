@@ -1012,19 +1012,13 @@ class KlausBot:
                 llm_conf = b.get("confidence", 0.5)
                 llm_reason = b.get("reason", "")
 
-                # Session-weighted SKIP threshold:
-                # Off-peak hours are structurally weaker — LLM should veto more aggressively.
-                # 12-15 UTC (active): require high confidence to skip (don't block good trades).
-                # All other hours: lower bar — default to caution outside proven windows.
-                _hour_now = datetime.now(timezone.utc).hour
-                _active_hours = {8, 9, 12, 13, 14, 15, 22, 23, 0}
-                _skip_threshold = 0.65 if _hour_now in _active_hours else 0.55
-                if llm_decision == "SKIP" and llm_conf >= _skip_threshold:
+                # LLM veto DISABLED — track recommendation vs outcome instead.
+                # Log what the LLM would have done so we can validate its accuracy later.
+                if llm_decision == "SKIP":
                     logger.info(
-                        "  └─ LLM VETO %s/%s (conf=%.2f >= %.2f @%dUTC): %s",
-                        token.asset, token.side, llm_conf, _skip_threshold, _hour_now, llm_reason,
+                        "  └─ LLM WOULD-VETO %s/%s (conf=%.2f) — entering anyway for data: %s",
+                        token.asset, token.side, llm_conf, llm_reason,
                     )
-                    continue
 
                 logger.info(
                     "  └─ SNIPER ENTER %s/%s [p=%d conf=%.2f] | entry=%.4f edge=%.3f | %s",
@@ -1033,11 +1027,13 @@ class KlausBot:
                     signal.entry_price, signal.edge,
                     llm_reason or signal.reason,
                 )
-                await self._enter_position(token_id, token.asset, signal, tpsl, decision)
+                await self._enter_position(token_id, token.asset, signal, tpsl, decision,
+                                           llm_rec=llm_decision, llm_rec_conf=llm_conf)
 
     # ── Entry ─────────────────────────────────────────────────────────────────
 
-    async def _enter_position(self, token_id, asset, signal, tpsl, decision) -> None:
+    async def _enter_position(self, token_id, asset, signal, tpsl, decision,
+                              llm_rec: str = "", llm_rec_conf: float = 0.0) -> None:
         capital_before = self.risk.bankroll.capital
         ts_open = time.time()
 
@@ -1172,6 +1168,8 @@ class KlausBot:
             "pre_entry_momentum_pct": pre_entry_momentum_pct,
             "ob_depth_at_entry": ob_depth_at_entry,
             "signal_to_fill_ms": signal_to_fill_ms,
+            "llm_rec": llm_rec,
+            "llm_rec_conf": llm_rec_conf,
         }
 
     # ── Double-fill protection ────────────────────────────────────────────────
@@ -1645,6 +1643,8 @@ class KlausBot:
                     signal_to_fill_ms=meta.get("signal_to_fill_ms", 0.0),
                     ob_depth_at_entry=meta.get("ob_depth_at_entry", 0.0),
                     pre_entry_momentum_pct=meta.get("pre_entry_momentum_pct", 0.0),
+                    llm_rec=meta.get("llm_rec", ""),
+                    llm_rec_conf=meta.get("llm_rec_conf", 0.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

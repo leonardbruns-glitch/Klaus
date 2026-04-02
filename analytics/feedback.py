@@ -98,6 +98,10 @@ class TradeRecord:
     ob_depth_at_entry: float = 0.0      # total OB depth (top-5 bids+asks in shares) at entry
     pre_entry_momentum_pct: float = 0.0 # spot 1m price change at entry (momentum context)
 
+    # LLM recommendation tracking — veto disabled, recording for validation
+    llm_rec: str = ""             # "ENTER" or "SKIP" — what LLM recommended at entry
+    llm_rec_conf: float = 0.0    # LLM confidence in its recommendation (0.0 if no signal)
+
     # Meta
     heat_check_active: bool = False
     consecutive_wins_at_entry: int = 0
@@ -256,6 +260,8 @@ class FeedbackEngine:
         signal_to_fill_ms: float = 0.0,
         ob_depth_at_entry: float = 0.0,
         pre_entry_momentum_pct: float = 0.0,
+        llm_rec: str = "",
+        llm_rec_conf: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -368,6 +374,8 @@ class FeedbackEngine:
             capital_before=round(capital_before, 2),
             capital_after=round(capital_after, 2),
             is_live=is_live,
+            llm_rec=llm_rec,
+            llm_rec_conf=round(llm_rec_conf, 3),
         )
 
         self._recent.append(rec)
