@@ -130,9 +130,13 @@ if __name__ == "__main__":
 
     if rated:
         overall_wr = sum(r["would_win_20pct"] for r in rated) / len(rated)
-        avg_pnl = sum(r["pnl_if_entered"] for r in rated if r.get("pnl_if_entered") is not None) / len(rated)
+        pnl_records = [r for r in rated if r.get("pnl_if_entered") is not None]
+        avg_pnl = sum(r["pnl_if_entered"] for r in pnl_records) / len(pnl_records) if pnl_records else None
         print(f"\n  Overall WR (would +20%): {overall_wr:.0%} over {len(rated)} completed blocks")
-        print(f"  Avg P&L if entered:      {avg_pnl:+.1%}")
+        if avg_pnl is not None:
+            print(f"  Avg P&L at window-end:   {avg_pnl:+.1%}  (n={len(pnl_records)} resolved)")
+        else:
+            print(f"  Avg P&L at window-end:   n/a (no resolved windows yet)")
 
         print(f"\n  By block reason:")
         by_reason: dict = {}
@@ -141,8 +145,9 @@ if __name__ == "__main__":
         for reason, group in sorted(by_reason.items()):
             wr = sum(r["would_win_20pct"] for r in group) / len(group)
             pnls = [r["pnl_if_entered"] for r in group if r.get("pnl_if_entered") is not None]
-            avg = sum(pnls) / len(pnls) if pnls else 0.0
-            print(f"    {reason:<22} WR={wr:.0%}  avg_pnl={avg:+.1%}  n={len(group)}")
+            avg = sum(pnls) / len(pnls) if pnls else None
+            avg_str = f"{avg:+.1%}" if avg is not None else "n/a"
+            print(f"    {reason:<22} WR={wr:.0%}  avg_pnl={avg_str}  n={len(group)}")
 
         print(f"\n  By asset:")
         by_asset: dict = {}
