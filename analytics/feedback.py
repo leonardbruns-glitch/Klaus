@@ -158,6 +158,10 @@ class FeedbackEngine:
                 # and pollute strategy analysis. Filter by token_id prefix.
                 if d.get("token_id", "").startswith("stub_"):
                     continue
+                # ORPHAN_SELL records have no real entry data (entry_price=0.0)
+                # and zero PnL — they corrupt WR/profit-factor calculations.
+                if d.get("signal_source") == "ORPHAN" or d.get("exit_reason") == "ORPHAN_SELL":
+                    continue
 
                 rec = TradeRecord(
                     trade_id=d.get("trade_id", ""),
