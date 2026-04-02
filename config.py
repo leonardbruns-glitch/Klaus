@@ -27,9 +27,9 @@ class BankrollConfig:
     base_stake: float = 5.0           # reduced $10→$5: 20-trade live data shows -$16 loss, 30% WR
     scaled_stake: float = 5.0         # flat — heat-check disabled; raise after 50 trades WR>55%
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
-    max_open_positions: int = 2       # reduced 4→2: shadow data n=17 at EV+threshold, too early for 4 slots
+    max_open_positions: int = 3       # data collection phase — allow more concurrent trades
     max_daily_loss: float = 10.0      # stop after -$10/day (CLAUDE.md); was $40 — too permissive
-    post_close_cooldown: float = 5.0  # seconds to wait after any close
+    post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
 
@@ -96,9 +96,7 @@ class MomentumConfig:
 class ExecutionConfig:
     ob_scan_interval: float = 1.0      # seconds between order-book refreshes
     hard_exit_seconds: int = 180       # forced exit if not profitable within 3 min
-    no_trade_last_sec: int = 60        # stop entering/exit in final N seconds of window
-                                       # Research: liquidity collapses last 60s; Chainlink
-                                       # 10-30s heartbeat creates settlement uncertainty
+    no_trade_last_sec: int = 10        # minimal buffer — collect data near window end too
     entry_price_buffer: float = 0.05   # limit buy at price * (1 + buffer), capped at 0.30
     cascade_levels: int = 3            # sell in 3 tranches
     cascade_pct: float = 0.333        # fraction of position per tranche
