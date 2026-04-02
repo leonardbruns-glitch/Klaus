@@ -162,7 +162,7 @@ class EdgeConfig:
     # Assets paused from the Window Sniper based on live WR data.
     # SOL paused: 28.6% WR over 7 sniper trades (live data 2026-03-31).
     # Revisit when SOL has 20+ sniper trades with confirmed edge.
-    sniper_excluded_assets: List[str] = field(default_factory=lambda: ["SOL"])  # SOL paused: 16.7% WR over 6 live trades, -$11.51 PnL (2026-04-02)
+    sniper_excluded_assets: List[str] = field(default_factory=lambda: [])  # all assets active — gathering data
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
     # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.
