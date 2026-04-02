@@ -270,6 +270,10 @@ class KlausBot:
         _wdt = threading.Thread(target=_watchdog_thread, daemon=True, name="loop-watchdog")
         _wdt.start()
 
+        # Startup orphan sweep: sell any untracked token balances left over from
+        # previous sessions. Delayed 10s to let the feed populate token list first.
+        asyncio.create_task(self._startup_orphan_sweep())
+
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
         report_task = asyncio.create_task(self._report_loop())
@@ -1087,6 +1091,12 @@ class KlausBot:
                     "BALANCE VERIFY %s: CLOB returned %.4f — keeping computed %.4f",
                     asset, _clob_balance or 0.0, pos.shares,
                 )
+            # FIX: double-fill orphan prevention. CF retry loop can place 2-3 orders that
+            # all fill; the initial balance check above may miss fills that haven't
+            # propagated to the CLOB read-replica yet (typically <1s latency).
+            # Recheck after 1.5s to absorb any late-arriving duplicate fill tokens into
+            # the tracked position so normal exit logic sells them all (no orphans).
+            asyncio.create_task(self._deferred_balance_sync(token_id, asset))
 
         signal_to_fill_ms = (time.time() - ts_open) * 1000.0
 
@@ -1099,12 +1109,44 @@ class KlausBot:
             "capital_before": capital_before,
             "heat_check": decision.is_scaled,
             "consecutive_wins": self.risk.bankroll.consecutive_wins,
-            "window_size_s": getattr(token, "window_seconds", 0),
+            "window_size_s": getattr(token, "window_seconds", 0) or pos.window_seconds,
             "spot_at_entry": spot_at_entry,
             "pre_entry_momentum_pct": pre_entry_momentum_pct,
             "ob_depth_at_entry": ob_depth_at_entry,
             "signal_to_fill_ms": signal_to_fill_ms,
         }
+
+    # ── Double-fill protection ────────────────────────────────────────────────
+
+    async def _deferred_balance_sync(self, token_id: str, asset: str, delay: float = 1.5) -> None:
+        """
+        Re-check CLOB token balance 1.5s after position open to absorb any
+        CF-retry double-fill shares that hadn't propagated to the read-replica yet.
+
+        Race scenario: CF 403 on attempt-0 → sleep 0.5s → pop_fill_for_token
+        finds nothing (WS latency ~400ms) → attempt-1 also fills → position opened
+        with attempt-1's shares → attempt-0's tokens arrive in wallet ~200ms later →
+        initial balance check misses them → they become orphans at window-end.
+
+        This deferred check runs after the propagation window and absorbs the extra
+        shares into the tracked position so the normal exit logic sells all of them.
+        """
+        await asyncio.sleep(delay)
+        if CONFIG.dry_run:
+            return
+        pos = self.risk.open_positions.get(token_id)
+        if pos is None:
+            return  # position already closed before recheck fired
+        balance = self.orders.fetch_token_balance(token_id)
+        if balance is not None and balance > pos.remaining_shares + 0.05:
+            extra = round(balance - pos.remaining_shares, 4)
+            logger.warning(
+                "DEFERRED BALANCE SYNC %s: %.4f tracked → %.4f CLOB "
+                "(%.4f extra shares from CF-retry double-fill — absorbed into position)",
+                asset, pos.remaining_shares, balance, extra,
+            )
+            pos.shares = round(balance, 4)
+            pos.remaining_shares = round(balance, 4)
 
     # ── Exit helpers ──────────────────────────────────────────────────────────
 
@@ -1273,7 +1315,7 @@ class KlausBot:
                         market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
                         is_live=not CONFIG.dry_run,
                         signal_source=_ghost_meta.get("signal_source", "SNIPER"),
-                        window_size_s=_ghost_meta.get("window_size_s", 0),
+                        window_size_s=_ghost_meta.get("window_size_s") or pos.window_seconds or 0,
                     )
                 except Exception as _e:
                     logger.error("record_trade GHOST_POSITION failed: %s", _e)
@@ -1340,7 +1382,7 @@ class KlausBot:
                         market_type=getattr(token_meta, "market_type", "unknown"),
                         is_live=not CONFIG.dry_run,
                         signal_source=_ext_meta.get("signal_source", "SNIPER"),
-                        window_size_s=_ext_meta.get("window_size_s", 0),
+                        window_size_s=_ext_meta.get("window_size_s") or pos.window_seconds or 0,
                         spot_at_entry=_ext_meta.get("spot_at_entry", 0.0),
                         spot_at_exit=spot_at_exit,
                         signal_to_fill_ms=_ext_meta.get("signal_to_fill_ms", 0.0),
@@ -1539,7 +1581,7 @@ class KlausBot:
                     market_type=getattr(token_meta, "market_type", "unknown"),
                     is_live=not CONFIG.dry_run,
                     signal_source=meta.get("signal_source", "MOMENTUM"),
-                    window_size_s=meta.get("window_size_s", 0),
+                    window_size_s=meta.get("window_size_s") or pos.window_seconds or 0,
                     spot_at_entry=meta.get("spot_at_entry", 0.0),
                     spot_at_exit=spot_at_exit,
                     signal_to_fill_ms=meta.get("signal_to_fill_ms", 0.0),
@@ -1787,7 +1829,7 @@ class KlausBot:
 
     # ── Window-end CLOB balance sweep ─────────────────────────────────────────
 
-    async def _window_end_balance_sweep(self) -> None:
+    async def _window_end_balance_sweep(self, force_all: bool = False) -> None:
         """
         For every tracked updown token within 120s of window close, fetch the
         actual CLOB balance and force-sell any non-zero holding.
@@ -1796,8 +1838,9 @@ class KlausBot:
         bot didn't track — anything sitting in the wallet that will resolve at
         0 or 1 without being sold.
 
-        Also runs at startup (called once with window_seconds=0 guard bypassed)
-        to sell orphans from previous sessions.
+        force_all=True: bypass the 120s time window check — used at startup to
+        immediately sell orphan tokens from previous sessions (otherwise they
+        wait up to 13 minutes before the normal sweep catches them).
         """
         if CONFIG.dry_run:
             return
@@ -1810,8 +1853,9 @@ class KlausBot:
             if token.window_end_ts <= 0:
                 continue
             time_to_close = token.window_end_ts - now
-            # Only act in the final 120s window, or if already past close (up to 60s after)
-            if not (-60 <= time_to_close <= _WINDOW_END_HORIZON):
+            # Only act in the final 120s window, or if already past close (up to 60s after),
+            # OR if force_all=True (startup sweep — sell any untracked balance immediately).
+            if not force_all and not (-60 <= time_to_close <= _WINDOW_END_HORIZON):
                 continue
 
             # Rate-limit: don't hammer CLOB for the same token more than once per 30s
@@ -1887,6 +1931,23 @@ class KlausBot:
                 logger.error("ORPHAN SELL error %s: %s", token_id[:12], _e)
             finally:
                 self._exit_in_progress.discard(token_id)
+
+    # ── Startup orphan sweep ──────────────────────────────────────────────────
+
+    async def _startup_orphan_sweep(self) -> None:
+        """
+        Sell any untracked token balances from previous sessions immediately on
+        startup, rather than waiting up to 13 minutes for the normal window-end
+        sweep to reach each token.
+
+        Waits 10s for the feed to populate the token list before scanning.
+        """
+        if CONFIG.dry_run:
+            return
+        await asyncio.sleep(10.0)
+        logger.info("STARTUP ORPHAN SWEEP: scanning for untracked token balances...")
+        await self._window_end_balance_sweep(force_all=True)
+        logger.info("STARTUP ORPHAN SWEEP: complete")
 
     # ── 250s prewarm loop: refresh py_clob_client cache before 300s TTL expires ──
 
