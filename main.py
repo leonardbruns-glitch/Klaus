@@ -1437,14 +1437,15 @@ class KlausBot:
                 )
             return
 
-        self.risk.record_stage1_sell(token_id, sold)
+        s1_fill_price = self._calc_exit_price(exit_fills, live_price)
+        self.risk.record_stage1_sell(token_id, sold, sell_price=s1_fill_price)
         # Store stage-1 fills so analytics can compute accurate weighted exit price
         meta = self._open_meta.get(token_id)
         if meta is not None:
             meta.setdefault("stage1_fills", []).extend(exit_fills)
         logger.info(
-            "STAGE-1 %s %s | sold=%.4f @ ~%.4f | reason=%s",
-            pos.asset, pos.direction.name, sold, live_price, reason,
+            "STAGE-1 %s %s | sold=%.4f @ %.4f | reason=%s",
+            pos.asset, pos.direction.name, sold, s1_fill_price, reason,
         )
 
         # CLOB balance sync: verify remaining_shares matches reality before stage-2.
@@ -2259,6 +2260,83 @@ class KlausBot:
 
         # Step 2: sell untracked orphan balances from previous sessions
         await self._window_end_balance_sweep(force_all=True)
+
+        # Step 3: write recovery records for expired stage-1 positions.
+        # These are positions where stage-1 sold 60% of shares but bot crashed before stage-2.
+        # The window expired so we can't sell the remaining 40% — but we can log what we know.
+        # stage1_sell_price was saved to disk by record_stage1_sell; remaining shares were
+        # likely resolved on-chain. Record the stage-1 profit so WR/PnL stats are accurate.
+        for r in self.risk._expired_stage1_positions:
+            try:
+                s1_price = r.get("stage1_sell_price", 0.0)
+                entry = r["entry_price"]
+                shares = r["shares"]
+                remaining = r["remaining_shares"]
+                s1_shares = round(shares - remaining, 4)
+                if s1_price <= 0 or s1_shares <= 0:
+                    logger.warning(
+                        "RECOVERY SKIP %s/%s: missing stage-1 price (%.4f) or shares (%.4f) — "
+                        "no stage1_sell_price saved (old version); skipping recovery record",
+                        r["asset"], r["direction"], s1_price, s1_shares,
+                    )
+                    continue
+                # Stage-1 was profitable (that's why it fired). Remaining 40% resolved on-chain.
+                # Use entry_price as the conservative floor for remaining shares
+                # (worst case: resolved at 0, they lost the 40% stake = entry * remaining).
+                gross_s1 = s1_shares * (s1_price - entry)
+                gross_remaining = remaining * (entry - entry)  # 0 — can't know resolution
+                gross_pnl = round(gross_s1 + gross_remaining, 6)
+                # Fee estimate: extreme odds for most SNIPER trades
+                fee_rate = CONFIG.fees.extreme_fee_rate if entry < 0.30 or entry > 0.70 else CONFIG.fees.middle_fee_rate
+                exit_notional = s1_price * s1_shares
+                entry_notional = entry * shares
+                fee_est = round((entry_notional + exit_notional) * fee_rate, 6)
+                net_pnl = round(gross_pnl - fee_est, 6)
+                now_ts = time.time()
+                self.analytics._trade_counter += 1
+                trade_id = f"T{self.analytics._trade_counter:05d}_{r['asset']}_{int(r['open_ts'])}_RECOVERED"
+                self.analytics.last_trade_id = trade_id
+                record = {
+                    "trade_id": trade_id,
+                    "token_id": r["token_id"],
+                    "asset": r["asset"],
+                    "direction": r["direction"],
+                    "market_type": "updown",
+                    "signal_source": "SNIPER",
+                    "exit_reason": "STAGE1_RECOVERY",
+                    "ts_open": r["open_ts"],
+                    "ts_close": r.get("window_end_ts", now_ts),
+                    "entry_price": entry,
+                    "exit_price": s1_price,
+                    "stake": r["stake"],
+                    "shares": shares,
+                    "gross_pnl": gross_pnl,
+                    "fee_paid": fee_est,
+                    "net_pnl": net_pnl,
+                    "slippage_entry": 0.0,
+                    "slippage_exit": 0.0,
+                    "hold_seconds": round(r.get("window_end_ts", now_ts) - r["open_ts"], 1),
+                    "hour_utc": int(time.gmtime(r["open_ts"]).tm_hour),
+                    "window_size_s": r.get("window_size_s", 0),
+                    "is_live": not CONFIG.dry_run,
+                    "capital_before": self.risk.bankroll.summary()["bankroll"] - net_pnl,
+                    "capital_after": self.risk.bankroll.summary()["bankroll"],
+                    "note": (
+                        f"STAGE-1 RECOVERY: sold {s1_shares:.4f} of {shares:.4f} shares @ {s1_price:.4f}. "
+                        f"Remaining {remaining:.4f} shares expired on-chain (resolution unknown). "
+                        "Bot crashed between stage-1 and stage-2. PnL reflects stage-1 only."
+                    ),
+                }
+                self.analytics._write_jsonl(CONFIG.trade_log, record)
+                logger.warning(
+                    "STAGE-1 RECOVERY %s/%s: stage-1 PnL=%.4f logged as %s "
+                    "(remaining %.4f shares expired unlogged)",
+                    r["asset"], r["direction"], net_pnl, trade_id, remaining,
+                )
+            except Exception as _e:
+                logger.error("STAGE-1 RECOVERY failed for %s/%s: %s", r.get("asset"), r.get("direction"), _e)
+        self.risk._expired_stage1_positions.clear()
+
         logger.info("STARTUP ORPHAN SWEEP: complete")
 
     # ── 250s prewarm loop: refresh py_clob_client cache before 300s TTL expires ──

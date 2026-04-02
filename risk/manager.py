@@ -93,6 +93,7 @@ class PositionMeta:
     sl_breach_llm_queried: bool = False  # True once LLM has been asked about this breach
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
+    stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -226,6 +227,9 @@ class RiskManager:
         self.open_positions: Dict[str, PositionMeta] = {}
         self._traded_conditions: Set[str] = set()   # dedup within window
         self._last_close_ts: float = 0.0
+        # Expired positions with STAGE_1_DONE found on startup — bot crashed before stage-2.
+        # Populated by _load_positions, consumed by main.py _startup_orphan_sweep to write recovery records.
+        self._expired_stage1_positions: list = []
         self._load_positions()
 
     # ── Position persistence ─────────────────────────────────────────────────
@@ -254,6 +258,7 @@ class RiskManager:
                     "hard_exit_triggered": pos.hard_exit_triggered,
                     "condition_id": pos.condition_id,
                     "dynamic_sl_override": pos.dynamic_sl_override,
+                    "stage1_sell_price": pos.stage1_sell_price,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -300,15 +305,37 @@ class RiskManager:
                 pos.dynamic_sl_override = float(d.get("dynamic_sl_override", 0.0))
                 pos.window_seconds = int(d.get("window_seconds", 0))
                 pos.stage1_attempts = int(d.get("stage1_attempts", 0))
+                pos.stage1_sell_price = float(d.get("stage1_sell_price", 0.0))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
                 if pos.window_end_ts > 0 and pos.window_end_ts < now - 30:
-                    logger.warning(
-                        "Discarding expired position %s/%s — window ended %ds ago",
-                        pos.asset, pos.direction.name,
-                        int(now - pos.window_end_ts),
-                    )
+                    if pos.exit_stage == ExitStage.STAGE_1_DONE:
+                        # Stage-1 was profitable (60% sold) but bot crashed before stage-2 completed.
+                        # Queue for recovery record in _startup_orphan_sweep — don't silently discard.
+                        self._expired_stage1_positions.append({
+                            "token_id": pos.token_id,
+                            "asset": pos.asset,
+                            "direction": pos.direction.name,
+                            "entry_price": pos.entry_price,
+                            "stage1_sell_price": pos.stage1_sell_price,
+                            "shares": pos.shares,
+                            "remaining_shares": pos.remaining_shares,
+                            "open_ts": pos.open_ts,
+                            "window_end_ts": pos.window_end_ts,
+                            "window_size_s": pos.window_seconds,
+                            "stake": pos.stake,
+                        })
+                        logger.warning(
+                            "EXPIRED STAGE-1 %s/%s: entry=%.4f s1_price=%.4f — queued for recovery",
+                            pos.asset, pos.direction.name, pos.entry_price, pos.stage1_sell_price,
+                        )
+                    else:
+                        logger.warning(
+                            "Discarding expired position %s/%s — window ended %ds ago",
+                            pos.asset, pos.direction.name,
+                            int(now - pos.window_end_ts),
+                        )
                     continue
                 self.open_positions[tid] = pos
                 if pos.condition_id:
@@ -542,8 +569,9 @@ class RiskManager:
         self._save_positions()
         return pos
 
-    def record_stage1_sell(self, token_id: str, shares_sold: float) -> None:
-        """Called after stage-1 sell. Updates remaining shares.
+    def record_stage1_sell(self, token_id: str, shares_sold: float, sell_price: float = 0.0) -> None:
+        """Called after stage-1 sell. Updates remaining shares and saves actual fill price.
+        sell_price: weighted average fill price from cascade_sell — saved for crash recovery.
         Only marks STAGE_1_DONE when shares were actually sold — prevents
         the position from entering stage-2 logic if the cascade failed (0 fills).
         """
@@ -552,12 +580,15 @@ class RiskManager:
             pos.remaining_shares = max(0.0, pos.remaining_shares - shares_sold)
             if shares_sold > 0:
                 pos.exit_stage = ExitStage.STAGE_1_DONE
+                if sell_price > 0:
+                    pos.stage1_sell_price = sell_price
             logger.info(
-                "STAGE-1 SELL %s | sold=%.4f remaining=%.4f",
-                token_id[:8], shares_sold, pos.remaining_shares,
+                "STAGE-1 SELL %s | sold=%.4f @ %.4f remaining=%.4f",
+                token_id[:8], shares_sold, sell_price, pos.remaining_shares,
             )
             # Persist immediately — if bot crashes before stage-2, we must not
-            # re-attempt to sell the already-sold 95% on restart.
+            # re-attempt to sell the already-sold 60% on restart.
+            # stage1_sell_price is also persisted — enables recovery record on next startup.
             self._save_positions()
 
     def close_position(
