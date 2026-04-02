@@ -570,13 +570,9 @@ class RiskManager:
         if pos is None:
             return None
 
-        # Re-allow the condition once the position closes, so new windows on the
-        # same asset aren't blocked all session. Only clear if no other open
-        # position still holds the same condition (e.g. cascaded re-entries).
-        if pos.condition_id and not any(
-            p.condition_id == pos.condition_id for p in self.open_positions.values()
-        ):
-            self._traded_conditions.discard(pos.condition_id)
+        # Condition stays in _traded_conditions after close — prevents re-entry
+        # into the same window within a session. Each window has a unique condition_id
+        # so this never blocks a future window on the same asset.
 
         shares = shares_override if shares_override is not None else pos.remaining_shares
 
