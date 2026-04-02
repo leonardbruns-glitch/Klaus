@@ -102,10 +102,9 @@ MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACT
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.35
 
-# 15m BLOCKED: scanner n=30 WR=0% at all thresholds ≤0.50. Live n=6 WR=0% -$9.30.
-# Kill switch triggered: profit_factor=0.0 over 20 trades. Lag arb does not work on 15m.
-# Data is conclusive — this is not a borderline call.
-_15M_ACTIVE_ONLY = True  # 15m BLOCKED until further notice
+# 15m RE-ENABLED: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
+# Shadow data was wrong — live 15m outperforms live 5m significantly.
+_15M_ACTIVE_ONLY = False
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
 # When a token is nearly resolved (≥0.90) in the first 40% of a window,
