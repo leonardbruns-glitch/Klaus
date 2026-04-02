@@ -60,7 +60,8 @@ logger = logging.getLogger("main")
 # ---------------------------------------------------------------------------
 
 async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed",
-                          active_set: set, dedup_key: tuple) -> None:
+                          active_set: set, dedup_key: tuple,
+                          llm_boost: float = 0.0) -> None:
     """
     After the sniper blocks a candidate trade, watch the token's ask price at
     +30s, +60s, +120s, and at window close. Log what would have happened if
@@ -111,6 +112,7 @@ async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed",
         ask_at_60s=results.get("ask_at_60s"),
         ask_at_120s=results.get("ask_at_120s"),
         ask_at_window_end=ask_final,
+        llm_boost=llm_boost,
     )
 
     label = f"{block.asset}/{block.side} [{block.block_reason}]"
@@ -837,8 +839,11 @@ class KlausBot:
                     dedup_key = (block.token_id, block.window_end_ts)
                     if dedup_key not in self._shadow_active:
                         self._shadow_active.add(dedup_key)
+                        _macro_sig = self.macro_engine.get_signal()
+                        _llm_boost = _macro_sig.boost_for_direction_yes() if _macro_sig else 0.0
                         asyncio.create_task(
-                            _shadow_monitor(block, self.feed, self._shadow_active, dedup_key),
+                            _shadow_monitor(block, self.feed, self._shadow_active, dedup_key,
+                                            llm_boost=_llm_boost),
                             name=f"shadow_{token.asset}_{token.side}",
                         )
                 continue

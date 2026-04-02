@@ -46,6 +46,7 @@ def log_shadow_result(
     ask_at_60s: Optional[float],
     ask_at_120s: Optional[float],
     ask_at_window_end: Optional[float],
+    llm_boost: float = 0.0,
 ) -> None:
     """
     Write a completed shadow block record to logs/shadow_blocks.jsonl.
@@ -90,6 +91,14 @@ def log_shadow_result(
         "delta_pct": round(block.delta_pct, 4),
         "elapsed_pct": round(block.elapsed_pct, 3),
         "vpin": round(block.vpin, 3),
+        # -- LLM opinion at block time (no API call — uses cached macro signal) --
+        "llm_boost": round(llm_boost, 4),
+        # positive boost + YES side = LLM agrees; negative + NO = agrees; else disagrees
+        "llm_agrees": (
+            (llm_boost > 0.02 and block.side == "YES")
+            or (llm_boost < -0.02 and block.side == "NO")
+            if llm_boost != 0.0 else None
+        ),
         # -- counterfactual outcome --
         "ask_at_30s": ask_at_30s,
         "ask_at_60s": ask_at_60s,
