@@ -81,7 +81,7 @@ TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
 _DELTA_PCT_ACTIVE = 0.04
-_DELTA_PCT_QUIET  = 0.05
+_DELTA_PCT_QUIET  = 0.10   # raised 0.05→0.10: tiny moves at quiet hours don't sustain
 
 _DELTA_PCT_15M_ACTIVE       = 0.07
 _DELTA_PCT_15M_ACTIVE_EARLY = 0.10
@@ -97,7 +97,7 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.33
 MAX_TOKEN_ASK = 0.62
-MIN_LAG_REMAINING_5M = 0.20   # 5m: EV=+0.020 at 0.20, WR=57%, 5.3/d
+MIN_LAG_REMAINING_5M = 0.30   # raised 0.20→0.30: scanner WR=80% at lag≥0.30 vs 57% at 0.20
 MIN_LAG_REMAINING_15M = 0.25  # 15m: EV=-0.280 at 0.25, WR=0%, 4.1/d — data collection
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.35
@@ -202,12 +202,18 @@ def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
     """
     Minimum delta threshold. For 15m windows, early entries (< 40% elapsed)
     require 1.5× the normal threshold — move hasn't confirmed yet.
+    For 5m windows, quiet hours require 0.10% delta vs 0.04% during active sessions —
+    small moves outside active hours don't sustain (T00173: -0.054% at 17:xx, SL in 42s).
     """
     if is_15m:
         if elapsed_pct < _EARLY_ELAPSED_CUTOFF:
             return _DELTA_PCT_15M_ACTIVE_EARLY
         return _DELTA_PCT_15M_ACTIVE
-    return _DELTA_PCT_ACTIVE
+    from datetime import datetime, timezone
+    hour = datetime.now(timezone.utc).hour
+    if hour in _HIGH_VOLUME_HOURS:
+        return _DELTA_PCT_ACTIVE
+    return _DELTA_PCT_QUIET
 
 
 # Window-size-aware sustain period:
