@@ -101,10 +101,11 @@ MIN_LAG_REMAINING = 0.25
 MIN_LAG_REMAINING_5M = 0.12
 VPIN_OFFPEAK_REQUIRED = 0.35
 
-# 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
-# Lag arbitrage on 15m works when macro events drive sustained moves (13-15 UTC).
-# In quiet hours, PM reprices 15m tokens too quickly — no lag window survives 15m.
-_15M_ACTIVE_ONLY = False  # 15m is best-performing window — no session gating
+# 15m windows: blocked. Live data (n=5 trades) WR=0%, total loss=-$8.08.
+# Shadow data (n=29 at lag≥0.25): WR=0%, EV=-0.280. No edge at any threshold.
+# Root cause: 0.10-0.12% move in 15m window has 13+ min to mean-revert.
+# 5m windows have confirmed edge (WR=79% at lag≥0.30). 15m do not.
+_15M_ACTIVE_ONLY = False  # unused — 15m blocked at scan level in main.py
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
 # When a token is nearly resolved (≥0.90) in the first 40% of a window,
