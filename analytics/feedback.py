@@ -682,9 +682,11 @@ class FeedbackEngine:
                         f"over last {len(pnl_list)} trades — consider pausing this market"
                     )
 
-        # Hurst gate promotion: if mean-reverting trades (H<0.45) show materially
-        # worse win rate than trending trades, flag that Hurst should become a hard gate.
-        if regime_hurst["mean_reverting_<0.45"]["n"] >= 5:
+        # Hurst gate promotion: only valid for MOMENTUM trades — SniperSignal has no
+        # hurst field, so all sniper trades have hurst=0.0, making this analysis meaningless.
+        sniper_trades = [t for t in trades if t.signal_source == "SNIPER"]
+        has_real_hurst = any(t.hurst > 0.0 for t in trades)
+        if has_real_hurst and regime_hurst["mean_reverting_<0.45"]["n"] >= 5:
             mr_wr = regime_hurst["mean_reverting_<0.45"]["wr"]
             tr_wr = regime_hurst["trending_>0.55"]["wr"] if regime_hurst["trending_>0.55"]["n"] >= 3 else None
             if mr_wr < 0.40:
@@ -694,9 +696,10 @@ class FeedbackEngine:
                     f"consider promoting Hurst to hard gate (hurst_min=0.45)"
                 )
 
-        # ATR gate calibration: if low-ATR trades (<30th pct) show poor win rate,
-        # the 30% floor may need raising.
-        if regime_atr["low_pct_<0.30"]["n"] >= 5:
+        # ATR gate calibration: only valid for MOMENTUM trades — SniperSignal has no
+        # atr_percentile field, so all sniper trades have atr=0.0, making this analysis meaningless.
+        has_real_atr = any(t.atr_percentile > 0.0 for t in trades)
+        if has_real_atr and regime_atr["low_pct_<0.30"]["n"] >= 5:
             low_atr_wr = regime_atr["low_pct_<0.30"]["wr"]
             if low_atr_wr < 0.40:
                 alerts.append(
@@ -795,16 +798,22 @@ class FeedbackEngine:
                 )
 
         # Regime analysis: ATR + Hurst
+        # NOTE: SniperSignal has no atr_percentile/hurst fields — these are MOMENTUM-only.
+        # Only show if at least one trade has a non-zero value (i.e. MOMENTUM trades exist).
         ra = metrics.get("regime_atr", {})
         rh = metrics.get("regime_hurst", {})
-        if ra:
+        _has_real_atr = ra.get("avg_atr_pct_all", 0) > 0
+        _has_real_hurst = rh.get("avg_hurst_all", 0) > 0
+        if ra and _has_real_atr:
             lines += ["", "REGIME ANALYSIS — ATR PERCENTILE (calibrate atr_regime_percentile)"]
             lines.append(f"  Low  (<30th pct):  n={ra.get('low_pct_<0.30', {}).get('n', 0):3d}  WR={ra.get('low_pct_<0.30', {}).get('wr', 0):.1%}")
             lines.append(f"  Mid  (30-70th pct): n={ra.get('mid_pct_0.30-0.70', {}).get('n', 0):3d}  WR={ra.get('mid_pct_0.30-0.70', {}).get('wr', 0):.1%}")
             lines.append(f"  High (>70th pct):  n={ra.get('high_pct_>0.70', {}).get('n', 0):3d}  WR={ra.get('high_pct_>0.70', {}).get('wr', 0):.1%}")
             lines.append(f"  Avg pct all={ra.get('avg_atr_pct_all', 0):.2f}  wins={ra.get('avg_atr_pct_wins', 0):.2f}  losses={ra.get('avg_atr_pct_losses', 0):.2f}")
+        elif ra:
+            lines += ["", "REGIME ANALYSIS — ATR/HURST: N/A (SNIPER-only session — these fields are MOMENTUM-only)"]
 
-        if rh:
+        if rh and _has_real_hurst:
             lines += ["", "REGIME ANALYSIS — HURST EXPONENT (promote to hard gate when n>=20)"]
             lines.append(f"  Mean-reverting (<0.45): n={rh.get('mean_reverting_<0.45', {}).get('n', 0):3d}  WR={rh.get('mean_reverting_<0.45', {}).get('wr', 0):.1%}")
             lines.append(f"  Random walk  (0.45-0.55): n={rh.get('random_walk_0.45-0.55', {}).get('n', 0):3d}  WR={rh.get('random_walk_0.45-0.55', {}).get('wr', 0):.1%}")
