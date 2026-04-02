@@ -433,6 +433,14 @@ class RiskManager:
         if token_id in self.open_positions:
             return RiskDecision(False, 0, f"Already in {token_id[:8]}")
 
+        # Already have an open position on this asset (any direction, any window).
+        # Entering opposite direction = guaranteed fee loss (SOL Up + SOL Down = hedge).
+        # Entering same direction = redundant double exposure, not additive edge.
+        if asset:
+            for pos in self.open_positions.values():
+                if pos.asset == asset:
+                    return RiskDecision(False, 0, f"Already in {asset} ({pos.direction.name})")
+
         # Max concurrent positions
         if len(self.open_positions) >= self.cfg.max_open_positions:
             return RiskDecision(False, 0, f"Max positions reached")
