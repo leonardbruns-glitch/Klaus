@@ -127,7 +127,7 @@ WINDOW_ELAPSED_MAX_15M = 0.80  # 15m: full 80% (still 3 min left at 80%)
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
 # We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
-PREARM_ELAPSED_MIN = 0.15       # enter at 15% elapsed when pre-armed (5m=45s, 15m=135s)
+PREARM_ELAPSED_MIN = 0.20       # raised 0.15→0.20: T00173 fired at 15%/45s, reversed immediately
                                 # was 0.05 (15s) — T00155: PREARM at 36s stopped out in 38s
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
