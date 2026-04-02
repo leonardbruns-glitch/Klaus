@@ -891,24 +891,37 @@ class OrderManager:
                 )
                 return OrderResult(status=OrderStatus.FAILED, error=f"Unfilled: {status}")
 
-            fill_size = taking_f
-            fill_cost = _to_float(making) or (fill_size * price)
-            fill_price = fill_cost / fill_size if fill_size > 0 else price
+            # ── Fill price calculation (BUY vs SELL semantics differ) ────────
+            # Polymarket CLOB: makingAmount and takingAmount are in micro-units (×1,000,000).
+            # BUY:  makingAmount = USDC paid,   takingAmount = tokens received
+            # SELL: makingAmount = tokens given, takingAmount = USDC received
+            # Root cause of T00193 exit price bug: SELL fill_price was computed as
+            # USDC/USDC (wrong) instead of USDC/tokens — both are in micro-units
+            # so the result was always >>1, triggering the sanity fallback to `price`
+            # (the limit order price at decision time, not the actual fill price).
+            making_f = _to_float(making) / 1_000_000  # convert micro-units → decimal
+            if side == OrderSide.SELL:
+                # SELL: makingAmount = tokens given, takingAmount = USDC received
+                fill_size = making_f if making_f > 0 else taking_f  # tokens
+                fill_price = taking_f / fill_size if fill_size > 0 else price  # USDC/token
+            else:
+                # BUY: takingAmount = tokens received, makingAmount = USDC paid
+                fill_size = taking_f  # tokens
+                fill_price = making_f / fill_size if fill_size > 0 else price  # USDC/token
 
             # ── Unit sanity check ───────────────────────────────────────────
             # Binary market prices must be in [0.01, 0.99].
-            # If fill_price is outside this range, takingAmount/makingAmount
-            # are in unexpected units (micro-USDC, token ticks, etc.).
-            # Recover gracefully: use the submitted limit price and recompute
-            # fill_size from fill_cost (or fall back to snapped size).
+            # After the BUY/SELL fix above this should rarely fire — but keep as safety net.
             if not (0.01 <= fill_price <= 0.99):
                 logger.warning(
                     "Fill price %.6f outside valid range [0.01,0.99] — "
-                    "raw taking=%s making=%s price=%.4f; recovering with limit price",
+                    "raw taking=%s making=%s price=%.4f; falling back to limit price",
                     fill_price, taking, making, price,
                 )
                 fill_price = price
-                fill_size = fill_cost / price if (fill_cost > 0 and price > 0) else size
+                fill_size = making_f if (side == OrderSide.SELL and making_f > 0) else (
+                    taking_f if taking_f > 0 else size
+                )
                 if not (0.01 <= fill_price <= 0.99) or fill_size <= 0:
                     logger.error(
                         "Cannot recover fill price for order — aborting fill acceptance"
@@ -934,6 +947,18 @@ class OrderManager:
             if order_id_str:
                 await asyncio.sleep(0.4)
                 actual = self.fetch_order_fills(order_id_str)
+                if not (actual and actual["total_size"] > 0):
+                    # Propagation lag can exceed 400ms on busy blocks — retry once after 600ms.
+                    # Without this, SELL exit_price falls back to limit-order price (decision-time),
+                    # not actual fill price. T00193: logged $0.60 but actually filled at $0.66.
+                    await asyncio.sleep(0.6)
+                    actual = self.fetch_order_fills(order_id_str)
+                    if not (actual and actual["total_size"] > 0):
+                        logger.warning(
+                            "fetch_order_fills %s: no data after 2 attempts (1.0s total) — "
+                            "using POST-response fill price %.4f; may be inaccurate for SELL",
+                            order_id_str[:12], fill_price,
+                        )
                 if actual and actual["total_size"] > 0:
                     reconciled_price = actual["avg_price"]
                     if 0.01 <= reconciled_price <= 0.99:
