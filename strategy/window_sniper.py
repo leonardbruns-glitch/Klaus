@@ -80,8 +80,8 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.04
-_DELTA_PCT_QUIET  = 0.10   # raised 0.05→0.10: tiny moves at quiet hours don't sustain
+_DELTA_PCT_ACTIVE = 0.10   # raised 0.04→0.10: live losses all had delta=-0.072%, 0.04% too permissive
+_DELTA_PCT_QUIET  = 0.10   # same as active — small moves don't sustain in any regime
 
 _DELTA_PCT_15M_ACTIVE       = 0.07
 _DELTA_PCT_15M_ACTIVE_EARLY = 0.10
@@ -97,15 +97,15 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.33
 MAX_TOKEN_ASK = 0.62
-MIN_LAG_REMAINING_5M = 0.30   # raised 0.20→0.30: scanner WR=80% at lag≥0.30 vs 57% at 0.20
-MIN_LAG_REMAINING_15M = 0.25  # 15m: EV=-0.280 at 0.25, WR=0%, 4.1/d — data collection
+MIN_LAG_REMAINING_5M = 0.40   # raised 0.30→0.40: scanner WR=85% at lag≥0.40 vs 76% at 0.30, EV=+0.168
+MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.35
 
-# 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
-# Lag arbitrage on 15m works when macro events drive sustained moves (13-15 UTC).
-# In quiet hours, PM reprices 15m tokens too quickly — no lag window survives 15m.
-_15M_ACTIVE_ONLY = False  # 15m open — data collection ongoing
+# 15m BLOCKED: scanner n=30 WR=0% at all thresholds ≤0.50. Live n=6 WR=0% -$9.30.
+# Kill switch triggered: profit_factor=0.0 over 20 trades. Lag arb does not work on 15m.
+# Data is conclusive — this is not a borderline call.
+_15M_ACTIVE_ONLY = True  # 15m BLOCKED until further notice
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
 # When a token is nearly resolved (≥0.90) in the first 40% of a window,
