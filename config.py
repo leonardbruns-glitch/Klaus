@@ -43,11 +43,8 @@ class FeeConfig:
     middle_fee_rate: float = 0.018    # raised 0.016→0.018: updown peak now 1.80% at p=0.50
     extreme_low: float = 0.35         # below this = extreme YES
     extreme_high: float = 0.65        # above this = extreme NO
-    middle_min_confidence: float = 0.80   # confidence gate for price-target markets
-    updown_min_confidence: float = 0.62   # raised 0.50→0.62: post-Mar-30 fee increase
-    # At p=0.50 taker fee is now 1.80%. Round-trip breakeven win rate ≈ 61.5%.
-    # confidence < 0.62 on a fat-middle entry means signal isn't strong enough to
-    # overcome the fee drag. Only high-conviction fat-middle entries now allowed.
+    middle_min_confidence: float = 0.52   # loosened 0.80→0.52: data collection phase
+    updown_min_confidence: float = 0.52   # loosened 0.62→0.52: fee math is theory, not validated data
     # Research (Reichenbach & Walther 2025, 124M trades): YES tokens systematically
     # overpriced. Slight NO bias in ambiguous signals is academically supported.
 
