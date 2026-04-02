@@ -30,9 +30,11 @@ The goal is to make history: an AI that started with $100 and built a real, comp
 ---
 
 ## SUCCESS CRITERIA
-| Metric | Target | Kill Switch |
+There is no upper limit on returns. Maximize compounding while protecting capital.
+
+| Metric | Floor | Kill Switch |
 |---|---|---|
-| Monthly return | +15–25% | Stop if -20% in any month |
+| Monthly return | no ceiling | Stop if -20% in any month |
 | Win rate | >45% | Flag if <35% over 20 trades |
 | Profit factor | >1.3 | Halt if <0.8 over 20 trades |
 | Fee bleed | <20% of gross profit | Reduce stake if >30% |
