@@ -466,14 +466,10 @@ class KlausBot:
                                 pos.asset, pos.direction.name, action, conf, adv_reason,
                             )
 
-                    # ── LLM exit advisor: manage the uncertain zone ───────────
-                    # Rule-based exits haven't fired. Ask Claude when:
-                    #   - Held > 15s (entry confirmed, not a noise tick)
-                    #   - Move between -35% and +22% (covers SL approach zone too)
-                    #   - Window has > 60s remaining (enough time to act)
-                    # Claude reasons holistically: P&L, momentum, VPIN, session.
-                    # LLM exit gate: 15m trades need 3 min before LLM can exit.
-                    # T00050: LLM_EXIT_NOW at 80s was premature — 69% window remaining.
+                    # ── LLM exit advisor: DISABLED — observational only ───────
+                    # LLM_EXIT_NOW caused early exits at loss (T00153: -$0.894, T00157: -$0.648).
+                    # Same pattern as entry veto: LLM hurts more than helps.
+                    # Tracking recommendations vs outcomes for future validation.
                     is_15m_trade = pos.window_seconds >= 900
                     llm_min_hold = 180 if is_15m_trade else 15
                     in_uncertain_zone = (
@@ -499,30 +495,21 @@ class KlausBot:
                             spot_price=ext.spot_price if ext else None,
                             spot_change_pct=ext.spot_momentum_5m if ext else None,
                         )
-                        if action == "EXIT_NOW" and conf >= 0.65:
+                        if action == "EXIT_NOW":
                             logger.info(
-                                "LLM EXIT NOW %s/%s (conf=%.2f move=%+.1f%%) | %s",
+                                "LLM WOULD-EXIT %s/%s (conf=%.2f move=%+.1f%%) — tracking only | %s",
                                 pos.asset, pos.direction.name,
                                 conf, move_pct * 100, adv_reason,
                             )
-                            await self._exit_position(token_id, current_price, "LLM_EXIT_NOW")
-                            continue
-                        elif action == "TIGHTEN_STOP" and tighten_sl is not None and conf >= 0.60:
-                            if pos.dynamic_sl_override == 0.0 or tighten_sl > pos.dynamic_sl_override:
-                                logger.info(
-                                    "LLM TIGHTEN STOP %s/%s → -%.0f%% (was -%.0f%%) | %s",
-                                    pos.asset, pos.direction.name,
-                                    tighten_sl * 100,
-                                    pos.dynamic_sl_override * 100,
-                                    adv_reason,
-                                )
-                                pos.dynamic_sl_override = tighten_sl
+                        elif action == "TIGHTEN_STOP" and tighten_sl is not None:
+                            logger.info(
+                                "LLM WOULD-TIGHTEN %s/%s → -%.0f%% (conf=%.2f) — tracking only | %s",
+                                pos.asset, pos.direction.name,
+                                tighten_sl * 100, conf, adv_reason,
+                            )
 
-                    # ── LLM stage-2 advisor: protect 40% patient inventory ────
-                    # L6: stage-2 positions (STAGE_1_DONE) were excluded from uncertain zone.
-                    # After stage-1 sold 60% at +20%, the 40% remainder rides to +45%.
-                    # LLM can tighten the trailing stop as profit grows.
-                    # EXIT_NOW on stage-2 is treated as TIGHTEN_STOP (protect profit, don't force exit).
+                    # ── LLM stage-2 advisor: DISABLED — observational only ───
+                    # Same rationale as exit advisor above: tracking only, no stops tightened.
                     if (pos.exit_stage.name == "STAGE_1_DONE"
                             and time_held > 15
                             and 0.15 < move_pct < 0.45
@@ -537,25 +524,17 @@ class KlausBot:
                             current_price=current_price,
                             time_held_s=time_held,
                             time_remaining_s=remaining,
-                            stake=pos.stake * 0.40,  # only 40% remains
+                            stake=pos.stake * 0.40,
                             vpin_score=ext.vpin_score if ext else None,
                             vpin_direction=ext.vpin_direction if ext else None,
                             spot_price=ext.spot_price if ext else None,
                             spot_change_pct=ext.spot_momentum_5m if ext else None,
                         )
-                        # Stage-2: tighten stop to protect profit; don't force-exit patient inventory
-                        effective_tighten = s2_tighten
-                        if s2_action == "EXIT_NOW" and s2_conf >= 0.70:
-                            # Convert EXIT_NOW → tighten to +18% floor (just above FLOOR_SELL)
-                            effective_tighten = 0.18
-                        if effective_tighten is not None and s2_conf >= 0.60:
-                            if pos.dynamic_sl_override == 0.0 or effective_tighten > pos.dynamic_sl_override:
-                                logger.info(
-                                    "LLM STAGE2 TIGHTEN %s/%s → -%.0f%% floor (move=%+.1f%%) | %s",
-                                    pos.asset, pos.direction.name,
-                                    effective_tighten * 100, move_pct * 100, s2_reason,
-                                )
-                                pos.dynamic_sl_override = effective_tighten
+                        logger.info(
+                            "LLM STAGE2 WOULD-%s %s/%s (conf=%.2f move=%+.1f%%) — tracking only | %s",
+                            s2_action, pos.asset, pos.direction.name,
+                            s2_conf, move_pct * 100, s2_reason,
+                        )
                 continue
 
             if token_id in self._exit_in_progress:
