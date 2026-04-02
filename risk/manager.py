@@ -62,7 +62,7 @@ def _atomic_json_write(path: str, data: dict) -> None:
 
 class ExitStage(Enum):
     NONE = auto()        # no sell yet
-    STAGE_1_DONE = auto()  # 95 % sold at +25 %
+    STAGE_1_DONE = auto()  # 60% sold at stage-1; 40% remaining for stage-2
 
 
 # ---------------------------------------------------------------------------
@@ -709,17 +709,17 @@ class RiskManager:
             else:
                 pos.profit_trigger_ts = 0.0  # Reset if price dropped
 
-        # ── 4. Stage-2: +35 % on remaining 5% shares ────────────────────────
+        # ── 4. Stage-2: +35% target on remaining 40% ─────────────────────────
         if pos.exit_stage == ExitStage.STAGE_1_DONE:
             if move_pct >= 0.35:
                 return ExitDecision(True, "PROFIT_2", urgency="cascade")
 
-            # Floor: don't let stage-2 give back below stage-1 trigger (+18%)
-            if move_pct <= 0.18:
+            # Floor: cost+12% — protect the 40% from reversing to a loss
+            if move_pct <= 0.12:
                 return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
 
-            # Trailing stop: 10% below peak — tight, 5% residual shouldn't ride reversals
-            trail_stop = pos.highest_price * 0.90
+            # Trailing stop: 12% below peak — lets winner run but cuts reversals
+            trail_stop = pos.highest_price * 0.88
             if current_price <= trail_stop:
                 return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
 

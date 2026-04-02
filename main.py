@@ -1249,17 +1249,20 @@ class KlausBot:
         )
 
     async def _partial_exit(self, token_id: str, live_price: float, reason: str) -> None:
-        """Stage-1: sell 95%, leave 5% residual riding to stage-2."""
+        """Stage-1: sell 60%, leave 40% for stage-2 with floor stop at cost+12%."""
         pos = self.risk.open_positions.get(token_id)
         if not pos:
             return
 
-        # 95/5 split: sell 95% at stage-1, leave 5% for stage-2 (+35% target).
-        # Previous 60/40 was leaving ~$2 exposed after stage-1 with no reliable exit —
-        # stage-2 needed +45% (rarely hit) and cascade failures caused infinite retry loops.
-        # 5% residual at $5 stake ≈ $0.25: small enough to not matter if it gets stuck.
-        residual_value = pos.remaining_shares * 0.05 * live_price
-        sell_pct = 0.95 if residual_value >= 0.10 else 1.0
+        # 60/40 split: sell 60% at stage-1, leave 40% riding to stage-2 (+35% target).
+        # Floor stop at cost+12% protects the 40% from reversing to a loss.
+        residual_value = pos.remaining_shares * 0.40 * live_price
+        sell_pct = 0.60 if residual_value >= 1.50 else 1.0
+        if sell_pct == 1.0:
+            logger.info(
+                "Stage-1 selling 100%% — 40%% residual=$%.2f < $1.50 CLOB minimum",
+                residual_value,
+            )
 
         token_meta = self.feed.tokens.get(token_id)
         sell_shares = round(pos.remaining_shares * sell_pct, 4)
@@ -1322,6 +1325,28 @@ class KlausBot:
             "STAGE-1 %s %s | sold=%.4f @ ~%.4f | reason=%s",
             pos.asset, pos.direction.name, sold, live_price, reason,
         )
+
+        # CLOB balance sync: verify remaining_shares matches reality before stage-2.
+        # CLOB cache lag can cause cascade_sell to fill a slightly different amount,
+        # leaving remaining_shares out of sync. Sync now so stage-2 sells the right qty.
+        if not CONFIG.dry_run and token_id in self.risk.open_positions:
+            await asyncio.sleep(1.5)  # let CLOB balance settle
+            _clob_remaining = self.orders.fetch_token_balance(token_id)
+            _pos = self.risk.open_positions.get(token_id)
+            if _clob_remaining is not None and _pos is not None:
+                if abs(_clob_remaining - _pos.remaining_shares) > 0.05:
+                    logger.warning(
+                        "STAGE-1 SYNC %s/%s: tracked=%.4f CLOB=%.4f — correcting to CLOB value",
+                        _pos.asset, _pos.direction.name,
+                        _pos.remaining_shares, _clob_remaining,
+                    )
+                    _pos.remaining_shares = round(_clob_remaining, 4)
+                    self.risk._save_positions()
+                else:
+                    logger.debug(
+                        "STAGE-1 SYNC %s/%s: %.4f shares confirmed on CLOB",
+                        _pos.asset, _pos.direction.name, _clob_remaining,
+                    )
 
         # POST-STAGE1 SWEEP REMOVED:
         # Originally needed when stage-1 used 3 tranches — tranche 3 failed due to
