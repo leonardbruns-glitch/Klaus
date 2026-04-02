@@ -79,29 +79,27 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 # Capped at 2.5× to prevent runaway near expiry (last 5% of window).
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
-# Delta floors — minimal, data collection mode. Edge gate + score do real filtering.
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.03   # minimal floor — no session distinction until data justifies it
-_DELTA_PCT_QUIET  = 0.03   # same as active — gather data across all hours
+_DELTA_PCT_ACTIVE = 0.04
+_DELTA_PCT_QUIET  = 0.05
 
-# 15m delta bars — loosened to collect data across all conditions
-_DELTA_PCT_15M_ACTIVE       = 0.05   # base bar ≥40% elapsed
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.07   # early window bar
-_DELTA_PCT_15M_QUIET        = 0.07   # no hard quiet penalty — gather data
-_EARLY_ELAPSED_CUTOFF       = 0.40   # below this = "early window" for 15m
+_DELTA_PCT_15M_ACTIVE       = 0.07
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
+_DELTA_PCT_15M_QUIET        = 0.10
+_EARLY_ELAPSED_CUTOFF       = 0.40
 
-MIN_EDGE = 0.04             # loosened 0.06→0.04: let score + TP/SL do the filtering
-MIN_EDGE_VPIN = 0.03        # VPIN confirmation reduces bar
-MIN_EDGE_BOOST = 0.02       # LLM boost confirmation
-WINDOW_ELAPSED_MIN = 0.15   # loosened 0.25→0.15: one bad trade (T00088) is not enough data
-WINDOW_ELAPSED_MAX = 0.85   # slight extension to collect data near window end
-VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow (scoring only)
-LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
-MIN_TOKEN_ASK = 0.30        # loosened 0.35→0.30: collect data on cheaper tokens
-MAX_TOKEN_ASK = 0.85        # loosened 0.75→0.85: collect data in 0.75-0.85 range
-MIN_LAG_REMAINING = 0.10    # loosened 0.30→0.10: directional signal drives entries, not lag%
-MIN_LAG_REMAINING_5M = 0.05 # near-zero for 5m: let edge + direction filter
-VPIN_OFFPEAK_REQUIRED = 0.20  # loosened 0.40→0.20: minimal floor, gather off-peak data
+MIN_EDGE = 0.05
+MIN_EDGE_VPIN = 0.03
+MIN_EDGE_BOOST = 0.02
+WINDOW_ELAPSED_MIN = 0.20
+WINDOW_ELAPSED_MAX = 0.82
+VPIN_CONFIRM_THRESHOLD = 0.60
+LLM_BOOST_STRONG = 0.05
+MIN_TOKEN_ASK = 0.33
+MAX_TOKEN_ASK = 0.80
+MIN_LAG_REMAINING = 0.25
+MIN_LAG_REMAINING_5M = 0.12
+VPIN_OFFPEAK_REQUIRED = 0.35
 
 # 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
 # Lag arbitrage on 15m works when macro events drive sustained moves (13-15 UTC).

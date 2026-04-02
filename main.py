@@ -699,6 +699,7 @@ class KlausBot:
         # Sniper candidates are queued for a single LLM briefing call (not per-token).
         # Momentum (non-updown) tokens are evaluated and entered inline as before.
         sniper_queue: list = []  # [(token_id, token, signal, tpsl, decision, ext)]
+        _queued_conditions: set = set()  # dedup: one entry per condition_id per scan cycle
         _updown_scanned = 0
         _updown_fired = 0
 
@@ -786,7 +787,13 @@ class KlausBot:
                 if not decision.approved:
                     logger.info("  └─ REJECTED: %s", decision.reason)
                 else:
-                    sniper_queue.append((token_id, token, sniper_sig, tpsl, decision, ext))
+                    _cid = token.condition_id or ""
+                    if _cid and _cid in _queued_conditions:
+                        logger.info("  └─ SKIP %s/%s — condition already queued this cycle", token.asset, token.side)
+                    else:
+                        sniper_queue.append((token_id, token, sniper_sig, tpsl, decision, ext))
+                        if _cid:
+                            _queued_conditions.add(_cid)
                 continue  # updown token handled — skip momentum path
 
             elif token.market_type == "updown":
@@ -840,11 +847,17 @@ class KlausBot:
                                 window_seconds=getattr(token, "window_seconds", 0),
                             )
                             if _cntr_decision.approved:
-                                # Half stake: contrarian is speculative — cap at $2.50
-                                _cntr_decision.stake = max(1.0, round(_cntr_decision.stake / 2, 2))
-                                sniper_queue.append(
-                                    (token_id, token, _cntr_sig, _cntr_tpsl, _cntr_decision, ext)
-                                )
+                                _ccid = token.condition_id or ""
+                                if _ccid and _ccid in _queued_conditions:
+                                    logger.info("  └─ CONTRARIAN SKIP %s/%s — condition already queued", token.asset, token.side)
+                                else:
+                                    # Half stake: contrarian is speculative — cap at $2.50
+                                    _cntr_decision.stake = max(1.0, round(_cntr_decision.stake / 2, 2))
+                                    sniper_queue.append(
+                                        (token_id, token, _cntr_sig, _cntr_tpsl, _cntr_decision, ext)
+                                    )
+                                    if _ccid:
+                                        _queued_conditions.add(_ccid)
                             else:
                                 logger.info("  └─ CONTRARIAN REJECTED: %s", _cntr_decision.reason)
 
@@ -1525,11 +1538,23 @@ class KlausBot:
             _s2_balance = self.orders.fetch_token_balance(token_id)
             if _s2_balance is None or _s2_balance < 0.05:
                 # Balance gone — resolved or sold externally. Close the record.
+                # Compute weighted exit price across stage-1 fills + live_price for remaining,
+                # and use all shares so bankroll captures 100% of the trade PnL.
                 logger.warning(
                     "STAGE-2 balance=0 for %s/%s — shares resolved/sold, closing record",
                     pos.asset, pos.direction.name,
                 )
-                pnl = self.risk.close_position(token_id, live_price, "STAGE2_RESOLVED")
+                _s2_meta = self._open_meta.get(token_id, {})
+                _s1_fills = _s2_meta.get("stage1_fills", [])
+                if _s1_fills and pos.shares > 0:
+                    _s1_sold = sum(f.total_size for f in _s1_fills)
+                    _s1_notional = sum(f.avg_fill_price * f.total_size for f in _s1_fills)
+                    _s2_remaining = max(0.0, pos.shares - _s1_sold)
+                    _w_price = (_s1_notional + live_price * _s2_remaining) / pos.shares
+                    pnl = self.risk.close_position(token_id, round(_w_price, 6), "STAGE2_RESOLVED",
+                                                   shares_override=pos.shares)
+                else:
+                    pnl = self.risk.close_position(token_id, live_price, "STAGE2_RESOLVED")
                 self._open_meta.pop(token_id, None)
                 self._pos_log_ts.pop(token_id, None)
                 return
