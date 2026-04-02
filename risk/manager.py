@@ -259,6 +259,10 @@ class RiskManager:
                     "condition_id": pos.condition_id,
                     "dynamic_sl_override": pos.dynamic_sl_override,
                     "stage1_sell_price": pos.stage1_sell_price,
+                    "window_seconds": pos.window_seconds,
+                    "sl_breach_ts": pos.sl_breach_ts,
+                    "sl_breach_price": pos.sl_breach_price,
+                    "stage1_attempts": pos.stage1_attempts,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -306,6 +310,8 @@ class RiskManager:
                 pos.window_seconds = int(d.get("window_seconds", 0))
                 pos.stage1_attempts = int(d.get("stage1_attempts", 0))
                 pos.stage1_sell_price = float(d.get("stage1_sell_price", 0.0))
+                pos.sl_breach_ts = float(d.get("sl_breach_ts", 0.0))
+                pos.sl_breach_price = float(d.get("sl_breach_price", 0.0))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
