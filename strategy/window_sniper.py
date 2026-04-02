@@ -400,7 +400,15 @@ class WindowSniper:
         fair_value = 1.0 / (1.0 + math.exp(-SIGMOID_K * directional_delta * time_confidence))
 
         # ── Token ask and edge ─────────────────────────────────────────────────
+        # YES overpricing adjustment: peer-reviewed research (Reichenbach & Walther 2025,
+        # 124M trades) confirms YES tokens are systematically overpriced on Polymarket.
+        # Apply a small effective ask premium for YES trades to account for this bias.
+        # Effect: YES trades need slightly more edge to pass the gate. NO trades unaffected.
+        # Magnitude kept small (0.010 = 1 cent) to avoid over-fitting on one study.
+        _YES_OVERPRICING_ADJ = 0.010
         token_ask = ob.asks[0][0]
+        if token.side == "YES":
+            token_ask = min(0.97, token_ask + _YES_OVERPRICING_ADJ)
         if is_prearmed:
             logger.debug("SNIPER PREARMED_EVAL %s/%s | elapsed=%.1f%% delta=%+.3f%% "
                          "fv=%.3f ask=%.3f edge=%+.4f",
