@@ -72,7 +72,7 @@ async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed",
 
     Analysis: check logs/shadow_blocks.jsonl after 50+ blocks.
     """
-    checkpoints = [30.0, 60.0, 120.0]
+    checkpoints = [30.0, 60.0, 120.0, 180.0]
     results: dict = {}
     start = time.time()
     time_remaining = block.window_end_ts - start
@@ -111,6 +111,7 @@ async def _shadow_monitor(block: SniperBlock, feed: "PolymarketFeed",
         ask_at_30s=results.get("ask_at_30s"),
         ask_at_60s=results.get("ask_at_60s"),
         ask_at_120s=results.get("ask_at_120s"),
+        ask_at_180s=results.get("ask_at_180s"),
         ask_at_window_end=ask_final,
         llm_boost=llm_boost,
     )

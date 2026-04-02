@@ -776,14 +776,44 @@ class RiskManager:
         is_15m_pos = pos.window_end_ts > 0 and pos.window_seconds >= 900
         is_5m = pos.window_end_ts > 0 and not is_15m_pos
 
-        # Catastrophic drop: always immediate, no grace period.
+        # Catastrophic drop: normally immediate, no grace period.
         # During grace (first 60s): 30% threshold — T00051 collapsed 38% in 66s, we held the whole way.
         # After grace: 50% threshold — full protection only after wick window passes.
+        # EXCEPTION: 15m windows get 20s confirmation even for catastrophic drops.
+        # Observed 2026-04-02: ETH/NO -45% and BTC/NO -42% both reversed within 60s — stop-hunting
+        # by market-maker bots painting wicks to trigger cascading SL orders. n=2 direct observations.
+        # True collapse (price < 20% of entry = -80%) remains immediate even on 15m.
         if pos.window_end_ts > 0:
             in_grace = is_15m_pos and time_held < 60
             catastro_thresh = 0.60 if is_5m else (0.70 if in_grace else 0.50)
             if current_price <= pos.entry_price * catastro_thresh:
-                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                if is_15m_pos and current_price > pos.entry_price * 0.20:
+                    # 15m stop-hunt guard: wait 20s before executing catastrophic SL.
+                    # Reuse sl_breach_ts — already persisted to disk, resets if price recovers.
+                    if pos.sl_breach_ts == 0.0:
+                        pos.sl_breach_ts = now
+                        pos.sl_breach_price = current_price
+                        logger.warning(
+                            "15m CATASTROPHIC SL BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — "
+                            "20s confirmation (stop-hunt guard)",
+                            pos.asset, pos.direction.name,
+                            current_price, pos.entry_price,
+                            (1 - current_price / pos.entry_price) * 100,
+                        )
+                    elif now - pos.sl_breach_ts >= 20.0:
+                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                    # if price recovers above catastrophic threshold, sl_breach_ts resets below
+                else:
+                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+            elif is_15m_pos and pos.sl_breach_ts > 0.0 and in_grace:
+                # Price recovered above catastrophic threshold during 20s wait — reset timer
+                logger.info(
+                    "15m CATASTROPHIC SL CANCELLED %s/%s — price %.4f recovered above %.4f",
+                    pos.asset, pos.direction.name,
+                    current_price, pos.entry_price * catastro_thresh,
+                )
+                pos.sl_breach_ts = 0.0
+                pos.sl_breach_price = 0.0
 
         # Grace period: 60s for 15m (first minute = wick zone), 10s for 5m
         sl_grace = 60 if is_15m_pos else 10
@@ -797,7 +827,7 @@ class RiskManager:
                     # price recovered to 0.78 — a clean wick, not a genuine reversal.
                     # 5m: 12s confirmation (fast windows, wicks clear quickly)
                     # 15m: 20s confirmation (slower market, more time to wait out noise)
-                    # Catastrophic drops (≥40%/50%) are always immediate (caught above).
+                    # Catastrophic drops: immediate on 5m; 20s guard on 15m (stop-hunt pattern observed).
                     confirm_secs = 12.0 if is_5m else 20.0
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now
