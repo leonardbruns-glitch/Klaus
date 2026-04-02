@@ -34,6 +34,16 @@ These exist because AI agents systematically rationalize errors rather than corr
 4. **If your analysis contradicts the data, the data wins.** Not the thesis. Not the architecture. The data.
 5. **Dry-run trades are not live trades.** Confirm DRY_RUN=false before analyzing live performance.
 
+## DATA INTEGRITY — NON-NEGOTIABLE
+Bad data accumulation will kill this strategy faster than bad trades.
+
+1. **Verify data before acting on it.** Before drawing any conclusion from a report, check that the underlying fields are populated. Zero values may mean "not computed" not "actually zero."
+2. **Cross-check reports against raw logs.** If the feedback report says something surprising, read `logs/trades.jsonl` directly and verify the numbers match.
+3. **Flag data bugs immediately.** If a field is always 0.0, always the same value, or never fires — that is a bug, not a signal. Fix it before it generates false alerts.
+4. **Distinguish signal absence from signal zero.** ATR=0.0 for SNIPER trades means "not measured", not "low volatility." Hurst=0.0 means "not computed", not "mean-reverting." Never conflate the two.
+5. **Orphan sells are data corruption.** A trade with entry=0.0000 or PnL=$0.000 that wasn't a deliberate dry-run is a logging bug. Count these separately, never include in WR calculations.
+6. **Audit the feedback engine itself.** The report is only as good as the code generating it. If alerts fire on fields that are structurally zero for all current trade types, the engine is broken — fix it.
+
 ---
 
 ## DATA PRIMACY PROTOCOL
