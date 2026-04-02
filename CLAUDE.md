@@ -170,14 +170,43 @@ Primary edge: **information lag arbitrage**
 
 ---
 
+## ADVERSARIAL ENVIRONMENT — CONFIRMED PATTERNS
+This market is not neutral. Competitors actively try to extract capital from other participants.
+Every pattern below is confirmed from live trading — not theory.
+
+### Stop-Hunting Wicks (confirmed 2026-04-02, n=2)
+- **What happened**: ETH/NO entered $0.60, dropped to $0.33 (-45%) within ~60s, then reversed. BTC/NO entered $0.66, dropped to $0.38 (-42%), then reversed. Both were 15m windows. Both triggered our catastrophic SL and were stop-lossed at the bottom of the wick.
+- **Mechanism**: market-maker bots push price sharply down to cascade stop-loss orders, then buy back cheaper as SL sells flood the book. The "move" was manufactured, not real.
+- **Fix applied**: 15m catastrophic SL now requires 20s confirmation before executing. Price recovery within 20s cancels the stop.
+- **Watch for**: repeated wicks at the same price level, wicks that reverse cleanly with no follow-through, wicks that happen shortly after entry (first 60s = most vulnerable).
+
+### Fat-Middle Entry Risk (observed pattern)
+- **What happens**: entries near $0.50–$0.62 attract the most bot competition. These are the most contested price zones — other bots are watching the same OB and will fight for fills.
+- **Implication**: fat-middle entries have structurally higher fees (3.12% rt) AND higher adversarial risk. At the margin, prefer extreme-odds entries (<$0.35) where fee advantage is structural and competition thinner.
+
+### Shadow Data Inversion (confirmed 2026-03-31)
+- **What happened**: shadow analysis showed 5m WR=76-80%, 15m WR=0%. Live data showed the exact opposite: 5m WR=14.3%, 15m WR=44.6%.
+- **Mechanism**: shadow analysis measured "did price ever touch +20%" — which ignores stop-losses that triggered first. Bots that hunt stops make shadow analysis systematically optimistic. The shadow scanner saw the post-wick recovery as a "win" that the live bot never captured because it was already stopped out.
+- **Fix applied**: shadow simulation now applies real TP/SL/hard-exit logic to price snapshots.
+- **Rule**: never trust shadow WR as a proxy for live WR. They can be inverted.
+
+### What We Don't Know Yet (watch for)
+- Whether certain UTC hours have more stop-hunting activity
+- Whether BTC/ETH/SOL are targeted equally or one asset is preferred by hunters
+- Whether pre-arming (early entry) changes stop-hunting exposure
+- Long-term: do the same bots appear repeatedly? Whale tracking may surface them.
+
+---
+
 ## KNOWN FAILURE MODES — CHECK YOUR OWN REASONING
 Before finalizing any session diagnosis, verify you are not doing these:
 
 - **Rationalizing losses**: attributing stop-losses to "bad luck" or "unusual conditions" without data
 - **Overfitting to recent trades**: 3 wins in a row is not edge confirmation
-- **Treating shadow WR as live WR**: shadow data is counterfactual, not actual fills
+- **Treating shadow WR as live WR**: shadow data is counterfactual, not actual fills — and can be inverted by stop-hunting
 - **Ignoring fee bleed**: a 60% WR strategy with 35% fee bleed is a losing strategy
 - **Confusing data collection mode with validation**: if n<20, you don't know if edge exists
+- **Attributing stop-losses to volatility**: check if the wick reversed within 60s — if so, it may have been manufactured
 
 ---
 
