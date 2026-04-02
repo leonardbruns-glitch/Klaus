@@ -79,46 +79,29 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 # Capped at 2.5× to prevent runaway near expiry (last 5% of window).
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
-# Session-aware minimum delta: quiet-hour moves <0.20% are noise (40% sustain rate).
-# Matches macro_engine thresholds so both engines agree on what constitutes a signal.
-# All 3 sniper losses (T00020/22/25) were quiet-hour trades at 0.066–0.079% delta.
-_HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
-_DELTA_PCT_ACTIVE = 0.04   # TEST MODE — floor only, edge gate does real filtering
-_DELTA_PCT_QUIET  = 0.06   # TEST MODE
+# Delta floors — minimal, data collection mode. Edge gate + score do real filtering.
+_HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
+_DELTA_PCT_ACTIVE = 0.03   # minimal floor — no session distinction until data justifies it
+_DELTA_PCT_QUIET  = 0.03   # same as active — gather data across all hours
 
-# 15m windows measure delta over 15 minutes — a 0.25% sustained drift over 15min
-# is more reliable than a 0.35% spike in a 5min window. Lower bar justified.
-# Adaptive: below 40% elapsed (early window), require 1.5× — move hasn't had time
-# to confirm. T00088: 0.086% at 18% elapsed reversed immediately. Above 40% the
-# move has been running 6+ minutes and is far more likely to persist to close.
-_DELTA_PCT_15M_ACTIVE       = 0.08   # base bar ≥40% elapsed
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.12   # raised bar <40% elapsed (1.5×)
-_DELTA_PCT_15M_QUIET        = 0.12   # quiet hours: same as early-window bar
+# 15m delta bars — loosened to collect data across all conditions
+_DELTA_PCT_15M_ACTIVE       = 0.05   # base bar ≥40% elapsed
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.07   # early window bar
+_DELTA_PCT_15M_QUIET        = 0.07   # no hard quiet penalty — gather data
 _EARLY_ELAPSED_CUTOFF       = 0.40   # below this = "early window" for 15m
 
-MIN_EDGE = 0.06             # require clear mispricing — 0.02 was too loose (T00070-76 had 0.057-0.082)
-MIN_EDGE_VPIN = 0.04        # VPIN confirmation reduces bar
-MIN_EDGE_BOOST = 0.03       # LLM boost confirmation
-WINDOW_ELAPSED_MIN = 0.25   # raised 0.18→0.25: T00088 entered at 18% elapsed, delta=0.086%
-                            # (barely above threshold) → reversed immediately, -$4.40
-                            # 25% = 3.75min into 15m window: meaningful confirmation time
-                            # data: <17% was 6L/0W; 18% is effectively the same zone
-WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
-VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
+MIN_EDGE = 0.04             # loosened 0.06→0.04: let score + TP/SL do the filtering
+MIN_EDGE_VPIN = 0.03        # VPIN confirmation reduces bar
+MIN_EDGE_BOOST = 0.02       # LLM boost confirmation
+WINDOW_ELAPSED_MIN = 0.15   # loosened 0.25→0.15: one bad trade (T00088) is not enough data
+WINDOW_ELAPSED_MAX = 0.85   # slight extension to collect data near window end
+VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow (scoring only)
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
-MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens (both 5m and 15m)
-MAX_TOKEN_ASK = 0.75        # lowered 0.90→0.75: entries above 0.75 create terrible win:loss asymmetry
-                            # At entry 0.87: win ceiling=+13.8% vs SL floor=-35% → need 72% WR to break even
-                            # At entry 0.75: win ceiling=+33.3% vs SL floor=-35% → need 51% WR to break even
-                            # 20-trade live data: 5 stop losses all at high-price entries ate -$16.10
-# Fixed ask caps (0.55/0.58) replaced by lag_remaining gate:
-# A large Binance move can push ask to 0.65+ while still having 70%+ lag remaining.
-# Fixed cap would block this; lag_remaining gate allows it and blocks weak moves correctly.
-MIN_LAG_REMAINING = 0.30    # loosened 0.55→0.30: collect data across wider lag range
-MIN_LAG_REMAINING_5M = 0.15 # data: 291-block shadow shows 15m@22UTC=7%WR, 5m=36%WR
-                             # lowered 0.40→0.15: 5m lag filter was too strict, shadow shows
-                             # best 5m WR at lag≥0.00 (36%). Compromise at 0.15 keeps some gate.
-VPIN_OFFPEAK_REQUIRED = 0.40  # loosened 0.55→0.40: allow more off-peak flow through
+MIN_TOKEN_ASK = 0.30        # loosened 0.35→0.30: collect data on cheaper tokens
+MAX_TOKEN_ASK = 0.85        # loosened 0.75→0.85: collect data in 0.75-0.85 range
+MIN_LAG_REMAINING = 0.10    # loosened 0.30→0.10: directional signal drives entries, not lag%
+MIN_LAG_REMAINING_5M = 0.05 # near-zero for 5m: let edge + direction filter
+VPIN_OFFPEAK_REQUIRED = 0.20  # loosened 0.40→0.20: minimal floor, gather off-peak data
 
 # 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
 # Lag arbitrage on 15m works when macro events drive sustained moves (13-15 UTC).
