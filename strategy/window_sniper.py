@@ -107,7 +107,10 @@ WINDOW_ELAPSED_MAX = 0.80   # no entry after 80% (too late)
 VPIN_CONFIRM_THRESHOLD = 0.60   # VPIN above this = informed flow
 LLM_BOOST_STRONG = 0.05     # macro_boost magnitude above this = LLM confirms
 MIN_TOKEN_ASK = 0.35        # skip near-resolved tokens (both 5m and 15m)
-MAX_TOKEN_ASK = 0.90        # hard ceiling — near-fully-resolved tokens only
+MAX_TOKEN_ASK = 0.75        # lowered 0.90→0.75: entries above 0.75 create terrible win:loss asymmetry
+                            # At entry 0.87: win ceiling=+13.8% vs SL floor=-35% → need 72% WR to break even
+                            # At entry 0.75: win ceiling=+33.3% vs SL floor=-35% → need 51% WR to break even
+                            # 20-trade live data: 5 stop losses all at high-price entries ate -$16.10
 # Fixed ask caps (0.55/0.58) replaced by lag_remaining gate:
 # A large Binance move can push ask to 0.65+ while still having 70%+ lag remaining.
 # Fixed cap would block this; lag_remaining gate allows it and blocks weak moves correctly.
