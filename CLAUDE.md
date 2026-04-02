@@ -20,6 +20,7 @@ Kill inefficient logic. Never patch what should be replaced.
 4. **Logic rewrites**: do it if the data justifies it.
 5. **Kill switches**: enforce them automatically, no human needed.
 6. **Every session**: diagnose → fix → push → document what changed and why.
+7. **Let data lead** — no hour, asset, or signal is assumed good or bad without evidence.
 
 ---
 
@@ -46,24 +47,21 @@ Kill inefficient logic. Never patch what should be replaced.
 
 ---
 
-## EDGE THESIS (validated 2026-03-31)
+## EDGE THESIS
 Primary edge: **information lag arbitrage**
-- Any sharp BTC move (≥0.25% in active sessions, ≥0.40% quiet hours) creates a
-  30–120 second window where Polymarket updown tokens haven't repriced yet
-- Claude Haiku interprets whether the move sustains or fades
-- VPIN > 0.65 from Binance aggTrade = informed order flow = additional trigger
+- Sharp asset moves create windows where Polymarket tokens haven't repriced yet
+- VPIN > 0.65 from Binance aggTrade = informed order flow = additional signal
+- LLM (Claude Haiku) interprets whether moves sustain or fade
 
-Active sessions (lower trigger threshold):
-- 08:00–09:00 UTC — London open
-- 13:00–15:00 UTC — NYSE open + US macro data (CPI, NFP, jobless claims)
-- 22:00–00:00 UTC — Asia open
+**What the live data shows (update this as more trades accumulate):**
+- Track WR by hour in `logs/shadow_blocks.jsonl` — no hour is assumed good or bad
+- Track WR by lag threshold — current: 5m lag≥0.30, 15m lag≥0.25
+- Track WR by asset, window type, delta size — let patterns emerge from data
 
-Thursday 13:30 UTC = weekly jobless claims = most consistent single edge event.
-
-Competition reality (researched 2026-03-31):
-- Pure price latency arb: dead (2.7s avg window, sub-100ms bots take 73%)
-- Information interpretation lag: still viable (30s–2min window, speed-irrelevant)
-- 92.4% of Polymarket wallets lose money — edge must be real, not assumed
+Competition reality:
+- Pure price latency arb: dead (sub-100ms bots dominate)
+- Information interpretation lag: viable (30s–2min window)
+- 92.4% of Polymarket wallets lose money — edge must be proven, not assumed
 
 ---
 
@@ -75,23 +73,20 @@ Competition reality (researched 2026-03-31):
 2. **VPIN Order Flow** (`data/feeds.py`) — Binance aggTrade WebSocket
    - Volume-Synchronized Probability of Informed Trading
    - VPIN > 0.60 = elevated toxicity → ±0.07 boost
-   - Replaces broken volume signal from original scorer
-3. **Momentum Scorer** (`strategy/momentum.py`) — base signal
+3. **Window Sniper** (`strategy/window_sniper.py`) — fair-value lag engine
+   - lag_remaining gate: fraction of PM move still unpriced
+   - Event-driven via aggTrade WebSocket (ms latency) + 5s sweep fallback
+4. **Momentum Scorer** (`strategy/momentum.py`) — base signal
    - Breakout + EMA trend + OB imbalance + intrawindow delta
-   - Volume signal confirmed broken (always 0) — replaced by VPIN
-4. **Funding Rate Extremes** — contrarian filter
-   - >80% APR annualised = overcrowded longs = bearish bias
-   - <-30% APR = overcrowded shorts = bullish bias
 
 ---
 
 ## ENTRY & EXIT RULES
-- **Entry**: score ≥ min_score (0.40) + real-time confirmation (breakout/OB/intrawindow)
-- **Fee zones**: prefer extreme odds (<0.35 or >0.65) — low taker fee
-- **Fat middle (0.35–0.65)**: only enter with LLM macro boost or VPIN confirmation
+- **Entry**: lag_remaining ≥ threshold + edge ≥ MIN_EDGE + time gate
+- **Token price**: 0.03–0.62 (above 0.62 = nearly fully priced, fee-adjusted EV negative)
 - **No entry**: final 60s of any window (Chainlink heartbeat uncertainty)
-- **Stage-1 exit**: sell 95% at +25% gain
-- **Stage-2 exit**: remainder at +45%, or cost+5% floor, or 20% trailing stop
+- **Stage-1 exit**: sell 60% at +20% gain
+- **Stage-2 exit**: remaining 40% at +35%, or floor +12%, or 20% trailing stop
 - **Dynamic SL**: 35% stop first 2.5min, 10% stop last 2min
 - **Hard exit**: force-close after 180s regardless of PnL
 
@@ -99,12 +94,10 @@ Competition reality (researched 2026-03-31):
 
 ## FEEDBACK LOOP (every session, non-negotiable)
 1. `cat logs/trades.jsonl` — read ALL trades
-2. Diagnose: WR by asset/hour, fee bleed, avg win vs avg loss, signal that fired
-3. If WR < 45% after 20 trades: lower min_score or tighten entry conditions
-4. If fee bleed > 30%: reduce position size, avoid fat-middle entries
-5. If LLM macro never fired: check ANTHROPIC_API_KEY, verify trigger thresholds
-6. After diagnosis: implement fix, commit, push. Document in commit message.
-7. Run `python3 analytics/lag_analysis.py` after 500+ lag observations
+2. Diagnose: WR by asset/hour/lag/delta, fee bleed, avg win vs avg loss
+3. Check `logs/shadow_blocks.jsonl` for WR by hour — update strategy if pattern clear (n≥30)
+4. After diagnosis: implement fix, commit, push. Document in commit message.
+5. Run `python3 analytics/lag_analysis.py` after 500+ lag observations
 
 ---
 
@@ -113,6 +106,7 @@ Competition reality (researched 2026-03-31):
 main.py                       — async event loop (1s OB scan, 5s signal sweep)
 config.py                     — all tunable parameters
 data/feeds.py                 — Polymarket CLOB + Binance aggTrade WS + VPIN
+strategy/window_sniper.py     — fair-value lag engine + event-driven detection
 strategy/momentum.py          — composite scorer + TP/SL calculator
 risk/manager.py               — bankroll, position sizing, exit decisions
 execution/order_manager.py    — order placement, cascade sell, fill verification
@@ -120,25 +114,23 @@ analytics/feedback.py         — JSONL trade logging + 30-min diagnostic report
 analytics/macro_engine.py     — LLM signal engine (Claude Haiku, all-day)
 analytics/lag_observations.py — logs Binance price vs Polymarket price every scan
 analytics/lag_analysis.py     — retrospective Pearson correlation analysis
+analytics/shadow_log.py       — counterfactual analysis for blocked signals
 ```
 
 ### Current Parameters
 | Parameter | Value | Notes |
 |---|---|---|
-| min_score | 0.40 | Lower if <3 trades/day; raise if fee bleed >30% |
+| min_lag_5m | 0.30 | Scanner: WR=80% at ≥0.30 |
+| min_lag_15m | 0.25 | Data collection — WR unconfirmed |
+| MAX_TOKEN_ASK | 0.62 | All entries >0.62 have been stop-losses |
+| PREARM_ELAPSED_MIN | 0.20 | 20% = 60s min before PREARM fires |
 | base_stake | $3 | Raise to $5 after WR >55% over 20 trades |
-| scaled_stake | $5 | After 2 consecutive wins |
 | max_open_positions | 2 | Max $10 deployed at once |
-| max_daily_loss | $10 | 10% of $100 — hard halt |
-| VPIN trigger | 0.65 | LLM fires when order flow toxicity high |
-| LLM price trigger | 0.25% / 0.40% | Active sessions / quiet hours |
-| Signal validity | 120s | LLM signal expires after 2 minutes |
+| max_daily_loss | $10 | Hard halt |
 
 ### Infrastructure
 - **Run locally** (MacBook) for now — Cloudflare WAF blocks standard VPS
-- **Next step**: QuantVPS Dublin (~$42/mo) — 0.83ms to Polymarket CLOB
-  - Standard cloud (AWS/Hetzner/DO) ALL blocked by CF WAF regardless of location
-  - QuantVPS Dublin = purpose-built IP not on blocklist + curl_cffi JA3 patch
+- **Next step**: QuantVPS Dublin (~$42/mo) — purpose-built IP not on CF blocklist
 - **Development branch**: `claude/investigate-zero-entry-price-lWxej`
 
 ### Run
@@ -156,3 +148,5 @@ python3 analytics/lag_analysis.py  # analyse Binance→Polymarket lag
 - Fat-middle gate handled in risk/manager.py only — scorer doesn't know market_type
 - updown markets skip max_entry_price cap (price not bounded by 0.27)
 - Chainlink resolves at T=0 snapshot — no entries in final 60s of any window
+- LLM exit advisor disabled — observational only ("WOULD-EXIT" logged, not acted on)
+- Asset-level dedup: one position per asset regardless of window size or direction
