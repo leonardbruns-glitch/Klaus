@@ -173,6 +173,10 @@ class KlausBot:
         # stage-1 cascade takes ~6s — without this lock, 30 concurrent cascades drain
         # the CLOB balance to near-zero by tranche 3, leaving shares unsold).
         self._exit_in_progress: set = set()
+        # Event-driven spike dedup: tracks last spike entry attempt per asset.
+        # Separate from the 5s sweep — prevents double-entry when both paths fire.
+        self._last_spike_ts: Dict[str, float] = {}
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
@@ -229,6 +233,11 @@ class KlausBot:
                     self.risk.bankroll.capital, CONFIG.bankroll.base_stake, CONFIG.bankroll.scaled_stake)
         logger.info("Markets: %s", CONFIG.markets.tracked_assets)
         logger.info("=" * 50)
+
+        # Register event-driven delta spike callback.
+        # Fires immediately from Binance aggTrade when asset delta crosses 0.03%.
+        # Bypasses the 5s signal loop — detects lag the moment it opens.
+        self.feed.register_delta_spike_callback(self._on_delta_spike)
 
         # Pre-warm py_clob_client caches (neg_risk + fee_rate) for all tracked tokens.
         # Without this, the first order per token triggers GET /neg-risk + GET /fee-rate
@@ -554,6 +563,103 @@ class KlausBot:
                     self._exit_in_progress.discard(token_id)
 
     # ── 5-second signal loop: scan for new entries ────────────────────────────
+
+    async def _on_delta_spike(self, asset: str, delta_pct: float, spot_price: float) -> None:
+        """
+        Event-driven entry: fires immediately from Binance aggTrade when delta
+        vs 5m window open crosses 0.03%. Bypasses the 5s signal sweep cycle.
+
+        Flow: aggTrade tick → delta threshold → this callback → sniper.score()
+              → risk.evaluate() → _enter_position() if approved.
+        PM OB is served from the 1s REST cache — at most 1s stale, still 4s ahead
+        of the sweep cycle. The sniper's own gates (lag, edge, elapsed) filter quality.
+        """
+        now = time.time()
+        # Per-asset debounce — feeds.py debounces at 1.5s, this adds a session-level guard
+        last = self._last_spike_ts.get(asset, 0)
+        if now - last < 1.5:
+            return
+        self._last_spike_ts[asset] = now
+
+        logger.info(
+            "SPIKE %s | delta=%+.3f%% price=%.2f — immediate sniper eval",
+            asset, delta_pct, spot_price,
+        )
+
+        ext = self._last_ext_signals.get(asset)
+        if ext is None:
+            # Fall back to a fresh fetch if not yet cached
+            try:
+                ext = await self.feed.fetch_external_signals(asset)
+            except Exception:
+                return
+        if ext is None:
+            return
+
+        _queued_this_spike: set = set()  # condition dedup within this spike
+
+        for token_id, token in list(self.feed.tokens.items()):
+            if token.asset != asset or token.market_type != "updown":
+                continue
+            if token_id in self.risk.open_positions:
+                continue
+            if token.window_end_ts > 0:
+                remaining = token.window_end_ts - now
+                if remaining < CONFIG.execution.no_trade_last_sec:
+                    continue
+
+            ob = self.feed.get_order_book(token_id)
+            if ob is None:
+                continue
+            _ask = ob.asks[0][0] if ob.asks else ob.mid
+            if _ask < 0.05 or _ask > 0.95:
+                continue
+
+            bars_5m = self.feed.get_bars_5m(token_id, n=30)
+            sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
+            if sniper_sig is None:
+                continue
+            if sniper_sig.entry_price <= 0:
+                continue
+
+            _cid = token.condition_id or ""
+            if _cid and _cid in _queued_this_spike:
+                continue
+
+            tpsl = calculate_tp_sl(sniper_sig.entry_price, sniper_sig.direction, bars_5m, ob)
+            decision = self.risk.evaluate(
+                token_id, sniper_sig, tpsl,
+                condition_id=_cid,
+                window_end_ts=token.window_end_ts,
+                asset=token.asset,
+                market_type=token.market_type,
+                cascade_discount=0.0,
+                is_sniper=True,
+                window_seconds=getattr(token, "window_seconds", 0),
+            )
+
+            if not decision.approved:
+                logger.debug("SPIKE REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
+                continue
+
+            if token_id in self._exit_in_progress:
+                continue
+
+            logger.info(
+                "SPIKE ENTRY %s/%s | entry=%.4f edge=%.3f lag=%.0f%% | %s",
+                token.asset, token.side,
+                sniper_sig.entry_price, sniper_sig.edge,
+                sniper_sig.lag_remaining_pct * 100,
+                sniper_sig.reason,
+            )
+
+            if _cid:
+                _queued_this_spike.add(_cid)
+
+            asyncio.create_task(
+                self._enter_position(token_id, token.asset, sniper_sig, tpsl, decision),
+                name=f"spike_{asset}_{token.side}",
+            )
 
     async def _signal_loop(self) -> None:
         _consecutive_errors = 0

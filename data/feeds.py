@@ -288,6 +288,15 @@ class PolymarketFeed:
             "ETH": VPINTracker(),
             "SOL": VPINTracker(),
         }
+        # Event-driven delta spike callback.
+        # Registered by main.py — fired on every Binance aggTrade when delta
+        # vs the current 5m window open crosses the spike threshold.
+        # Bypasses the 5s signal sweep for sub-second entry detection.
+        self._delta_spike_cb = None          # async callable(asset, delta_pct, spot_price)
+        self._delta_spike_last: Dict[str, float] = {}  # asset → last fire ts
+        self._DELTA_SPIKE_DEBOUNCE = 1.5     # min seconds between spikes per asset
+        self._DELTA_SPIKE_THRESHOLD = 0.03   # % — slightly below sniper gate (0.04/0.05)
+                                             # sniper does its own filtering; we just wake it early
         # Binance spot kline cache — populated by _run_binance_kline_ws()
         # Replaces REST kline polling in fetch_external_signals() (saves 150-450ms/scan)
         self._spot_price: Dict[str, float] = {}       # asset → latest 1m close
@@ -668,7 +677,7 @@ class PolymarketFeed:
                                                         logger.debug("WS handler error: %s", type(_e).__name__)
 
                                     elif event_type == "aggTrade":
-                                        # ── VPIN computation ───────────────
+                                        # ── VPIN + real-time price + delta spike ──
                                         symbol = ev.get("s", "").upper()
                                         try:
                                             price = float(ev.get("p", 0))
@@ -677,9 +686,28 @@ class PolymarketFeed:
                                             if price > 0 and qty > 0:
                                                 for asset, sym in _SYMBOL_MAP.items():
                                                     if symbol == sym.upper():
+                                                        # 1. VPIN
                                                         self.vpin_trackers[asset].update(
                                                             price, qty, is_buyer_maker
                                                         )
+                                                        # 2. Real-time spot price (sub-second,
+                                                        #    more granular than kline 1m ticks)
+                                                        self._spot_price[asset] = price
+                                                        self._kline_ts[asset] = time.time()
+                                                        # 3. Delta spike detection
+                                                        if self._delta_spike_cb is not None:
+                                                            _open5m = self._spot_open_5m.get(asset, 0)
+                                                            if _open5m > 0:
+                                                                _delta = (price - _open5m) / _open5m * 100
+                                                                if abs(_delta) >= self._DELTA_SPIKE_THRESHOLD:
+                                                                    _now = time.time()
+                                                                    _last = self._delta_spike_last.get(asset, 0)
+                                                                    if _now - _last >= self._DELTA_SPIKE_DEBOUNCE:
+                                                                        self._delta_spike_last[asset] = _now
+                                                                        asyncio.create_task(
+                                                                            self._delta_spike_cb(asset, _delta, price),
+                                                                            name=f"spike_{asset}",
+                                                                        )
                                                         break
                                         except Exception as _e:
                                             logger.debug("WS handler error: %s", type(_e).__name__)
@@ -1504,6 +1532,10 @@ class PolymarketFeed:
         return signal
 
     # ── Convenience accessors ─────────────────────────────────────────────────
+
+    def register_delta_spike_callback(self, cb) -> None:
+        """Register async callback fired on Binance aggTrade when delta threshold crossed."""
+        self._delta_spike_cb = cb
 
     def get_bars_5m(self, token_id: str, n: int = 20) -> List[Bar]:
         builder = self.bar_builders_5m.get(token_id)
