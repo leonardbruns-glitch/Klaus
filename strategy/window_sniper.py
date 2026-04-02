@@ -123,7 +123,7 @@ VPIN_OFFPEAK_REQUIRED = 0.40  # loosened 0.55→0.40: allow more off-peak flow t
 # 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
 # Lag arbitrage on 15m works when macro events drive sustained moves (13-15 UTC).
 # In quiet hours, PM reprices 15m tokens too quickly — no lag window survives 15m.
-_15M_ACTIVE_ONLY = True  # if True: block 15m entries in non-active sessions
+_15M_ACTIVE_ONLY = False  # 15m is best-performing window — no session gating
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
 # When a token is nearly resolved (≥0.90) in the first 40% of a window,
