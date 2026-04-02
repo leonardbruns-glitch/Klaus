@@ -678,8 +678,19 @@ class OrderManager:
             # order across retries triggers "order is invalid. Duplicated." from CLOB.
             resp = None
             _order_t0 = time.time()
+            _attempted_order_ids: list = []   # track ALL order IDs placed this call
             for _cf_attempt in range(3):
                 signed = self._client.create_order(order_args, options=opts)
+                # Capture order ID from signed order BEFORE posting — the ID is
+                # deterministic (hash of parameters + signature) and available even
+                # if CF blocks the POST response. Used to cancel stale resting orders
+                # from previous attempts after a successful fill is confirmed.
+                _signed_id = (
+                    signed.get("id", "") if isinstance(signed, dict)
+                    else getattr(signed, "id", "")
+                )
+                if _signed_id:
+                    _attempted_order_ids.append(_signed_id)
                 resp = self._client.post_order(signed, order_type)
                 err_str = str(resp) if resp else ""
                 if resp and "cloudflare" not in err_str.lower() and "403" not in err_str:
@@ -934,6 +945,29 @@ class OrderManager:
                         "Fill reconciled from CLOB: price=%.4f size=%.4f fee=$%.5f (%g bps)",
                         fill_price, fill_size, actual_fee, actual.get("fee_rate_bps", 0),
                     )
+
+            # ── Cancel stale resting orders from CF retry attempts ──────────────
+            # If previous CF-retry attempts submitted orders that got through to
+            # CLOB despite returning 403 to us, those orders rest on the book and
+            # fill later as the market moves — creating double-fill orphans 60-200s
+            # after the position opens. Cancel all tracked order IDs except the one
+            # that just filled. Fire-and-forget: cancel failures are non-critical
+            # (order may already be cancelled/filled, or CLOB may return "not found").
+            _winning_id = order_id_str
+            for _stale_id in _attempted_order_ids:
+                if _stale_id and _stale_id != _winning_id:
+                    try:
+                        self._client.cancel(_stale_id)
+                        logger.warning(
+                            "CF_STALE_CANCEL: cancelled resting order %s "
+                            "(previous attempt for token %s — double-fill prevention)",
+                            _stale_id[:12], token_id[:12],
+                        )
+                    except Exception as _cancel_exc:
+                        logger.debug(
+                            "CF_STALE_CANCEL failed for %s (may already be gone): %s",
+                            _stale_id[:12], _cancel_exc,
+                        )
 
             fill = Fill(
                 order_id=order_id_str,
