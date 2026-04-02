@@ -720,11 +720,6 @@ class KlausBot:
             sniper_sig = None
             if (token.market_type == "updown"
                     and token.asset not in CONFIG.edge.sniper_excluded_assets):
-                # 15m windows: blocked. Live WR=0% (5/5 losses, -$8.08).
-                # Shadow data: WR=0% at lag≥0.25 (n=29). 5m confirmed edge WR=79%.
-                # Mean-reversion kills 0.10-0.12% signals before 15m windows close.
-                if getattr(token, "window_seconds", 0) == 900:
-                    continue
                 _updown_scanned += 1
                 sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
 
