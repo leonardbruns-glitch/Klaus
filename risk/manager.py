@@ -709,19 +709,17 @@ class RiskManager:
             else:
                 pos.profit_trigger_ts = 0.0  # Reset if price dropped
 
-        # ── 4. Stage-2: +45 % on remaining shares ────────────────────────────
+        # ── 4. Stage-2: +35 % on remaining 5% shares ────────────────────────
         if pos.exit_stage == ExitStage.STAGE_1_DONE:
-            if move_pct >= 0.45:
+            if move_pct >= 0.35:
                 return ExitDecision(True, "PROFIT_2", urgency="cascade")
 
-            # Floor: don't let stage-2 give back to cost+15 %
-            # P8: raised from 5% — cost+5% barely covered fees ($0.33), net ~$0.20.
-            # cost+15% ensures minimum ~$1.00 net per winning trade.
-            if move_pct <= 0.15:
+            # Floor: don't let stage-2 give back below stage-1 trigger (+18%)
+            if move_pct <= 0.18:
                 return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
 
-            # Trailing stop after stage-1: 20 % below peak (same for both sides)
-            trail_stop = pos.highest_price * 0.80
+            # Trailing stop: 10% below peak — tight, 5% residual shouldn't ride reversals
+            trail_stop = pos.highest_price * 0.90
             if current_price <= trail_stop:
                 return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
 

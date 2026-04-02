@@ -1249,22 +1249,17 @@ class KlausBot:
         )
 
     async def _partial_exit(self, token_id: str, live_price: float, reason: str) -> None:
-        """Stage-1: sell 60% single-shot if 40% residual is CLOB-sellable, else sell 100%."""
+        """Stage-1: sell 95%, leave 5% residual riding to stage-2."""
         pos = self.risk.open_positions.get(token_id)
         if not pos:
             return
 
-        # P6: changed 95/5 split → 60/40 split to let winning trades run to Stage-2 (+45%).
-        # Previous 5% residual was ~$0.10-0.25 = permanent dust, contributing nothing.
-        # 40% residual at current stake (~$4) = $1.60-2.40 = meaningful Stage-2 upside.
-        # P5: force_exit=True makes cascade single-shot (no 3-tranche CLOB lag issue).
-        residual_value = pos.remaining_shares * 0.40 * live_price
-        sell_pct = 0.60 if residual_value >= 1.50 else 1.0
-        if sell_pct == 1.0:
-            logger.info(
-                "Stage-1 selling 100%% — 40%% residual=$%.2f < $1.50 CLOB minimum (dust avoided)",
-                residual_value,
-            )
+        # 95/5 split: sell 95% at stage-1, leave 5% for stage-2 (+35% target).
+        # Previous 60/40 was leaving ~$2 exposed after stage-1 with no reliable exit —
+        # stage-2 needed +45% (rarely hit) and cascade failures caused infinite retry loops.
+        # 5% residual at $5 stake ≈ $0.25: small enough to not matter if it gets stuck.
+        residual_value = pos.remaining_shares * 0.05 * live_price
+        sell_pct = 0.95 if residual_value >= 0.10 else 1.0
 
         token_meta = self.feed.tokens.get(token_id)
         sell_shares = round(pos.remaining_shares * sell_pct, 4)
@@ -1497,18 +1492,28 @@ class KlausBot:
             )
             return
 
-        # Guard 1b: PROFIT_2 sold nothing — CLOB rejected residual (sub-$1 notional
-        # or network error). Keep position open so HARD_EXIT can force-close it.
-        # Root cause: stage-1 CLOB balance adjustment leaves more shares than expected
-        # (e.g. 0.9 instead of 0.245), and sub-$1 notional fails at the exchange.
-        _DUST_SHARES = 0.10           # below this, accept residual as done
+        # Guard 1b: stage-2 cascade sold nothing. Check actual CLOB balance before
+        # retrying — if balance=0, the shares resolved or were sold externally.
+        # Previous behaviour (infinite reset loop) left positions stuck forever.
+        _DUST_SHARES = 0.05           # below this, accept residual as done
         if this_sell <= 0 and stage1_done and expected_this_sell > _DUST_SHARES:
+            _s2_balance = self.orders.fetch_token_balance(token_id)
+            if _s2_balance is None or _s2_balance < 0.05:
+                # Balance gone — resolved or sold externally. Close the record.
+                logger.warning(
+                    "STAGE-2 balance=0 for %s/%s — shares resolved/sold, closing record",
+                    pos.asset, pos.direction.name,
+                )
+                pnl = self.risk.close_position(token_id, live_price, "STAGE2_RESOLVED")
+                self._open_meta.pop(token_id, None)
+                self._pos_log_ts.pop(token_id, None)
+                return
+            # Shares still exist — reset and retry next cycle
             if token_id in self.risk.open_positions:
                 self.risk.open_positions[token_id].hard_exit_triggered = False
             logger.warning(
-                "PROFIT_2 sold 0 of %.4f remaining %s shares — keeping open, "
-                "HARD_EXIT will force-close (BTC-residual-dust bug)",
-                expected_this_sell, pos.asset,
+                "STAGE-2 sold 0 of %.4f %s shares (CLOB=%.4f) — retrying next scan",
+                expected_this_sell, pos.asset, _s2_balance,
             )
             return
 
