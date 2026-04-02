@@ -322,7 +322,24 @@ class KlausBot:
         )
 
         for (token_id, pos), ob in zip(positions, obs):
-            if not isinstance(ob, object) or ob is None or isinstance(ob, Exception):
+            # If OB is unavailable but window is expiring, force-exit immediately.
+            # This was broken by no_trade_last_sec 60→10: at T-10s OBs are often
+            # empty/None for near-resolved tokens, causing the skip below to fire
+            # and EXIT_WINDOW_END to never trigger.
+            if ob is None or isinstance(ob, Exception):
+                now_ts = time.time()
+                remaining_ts = pos.window_end_ts - now_ts if pos.window_end_ts > 0 else 999
+                if pos.window_end_ts > 0 and remaining_ts <= 45:
+                    logger.warning(
+                        "OB UNAVAILABLE near window end %s — forcing EXIT_WINDOW_END (%.0fs remaining)",
+                        token_id[:12], remaining_ts,
+                    )
+                    if token_id not in self._exit_in_progress:
+                        self._exit_in_progress.add(token_id)
+                        try:
+                            await self._exit_position(token_id, pos.entry_price, "EXIT_WINDOW_END_NOOB")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
                 continue
             current_price = ob.bids[0][0] if len(ob.bids) > 0 else ob.mid
 

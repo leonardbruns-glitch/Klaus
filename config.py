@@ -93,7 +93,7 @@ class MomentumConfig:
 class ExecutionConfig:
     ob_scan_interval: float = 1.0      # seconds between order-book refreshes
     hard_exit_seconds: int = 180       # forced exit if not profitable within 3 min
-    no_trade_last_sec: int = 10        # minimal buffer — collect data near window end too
+    no_trade_last_sec: int = 45        # exit 45s before window end — OBs thin below this
     entry_price_buffer: float = 0.05   # limit buy at price * (1 + buffer), capped at 0.30
     cascade_levels: int = 3            # sell in 3 tranches
     cascade_pct: float = 0.333        # fraction of position per tranche
