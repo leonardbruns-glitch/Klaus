@@ -112,8 +112,15 @@ MAX_TOKEN_ASK = 0.90        # hard ceiling — near-fully-resolved tokens only
 # A large Binance move can push ask to 0.65+ while still having 70%+ lag remaining.
 # Fixed cap would block this; lag_remaining gate allows it and blocks weak moves correctly.
 MIN_LAG_REMAINING = 0.30    # loosened 0.55→0.30: collect data across wider lag range
-MIN_LAG_REMAINING_5M = 0.40 # loosened 0.65→0.40: 5m still slightly tighter than 15m
+MIN_LAG_REMAINING_5M = 0.15 # data: 291-block shadow shows 15m@22UTC=7%WR, 5m=36%WR
+                             # lowered 0.40→0.15: 5m lag filter was too strict, shadow shows
+                             # best 5m WR at lag≥0.00 (36%). Compromise at 0.15 keeps some gate.
 VPIN_OFFPEAK_REQUIRED = 0.40  # loosened 0.55→0.40: allow more off-peak flow through
+
+# 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
+# Lag arbitrage on 15m works when macro events drive sustained moves (13-15 UTC).
+# In quiet hours, PM reprices 15m tokens too quickly — no lag window survives 15m.
+_15M_ACTIVE_ONLY = True  # if True: block 15m entries in non-active sessions
 
 WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
                                 # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
@@ -360,6 +367,19 @@ class WindowSniper:
         _vpin_now = ext.vpin_score or 0.0
         _regime = classify_regime(hour_utc, _vpin_now)
         is_active_session = hour_utc in _HIGH_VOLUME_HOURS
+
+        # ── 15m quiet-hours gate ──────────────────────────────────────────────
+        # Shadow data: 291 blocks, 7% WR for 15m at 22 UTC. PM reprices 15m tokens
+        # too quickly in quiet sessions — the lag window collapses before we can enter.
+        # Exception: VPIN > 0.55 = informed flow present even in quiet hours.
+        if _15M_ACTIVE_ONLY and is_15m and not is_active_session:
+            if _vpin_now < 0.55:
+                logger.debug(
+                    "SNIPER BLOCK %s/%s | 15m quiet-hour (hour=%d UTC, VPIN=%.2f) "
+                    "— shadow 7%%WR@22UTC, no edge",
+                    token.asset, token.side, hour_utc, _vpin_now,
+                )
+                return None
 
         # ── Side alignment: only trade the winning token ───────────────────────
         if token.side == "YES" and asset_direction < 0:
