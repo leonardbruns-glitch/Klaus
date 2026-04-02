@@ -246,15 +246,49 @@ class KlausBot:
     async def run(self) -> None:
         await self.start()
 
+        # Thread-based event loop watchdog — asyncio coroutines cannot monitor
+        # each other when the loop itself is blocked (sync call, CPU-bound work,
+        # deadlock). A daemon thread runs independently and kills the process if
+        # the loop stops pinging within the threshold. systemd/launchd restarts.
+        _watchdog_last_ping = [time.monotonic()]
+        _WATCHDOG_THRESHOLD = 45.0  # seconds without a ping before hard kill
+
+        def _watchdog_thread():
+            import sys
+            time.sleep(_WATCHDOG_THRESHOLD + 5)  # initial grace period
+            while True:
+                time.sleep(10.0)
+                age = time.monotonic() - _watchdog_last_ping[0]
+                if age > _WATCHDOG_THRESHOLD:
+                    print(
+                        f"WATCHDOG FATAL: event loop stalled {age:.0f}s — forcing restart",
+                        file=sys.stderr, flush=True,
+                    )
+                    os._exit(1)  # bypass Python cleanup — systemd will restart
+
+        import threading
+        _wdt = threading.Thread(target=_watchdog_thread, daemon=True, name="loop-watchdog")
+        _wdt.start()
+
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
         report_task = asyncio.create_task(self._report_loop())
-        heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+        heartbeat_task = asyncio.create_task(self._heartbeat_loop(_watchdog_last_ping))
         research_task = asyncio.create_task(self.research.run())
         prewarm_task = asyncio.create_task(self._prewarm_loop())
 
         try:
-            await asyncio.gather(ob_task, signal_task, report_task, heartbeat_task, research_task, prewarm_task)
+            # return_exceptions=True: one task crashing doesn't cancel the others.
+            # Each loop already catches exceptions internally; this is a safety net
+            # for exceptions that escape the loop (startup errors, NameError, etc.)
+            results = await asyncio.gather(
+                ob_task, signal_task, report_task, heartbeat_task,
+                research_task, prewarm_task,
+                return_exceptions=True,
+            )
+            for i, r in enumerate(results):
+                if isinstance(r, Exception) and not isinstance(r, asyncio.CancelledError):
+                    logger.error("Task %d exited with exception: %s", i, r)
         except asyncio.CancelledError:
             pass
         finally:
@@ -285,6 +319,15 @@ class KlausBot:
             if not isinstance(ob, object) or ob is None or isinstance(ob, Exception):
                 continue
             current_price = ob.bids[0][0] if len(ob.bids) > 0 else ob.mid
+
+            # Guard: corrupt/zero entry_price would cause division-by-zero in
+            # move_pct and incorrect SL/TP comparisons. Skip rather than act on garbage.
+            if not pos.entry_price or pos.entry_price <= 0:
+                logger.error(
+                    "GUARD: %s entry_price=%.6f — skipping exit check (corrupt state)",
+                    token_id[:12], pos.entry_price,
+                )
+                continue
 
             # ── Position status log every 5s ─────────────────────────────────
             now = time.time()
@@ -1682,7 +1725,7 @@ class KlausBot:
 
     # ── 10-second CLOB heartbeat ──────────────────────────────────────────────
 
-    async def _heartbeat_loop(self) -> None:
+    async def _heartbeat_loop(self, _watchdog_ping: list = None) -> None:
         """Keep CLOB session alive; prevents silent GTC order cancellation."""
         _hb_failures = 0
         _last_reconcile_ts = 0.0
@@ -1691,6 +1734,9 @@ class KlausBot:
         _RECONCILE_DRIFT_CORRECT = 2.00  # auto-correct if divergence > $2.00
         while self._running:
             await asyncio.sleep(10)
+            # Ping watchdog — proves event loop is alive to the daemon thread
+            if _watchdog_ping is not None:
+                _watchdog_ping[0] = time.monotonic()
             try:
                 await self.orders.post_heartbeat()
                 await self._sweep_residuals()

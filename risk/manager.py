@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 import datetime
 from dataclasses import dataclass, field
@@ -27,6 +28,32 @@ POSITIONS_FILE = os.path.join("logs", "positions.json")
 BANKROLL_FILE  = os.path.join("logs", "bankroll.json")
 
 logger = logging.getLogger("risk")
+
+
+def _atomic_json_write(path: str, data: dict) -> None:
+    """
+    Write JSON atomically via temp-file + os.replace().
+    A crash mid-write leaves the old file intact — never a partial/corrupt file.
+    os.replace() is atomic on POSIX (rename syscall).
+    """
+    dir_ = os.path.dirname(os.path.abspath(path))
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", dir=dir_, suffix=".tmp", delete=False
+        ) as f:
+            json.dump(data, f)
+            f.flush()
+            os.fsync(f.fileno())
+            tmp_path = f.name
+        os.replace(tmp_path, path)
+    except Exception as exc:
+        logger.warning("Atomic write failed for %s: %s", path, exc)
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -128,20 +155,16 @@ class BankrollTracker:
             logger.warning("Failed to load bankroll state: %s", exc)
 
     def _save(self) -> None:
-        """Persist capital and streak to disk after every trade."""
+        """Persist capital and streak to disk after every trade (atomic write)."""
         os.makedirs("logs", exist_ok=True)
-        try:
-            with open(BANKROLL_FILE, "w") as f:
-                json.dump({
-                    "capital": round(self.capital, 6),
-                    "daily_start_capital": round(self.daily_start_capital, 6),
-                    "consecutive_wins": self.consecutive_wins,
-                    "total_trades": self.total_trades,
-                    "total_pnl": round(self.total_pnl, 6),
-                    "saved_ts": time.time(),
-                }, f)
-        except Exception as exc:
-            logger.warning("Failed to save bankroll state: %s", exc)
+        _atomic_json_write(BANKROLL_FILE, {
+            "capital": round(self.capital, 6),
+            "daily_start_capital": round(self.daily_start_capital, 6),
+            "consecutive_wins": self.consecutive_wins,
+            "total_trades": self.total_trades,
+            "total_pnl": round(self.total_pnl, 6),
+            "saved_ts": time.time(),
+        })
 
     def record_trade_result(self, pnl: float) -> None:
         self.capital += pnl
@@ -232,8 +255,7 @@ class RiskManager:
                     "condition_id": pos.condition_id,
                     "dynamic_sl_override": pos.dynamic_sl_override,
                 }
-            with open(POSITIONS_FILE, "w") as f:
-                json.dump(data, f)
+            _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
             logger.warning("Failed to save positions: %s", exc)
 
