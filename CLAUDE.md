@@ -115,6 +115,7 @@ Primary edge: **information lag arbitrage**
 1. **LLM Signal Engine** (`analytics/macro_engine.py`) — Claude Haiku
    - Fires on BTC price spike OR VPIN > 0.65
    - Returns ±0.12 directional boost to scorer
+   - **Assume this signal has no edge until data proves otherwise** — Claude assessing Claude is a conflict of interest. Require n≥20 LLM-boosted trades before crediting it with any WR improvement.
 2. **VPIN Order Flow** (`data/feeds.py`) — Binance aggTrade WebSocket
    - VPIN > 0.60 = elevated toxicity → ±0.07 boost
 3. **Window Sniper** (`strategy/window_sniper.py`) — fair-value lag engine
