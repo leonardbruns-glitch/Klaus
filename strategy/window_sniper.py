@@ -97,8 +97,12 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.33
 MAX_TOKEN_ASK = 0.80
-MIN_LAG_REMAINING = 0.25
-MIN_LAG_REMAINING_5M = 0.12
+MIN_LAG_REMAINING_5M = 0.30   # 5m: data-optimal (WR=80% EV=+0.142 at 0.30, 2.9/d)
+                               # was 0.12 — scanner shows EV negative below 0.25 for 5m
+MIN_LAG_REMAINING_15M = 0.50  # 15m: no positive EV at any threshold (WR=0% at 0.25, n=29)
+                               # 0.50 = no 15m records reach this → effectively zero entries
+                               # while technically keeping 15m open for data collection
+MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.35
 
 # 15m quiet-hours block: shadow data (n=291) shows 7% WR for 15m at 22 UTC.
@@ -457,12 +461,13 @@ class WindowSniper:
         # to 15% regardless. Rationale: FV=0.979, ask=0.840 → lag=29%, edge=+0.139.
         # The lag% penalises extreme FV (large denominator) even when uncaptured
         # repricing in dollar terms is huge. Edge ≥ 0.10 is strong evidence either way.
-        MIN_EDGE_OVERRIDE = 0.10
-        min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING
+        min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING_15M
         if is_prearmed:
             min_lag = min_lag * 0.80  # pre-arm: slightly relaxed (prior window confirms direction)
-        if edge >= MIN_EDGE_OVERRIDE:
-            min_lag = min(min_lag, 0.15)   # absolute edge overrides lag% floor
+        # Edge override: only for 5m — at 15m, high edge doesn't rescue negative EV.
+        # Scanner: [15m] edge≥0.10 WR still 0% at lag≥0.25. No override for 15m.
+        if not is_15m and edge >= 0.10:
+            min_lag = min(min_lag, 0.20)   # 5m: large edge relaxes lag floor to 0.20
         if lag_remaining_pct < min_lag:
             logger.info(
                 "SNIPER BLOCK %s/%s | lag=%.0f%% < %.0f%% min (fv=%.3f ask=%.3f delta=%+.3f%%) — PM mostly repriced",
