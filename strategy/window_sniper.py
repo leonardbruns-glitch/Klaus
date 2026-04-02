@@ -97,11 +97,8 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.33
 MAX_TOKEN_ASK = 0.80
-MIN_LAG_REMAINING_5M = 0.30   # 5m: data-optimal (WR=80% EV=+0.142 at 0.30, 2.9/d)
-                               # was 0.12 — scanner shows EV negative below 0.25 for 5m
-MIN_LAG_REMAINING_15M = 0.50  # 15m: no positive EV at any threshold (WR=0% at 0.25, n=29)
-                               # 0.50 = no 15m records reach this → effectively zero entries
-                               # while technically keeping 15m open for data collection
+MIN_LAG_REMAINING_5M = 0.20   # 5m: EV=+0.020 at 0.20, WR=57%, 5.3/d
+MIN_LAG_REMAINING_15M = 0.25  # 15m: EV=-0.280 at 0.25, WR=0%, 4.1/d — data collection
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.35
 
