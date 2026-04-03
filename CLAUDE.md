@@ -232,7 +232,7 @@ analytics/shadow_log.py       — counterfactual analysis for blocked signals
 | min_lag_5m | 0.30 | Scanner: WR=80% at ≥0.30 |
 | min_lag_15m | 0.25 | Data collection — WR unconfirmed |
 | MIN_TOKEN_ASK | 0.35 | Raised from 0.33 — entry floor |
-| MAX_TOKEN_ASK | 0.50 | Lowered from 0.62 — entries 0.56-0.63 consistently SL'd |
+| MAX_TOKEN_ASK | 0.53 | Raised from 0.50 — allows entries up to $0.53 |
 | PREARM_ELAPSED_MIN | 0.20 | 20% = 60s min before PREARM fires |
 | base_stake | $3 | Raise to $5 after WR >55% over 20 trades |
 | max_open_positions | 2 | Max $10 deployed at once |
