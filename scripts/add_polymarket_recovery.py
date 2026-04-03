@@ -104,6 +104,34 @@ TRADES = [
         "note": "UI recovery: bot executed but STAGE2_RESOLVED bug suppressed record. "
                 "Amounts from Polymarket activity feed 2026-04-03.",
     },
+    {
+        # SOL Down 7:30-7:45 AM ET (11:30-11:45 UTC) — STOP LOSS
+        # Bought 4.8 shares for $2.65; sold 4.0 @ $0.46 (+$1.85) + 0.5 @ $0.26 (+$0.13) + 0.3 @ $0.20 (+$0.06)
+        "token_id":    "ui_recovery_solno_20260403_1130",
+        "asset":       "SOL",
+        "direction":   "BUY_NO",
+        "market_type": "updown",
+        "signal_source": "SNIPER",
+        "exit_reason": "STOP_LOSS",
+        "ts_open":     1775216400,   # 11:40 UTC (approx entry)
+        "ts_close":    1775216580,   # 11:43 UTC (approx final sell)
+        "entry_price": round(2.65 / 4.8, 4),   # 0.5521
+        "exit_price":  round(2.04 / 4.8, 4),   # 0.4250  (1.85+0.13+0.06 = 2.04 received)
+        "stake":       2.65,
+        "shares":      4.8,
+        "gross_pnl":   round(2.04 - 2.65, 4),  # -0.61
+        "fee_paid":    0.0,
+        "net_pnl":     -0.61,
+        "slippage_entry": 0.0,
+        "slippage_exit":  0.0,
+        "hold_seconds": 180,
+        "hour_utc":    11,
+        "window_size_s": 900,
+        "is_live":     True,
+        "sniper_side": "NO",
+        "note": "UI recovery: EXTERNALLY_SOLD path had KeyError('bankroll') bug — record_trade crashed. "
+                "Amounts from Polymarket activity feed 2026-04-03.",
+    },
 ]
 
 # ---------------------------------------------------------------------------

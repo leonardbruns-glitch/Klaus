@@ -378,7 +378,7 @@ class KlausBot:
                                     entry_fill=_noob_meta.get("entry_fill"), exit_fills=[],
                                     exit_reason="NOOB_EXTERNALLY_SOLD", signal=_noob_sig,
                                     ts_open=_noob_meta.get("ts_open", pos.open_ts), ts_close=now_ts,
-                                    capital_before=self.risk.bankroll.summary()["bankroll"] - _pnl,
+                                    capital_before=self.risk.bankroll.capital - _pnl,
                                     heat_check_active=_noob_meta.get("heat_check", False),
                                     consecutive_wins=_noob_meta.get("consecutive_wins", 0),
                                     net_pnl_actual=_pnl,
@@ -1569,7 +1569,7 @@ class KlausBot:
                         entry_fill=_ghost_meta.get("entry_fill"), exit_fills=[],
                         exit_reason="GHOST_POSITION", signal=_ghost_signal,
                         ts_open=_ghost_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
-                        capital_before=self.risk.bankroll.summary()["bankroll"] - ghost_pnl,
+                        capital_before=self.risk.bankroll.capital - ghost_pnl,
                         heat_check_active=_ghost_meta.get("heat_check", False),
                         consecutive_wins=_ghost_meta.get("consecutive_wins", 0),
                         net_pnl_actual=ghost_pnl,
@@ -1620,7 +1620,7 @@ class KlausBot:
                         fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
                         reason="externally_sold",
                     )
-                capital_before = self.risk.bankroll.summary()["bankroll"] - pnl
+                capital_before = self.risk.bankroll.capital - pnl
                 try:
                     self.analytics.record_trade(
                         token_id=token_id,
@@ -1721,7 +1721,7 @@ class KlausBot:
                             entry_fill=_s2r_entry_fill, exit_fills=_s1_fills,
                             exit_reason="STAGE2_RESOLVED", signal=_s2r_signal,
                             ts_open=_s2_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
-                            capital_before=self.risk.bankroll.summary()["bankroll"] - pnl,
+                            capital_before=self.risk.bankroll.capital - pnl,
                             heat_check_active=_s2_meta.get("heat_check", False),
                             consecutive_wins=_s2_meta.get("consecutive_wins", 0),
                             net_pnl_actual=pnl,
@@ -2047,7 +2047,7 @@ class KlausBot:
                                     reason="residual_abandoned",
                                 ),
                                 ts_open=r.get("ts_open", time.time()), ts_close=time.time(),
-                                capital_before=self.risk.bankroll.summary()["bankroll"] - _res_pnl,
+                                capital_before=self.risk.bankroll.capital - _res_pnl,
                                 heat_check_active=False, consecutive_wins=0,
                                 net_pnl_actual=_res_pnl,
                                 market_type=r.get("market_type", "unknown"),
@@ -2305,7 +2305,7 @@ class KlausBot:
                             entry_fill=meta.get("entry_fill"), exit_fills=[],
                             exit_reason="STARTUP_EXTERNALLY_SOLD", signal=_sig,
                             ts_open=meta.get("ts_open", pos.open_ts), ts_close=time.time(),
-                            capital_before=self.risk.bankroll.summary()["bankroll"],
+                            capital_before=self.risk.bankroll.capital,
                             heat_check_active=False, consecutive_wins=0,
                             net_pnl_actual=0.0,
                             market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
@@ -2385,8 +2385,8 @@ class KlausBot:
                     "hour_utc": int(time.gmtime(r["open_ts"]).tm_hour),
                     "window_size_s": r.get("window_size_s", 0),
                     "is_live": not CONFIG.dry_run,
-                    "capital_before": self.risk.bankroll.summary()["bankroll"] - net_pnl,
-                    "capital_after": self.risk.bankroll.summary()["bankroll"],
+                    "capital_before": self.risk.bankroll.capital - net_pnl,
+                    "capital_after": self.risk.bankroll.capital,
                     "note": (
                         f"STAGE-1 RECOVERY: sold {s1_shares:.4f} of {shares:.4f} shares @ {s1_price:.4f}. "
                         f"Remaining {remaining:.4f} shares expired on-chain (resolution unknown). "
