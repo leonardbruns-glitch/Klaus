@@ -1476,6 +1476,58 @@ class KlausBot:
             pos.asset, pos.direction.name, sold, s1_fill_price, reason,
         )
 
+        # When stage-1 sold 100% (residual below $1.50 CLOB minimum), close and
+        # record the trade immediately — remaining_shares=0 means stage-2 would
+        # fire with an empty cascade, producing EXTERNALLY_SOLD with PnL≈0.
+        _pos_after = self.risk.open_positions.get(token_id)
+        if sell_pct == 1.0 and _pos_after is not None and _pos_after.remaining_shares < 0.05:
+            _meta = self._open_meta.get(token_id, {})
+            _all_shares = pos.shares
+            _net_pnl = self.risk.close_position(
+                token_id, s1_fill_price, reason, shares_override=_all_shares,
+            )
+            self._open_meta.pop(token_id, None)
+            self._pos_log_ts.pop(token_id, None)
+            if _net_pnl is not None:
+                _entry_fill = _meta.get("entry_fill") or OrderResult(
+                    status=OrderStatus.FILLED, avg_fill_price=pos.entry_price,
+                    total_size=_all_shares, slippage=0.0,
+                )
+                _signal = _meta.get("signal") or SignalBreakdown(
+                    direction=pos.direction, entry_price=pos.entry_price,
+                    composite=0.0, confidence=0.0, breakout_score=0.0,
+                    trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                    fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                    reason="stage1_full_exit",
+                )
+                _token_meta = self.feed.tokens.get(token_id)
+                try:
+                    self.analytics.record_trade(
+                        token_id=token_id, asset=pos.asset, direction=pos.direction,
+                        entry_price=pos.entry_price, exit_price=s1_fill_price,
+                        stake=pos.stake, shares=_all_shares,
+                        entry_fill=_entry_fill, exit_fills=exit_fills,
+                        exit_reason=reason,
+                        signal=_signal,
+                        ts_open=_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                        capital_before=self.risk.bankroll.capital - _net_pnl,
+                        heat_check_active=_meta.get("heat_check", False),
+                        consecutive_wins=_meta.get("consecutive_wins", 0),
+                        net_pnl_actual=_net_pnl,
+                        market_type=getattr(_token_meta, "market_type", "unknown"),
+                        is_live=not CONFIG.dry_run,
+                        signal_source=_meta.get("signal_source", "SNIPER"),
+                        window_size_s=_meta.get("window_size_s") or pos.window_seconds or 0,
+                        spot_at_entry=_meta.get("spot_at_entry", 0.0),
+                        spot_at_exit=0.0,
+                        signal_to_fill_ms=_meta.get("signal_to_fill_ms", 0.0),
+                        ob_depth_at_entry=_meta.get("ob_depth_at_entry", 0.0),
+                        pre_entry_momentum_pct=_meta.get("pre_entry_momentum_pct", 0.0),
+                    )
+                except Exception as _s1e:
+                    logger.error("record_trade STAGE1_FULL_EXIT failed: %s", _s1e)
+            return  # fully closed — skip stage-2 CLOB sync
+
         # CLOB balance sync: verify remaining_shares matches reality before stage-2.
         # CLOB cache lag can cause cascade_sell to fill a slightly different amount,
         # leaving remaining_shares out of sync. Sync now so stage-2 sells the right qty.
