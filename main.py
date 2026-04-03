@@ -360,8 +360,35 @@ class KlausBot:
                             token_id[:12], _balance or 0.0,
                         )
                         _pnl = self.risk.close_position(token_id, pos.entry_price, "NOOB_EXTERNALLY_SOLD")
-                        self._open_meta.pop(token_id, None)
+                        _noob_meta = self._open_meta.pop(token_id, {})
                         self._pos_log_ts.pop(token_id, None)
+                        if _pnl is not None:
+                            _noob_sig = _noob_meta.get("signal") or SignalBreakdown(
+                                direction=pos.direction, entry_price=pos.entry_price,
+                                composite=0.0, confidence=0.0, breakout_score=0.0,
+                                trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                                fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                                reason="noob_externally_sold",
+                            )
+                            try:
+                                self.analytics.record_trade(
+                                    token_id=token_id, asset=pos.asset, direction=pos.direction,
+                                    entry_price=pos.entry_price, exit_price=pos.entry_price,
+                                    stake=pos.stake, shares=pos.shares,
+                                    entry_fill=_noob_meta.get("entry_fill"), exit_fills=[],
+                                    exit_reason="NOOB_EXTERNALLY_SOLD", signal=_noob_sig,
+                                    ts_open=_noob_meta.get("ts_open", pos.open_ts), ts_close=now_ts,
+                                    capital_before=self.risk.bankroll.summary()["bankroll"] - _pnl,
+                                    heat_check_active=_noob_meta.get("heat_check", False),
+                                    consecutive_wins=_noob_meta.get("consecutive_wins", 0),
+                                    net_pnl_actual=_pnl,
+                                    market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                                    is_live=not CONFIG.dry_run,
+                                    signal_source=_noob_meta.get("signal_source", "SNIPER"),
+                                    window_size_s=_noob_meta.get("window_size_s") or pos.window_seconds or 0,
+                                )
+                            except Exception as _ne:
+                                logger.error("record_trade NOOB_EXTERNALLY_SOLD failed: %s", _ne)
                     elif token_id not in self._exit_in_progress:
                         self._exit_in_progress.add(token_id)
                         try:
@@ -1661,12 +1688,50 @@ class KlausBot:
                     _s1_notional = sum(f.avg_fill_price * f.total_size for f in _s1_fills)
                     _s2_remaining = max(0.0, pos.shares - _s1_sold)
                     _w_price = (_s1_notional + live_price * _s2_remaining) / pos.shares
-                    pnl = self.risk.close_position(token_id, round(_w_price, 6), "STAGE2_RESOLVED",
+                    _s2r_exit_price = round(_w_price, 6)
+                    pnl = self.risk.close_position(token_id, _s2r_exit_price, "STAGE2_RESOLVED",
                                                    shares_override=pos.shares)
                 else:
-                    pnl = self.risk.close_position(token_id, live_price, "STAGE2_RESOLVED")
+                    _s2r_exit_price = live_price
+                    pnl = self.risk.close_position(token_id, _s2r_exit_price, "STAGE2_RESOLVED")
+                _s2r_all_shares = pos.shares
+                _s2r_entry_fill = _s2_meta.get("entry_fill")
+                _s2r_signal = _s2_meta.get("signal")
                 self._open_meta.pop(token_id, None)
                 self._pos_log_ts.pop(token_id, None)
+                if pnl is not None:
+                    if _s2r_entry_fill is None:
+                        _s2r_entry_fill = OrderResult(
+                            status=OrderStatus.FILLED, avg_fill_price=pos.entry_price,
+                            total_size=pos.shares, slippage=0.0,
+                        )
+                    if _s2r_signal is None:
+                        _s2r_signal = SignalBreakdown(
+                            direction=pos.direction, entry_price=pos.entry_price,
+                            composite=0.0, confidence=0.0, breakout_score=0.0,
+                            trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                            fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                            reason="stage2_resolved",
+                        )
+                    try:
+                        self.analytics.record_trade(
+                            token_id=token_id, asset=pos.asset, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=_s2r_exit_price,
+                            stake=pos.stake, shares=_s2r_all_shares,
+                            entry_fill=_s2r_entry_fill, exit_fills=_s1_fills,
+                            exit_reason="STAGE2_RESOLVED", signal=_s2r_signal,
+                            ts_open=_s2_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                            capital_before=self.risk.bankroll.summary()["bankroll"] - pnl,
+                            heat_check_active=_s2_meta.get("heat_check", False),
+                            consecutive_wins=_s2_meta.get("consecutive_wins", 0),
+                            net_pnl_actual=pnl,
+                            market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                            is_live=not CONFIG.dry_run,
+                            signal_source=_s2_meta.get("signal_source", "SNIPER"),
+                            window_size_s=_s2_meta.get("window_size_s") or pos.window_seconds or 0,
+                        )
+                    except Exception as _s2re:
+                        logger.error("record_trade STAGE2_RESOLVED failed: %s", _s2re)
                 return
             # Shares still exist — reset and retry next cycle
             if token_id in self.risk.open_positions:
