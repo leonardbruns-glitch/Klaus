@@ -426,16 +426,17 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown: hard ceiling defers to sniper's MAX_TOKEN_ASK (0.90).
-            # Old caps (0.55/0.65) were set before lag_remaining gate existed —
-            # T00030/32/34 high-ask losses are now caught by lag_remaining < min_lag.
-            # A token at 0.795 with FV=0.90 and lag=30% is a valid trade; blanket
-            # price caps block it for no reason. Let the sniper decide.
-            _updown_max = 0.90  # matches sniper MAX_TOKEN_ASK
+            # Updown price ceiling: sniper self-enforces MAX_TOKEN_ASK=0.53 internally.
+            # Momentum scorer has no price ceiling — enforce 0.53 here for momentum signals.
+            # Fat-middle zone (0.50-0.62): 3.12% round-trip fees + max bot competition.
+            # Entries at 0.55-0.56 were slipping through momentum path (no sniper gate).
+            _is_sniper = getattr(signal, "signal_source", "MOMENTUM") in ("SNIPER", "CONTRARIAN")
+            _updown_max = 0.90 if _is_sniper else 0.53
             if signal.entry_price > _updown_max or signal.entry_price < 0.35:
                 return RiskDecision(
                     False, 0,
-                    f"Updown near-resolved: price {signal.entry_price:.4f} outside [0.35, {_updown_max}]",
+                    f"Updown entry {signal.entry_price:.4f} outside [0.35, {_updown_max:.2f}] "
+                    f"({'sniper' if _is_sniper else 'momentum'} path)",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
