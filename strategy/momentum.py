@@ -564,15 +564,15 @@ class MomentumScorer:
         # ── Order book quality gates (mirrors sniper gates) ──────────────────
         if ob:
             # Spread gate: illiquid OB = instant slippage
-            if ob.spread > 0.06:
+            if ob.spread > 0.10:
                 sig.direction = Direction.NO_TRADE
-                sig.reason = f"OB illiquid: spread={ob.spread:.3f} > 0.06"
+                sig.reason = f"OB illiquid: spread={ob.spread:.3f} > 0.10"
                 return sig
             # Top-of-book size gate: thin ask = partial fill + worse average price
             _best_ask_size = ob.asks[0][1] if ob.asks else 0.0
-            if _best_ask_size < 15.0:
+            if _best_ask_size < 8.0:
                 sig.direction = Direction.NO_TRADE
-                sig.reason = f"OB thin: ask_size={_best_ask_size:.1f} < 15 shares"
+                sig.reason = f"OB thin: ask_size={_best_ask_size:.1f} < 8 shares"
                 return sig
 
         # ── Entry price & fee zone ────────────────────────────────────────────

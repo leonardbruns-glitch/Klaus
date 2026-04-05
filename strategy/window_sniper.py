@@ -512,7 +512,7 @@ class WindowSniper:
         #
         # Gate 1: Spread — wide spread = illiquid market = instant slippage.
         # At spread=0.08 you lose 4 cents vs mid before the trade even starts.
-        OB_MAX_SPREAD = 0.06
+        OB_MAX_SPREAD = 0.10
         if ob.spread > OB_MAX_SPREAD:
             logger.info(
                 "SNIPER BLOCK %s/%s | spread=%.3f > %.2f — illiquid OB, slippage too high",
@@ -521,8 +521,8 @@ class WindowSniper:
             return None
 
         # Gate 2: Top-of-book size — thin ask = partial fill + worse average price.
-        # Require ≥15 shares at best ask. At $0.40 entry = $6 of liquidity = 2× our stake.
-        OB_MIN_ASK_SIZE = 15.0
+        # Require ≥8 shares at best ask. At $0.45 entry = $3.60 = enough for $10 stake with 2 levels.
+        OB_MIN_ASK_SIZE = 8.0
         best_ask_size = ob.asks[0][1] if ob.asks else 0.0
         if best_ask_size < OB_MIN_ASK_SIZE:
             logger.info(
@@ -537,7 +537,7 @@ class WindowSniper:
         # At that point the lag is closing and SL is the dominant outcome.
         # Threshold: 0.04 ($4 cents) — a full 4-cent move is 8% of the $0.50 range.
         # Exception: if edge is very large (≥0.12), drift doesn't matter — still plenty left.
-        PM_DRIFT_MAX = 0.04
+        PM_DRIFT_MAX = 0.07
         if pm_drift > PM_DRIFT_MAX and edge < 0.12:
             logger.info(
                 "SNIPER BLOCK %s/%s | pm_drift=%+.3f > %.2f (trigger→now: %.3f→%.3f) "
