@@ -531,21 +531,6 @@ class WindowSniper:
             )
             return None
 
-        # Gate 3: Ask wall — large resistance level in the 4 levels above best ask.
-        # Data collection phase: log the wall but don't block yet — need n≥20 to
-        # confirm that wall presence actually predicts SL outcomes before enforcing.
-        # Threshold $30: at $0.40 = 75 shares = 10× our stake (genuinely immovable).
-        OB_WALL_LOG_THRESHOLD = 30.0
-        for _ask_px, _ask_sz in ob.asks[1:5]:
-            _wall_notional = _ask_px * _ask_sz
-            if _wall_notional > OB_WALL_LOG_THRESHOLD:
-                logger.info(
-                    "SNIPER OB_WALL %s/%s | wall at %.3f (%.1f shares = $%.0f) — "
-                    "resistance above entry (logged, not blocking — data collection)",
-                    token.asset, token.side, _ask_px, _ask_sz, _wall_notional,
-                )
-                break  # log first wall only
-
         # ── PM drift gate (late-entry filter) ────────────────────────────────
         # pm_drift = how much PM ask already moved toward FV since Binance trigger.
         # Large pm_drift = we're entering AFTER most of the repricing already happened.

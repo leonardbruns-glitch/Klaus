@@ -574,14 +574,6 @@ class MomentumScorer:
                 sig.direction = Direction.NO_TRADE
                 sig.reason = f"OB thin: ask_size={_best_ask_size:.1f} < 15 shares"
                 return sig
-            # Ask wall: data collection only — log but don't block until n≥20 confirms
-            for _ask_px, _ask_sz in ob.asks[1:5]:
-                if _ask_px * _ask_sz > 30.0:
-                    logger.info(
-                        "MOMENTUM OB_WALL %s | wall at %.3f ($%.0f notional) — logged, not blocking",
-                        getattr(ob, "asset", "?"), _ask_px, _ask_px * _ask_sz,
-                    )
-                    break
 
         # ── Entry price & fee zone ────────────────────────────────────────────
         # Always use the actual ask price of the token being evaluated.
