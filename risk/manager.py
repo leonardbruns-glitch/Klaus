@@ -816,28 +816,34 @@ class RiskManager:
             in_grace = is_15m_pos and time_held < 60
             catastro_thresh = 0.60 if is_5m else (0.70 if in_grace else 0.50)
             if current_price <= pos.entry_price * catastro_thresh:
-                if is_15m_pos and current_price > pos.entry_price * 0.20:
-                    # 15m stop-hunt guard: wait 20s before executing catastrophic SL.
-                    # Reuse sl_breach_ts — already persisted to disk, resets if price recovers.
+                # Stop-hunt guard: both 5m (5s) and 15m (20s) get confirmation window.
+                # Observed: SOL/UP wicked 15¢→6¢→55¢ within 60s on 5m window (2026-04-05).
+                # 5m gets shorter window (5s) since the window itself is only 300s.
+                # True collapse (price < 20% of entry = -80%) remains immediate.
+                confirm_catastro = 5.0 if is_5m else 20.0
+                if current_price > pos.entry_price * 0.20:
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now
                         pos.sl_breach_price = current_price
                         logger.warning(
-                            "15m CATASTROPHIC SL BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — "
-                            "20s confirmation (stop-hunt guard)",
+                            "%s CATASTROPHIC SL BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — "
+                            "%.0fs confirmation (stop-hunt guard)",
+                            "5m" if is_5m else "15m",
                             pos.asset, pos.direction.name,
                             current_price, pos.entry_price,
                             (1 - current_price / pos.entry_price) * 100,
+                            confirm_catastro,
                         )
-                    elif now - pos.sl_breach_ts >= 20.0:
+                    elif now - pos.sl_breach_ts >= confirm_catastro:
                         return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                     # if price recovers above catastrophic threshold, sl_breach_ts resets below
                 else:
                     return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-            elif is_15m_pos and pos.sl_breach_ts > 0.0 and in_grace:
-                # Price recovered above catastrophic threshold during 20s wait — reset timer
+            elif pos.sl_breach_ts > 0.0:
+                # Price recovered above catastrophic threshold during confirmation wait — reset timer
                 logger.info(
-                    "15m CATASTROPHIC SL CANCELLED %s/%s — price %.4f recovered above %.4f",
+                    "%s CATASTROPHIC SL CANCELLED %s/%s — price %.4f recovered above %.4f",
+                    "5m" if is_5m else "15m",
                     pos.asset, pos.direction.name,
                     current_price, pos.entry_price * catastro_thresh,
                 )
