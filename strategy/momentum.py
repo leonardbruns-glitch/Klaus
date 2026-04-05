@@ -561,6 +561,26 @@ class MomentumScorer:
         # ── External boost / penalty ──────────────────────────────────────────
         sig.external_boost = external_signal_boost(ext, sig.direction)
 
+        # ── Order book quality gates (mirrors sniper gates) ──────────────────
+        if ob:
+            # Spread gate: illiquid OB = instant slippage
+            if ob.spread > 0.06:
+                sig.direction = Direction.NO_TRADE
+                sig.reason = f"OB illiquid: spread={ob.spread:.3f} > 0.06"
+                return sig
+            # Top-of-book size gate: thin ask = partial fill
+            _best_ask_size = ob.asks[0][1] if ob.asks else 0.0
+            if _best_ask_size < 15.0:
+                sig.direction = Direction.NO_TRADE
+                sig.reason = f"OB thin: ask_size={_best_ask_size:.1f} < 15 shares"
+                return sig
+            # Ask wall gate: large resistance above entry
+            for _ask_px, _ask_sz in ob.asks[1:5]:
+                if _ask_px * _ask_sz > 15.0:
+                    sig.direction = Direction.NO_TRADE
+                    sig.reason = f"OB wall at {_ask_px:.3f} (${_ask_px*_ask_sz:.0f} notional)"
+                    return sig
+
         # ── Entry price & fee zone ────────────────────────────────────────────
         # Always use the actual ask price of the token being evaluated.
         # For YES tokens → YES ask (e.g. 0.24).

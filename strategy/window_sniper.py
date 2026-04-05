@@ -437,6 +437,42 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
+        # ── Order book quality gates ──────────────────────────────────────────
+        # Gate 1: Spread — wide spread = illiquid market = instant slippage.
+        # At spread=0.08 you lose 4 cents vs mid before the trade even starts.
+        OB_MAX_SPREAD = 0.06
+        if ob.spread > OB_MAX_SPREAD:
+            logger.info(
+                "SNIPER BLOCK %s/%s | spread=%.3f > %.2f — illiquid OB, slippage too high",
+                token.asset, token.side, ob.spread, OB_MAX_SPREAD,
+            )
+            return None
+
+        # Gate 2: Top-of-book size — thin ask = partial fill + slippage to next level.
+        # Require ≥15 shares at best ask. At $0.40 entry that's $6 of liquidity — 2× our stake.
+        OB_MIN_ASK_SIZE = 15.0
+        best_ask_size = ob.asks[0][1] if ob.asks else 0.0
+        if best_ask_size < OB_MIN_ASK_SIZE:
+            logger.info(
+                "SNIPER BLOCK %s/%s | ask_size=%.1f < %.0f shares — top-of-book too thin",
+                token.asset, token.side, best_ask_size, OB_MIN_ASK_SIZE,
+            )
+            return None
+
+        # Gate 3: Ask wall — large resistance level above current ask.
+        # If any of the next 4 ask levels holds > $15 notional, price will stall there.
+        # $15 = ~5× our $3 stake; a wall that size won't move for us.
+        OB_WALL_THRESHOLD = 15.0
+        for _ask_px, _ask_sz in ob.asks[1:5]:
+            _wall_notional = _ask_px * _ask_sz
+            if _wall_notional > OB_WALL_THRESHOLD:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | ask wall at %.3f (%.1f shares = $%.0f) — "
+                    "resistance above entry, price unlikely to pass",
+                    token.asset, token.side, _ask_px, _ask_sz, _wall_notional,
+                )
+                return None
+
         # Hard ceiling: tightens in the second half of a window.
         # Rationale: elapsed≥50% means the lag window is closing fast; entering near
         # 0.50 leaves almost no room before the 15% dynamic SL fires on noise.
