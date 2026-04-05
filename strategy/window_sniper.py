@@ -120,9 +120,10 @@ CONTRARIAN_MAX_ASK = 0.15       # we buy the cheap side at ≤ this price
 CONTRARIAN_ELAPSED_MAX = 0.40   # only first 40% of window (≈first 2min of 5m, 6min of 15m)
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
-                                # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
-                                # T00035: entered at 18% elapsed → +$0.992 (early = room to breathe)
+WINDOW_ELAPSED_MAX_5M  = 0.35  # tightened 0.40→0.35: lag_analysis shows PM reprices at 135-225s
+                                # at 35% elapsed (105s in), remaining=195s → window expiry guard
+                                # fires at 150s from entry, capturing the 150s repricing cluster
+                                # at 40% elapsed only 135s remaining — exits before reprice
                                 # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
 WINDOW_ELAPSED_MAX_15M = 0.80  # 15m: full 80% (still 3 min left at 80%)
 
