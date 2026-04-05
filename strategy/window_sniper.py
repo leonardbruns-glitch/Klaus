@@ -806,6 +806,11 @@ class WindowSniper:
             token.asset, token.side, elapsed_pct * 100, token_ask, opponent_ask, delta_pct,
         )
 
+        # Compute cross-exchange divergence for data collection (same as score())
+        _cb_price = float(ext.coinbase_price or 0.0) if ext else 0.0
+        _bn_price  = float(ext.spot_price or 0.0) if ext else 0.0
+        _cross_div = (_bn_price - _cb_price) / _cb_price * 100 if _cb_price > 0 and _bn_price > 0 else 0.0
+
         return SniperSignal(
             asset=token.asset,
             side=token.side,
@@ -825,4 +830,10 @@ class WindowSniper:
             vpin_at_entry=round(ext.vpin_score, 4) if ext and ext.vpin_score else 0.0,
             pm_ask_at_trigger=token_ask,
             regime="CONTRARIAN",
+            # Data collection fields — same sources as score(), no gate logic for contrarian
+            liq_long_60s=round(float(ext.liq_long_60s), 0) if ext else 0.0,
+            liq_short_60s=round(float(ext.liq_short_60s), 0) if ext else 0.0,
+            funding_rate_pct=round(float(ext.funding_rate or 0.0), 3) if ext else 0.0,
+            coinbase_price=round(_cb_price, 2),
+            cross_exchange_div_pct=round(_cross_div, 4),
         )
