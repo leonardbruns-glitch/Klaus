@@ -99,10 +99,10 @@ LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
 MAX_TOKEN_ASK = 0.53   # restored 0.48→0.53: all 3 live trades entered 0.517-0.531 and won; fat-middle accepted
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (ELAPSED_MAX=0.35), 15m has plenty of hold time
-MIN_LAG_REMAINING_5M = 0.30   # restored 0.40→0.30: 0.40 was raised on shadow scanner data (unreliable)
-MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
+MIN_LAG_REMAINING_5M = 0.25   # lowered 0.30→0.25: collect more data, tighten after n≥20
+MIN_LAG_REMAINING_15M = 0.25  # unchanged
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
-VPIN_OFFPEAK_REQUIRED = 0.35
+VPIN_OFFPEAK_REQUIRED = 0.15
 
 # 15m RE-ENABLED: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
 # Shadow data was wrong — live 15m outperforms live 5m significantly.
@@ -554,18 +554,26 @@ class WindowSniper:
             pm_drift, ask_at_trigger if ask_at_trigger > 0 else token_ask, token_ask, fair_value,
         )
 
-        # ── VPIN off-peak gate — DATA COLLECTION ONLY ────────────────────────
-        # Was: block if VPIN < 0.35 outside active hours (based on shadow 0/8 WR at 18-23 UTC).
-        # Disabled: shadow WR is unreliable (can be inverted by stop-hunting).
-        # All 3 live trades happened at hour=8 (active) — zero off-peak live data.
-        # Re-enable as hard block after n≥20 live trades in off-peak hours.
+        # ── VPIN off-peak gate ────────────────────────────────────────────────
+        # Outside active hours, require minimum informed flow to filter pure noise.
+        # 0.15 = very low bar — only blocks truly dead markets (VPIN ~0.10 = random flow).
+        # 0.35 was too aggressive (blocked VPIN=0.27-0.31 which may have edge).
         if not is_active_session:
             vpin_for_gate = ext.vpin_score or 0.0
             if vpin_for_gate < VPIN_OFFPEAK_REQUIRED:
-                logger.debug(
-                    "VPIN off-peak note %s/%s | VPIN=%.3f < %.2f (hour=%d UTC) — data only, not blocking",
+                logger.info(
+                    "SNIPER BLOCK %s/%s | off-peak VPIN=%.3f < %.2f — no informed flow (hour=%d UTC)",
                     token.asset, token.side, vpin_for_gate, VPIN_OFFPEAK_REQUIRED, hour_utc,
                 )
+                self.last_block[(token.asset, token.side)] = SniperBlock(
+                    asset=token.asset, side=token.side, token_id=token.token_id,
+                    window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                    block_reason="vpin_offpeak", regime=_regime,
+                    token_ask=token_ask, fair_value=fair_value, edge=edge,
+                    lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
+                    vpin=vpin_for_gate, ts=now,
+                )
+                return None
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0
