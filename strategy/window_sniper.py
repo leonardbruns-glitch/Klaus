@@ -98,7 +98,7 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
 MAX_TOKEN_ASK = 0.53   # restored 0.48→0.53: all 3 live trades entered 0.517-0.531 and won; fat-middle accepted
-MAX_TOKEN_ASK_LATE = 0.50  # elapsed≥50%: slight tightening — lag window closing fast
+MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (ELAPSED_MAX=0.35), 15m has plenty of hold time
 MIN_LAG_REMAINING_5M = 0.40   # raised 0.30→0.40: scanner WR=85% at lag≥0.40 vs 76% at 0.30, EV=+0.168
 MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
@@ -437,10 +437,7 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        # Hard ceiling: tightens in the second half of a window.
-        # Rationale: elapsed≥50% means the lag window is closing fast; entering near
-        # 0.50 leaves almost no room before the 15% dynamic SL fires on noise.
-        _effective_max = MAX_TOKEN_ASK_LATE if elapsed_pct >= 0.50 else MAX_TOKEN_ASK
+        _effective_max = MAX_TOKEN_ASK
         if token_ask > _effective_max or token_ask < MIN_TOKEN_ASK:
             if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
                 self._prearm[prearm_key] = (now, token.window_end_ts)
