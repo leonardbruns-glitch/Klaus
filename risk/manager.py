@@ -834,6 +834,19 @@ class RiskManager:
                             (1 - current_price / pos.entry_price) * 100,
                             confirm_catastro,
                         )
+                    elif pos.sl_breach_price > pos.entry_price * catastro_thresh:
+                        # sl_breach_ts was set in regular SL zone; price has now fallen into
+                        # catastrophic territory — this is a genuine collapse, not a wick. Exit immediately.
+                        # Observed 2026-04-05: SOL DOWN 52¢→13¢; regular SL at 33.8¢ set 20s timer,
+                        # price continued to catastrophic zone during wait → exited at 13¢ instead of ~34¢.
+                        logger.warning(
+                            "%s CATASTROPHIC ESCALATION %s/%s @ %.4f — breach was at %.4f (regular SL zone), "
+                            "now in catastrophic zone — immediate exit",
+                            "5m" if is_5m else "15m",
+                            pos.asset, pos.direction.name,
+                            current_price, pos.sl_breach_price,
+                        )
+                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                     elif now - pos.sl_breach_ts >= confirm_catastro:
                         return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                     # if price recovers above catastrophic threshold, sl_breach_ts resets below
@@ -874,6 +887,17 @@ class RiskManager:
                             current_price, pos.entry_price, sl_pct * 100, confirm_secs,
                         )
                     elif now - pos.sl_breach_ts >= confirm_secs:
+                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                    elif pos.sl_breach_price > 0.0 and current_price < pos.sl_breach_price * 0.80:
+                        # Price dropped >20% further from breach point during confirmation window.
+                        # Wicks reverse; genuine reversals keep falling. Exit immediately.
+                        logger.warning(
+                            "%s SL DETERIORATION %s/%s @ %.4f — breach was %.4f, dropped %.0f%% further",
+                            "5m" if is_5m else "15m",
+                            pos.asset, pos.direction.name,
+                            current_price, pos.sl_breach_price,
+                            (1 - current_price / pos.sl_breach_price) * 100,
+                        )
                         return ExitDecision(True, "STOP_LOSS", urgency="immediate")
                 else:
                     if pos.sl_breach_ts > 0.0:
