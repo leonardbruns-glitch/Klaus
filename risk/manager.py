@@ -426,12 +426,12 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown price ceiling: sniper self-enforces MAX_TOKEN_ASK=0.53 internally.
-            # Momentum scorer has no price ceiling — enforce 0.53 here for momentum signals.
-            # Fat-middle zone (0.50-0.62): 3.12% round-trip fees + max bot competition.
-            # Entries at 0.55-0.56 were slipping through momentum path (no sniper gate).
+            # Updown price ceiling: sniper self-enforces MAX_TOKEN_ASK=0.48 internally.
+            # Momentum scorer has no price ceiling — enforce 0.48 here for momentum signals.
+            # Fat-middle zone (0.48-0.62): 3.12% round-trip fees + max bot competition +
+            # 15% dynamic SL = only $0.072 noise-triggerable at entry=0.48.
             _is_sniper = getattr(signal, "signal_source", "MOMENTUM") in ("SNIPER", "CONTRARIAN")
-            _updown_max = 0.90 if _is_sniper else 0.53
+            _updown_max = 0.90 if _is_sniper else 0.48
             if signal.entry_price > _updown_max or signal.entry_price < 0.35:
                 return RiskDecision(
                     False, 0,

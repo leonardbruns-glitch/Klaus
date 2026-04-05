@@ -97,7 +97,9 @@ WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
-MAX_TOKEN_ASK = 0.53   # raised 0.50→0.53: user confirmed — allow up to $0.53 entries
+MAX_TOKEN_ASK = 0.48   # lowered 0.53→0.48: 0.50-0.53 zone = peak fees (1.8% taker) + 15% SL = $0.08 noise-triggerable
+                       # fee math: at 0.53 round-trip ~3.1%; at 0.48 ~2.6%. SL at 0.48 = $0.072 vs $0.080 at 0.53.
+MAX_TOKEN_ASK_LATE = 0.46  # elapsed≥50%: even tighter — lag window closing fast, less room before SL
 MIN_LAG_REMAINING_5M = 0.40   # raised 0.30→0.40: scanner WR=85% at lag≥0.40 vs 76% at 0.30, EV=+0.168
 MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
@@ -435,17 +437,21 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        # Hard ceiling: near-resolved tokens only (>90% priced)
-        if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
+        # Hard ceiling: tightens in the second half of a window.
+        # Rationale: elapsed≥50% means the lag window is closing fast; entering near
+        # 0.50 leaves almost no room before the 15% dynamic SL fires on noise.
+        _effective_max = MAX_TOKEN_ASK_LATE if elapsed_pct >= 0.50 else MAX_TOKEN_ASK
+        if token_ask > _effective_max or token_ask < MIN_TOKEN_ASK:
             if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
                 self._prearm[prearm_key] = (now, token.window_end_ts)
                 logger.info(
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed",
                     token.asset, token.side, token_ask,
                 )
-            _block_reason = "near_ceiling" if token_ask > MAX_TOKEN_ASK else "near_resolved"
-            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (delta=%+.3f%%)",
-                        token.asset, token.side, token_ask, _block_reason, delta_pct)
+            _block_reason = "near_ceiling" if token_ask > _effective_max else "near_resolved"
+            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (max=%.2f elapsed=%.0f%% delta=%+.3f%%)",
+                        token.asset, token.side, token_ask, _block_reason, _effective_max,
+                        elapsed_pct * 100, delta_pct)
             return None
 
         edge = fair_value - token_ask
@@ -496,6 +502,22 @@ class WindowSniper:
                 token_ask=token_ask, fair_value=fair_value, edge=edge,
                 lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
                 vpin=ext.vpin_score or 0.0, ts=now,
+            )
+            return None
+
+        # ── PM drift gate (late-entry filter) ────────────────────────────────
+        # pm_drift = how much PM ask already moved toward FV since Binance trigger.
+        # Large pm_drift = we're entering AFTER most of the repricing already happened.
+        # At that point the lag is closing and SL is the dominant outcome.
+        # Threshold: 0.04 ($4 cents) — a full 4-cent move is 8% of the $0.50 range.
+        # Exception: if edge is very large (≥0.12), drift doesn't matter — still plenty left.
+        PM_DRIFT_MAX = 0.04
+        if pm_drift > PM_DRIFT_MAX and edge < 0.12:
+            logger.info(
+                "SNIPER BLOCK %s/%s | pm_drift=%+.3f > %.2f (trigger→now: %.3f→%.3f) "
+                "— PM already repriced most of the move, late entry",
+                token.asset, token.side, pm_drift, PM_DRIFT_MAX,
+                ask_at_trigger, token_ask,
             )
             return None
 
