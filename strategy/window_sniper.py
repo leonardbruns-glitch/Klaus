@@ -97,9 +97,8 @@ WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
-MAX_TOKEN_ASK = 0.48   # lowered 0.53→0.48: 0.50-0.53 zone = peak fees (1.8% taker) + 15% SL = $0.08 noise-triggerable
-                       # fee math: at 0.53 round-trip ~3.1%; at 0.48 ~2.6%. SL at 0.48 = $0.072 vs $0.080 at 0.53.
-MAX_TOKEN_ASK_LATE = 0.46  # elapsed≥50%: even tighter — lag window closing fast, less room before SL
+MAX_TOKEN_ASK = 0.53   # restored 0.48→0.53: all 3 live trades entered 0.517-0.531 and won; fat-middle accepted
+MAX_TOKEN_ASK_LATE = 0.50  # elapsed≥50%: slight tightening — lag window closing fast
 MIN_LAG_REMAINING_5M = 0.40   # raised 0.30→0.40: scanner WR=85% at lag≥0.40 vs 76% at 0.30, EV=+0.168
 MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
