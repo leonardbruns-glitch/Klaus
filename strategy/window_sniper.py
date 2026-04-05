@@ -124,7 +124,7 @@ WINDOW_ELAPSED_MAX_5M  = 0.35  # tightened 0.40→0.35: lag_analysis shows PM re
                                 # fires at 150s from entry, capturing the 150s repricing cluster
                                 # at 40% elapsed only 135s remaining — exits before reprice
                                 # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
-WINDOW_ELAPSED_MAX_15M = 0.80  # 15m: full 80% (still 3 min left at 80%)
+WINDOW_ELAPSED_MAX_15M = 0.60  # tightened 0.80→0.60: at 80% only 180s left = hard exit fires immediately; 0.60 leaves 360s (6 min) for stage-1 to play out
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
