@@ -394,10 +394,10 @@ class RiskManager:
             )
 
         # ── Daily loss halt ───────────────────────────────────────────────────
-        if self.is_halted:
+        if self.bankroll.is_halted:
             return RiskDecision(
                 False, 0,
-                f"Daily loss halt: -${self.daily_loss:.2f} >= ${self.cfg.max_daily_loss:.0f} limit",
+                f"Daily loss halt: -${self.bankroll.daily_loss:.2f} >= ${self.cfg.max_daily_loss:.0f} limit",
             )
 
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
