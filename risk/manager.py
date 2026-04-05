@@ -387,10 +387,10 @@ class RiskManager:
         # ── Ruin floor — hard stop if bankroll falls below minimum ──────────────
         # $100 = 50% of $200 starting capital. Below this, strategy review required.
         RUIN_FLOOR = 100.0
-        if self.capital < RUIN_FLOOR:
+        if self.bankroll.capital < RUIN_FLOOR:
             return RiskDecision(
                 False, 0,
-                f"RUIN FLOOR: capital ${self.capital:.2f} < ${RUIN_FLOOR:.0f} — halt, full review required",
+                f"RUIN FLOOR: capital ${self.bankroll.capital:.2f} < ${RUIN_FLOOR:.0f} — halt, full review required",
             )
 
         # ── Daily loss halt ───────────────────────────────────────────────────
