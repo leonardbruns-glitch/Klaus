@@ -97,12 +97,12 @@ WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
-MAX_TOKEN_ASK = 0.53   # restored 0.48→0.53: all 3 live trades entered 0.517-0.531 and won; fat-middle accepted
+MAX_TOKEN_ASK = 0.49   # lowered 0.53→0.49: avoid stop-hunting zone above 0.50; fat-middle fees reduce above 0.50
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (ELAPSED_MAX=0.35), 15m has plenty of hold time
 MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
-MIN_LAG_REMAINING_15M = 0.25  # unchanged
+MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
-VPIN_OFFPEAK_REQUIRED = 0.15
+VPIN_OFFPEAK_REQUIRED = 0.35  # restored 0.15→0.35: this morning's trades (hour=8, active hours) passed regardless
 
 # 15m RE-ENABLED: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
 # Shadow data was wrong — live 15m outperforms live 5m significantly.
