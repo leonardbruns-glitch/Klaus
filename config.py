@@ -23,12 +23,18 @@ except ImportError:
 
 @dataclass
 class BankrollConfig:
-    total: float = 100.0
-    base_stake: float = 5.0           # reduced $10→$5: 20-trade live data shows -$16 loss, 30% WR
-    scaled_stake: float = 5.0         # flat — heat-check disabled; raise after 50 trades WR>55%
+    total: float = 200.0              # updated: $100→$200 deposit (2026-04-05)
+    base_stake: float = 5.0           # validation mode: 2.5% of $200. Scale tiers below.
+    # Scale-up tiers (static sizing — Kelly deferred until n≥50 with stable per-regime WR):
+    #   Tier 1: $5  — now (validation, n<20)
+    #   Tier 2: $8  — after confirmed WR>55% over 20+ live trades
+    #   Tier 3: $15 — after confirmed WR>55% over 50+ live trades
+    # Kelly deferred: edge is regime-dependent (WR swings 0%→80% by regime);
+    # stop-hunting creates fat-tailed losses that break Kelly variance assumptions.
+    scaled_stake: float = 5.0         # flat — heat-check disabled; raise per tiers above
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 3       # data collection phase — allow more concurrent trades
-    max_daily_loss: float = 10.0      # stop after -$10/day (CLAUDE.md); was $40 — too permissive
+    max_daily_loss: float = 20.0      # 10% of $200 bankroll (was $10 on $100)
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 

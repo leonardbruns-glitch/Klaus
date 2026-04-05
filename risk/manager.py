@@ -376,9 +376,21 @@ class RiskManager:
         is_sniper: bool = False,
         window_seconds: int = 0,
     ) -> RiskDecision:
-        # Ruin floor disabled — no capital limits enforced
+        # ── Ruin floor — hard stop if bankroll falls below minimum ──────────────
+        # $100 = 50% of $200 starting capital. Below this, strategy review required.
+        RUIN_FLOOR = 100.0
+        if self.capital < RUIN_FLOOR:
+            return RiskDecision(
+                False, 0,
+                f"RUIN FLOOR: capital ${self.capital:.2f} < ${RUIN_FLOOR:.0f} — halt, full review required",
+            )
 
-        # Daily loss halt disabled — 15m WR 100%, no reason to stop on a bad day
+        # ── Daily loss halt ───────────────────────────────────────────────────
+        if self.is_halted:
+            return RiskDecision(
+                False, 0,
+                f"Daily loss halt: -${self.daily_loss:.2f} >= ${self.cfg.max_daily_loss:.0f} limit",
+            )
 
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
