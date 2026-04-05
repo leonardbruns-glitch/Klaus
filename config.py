@@ -186,6 +186,50 @@ class MarketConfig:
 
 
 @dataclass
+class SignalGatesConfig:
+    """
+    Feature flags for new signal gates. All default OFF (data collection only).
+
+    Each gate starts as False — data is LOGGED but trading is NOT affected.
+    Enable a gate only after reviewing cond_wr / liq / funding / coinbase_div
+    fields in trades.jsonl and confirming the signal has predictive value.
+
+    NEVER enable a gate without n≥20 trades showing the correlation.
+    """
+    # ── Signal 1: Conditional WR gate ────────────────────────────────────────
+    # Blocks entries where our historical WR for (regime, window_size_s) < min_wr
+    # AND we have at least min_n trades of evidence.
+    # Data shows QUIET_DEAD=0% WR, QUIET_FLOW=33% WR — enable after n≥10 per bucket.
+    conditional_wr_gate: bool = False      # True = block low-WR conditions
+    conditional_wr_min:  float = 0.35     # minimum WR to allow entry
+    conditional_wr_min_n: int = 10        # minimum n before gate activates
+
+    # ── Signal 2: Liquidation cascade gate ───────────────────────────────────
+    # Blocks entry if a large cascade liquidation happened in the last 60s
+    # IN THE SAME DIRECTION as our trade (indicates price may still be in free-fall).
+    # Example: we want BUY_YES (price up), but $2M of long liquidations just fired
+    # → someone pushed price down to trigger those longs → cascade may continue.
+    liquidation_gate: bool = False         # True = block on large cascade
+    liquidation_threshold: float = 500_000 # $ threshold for "large" liquidation
+
+    # ── Signal 3: Funding rate gate ───────────────────────────────────────────
+    # Blocks/reduces confidence when funding rate is extreme AND aligns with
+    # our direction (crowded trade = vulnerable to flush).
+    # funding_rate in ExternalSignal is annualised APR (e.g. 0.0001*3*365*100=10.95%).
+    # 8h rate equivalent: APR / (3*365) * 100 → 10.95% APR = 0.01% per 8h.
+    # Extreme = >0.1% per 8h = >109.5% APR (clearly overcrowded).
+    funding_gate: bool = False             # True = block on extreme funding
+    funding_extreme_apr: float = 80.0     # APR threshold: 80% = very crowded
+
+    # ── Signal 4: Cross-exchange divergence gate ──────────────────────────────
+    # Blocks entry if Binance moved significantly but Coinbase price hasn't moved
+    # (divergence > threshold). Large divergence = Binance-isolated move = suspicious.
+    # Normal divergence is <0.05% due to arbitrageurs. >0.15% = uncorroborated move.
+    cross_exchange_gate: bool = False      # True = block on large divergence
+    cross_exchange_div_threshold: float = 0.20  # % divergence to consider suspicious
+
+
+@dataclass
 class AnalyticsConfig:
     log_dir: str = "logs"
     trade_log: str = "logs/trades.jsonl"
@@ -204,6 +248,7 @@ class KlausConfig:
     markets: MarketConfig = field(default_factory=MarketConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
     edge: EdgeConfig = field(default_factory=EdgeConfig)
+    signal_gates: SignalGatesConfig = field(default_factory=SignalGatesConfig)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     # Accepts old-bot naming (PRIVATE_KEY / FUNDER_ADDRESS) or Klaus naming.

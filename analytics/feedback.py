@@ -108,6 +108,18 @@ class TradeRecord:
     capital_before: float = 0.0
     capital_after: float = 0.0   # always capital_before + net_pnl (not bankroll snapshot)
     is_live: bool = False         # False = dry-run/stub; True = real CLOB trade
+    # ── New signal fields (data collection — gates in config.signal_gates) ────
+    # Signal 1: Conditional WR for (regime, window_size_s) at entry time
+    cond_wr: float = 0.5          # historical WR for this condition (0.5 = no data yet)
+    cond_n: int = 0               # n trades used to compute cond_wr
+    # Signal 2: Liquidation cascade in last 60s at entry time
+    liq_long_60s: float = 0.0    # $ of long liquidations (price pushed DOWN)
+    liq_short_60s: float = 0.0   # $ of short liquidations (price pushed UP)
+    # Signal 3: Funding rate at entry (annualised APR %)
+    funding_rate_pct: float = 0.0 # positive=longs crowded, negative=shorts crowded
+    # Signal 4: Cross-exchange divergence at entry
+    coinbase_price: float = 0.0   # Coinbase spot price (0 = not available)
+    cross_exchange_div_pct: float = 0.0  # (binance-coinbase)/coinbase*100
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +377,14 @@ class FeedbackEngine:
             sniper_pm_drift_at_entry=round(getattr(signal, "pm_drift_at_entry", 0.0), 4) if is_sniper else 0.0,
             sniper_lag_remaining=round(getattr(signal, "lag_remaining_pct", 0.0), 3) if is_sniper else 0.0,
             regime=getattr(signal, "regime", ""),
+            # New signal fields — extracted from SniperSignal if present, else 0
+            cond_wr=round(float(getattr(signal, "cond_wr", 0.5)), 3),
+            cond_n=int(getattr(signal, "cond_n", 0)),
+            liq_long_60s=round(float(getattr(signal, "liq_long_60s", 0.0)), 0),
+            liq_short_60s=round(float(getattr(signal, "liq_short_60s", 0.0)), 0),
+            funding_rate_pct=round(float(getattr(signal, "funding_rate_pct", 0.0)), 3),
+            coinbase_price=round(float(getattr(signal, "coinbase_price", 0.0)), 2),
+            cross_exchange_div_pct=round(float(getattr(signal, "cross_exchange_div_pct", 0.0)), 4),
             window_size_s=window_size_s,
             hour_utc=int(time.gmtime(ts_open).tm_hour),
             hold_seconds=round(ts_close - ts_open, 1),

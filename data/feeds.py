@@ -122,6 +122,17 @@ class ExternalSignal:
     # Used by WindowSniper to compute delta from window open → fair value
     spot_window_open_5m: Optional[float] = None   # Binance price at 5M window open
     spot_window_open_15m: Optional[float] = None  # Binance price at 15M window open
+    # ── New signals (data collection — gates controlled by config flags) ──────
+    # Liquidation data: $ value of long/short liquidations in last 60s (Binance forceOrder stream)
+    # liq_long_60s  > 0 → longs being cascade-liquidated (price was pushed DOWN)
+    # liq_short_60s > 0 → shorts being cascade-liquidated (price was pushed UP)
+    # Large values near our entry = potential manufactured move / stop-hunt in progress
+    liq_long_60s: float = 0.0
+    liq_short_60s: float = 0.0
+    # Coinbase spot price for cross-exchange divergence detection
+    # If Binance moved significantly but Coinbase hasn't → Binance-isolated move (suspicious)
+    # If both moved → real institutional flow across venues
+    coinbase_price: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -314,8 +325,20 @@ class PolymarketFeed:
             "rtds_ws": 0,       # Polymarket real-time data WS
             "binance_ws": 0,    # Binance futures aggTrade WS
             "binance_kline": 0, # Binance spot kline WS
+            "binance_liq": 0,   # Binance futures liquidation WS
         }
         self._session_start_ts: float = time.time()
+        # ── New signal caches ─────────────────────────────────────────────────
+        # Liquidation events: asset → {"long": [(ts, usd_val), ...], "short": [...]}
+        # Populated by _run_binance_liq_ws(). Long liq = SELL side (price dropped).
+        self._liquidations: Dict[str, Dict[str, list]] = {
+            "BTC": {"long": [], "short": []},
+            "ETH": {"long": [], "short": []},
+            "SOL": {"long": [], "short": []},
+        }
+        # Coinbase spot prices: asset → price (USD)
+        # Populated by _poll_coinbase_prices(). Used for cross-exchange divergence.
+        self._coinbase_prices: Dict[str, float] = {}
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -366,6 +389,8 @@ class PolymarketFeed:
                 asyncio.create_task(self._run_rtds_ws()),
                 asyncio.create_task(self._run_binance_ws()),
                 asyncio.create_task(self._run_binance_kline_ws()),
+                asyncio.create_task(self._run_binance_liq_ws()),
+                asyncio.create_task(self._poll_coinbase_prices()),
             ]
 
         logger.info("Feed started; tracking %d tokens", len(self.tokens))
@@ -1426,6 +1451,109 @@ class PolymarketFeed:
             self.bar_builders_5m[token_id].update(price, size, now)
             self.bar_builders_15m[token_id].update(price, size, now)
 
+    # ── New signal feeds ──────────────────────────────────────────────────────
+
+    async def _run_binance_liq_ws(self) -> None:
+        """
+        Subscribe to Binance aggregated liquidation stream (!forceOrder@arr).
+        Tracks $ value of long/short liquidations per asset in the last 60s.
+
+        Data collected (NOT a trading gate by default — see config.SIGNAL_GATES):
+          liq_long_60s  = $ of long positions force-closed (price was pushed DOWN)
+          liq_short_60s = $ of short positions force-closed (price was pushed UP)
+
+        Why this matters: stop-hunt bots push price to cascade liquidations.
+        Large liq_long_60s just before our YES entry = cascade may still be ongoing.
+        Large liq_short_60s just before our NO entry = squeeze may still be ongoing.
+
+        Failure: silently disconnects and reconnects. Never raises to caller.
+        """
+        import json as _json
+        _URL = "wss://fstream.binance.com/ws/!forceOrder@arr"
+        _ASSET_MAP = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL"}
+        _PRUNE_INTERVAL = 10.0   # prune stale entries every 10s
+        _last_prune = time.time()
+
+        while self._running:
+            try:
+                async with aiohttp.ClientSession() as ws_sess:
+                    async with ws_sess.ws_connect(_URL, heartbeat=30) as ws:
+                        logger.info("Binance liquidation WS: connected")
+                        async for msg in ws:
+                            if not self._running:
+                                return
+                            if msg.type != aiohttp.WSMsgType.TEXT:
+                                continue
+                            try:
+                                data = _json.loads(msg.data)
+                                order = data.get("o", {})
+                                symbol = order.get("s", "")
+                                asset = _ASSET_MAP.get(symbol)
+                                if not asset:
+                                    continue
+                                side = order.get("S", "")   # SELL=long liq, BUY=short liq
+                                qty   = float(order.get("z", 0) or 0)
+                                price = float(order.get("ap", 0) or 0)
+                                usd_val = qty * price
+                                if usd_val < 1000:   # ignore tiny liquidations (<$1k)
+                                    continue
+                                ts_now = time.time()
+                                liq = self._liquidations[asset]
+                                if side == "SELL":
+                                    liq["long"].append((ts_now, usd_val))
+                                elif side == "BUY":
+                                    liq["short"].append((ts_now, usd_val))
+                                # Periodic prune — keep only last 60s
+                                if ts_now - _last_prune > _PRUNE_INTERVAL:
+                                    cutoff = ts_now - 60
+                                    for a in self._liquidations:
+                                        for k in ("long", "short"):
+                                            self._liquidations[a][k] = [
+                                                (t, v) for t, v in self._liquidations[a][k]
+                                                if t > cutoff
+                                            ]
+                                    _last_prune = ts_now
+                            except Exception:
+                                pass  # malformed message — skip
+            except Exception as exc:
+                if self._running:
+                    self.reconnects["binance_liq"] = self.reconnects.get("binance_liq", 0) + 1
+                    logger.debug("Binance liq WS reconnect: %s", exc)
+                    await asyncio.sleep(5)
+
+    async def _poll_coinbase_prices(self) -> None:
+        """
+        Poll Coinbase spot prices every 5s for cross-exchange divergence detection.
+
+        Data collected (NOT a trading gate by default — see config.SIGNAL_GATES):
+          coinbase_price = Coinbase last trade price for this asset
+
+        Cross-exchange divergence = (binance - coinbase) / coinbase × 100
+          Large positive divergence: Binance above Coinbase → Binance-led move (possible manipulation)
+          Small divergence: both exchanges agree → real institutional flow
+
+        Failure: silently retries. Never raises. Coinbase is supplementary only.
+        """
+        _PAIRS = {"BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD"}
+        _BASE  = "https://api.exchange.coinbase.com/products"
+
+        while self._running:
+            if self._session and not self._stub_mode:
+                for asset, pair in _PAIRS.items():
+                    try:
+                        async with self._session.get(
+                            f"{_BASE}/{pair}/ticker",
+                            timeout=aiohttp.ClientTimeout(total=3),
+                        ) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                price = float(data.get("price", 0) or 0)
+                                if price > 0:
+                                    self._coinbase_prices[asset] = price
+                    except Exception:
+                        pass  # Coinbase is supplementary — never block on failure
+            await asyncio.sleep(5)
+
     # ── External signals ─────────────────────────────────────────────────────
 
     async def fetch_external_signals(self, asset: str) -> Optional[ExternalSignal]:
@@ -1528,6 +1656,18 @@ class PolymarketFeed:
             # Only include once we have enough trade history (>100 trades)
             signal.vpin_score = round(vpin_tracker.vpin, 4)
             signal.vpin_direction = vpin_tracker.direction
+
+        # ── New signals: liquidation + coinbase (data collection) ─────────────
+        # Liquidation data: sum $ value of liquidations in last 60s
+        _liq = self._liquidations.get(asset.upper(), {"long": [], "short": []})
+        _cutoff = time.time() - 60
+        signal.liq_long_60s  = round(sum(v for t, v in _liq["long"]  if t > _cutoff), 0)
+        signal.liq_short_60s = round(sum(v for t, v in _liq["short"] if t > _cutoff), 0)
+
+        # Coinbase cross-exchange price
+        _cb_price = self._coinbase_prices.get(asset.upper())
+        if _cb_price and _cb_price > 0:
+            signal.coinbase_price = _cb_price
 
         return signal
 

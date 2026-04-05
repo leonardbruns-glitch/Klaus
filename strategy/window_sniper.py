@@ -40,6 +40,7 @@ import logging
 from data.feeds import MarketToken, OrderBook, ExternalSignal
 from strategy.momentum import Direction, FeeZone
 from analytics.regime import classify_regime
+from analytics.conditional_wr import COND_WR
 
 logger = logging.getLogger("window_sniper")
 
@@ -195,6 +196,18 @@ class SniperSignal:
     lag_remaining_pct: float = 0.0  # fraction of expected PM move not yet priced in (1.0=max lag, 0=closed)
     regime: str = ""                # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
     signal_source: str = "SNIPER"   # "SNIPER" or "CONTRARIAN" — for trade analytics split
+    # ── New data collection fields (all 4 signals) ───────────────────────────
+    # Signal 1: Conditional WR for this (regime, window_size_s) at entry time
+    cond_wr: float = 0.5            # historical WR for this condition (0.5 = no data)
+    cond_n:  int   = 0              # number of trades used to compute cond_wr
+    # Signal 2: Liquidation cascade — $ of forced liquidations in last 60s
+    liq_long_60s:  float = 0.0     # long liquidations (price was pushed DOWN)
+    liq_short_60s: float = 0.0     # short liquidations (price was pushed UP)
+    # Signal 3: Funding rate at entry (annualised APR %)
+    funding_rate_pct: float = 0.0  # positive = longs crowded, negative = shorts crowded
+    # Signal 4: Coinbase cross-exchange divergence
+    coinbase_price: float = 0.0    # Coinbase spot price at entry (0 = not available)
+    cross_exchange_div_pct: float = 0.0  # (binance - coinbase) / coinbase * 100
 
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
@@ -605,11 +618,99 @@ class WindowSniper:
         if vpin_agrees:
             reason += f" [VPIN {vpin:.2f}]"
 
+        # ── New signals: evaluate all 4 before final decision ────────────────
+        from config import CONFIG as _CFG
+        _gates = _CFG.signal_gates
+
+        # Signal 1: Conditional WR
+        _cond_wr, _cond_n = COND_WR.get(_regime, token.window_seconds)
+        if _gates.conditional_wr_gate:
+            _block, _, _ = COND_WR.should_block(
+                _regime, token.window_seconds,
+                min_wr=_gates.conditional_wr_min,
+                min_n=_gates.conditional_wr_min_n,
+            )
+            if _block:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | COND_WR gate: %.0f%% WR (n=%d) for "
+                    "%s/%dm < %.0f%% min — known losing condition",
+                    token.asset, token.side,
+                    _cond_wr * 100, _cond_n,
+                    _regime, token.window_seconds // 60,
+                    _gates.conditional_wr_min * 100,
+                )
+                return None
+
+        # Signal 2: Liquidation cascade
+        _liq_long  = ext.liq_long_60s  if ext else 0.0
+        _liq_short = ext.liq_short_60s if ext else 0.0
+        if _gates.liquidation_gate:
+            # Long liq = price was pushed DOWN (SELL cascade). Bad for YES entries.
+            # Short liq = price was pushed UP (BUY cascade). Bad for NO entries.
+            _liq_against = (
+                _liq_long  if token.side == "YES" else _liq_short
+            )
+            if _liq_against > _gates.liquidation_threshold:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | LIQ gate: $%.0fK cascade in last 60s "
+                    "against our direction — stop-hunt may still be ongoing",
+                    token.asset, token.side, _liq_against / 1000,
+                )
+                return None
+
+        # Signal 3: Funding rate
+        _funding_apr = float(ext.funding_rate or 0.0) if ext else 0.0
+        if _gates.funding_gate and abs(_funding_apr) > _gates.funding_extreme_apr:
+            # Crowded longs (high positive funding) = risky YES entry
+            # Crowded shorts (high negative funding) = risky NO entry
+            _funding_against = (
+                (_funding_apr > 0 and token.side == "YES")
+                or (_funding_apr < 0 and token.side == "NO")
+            )
+            if _funding_against:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | FUNDING gate: %.1f%% APR — "
+                    "crowded position aligned against our direction",
+                    token.asset, token.side, _funding_apr,
+                )
+                return None
+
+        # Signal 4: Cross-exchange divergence
+        _coinbase_price = float(ext.coinbase_price or 0.0) if ext else 0.0
+        _binance_price  = float(ext.spot_price or 0.0) if ext else 0.0
+        _cross_div_pct  = 0.0
+        if _coinbase_price > 0 and _binance_price > 0:
+            _cross_div_pct = (_binance_price - _coinbase_price) / _coinbase_price * 100
+        if _gates.cross_exchange_gate and _coinbase_price > 0:
+            # Large positive divergence: Binance above Coinbase = Binance-led move
+            # Large negative divergence: Binance below Coinbase = Binance-led dump
+            # Either direction is suspicious (manufactured on Binance only)
+            if abs(_cross_div_pct) > _gates.cross_exchange_div_threshold:
+                # Only block if divergence ALIGNS with the direction we're trading
+                # (i.e., the suspicious Binance move is what's generating our signal)
+                _binance_moved_our_way = (
+                    (_cross_div_pct > 0 and asset_direction > 0)  # Binance up, we're YES
+                    or (_cross_div_pct < 0 and asset_direction < 0)  # Binance down, we're NO
+                )
+                if _binance_moved_our_way:
+                    logger.info(
+                        "SNIPER BLOCK %s/%s | CROSS_EXCHANGE gate: Binance/Coinbase "
+                        "divergence=%.3f%% > %.2f%% — move not confirmed on Coinbase",
+                        token.asset, token.side, _cross_div_pct,
+                        _gates.cross_exchange_div_threshold,
+                    )
+                    return None
+
         logger.debug(
             "SNIPER %s/%s | %+.3f%% delta | FV=%.3f ask=%.3f edge=%.3f "
-            "elapsed=%.0f%% conf=%.2f composite=%.2f",
+            "elapsed=%.0f%% conf=%.2f composite=%.2f | "
+            "cond_wr=%.0f%%(%d) liq_long=$%.0fK liq_short=$%.0fK "
+            "funding=%.1f%%APR coinbase_div=%+.3f%%",
             token.asset, token.side, delta_pct, fair_value, token_ask, edge,
             elapsed_pct * 100, confidence, composite,
+            _cond_wr * 100, _cond_n,
+            _liq_long / 1000, _liq_short / 1000,
+            _funding_apr, _cross_div_pct,
         )
 
         return SniperSignal(
@@ -634,6 +735,14 @@ class WindowSniper:
             pm_drift_at_entry=round(pm_drift, 4),
             lag_remaining_pct=round(lag_remaining_pct, 3),
             regime=_regime,
+            # New signal fields — data collection
+            cond_wr=_cond_wr,
+            cond_n=_cond_n,
+            liq_long_60s=round(_liq_long, 0),
+            liq_short_60s=round(_liq_short, 0),
+            funding_rate_pct=round(_funding_apr, 3),
+            coinbase_price=round(_coinbase_price, 2),
+            cross_exchange_div_pct=round(_cross_div_pct, 4),
         )
 
     def score_contrarian(
