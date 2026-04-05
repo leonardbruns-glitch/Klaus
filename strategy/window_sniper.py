@@ -297,6 +297,8 @@ class WindowSniper:
 
         spot_current = ext.spot_price
         if not spot_current or spot_current <= 0:
+            logger.debug("SNIPER BLOCK %s/%s | spot_price=None — Binance feed not ready",
+                         token.asset, token.side)
             return None
 
         # ── Delta computation + sustain timer (runs before time gate) ────────────
