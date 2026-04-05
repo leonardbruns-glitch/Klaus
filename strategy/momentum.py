@@ -568,18 +568,20 @@ class MomentumScorer:
                 sig.direction = Direction.NO_TRADE
                 sig.reason = f"OB illiquid: spread={ob.spread:.3f} > 0.06"
                 return sig
-            # Top-of-book size gate: thin ask = partial fill
+            # Top-of-book size gate: thin ask = partial fill + worse average price
             _best_ask_size = ob.asks[0][1] if ob.asks else 0.0
             if _best_ask_size < 15.0:
                 sig.direction = Direction.NO_TRADE
                 sig.reason = f"OB thin: ask_size={_best_ask_size:.1f} < 15 shares"
                 return sig
-            # Ask wall gate: large resistance above entry
+            # Ask wall: data collection only — log but don't block until n≥20 confirms
             for _ask_px, _ask_sz in ob.asks[1:5]:
-                if _ask_px * _ask_sz > 15.0:
-                    sig.direction = Direction.NO_TRADE
-                    sig.reason = f"OB wall at {_ask_px:.3f} (${_ask_px*_ask_sz:.0f} notional)"
-                    return sig
+                if _ask_px * _ask_sz > 30.0:
+                    logger.info(
+                        "MOMENTUM OB_WALL %s | wall at %.3f ($%.0f notional) — logged, not blocking",
+                        getattr(ob, "asset", "?"), _ask_px, _ask_px * _ask_sz,
+                    )
+                    break
 
         # ── Entry price & fee zone ────────────────────────────────────────────
         # Always use the actual ask price of the token being evaluated.
