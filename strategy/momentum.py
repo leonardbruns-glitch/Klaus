@@ -412,7 +412,7 @@ def external_signal_boost(signal: Optional[ExternalSignal], direction: Direction
 # ---------------------------------------------------------------------------
 
 def classify_fee_zone(price: float, cfg=CONFIG.fees) -> FeeZone:
-    if price < cfg.extreme_low or price > cfg.extreme_high:
+    if price <= cfg.extreme_low or price >= cfg.extreme_high:
         return FeeZone.EXTREME
     return FeeZone.FAT_MIDDLE
 

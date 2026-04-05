@@ -357,7 +357,15 @@ class RiskManager:
     # ── Window reset ─────────────────────────────────────────────────────────
 
     def reset_window(self) -> None:
-        """Call at the start of each new 5-min window to clear dedup set."""
+        """Clear condition dedup set between windows.
+
+        Not strictly required: condition_ids are per-window (include window_end_ts
+        in their hash), so a new window always generates a new condition_id and is
+        never blocked by a previous window's entry. However, calling this prevents
+        unbounded set growth during long sessions. main.py does not call this —
+        acceptable because the set only holds ~3-10 ids per session at current
+        trade frequency.
+        """
         self._traded_conditions.clear()
         logger.debug("Window reset: condition dedup cleared")
 

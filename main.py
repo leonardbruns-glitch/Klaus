@@ -447,6 +447,9 @@ class KlausBot:
                     _entry_edge = getattr(_sig, "edge", 1.0) if _sig else 1.0
                     _entry_elapsed = getattr(_sig, "elapsed_pct", 1.0) if _sig else 1.0
                     _weak_entry = _entry_edge < 0.06 and _entry_elapsed < 0.40
+                    # Note: if _weak_entry=True, sl_breach_ts stays set → in_uncertain_zone
+                    # below cannot fire (guards on sl_breach_ts == 0.0). Intentional: weak
+                    # entries in breach are handled by mechanical wick timer only, not LLM.
                     if pos.sl_breach_ts > 0 and not pos.sl_breach_llm_queried and not _weak_entry:
                         pos.sl_breach_llm_queried = True
                         # Bypass stale cache — fresh read on breach
@@ -624,7 +627,8 @@ class KlausBot:
             # Fall back to a fresh fetch if not yet cached
             try:
                 ext = await self.feed.fetch_external_signals(asset)
-            except Exception:
+            except Exception as _e:
+                logger.warning("SPIKE %s | ext signal fetch failed: %s — spike skipped", asset, _e)
                 return
         if ext is None:
             return
