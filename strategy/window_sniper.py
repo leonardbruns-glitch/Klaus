@@ -114,6 +114,7 @@ _15M_ACTIVE_ONLY = False
 # Thesis: large early Polymarket moves overreact (YES tokens overpriced per Reichenbach 2025).
 # Break-even WR at TP=+150% / SL=−50%: (1−wr)×0.50 = wr×1.50 → wr ≥ 25%.
 # If early-window extreme moves reverse ≥25% of the time, EV is positive.
+CONTRARIAN_ENABLED = False       # disabled: 0/5 WR today (2026-04-05), 70%+ WR needed to break even at 12¢ entries; re-enable after n≥20 validated contrarian trades
 CONTRARIAN_OPPONENT_MIN = 0.90  # opponent token ask must be ≥ this to trigger
 CONTRARIAN_MAX_ASK = 0.15       # we buy the cheap side at ≤ this price
 CONTRARIAN_ELAPSED_MAX = 0.40   # only first 40% of window (≈first 2min of 5m, 6min of 15m)
@@ -818,6 +819,9 @@ class WindowSniper:
         """
         if now is None:
             now = time.time()
+
+        if not CONTRARIAN_ENABLED:
+            return None
 
         if ob is None or not ob.asks:
             return None
