@@ -969,7 +969,7 @@ class KlausBot:
                                 if _ccid and _ccid in _queued_conditions:
                                     logger.info("  └─ CONTRARIAN SKIP %s/%s — condition already queued", token.asset, token.side)
                                 else:
-                                    # Half stake: contrarian is speculative — cap at $2.50
+                                    # Half stake: contrarian is speculative — $10 base → $5 per contrarian trade
                                     _cntr_decision.stake = max(1.0, round(_cntr_decision.stake / 2, 2))
                                     sniper_queue.append(
                                         (token_id, token, _cntr_sig, _cntr_tpsl, _cntr_decision, ext)
