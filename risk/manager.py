@@ -448,14 +448,17 @@ class RiskManager:
         else:
             # Updown price ceiling: sniper self-enforces MAX_TOKEN_ASK=0.53 internally.
             # Momentum scorer has no price ceiling — enforce 0.53 here for momentum signals.
-            # Fat-middle risk accepted: all 3 live trades entered 0.517-0.531 and won.
-            _is_sniper = getattr(signal, "signal_source", "MOMENTUM") in ("SNIPER", "CONTRARIAN")
+            # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
+            _signal_source = getattr(signal, "signal_source", "MOMENTUM")
+            _is_sniper = _signal_source in ("SNIPER", "CONTRARIAN")
+            _is_contrarian = _signal_source == "CONTRARIAN"
             _updown_max = 0.90 if _is_sniper else 0.53
-            if signal.entry_price > _updown_max or signal.entry_price < 0.35:
+            _updown_min = 0.03 if _is_contrarian else 0.35  # contrarian buys at ~0.10
+            if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
                     False, 0,
-                    f"Updown entry {signal.entry_price:.4f} outside [0.35, {_updown_max:.2f}] "
-                    f"({'sniper' if _is_sniper else 'momentum'} path)",
+                    f"Updown entry {signal.entry_price:.4f} outside [{_updown_min:.2f}, {_updown_max:.2f}] "
+                    f"({'contrarian' if _is_contrarian else 'sniper' if _is_sniper else 'momentum'} path)",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
