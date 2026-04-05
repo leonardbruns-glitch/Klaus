@@ -99,7 +99,7 @@ LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
 MAX_TOKEN_ASK = 0.53   # restored 0.48→0.53: all 3 live trades entered 0.517-0.531 and won; fat-middle accepted
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (ELAPSED_MAX=0.35), 15m has plenty of hold time
-MIN_LAG_REMAINING_5M = 0.25   # lowered 0.30→0.25: collect more data, tighten after n≥20
+MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
 MIN_LAG_REMAINING_15M = 0.25  # unchanged
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.15
