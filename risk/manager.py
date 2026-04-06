@@ -307,7 +307,14 @@ class RiskManager:
                     condition_id=d["condition_id"],
                 )
                 pos.dynamic_sl_override = float(d.get("dynamic_sl_override", 0.0))
-                pos.window_seconds = int(d.get("window_seconds", 0))
+                # Default 900 (15m) if missing from legacy positions.json — wrong default (0)
+                # caused 15m positions to be classified as 5m → wrong SL grace/threshold.
+                # Infer from window_end_ts - open_ts as tiebreaker when field is absent.
+                _ws = int(d.get("window_seconds", 0))
+                if _ws == 0:
+                    _inferred = d["window_end_ts"] - d["open_ts"]
+                    _ws = 900 if _inferred >= 600 else 300
+                pos.window_seconds = _ws
                 pos.stage1_attempts = int(d.get("stage1_attempts", 0))
                 pos.stage1_sell_price = float(d.get("stage1_sell_price", 0.0))
                 pos.sl_breach_ts = float(d.get("sl_breach_ts", 0.0))

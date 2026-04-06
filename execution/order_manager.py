@@ -1040,6 +1040,12 @@ class OrderManager:
                 return OrderResult(status=OrderStatus.FAILED, error="Empty response")
 
             fill_price = float(resp.get("average_price", intended_price))
+            if fill_price <= 0:
+                logger.error(
+                    "Market order returned invalid fill_price=%.6f (order_id=%s) — treating as failed",
+                    fill_price, resp.get("order_id", "?"),
+                )
+                return OrderResult(status=OrderStatus.FAILED, error=f"Invalid fill_price: {fill_price}")
             usdc_matched = float(resp.get("size_matched", usdc_amount))
             fill_size = usdc_matched / fill_price if fill_price > 0 else 0
             fee = float(resp.get("fee", 0))
