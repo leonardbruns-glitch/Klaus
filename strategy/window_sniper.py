@@ -97,16 +97,16 @@ WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
-MAX_TOKEN_ASK = 0.54   # tightened 0.58→0.54: limit fat-middle exposure; entries 0.35-0.54
+MAX_TOKEN_ASK = 0.50   # tightened 0.54→0.50: enforce CLAUDE.md guidance (>0.50 = fat-middle/stop-hunting zone); all 17 catastrophic losses entered ≥0.49
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (ELAPSED_MAX=0.35), 15m has plenty of hold time
 MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
 MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.35  # restored 0.15→0.35: this morning's trades (hour=8, active hours) passed regardless
 
-# 15m RE-ENABLED: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
-# Shadow data was wrong — live 15m outperforms live 5m significantly.
-_15M_ACTIVE_ONLY = False
+# 15m ONLY: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
+# 5m disabled: WR=14.3% is capital destruction. Re-enable when n≥20 live 5m trades show WR>45%.
+_15M_ACTIVE_ONLY = True
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
 # When a token is nearly resolved (≥0.90) in the first 40% of a window,
@@ -136,7 +136,7 @@ PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
                                 # was 0.5: reducing sustain caused low-quality early entries
 PREARM_EXPIRY_S = 600           # pre-arm expires after 10 min (2 windows) if unused
-PREARM_MAX_ASK = 0.58           # PREARM entries capped tighter than normal (0.65/0.55)
+PREARM_MAX_ASK = 0.50           # aligned with MAX_TOKEN_ASK: same stop-hunting zone applies to PREARM entries
                                 # T00036/37: pre-arm fired at 0.65+, market already priced in,
                                 # no edge → both stopped out at -$0.8. If price already
                                 # repriced in the new window, there's nothing left to capture.
@@ -391,6 +391,14 @@ class WindowSniper:
         _vpin_now = ext.vpin_score or 0.0
         _regime = classify_regime(hour_utc, _vpin_now)
         is_active_session = hour_utc in _HIGH_VOLUME_HOURS
+
+        # ── 5m window gate ────────────────────────────────────────────────────
+        # Disabled: live data n=21 WR=14.3% vs 15m n=56 WR=44.6%. 5m windows are
+        # capital destruction. Re-enable when n≥20 live 5m trades confirm WR>45%.
+        if _15M_ACTIVE_ONLY and not is_15m:
+            logger.debug("SNIPER BLOCK %s/%s | 5m windows disabled (_15M_ACTIVE_ONLY): live WR=14.3%% n=21",
+                         token.asset, token.side)
+            return None
 
         # ── 15m quiet-hours gate ──────────────────────────────────────────────
         # Shadow data: 291 blocks, 7% WR for 15m at 22 UTC. PM reprices 15m tokens

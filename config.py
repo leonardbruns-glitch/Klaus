@@ -224,9 +224,11 @@ class SignalGatesConfig:
     # our direction (crowded trade = vulnerable to flush).
     # funding_rate in ExternalSignal is annualised APR (e.g. 0.0001*3*365*100=10.95%).
     # 8h rate equivalent: APR / (3*365) * 100 → 10.95% APR = 0.01% per 8h.
-    # Extreme = >0.1% per 8h = >109.5% APR (clearly overcrowded).
-    funding_gate: bool = False             # True = block on extreme funding
-    funding_extreme_apr: float = 80.0     # APR threshold: 80% = very crowded
+    # ENABLED: live data n=11 negative-funding trades → WR=18.2%, −$29.3 net.
+    # Negative funding (shorts crowded) + BUY_NO (also short) = crowded flush risk.
+    # Threshold 3% APR: covers observed range −5% to −14% APR in losing cohort.
+    funding_gate: bool = True              # ENABLED: data confirms crowded-short flush pattern
+    funding_extreme_apr: float = 3.0      # lowered 80→3%: block NO entries when funding < −3% APR
 
     # ── Signal 4: Cross-exchange divergence gate ──────────────────────────────
     # Blocks entry if Binance moved significantly but Coinbase price hasn't moved

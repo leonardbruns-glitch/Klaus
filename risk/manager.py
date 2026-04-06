@@ -820,7 +820,7 @@ class RiskManager:
                 # Observed: SOL/UP wicked 15¢→6¢→55¢ within 60s on 5m window (2026-04-05).
                 # 5m gets shorter window (5s) since the window itself is only 300s.
                 # True collapse (price < 20% of entry = -80%) remains immediate.
-                confirm_catastro = 5.0 if is_5m else 8.0  # reduced 20→8s: 20s let price fall from -50% to -75%; 8s still catches stop-hunt wicks which reverse in <5s
+                confirm_catastro = 5.0 if is_5m else 20.0  # restored 8→20s: stop-hunt wicks documented at -42%/-45%, reversed within 60s (CLAUDE.md n=2); 8s was exiting on reversible wicks; deterioration check handles genuine collapses
                 if current_price > pos.entry_price * 0.20:
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now
@@ -867,7 +867,7 @@ class RiskManager:
         sl_grace = 60 if is_15m_pos else 10
         if time_held >= sl_grace:
             if remaining > 120:
-                sl_pct = 0.12 if pos.window_end_ts > 0 else 0.35  # tightened 15→12%: reduce avg loss; 8s confirmation timer filters wicks
+                sl_pct = 0.12 if pos.window_end_ts > 0 else 0.35  # tightened 15→12%: reduce avg loss
 
                 if current_price <= pos.entry_price * (1 - sl_pct):
                     # Wick confirmation timer — bots paint stops to shake out positions.
@@ -875,8 +875,8 @@ class RiskManager:
                     # price recovered to 0.78 — a clean wick, not a genuine reversal.
                     # 5m: 12s confirmation (fast windows, wicks clear quickly)
                     # 15m: 20s confirmation (slower market, more time to wait out noise)
-                    # Catastrophic drops: immediate on 5m; 20s guard on 15m (stop-hunt pattern observed).
-                    confirm_secs = 12.0 if is_5m else 8.0  # reduced 20→8s: genuine reversals keep falling past -15% within 8s; wicks recover within 3-5s
+                    # Catastrophic drops: 5s on 5m; 20s guard on 15m (stop-hunt pattern documented CLAUDE.md n=2).
+                    confirm_secs = 12.0 if is_5m else 20.0  # restored 8→20s: stop-hunt wicks last 10-20s before recovering; deterioration check exits genuine collapses immediately
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now
                         pos.sl_breach_price = current_price  # L6: track price at breach for wick detection
