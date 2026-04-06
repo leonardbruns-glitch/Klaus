@@ -90,8 +90,8 @@ _DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
-MIN_EDGE_VPIN = 0.03
-MIN_EDGE_BOOST = 0.02
+MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
+MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
 WINDOW_ELAPSED_MIN = 0.20
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
