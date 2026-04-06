@@ -364,15 +364,15 @@ class WindowSniper:
 
         elapsed_min = PREARM_ELAPSED_MIN if is_prearmed else WINDOW_ELAPSED_MIN
         if elapsed_pct < elapsed_min:
-            logger.info("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
-                        token.asset, token.side, elapsed_pct*100, elapsed_min*100,
-                        " (prearmed)" if is_prearmed else "")
+            logger.debug("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
+                         token.asset, token.side, elapsed_pct*100, elapsed_min*100,
+                         " (prearmed)" if is_prearmed else "")
             return None
         elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
         if elapsed_pct > elapsed_max:
-            logger.info("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
-                        token.asset, token.side, elapsed_pct*100, elapsed_max*100,
-                        "5m" if not is_15m else "15m")
+            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
+                         token.asset, token.side, elapsed_pct*100, elapsed_max*100,
+                         "5m" if not is_15m else "15m")
             return None
 
         # ── Sustained delta gate ───────────────────────────────────────────────
