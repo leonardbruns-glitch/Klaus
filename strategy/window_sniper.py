@@ -97,7 +97,7 @@ WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.35   # raised 0.33→0.35: restrict to 0.35-0.50 zone; fat-middle fees + stop-hunting at 0.56-0.63
-MAX_TOKEN_ASK = 0.49   # lowered 0.53→0.49: avoid stop-hunting zone above 0.50; fat-middle fees reduce above 0.50
+MAX_TOKEN_ASK = 0.58   # raised 0.49→0.58: 100% of blocks were near_ceiling; at ask=0.55 lag_remaining=86% — signal is real, ceiling was killing it
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (ELAPSED_MAX=0.35), 15m has plenty of hold time
 MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
 MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice
