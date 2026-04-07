@@ -92,13 +92,8 @@ _EARLY_ELAPSED_CUTOFF       = 0.40
 MIN_EDGE = 0.05
 MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
 MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
-WINDOW_ELAPSED_MIN = 0.20  # lowered 0.35→0.20: 0.35 floor is contradictory — if PM reprices
-                            # in 2.7s, a token at 0.35% elapsed with ask=0.68 has ALREADY had
-                            # the move confirmed. The n=11 WR=36% at <35% was early noise (tiny
-                            # delta, no confirmation), not a problem with elapsed time itself.
-                            # Lag gate (0.35 min remaining) + delta gate (0.07-0.10%) + MAX_TOKEN_ASK
-                            # (0.72) are the real quality filters. Hard floor at 20% to avoid
-                            # window-open noise (first 3 min of a 15m window).
+WINDOW_ELAPSED_MIN = 0.05  # near-zero: pm_drift + lag_remaining + delta are the real
+                            # freshness filters. Elapsed % doesn't determine trade quality.
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
