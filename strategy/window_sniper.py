@@ -92,7 +92,13 @@ _EARLY_ELAPSED_CUTOFF       = 0.40
 MIN_EDGE = 0.05
 MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
 MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
-WINDOW_ELAPSED_MIN = 0.35  # raised 0.20→0.35: live data n=11 <35% elapsed WR=36% avg loss=-$4.64; sweet spot is 35-55%
+WINDOW_ELAPSED_MIN = 0.20  # lowered 0.35→0.20: 0.35 floor is contradictory — if PM reprices
+                            # in 2.7s, a token at 0.35% elapsed with ask=0.68 has ALREADY had
+                            # the move confirmed. The n=11 WR=36% at <35% was early noise (tiny
+                            # delta, no confirmation), not a problem with elapsed time itself.
+                            # Lag gate (0.35 min remaining) + delta gate (0.07-0.10%) + MAX_TOKEN_ASK
+                            # (0.72) are the real quality filters. Hard floor at 20% to avoid
+                            # window-open noise (first 3 min of a 15m window).
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
@@ -131,7 +137,11 @@ WINDOW_ELAPSED_MAX_5M  = 0.35  # tightened 0.40→0.35: lag_analysis shows PM re
                                 # fires at 150s from entry, capturing the 150s repricing cluster
                                 # at 40% elapsed only 135s remaining — exits before reprice
                                 # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
-WINDOW_ELAPSED_MAX_15M = 0.60  # tightened 0.80→0.60: at 80% only 180s left = hard exit fires immediately; 0.60 leaves 360s (6 min) for stage-1 to play out
+WINDOW_ELAPSED_MAX_15M = 0.70  # raised 0.60→0.70: user data shows repricing to 0.65+ happens
+                                # in last 5-7 min (53-67% elapsed) — was cutting off too early.
+                                # At 70% elapsed: 270s remaining. Hard exit fires entry+180s =
+                                # 90s before window close. Stage-1 has 3 min to play out. ✓
+                                # At 75%: only 225s → hard exit fires at window end. Too tight.
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
