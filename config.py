@@ -174,6 +174,15 @@ class EdgeConfig:
     # Revisit when SOL has 20+ sniper trades with confirmed edge.
     sniper_excluded_assets: List[str] = field(default_factory=lambda: [])  # all assets active — gathering data
 
+    # Per-asset minimum delta override (absolute %). Takes precedence over the global
+    # _session_min_delta when set for a given asset.
+    # BTC live data (n=22): delta > -0.10% → WR=17% (-$12.19); delta > -0.12% → WR=44% (-$14.10).
+    # BTC reprices faster than ETH/SOL — weak BTC moves recover within the window.
+    # Require delta ≥ 0.12% for BTC entries. SOL/ETH unaffected (wins at 0.10-0.11%).
+    per_asset_min_delta_pct: dict = field(default_factory=lambda: {
+        "BTC": 0.12,  # raised from global 0.10: n=22, delta<0.10 WR=17%; delta≥0.12 WR=75%
+    })
+
     # Cross-asset cascade: when one asset fires a strong signal, correlated
     # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.
     # Research: crypto assets correlate within 10-30s on macro moves.

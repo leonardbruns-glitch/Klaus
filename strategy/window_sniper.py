@@ -328,6 +328,11 @@ class WindowSniper:
             if token.window_end_ts > 0 and token.window_seconds > 0 else 1.0
         )
         min_delta = _session_min_delta(is_15m=is_15m, elapsed_pct=_elapsed_pct_early)
+        # Per-asset delta override: BTC reprices faster — weak moves recover within the window.
+        # BTC n=22: delta<0.10% → WR=17%; delta≥0.12% → WR=75%. Apply stricter gate for BTC.
+        _asset_min = getattr(CONFIG.edge, "per_asset_min_delta_pct", {}).get(token.asset, 0)
+        if _asset_min > min_delta:
+            min_delta = _asset_min
         asset_direction = 1 if delta_pct > 0 else -1
         sustain_key = (token.token_id, asset_direction)
         opp_key = (token.token_id, -asset_direction)
