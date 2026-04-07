@@ -501,6 +501,17 @@ class OrderManager:
                         attempt + 1,
                     )
                     break
+                # Orderbook gone (market resolved/expired) — 400 error, retrying is pointless.
+                if "does not exist" in err or "orderbook" in err.lower() and "400" in err:
+                    logger.warning(
+                        "SELL aborted: orderbook %s no longer exists (market resolved/expired) — "
+                        "treating as externally closed",
+                        token_id[:12],
+                    )
+                    return OrderResult(
+                        status=OrderStatus.FAILED,
+                        error="ORDERBOOK_NOT_FOUND:resolved",
+                    )
                 # CLOB balance cache bug: CLOB cached balance is slightly below actual.
                 # Parse the actual available balance from the error and retry exactly.
                 # Error format: "not enough balance ... -> balance: XXXXXX, order amount: YYYYYY"
