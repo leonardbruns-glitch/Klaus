@@ -102,17 +102,11 @@ WINDOW_ELAPSED_MIN = 0.20  # lowered 0.35→0.20: 0.35 floor is contradictory �
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
-MIN_TOKEN_ASK = 0.20   # floor: below 0.20 = near-resolved other side (opponent at 0.80+),
-                        # liquidity dries up, OB spread/size gates also catch this.
-                        # 0.35 was arbitrary — same flawed logic as MAX_TOKEN_ASK=0.50.
-                        # If there's a real move, PM reprices above 0.35 in 2.7s anyway.
-MAX_TOKEN_ASK = 0.72   # raised 0.50→0.72: PM reprices in 2.7s — tokens at 0.35-0.50 only exist
-                        # when there is NO real move (coin-flip zone). Confirmed sustained moves
-                        # land tokens at 0.65-0.80 by 35% elapsed. Near_ceiling blocked 100% of
-                        # scans (tokens at 0.83-0.95 at 57-60% elapsed, meaning ~0.70 at 35%).
-                        # Lag gate (MIN_LAG_REMAINING_15M=0.35) is the correct quality filter:
-                        # entry at 0.70 with FV=0.85 → lag=43% → passes; edge=0.15 → strong signal.
-                        # Higher entry = sustained move confirmed, not noise at window open.
+MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
+                        # Real quality filtering done by lag gate + edge gate + OB gates.
+MAX_TOKEN_ASK = 0.95   # near-ceiling sanity check only — lag gate blocks over-priced entries
+                        # (if PM already priced move, lag_remaining < 0.35 → blocked).
+                        # Price range was a proxy before real gates existed. Now redundant.
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
 MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
 MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice

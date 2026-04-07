@@ -453,14 +453,14 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown price ceiling: sniper self-enforces MAX_TOKEN_ASK=0.72 internally.
-            # Momentum scorer has no price ceiling — enforce 0.72 here for momentum signals.
+            # Updown: sniper quality gates (lag, edge, OB) replace price ceiling.
+            # Hard sanity bounds only: 0.05–0.95.
             # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
             _signal_source = getattr(signal, "signal_source", "MOMENTUM")
             _is_sniper = _signal_source in ("SNIPER", "CONTRARIAN")
             _is_contrarian = _signal_source == "CONTRARIAN"
-            _updown_max = 0.90 if _is_sniper else 0.72
-            _updown_min = 0.03 if _is_contrarian else 0.35  # contrarian buys at ~0.10
+            _updown_max = 0.95 if _is_sniper else 0.95
+            _updown_min = 0.03 if _is_contrarian else 0.05  # contrarian buys at ~0.10
             if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
                     False, 0,
