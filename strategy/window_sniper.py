@@ -118,7 +118,7 @@ _15M_ACTIVE_ONLY = True
 # Thesis: large early Polymarket moves overreact (YES tokens overpriced per Reichenbach 2025).
 # Break-even WR at TP=+150% / SL=−50%: (1−wr)×0.50 = wr×1.50 → wr ≥ 25%.
 # If early-window extreme moves reverse ≥25% of the time, EV is positive.
-CONTRARIAN_ENABLED = True        # enabled: live data shows YES tokens overpriced (ask=0.940 vs FV=0.822)
+CONTRARIAN_ENABLED = False       # disabled: no validated edge
                                  # at 0.08 entry: break-even WR = 8% (vs 13% at 0.15) — very low bar
 CONTRARIAN_OPPONENT_MIN = 0.92  # raised 0.90→0.92: only when opponent is ≥0.92 (cheap side ≤0.08)
 CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — market must be extreme
