@@ -133,17 +133,18 @@ class EdgeConfig:
     # Strategy: trade all hours, collect data, then tighten to proven edge windows.
     allowed_hours_utc: List[int] = field(default_factory=lambda: [])
 
-    # Macro event score discount: during 13:30 UTC macro window (CPI/NFP/claims),
-    # lower the effective min_score threshold to capture the mispricing lag.
-    # Research: 30s-2min window after macro data release is the primary edge source.
+    # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
+    # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
+    # the worst hours. Keep macro_window_hours for future reference only.
     macro_window_hours: List[int] = field(default_factory=lambda: [13, 14])
-    macro_score_discount: float = 0.08   # subtract from effective threshold during macro window
+    macro_score_discount: float = 0.0   # disabled: live data n=12 WR=25% avg=-$3.5 at UTC 13-14h
 
     # Per-asset minimum momentum score multiplier.
-    # BTC needs much higher confidence to overcome its 6% baseline WR.
-    # ETH gets a discount as the strongest performer.
+    # BTC live data: n=12 WR=25% avg=-$1.88 — requires 40% higher composite score.
+    # ETH: n=12 WR=50% avg=-$1.26 — no penalty, needs more data.
+    # SOL: n=22 WR=45% avg=-$1.24 — no penalty, largest sample.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.0,   # TEST MODE — no multiplier penalty (prod=1.05)
+        "BTC": 1.40,  # live data n=12 WR=25%: needs 40% higher score to qualify
         "ETH": 1.0,
         "SOL": 1.0,
     })
