@@ -1164,11 +1164,9 @@ class KlausBot:
                 }
                 for tid, tok, sig, tpsl, dec, ex in sniper_queue
             ]
-            briefing = await self.macro_engine.market_briefing(
-                candidates=briefing_candidates,
-                open_count=len(self.risk.open_positions),
-                capital=self.risk.bankroll.capital,
-            )
+            # Briefing disabled: LLM veto never fires (always overridden), adds 1-2s
+            # latency before order placement, kills fills on fast-moving tokens.
+            briefing = {}
 
             # Sort by LLM priority (lower = better), then enter
             sniper_queue.sort(key=lambda x: briefing.get(x[0], {}).get("priority", 99))

@@ -750,7 +750,7 @@ class OrderManager:
                     # PRIMARY: wait on user channel WS fill event (sub-100ms).
                     # FALLBACK: poll REST every 1s if WS not connected.
                     # Both paths timeout after 3s then cancel.
-                    _FILL_TIMEOUT = 3.0
+                    _FILL_TIMEOUT = 1.0  # reduced 3→1s: fast-moving tokens reprice in <2s; waiting 3s guarantees missing the fill window
                     logger.info(
                         "BUY order resting — awaiting fill via user WS (up to %.0fs): %s",
                         _FILL_TIMEOUT, order_id[:12],
