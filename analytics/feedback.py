@@ -320,6 +320,18 @@ class FeedbackEngine:
             # Fall back to derived: gross - net (risk manager's fee estimate)
             fee_paid = gross_pnl - net_pnl
 
+        # Sanity check: fees are always a cost (≥ 0). Negative fee_paid means
+        # net_pnl_actual was wrong (e.g. EXTERNALLY_SOLD bookkeeping bug where
+        # bankroll wasn't decremented correctly). Don't corrupt analytics with it.
+        if fee_paid < 0:
+            import logging as _log
+            _log.getLogger("feedback").warning(
+                "fee_paid=%.4f < 0 for trade %s — net_pnl_actual likely wrong. "
+                "Clamping to 0 to prevent analytics corruption.",
+                fee_paid, trade_id,
+            )
+            fee_paid = 0.0
+
         # capital_after is always capital_before + net_pnl. Using the live bankroll
         # snapshot was wrong: if two positions close in the same cycle, the snapshot
         # includes PnL from the *other* position too.

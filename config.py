@@ -133,6 +133,14 @@ class EdgeConfig:
     # Strategy: trade all hours, collect data, then tighten to proven edge windows.
     allowed_hours_utc: List[int] = field(default_factory=lambda: [])
 
+    # Blocked hours (UTC). Takes precedence over allowed_hours_utc.
+    # Live data confirms UTC 13-14h is capital destruction (n=9 WR=22% PnL=-$30.87):
+    #   UTC 13h: n=6 WR=33% avg=-$2.20 — CPI/NFP/macro releases → stop-hunting noise
+    #   UTC 14h: n=3 WR=0%  avg=-$5.89 — NYSE open spillover, adversarial environment
+    # Capital protection: PF=0.45 (kill switch <0.8), $42 cushion → must stop bleeding.
+    # Data citation: T00042-T00051 (all UTC 13-14h) = 2 wins / 9 trades.
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [13, 14])
+
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
     # the worst hours. Keep macro_window_hours for future reference only.

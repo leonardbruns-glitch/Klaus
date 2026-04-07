@@ -409,10 +409,16 @@ class RiskManager:
 
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
-        allowed = self.edge_cfg.allowed_hours_utc
-        if allowed and not CONFIG.dry_run:
+        if not CONFIG.dry_run:
             current_hour = datetime.datetime.utcnow().hour
-            if current_hour not in allowed:
+            blocked = getattr(self.edge_cfg, "blocked_hours_utc", [])
+            if blocked and current_hour in blocked:
+                return RiskDecision(
+                    False, 0,
+                    f"Blocked trading hour (UTC {current_hour:02d}:xx — blocked: {blocked})",
+                )
+            allowed = self.edge_cfg.allowed_hours_utc
+            if allowed and current_hour not in allowed:
                 return RiskDecision(
                     False, 0,
                     f"Outside trading hours (UTC {current_hour:02d}:xx — allowed: {allowed})",

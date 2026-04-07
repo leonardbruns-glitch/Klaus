@@ -763,7 +763,7 @@ class WindowSniper:
             entry_price=entry_price,
             confidence=confidence,
             composite=composite,
-            direction=Direction.BUY_YES,   # always "buy this token" (side already aligned above)
+            direction=Direction.BUY_YES if token.side == "YES" else Direction.BUY_NO,
             fee_zone=fee_zone,
             elapsed_pct=elapsed_pct,
             reason=reason,
