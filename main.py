@@ -26,7 +26,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
-from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta
+from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta, CONTRARIAN_MAX_ASK
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager
 from analytics.lag_observations import log_lag_observation
@@ -926,7 +926,7 @@ class KlausBot:
                 # Normal sniper skips this token (ask < MIN_TOKEN_ASK=0.35 or wrong side).
                 # This path catches the contrarian opportunity independently.
                 if (ob is not None and ob.asks
-                        and ob.asks[0][0] <= 0.15
+                        and ob.asks[0][0] <= CONTRARIAN_MAX_ASK
                         and token.asset not in CONFIG.edge.sniper_excluded_assets):
                     # Find the paired opposite token for this window
                     _opponent_ask = 0.0
