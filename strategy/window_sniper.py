@@ -413,18 +413,8 @@ class WindowSniper:
                          token.asset, token.side)
             return None
 
-        # ── 15m quiet-hours gate ──────────────────────────────────────────────
-        # Shadow data: 291 blocks, 7% WR for 15m at 22 UTC. PM reprices 15m tokens
-        # too quickly in quiet sessions — the lag window collapses before we can enter.
-        # Exception: VPIN > 0.55 = informed flow present even in quiet hours.
-        if _15M_ACTIVE_ONLY and is_15m and not is_active_session:
-            if _vpin_now < 0.55:
-                logger.debug(
-                    "SNIPER BLOCK %s/%s | 15m quiet-hour (hour=%d UTC, VPIN=%.2f) "
-                    "— shadow 7%%WR@22UTC, no edge",
-                    token.asset, token.side, hour_utc, _vpin_now,
-                )
-                return None
+        # quiet-hours VPIN gate removed: live data showed VPIN<0.40 had best WR (48%).
+        # Gate was blocking the good zone and only allowing the worse zone. Removed.
 
         # ── Side alignment: only trade the winning token ───────────────────────
         if token.side == "YES" and asset_direction < 0:
@@ -576,26 +566,8 @@ class WindowSniper:
             pm_drift, ask_at_trigger if ask_at_trigger > 0 else token_ask, token_ask, fair_value,
         )
 
-        # ── VPIN off-peak gate ────────────────────────────────────────────────
-        # Outside active hours, require minimum informed flow to filter pure noise.
-        # 0.15 = very low bar — only blocks truly dead markets (VPIN ~0.10 = random flow).
-        # 0.35 was too aggressive (blocked VPIN=0.27-0.31 which may have edge).
-        if not is_active_session:
-            vpin_for_gate = ext.vpin_score or 0.0
-            if vpin_for_gate < VPIN_OFFPEAK_REQUIRED:
-                logger.info(
-                    "SNIPER BLOCK %s/%s | off-peak VPIN=%.3f < %.2f — no informed flow (hour=%d UTC)",
-                    token.asset, token.side, vpin_for_gate, VPIN_OFFPEAK_REQUIRED, hour_utc,
-                )
-                self.last_block[(token.asset, token.side)] = SniperBlock(
-                    asset=token.asset, side=token.side, token_id=token.token_id,
-                    window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                    block_reason="vpin_offpeak", regime=_regime,
-                    token_ask=token_ask, fair_value=fair_value, edge=edge,
-                    lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
-                    vpin=vpin_for_gate, ts=now,
-                )
-                return None
+        # VPIN off-peak gate removed: same data — VPIN<0.40 had best live WR.
+        # Using VPIN as a gate blocks good trades and allows bad ones.
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0
