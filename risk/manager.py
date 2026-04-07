@@ -512,7 +512,23 @@ class RiskManager:
         # Heat check caused T00022 to scale to 8 shares at bad entry → -$1.97 loss.
         # Re-enable after 20+ sniper trades with WR >55%.
         if is_sniper:
-            stake = self.cfg.base_stake
+            # Signal quality scaling: stronger edge + higher lag_remaining = larger stake.
+            # edge ∈ [0.05, 0.20+]: normalised to [0, 1] at 0.15 ceiling.
+            # lag_remaining_pct ∈ [0.30, 1.0]: normalised to [0, 1] at 0.60 ceiling.
+            # Combined quality → stake range: 0.65x (weakest) to 1.0x (strongest).
+            # Rationale: borderline entries (lag=0.30, edge=0.05) get 65% of base_stake;
+            #            strong entries (lag=0.70+, edge=0.15+) get full base_stake.
+            _sig_edge = getattr(signal, 'edge', 0.10)
+            _sig_lag = getattr(signal, 'lag_remaining_pct', 0.50)
+            _edge_q = min(1.0, max(0.0, _sig_edge / 0.15))
+            _lag_q = min(1.0, max(0.0, _sig_lag / 0.60))
+            _quality = (_edge_q + _lag_q) / 2.0          # 0.0 → 1.0
+            quality_factor = 0.65 + 0.35 * _quality      # 0.65x → 1.0x
+            stake = round(self.cfg.base_stake * quality_factor, 2)
+            logger.debug(
+                "STAKE QUALITY %s: edge=%.3f lag=%.2f → quality=%.2f factor=%.2f → $%.2f",
+                asset, _sig_edge, _sig_lag, _quality, quality_factor, stake,
+            )
         else:
             stake = self.bankroll.current_stake
         # Cap at 25% of capital per position — allows $10 stake on $48+ capital.
@@ -691,6 +707,7 @@ class RiskManager:
         self,
         token_id: str,
         current_price: float,
+        ext=None,   # Optional ExternalSignal — used for VPIN-aware Stage 2 hold + SL extension
     ) -> Optional[ExitDecision]:
         """
         Evaluates all exit rules in priority order.
@@ -758,9 +775,9 @@ class RiskManager:
         if pos.exit_stage == ExitStage.NONE:
             if pos.window_end_ts > 0:
                 if remaining > 120:
-                    profit1_pct = 0.20
+                    profit1_pct = 0.30   # >2min left: hold for +30% (breakeven WR ~40% vs ~57% at +20%)
                 elif remaining > 60:
-                    profit1_pct = 0.18
+                    profit1_pct = 0.25   # 1-2min left: standard +25%
                 else:
                     profit1_pct = 0.15   # take what's available near window expiry
             else:
@@ -785,14 +802,27 @@ class RiskManager:
             if move_pct >= 0.35:
                 return ExitDecision(True, "PROFIT_2", urgency="cascade")
 
-            # Floor: cost+12% — protect the 40% from reversing to a loss
-            if move_pct <= 0.12:
+            # Floor: cost+15% — raise from 12% to ensure Stage 2 never erodes Stage 1 gains
+            if move_pct <= 0.15:
                 return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
 
             # Trailing stop: 12% below peak — lets winner run but cuts reversals
             trail_stop = pos.highest_price * 0.88
             if current_price <= trail_stop:
                 return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
+
+            # Conditional hold: if VPIN has faded since Stage 1, don't hold for +35%
+            # Informed flow that drove Stage 1 is gone — momentum likely exhausted.
+            if ext is not None and move_pct > 0.15:
+                _vpin = getattr(ext, 'vpin_score', None)
+                if _vpin is not None and _vpin < 0.40:
+                    logger.info(
+                        "STAGE2 VPIN FADE %s/%s @ %.4f | move=+%.1f%% VPIN=%.2f < 0.40 — "
+                        "informed flow gone, exiting Stage 2 now",
+                        pos.asset, pos.direction.name, current_price,
+                        move_pct * 100, _vpin,
+                    )
+                    return ExitDecision(True, "STAGE2_VPIN_FADE", urgency="cascade")
 
             return None
 
@@ -883,7 +913,21 @@ class RiskManager:
                     # 5m: 12s confirmation (fast windows, wicks clear quickly)
                     # 15m: 20s confirmation (slower market, more time to wait out noise)
                     # Catastrophic drops: 5s on 5m; 20s guard on 15m (stop-hunt pattern documented CLAUDE.md n=2).
-                    confirm_secs = 12.0 if is_5m else 20.0  # restored 8→20s: stop-hunt wicks last 10-20s before recovering; deterioration check exits genuine collapses immediately
+                    # Multi-tier confirmation: deeper breach = longer wait (more likely wick)
+                    # Wicks rarely exceed -30% and always recover fast; genuine collapses keep falling.
+                    # Deterioration check (>20% further drop from breach) fires immediately regardless.
+                    _breach_depth = (pos.entry_price - current_price) / pos.entry_price
+                    if _breach_depth < 0.20:
+                        confirm_secs = 5.0 if is_5m else 8.0    # small dip, probably real
+                    elif _breach_depth < 0.30:
+                        confirm_secs = 12.0 if is_5m else 18.0  # moderate dip, wick possible
+                    else:
+                        confirm_secs = 18.0 if is_5m else 28.0  # deep dip, wick likely
+                    # VPIN extension: low VPIN during breach = no informed selling = likely manufactured
+                    if ext is not None:
+                        _vpin_breach = getattr(ext, 'vpin_score', 0.5)
+                        if _vpin_breach < 0.45:
+                            confirm_secs += 8.0  # low VPIN + price drop = probable wick
                     if pos.sl_breach_ts == 0.0:
                         pos.sl_breach_ts = now
                         pos.sl_breach_price = current_price  # L6: track price at breach for wick detection

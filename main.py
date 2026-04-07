@@ -427,7 +427,8 @@ class KlausBot:
                     f" | window={remaining_sec:.0f}s" if remaining_sec > 0 else "",
                 )
 
-            decision = self.risk.check_exit_conditions(token_id, current_price)
+            _pos_ext = self._last_ext_signals.get(pos.asset)
+            decision = self.risk.check_exit_conditions(token_id, current_price, ext=_pos_ext)
 
             if decision is None:
                 if pos.window_end_ts > 0:
