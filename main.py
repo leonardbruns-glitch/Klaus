@@ -1663,7 +1663,7 @@ class KlausBot:
                 "Shares already sold externally, stopping retry loop.",
                 pos.asset, pos.direction.name, exit_price,
             )
-            pnl = self.risk.close_position(token_id, exit_price, "EXTERNALLY_SOLD")
+            pnl = self.risk.close_position(token_id, exit_price, reason)
             _ext_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
             if pnl is not None:
@@ -1678,6 +1678,9 @@ class KlausBot:
                         reason="externally_sold",
                     )
                 capital_before = self.risk.bankroll.capital - pnl
+                # exit_reason = real trigger (STOP_LOSS / PROFIT_1 / HARD_EXIT / etc.)
+                # with _EXT suffix to flag that the position was already gone at sell time
+                _logged_reason = f"{reason}_EXT" if reason != "EXTERNALLY_SOLD" else "EXTERNALLY_SOLD"
                 try:
                     self.analytics.record_trade(
                         token_id=token_id,
@@ -1689,7 +1692,7 @@ class KlausBot:
                         shares=pos.shares,
                         entry_fill=_ext_meta.get("entry_fill"),
                         exit_fills=all_exit_fills,
-                        exit_reason="EXTERNALLY_SOLD",
+                        exit_reason=_logged_reason,
                         signal=_signal,
                         ts_open=_ext_meta.get("ts_open", pos.open_ts),
                         ts_close=time.time(),
