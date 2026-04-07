@@ -102,7 +102,7 @@ MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK  # no late tightening: 5m can't reach 50% (EL
 MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
 MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
-VPIN_OFFPEAK_REQUIRED = 0.35  # restored 0.15→0.35: this morning's trades (hour=8, active hours) passed regardless
+VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 
 # 15m ONLY: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
 # 5m disabled: WR=14.3% is capital destruction. Re-enable when n≥20 live 5m trades show WR>45%.
