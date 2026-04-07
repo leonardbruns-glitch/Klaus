@@ -102,7 +102,10 @@ WINDOW_ELAPSED_MIN = 0.20  # lowered 0.35→0.20: 0.35 floor is contradictory �
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
-MIN_TOKEN_ASK = 0.35   # floor: below 0.35 = near-resolved other side, tiny upside
+MIN_TOKEN_ASK = 0.20   # floor: below 0.20 = near-resolved other side (opponent at 0.80+),
+                        # liquidity dries up, OB spread/size gates also catch this.
+                        # 0.35 was arbitrary — same flawed logic as MAX_TOKEN_ASK=0.50.
+                        # If there's a real move, PM reprices above 0.35 in 2.7s anyway.
 MAX_TOKEN_ASK = 0.72   # raised 0.50→0.72: PM reprices in 2.7s — tokens at 0.35-0.50 only exist
                         # when there is NO real move (coin-flip zone). Confirmed sustained moves
                         # land tokens at 0.65-0.80 by 35% elapsed. Near_ceiling blocked 100% of
