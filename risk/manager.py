@@ -434,9 +434,20 @@ class RiskManager:
             if remaining < self.exec_cfg.no_trade_last_sec:
                 return RiskDecision(False, 0, f"Window closing in {remaining:.0f}s")
 
-        # Condition dedup
+        # Condition dedup — blocks same market window (condition_id) from re-entry
         if condition_id and condition_id in self._traded_conditions:
             return RiskDecision(False, 0, f"Already traded condition {condition_id[:8]}")
+
+        # Token-level re-entry guard: also block by token_id for 120s.
+        # Catches cases where condition_id is empty/None (gate above silently skips).
+        # Observed: T60 exited PROFIT_2_EXT, same token_id re-entered 2min later (T62)
+        # as T62 with ob_depth=757 → partial fill 0.0349 shares + double-fill orphans.
+        _recently_closed = getattr(self, "_recently_closed_tokens", {})
+        if token_id in _recently_closed:
+            if time.time() - _recently_closed[token_id] < 120:
+                return RiskDecision(False, 0, f"Token {token_id[:8]} closed <120s ago — no re-entry")
+            else:
+                _recently_closed.pop(token_id, None)
 
         # Min entry price floor (from old bot: reject < 3¢ tokens)
         if signal.entry_price < self.cfg.min_entry_price:
@@ -666,6 +677,11 @@ class RiskManager:
         pos = self.open_positions.pop(token_id, None)
         if pos is None:
             return None
+
+        # Track closed token for re-entry guard (120s cooldown)
+        if not hasattr(self, "_recently_closed_tokens"):
+            self._recently_closed_tokens = {}
+        self._recently_closed_tokens[token_id] = time.time()
 
         # Condition stays in _traded_conditions after close — prevents re-entry
         # into the same window within a session. Each window has a unique condition_id
