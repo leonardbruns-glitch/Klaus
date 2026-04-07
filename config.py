@@ -227,9 +227,13 @@ class SignalGatesConfig:
     # 8h rate equivalent: APR / (3*365) * 100 → 10.95% APR = 0.01% per 8h.
     # ENABLED: live data n=11 negative-funding trades → WR=18.2%, −$29.3 net.
     # Negative funding (shorts crowded) + BUY_NO (also short) = crowded flush risk.
-    # Threshold 3% APR: covers observed range −5% to −14% APR in losing cohort.
+    # 3% APR threshold was too aggressive: it blocked ALL NO trades in normal bear markets
+    # (observed: ETH -4.4% APR, SOL -12.1% APR both blocked → zero NO trades possible).
+    # -4.4% to -12% APR is normal crypto bear market funding, not crowded-short extreme.
+    # True squeeze risk = -30% to -200% APR (capitulation events). Raised to 20% APR.
+    # n=11 original data doesn't specify funding level of losing trades — 3% was not justified.
     funding_gate: bool = True              # ENABLED: data confirms crowded-short flush pattern
-    funding_extreme_apr: float = 3.0      # lowered 80→3%: block NO entries when funding < −3% APR
+    funding_extreme_apr: float = 20.0     # raised 3→20%: 3% blocked all NO in normal bear market; true crowded shorts = -30%+ APR
 
     # ── Signal 4: Cross-exchange divergence gate ──────────────────────────────
     # Blocks entry if Binance moved significantly but Coinbase price hasn't moved
