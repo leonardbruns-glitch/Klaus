@@ -1250,6 +1250,7 @@ class KlausBot:
             reason = fill.error or "unknown"
             self._buy_failed_reasons[reason] = self._buy_failed_reasons.get(reason, 0) + 1
             logger.error("Fill failed for %s: %s", asset, reason)
+            self.risk._pending_assets.discard(asset)  # release lock on fill failure
             return
 
         # Slippage guard: if fill is >10¢ below limit, the market moved hard against
@@ -1273,6 +1274,7 @@ class KlausBot:
                 neg_risk=getattr(self.feed.tokens.get(token_id), "neg_risk", False),
                 tick_size=getattr(self.feed.tokens.get(token_id), "tick_size", "0.01"),
             )
+            self.risk._pending_assets.discard(asset)  # release lock on slippage abort
             return
 
         self._buy_filled += 1

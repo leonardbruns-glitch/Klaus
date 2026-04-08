@@ -225,6 +225,7 @@ class RiskManager:
         self.edge_cfg = CONFIG.edge
         self.bankroll = BankrollTracker()
         self.open_positions: Dict[str, PositionMeta] = {}
+        self._pending_assets: Set[str] = set()       # race-condition guard: asset locked from approve→fill
         self._traded_conditions: Set[str] = set()   # dedup within window
         self._last_close_ts: float = 0.0
         # Expired positions with STAGE_1_DONE found on startup — bot crashed before stage-2.
@@ -516,7 +517,11 @@ class RiskManager:
         # Already have an open position on this asset (any direction, any window).
         # Entering opposite direction = guaranteed fee loss (SOL Up + SOL Down = hedge).
         # Entering same direction = redundant double exposure, not additive edge.
+        # Also check _pending_assets: race-condition guard for concurrent entry paths
+        # firing before the first fill is confirmed in open_positions.
         if asset:
+            if asset in self._pending_assets:
+                return RiskDecision(False, 0, f"Already in {asset} (pending fill)")
             for pos in self.open_positions.values():
                 if pos.asset == asset:
                     return RiskDecision(False, 0, f"Already in {asset} ({pos.direction.name})")
@@ -590,6 +595,10 @@ class RiskManager:
                     return RiskDecision(False, 0, f"Fat-middle EV={ev:.4f} ≤ 0")
 
         is_scaled = self.bankroll.is_heat_check_active
+        # Lock asset immediately — prevents race condition where second concurrent
+        # entry path approves before first fill is confirmed in open_positions.
+        if asset:
+            self._pending_assets.add(asset)
         return RiskDecision(
             approved=True,
             stake=stake,
@@ -628,6 +637,7 @@ class RiskManager:
             window_seconds=window_seconds,
         )
         self.open_positions[token_id] = pos
+        self._pending_assets.discard(asset)  # fill confirmed — release lock
         if condition_id:
             self._traded_conditions.add(condition_id)
         logger.info(
