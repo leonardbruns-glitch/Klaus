@@ -224,28 +224,38 @@ class SniperSignal:
     quality_score: int = 0               # additive quality score (see _compute_quality_score)
 
 
-def _compute_quality_score(lag: float, abs_delta: float, regime: str):
+def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
     """
     Pre-entry quality gate for stake sizing and hard reject.
 
     lag_remaining: 1.0 = PM barely repriced = max opportunity (BEST)
                    0.0 = PM fully repriced = no edge (WORST)
 
-    Returns (score: int, breakdown: dict, hard_reject: bool)
-      hard_reject=True when lag < 0.10 (fully repriced — no edge left)
+    Returns (score: int, breakdown: dict, hard_reject: bool, reject_reason: str)
+      hard_reject=True when: lag < 0.15  OR  (lag >= 0.70 AND vpin < 0.40)
     """
     hard_reject = False
+    reject_reason = ""
+
+    # ── High-Lag VPIN Gate ────────────────────────────────────────────────
+    # High lag without informed flow = ghost reversal risk.
+    # Evidence: high-lag entries (lag 0.78-0.82) failing when vpin < 0.40.
+    # Binance moved, but without smart-money confirmation the move snaps
+    # back before PM reprices — we enter at peak lag into a reversal.
+    if lag >= 0.70 and vpin < 0.40:
+        hard_reject = True
+        reject_reason = f"high_lag_no_vpin(lag={lag:.2f},vpin={vpin:.2f}<0.40)"
+        return 0, {"lag": 2, "mom": 0, "regime": 0, "vpin": "GATE"}, hard_reject, reject_reason
 
     # ── Lag scoring (lag = distance-to-target, not a clock) ──────────────
-    # lag_remaining = fraction of expected PM repricing still uncaptured.
-    # 0.90 → 90% of the move is still available. 0.10 → only 10% left.
     # No upper ceiling — high lag is the goal, not a risk.
     # pm_drift_at_entry and abs(mom) guard against reversed/stale moves.
     if lag < 0.15:
         hard_reject = True
+        reject_reason = "lag_too_low(<0.15)"
         pts_lag = 0          # score irrelevant — hard reject fires
     elif lag >= 0.70:
-        pts_lag = 2          # maximum edge: PM barely repriced (high risk/reward)
+        pts_lag = 2          # maximum edge: PM barely repriced (vpin confirmed above)
     elif lag >= 0.40:
         pts_lag = 1          # confirmation zone
     else:
@@ -257,7 +267,7 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str):
     elif abs_delta >= 0.10:
         pts_mom = 1
     elif abs_delta >= 0.08:
-        pts_mom = 0          # neutral zone 0.08-0.10
+        pts_mom = 0          # neutral zone
     else:
         pts_mom = -1
 
@@ -269,9 +279,13 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str):
     else:
         pts_regime = 0
 
-    score = pts_lag + pts_mom + pts_regime
-    breakdown = {"lag": pts_lag, "mom": pts_mom, "regime": pts_regime}
-    return score, breakdown, hard_reject
+    # ── VPIN scaling: low VPIN = no informed flow = reduce conviction ─────
+    # Applies to moderate-lag trades; high-lag + low-vpin is hard-rejected above.
+    pts_vpin = -1 if vpin < 0.30 else 0
+
+    score = pts_lag + pts_mom + pts_regime + pts_vpin
+    breakdown = {"lag": pts_lag, "mom": pts_mom, "regime": pts_regime, "vpin": pts_vpin}
+    return score, breakdown, hard_reject, reject_reason
 
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
@@ -811,25 +825,25 @@ class WindowSniper:
         )
 
         # ── Quality Score Gate ────────────────────────────────────────────────
-        # Additive score from lag / momentum / regime.
-        # Hard reject: lag < 0.10 (PM fully repriced — zero edge).
+        # Additive score from lag / momentum / regime / vpin.
+        # Hard reject: lag < 0.15 OR (lag >= 0.70 AND vpin < 0.40).
         # Soft reject: score ≤ -1 (negative expected value composite).
         # Scores also drive stake sizing in risk/manager.py.
-        _quality_score, _qbd, _hard_reject = _compute_quality_score(
+        _quality_score, _qbd, _hard_reject, _reject_reason = _compute_quality_score(
             lag=lag_remaining_pct,
             abs_delta=abs(delta_pct),
             regime=_regime,
+            vpin=vpin,
         )
         if _hard_reject:
             logger.info(
-                "SNIPER REJECT %s/%s | quality=HARD_REJECT lag=%.2f<0.10 "
-                "— PM fully repriced, zero edge | score_breakdown=%s",
-                token.asset, token.side, lag_remaining_pct, _qbd,
+                "SNIPER REJECT %s/%s | HARD_REJECT %s | breakdown=%s",
+                token.asset, token.side, _reject_reason, _qbd,
             )
             self.last_block[(token.asset, token.side)] = SniperBlock(
                 asset=token.asset, side=token.side, token_id=token.token_id,
                 window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                block_reason="quality_hard_reject",
+                block_reason=f"quality_hard_reject:{_reject_reason}",
                 regime=_regime, token_ask=token_ask, fair_value=fair_value, edge=edge,
                 lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct,
                 elapsed_pct=elapsed_pct, vpin=vpin or 0.0, ts=now,
@@ -838,11 +852,12 @@ class WindowSniper:
         if _quality_score <= -1:
             logger.info(
                 "SNIPER REJECT %s/%s | quality_score=%d ≤ -1 "
-                "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d) — negative EV",
+                "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d) vpin=%.2f(%+d) — negative EV",
                 token.asset, token.side, _quality_score,
                 lag_remaining_pct, _qbd["lag"],
                 abs(delta_pct), _qbd["mom"],
                 _regime, _qbd["regime"],
+                vpin, _qbd["vpin"],
             )
             self.last_block[(token.asset, token.side)] = SniperBlock(
                 asset=token.asset, side=token.side, token_id=token.token_id,
@@ -856,11 +871,12 @@ class WindowSniper:
 
         logger.info(
             "SNIPER PASS %s/%s | quality_score=%d "
-            "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d)",
+            "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d) vpin=%.2f(%+d)",
             token.asset, token.side, _quality_score,
             lag_remaining_pct, _qbd["lag"],
             abs(delta_pct), _qbd["mom"],
             _regime, _qbd["regime"],
+            vpin, _qbd["vpin"],
         )
 
         return SniperSignal(

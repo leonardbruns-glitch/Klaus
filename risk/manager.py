@@ -548,10 +548,11 @@ class RiskManager:
                     asset, _qs,
                 )
                 return RiskDecision(False, 0, f"Quality score {_qs} < 0")
-            elif _qs >= 4:
-                _multiplier = 1.2   # reduced 1.5→1.2: high-lag blowups observed (-$10.10 max)
+            elif _qs >= 3:
+                _multiplier = 1.2   # score≥3 threshold (was ≥4): VPIN scaling means
+                                    # low-conviction trades already penalised to score 2
                                     # circuit breaker at 1.2x = $24×0.35 = $8.40 max loss
-            elif _qs >= 2:
+            elif _qs >= 1:
                 _multiplier = 1.0
             else:
                 _multiplier = 0.5
