@@ -638,6 +638,47 @@ class FeedbackEngine:
             for reason, bucket in sorted(exit_reasons.items())
         }
 
+        # ── Lag-tier breakdown (sniper only — Kelly Criterion validation data) ──
+        # lag_remaining=1.0 = PM hasn't repriced at all = MAX opportunity (best entry).
+        # lag_remaining=0.0 = PM fully repriced = no edge remaining (worst entry).
+        # Tiers use corrected lag direction vs friend's original proposal.
+        # NOTE: analytics only — no stake changes until n>=20 per tier confirmed.
+        def _tier_stats(bucket: list) -> dict:
+            if not bucket:
+                return {"n": 0, "wr": 0.0, "net_pnl": 0.0,
+                        "avg_delta_pct": 0.0, "avg_entry_price": 0.0}
+            wins_b = [t for t in bucket if t.net_pnl > 0]
+            return {
+                "n": len(bucket),
+                "wr": round(len(wins_b) / len(bucket), 3),
+                "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
+                "avg_delta_pct": _avg([t.sniper_delta_pct for t in bucket
+                                       if t.sniper_delta_pct != 0]),
+                "avg_entry_price": _avg([t.entry_price for t in bucket]),
+            }
+
+        lag_dead   = [t for t in sniper_trades if t.sniper_lag_remaining < 0.35]
+        lag_std    = [t for t in sniper_trades if 0.35 <= t.sniper_lag_remaining < 0.55]
+        lag_good   = [t for t in sniper_trades if 0.55 <= t.sniper_lag_remaining < 0.75]
+        lag_sniper = [t for t in sniper_trades if t.sniper_lag_remaining >= 0.75]
+        lag_tier_stats = {
+            "nearly_repriced_<0.35":  _tier_stats(lag_dead),
+            "moderate_0.35-0.55":     _tier_stats(lag_std),
+            "good_0.55-0.75":         _tier_stats(lag_good),
+            "max_lag_>=0.75":         _tier_stats(lag_sniper),
+        }
+
+        # ── Delta-tier breakdown (sniper only — move strength vs outcome) ────────
+        # abs(delta_pct) captures move size regardless of YES/NO direction.
+        delta_weak   = [t for t in sniper_trades if abs(t.sniper_delta_pct) < 0.08]
+        delta_std    = [t for t in sniper_trades if 0.08 <= abs(t.sniper_delta_pct) < 0.13]
+        delta_strong = [t for t in sniper_trades if abs(t.sniper_delta_pct) >= 0.13]
+        delta_tier_stats = {
+            "weak_<0.08pct":         _tier_stats(delta_weak),
+            "standard_0.08-0.13pct": _tier_stats(delta_std),
+            "strong_>=0.13pct":      _tier_stats(delta_strong),
+        }
+
         metrics = {
             "sample_size": n,
             "live_trades": len(live_trades),
@@ -674,6 +715,9 @@ class FeedbackEngine:
             "prearm_stats": prearm_stats,
             "side_stats": side_stats,
             "by_exit_reason": by_exit_reason,
+            # Kelly Criterion validation data — analytics only, no stake changes yet
+            "lag_tier_stats": lag_tier_stats,
+            "delta_tier_stats": delta_tier_stats,
         }
 
         # ── Alert generation ──────────────────────────────────────────────────
