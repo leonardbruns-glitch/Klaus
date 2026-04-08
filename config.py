@@ -146,12 +146,11 @@ class EdgeConfig:
     macro_window_hours: List[int] = field(default_factory=lambda: [13, 14])
     macro_score_discount: float = 0.0   # disabled: live data n=12 WR=25% avg=-$3.5 at UTC 13-14h
 
-    # Per-asset minimum momentum score multiplier.
-    # BTC live data: n=12 WR=25% avg=-$1.88 — requires 40% higher composite score.
-    # ETH: n=12 WR=50% avg=-$1.26 — no penalty, needs more data.
-    # SOL: n=22 WR=45% avg=-$1.24 — no penalty, largest sample.
+    # Per-asset minimum momentum score multiplier — disabled 2026-04-08.
+    # Was BTC=1.40 based on n=12 WR=25% (stale). N=31 BTC now shows WR=51.6%.
+    # BTC still protected by per_asset_min_delta_pct=0.13 + lag kill zones.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.40,  # live data n=12 WR=25%: needs 40% higher score to qualify
+        "BTC": 1.0,
         "ETH": 1.0,
         "SOL": 1.0,
     })
