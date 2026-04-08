@@ -924,14 +924,12 @@ class OrderManager:
                 return OrderResult(status=OrderStatus.FAILED, error=f"Unfilled: {status}")
 
             # ── Fill price calculation (BUY vs SELL semantics differ) ────────
-            # Polymarket CLOB: makingAmount and takingAmount are in micro-units (×1,000,000).
+            # Polymarket CLOB API returns makingAmount and takingAmount in WHOLE units.
             # BUY:  makingAmount = USDC paid,   takingAmount = tokens received
             # SELL: makingAmount = tokens given, takingAmount = USDC received
-            # Root cause of T00193 exit price bug: SELL fill_price was computed as
-            # USDC/USDC (wrong) instead of USDC/tokens — both are in micro-units
-            # so the result was always >>1, triggering the sanity fallback to `price`
-            # (the limit order price at decision time, not the actual fill price).
-            making_f = _to_float(making) / 1_000_000  # convert micro-units → decimal
+            # T00193 note: a prior fix added /1_000_000 (assuming micro-units) which
+            # was wrong — the API returns whole units, giving fill_price ≈ 520000.
+            making_f = _to_float(making)  # whole units — do NOT divide by 1_000_000
             if side == OrderSide.SELL:
                 # SELL: makingAmount = tokens given, takingAmount = USDC received
                 fill_size = making_f if making_f > 0 else taking_f  # tokens
