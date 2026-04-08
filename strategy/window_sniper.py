@@ -41,6 +41,7 @@ from data.feeds import MarketToken, OrderBook, ExternalSignal
 from strategy.momentum import Direction, FeeZone
 from analytics.regime import classify_regime
 from analytics.conditional_wr import COND_WR
+from config import CONFIG
 
 logger = logging.getLogger("window_sniper")
 
