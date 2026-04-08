@@ -549,7 +549,8 @@ class RiskManager:
                 )
                 return RiskDecision(False, 0, f"Quality score {_qs} < 0")
             elif _qs >= 4:
-                _multiplier = 1.5
+                _multiplier = 1.2   # reduced 1.5→1.2: high-lag blowups observed (-$10.10 max)
+                                    # circuit breaker at 1.2x = $24×0.35 = $8.40 max loss
             elif _qs >= 2:
                 _multiplier = 1.0
             else:

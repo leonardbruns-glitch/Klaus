@@ -244,12 +244,12 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str):
     if lag < 0.15:
         hard_reject = True
         pts_lag = 0          # score irrelevant — hard reject fires
-    elif lag >= 0.75:
-        pts_lag = 2          # maximum edge: PM barely repriced
-    elif lag >= 0.45:
-        pts_lag = 1          # moderate edge
+    elif lag >= 0.70:
+        pts_lag = 2          # maximum edge: PM barely repriced (high risk/reward)
+    elif lag >= 0.40:
+        pts_lag = 1          # confirmation zone
     else:
-        pts_lag = 0          # 0.15-0.45: thin edge — let mom/regime decide
+        pts_lag = 0          # 0.15-0.40: thin edge — let mom/regime decide
 
     # ── Momentum scoring (abs value — correct for both YES and NO) ────────
     if abs_delta >= 0.15:
