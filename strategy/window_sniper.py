@@ -520,33 +520,6 @@ class WindowSniper:
             )
             return None
 
-        # ── Surgical lag kill zones ───────────────────────────────────────────
-        # Data: N=186 live trades. These 3 zones produce 73% of stop-loss dollar
-        # losses (-$131 of $176). WR in each zone: 27-50%. Good zones either side
-        # are kept (0.55-0.60 WR=69-88%, 0.65-0.70 WR=73-75%).
-        # Kill zones confirmed across 3 independent analyses (n=186, n=110, Apr7-8).
-        # Reference: session analysis 2026-04-08.
-        _is_kill_lag = (
-            0.40 <= lag_remaining_pct < 0.55  # mid-lag: 27-47% WR, -$49 net
-            or 0.60 <= lag_remaining_pct < 0.65  # mid-lag: 50% WR, -$20 net
-            or 0.80 <= lag_remaining_pct < 0.85  # high-lag: 33% WR, -$20 net
-        )
-        if _is_kill_lag:
-            logger.info(
-                "SNIPER BLOCK %s/%s | lag=%.2f in kill zone (%.2f-%.2f) — stop-hunt zone",
-                token.asset, token.side, lag_remaining_pct,
-                0.40 if lag_remaining_pct < 0.55 else (0.60 if lag_remaining_pct < 0.65 else 0.80),
-                0.55 if lag_remaining_pct < 0.55 else (0.65 if lag_remaining_pct < 0.65 else 0.85),
-            )
-            self.last_block[(token.asset, token.side)] = SniperBlock(
-                asset=token.asset, side=token.side, token_id=token.token_id,
-                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                block_reason="lag_kill_zone", regime=_regime,
-                token_ask=token_ask, fair_value=fair_value, edge=edge,
-                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
-                vpin=ext.vpin_score or 0.0, ts=now,
-            )
-            return None
 
         # ── Order book quality gates ──────────────────────────────────────────
         # Placed AFTER price ceiling: OB gates only matter for tokens in our
