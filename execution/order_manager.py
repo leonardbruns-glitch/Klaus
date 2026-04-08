@@ -814,47 +814,68 @@ class OrderManager:
                             order_id[:12], sz, price,
                         )
                     else:
-                        cancel_race_fill = False
-                        try:
-                            self._client.cancel(order_id)
-                            logger.info("Cancelled unfilled resting BUY %s", order_id[:12])
-                        except Exception as _cancel_err:
-                            # Cancel can fail when the order filled in the <1ms window
-                            # between our 3s timeout check and the cancel request arriving
-                            # at the CLOB. Silently swallowing this leaves a filled position
-                            # on Polymarket that the bot doesn't know about.
-                            # Recover: check order status and extract the fill if matched.
-                            logger.warning(
-                                "BUY cancel failed for %s (%s) — checking for race fill",
-                                order_id[:12], _cancel_err,
+                        # WS timeout — check CLOB balance BEFORE cancelling.
+                        # Fills can land on Polymarket while WS confirmation is dropped.
+                        # Cancelling without checking leaves orphaned shares untracked.
+                        _pre_cancel_balance = self.fetch_token_balance(token_id)
+                        if _pre_cancel_balance is not None and _pre_cancel_balance >= 0.05:
+                            # Tokens received — order filled even though WS didn't confirm.
+                            # Recover the fill using the balance and limit price.
+                            logger.info(
+                                "BUY fill recovered via balance check: %s balance=%.4f @ ~%.4f",
+                                order_id[:12], _pre_cancel_balance, price,
                             )
+                            resp = {
+                                "id": order_id, "status": "matched",
+                                "takingAmount": str(_pre_cancel_balance),
+                                "makingAmount": str(_pre_cancel_balance * price),
+                            }
+                            status = "matched"
+                            taking = str(_pre_cancel_balance)
+                            taking_f = _pre_cancel_balance
+                            making = str(_pre_cancel_balance * price)
+                        else:
+                            cancel_race_fill = False
                             try:
-                                await asyncio.sleep(0.3)  # wait for fill to propagate to read replica
-                                order_info = self._client.get_order(order_id)
-                                if order_info.get("status") == "matched":
-                                    sz = _to_float(order_info.get("takingAmount", "0"))
-                                    if sz > 0:
-                                        resp = {
-                                            "id": order_id, "status": "matched",
-                                            "takingAmount": str(sz),
-                                            "makingAmount": str(sz * price),
-                                        }
-                                        status = "matched"
-                                        taking = str(sz)
-                                        taking_f = sz
-                                        cancel_race_fill = True
-                                        logger.info(
-                                            "BUY cancel-race fill recovered: %s size=%.4f @ ~%.4f",
-                                            order_id[:12], sz, price,
-                                        )
-                            except Exception as _check_err:
-                                logger.debug("cancel-race order check failed: %s", _check_err)
-                        if not cancel_race_fill:
-                            return OrderResult(
-                                status=OrderStatus.FAILED,
-                                error=f"BUY resting — cancelled after {_FILL_TIMEOUT:.0f}s (no fill)",
-                            )
-                        # cancel_race_fill=True: fall through to fill processing below
+                                self._client.cancel(order_id)
+                                logger.info("Cancelled unfilled resting BUY %s", order_id[:12])
+                            except Exception as _cancel_err:
+                                # Cancel can fail when the order filled in the <1ms window
+                                # between our 3s timeout check and the cancel request arriving
+                                # at the CLOB. Silently swallowing this leaves a filled position
+                                # on Polymarket that the bot doesn't know about.
+                                # Recover: check order status and extract the fill if matched.
+                                logger.warning(
+                                    "BUY cancel failed for %s (%s) — checking for race fill",
+                                    order_id[:12], _cancel_err,
+                                )
+                                try:
+                                    await asyncio.sleep(0.3)  # wait for fill to propagate to read replica
+                                    order_info = self._client.get_order(order_id)
+                                    if order_info.get("status") == "matched":
+                                        sz = _to_float(order_info.get("takingAmount", "0"))
+                                        if sz > 0:
+                                            resp = {
+                                                "id": order_id, "status": "matched",
+                                                "takingAmount": str(sz),
+                                                "makingAmount": str(sz * price),
+                                            }
+                                            status = "matched"
+                                            taking = str(sz)
+                                            taking_f = sz
+                                            cancel_race_fill = True
+                                            logger.info(
+                                                "BUY cancel-race fill recovered: %s size=%.4f @ ~%.4f",
+                                                order_id[:12], sz, price,
+                                            )
+                                except Exception as _check_err:
+                                    logger.debug("cancel-race order check failed: %s", _check_err)
+                            if not cancel_race_fill:
+                                return OrderResult(
+                                    status=OrderStatus.FAILED,
+                                    error=f"BUY resting — cancelled after {_FILL_TIMEOUT:.0f}s (no fill)",
+                                )
+                        # cancel_race_fill=True or balance-recovery=True: fall through to fill processing below
                 else:
                     # SELL partially filled: POST response may carry a partial taker fill
                     # in takingAmount even when status="live" (remainder resting on book).
