@@ -534,22 +534,30 @@ class RiskManager:
         # Heat check caused T00022 to scale to 8 shares at bad entry → -$1.97 loss.
         # Re-enable after 20+ sniper trades with WR >55%.
         if is_sniper:
-            # Signal quality scaling: stronger edge + higher lag_remaining = larger stake.
-            # edge ∈ [0.05, 0.20+]: normalised to [0, 1] at 0.15 ceiling.
-            # lag_remaining_pct ∈ [0.30, 1.0]: normalised to [0, 1] at 0.60 ceiling.
-            # Combined quality → stake range: 0.65x (weakest) to 1.0x (strongest).
-            # Rationale: borderline entries (lag=0.30, edge=0.05) get 65% of base_stake;
-            #            strong entries (lag=0.70+, edge=0.15+) get full base_stake.
-            _sig_edge = getattr(signal, 'edge', 0.10)
-            _sig_lag = getattr(signal, 'lag_remaining_pct', 0.50)
-            _edge_q = min(1.0, max(0.0, _sig_edge / 0.15))
-            _lag_q = min(1.0, max(0.0, _sig_lag / 0.60))
-            _quality = (_edge_q + _lag_q) / 2.0          # 0.0 → 1.0
-            quality_factor = 0.65 + 0.35 * _quality      # 0.65x → 1.0x
-            stake = round(self.cfg.base_stake * quality_factor, 2)
-            logger.debug(
-                "STAKE QUALITY %s: edge=%.3f lag=%.2f → quality=%.2f factor=%.2f → $%.2f",
-                asset, _sig_edge, _sig_lag, _quality, quality_factor, stake,
+            # Quality Score stake mapping (Kelly-lite tier sizing).
+            # Score computed in window_sniper._compute_quality_score() from lag/mom/regime.
+            # Score ≤ -1 is hard-rejected by the sniper before reaching here.
+            # score ≥ 4 → 1.5x  (SNIPER: max lag + strong move)
+            # score 2-3 → 1.0x  (STANDARD: solid entry)
+            # score 0-1 → 0.5x  (CAUTION: noisy signal, minimise risk)
+            # score < 0  → reject (safety net — sniper should have caught this)
+            _qs = getattr(signal, 'quality_score', 0)
+            if _qs < 0:
+                logger.warning(
+                    "STAKE REJECT %s | quality_score=%d — should have been rejected by sniper",
+                    asset, _qs,
+                )
+                return RiskDecision(False, 0, f"Quality score {_qs} < 0")
+            elif _qs >= 4:
+                _multiplier = 1.5
+            elif _qs >= 2:
+                _multiplier = 1.0
+            else:
+                _multiplier = 0.5
+            stake = round(self.cfg.base_stake * _multiplier, 2)
+            logger.info(
+                "STAKE QUALITY %s: score=%d → %.1fx → $%.2f",
+                asset, _qs, _multiplier, stake,
             )
         else:
             stake = self.bankroll.current_stake

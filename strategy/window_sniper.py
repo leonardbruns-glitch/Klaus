@@ -221,6 +221,55 @@ class SniperSignal:
     # Signal 4: Coinbase cross-exchange divergence
     coinbase_price: float = 0.0    # Coinbase spot price at entry (0 = not available)
     cross_exchange_div_pct: float = 0.0  # (binance - coinbase) / coinbase * 100
+    quality_score: int = 0               # additive quality score (see _compute_quality_score)
+
+
+def _compute_quality_score(lag: float, abs_delta: float, regime: str):
+    """
+    Pre-entry quality gate for stake sizing and hard reject.
+
+    lag_remaining: 1.0 = PM barely repriced = max opportunity (BEST)
+                   0.0 = PM fully repriced = no edge (WORST)
+
+    Returns (score: int, breakdown: dict, hard_reject: bool)
+      hard_reject=True when lag < 0.10 (fully repriced — no edge left)
+    """
+    hard_reject = False
+
+    # ── Lag scoring (corrected direction: high lag = high score) ──────────
+    if lag < 0.10:
+        hard_reject = True
+        pts_lag = 0          # score doesn't matter — hard reject fires
+    elif lag >= 0.75:
+        pts_lag = 2
+    elif lag >= 0.45:
+        pts_lag = 1
+    elif lag >= 0.35:
+        pts_lag = 0          # neutral zone 0.35-0.45
+    else:
+        pts_lag = -1         # 0.10-0.35: mostly repriced
+
+    # ── Momentum scoring (abs value — correct for both YES and NO) ────────
+    if abs_delta >= 0.15:
+        pts_mom = 2
+    elif abs_delta >= 0.10:
+        pts_mom = 1
+    elif abs_delta >= 0.08:
+        pts_mom = 0          # neutral zone 0.08-0.10
+    else:
+        pts_mom = -1
+
+    # ── Regime scoring ────────────────────────────────────────────────────
+    if regime.startswith("ACTIVE_"):
+        pts_regime = 1
+    elif regime == "QUIET_DEAD":
+        pts_regime = -2
+    else:
+        pts_regime = 0
+
+    score = pts_lag + pts_mom + pts_regime
+    breakdown = {"lag": pts_lag, "mom": pts_mom, "regime": pts_regime}
+    return score, breakdown, hard_reject
 
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
@@ -759,6 +808,59 @@ class WindowSniper:
             _funding_apr, _cross_div_pct,
         )
 
+        # ── Quality Score Gate ────────────────────────────────────────────────
+        # Additive score from lag / momentum / regime.
+        # Hard reject: lag < 0.10 (PM fully repriced — zero edge).
+        # Soft reject: score ≤ -1 (negative expected value composite).
+        # Scores also drive stake sizing in risk/manager.py.
+        _quality_score, _qbd, _hard_reject = _compute_quality_score(
+            lag=lag_remaining_pct,
+            abs_delta=abs(delta_pct),
+            regime=_regime,
+        )
+        if _hard_reject:
+            logger.info(
+                "SNIPER REJECT %s/%s | quality=HARD_REJECT lag=%.2f<0.10 "
+                "— PM fully repriced, zero edge | score_breakdown=%s",
+                token.asset, token.side, lag_remaining_pct, _qbd,
+            )
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason="quality_hard_reject",
+                regime=_regime, token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct,
+                elapsed_pct=elapsed_pct, vpin=vpin or 0.0, ts=now,
+            )
+            return None
+        if _quality_score <= -1:
+            logger.info(
+                "SNIPER REJECT %s/%s | quality_score=%d ≤ -1 "
+                "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d) — negative EV",
+                token.asset, token.side, _quality_score,
+                lag_remaining_pct, _qbd["lag"],
+                abs(delta_pct), _qbd["mom"],
+                _regime, _qbd["regime"],
+            )
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason="quality_score_reject",
+                regime=_regime, token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct,
+                elapsed_pct=elapsed_pct, vpin=vpin or 0.0, ts=now,
+            )
+            return None
+
+        logger.info(
+            "SNIPER PASS %s/%s | quality_score=%d "
+            "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d)",
+            token.asset, token.side, _quality_score,
+            lag_remaining_pct, _qbd["lag"],
+            abs(delta_pct), _qbd["mom"],
+            _regime, _qbd["regime"],
+        )
+
         return SniperSignal(
             asset=token.asset,
             side=token.side,
@@ -789,6 +891,7 @@ class WindowSniper:
             funding_rate_pct=round(_funding_apr, 3),
             coinbase_price=round(_coinbase_price, 2),
             cross_exchange_div_pct=round(_cross_div_pct, 4),
+            quality_score=_quality_score,
         )
 
     def score_contrarian(
