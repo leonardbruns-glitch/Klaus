@@ -554,10 +554,19 @@ class RiskManager:
                 _multiplier = 1.0
             else:
                 _multiplier = 0.5
+            # QUIET_DEAD hard cap: thin books + no informed flow = max 0.5x
+            # regardless of score. Takes the shot but never bets the house.
+            _regime_sig = getattr(signal, 'regime', '')
+            if _regime_sig == 'QUIET_DEAD' and _multiplier > 0.5:
+                logger.info(
+                    "STAKE CAP %s: QUIET_DEAD regime → %.1fx capped to 0.5x",
+                    asset, _multiplier,
+                )
+                _multiplier = 0.5
             stake = round(self.cfg.base_stake * _multiplier, 2)
             logger.info(
-                "STAKE QUALITY %s: score=%d → %.1fx → $%.2f",
-                asset, _qs, _multiplier, stake,
+                "STAKE QUALITY %s: score=%d regime=%s → %.1fx → $%.2f",
+                asset, _qs, _regime_sig or 'unknown', _multiplier, stake,
             )
         else:
             stake = self.bankroll.current_stake
