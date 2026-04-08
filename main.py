@@ -179,6 +179,10 @@ class KlausBot:
         # same token before either has called open_position(). Checked synchronously
         # (before first await) so asyncio single-thread guarantee makes it race-free.
         self._pending_entries: set = set()
+        # Asset-level entry lock: prevents duplicate positions when spike + scan
+        # both approve the same asset before either fill is confirmed.
+        # Checked synchronously (before first await) — race-free in asyncio.
+        self._pending_asset_entries: set = set()
         # Event-driven spike dedup: tracks last spike entry attempt per asset.
         # Separate from the 5s sweep — prevents double-entry when both paths fire.
         self._last_spike_ts: Dict[str, float] = {}
@@ -1208,16 +1212,30 @@ class KlausBot:
         # atomically before any await point, so asyncio single-thread makes this safe.
         if token_id in self.risk.open_positions or token_id in self._pending_entries:
             logger.warning(
-                "ENTRY GUARD %s/%s — already open or pending, skipping duplicate",
+                "ENTRY GUARD %s/%s — already open or pending (token), skipping duplicate",
                 asset, token_id[:8],
             )
             return
+        # Asset-level guard: catches spike+scan race where different token_ids
+        # for the same asset both pass the token-level check above.
+        if asset in self._pending_asset_entries:
+            logger.warning(
+                "ENTRY GUARD %s — already pending entry for this asset, skipping duplicate",
+                asset,
+            )
+            return
+        for pos in self.risk.open_positions.values():
+            if pos.asset == asset:
+                logger.warning("ENTRY GUARD %s — already have open position, skipping", asset)
+                return
         self._pending_entries.add(token_id)
+        self._pending_asset_entries.add(asset)
         try:
             await self._enter_position_inner(token_id, asset, signal, tpsl, decision,
                                              llm_rec=llm_rec, llm_rec_conf=llm_rec_conf)
         finally:
             self._pending_entries.discard(token_id)
+            self._pending_asset_entries.discard(asset)
 
     async def _enter_position_inner(self, token_id, asset, signal, tpsl, decision,
                                     llm_rec: str = "", llm_rec_conf: float = 0.0) -> None:
