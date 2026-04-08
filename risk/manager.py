@@ -752,9 +752,10 @@ class RiskManager:
           4. Stage-2 profit: +45 % (on remaining 40 %)
           5. Stage-2 floor: remaining at cost+15 %
           6. Trailing stop (after stage-1): 20 % below peak
-          7. Time-aware dynamic SL (no stop in first 10s)
-             - First 2.5 min: 35 % stop
-             - Last 2 min:    10 % stop
+          7. Dynamic SL — Risk Matrix
+             - Circuit Breaker: -35% → instant (no grace, no timer)
+             - Regular SL: -20%; instant if ep≥0.60 or elapsed≥40%; 8s guard if ep<0.60
+             - Last 2 min: -10% → instant
         """
         pos = self.open_positions.get(token_id)
         if not pos:
@@ -867,133 +868,65 @@ class RiskManager:
             if current_price <= tight_price:
                 return ExitDecision(True, f"LLM_TIGHT_SL({pos.dynamic_sl_override:.0%})", urgency="immediate")
 
-        # ── 7. Dynamic SL ────────────────────────────────────────────────────────
-        # Use stored window_seconds (actual window duration) not window_end_ts - open_ts.
-        # Late entries (79% elapsed) would make window_end_ts - open_ts = 189s < 360s,
-        # falsely classifying a 15m trade as 5m → wrong SL thresholds.
+        # ── 7. Dynamic SL — Risk Matrix ──────────────────────────────────────────
+        # Circuit Breaker:  price ≤ entry × 0.65 (-35%) → instant exit, no grace, no timer
+        # Regular SL:       price ≤ entry × 0.80 (-20%)
+        #   - ep < 0.60:  8s confirmation (wick guard for cheap-entry tokens)
+        #   - ep ≥ 0.60:  instant (high-priced entries have no margin for delay)
+        # Time tightening:  after 40% window elapsed → all timers collapse to 0 (instant)
+        # Last 2 min:       price ≤ entry × 0.90 (-10%) → instant
         is_15m_pos = pos.window_end_ts > 0 and pos.window_seconds >= 900
-        is_5m = pos.window_end_ts > 0 and not is_15m_pos
 
-        # Catastrophic drop: normally immediate, no grace period.
-        # During grace (first 60s): 30% threshold — T00051 collapsed 38% in 66s, we held the whole way.
-        # After grace: 50% threshold — full protection only after wick window passes.
-        # EXCEPTION: 15m windows get 20s confirmation even for catastrophic drops.
-        # Observed 2026-04-02: ETH/NO -45% and BTC/NO -42% both reversed within 60s — stop-hunting
-        # by market-maker bots painting wicks to trigger cascading SL orders. n=2 direct observations.
-        # True collapse (price < 20% of entry = -80%) remains immediate even on 15m.
-        if pos.window_end_ts > 0:
-            in_grace = is_15m_pos and time_held < 60
-            catastro_thresh = 0.60 if is_5m else (0.70 if in_grace else 0.50)
-            if current_price <= pos.entry_price * catastro_thresh:
-                # Stop-hunt guard: both 5m (5s) and 15m (20s) get confirmation window.
-                # Observed: SOL/UP wicked 15¢→6¢→55¢ within 60s on 5m window (2026-04-05).
-                # 5m gets shorter window (5s) since the window itself is only 300s.
-                # True collapse (price < 20% of entry = -80%) remains immediate.
-                confirm_catastro = 5.0 if is_5m else 20.0  # restored 8→20s: stop-hunt wicks documented at -42%/-45%, reversed within 60s (CLAUDE.md n=2); 8s was exiting on reversible wicks; deterioration check handles genuine collapses
-                if current_price > pos.entry_price * 0.20:
-                    if pos.sl_breach_ts == 0.0:
-                        pos.sl_breach_ts = now
-                        pos.sl_breach_price = current_price
-                        logger.warning(
-                            "%s CATASTROPHIC SL BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — "
-                            "%.0fs confirmation (stop-hunt guard)",
-                            "5m" if is_5m else "15m",
-                            pos.asset, pos.direction.name,
-                            current_price, pos.entry_price,
-                            (1 - current_price / pos.entry_price) * 100,
-                            confirm_catastro,
-                        )
-                    elif pos.sl_breach_price > pos.entry_price * catastro_thresh:
-                        # sl_breach_ts was set in regular SL zone; price has now fallen into
-                        # catastrophic territory — this is a genuine collapse, not a wick. Exit immediately.
-                        # Observed 2026-04-05: SOL DOWN 52¢→13¢; regular SL at 33.8¢ set 20s timer,
-                        # price continued to catastrophic zone during wait → exited at 13¢ instead of ~34¢.
-                        logger.warning(
-                            "%s CATASTROPHIC ESCALATION %s/%s @ %.4f — breach was at %.4f (regular SL zone), "
-                            "now in catastrophic zone — immediate exit",
-                            "5m" if is_5m else "15m",
-                            pos.asset, pos.direction.name,
-                            current_price, pos.sl_breach_price,
-                        )
-                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                    elif now - pos.sl_breach_ts >= confirm_catastro:
-                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                    # if price recovers above catastrophic threshold, sl_breach_ts resets below
-                else:
-                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-            elif pos.sl_breach_ts > 0.0:
-                # Price recovered above catastrophic threshold during confirmation wait — reset timer
-                logger.info(
-                    "%s CATASTROPHIC SL CANCELLED %s/%s — price %.4f recovered above %.4f",
-                    "5m" if is_5m else "15m",
+        # Elapsed fraction from window open (not from our entry) — drives time tightening
+        if pos.window_seconds > 0 and pos.window_end_ts > 0:
+            _elapsed_pct = (now - (pos.window_end_ts - pos.window_seconds)) / pos.window_seconds
+        else:
+            _elapsed_pct = 0.0
+        _past_40pct = _elapsed_pct >= 0.40
+
+        # ── Circuit Breaker: -35% → instant exit ─────────────────────────────
+        if current_price <= pos.entry_price * 0.65:
+            logger.warning(
+                "CIRCUIT_BREAKER %s/%s @ %.4f (entry=%.4f -%.0f%%) — instant exit",
+                pos.asset, pos.direction.name,
+                current_price, pos.entry_price,
+                (1 - current_price / pos.entry_price) * 100,
+            )
+            return ExitDecision(True, "CIRCUIT_BREAKER", urgency="immediate")
+
+        # ── Regular SL: -20% drop ─────────────────────────────────────────────
+        if current_price <= pos.entry_price * 0.80:
+            # Instant if: high-priced entry (ep≥0.60), past 40% elapsed, or last 2 min
+            if _past_40pct or pos.entry_price >= 0.60 or remaining <= 120:
+                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+            # ep < 0.60: 8s wick guard
+            if pos.sl_breach_ts == 0.0:
+                pos.sl_breach_ts = now
+                pos.sl_breach_price = current_price
+                logger.debug(
+                    "SL breach %s/%s @ %.4f (entry=%.4f -%.0f%%) — 8s wick guard",
                     pos.asset, pos.direction.name,
-                    current_price, pos.entry_price * catastro_thresh,
+                    current_price, pos.entry_price,
+                    (1 - current_price / pos.entry_price) * 100,
+                )
+            elif now - pos.sl_breach_ts >= 8.0:
+                return ExitDecision(True, "STOP_LOSS_EXT", urgency="immediate")
+        else:
+            # Price recovered above -20% — reset confirmation timer
+            if pos.sl_breach_ts > 0.0:
+                logger.debug(
+                    "SL breach reset %s/%s — price %.4f recovered above %.4f",
+                    pos.asset, pos.direction.name,
+                    current_price, pos.entry_price * 0.80,
                 )
                 pos.sl_breach_ts = 0.0
                 pos.sl_breach_price = 0.0
+                pos.sl_breach_llm_queried = False
 
-        # Grace period: 60s for 15m (first minute = wick zone), 10s for 5m
-        sl_grace = 60 if is_15m_pos else 10
-        if time_held >= sl_grace:
-            if remaining > 120:
-                sl_pct = 0.12 if pos.window_end_ts > 0 else 0.35  # tightened 15→12%: reduce avg loss
-
-                if current_price <= pos.entry_price * (1 - sl_pct):
-                    # Wick confirmation timer — bots paint stops to shake out positions.
-                    # T00042: ETH/NO entered 0.59, dropped to 0.44 (25%), SL fired at 25s,
-                    # price recovered to 0.78 — a clean wick, not a genuine reversal.
-                    # 5m: 12s confirmation (fast windows, wicks clear quickly)
-                    # 15m: 20s confirmation (slower market, more time to wait out noise)
-                    # Catastrophic drops: 5s on 5m; 20s guard on 15m (stop-hunt pattern documented CLAUDE.md n=2).
-                    # Multi-tier confirmation: deeper breach = longer wait (more likely wick)
-                    # Wicks rarely exceed -30% and always recover fast; genuine collapses keep falling.
-                    # Deterioration check (>20% further drop from breach) fires immediately regardless.
-                    _breach_depth = (pos.entry_price - current_price) / pos.entry_price
-                    if _breach_depth < 0.20:
-                        confirm_secs = 5.0 if is_5m else 8.0    # small dip, probably real
-                    elif _breach_depth < 0.30:
-                        confirm_secs = 12.0 if is_5m else 18.0  # moderate dip, wick possible
-                    else:
-                        confirm_secs = 18.0 if is_5m else 28.0  # deep dip, wick likely
-                    # VPIN extension: low VPIN during breach = no informed selling = likely manufactured
-                    if ext is not None:
-                        _vpin_breach = getattr(ext, 'vpin_score', 0.5)
-                        if _vpin_breach < 0.45:
-                            confirm_secs += 8.0  # low VPIN + price drop = probable wick
-                    if pos.sl_breach_ts == 0.0:
-                        pos.sl_breach_ts = now
-                        pos.sl_breach_price = current_price  # L6: track price at breach for wick detection
-                        logger.debug(
-                            "%s SL breached @ %.4f (entry=%.4f -%.0f%%) — "
-                            "waiting %.0fs wick confirmation",
-                            "5m" if is_5m else "15m",
-                            current_price, pos.entry_price, sl_pct * 100, confirm_secs,
-                        )
-                    elif now - pos.sl_breach_ts >= confirm_secs:
-                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                    elif pos.sl_breach_price > 0.0 and current_price < pos.sl_breach_price * 0.80:
-                        # Price dropped >20% further from breach point during confirmation window.
-                        # Wicks reverse; genuine reversals keep falling. Exit immediately.
-                        logger.warning(
-                            "%s SL DETERIORATION %s/%s @ %.4f — breach was %.4f, dropped %.0f%% further",
-                            "5m" if is_5m else "15m",
-                            pos.asset, pos.direction.name,
-                            current_price, pos.sl_breach_price,
-                            (1 - current_price / pos.sl_breach_price) * 100,
-                        )
-                        return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-                else:
-                    if pos.sl_breach_ts > 0.0:
-                        logger.debug(
-                            "SL breach reset — price %.4f recovered above threshold %.4f",
-                            current_price, pos.entry_price * (1 - sl_pct),
-                        )
-                    pos.sl_breach_ts = 0.0           # price recovered — reset confirmation timer
-                    pos.sl_breach_llm_queried = False  # allow fresh LLM consult on next breach
-            else:
-                sl_pct = 0.10  # Last 2 min: tight stop, fire immediately
-                if current_price <= pos.entry_price * (1 - sl_pct):
-                    return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+        # ── Last 2 min: -10% → instant ───────────────────────────────────────
+        if remaining <= 120:
+            if current_price <= pos.entry_price * 0.90:
+                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
         return None
 
