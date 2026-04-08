@@ -100,9 +100,8 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
                         # Real quality filtering done by lag gate + edge gate + OB gates.
-MAX_TOKEN_ASK = 0.95   # near-ceiling sanity check only — lag gate blocks over-priced entries
-                        # (if PM already priced move, lag_remaining < 0.35 → blocked).
-                        # Price range was a proxy before real gates existed. Now redundant.
+MAX_TOKEN_ASK = 0.70   # hard cap: above $0.70 = deep in-the-money, wide spreads,
+                        # stop-hunt territory and thin exit liquidity.
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
 MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
 MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice
