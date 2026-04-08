@@ -2547,4 +2547,32 @@ async def _main() -> None:
 
 
 if __name__ == "__main__":
+    import atexit
+
+    _PID_FILE = os.path.join(os.path.dirname(__file__), "logs", "bot.pid")
+
+    # Refuse to start if another instance is already running.
+    if os.path.exists(_PID_FILE):
+        try:
+            _existing_pid = int(open(_PID_FILE).read().strip())
+            os.kill(_existing_pid, 0)          # signal 0 = existence check
+            print(
+                f"ERROR: bot already running as PID {_existing_pid}. "
+                f"Kill it first: kill {_existing_pid}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        except (ProcessLookupError, ValueError):
+            pass  # stale PID file — previous run didn't clean up
+
+    with open(_PID_FILE, "w") as _f:
+        _f.write(str(os.getpid()))
+
+    @atexit.register
+    def _remove_pid():
+        try:
+            os.unlink(_PID_FILE)
+        except FileNotFoundError:
+            pass
+
     asyncio.run(_main())
