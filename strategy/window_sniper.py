@@ -943,7 +943,7 @@ class WindowSniper:
             return None
 
         token_ask = ob.asks[0][0]
-        if token_ask <= 0 or token_ask > CONTRARIAN_MAX_ASK:
+        if token_ask <= 0 or token_ask > MAX_TOKEN_ASK or token_ask > CONTRARIAN_MAX_ASK:
             return None
         if opponent_ask < CONTRARIAN_OPPONENT_MIN:
             return None
