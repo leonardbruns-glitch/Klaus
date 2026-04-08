@@ -236,18 +236,20 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str):
     """
     hard_reject = False
 
-    # ── Lag scoring (corrected direction: high lag = high score) ──────────
-    if lag < 0.10:
+    # ── Lag scoring (lag = distance-to-target, not a clock) ──────────────
+    # lag_remaining = fraction of expected PM repricing still uncaptured.
+    # 0.90 → 90% of the move is still available. 0.10 → only 10% left.
+    # No upper ceiling — high lag is the goal, not a risk.
+    # pm_drift_at_entry and abs(mom) guard against reversed/stale moves.
+    if lag < 0.15:
         hard_reject = True
-        pts_lag = 0          # score doesn't matter — hard reject fires
+        pts_lag = 0          # score irrelevant — hard reject fires
     elif lag >= 0.75:
-        pts_lag = 2
+        pts_lag = 2          # maximum edge: PM barely repriced
     elif lag >= 0.45:
-        pts_lag = 1
-    elif lag >= 0.35:
-        pts_lag = 0          # neutral zone 0.35-0.45
+        pts_lag = 1          # moderate edge
     else:
-        pts_lag = -1         # 0.10-0.35: mostly repriced
+        pts_lag = 0          # 0.15-0.45: thin edge — let mom/regime decide
 
     # ── Momentum scoring (abs value — correct for both YES and NO) ────────
     if abs_delta >= 0.15:
