@@ -80,6 +80,7 @@ class TradeRecord:
     sniper_pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first fired
     sniper_pm_drift_at_entry: float = 0.0  # PM ask drift from trigger→entry (analytics only)
     sniper_lag_remaining: float = 0.0      # fraction of expected PM move unpriced at entry (1.0=max lag)
+    quality_score: int = 0                 # pre-entry quality gate score (lag+mom+regime+vpin)
     regime: str = ""                       # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
 
     # Window context
@@ -217,6 +218,7 @@ class FeedbackEngine:
                     sniper_pm_ask_at_trigger=d.get("sniper_pm_ask_at_trigger", 0.0),
                     sniper_pm_drift_at_entry=d.get("sniper_pm_drift_at_entry", 0.0),
                     sniper_lag_remaining=d.get("sniper_lag_remaining", 0.0),
+                    quality_score=int(d.get("quality_score", 0)),
                     regime=d.get("regime", ""),
                     window_size_s=d.get("window_size_s", 0),
                     hour_utc=d.get("hour_utc", 0),
@@ -388,6 +390,7 @@ class FeedbackEngine:
             sniper_pm_ask_at_trigger=round(getattr(signal, "pm_ask_at_trigger", 0.0), 4) if is_sniper else 0.0,
             sniper_pm_drift_at_entry=round(getattr(signal, "pm_drift_at_entry", 0.0), 4) if is_sniper else 0.0,
             sniper_lag_remaining=round(getattr(signal, "lag_remaining_pct", 0.0), 3) if is_sniper else 0.0,
+            quality_score=int(getattr(signal, "quality_score", 0)) if is_sniper else 0,
             regime=getattr(signal, "regime", ""),
             # New signal fields — extracted from SniperSignal if present, else 0
             cond_wr=round(float(getattr(signal, "cond_wr", 0.5)), 3),
