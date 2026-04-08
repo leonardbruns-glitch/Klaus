@@ -2063,6 +2063,12 @@ class KlausBot:
             "entry_price": entry_price,
             "exit_price": exit_price,
             "exit_reason": exit_reason,
+            "drawdown_pct": round((entry_price - exit_price) / entry_price * 100, 1) if entry_price > 0 else None,
+            "sl_tier": (
+                "T1_30pct" if entry_price > 0 and (entry_price - exit_price) / entry_price <= 0.35
+                else "T2_50pct" if entry_price > 0 and (entry_price - exit_price) / entry_price <= 0.55
+                else "T3_catastrophic"
+            ) if exit_reason in ("STOP_LOSS", "STOP_LOSS_EXT") else None,
             **samples,
             "move_from_exit_pct": move_from_exit,
         }
