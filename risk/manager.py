@@ -92,6 +92,8 @@ class PositionMeta:
     sl_breach_price: float = 0.0     # token price at the moment SL was first breached
     sl_breach_llm_queried: bool = False  # True once LLM has been asked about this breach
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
+    ratchet_sl: float = 0.0          # locked profit floor — only moves up, never down
+                                      # 0.0 = inactive | entry_price = breakeven | entry*1.10 = +10% floor
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
 
@@ -264,6 +266,7 @@ class RiskManager:
                     "sl_breach_ts": pos.sl_breach_ts,
                     "sl_breach_price": pos.sl_breach_price,
                     "stage1_attempts": pos.stage1_attempts,
+                    "ratchet_sl": pos.ratchet_sl,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -320,6 +323,7 @@ class RiskManager:
                 pos.stage1_sell_price = float(d.get("stage1_sell_price", 0.0))
                 pos.sl_breach_ts = float(d.get("sl_breach_ts", 0.0))
                 pos.sl_breach_price = float(d.get("sl_breach_price", 0.0))
+                pos.ratchet_sl = float(d.get("ratchet_sl", 0.0))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
@@ -886,6 +890,35 @@ class RiskManager:
             tight_price = pos.entry_price * (1 - pos.dynamic_sl_override)
             if current_price <= tight_price:
                 return ExitDecision(True, f"LLM_TIGHT_SL({pos.dynamic_sl_override:.0%})", urgency="immediate")
+
+        # ── 6c. Ratchet Stop-Loss Escalator ──────────────────────────────────────
+        # One-way upward ratchet — floor only moves up, never down.
+        # +15% hit → lock floor at breakeven (entry price)
+        # +25% hit → lock floor at +10% profit
+        # Prevents round-trip losses on trades that reached significant profit.
+        _move_pct_raw = (current_price - pos.entry_price) / pos.entry_price
+        _ratchet_floor_10pct = pos.entry_price * 1.10
+        _ratchet_floor_be    = pos.entry_price
+
+        if _move_pct_raw >= 0.25 and pos.ratchet_sl < _ratchet_floor_10pct:
+            pos.ratchet_sl = _ratchet_floor_10pct
+            logger.info(
+                "RATCHET LOCK %s/%s | +25%% reached @ %.4f → floor locked at +10%% (%.4f)",
+                pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+            )
+        elif _move_pct_raw >= 0.15 and pos.ratchet_sl < _ratchet_floor_be:
+            pos.ratchet_sl = _ratchet_floor_be
+            logger.info(
+                "RATCHET LOCK %s/%s | +15%% reached @ %.4f → floor locked at breakeven (%.4f)",
+                pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+            )
+
+        if pos.ratchet_sl > 0 and current_price <= pos.ratchet_sl:
+            logger.info(
+                "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f — profit floor triggered",
+                pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+            )
+            return ExitDecision(True, "RATCHET_SL", urgency="immediate")
 
         # ── 7. Dynamic SL — Risk Matrix ──────────────────────────────────────────
         # Circuit Breaker:  price ≤ entry × 0.65 (-35%) → instant exit, no grace, no timer
