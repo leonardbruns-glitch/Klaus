@@ -548,7 +548,9 @@ class RiskManager:
             # Score computed in window_sniper._compute_quality_score() from lag/mom/regime.
             # Score ≤ -1 is hard-rejected by the sniper before reaching here.
             # score ≥ 4 → 1.2x  (HIGH: n=3, WR=67% — small sample, keep watching)
-            # score 1-3 → 1.0x  (STANDARD: qs=3 was 1.2x but n=18 WR=22% → downgraded)
+            # score = 2 → 1.0x  (CONFIRMED: n=???, WR=54%, PF=2.19 — only profitable tier)
+            # score = 3 → 0.5x  (CATASTROPHIC: n=18+, WR=20%, PF=0.53 — halved 2026-04-09)
+            # score = 1 → 0.5x  (WEAK: low confidence signal, minimise risk)
             # score = 0 → 0.5x  (CAUTION: noisy signal, minimise risk)
             # score < 0  → reject (safety net — sniper should have caught this)
             _qs = getattr(signal, 'quality_score', 0)
@@ -559,11 +561,13 @@ class RiskManager:
                 )
                 return RiskDecision(False, 0, f"Quality score {_qs} < 0")
             elif _qs >= 4:
-                _multiplier = 1.2   # qs≥4 only — n=3, WR=67%, promising but small sample
-            elif _qs >= 1:
-                _multiplier = 1.0   # qs=3 reduced from 1.2x: n=18, WR=22% (kill-flag zone)
+                _multiplier = 1.2   # qs≥4: n=3, WR=67% — small sample, keep watching
+            elif _qs == 2:
+                _multiplier = 1.0   # qs=2: WR=54%, PF=2.19 — only confirmed profitable tier
+            elif _qs == 3:
+                _multiplier = 0.5   # qs=3: WR=20%, PF=0.53 — catastrophic, halved 2026-04-09
             else:
-                _multiplier = 0.5
+                _multiplier = 0.5   # qs=0 or qs=1: low confidence
             # QUIET_DEAD + QUIET_FLOW hard cap: no informed flow = max 0.5x
             # QUIET_FLOW: 0%/1 trade, ETH hr=19 qs=3 QUIET_FLOW → -$8.02 at $23.69 stake
             _regime_sig = getattr(signal, 'regime', '')
