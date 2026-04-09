@@ -774,8 +774,8 @@ class RiskManager:
           5. Stage-2 floor: remaining at cost+15 %
           6. Trailing stop (after stage-1): 20 % below peak
           7. Dynamic SL — Risk Matrix
-             - Circuit Breaker: -35% → instant (no grace, no timer)
-             - Regular SL: -20%; instant if ep≥0.60 or elapsed≥40%; 8s guard if ep<0.60
+             - Circuit Breaker: -35%; 60s guard (t_below20<60s); instant if remaining≤120s
+             - Regular SL: -20%; 20s guard all entries; instant if remaining≤120s
              - Last 2 min: -10% → instant
         """
         pos = self.open_positions.get(token_id)
@@ -986,20 +986,19 @@ class RiskManager:
                 # Fall through — regular SL block fires at 20s if price stays down
 
         # ── Regular SL: -20% drop ─────────────────────────────────────────────
-        # Instant: ep ≥ 0.60 (fat-middle, high-fee zone) OR last 2 min
-        # Wick guard (20s): ep < 0.60 AND remaining > 120s
-        # _past_40pct removed — remaining ≤ 120 covers late-window; 40% elapsed is too early
+        # Instant: remaining ≤ 120s only (last 2 min, no recovery time)
+        # Wick guard (20s): all entries when remaining > 120s
+        # ep ≥ 0.60 no longer bypasses the guard — a wick at high entry price is still a wick
         if _below_20pct:
-            if pos.entry_price >= 0.60 or remaining <= 120:
+            if remaining <= 120:
                 return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-            # 20s wick guard: documented wicks took ~60s to reverse; 20s filters the sharpest
+            # 20s wick guard for all entry prices
             if _time_below_20pct >= 20.0:
                 return ExitDecision(True, "STOP_LOSS_EXT", urgency="immediate")
-            # Within guard window — log periodic reminder
             logger.debug(
-                "SL wick guard %s/%s @ %.4f — t_below20=%.0fs/20s elapsed=%.0f%%",
+                "SL wick guard %s/%s @ %.4f ep=%.4f — t_below20=%.0fs/20s elapsed=%.0f%%",
                 pos.asset, pos.direction.name,
-                current_price, _time_below_20pct, _elapsed_pct * 100,
+                current_price, pos.entry_price, _time_below_20pct, _elapsed_pct * 100,
             )
 
         # ── Last 2 min: -10% → instant ───────────────────────────────────────
