@@ -397,8 +397,9 @@ class RiskManager:
         window_seconds: int = 0,
     ) -> RiskDecision:
         # ── Ruin floor — hard stop if bankroll falls below minimum ──────────────
-        # $100 = 50% of $200 starting capital. Below this, strategy review required.
-        RUIN_FLOOR = 100.0
+        # $50 = 50% of $100 starting capital (CLAUDE.md spec).
+        # Was $100.0 (= starting capital) — that was wrong; tripped on first loss.
+        RUIN_FLOOR = 50.0
         if self.bankroll.capital < RUIN_FLOOR:
             return RiskDecision(
                 False, 0,
