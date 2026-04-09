@@ -992,41 +992,57 @@ class RiskManager:
 
         _time_below_20pct = (now - pos.sl_breach_ts) if pos.sl_breach_ts > 0 else 0.0
 
-        # ── Circuit Breaker + Regular SL: unified wick guard ─────────────────
-        # One breach timer (sl_breach_ts) feeds both levels. Guard duration scales
-        # with how deep the price is:
-        #   price ≤ -35% (CB zone):  60s guard  — documented wicks went -42% before recovering
-        #   price ≤ -20% (SL zone):  20s guard  — shallower, faster to confirm genuine
-        # Last 2 min (remaining ≤ 120s): instant at both levels — no recovery time.
+        # ── Circuit Breaker + Regular SL: depth-tiered wick guard ───────────
+        # One breach timer (sl_breach_ts) feeds all levels. Guard duration scales
+        # with depth — deeper = more likely manufactured wick = more time to recover.
         #
-        # Previously had two separate blocks (CB at 60s, SL at 20s). Problem: since
-        # any -35% is also -20%, the SL block always fired at 20s first, making the
-        # CB 60s guard unreachable. Now unified: guard duration is set by current depth.
+        # Shallow  (-20% to -35%): QS-adjusted 15–35s. Real reversals keep falling fast.
+        # CB zone  (-35% to -55%): 60s. Documented wicks went -42% and recovered.
+        # Deep wick (-55%+):       90s. SOL went -75% and recovered after >60s.
+        # Last 2 min: instant at all levels.
         if _below_20pct:
             if remaining <= 120:
                 return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
-            _in_cb_zone = current_price <= pos.entry_price * 0.65
-            _guard_s = 60.0  # unified 60s guard at all SL levels (user instruction 2026-04-09)
-            _exit_reason = "CIRCUIT_BREAKER" if _in_cb_zone else "STOP_LOSS_EXT"
+            _depth_pct = (pos.entry_price - current_price) / pos.entry_price
+
+            if _depth_pct >= 0.55:
+                # Deep wick zone: -55%+. Confirmed wicks went this deep and recovered.
+                _guard_s = 90.0
+                _exit_reason = "DEEP_WICK"
+            elif _depth_pct >= 0.35:
+                # CB zone: -35% to -55%. Documented manufactured wicks in this range.
+                _guard_s = 60.0
+                _exit_reason = "CIRCUIT_BREAKER"
+            else:
+                # Shallow zone: -20% to -35%. QS-adjusted — stronger signal = more room.
+                _qs_pos = pos.quality_score
+                if _qs_pos >= 3:
+                    _guard_s = 35.0
+                elif _qs_pos == 2:
+                    _guard_s = 25.0
+                else:  # QS 0/1
+                    _guard_s = 15.0
+                _exit_reason = "STOP_LOSS_EXT"
 
             if _time_below_20pct >= _guard_s:
                 logger.warning(
                     "%s %s/%s @ %.4f (entry=%.4f -%.0f%%) t_below20=%.0fs/%.0fs "
-                    "elapsed=%.0f%% remaining=%.0fs — exit",
+                    "elapsed=%.0f%% remaining=%.0fs QS=%d — exit",
                     _exit_reason, pos.asset, pos.direction.name,
                     current_price, pos.entry_price,
-                    (1 - current_price / pos.entry_price) * 100,
+                    _depth_pct * 100,
                     _time_below_20pct, _guard_s, _elapsed_pct * 100, remaining,
+                    pos.quality_score,
                 )
                 return ExitDecision(True, _exit_reason, urgency="immediate")
             else:
                 logger.debug(
-                    "SL wick guard %s/%s @ %.4f ep=%.4f %s t_below20=%.0fs/%.0fs elapsed=%.0f%%",
+                    "SL wick guard %s/%s @ %.4f ep=%.4f depth=%.0f%% %s t=%.0fs/%.0fs QS=%d",
                     pos.asset, pos.direction.name,
                     current_price, pos.entry_price,
-                    "CB" if _in_cb_zone else "SL",
-                    _time_below_20pct, _guard_s, _elapsed_pct * 100,
+                    _depth_pct * 100, _exit_reason,
+                    _time_below_20pct, _guard_s, pos.quality_score,
                 )
 
         # ── Last 2 min: -10% → instant ───────────────────────────────────────
