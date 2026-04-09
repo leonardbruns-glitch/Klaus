@@ -96,6 +96,7 @@ class PositionMeta:
     ratchet_sl: float = 0.0          # locked profit floor — only moves up, never down
                                       # 0.0 = inactive | entry_price = breakeven | entry*1.10 = +10% floor
     quality_score: int = 0            # QS at entry — drives ratchet floor buffer (see ratchet logic)
+    velocity_breach_ts: float = 0.0   # when price first dropped below -25% (5s emergency brake)
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
 
@@ -273,6 +274,7 @@ class RiskManager:
                     "stage1_attempts": pos.stage1_attempts,
                     "ratchet_sl": pos.ratchet_sl,
                     "quality_score": pos.quality_score,
+                    "velocity_breach_ts": pos.velocity_breach_ts,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -331,6 +333,7 @@ class RiskManager:
                 pos.sl_breach_price = float(d.get("sl_breach_price", 0.0))
                 pos.ratchet_sl = float(d.get("ratchet_sl", 0.0))
                 pos.quality_score = int(d.get("quality_score", 0))
+                pos.velocity_breach_ts = float(d.get("velocity_breach_ts", 0.0))
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
@@ -951,104 +954,75 @@ class RiskManager:
             )
             return ExitDecision(True, "RATCHET_SL", urgency="immediate")
 
-        # ── 7. Dynamic SL — Risk Matrix ──────────────────────────────────────────
-        # Wick guards apply throughout the window until the final 2 minutes (remaining ≤ 120).
-        # No elapsed% cutoffs — elapsed% does not determine recovery capacity; remaining time does.
-        # CB guard:   60s — price took < 60s to go from -20% to -35% = likely manufactured wick
-        # SL guard:   60s — unified with CB (user instruction 2026-04-09; was 20s)
-        # Last 2 min: all guards collapse; -10% → instant
-        # Adaptive SL (planned): dynamic thresholds from quality_score/regime/lag once data ≥ n=20
-        if pos.window_seconds > 0 and pos.window_end_ts > 0:
-            _elapsed_pct = (now - (pos.window_end_ts - pos.window_seconds)) / pos.window_seconds
-        else:
-            _elapsed_pct = 0.0
-        is_15m_pos = pos.window_end_ts > 0 and pos.window_seconds >= 900
+        # ── 7. Velocity SL — CTF V2 Speed Rules (2026-04-09) ────────────────────
+        # Hope-based guards eliminated. Live data: 50–80% stake loss waiting for
+        # recoveries that never come on the new exchange speed.
+        #
+        # Rule 0: Price floor 0.20 → instant, no timers
+        # Rule 1: -25% emergency brake → 5s grace (one block cycle), then kill
+        # Rule 2: -15% hard ceiling → 15s shared timer, no stacking
+        #   No stacking: one timer starts at first -15% breach. CB + SL share it.
+        #   Depth doesn't extend the clock — it's already running.
 
-        # ── Breach tracker: set when price first crosses -20% ─────────────────
-        # sl_breach_ts feeds: regular SL timer, circuit breaker wick guard, LLM advisor.
-        # Must be set BEFORE CB check so CB wick guard has access to how long below -20%.
-        _below_20pct = current_price <= pos.entry_price * 0.80
-        if _below_20pct:
+        # 0. Absolute price floor
+        if current_price <= 0.20:
+            logger.warning(
+                "PRICE_FLOOR %s/%s @ %.4f ≤ 0.20 — instant exit",
+                pos.asset, pos.direction.name, current_price,
+            )
+            return ExitDecision(True, "PRICE_FLOOR", urgency="immediate")
+
+        # 1. -25% emergency brake: 5s grace period
+        _below_25pct = current_price <= pos.entry_price * 0.75
+        if _below_25pct:
+            if pos.velocity_breach_ts == 0.0:
+                pos.velocity_breach_ts = now
+                logger.info(
+                    "VELOCITY BREACH %s/%s @ %.4f (entry=%.4f -25%%) — 5s timer started",
+                    pos.asset, pos.direction.name, current_price, pos.entry_price,
+                )
+            elif now - pos.velocity_breach_ts >= 5.0:
+                logger.warning(
+                    "VELOCITY_EXIT %s/%s @ %.4f — no recovery in %.1fs",
+                    pos.asset, pos.direction.name, current_price,
+                    now - pos.velocity_breach_ts,
+                )
+                return ExitDecision(True, "VELOCITY_EXIT", urgency="immediate")
+        else:
+            if pos.velocity_breach_ts > 0.0:
+                logger.debug("VELOCITY RESET %s/%s — recovered above -25%%",
+                             pos.asset, pos.direction.name)
+            pos.velocity_breach_ts = 0.0
+
+        # 2. -15% hard ceiling: 15s shared timer (no stacking)
+        _below_15pct = current_price <= pos.entry_price * 0.85
+        if _below_15pct:
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
                 pos.sl_breach_price = current_price
-                logger.debug(
-                    "SL breach start %s/%s @ %.4f (entry=%.4f -%.0f%%) elapsed=%.0f%%",
-                    pos.asset, pos.direction.name,
-                    current_price, pos.entry_price,
+                logger.info(
+                    "SL_15S BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — 15s ceiling",
+                    pos.asset, pos.direction.name, current_price, pos.entry_price,
                     (1 - current_price / pos.entry_price) * 100,
-                    _elapsed_pct * 100,
                 )
+            _t_below = now - pos.sl_breach_ts
+            if _t_below >= 15.0:
+                logger.warning(
+                    "SL_15S %s/%s @ %.4f (entry=%.4f -%.0f%%) t=%.1fs — ceiling hit",
+                    pos.asset, pos.direction.name, current_price, pos.entry_price,
+                    (1 - current_price / pos.entry_price) * 100, _t_below,
+                )
+                return ExitDecision(True, "SL_15S", urgency="immediate")
+            else:
+                logger.debug("SL_15S guard %s/%s @ %.4f t=%.1fs/15s",
+                             pos.asset, pos.direction.name, current_price, _t_below)
         else:
             if pos.sl_breach_ts > 0.0:
-                logger.debug(
-                    "SL breach reset %s/%s — price %.4f recovered above %.4f",
-                    pos.asset, pos.direction.name,
-                    current_price, pos.entry_price * 0.80,
-                )
-                pos.sl_breach_ts = 0.0
-                pos.sl_breach_price = 0.0
-                pos.sl_breach_llm_queried = False
-
-        _time_below_20pct = (now - pos.sl_breach_ts) if pos.sl_breach_ts > 0 else 0.0
-
-        # ── Circuit Breaker + Regular SL: depth-tiered wick guard ───────────
-        # One breach timer (sl_breach_ts) feeds all levels. Guard duration scales
-        # with depth — deeper = more likely manufactured wick = more time to recover.
-        #
-        # Shallow  (-20% to -35%): QS-adjusted 15–35s. Real reversals keep falling fast.
-        # CB zone  (-35% to -55%): 60s. Documented wicks went -42% and recovered.
-        # Deep wick (-55%+):       90s. SOL went -75% and recovered after >60s.
-        # Last 2 min: instant at all levels.
-        if _below_20pct:
-            if remaining <= 120:
-                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-
-            _depth_pct = (pos.entry_price - current_price) / pos.entry_price
-
-            if _depth_pct >= 0.55:
-                # Deep wick zone: -55%+. Confirmed wicks went this deep and recovered.
-                _guard_s = 90.0
-                _exit_reason = "DEEP_WICK"
-            elif _depth_pct >= 0.35:
-                # CB zone: -35% to -55%. Documented manufactured wicks in this range.
-                _guard_s = 60.0
-                _exit_reason = "CIRCUIT_BREAKER"
-            else:
-                # Shallow zone: -20% to -35%. QS-adjusted — stronger signal = more room.
-                _qs_pos = pos.quality_score
-                if _qs_pos >= 3:
-                    _guard_s = 35.0
-                elif _qs_pos == 2:
-                    _guard_s = 25.0
-                else:  # QS 0/1
-                    _guard_s = 15.0
-                _exit_reason = "STOP_LOSS_EXT"
-
-            if _time_below_20pct >= _guard_s:
-                logger.warning(
-                    "%s %s/%s @ %.4f (entry=%.4f -%.0f%%) t_below20=%.0fs/%.0fs "
-                    "elapsed=%.0f%% remaining=%.0fs QS=%d — exit",
-                    _exit_reason, pos.asset, pos.direction.name,
-                    current_price, pos.entry_price,
-                    _depth_pct * 100,
-                    _time_below_20pct, _guard_s, _elapsed_pct * 100, remaining,
-                    pos.quality_score,
-                )
-                return ExitDecision(True, _exit_reason, urgency="immediate")
-            else:
-                logger.debug(
-                    "SL wick guard %s/%s @ %.4f ep=%.4f depth=%.0f%% %s t=%.0fs/%.0fs QS=%d",
-                    pos.asset, pos.direction.name,
-                    current_price, pos.entry_price,
-                    _depth_pct * 100, _exit_reason,
-                    _time_below_20pct, _guard_s, pos.quality_score,
-                )
-
-        # ── Last 2 min: -10% → instant ───────────────────────────────────────
-        if remaining <= 120:
-            if current_price <= pos.entry_price * 0.90:
-                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+                logger.debug("SL_15S reset %s/%s — recovered above -15%%",
+                             pos.asset, pos.direction.name)
+            pos.sl_breach_ts = 0.0
+            pos.sl_breach_price = 0.0
+            pos.sl_breach_llm_queried = False
 
         return None
 
