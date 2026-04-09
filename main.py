@@ -1333,6 +1333,7 @@ class KlausBot:
             condition_id=getattr(token, "condition_id", ""),
             window_end_ts=getattr(token, "window_end_ts", 0.0),
             window_seconds=getattr(token, "window_seconds", 0),
+            quality_score=getattr(signal, "quality_score", 0),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly

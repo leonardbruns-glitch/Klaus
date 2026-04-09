@@ -95,6 +95,7 @@ class PositionMeta:
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
     ratchet_sl: float = 0.0          # locked profit floor — only moves up, never down
                                       # 0.0 = inactive | entry_price = breakeven | entry*1.10 = +10% floor
+    quality_score: int = 0            # QS at entry — drives ratchet floor buffer (see ratchet logic)
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
 
@@ -271,6 +272,7 @@ class RiskManager:
                     "sl_breach_price": pos.sl_breach_price,
                     "stage1_attempts": pos.stage1_attempts,
                     "ratchet_sl": pos.ratchet_sl,
+                    "quality_score": pos.quality_score,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -328,6 +330,7 @@ class RiskManager:
                 pos.sl_breach_ts = float(d.get("sl_breach_ts", 0.0))
                 pos.sl_breach_price = float(d.get("sl_breach_price", 0.0))
                 pos.ratchet_sl = float(d.get("ratchet_sl", 0.0))
+                pos.quality_score = int(d.get("quality_score", 0))
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
@@ -650,6 +653,7 @@ class RiskManager:
         condition_id: str = "",
         window_end_ts: float = 0.0,
         window_seconds: int = 0,
+        quality_score: int = 0,
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -666,6 +670,7 @@ class RiskManager:
             condition_id=condition_id,
             window_end_ts=window_end_ts,
             window_seconds=window_seconds,
+            quality_score=quality_score,
         )
         self.open_positions[token_id] = pos
         self._pending_assets.discard(asset)  # fill confirmed — release lock
@@ -903,12 +908,26 @@ class RiskManager:
 
         # ── 6c. Ratchet Stop-Loss Escalator ──────────────────────────────────────
         # One-way upward ratchet — floor only moves up, never down.
-        # +15% hit → lock floor at breakeven (entry price)
+        # +15% hit → lock floor at QS-adjusted buffer below entry
         # +25% hit → lock floor at +10% profit
-        # Prevents round-trip losses on trades that reached significant profit.
+        #
+        # QS-Gradient Buffer (designed 2026-04-09):
+        #   QS 0/1 → entry * 0.96  (-4%): vibration/bottom-pick trades need room
+        #   QS 2   → entry * 0.97  (-3%): alpha sniper, bread-and-butter, spread noise buffer
+        #   QS 3   → entry * 0.985 (-1.5%): high confirmation — shouldn't retrace deep
+        #   QS ≥4  → entry * 0.99  (-1%): freight train — if it reverses to entry the signal failed
+        _qs = pos.quality_score
+        if _qs >= 4:
+            _ratchet_buf = 0.99
+        elif _qs == 3:
+            _ratchet_buf = 0.985
+        elif _qs == 2:
+            _ratchet_buf = 0.97
+        else:   # qs 0 / 1
+            _ratchet_buf = 0.96
         _move_pct_raw = (current_price - pos.entry_price) / pos.entry_price
         _ratchet_floor_10pct = pos.entry_price * 1.10
-        _ratchet_floor_be    = pos.entry_price
+        _ratchet_floor_be    = pos.entry_price * _ratchet_buf
 
         if _move_pct_raw >= 0.25 and pos.ratchet_sl < _ratchet_floor_10pct:
             pos.ratchet_sl = _ratchet_floor_10pct
@@ -919,14 +938,16 @@ class RiskManager:
         elif _move_pct_raw >= 0.15 and pos.ratchet_sl < _ratchet_floor_be:
             pos.ratchet_sl = _ratchet_floor_be
             logger.info(
-                "RATCHET LOCK %s/%s | +15%% reached @ %.4f → floor locked at breakeven (%.4f)",
-                pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+                "RATCHET LOCK %s/%s | +15%% reached @ %.4f → QS%d floor locked at %.0f%% buffer (%.4f)",
+                pos.asset, pos.direction.name, current_price, _qs,
+                (_ratchet_buf - 1) * 100, pos.ratchet_sl,
             )
 
         if pos.ratchet_sl > 0 and current_price <= pos.ratchet_sl:
             logger.info(
-                "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f — profit floor triggered",
+                "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f (QS%d buffer=%.0f%%)",
                 pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+                _qs, (_ratchet_buf - 1) * 100,
             )
             return ExitDecision(True, "RATCHET_SL", urgency="immediate")
 
