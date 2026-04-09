@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.10   # raised 0.04→0.10: live losses all had delta=-0.072%, 0.04% too permissive
-_DELTA_PCT_QUIET  = 0.10   # same as active — small moves don't sustain in any regime
+_DELTA_PCT_ACTIVE = 0.15   # raised 0.10→0.15: param_analysis n=341 — only delta≥0.18 profitable; 0.15 first step
+_DELTA_PCT_QUIET  = 0.15   # same as active
 
-_DELTA_PCT_15M_ACTIVE       = 0.07
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
-_DELTA_PCT_15M_QUIET        = 0.10
+_DELTA_PCT_15M_ACTIVE       = 0.15  # raised 0.07→0.15: align with param_analysis finding
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.15  # raised 0.10→0.15
+_DELTA_PCT_15M_QUIET        = 0.15  # raised 0.10→0.15
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
@@ -100,11 +100,10 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
                         # Real quality filtering done by lag gate + edge gate + OB gates.
-MAX_TOKEN_ASK = 0.70   # hard cap: above $0.70 = deep in-the-money, wide spreads,
-                        # stop-hunt territory and thin exit liquidity.
+MAX_TOKEN_ASK = 0.62   # lowered 0.70→0.62: param_analysis n=341 — entry_price 0.60-0.65 costs -$91 (2026-04-09)
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
-MIN_LAG_REMAINING_5M = 0.32   # set 0.32: between original 0.30 and shadow-based 0.40
-MIN_LAG_REMAINING_15M = 0.35  # raised 0.25→0.35: 15m windows have more time for PM to reprice
+MIN_LAG_REMAINING_5M = 0.50   # raised 0.32→0.50: param_analysis n=341 — only lag≥0.70 profitable; 0.50 first step
+MIN_LAG_REMAINING_15M = 0.50  # raised 0.35→0.50: same evidence, same tightening
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 
@@ -125,6 +124,8 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
+ELAPSED_DEAD_ZONE_LOW  = 0.10  # param_analysis n=341: 0.10-0.40 elapsed = catastrophic (-$139 in 0.10-0.25 alone)
+ELAPSED_DEAD_ZONE_HIGH = 0.40  # only allow: <0.10 (fresh) or >0.40 (late-window, 15m only)
 WINDOW_ELAPSED_MAX_5M  = 0.35  # tightened 0.40→0.35: lag_analysis shows PM reprices at 135-225s
                                 # at 35% elapsed (105s in), remaining=195s → window expiry guard
                                 # fires at 150s from entry, capturing the 150s repricing cluster
@@ -139,8 +140,8 @@ WINDOW_ELAPSED_MAX_15M = 0.70  # raised 0.60→0.70: user data shows repricing t
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
 # We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
-PREARM_ELAPSED_MIN = 0.20       # raised 0.15→0.20: T00173 fired at 15%/45s, reversed immediately
-                                # was 0.05 (15s) — T00155: PREARM at 36s stopped out in 38s
+PREARM_ELAPSED_MIN = 0.40       # raised 0.20→0.40: dead zone 0.10-0.40 blocks all earlier entries;
+                                # prearmed entries must also clear the dead zone (2026-04-09)
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
                                 # was 0.5: reducing sustain caused low-quality early entries
@@ -452,6 +453,12 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
                          token.asset, token.side, elapsed_pct*100, elapsed_max*100,
                          "5m" if not is_15m else "15m")
+            return None
+        # Dead zone: 0.10–0.40 elapsed blocked. param_analysis n=341: only <0.10 profitable.
+        # 15m windows allow >0.40 late entries. 5m max (0.35) already blocks >0.40.
+        if ELAPSED_DEAD_ZONE_LOW <= elapsed_pct < ELAPSED_DEAD_ZONE_HIGH:
+            logger.debug("SNIPER BLOCK %s/%s | elapsed_dead_zone=%.1f%% (0.10-0.40 blocked 2026-04-09)",
+                         token.asset, token.side, elapsed_pct * 100)
             return None
 
         # ── Sustained delta gate ───────────────────────────────────────────────
