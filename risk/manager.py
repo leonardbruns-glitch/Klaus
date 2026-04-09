@@ -921,7 +921,7 @@ class RiskManager:
         # ── 7. Dynamic SL — Risk Matrix ──────────────────────────────────────────
         # Wick guards apply throughout the window until the final 2 minutes (remaining ≤ 120).
         # No elapsed% cutoffs — elapsed% does not determine recovery capacity; remaining time does.
-        # CB guard:   15s — price took < 15s to go from -20% to -35% = likely manufactured wick
+        # CB guard:   60s — price took < 60s to go from -20% to -35% = likely manufactured wick
         # SL guard:   20s — ep < 0.60 AND remaining > 120s; instant if ep ≥ 0.60
         # Last 2 min: all guards collapse; -10% → instant
         # Adaptive SL (planned): dynamic thresholds from quality_score/regime/lag once data ≥ n=20
@@ -960,15 +960,13 @@ class RiskManager:
         _time_below_20pct = (now - pos.sl_breach_ts) if pos.sl_breach_ts > 0 else 0.0
 
         # ── Circuit Breaker: -35% ─────────────────────────────────────────────
-        # Instant when: last 2 min OR spent ≥ 15s below -20% before hitting -35%
-        # (sustained move = genuine; fast drop to -35% = manufactured wick).
-        # No elapsed% cutoff — same principle as regular SL: remaining ≤ 120 covers
-        # the late-window case. At 75% elapsed on 15m there's still 225s; the guard
-        # still applies if price got there in < 15s.
+        # Instant when: last 2 min OR spent ≥ 60s below -20% before hitting -35%
+        # (sustained 60s+ = genuine trend; fast drop to -35% = manufactured wick).
+        # No elapsed% cutoff — remaining ≤ 120 covers the late-window case.
         # Documented wicks: ETH/NO -42%, BTC/NO -42%, both recovered fully.
         # These are tracked in post_exit.jsonl (resolved_correctly field).
         if current_price <= pos.entry_price * 0.65:
-            if remaining <= 120 or _time_below_20pct >= 15.0:
+            if remaining <= 120 or _time_below_20pct >= 60.0:
                 logger.warning(
                     "CIRCUIT_BREAKER %s/%s @ %.4f (entry=%.4f -%.0f%%) "
                     "elapsed=%.0f%% t_below20=%.0fs remaining=%.0fs — exit",
@@ -980,7 +978,7 @@ class RiskManager:
                 return ExitDecision(True, "CIRCUIT_BREAKER", urgency="immediate")
             else:
                 logger.warning(
-                    "CIRCUIT_BREAKER wick guard %s/%s @ %.4f — t_below20=%.0fs/15s "
+                    "CIRCUIT_BREAKER wick guard %s/%s @ %.4f — t_below20=%.0fs/60s "
                     "elapsed=%.0f%% remaining=%.0fs — holding",
                     pos.asset, pos.direction.name,
                     current_price, _time_below_20pct, _elapsed_pct * 100, remaining,
