@@ -255,6 +255,9 @@ class KlausBot:
         if not CONFIG.dry_run:
             self.orders.prewarm_token_caches(self.feed.tokens)
 
+        # Replay resolution tasks missed due to previous restarts (within 15min)
+        asyncio.create_task(self._replay_pending_resolutions())
+
     async def stop(self) -> None:
         self._running = False
         await self.feed.stop()
@@ -2009,7 +2012,7 @@ class KlausBot:
         # Samples token price at T+30s, T+60s, T+120s after exit.
         # For SL exits: also samples at window_end+60s to capture resolution outcome.
         # Logs to logs/post_exit.jsonl for strategy analysis.
-        asyncio.create_task(self._track_post_exit(
+        _post_exit_kwargs = dict(
             token_id=token_id,
             trade_id=self.analytics.last_trade_id,
             asset=pos.asset,
@@ -2018,7 +2021,16 @@ class KlausBot:
             exit_reason=reason,
             entry_price=pos.entry_price,
             window_end_ts=pos.window_end_ts,
-        ))
+        )
+        # Persist to disk so restarts don't lose the resolution task
+        if pos.window_end_ts > 0:
+            try:
+                os.makedirs("logs", exist_ok=True)
+                with open(os.path.join("logs", "pending_resolutions.jsonl"), "a") as _pf:
+                    _pf.write(json.dumps(_post_exit_kwargs) + "\n")
+            except Exception:
+                pass
+        asyncio.create_task(self._track_post_exit(**_post_exit_kwargs))
 
     async def _track_post_exit(
         self,
@@ -2146,6 +2158,50 @@ class KlausBot:
             )
         except Exception as exc:
             logger.debug("post_exit log failed: %s", exc)
+
+    # ── Pending resolution replay (restart recovery) ─────────────────────────
+
+    async def _replay_pending_resolutions(self) -> None:
+        """Re-schedule post-exit resolution tasks lost due to bot restarts."""
+        pending_path = os.path.join("logs", "pending_resolutions.jsonl")
+        post_exit_path = os.path.join("logs", "post_exit.jsonl")
+        if not os.path.exists(pending_path):
+            return
+        # Load trade_ids already resolved
+        completed: set = set()
+        if os.path.exists(post_exit_path):
+            try:
+                with open(post_exit_path) as f:
+                    for line in f:
+                        try:
+                            rec = json.loads(line.strip())
+                            if rec.get("trade_id"):
+                                completed.add(rec["trade_id"])
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        now = time.time()
+        replayed = 0
+        try:
+            with open(pending_path) as f:
+                for line in f:
+                    try:
+                        rec = json.loads(line.strip())
+                        tid = rec.get("trade_id")
+                        wend = rec.get("window_end_ts", 0)
+                        if not tid or tid in completed:
+                            continue
+                        if wend == 0 or wend + 900 < now:
+                            continue  # too stale (>15 min past window end)
+                        asyncio.create_task(self._track_post_exit(**rec))
+                        replayed += 1
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if replayed > 0:
+            logger.info("Replayed %d pending resolution tasks from previous session", replayed)
 
     # ── Residual share sweep ──────────────────────────────────────────────────
 
