@@ -84,6 +84,7 @@ class PositionMeta:
     shares: float = 0.0
     remaining_shares: float = 0.0     # updated after partial sells
     highest_price: float = 0.0        # peak since open (for trailing stop)
+    lowest_price: float = 0.0         # trough since open (for volatility analysis)
     exit_stage: ExitStage = ExitStage.NONE
     profit_trigger_ts: float = 0.0    # timestamp when +25 % first seen
     hard_exit_triggered: bool = False
@@ -102,6 +103,8 @@ class PositionMeta:
             self.remaining_shares = self.shares
         if self.highest_price == 0.0:
             self.highest_price = self.entry_price
+        if self.lowest_price == 0.0:
+            self.lowest_price = self.entry_price
 
 
 @dataclass
@@ -256,6 +259,7 @@ class RiskManager:
                     "shares": pos.shares,
                     "remaining_shares": pos.remaining_shares,
                     "highest_price": pos.highest_price,
+                    "lowest_price": pos.lowest_price,
                     "exit_stage": pos.exit_stage.name,
                     "profit_trigger_ts": pos.profit_trigger_ts,
                     "hard_exit_triggered": pos.hard_exit_triggered,
@@ -324,6 +328,7 @@ class RiskManager:
                 pos.sl_breach_ts = float(d.get("sl_breach_ts", 0.0))
                 pos.sl_breach_price = float(d.get("sl_breach_price", 0.0))
                 pos.ratchet_sl = float(d.get("ratchet_sl", 0.0))
+                pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
@@ -787,9 +792,11 @@ class RiskManager:
         time_held = now - pos.open_ts
         remaining = pos.window_end_ts - now if pos.window_end_ts > 0 else 999
 
-        # Update peak price — both BUY_YES and BUY_NO profit from rising price
+        # Track price range — both used for volatility analysis at close
         if current_price > pos.highest_price:
             pos.highest_price = current_price
+        if current_price < pos.lowest_price:
+            pos.lowest_price = current_price
 
         # move_pct > 0 means profit for both directions
         move_pct = (current_price - pos.entry_price) / pos.entry_price

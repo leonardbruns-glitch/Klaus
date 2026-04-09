@@ -1846,8 +1846,10 @@ class KlausBot:
 
         # Weighted avg exit price across ALL tranches (stage-1 95% + stage-2 5%).
         analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
-        # Capture full share count before close_position pops pos from dict.
+        # Capture from pos before close_position pops it from the dict.
         all_shares = pos.shares
+        _highest_price = pos.highest_price
+        _lowest_price = pos.lowest_price
 
         # Residual share recovery: if cascade_sell partially filled, try one immediate
         # retry before closing the position. If that also fails, queue for background sweep.
@@ -1988,6 +1990,8 @@ class KlausBot:
                     pre_entry_momentum_pct=meta.get("pre_entry_momentum_pct", 0.0),
                     llm_rec=meta.get("llm_rec", ""),
                     llm_rec_conf=meta.get("llm_rec_conf", 0.0),
+                    max_price_seen=_highest_price,
+                    min_price_seen=_lowest_price,
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
@@ -2052,37 +2056,37 @@ class KlausBot:
 
         # ── Resolution sample: window_end + 60s ────────────────────────────────
         # Only for SL exits. At this point the market has resolved (or is very close).
-        # resolution_price ≥ 0.80 → our token won (we were directionally correct).
-        # resolution_price ≤ 0.20 → our token lost (direction was wrong).
-        # This directly answers: "would we have won if we hadn't stopped out?"
+        # window_outcome_price: token price at window_end+60s for ALL trades.
+        # entered_correctly: True if our token price ≥ 0.80 at resolution (we predicted right).
+        # Applies regardless of how we exited — profit, SL, hard exit, trail stop.
+        window_outcome_price = None
+        entered_correctly = None
+        resolution_delay_s = None
         _is_sl_exit = exit_reason.startswith("STOP_LOSS") or exit_reason in (
             "CIRCUIT_BREAKER", "TRAIL_STOP", "STOP_LOSS_EXT",
         ) or "TIGHT_SL" in exit_reason
-        resolution_price = None
-        resolved_correctly = None
-        resolution_delay_s = None
-        if _is_sl_exit and window_end_ts > 0:
+        if window_end_ts > 0:
             now_ts = time.time()
             wait_until = window_end_ts + 60
             wait_s = max(0.0, wait_until - now_ts)
-            if wait_s <= 900:  # skip if window already ended >15 min ago (stale)
+            if wait_s <= 900:  # skip if window ended >15 min ago (stale, bot was likely down)
                 if wait_s > 0:
                     await asyncio.sleep(wait_s)
                 try:
                     token = self.feed.tokens.get(token_id)
                     if token and hasattr(token, "best_ask") and token.best_ask > 0:
-                        resolution_price = round(token.best_ask, 4)
+                        window_outcome_price = round(token.best_ask, 4)
                     else:
                         _ob = await self.feed.fetch_order_book(token_id)
                         if _ob and _ob.asks:
-                            resolution_price = round(_ob.asks[0][0], 4)
-                    if resolution_price is not None:
-                        resolved_correctly = resolution_price >= 0.80
+                            window_outcome_price = round(_ob.asks[0][0], 4)
+                    if window_outcome_price is not None:
+                        entered_correctly = window_outcome_price >= 0.80
                         resolution_delay_s = round(time.time() - window_end_ts)
                 except Exception as _res_exc:
                     logger.debug("resolution sample failed %s: %s", token_id[:8], _res_exc)
 
-        if not any(v for v in samples.values()) and resolution_price is None:
+        if not any(v for v in samples.values()) and window_outcome_price is None:
             return
 
         # Was the exit correct?
@@ -2108,9 +2112,9 @@ class KlausBot:
             ) if exit_reason in ("STOP_LOSS", "STOP_LOSS_EXT") else None,
             **samples,
             "move_from_exit_pct": move_from_exit,
-            # Resolution outcome — only populated for SL exits
-            "resolution_price": resolution_price,
-            "resolved_correctly": resolved_correctly,
+            # Window resolution — populated for all trades
+            "window_outcome_price": window_outcome_price,
+            "entered_correctly": entered_correctly,   # True/False/None(stale)
             "resolution_delay_s": resolution_delay_s,
             "window_end_ts": window_end_ts if window_end_ts > 0 else None,
         }
@@ -2127,9 +2131,9 @@ class KlausBot:
                     else:
                         verdict = "EXIT_CORRECT" if m >= 0 else "EXIT_EARLY"
                     break
-            _res_str = (
-                f" resolution=%.4f resolved_correctly=%s" % (resolution_price, resolved_correctly)
-                if resolution_price is not None else ""
+            _outcome_str = (
+                " outcome=%.4f entered_correctly=%s" % (window_outcome_price, entered_correctly)
+                if window_outcome_price is not None else ""
             )
             logger.info(
                 "POST_EXIT %s/%s [%s] | exit=%.4f | +30s=%.4f +60s=%.4f +120s=%.4f | %s%s",
@@ -2138,7 +2142,7 @@ class KlausBot:
                 samples.get("t30s") or 0,
                 samples.get("t60s") or 0,
                 samples.get("t120s") or 0,
-                verdict, _res_str,
+                verdict, _outcome_str,
             )
         except Exception as exc:
             logger.debug("post_exit log failed: %s", exc)

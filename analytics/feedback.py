@@ -99,6 +99,17 @@ class TradeRecord:
     ob_depth_at_entry: float = 0.0      # total OB depth (top-5 bids+asks in shares) at entry
     pre_entry_momentum_pct: float = 0.0 # spot 1m price change at entry (momentum context)
 
+    # Price range during hold — volatility experienced from entry to exit
+    max_price_seen: float = 0.0         # highest token price observed while position was open
+    min_price_seen: float = 0.0         # lowest token price observed while position was open
+    max_favourable_pct: float = 0.0     # best point reached as % from entry (how much we "had")
+    max_adverse_pct: float = 0.0        # worst point reached as % from entry (how deep the dip)
+
+    # Window resolution outcome — populated async at window_end+60s for all trades
+    # Answers: did the market resolve in our predicted direction regardless of how we exited?
+    window_outcome_price: float = 0.0   # token price at window resolution (0 = not yet known)
+    entered_correctly: Optional[bool] = None  # True if resolution_price ≥ 0.80 (our token won)
+
     # LLM recommendation tracking — veto disabled, recording for validation
     llm_rec: str = ""             # "ENTER" or "SKIP" — what LLM recommended at entry
     llm_rec_conf: float = 0.0    # LLM confidence in its recommendation (0.0 if no signal)
@@ -233,6 +244,12 @@ class FeedbackEngine:
                     signal_to_fill_ms=d.get("signal_to_fill_ms", 0.0),
                     ob_depth_at_entry=d.get("ob_depth_at_entry", 0.0),
                     pre_entry_momentum_pct=d.get("pre_entry_momentum_pct", 0.0),
+                    max_price_seen=d.get("max_price_seen", 0.0),
+                    min_price_seen=d.get("min_price_seen", 0.0),
+                    max_favourable_pct=d.get("max_favourable_pct", 0.0),
+                    max_adverse_pct=d.get("max_adverse_pct", 0.0),
+                    window_outcome_price=d.get("window_outcome_price", 0.0),
+                    entered_correctly=d.get("entered_correctly", None),
                 )
                 self._recent.append(rec)
                 if d.get("trade_id", "").startswith("T"):
@@ -280,6 +297,8 @@ class FeedbackEngine:
         pre_entry_momentum_pct: float = 0.0,
         llm_rec: str = "",
         llm_rec_conf: float = 0.0,
+        max_price_seen: float = 0.0,
+        min_price_seen: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -415,6 +434,10 @@ class FeedbackEngine:
             is_live=is_live,
             llm_rec=llm_rec,
             llm_rec_conf=round(llm_rec_conf, 3),
+            max_price_seen=round(max_price_seen, 4),
+            min_price_seen=round(min_price_seen, 4),
+            max_favourable_pct=round((max_price_seen - entry_price) / entry_price * 100, 2) if entry_price > 0 else 0.0,
+            max_adverse_pct=round((entry_price - min_price_seen) / entry_price * 100, 2) if entry_price > 0 else 0.0,
         )
 
         self._recent.append(rec)
