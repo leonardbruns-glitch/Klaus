@@ -541,9 +541,9 @@ class RiskManager:
             # Quality Score stake mapping (Kelly-lite tier sizing).
             # Score computed in window_sniper._compute_quality_score() from lag/mom/regime.
             # Score ≤ -1 is hard-rejected by the sniper before reaching here.
-            # score ≥ 4 → 1.5x  (SNIPER: max lag + strong move)
-            # score 2-3 → 1.0x  (STANDARD: solid entry)
-            # score 0-1 → 0.5x  (CAUTION: noisy signal, minimise risk)
+            # score ≥ 4 → 1.2x  (HIGH: n=3, WR=67% — small sample, keep watching)
+            # score 1-3 → 1.0x  (STANDARD: qs=3 was 1.2x but n=18 WR=22% → downgraded)
+            # score = 0 → 0.5x  (CAUTION: noisy signal, minimise risk)
             # score < 0  → reject (safety net — sniper should have caught this)
             _qs = getattr(signal, 'quality_score', 0)
             if _qs < 0:
@@ -552,21 +552,19 @@ class RiskManager:
                     asset, _qs,
                 )
                 return RiskDecision(False, 0, f"Quality score {_qs} < 0")
-            elif _qs >= 3:
-                _multiplier = 1.2   # score≥3 threshold (was ≥4): VPIN scaling means
-                                    # low-conviction trades already penalised to score 2
-                                    # circuit breaker at 1.2x = $24×0.35 = $8.40 max loss
+            elif _qs >= 4:
+                _multiplier = 1.2   # qs≥4 only — n=3, WR=67%, promising but small sample
             elif _qs >= 1:
-                _multiplier = 1.0
+                _multiplier = 1.0   # qs=3 reduced from 1.2x: n=18, WR=22% (kill-flag zone)
             else:
                 _multiplier = 0.5
-            # QUIET_DEAD hard cap: thin books + no informed flow = max 0.5x
-            # regardless of score. Takes the shot but never bets the house.
+            # QUIET_DEAD + QUIET_FLOW hard cap: no informed flow = max 0.5x
+            # QUIET_FLOW: 0%/1 trade, ETH hr=19 qs=3 QUIET_FLOW → -$8.02 at $23.69 stake
             _regime_sig = getattr(signal, 'regime', '')
-            if _regime_sig == 'QUIET_DEAD' and _multiplier > 0.5:
+            if _regime_sig in ('QUIET_DEAD', 'QUIET_FLOW') and _multiplier > 0.5:
                 logger.info(
-                    "STAKE CAP %s: QUIET_DEAD regime → %.1fx capped to 0.5x",
-                    asset, _multiplier,
+                    "STAKE CAP %s: %s regime → %.1fx capped to 0.5x",
+                    asset, _regime_sig, _multiplier,
                 )
                 _multiplier = 0.5
             stake = round(self.cfg.base_stake * _multiplier, 2)
