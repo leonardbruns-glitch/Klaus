@@ -274,7 +274,7 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
     if regime.startswith("ACTIVE_"):
         pts_regime = 1
     elif regime == "QUIET_DEAD":
-        pts_regime = -2
+        pts_regime = -1
     else:
         pts_regime = 0
 
