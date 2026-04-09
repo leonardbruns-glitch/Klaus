@@ -481,13 +481,13 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown: same max_entry_price cap as price-target (0.53).
-            # Tokens above 0.53 are fat-middle zone: higher fees + stop-hunting risk.
+            # Updown: cap at 0.70 (user instruction 2026-04-09).
+            # Tokens above 0.70 are fully-priced — fee-adjusted edge shrinks dramatically.
             # Confirmed: ETH@0.63 and SOL@0.60 both wicked out within 25s (2026-04-09).
             # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
             _signal_source = getattr(signal, "signal_source", "MOMENTUM")
             _is_contrarian = _signal_source == "CONTRARIAN"
-            _updown_max = 0.90 if _is_contrarian else self.edge_cfg.max_entry_price
+            _updown_max = 0.90 if _is_contrarian else 0.70
             _updown_min = 0.03 if _is_contrarian else 0.05  # contrarian buys at ~0.10
             if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
