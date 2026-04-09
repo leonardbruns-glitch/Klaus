@@ -296,7 +296,7 @@ class KlausConfig:
     # ── Safety ───────────────────────────────────────────────────────────────
     # Set DRY_RUN=false in .env (or change here) to go live.
     dry_run: bool = field(
-        default_factory=lambda: os.getenv("DRY_RUN", "true").lower() != "false"
+        default_factory=lambda: os.getenv("DRY_RUN", "true").strip().lower() != "false"
     )
 
 
