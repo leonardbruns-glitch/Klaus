@@ -919,51 +919,34 @@ class RiskManager:
             return ExitDecision(True, "RATCHET_SL", urgency="immediate")
 
         # ── 7. Dynamic SL — Risk Matrix ──────────────────────────────────────────
-        # Circuit Breaker:  price ≤ entry × 0.65 (-35%) → instant exit, no grace, no timer
-        # Regular SL:       price ≤ entry × 0.80 (-20%)
-        #   - ep < 0.60:  8s confirmation (wick guard for cheap-entry tokens)
-        #   - ep ≥ 0.60:  instant (high-priced entries have no margin for delay)
-        # Time tightening:  after 40% window elapsed → all timers collapse to 0 (instant)
-        # Last 2 min:       price ≤ entry × 0.90 (-10%) → instant
-        is_15m_pos = pos.window_end_ts > 0 and pos.window_seconds >= 900
-
-        # Elapsed fraction from window open (not from our entry) — drives time tightening
+        # Wick guards apply throughout the window until the final 2 minutes (remaining ≤ 120).
+        # No elapsed% cutoffs — elapsed% does not determine recovery capacity; remaining time does.
+        # CB guard:   15s — price took < 15s to go from -20% to -35% = likely manufactured wick
+        # SL guard:   20s — ep < 0.60 AND remaining > 120s; instant if ep ≥ 0.60
+        # Last 2 min: all guards collapse; -10% → instant
+        # Adaptive SL (planned): dynamic thresholds from quality_score/regime/lag once data ≥ n=20
         if pos.window_seconds > 0 and pos.window_end_ts > 0:
             _elapsed_pct = (now - (pos.window_end_ts - pos.window_seconds)) / pos.window_seconds
         else:
             _elapsed_pct = 0.0
-        _past_40pct = _elapsed_pct >= 0.40
+        is_15m_pos = pos.window_end_ts > 0 and pos.window_seconds >= 900
 
-        # ── Circuit Breaker: -35% → instant exit ─────────────────────────────
-        if current_price <= pos.entry_price * 0.65:
-            logger.warning(
-                "CIRCUIT_BREAKER %s/%s @ %.4f (entry=%.4f -%.0f%%) — instant exit",
-                pos.asset, pos.direction.name,
-                current_price, pos.entry_price,
-                (1 - current_price / pos.entry_price) * 100,
-            )
-            return ExitDecision(True, "CIRCUIT_BREAKER", urgency="immediate")
-
-        # ── Regular SL: -20% drop ─────────────────────────────────────────────
-        if current_price <= pos.entry_price * 0.80:
-            # Instant if: high-priced entry (ep≥0.60), past 40% elapsed, or last 2 min
-            if _past_40pct or pos.entry_price >= 0.60 or remaining <= 120:
-                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-            # ep < 0.60: 20s wick guard (was 8s — documented stop-hunt wicks take ~60s to reverse;
-            # 20s aligns with confirmed-effective guard on 15m catastrophic SL)
+        # ── Breach tracker: set when price first crosses -20% ─────────────────
+        # sl_breach_ts feeds: regular SL timer, circuit breaker wick guard, LLM advisor.
+        # Must be set BEFORE CB check so CB wick guard has access to how long below -20%.
+        _below_20pct = current_price <= pos.entry_price * 0.80
+        if _below_20pct:
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
                 pos.sl_breach_price = current_price
                 logger.debug(
-                    "SL breach %s/%s @ %.4f (entry=%.4f -%.0f%%) — 8s wick guard",
+                    "SL breach start %s/%s @ %.4f (entry=%.4f -%.0f%%) elapsed=%.0f%%",
                     pos.asset, pos.direction.name,
                     current_price, pos.entry_price,
                     (1 - current_price / pos.entry_price) * 100,
+                    _elapsed_pct * 100,
                 )
-            elif now - pos.sl_breach_ts >= 20.0:
-                return ExitDecision(True, "STOP_LOSS_EXT", urgency="immediate")
         else:
-            # Price recovered above -20% — reset confirmation timer
             if pos.sl_breach_ts > 0.0:
                 logger.debug(
                     "SL breach reset %s/%s — price %.4f recovered above %.4f",
@@ -973,6 +956,53 @@ class RiskManager:
                 pos.sl_breach_ts = 0.0
                 pos.sl_breach_price = 0.0
                 pos.sl_breach_llm_queried = False
+
+        _time_below_20pct = (now - pos.sl_breach_ts) if pos.sl_breach_ts > 0 else 0.0
+
+        # ── Circuit Breaker: -35% ─────────────────────────────────────────────
+        # Instant when: last 2 min OR spent ≥ 15s below -20% before hitting -35%
+        # (sustained move = genuine; fast drop to -35% = manufactured wick).
+        # No elapsed% cutoff — same principle as regular SL: remaining ≤ 120 covers
+        # the late-window case. At 75% elapsed on 15m there's still 225s; the guard
+        # still applies if price got there in < 15s.
+        # Documented wicks: ETH/NO -42%, BTC/NO -42%, both recovered fully.
+        # These are tracked in post_exit.jsonl (resolved_correctly field).
+        if current_price <= pos.entry_price * 0.65:
+            if remaining <= 120 or _time_below_20pct >= 15.0:
+                logger.warning(
+                    "CIRCUIT_BREAKER %s/%s @ %.4f (entry=%.4f -%.0f%%) "
+                    "elapsed=%.0f%% t_below20=%.0fs remaining=%.0fs — exit",
+                    pos.asset, pos.direction.name,
+                    current_price, pos.entry_price,
+                    (1 - current_price / pos.entry_price) * 100,
+                    _elapsed_pct * 100, _time_below_20pct, remaining,
+                )
+                return ExitDecision(True, "CIRCUIT_BREAKER", urgency="immediate")
+            else:
+                logger.warning(
+                    "CIRCUIT_BREAKER wick guard %s/%s @ %.4f — t_below20=%.0fs/15s "
+                    "elapsed=%.0f%% remaining=%.0fs — holding",
+                    pos.asset, pos.direction.name,
+                    current_price, _time_below_20pct, _elapsed_pct * 100, remaining,
+                )
+                # Fall through — regular SL block fires at 20s if price stays down
+
+        # ── Regular SL: -20% drop ─────────────────────────────────────────────
+        # Instant: ep ≥ 0.60 (fat-middle, high-fee zone) OR last 2 min
+        # Wick guard (20s): ep < 0.60 AND remaining > 120s
+        # _past_40pct removed — remaining ≤ 120 covers late-window; 40% elapsed is too early
+        if _below_20pct:
+            if pos.entry_price >= 0.60 or remaining <= 120:
+                return ExitDecision(True, "STOP_LOSS", urgency="immediate")
+            # 20s wick guard: documented wicks took ~60s to reverse; 20s filters the sharpest
+            if _time_below_20pct >= 20.0:
+                return ExitDecision(True, "STOP_LOSS_EXT", urgency="immediate")
+            # Within guard window — log periodic reminder
+            logger.debug(
+                "SL wick guard %s/%s @ %.4f — t_below20=%.0fs/20s elapsed=%.0f%%",
+                pos.asset, pos.direction.name,
+                current_price, _time_below_20pct, _elapsed_pct * 100,
+            )
 
         # ── Last 2 min: -10% → instant ───────────────────────────────────────
         if remaining <= 120:
