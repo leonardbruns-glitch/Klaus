@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.15   # raised 0.10→0.15: param_analysis n=341 — only delta≥0.18 profitable; 0.15 first step
-_DELTA_PCT_QUIET  = 0.15   # same as active
+_DELTA_PCT_ACTIVE = 0.10   # raised 0.04→0.10: live losses all had delta=-0.072%, 0.04% too permissive
+_DELTA_PCT_QUIET  = 0.10   # same as active — small moves don't sustain in any regime
 
-_DELTA_PCT_15M_ACTIVE       = 0.15  # raised 0.07→0.15: align with param_analysis finding
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.15  # raised 0.10→0.15
-_DELTA_PCT_15M_QUIET        = 0.15  # raised 0.10→0.15
+_DELTA_PCT_15M_ACTIVE       = 0.07
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
+_DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05

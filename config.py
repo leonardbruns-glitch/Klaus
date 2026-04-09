@@ -179,7 +179,7 @@ class EdgeConfig:
     # BTC reprices faster than ETH/SOL — weak BTC moves recover within the window.
     # Require delta ≥ 0.12% for BTC entries. SOL/ETH unaffected (wins at 0.10-0.11%).
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.15,  # raised 0.13→0.15: global delta raised to 0.15 (2026-04-09); BTC aligned
+        "BTC": 0.13,  # raised 0.12→0.13: delta -0.119/-0.120 both STOP_LOSS (-$6.49 each); 0.13 blocks both
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
