@@ -949,7 +949,8 @@ class RiskManager:
             # Instant if: high-priced entry (ep≥0.60), past 40% elapsed, or last 2 min
             if _past_40pct or pos.entry_price >= 0.60 or remaining <= 120:
                 return ExitDecision(True, "STOP_LOSS", urgency="immediate")
-            # ep < 0.60: 8s wick guard
+            # ep < 0.60: 20s wick guard (was 8s — documented stop-hunt wicks take ~60s to reverse;
+            # 20s aligns with confirmed-effective guard on 15m catastrophic SL)
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
                 pos.sl_breach_price = current_price
@@ -959,7 +960,7 @@ class RiskManager:
                     current_price, pos.entry_price,
                     (1 - current_price / pos.entry_price) * 100,
                 )
-            elif now - pos.sl_breach_ts >= 8.0:
+            elif now - pos.sl_breach_ts >= 20.0:
                 return ExitDecision(True, "STOP_LOSS_EXT", urgency="immediate")
         else:
             # Price recovered above -20% — reset confirmation timer
