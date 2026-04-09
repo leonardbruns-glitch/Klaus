@@ -481,19 +481,19 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown: sniper quality gates (lag, edge, OB) replace price ceiling.
-            # Hard sanity bounds only: 0.05–0.95.
+            # Updown: same max_entry_price cap as price-target (0.53).
+            # Tokens above 0.53 are fat-middle zone: higher fees + stop-hunting risk.
+            # Confirmed: ETH@0.63 and SOL@0.60 both wicked out within 25s (2026-04-09).
             # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
             _signal_source = getattr(signal, "signal_source", "MOMENTUM")
-            _is_sniper = _signal_source in ("SNIPER", "CONTRARIAN")
             _is_contrarian = _signal_source == "CONTRARIAN"
-            _updown_max = 0.95 if _is_sniper else 0.95
+            _updown_max = 0.90 if _is_contrarian else self.edge_cfg.max_entry_price
             _updown_min = 0.03 if _is_contrarian else 0.05  # contrarian buys at ~0.10
             if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
                     False, 0,
                     f"Updown entry {signal.entry_price:.4f} outside [{_updown_min:.2f}, {_updown_max:.2f}] "
-                    f"({'contrarian' if _is_contrarian else 'sniper' if _is_sniper else 'momentum'} path)",
+                    f"({'contrarian' if _is_contrarian else 'sniper'} path)",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
@@ -930,7 +930,7 @@ class RiskManager:
         # Wick guards apply throughout the window until the final 2 minutes (remaining ≤ 120).
         # No elapsed% cutoffs — elapsed% does not determine recovery capacity; remaining time does.
         # CB guard:   60s — price took < 60s to go from -20% to -35% = likely manufactured wick
-        # SL guard:   20s — ep < 0.60 AND remaining > 120s; instant if ep ≥ 0.60
+        # SL guard:   60s — unified with CB (user instruction 2026-04-09; was 20s)
         # Last 2 min: all guards collapse; -10% → instant
         # Adaptive SL (planned): dynamic thresholds from quality_score/regime/lag once data ≥ n=20
         if pos.window_seconds > 0 and pos.window_end_ts > 0:
@@ -982,7 +982,7 @@ class RiskManager:
                 return ExitDecision(True, "STOP_LOSS", urgency="immediate")
 
             _in_cb_zone = current_price <= pos.entry_price * 0.65
-            _guard_s = 60.0 if _in_cb_zone else 20.0
+            _guard_s = 60.0  # unified 60s guard at all SL levels (user instruction 2026-04-09)
             _exit_reason = "CIRCUIT_BREAKER" if _in_cb_zone else "STOP_LOSS_EXT"
 
             if _time_below_20pct >= _guard_s:
