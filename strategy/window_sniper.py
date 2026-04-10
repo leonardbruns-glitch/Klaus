@@ -98,7 +98,7 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
                         # Real quality filtering done by lag gate + edge gate + OB gates.
-MAX_TOKEN_ASK = 0.70   # raised 0.65→0.70: explicit override — NOTE: param_analysis n=341 showed 0.60-0.65 cost -$91; 0.65-0.70 band unvalidated
+MAX_TOKEN_ASK = 0.53   # restored from 0.70: live data 0.60-0.65 cost -$91, 0.65-0.70 unvalidated; 14:00 losses all entered 0.57-0.63 = fat-middle stop-hunting confirmed
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
 MIN_LAG_REMAINING_5M = 0.40   # data-validated floor: 1W/2L below 0.40; every clean win in dataset at lag≥0.40
 MIN_LAG_REMAINING_15M = 0.40  # same floor for 15m — fee math requires ≥0.40 to cover round-trip costs
