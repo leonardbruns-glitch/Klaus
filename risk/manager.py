@@ -96,7 +96,8 @@ class PositionMeta:
     sl_breach_llm_queried: bool = False  # True once LLM has been asked about this breach
     dynamic_sl_override: float = 0.0 # when > 0: LLM-set stop % (e.g. 0.05 = exit if -5% from entry)
     ratchet_sl: float = 0.0          # locked profit floor — only moves up, never down
-                                      # 0.0 = inactive | entry_price = breakeven | entry*1.10 = +10% floor
+                                      # 0.0 = inactive | entry*1.07 = +7% floor | entry*1.15 = +15% floor
+    ratchet_lock_ts: float = 0.0      # timestamp when price first crossed the next ratchet tier (3s confirmation)
     quality_score: int = 0            # QS at entry — drives ratchet floor buffer (see ratchet logic)
     velocity_breach_ts: float = 0.0   # when price first dropped below -25% (5s emergency brake)
     binance_price_at_entry: float = 0.0  # Binance spot at entry — used to detect post-entry reversal
@@ -281,6 +282,7 @@ class RiskManager:
                     "sl_breach_price": pos.sl_breach_price,
                     "stage1_attempts": pos.stage1_attempts,
                     "ratchet_sl": pos.ratchet_sl,
+                    "ratchet_lock_ts": pos.ratchet_lock_ts,
                     "quality_score": pos.quality_score,
                     "velocity_breach_ts": pos.velocity_breach_ts,
                     "binance_price_at_entry": pos.binance_price_at_entry,
@@ -345,6 +347,7 @@ class RiskManager:
                 pos.sl_breach_ts = float(d.get("sl_breach_ts", 0.0))
                 pos.sl_breach_price = float(d.get("sl_breach_price", 0.0))
                 pos.ratchet_sl = float(d.get("ratchet_sl", 0.0))
+                pos.ratchet_lock_ts = float(d.get("ratchet_lock_ts", 0.0))
                 pos.quality_score = int(d.get("quality_score", 0))
                 pos.velocity_breach_ts = float(d.get("velocity_breach_ts", 0.0))
                 pos.binance_price_at_entry = float(d.get("binance_price_at_entry", 0.0))
@@ -911,46 +914,68 @@ class RiskManager:
 
         # ── 6c. Ratchet Stop-Loss Escalator ──────────────────────────────────────
         # One-way upward ratchet — floor only moves up, never down.
-        # +15% hit → lock floor at QS-adjusted buffer below entry
-        # +25% hit → lock floor at +10% profit
+        # 3-tier system — every tier locks in PROFIT (not breakeven/loss):
+        #   +18% sustained 3s  → floor at +8%   (was: +15% → floor at -4% to -1% = LOSS)
+        #   +28% sustained 3s  → floor at +15%  (was: +25% → floor at +10%)
+        #   +40% sustained 3s  → floor at +25%  (new tier — protect large gains)
         #
-        # QS-Gradient Buffer (designed 2026-04-09):
-        #   QS 0/1 → entry * 0.96  (-4%): vibration/bottom-pick trades need room
-        #   QS 2   → entry * 0.97  (-3%): alpha sniper, bread-and-butter, spread noise buffer
-        #   QS 3   → entry * 0.985 (-1.5%): high confirmation — shouldn't retrace deep
-        #   QS ≥4  → entry * 0.99  (-1%): freight train — if it reverses to entry the signal failed
-        _qs = pos.quality_score
-        if _qs >= 4:
-            _ratchet_buf = 0.99
-        elif _qs == 3:
-            _ratchet_buf = 0.985
-        elif _qs == 2:
-            _ratchet_buf = 0.97
-        else:   # qs 0 / 1
-            _ratchet_buf = 0.96
+        # 3s confirmation: price must STAY above a tier for 3s before floor locks.
+        # Prevents wick-triggered locks (a 1s spike to +18% then instant reversal
+        # used to lock the floor below entry, guaranteeing a loss on exit).
+        #
+        # Data basis: n=540 RATCHET_SL WR=15.8%, net=-$15.4k. Root cause:
+        # old +15%→floor@entry*0.96 = floor BELOW entry. 84% of exits were at loss
+        # despite price falling further after (confirmed correct direction).
+        # Fix: all floors now yield a profit if triggered.
         _move_pct_raw = (current_price - pos.entry_price) / pos.entry_price
-        _ratchet_floor_10pct = pos.entry_price * 1.10
-        _ratchet_floor_be    = pos.entry_price * _ratchet_buf
 
-        if _move_pct_raw >= 0.25 and pos.ratchet_sl < _ratchet_floor_10pct:
-            pos.ratchet_sl = _ratchet_floor_10pct
-            logger.info(
-                "RATCHET LOCK %s/%s | +25%% reached @ %.4f → floor locked at +10%% (%.4f)",
-                pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
-            )
-        elif _move_pct_raw >= 0.15 and pos.ratchet_sl < _ratchet_floor_be:
-            pos.ratchet_sl = _ratchet_floor_be
-            logger.info(
-                "RATCHET LOCK %s/%s | +15%% reached @ %.4f → QS%d floor locked at %.0f%% buffer (%.4f)",
-                pos.asset, pos.direction.name, current_price, _qs,
-                (_ratchet_buf - 1) * 100, pos.ratchet_sl,
-            )
+        # Tier definitions: (trigger_pct, floor_pct) — both as fractions
+        _RATCHET_TIERS = [
+            (0.40, 0.25),  # +40% seen → lock at +25%
+            (0.28, 0.15),  # +28% seen → lock at +15%
+            (0.18, 0.08),  # +18% seen → lock at +8%
+        ]
+        _RATCHET_CONFIRM_S = 3.0  # seconds price must sustain above trigger before floor locks
+
+        _next_trigger = None
+        for trigger, floor in _RATCHET_TIERS:
+            _floor_price = pos.entry_price * (1 + floor)
+            if _move_pct_raw >= trigger and pos.ratchet_sl < _floor_price:
+                _next_trigger = (trigger, floor, _floor_price)
+                break  # highest applicable tier — stop here
+
+        if _next_trigger:
+            trigger, floor, _floor_price = _next_trigger
+            if pos.ratchet_lock_ts == 0.0:
+                pos.ratchet_lock_ts = now
+                logger.debug(
+                    "RATCHET PENDING %s/%s | +%.0f%% @ %.4f — waiting %.1fs to lock floor at +%.0f%% (%.4f)",
+                    pos.asset, pos.direction.name, trigger * 100, current_price,
+                    _RATCHET_CONFIRM_S, floor * 100, _floor_price,
+                )
+            elif now - pos.ratchet_lock_ts >= _RATCHET_CONFIRM_S:
+                _confirmed_for = now - pos.ratchet_lock_ts
+                pos.ratchet_sl = _floor_price
+                pos.ratchet_lock_ts = 0.0  # reset confirmation timer for next tier
+                logger.info(
+                    "RATCHET LOCK %s/%s | +%.0f%% confirmed %.1fs → floor locked at +%.0f%% (%.4f)",
+                    pos.asset, pos.direction.name, trigger * 100,
+                    _confirmed_for, floor * 100, pos.ratchet_sl,
+                )
+        else:
+            # Price no longer above the pending trigger — cancel pending lock (wick)
+            if pos.ratchet_lock_ts > 0.0:
+                logger.debug(
+                    "RATCHET WICK %s/%s — price %.4f fell below pending trigger before %.1fs confirm; lock cancelled",
+                    pos.asset, pos.direction.name, current_price, _RATCHET_CONFIRM_S,
+                )
+            pos.ratchet_lock_ts = 0.0
 
         if pos.ratchet_sl > 0 and current_price <= pos.ratchet_sl:
+            _locked_profit_pct = (pos.ratchet_sl - pos.entry_price) / pos.entry_price * 100
             logger.info(
-                "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f (QS%d buffer=%.0f%%)",
-                pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
-                _qs, (_ratchet_buf - 1) * 100,
+                "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f (+%.1f%% locked profit)",
+                pos.asset, pos.direction.name, current_price, pos.ratchet_sl, _locked_profit_pct,
             )
             return ExitDecision(True, "RATCHET_SL", urgency="immediate")
 
