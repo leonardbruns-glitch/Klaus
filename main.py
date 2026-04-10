@@ -2031,6 +2031,7 @@ class KlausBot:
             exit_reason=reason,
             entry_price=pos.entry_price,
             window_end_ts=pos.window_end_ts,
+            binance_price_at_entry=pos.binance_price_at_entry,
         )
         # Persist to disk so restarts don't lose the resolution task
         if pos.window_end_ts > 0:
@@ -2052,15 +2053,31 @@ class KlausBot:
         exit_reason: str,
         entry_price: float,
         window_end_ts: float = 0.0,
+        binance_price_at_entry: float = 0.0,
     ) -> None:
         """Sample token price at T+30s, T+60s, T+120s after exit.
         For SL exits: also samples at window_end_ts+60s to capture window resolution outcome.
         Tells us whether the exit was correct (price continued) or premature (price recovered).
+        Also samples Binance spot at each time point to measure correlation:
+          binance_move_at_exit_pct  — how far Binance moved from entry at exit moment
+          binance_move_t30s/t60s    — Binance move at T+30s/60s (confirms or diverges)
         Logs 'resolved_correctly' — key metric for diagnosing premature SL exits.
         """
         import json as _json
         log_path = os.path.join("logs", "post_exit.jsonl")
         samples = {}
+        binance_samples = {}  # Binance move % from entry at each time point
+        # Binance move at exit moment (before any sleep) — key correlation metric.
+        # binance_move_at_exit_pct > 0 for BUY_NO = Binance has recovered (reversed).
+        # binance_move_at_exit_pct ≈ 0 = Binance flat while PM dropped (PM-specific event).
+        # binance_move_at_exit_pct < 0 for BUY_NO = Binance confirming our direction.
+        _b_exit = self.feed._spot_price.get(asset.upper(), 0.0)
+        binance_move_at_exit_pct = None
+        if _b_exit > 0 and binance_price_at_entry > 0:
+            binance_move_at_exit_pct = round(
+                (_b_exit - binance_price_at_entry) / binance_price_at_entry * 100, 4
+            )
+
         elapsed = 0
         for delay in (30, 60, 120):
             await asyncio.sleep(delay - elapsed)
@@ -2079,6 +2096,12 @@ class KlausBot:
                     if _ob and _ob.asks:
                         price = _ob.asks[0][0]
                 samples[f"t{delay}s"] = round(price, 4) if price else None
+                # Binance spot at this time point — measures whether Binance
+                # is confirming, diverging, or reversing vs our entry direction.
+                _b_now = self.feed._spot_price.get(asset.upper(), 0.0)
+                if _b_now > 0 and binance_price_at_entry > 0:
+                    _b_move = (_b_now - binance_price_at_entry) / binance_price_at_entry * 100
+                    binance_samples[f"binance_move_t{delay}s_pct"] = round(_b_move, 4)
             except Exception:
                 samples[f"t{delay}s"] = None
 
@@ -2149,6 +2172,12 @@ class KlausBot:
             "entered_correctly": entered_correctly,   # True/False/None(stale)
             "resolution_delay_s": resolution_delay_s,
             "window_end_ts": window_end_ts if window_end_ts > 0 else None,
+            # Binance correlation — was Binance driving the PM move or diverging?
+            # binance_move_at_exit_pct ≈ 0 while PM fell = PM-specific event (stop-hunt/liquidity)
+            # binance_move_at_exit_pct < 0 (BUY_NO) = Binance confirmed the drop
+            # binance_move_at_exit_pct > 0 (BUY_NO) = Binance reversed = wrong direction
+            "binance_move_at_exit_pct": binance_move_at_exit_pct,
+            **binance_samples,  # binance_move_t30s_pct, binance_move_t60s_pct, binance_move_t120s_pct
         }
 
         try:
