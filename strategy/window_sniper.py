@@ -85,7 +85,7 @@ _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling 
 _DELTA_PCT_ACTIVE = 0.10   # raised 0.04→0.10: live losses all had delta=-0.072%, 0.04% too permissive
 _DELTA_PCT_QUIET  = 0.10   # same as active — small moves don't sustain in any regime
 
-_DELTA_PCT_15M_ACTIVE       = 0.07
+_DELTA_PCT_15M_ACTIVE       = 0.10
 _DELTA_PCT_15M_ACTIVE_EARLY = 0.10
 _DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
@@ -280,8 +280,7 @@ def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
     Minimum delta threshold — window-type based, no elapsed gate.
     All elapsed allowed; end-of-window protection handled by WINDOW_ELAPSED_MAX.
 
-    15m: early window (< 40% elapsed) requires 0.10 — move unconfirmed.
-         late window (≥ 40%) relaxes to 0.07 — direction confirmed by sustained move.
+    15m: flat 0.10 across all elapsed — weak moves don't sustain even when confirmed.
     5m:  flat 0.10 — small moves don't sustain regardless of session.
     """
     if is_15m:
