@@ -122,8 +122,8 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-WINDOW_ELAPSED_MAX_5M  = 0.80  # allowed: 0–20% and 45–79%; blocked: 20–44% dead zone and 80%+
-WINDOW_ELAPSED_MAX_15M = 0.80  # same ceiling for both window sizes
+WINDOW_ELAPSED_MAX_5M  = 0.65  # lowered 0.80→0.65: elapsed 0.65+ WR=45% PF=0.39 -$16.8k (n=20, n=540 data)
+WINDOW_ELAPSED_MAX_15M = 0.65  # same — nothing after 65% elapsed earns; confirmed-direction zone tail is dead weight
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
@@ -456,7 +456,7 @@ class WindowSniper:
 
         # Elapsed zones: allowed 0–20% (fresh signal) and 45–79% (confirmed direction).
         # Dead zone 20–44%: move unconfirmed, high reversal risk.
-        # Late block 80%+: too little time for edge to materialise.
+        # Late block 65%+: n=540 data shows elapsed 0.65+ PF=0.39 (was 80%, now 65%).
         if 0.20 <= elapsed_pct < 0.45:
             logger.debug(
                 "SNIPER BLOCK %s/%s | elapsed_dead_zone=%.1f%% (20%%–44%% blocked)",

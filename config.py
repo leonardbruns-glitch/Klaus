@@ -140,10 +140,11 @@ class EdgeConfig:
     allowed_hours_utc: List[int] = field(default_factory=lambda: [])
 
     # Blocked hours (UTC). Takes precedence over allowed_hours_utc.
-    # n=540 data: hr=07 WR=12.5% (n=8, PF=0.13, -$21.6) — approaching kill switch (<35% over 20).
-    # hr=02 also bad (WR=26.7%, n=15) but below n=20 threshold — watching.
-    # hr=22 is the strongest positive hour: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
-    blocked_hours_utc: List[int] = field(default_factory=lambda: [7])
+    # n=540 data: hr=07 WR=12.5% (n=8, PF=0.13) — kill switch threshold.
+    # hr=02 WR=26.7% (n=15, PF=0.32, -$17.2) — blocked pre-emptively; one more data point
+    #   would formally trigger the <35%/n=20 kill switch. Not worth collecting it at live cost.
+    # hr=22 is the crown jewel: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [2, 7])
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
