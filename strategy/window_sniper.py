@@ -674,7 +674,7 @@ class WindowSniper:
 
         # Time decay: reduce confidence as we approach the 80% cutoff
         # (less time = higher variance, less room for the market to reprice)
-        time_progress = (elapsed_pct - WINDOW_ELAPSED_MIN) / (WINDOW_ELAPSED_MAX - WINDOW_ELAPSED_MIN)
+        time_progress = elapsed_pct / WINDOW_ELAPSED_MAX
         time_factor = 1.0 - 0.20 * time_progress   # 1.0 at 25%, 0.80 at 80%
         confidence = max(0.50, confidence * time_factor)
 
