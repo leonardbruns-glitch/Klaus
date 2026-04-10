@@ -463,7 +463,7 @@ class WindowSniper:
         # After SIGNAL_MAX_AGE_S the Binance move is priced in — adverse selection.
         signal_age_s = now - trigger_ts
         if signal_age_s > SIGNAL_MAX_AGE_S:
-            logger.debug(
+            logger.info(
                 "SNIPER BLOCK %s/%s | signal_age=%.0fs > %ds — move priced in, adverse selection",
                 token.asset, token.side, signal_age_s, SIGNAL_MAX_AGE_S,
             )
