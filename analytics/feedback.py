@@ -106,6 +106,8 @@ class TradeRecord:
     min_price_seen: float = 0.0         # lowest token price observed while position was open
     max_favourable_pct: float = 0.0     # best point reached as % from entry (how much we "had")
     max_adverse_pct: float = 0.0        # worst point reached as % from entry (how deep the dip)
+    t_fav_s: float = 0.0               # seconds from open to when max_favourable_pct was reached
+    t_adv_s: float = 0.0               # seconds from open to when max_adverse_pct was reached
 
     # Window resolution outcome — populated async at window_end+60s for all trades
     # Answers: did the market resolve in our predicted direction regardless of how we exited?
@@ -301,6 +303,8 @@ class FeedbackEngine:
         llm_rec_conf: float = 0.0,
         max_price_seen: float = 0.0,
         min_price_seen: float = 0.0,
+        highest_price_ts: float = 0.0,
+        lowest_price_ts: float = 0.0,
         binance_price_at_entry: float = 0.0,
         binance_reversal_count_at_exit: int = 0,
     ) -> TradeRecord:
@@ -442,6 +446,8 @@ class FeedbackEngine:
             min_price_seen=round(min_price_seen, 4),
             max_favourable_pct=round((max_price_seen - entry_price) / entry_price * 100, 2) if entry_price > 0 else 0.0,
             max_adverse_pct=round((entry_price - min_price_seen) / entry_price * 100, 2) if entry_price > 0 else 0.0,
+            t_fav_s=round(highest_price_ts, 1),
+            t_adv_s=round(lowest_price_ts, 1),
             binance_price_at_entry=round(binance_price_at_entry, 2),
             binance_reversal_count_at_exit=binance_reversal_count_at_exit,
         )

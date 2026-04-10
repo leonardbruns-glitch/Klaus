@@ -85,6 +85,8 @@ class PositionMeta:
     remaining_shares: float = 0.0     # updated after partial sells
     highest_price: float = 0.0        # peak since open (for trailing stop)
     lowest_price: float = 0.0         # trough since open (for volatility analysis)
+    highest_price_ts: float = 0.0     # seconds from open_ts when highest_price was set
+    lowest_price_ts: float = 0.0      # seconds from open_ts when lowest_price was set
     exit_stage: ExitStage = ExitStage.NONE
     profit_trigger_ts: float = 0.0    # timestamp when +25 % first seen
     hard_exit_triggered: bool = False
@@ -828,11 +830,13 @@ class RiskManager:
         time_held = now - pos.open_ts
         remaining = pos.window_end_ts - now if pos.window_end_ts > 0 else 999
 
-        # Track price range — both used for volatility analysis at close
+        # Track price range + time to peak/trough from open
         if current_price > pos.highest_price:
             pos.highest_price = current_price
+            pos.highest_price_ts = now - pos.open_ts
         if current_price < pos.lowest_price:
             pos.lowest_price = current_price
+            pos.lowest_price_ts = now - pos.open_ts
 
         # move_pct > 0 means profit for both directions
         move_pct = (current_price - pos.entry_price) / pos.entry_price

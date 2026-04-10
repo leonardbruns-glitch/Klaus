@@ -1745,6 +1745,8 @@ class KlausBot:
                         pre_entry_momentum_pct=_ext_meta.get("pre_entry_momentum_pct", 0.0),
                         max_price_seen=pos.highest_price,
                         min_price_seen=pos.lowest_price,
+                        highest_price_ts=pos.highest_price_ts,
+                        lowest_price_ts=pos.lowest_price_ts,
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
@@ -2010,6 +2012,8 @@ class KlausBot:
                     llm_rec_conf=meta.get("llm_rec_conf", 0.0),
                     max_price_seen=_highest_price,
                     min_price_seen=_lowest_price,
+                    highest_price_ts=pos.highest_price_ts,
+                    lowest_price_ts=pos.lowest_price_ts,
                     binance_price_at_entry=pos.binance_price_at_entry,
                     binance_reversal_count_at_exit=pos.binance_reversal_count,
                 )
