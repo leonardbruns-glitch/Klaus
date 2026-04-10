@@ -2495,6 +2495,21 @@ class KlausBot:
                         avg_exit_price=avg_price,
                         is_live=not CONFIG.dry_run,
                     )
+                    # Orphan proceeds: entry cost was already deducted from bankroll
+                    # when the position originally opened, but close_position was called
+                    # with incorrect remaining_shares (0) so the stage-2 value was lost.
+                    # Add gross proceeds directly so capital doesn't drift until the next
+                    # hourly reconciliation picks them up.
+                    if not CONFIG.dry_run:
+                        _orphan_proceeds = round(sold * avg_price, 4)
+                        self.risk.bankroll.capital = round(
+                            self.risk.bankroll.capital + _orphan_proceeds, 4
+                        )
+                        self.risk.bankroll._save()
+                        logger.warning(
+                            "ORPHAN PROCEEDS +$%.4f added to bankroll → cap=$%.2f",
+                            _orphan_proceeds, self.risk.bankroll.capital,
+                        )
                 else:
                     logger.warning(
                         "ORPHAN SELL FAILED %s/%s: %.4f shares unsold",
