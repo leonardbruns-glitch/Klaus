@@ -28,7 +28,7 @@ from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
 from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta, CONTRARIAN_MAX_ASK
 from analytics.shadow_log import log_shadow_result
-from risk.manager import RiskManager
+from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
 from analytics.macro_engine import MacroEngine
 from execution.order_manager import OrderManager, OrderResult, OrderStatus
