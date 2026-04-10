@@ -1341,6 +1341,9 @@ class KlausBot:
                 self.feed._spot_price.get(asset.upper(), 0.0)
                 or spot_at_entry  # fallback: ext signal spot price captured before order
             ),
+            entry_delta_pct=abs(getattr(signal, "delta_pct", 0.0)) / 100,  # convert % → fraction
+            entry_lag_pct=getattr(signal, "lag_remaining_pct", 0.0),
+            entry_fair_value=getattr(signal, "fair_value", 0.0),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly

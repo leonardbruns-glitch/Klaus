@@ -99,6 +99,9 @@ class PositionMeta:
     velocity_breach_ts: float = 0.0   # when price first dropped below -25% (5s emergency brake)
     binance_price_at_entry: float = 0.0  # Binance spot at entry — used to detect post-entry reversal
     binance_reversal_count: int = 0      # consecutive check cycles Binance has been reversed (each ~1s)
+    entry_delta_pct: float = 0.0      # |Binance delta| at entry (fraction, e.g. 0.0013 = 0.13%)
+    entry_lag_pct: float = 0.0        # lag_remaining at entry (fraction, e.g. 0.50 = 50% unpriced)
+    entry_fair_value: float = 0.0     # sigmoid fair value at entry — used for lag inversion check
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
 
@@ -279,6 +282,9 @@ class RiskManager:
                     "velocity_breach_ts": pos.velocity_breach_ts,
                     "binance_price_at_entry": pos.binance_price_at_entry,
                     "binance_reversal_count": pos.binance_reversal_count,
+                    "entry_delta_pct": pos.entry_delta_pct,
+                    "entry_lag_pct": pos.entry_lag_pct,
+                    "entry_fair_value": pos.entry_fair_value,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -340,6 +346,9 @@ class RiskManager:
                 pos.velocity_breach_ts = float(d.get("velocity_breach_ts", 0.0))
                 pos.binance_price_at_entry = float(d.get("binance_price_at_entry", 0.0))
                 pos.binance_reversal_count = int(d.get("binance_reversal_count", 0))
+                pos.entry_delta_pct = float(d.get("entry_delta_pct", 0.0))
+                pos.entry_lag_pct = float(d.get("entry_lag_pct", 0.0))
+                pos.entry_fair_value = float(d.get("entry_fair_value", 0.0))
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
@@ -664,6 +673,9 @@ class RiskManager:
         window_seconds: int = 0,
         quality_score: int = 0,
         binance_price_at_entry: float = 0.0,
+        entry_delta_pct: float = 0.0,
+        entry_lag_pct: float = 0.0,
+        entry_fair_value: float = 0.0,
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -682,6 +694,9 @@ class RiskManager:
             window_seconds=window_seconds,
             quality_score=quality_score,
             binance_price_at_entry=binance_price_at_entry,
+            entry_delta_pct=entry_delta_pct,
+            entry_lag_pct=entry_lag_pct,
+            entry_fair_value=entry_fair_value,
         )
         self.open_positions[token_id] = pos
         self._pending_assets.discard(asset)  # fill confirmed — release lock
@@ -1023,15 +1038,51 @@ class RiskManager:
             )
             return ExitDecision(True, "PRICE_FLOOR", urgency="immediate")
 
-        # -1. Binance early exit — signal premise dead before SL thresholds
-        # Fires only when in loss territory; 15 consecutive reversed cycles to confirm.
-        _in_loss = current_price < pos.entry_price * 0.99  # >1% below entry
-        if _in_loss and pos.binance_reversal_count >= 15:
+        # -1. Signal-flipped exit — original entry premise reversed on both axes
+        #
+        # Fires when BOTH conditions are true simultaneously:
+        #   A) Delta flipped: Binance has moved against our direction by >= entry_delta_pct
+        #      = the Binance move that justified entry has been fully retraced and inverted
+        #   B) Lag inverted: PM token price < (2 * entry_price - entry_fair_value)
+        #      = PM has moved against us by as much as the entry lag implied it would move for us
+        #      = the lag opportunity has fully closed and inverted
+        #
+        # Both required — delta alone is noisy (Binance wicks), lag alone is noisy (PM wicks).
+        # Together they confirm the signal is structurally dead, not just temporarily drawdown.
+        #
+        # Falls back to delta-only check if entry_fair_value not stored (legacy positions).
+        _signal_flipped = False
+        if binance_spot > 0 and pos.binance_price_at_entry > 0 and pos.entry_delta_pct > 0:
+            # A) Delta check — Binance has reversed past the entry threshold
+            # entry_delta_pct is stored as a fraction (e.g. 0.0013 = 0.13%)
+            if pos.direction.name == "BUY_NO":
+                _delta_flipped = _b_move > pos.entry_delta_pct   # Binance recovered above entry threshold
+            else:
+                _delta_flipped = _b_move < -pos.entry_delta_pct  # Binance dropped below entry threshold
+
+            # B) Lag inversion check — PM moved against us by as much as the lag said it would move for us
+            # lag_inversion_price = 2 * entry_price - entry_fair_value
+            # e.g. entry=0.50, fv=0.70 → inversion at 0.30 (PM has moved -20% against us = equal & opposite)
+            if pos.entry_fair_value > 0:
+                _lag_inversion_price = 2 * pos.entry_price - pos.entry_fair_value
+                _lag_inverted = current_price <= _lag_inversion_price
+            else:
+                # Legacy position: no fair value stored — use entry_lag_pct as proxy
+                # PM dropped by more than (entry_lag_pct * entry_price) against us
+                _lag_inversion_price = pos.entry_price * (1 - pos.entry_lag_pct) if pos.entry_lag_pct > 0 else 0
+                _lag_inverted = _lag_inversion_price > 0 and current_price <= _lag_inversion_price
+
+            _signal_flipped = _delta_flipped and _lag_inverted
+
+        if _signal_flipped:
             logger.warning(
-                "BINANCE_REVERSAL_EARLY %s/%s @ %.4f — Binance reversed for %d cycles, signal dead",
-                pos.asset, pos.direction.name, current_price, pos.binance_reversal_count,
+                "SIGNAL_FLIPPED %s/%s @ %.4f — delta reversed (binance %+.3f%% vs entry_delta %.3f%%) "
+                "AND lag inverted (price %.4f ≤ inversion %.4f)",
+                pos.asset, pos.direction.name, current_price,
+                _b_move * 100, pos.entry_delta_pct * 100,
+                current_price, _lag_inversion_price,
             )
-            return ExitDecision(True, "BINANCE_REVERSAL_EARLY", urgency="immediate")
+            return ExitDecision(True, "SIGNAL_FLIPPED", urgency="immediate")
 
         # 1. -25% emergency brake: reversed=6, flat=32, confirmed=10 cycles
         # Sole owner of exit logic when price is below -25%. SL_15S is suspended here.
