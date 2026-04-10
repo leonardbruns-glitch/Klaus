@@ -435,7 +435,10 @@ class KlausBot:
                 )
 
             _pos_ext = self._last_ext_signals.get(pos.asset)
-            decision = self.risk.check_exit_conditions(token_id, current_price, ext=_pos_ext)
+            _binance_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
+            decision = self.risk.check_exit_conditions(
+                token_id, current_price, ext=_pos_ext, binance_spot=_binance_spot
+            )
 
             if decision is None:
                 if pos.window_end_ts > 0:
@@ -1334,6 +1337,7 @@ class KlausBot:
             window_end_ts=getattr(token, "window_end_ts", 0.0),
             window_seconds=getattr(token, "window_seconds", 0),
             quality_score=getattr(signal, "quality_score", 0),
+            binance_price_at_entry=self.feed._spot_price.get(asset.upper(), 0.0),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly

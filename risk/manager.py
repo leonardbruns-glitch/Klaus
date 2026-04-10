@@ -97,6 +97,8 @@ class PositionMeta:
                                       # 0.0 = inactive | entry_price = breakeven | entry*1.10 = +10% floor
     quality_score: int = 0            # QS at entry — drives ratchet floor buffer (see ratchet logic)
     velocity_breach_ts: float = 0.0   # when price first dropped below -25% (5s emergency brake)
+    binance_price_at_entry: float = 0.0  # Binance spot at entry — used to detect post-entry reversal
+    binance_reversal_count: int = 0      # consecutive check cycles Binance has been reversed (each ~1s)
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
 
@@ -275,6 +277,8 @@ class RiskManager:
                     "ratchet_sl": pos.ratchet_sl,
                     "quality_score": pos.quality_score,
                     "velocity_breach_ts": pos.velocity_breach_ts,
+                    "binance_price_at_entry": pos.binance_price_at_entry,
+                    "binance_reversal_count": pos.binance_reversal_count,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -334,6 +338,8 @@ class RiskManager:
                 pos.ratchet_sl = float(d.get("ratchet_sl", 0.0))
                 pos.quality_score = int(d.get("quality_score", 0))
                 pos.velocity_breach_ts = float(d.get("velocity_breach_ts", 0.0))
+                pos.binance_price_at_entry = float(d.get("binance_price_at_entry", 0.0))
+                pos.binance_reversal_count = int(d.get("binance_reversal_count", 0))
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
@@ -657,6 +663,7 @@ class RiskManager:
         window_end_ts: float = 0.0,
         window_seconds: int = 0,
         quality_score: int = 0,
+        binance_price_at_entry: float = 0.0,
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -674,6 +681,7 @@ class RiskManager:
             window_end_ts=window_end_ts,
             window_seconds=window_seconds,
             quality_score=quality_score,
+            binance_price_at_entry=binance_price_at_entry,
         )
         self.open_positions[token_id] = pos
         self._pending_assets.discard(asset)  # fill confirmed — release lock
@@ -779,6 +787,7 @@ class RiskManager:
         token_id: str,
         current_price: float,
         ext=None,   # Optional ExternalSignal — used for VPIN-aware Stage 2 hold + SL extension
+        binance_spot: float = 0.0,  # current Binance spot price for reversal detection
     ) -> Optional[ExitDecision]:
         """
         Evaluates all exit rules in priority order.
@@ -954,15 +963,41 @@ class RiskManager:
             )
             return ExitDecision(True, "RATCHET_SL", urgency="immediate")
 
-        # ── 7. Velocity SL — CTF V2 Speed Rules (2026-04-09) ────────────────────
+        # ── 7. Velocity SL — CTF V2 Speed Rules (2026-04-09, Binance-aware 2026-04-10) ─
         # Hope-based guards eliminated. Live data: 50–80% stake loss waiting for
         # recoveries that never come on the new exchange speed.
         #
-        # Rule 0: Price floor 0.20 → instant, no timers
-        # Rule 1: -25% emergency brake → 5s grace (one block cycle), then kill
-        # Rule 2: -15% hard ceiling → 15s shared timer, no stacking
-        #   No stacking: one timer starts at first -15% breach. CB + SL share it.
-        #   Depth doesn't extend the clock — it's already running.
+        # Binance reversal detection: if Binance spot has moved > 0.10% against our
+        # entry direction, the original signal premise is dead. Timers tighten.
+        # binance_reversal_count increments each check cycle (~1s) Binance is reversed;
+        # resets to 0 on recovery. Counters below are in check cycles (≈ seconds).
+        #
+        # Rule 0 : Price floor 0.20          → instant, always
+        # Rule -1: Binance early exit         → 15 counts (no SL threshold needed)
+        # Rule 1 : -25% VELOCITY              → 3 counts if reversed, 5 counts if aligned
+        # Rule 2 : -15% SL_15S               → 7 counts if reversed, 15 counts if aligned
+
+        # ── Binance reversal flag (computed once, used by all rules) ─────────────
+        _binance_reversed = False
+        if binance_spot > 0 and pos.binance_price_at_entry > 0:
+            _b_move = (binance_spot - pos.binance_price_at_entry) / pos.binance_price_at_entry
+            # BUY_NO: entered on asset going DOWN — reversal = Binance now going UP (+0.10%)
+            # BUY_YES: entered on asset going UP  — reversal = Binance now going DOWN (-0.10%)
+            if pos.direction.name == "BUY_NO":
+                _binance_reversed = _b_move > 0.001
+            else:
+                _binance_reversed = _b_move < -0.001
+            logger.debug(
+                "BINANCE CHK %s/%s spot=%.2f entry_spot=%.2f move=%+.3f%% reversed=%s cnt=%d",
+                pos.asset, pos.direction.name, binance_spot, pos.binance_price_at_entry,
+                _b_move * 100, _binance_reversed, pos.binance_reversal_count,
+            )
+
+        # Update reversal counter
+        if _binance_reversed:
+            pos.binance_reversal_count += 1
+        else:
+            pos.binance_reversal_count = 0
 
         # 0. Absolute price floor
         if current_price <= 0.20:
@@ -972,20 +1007,33 @@ class RiskManager:
             )
             return ExitDecision(True, "PRICE_FLOOR", urgency="immediate")
 
-        # 1. -25% emergency brake: 5s grace period
+        # -1. Binance early exit — signal premise dead before SL thresholds
+        # Fires only when in loss territory; 15 consecutive reversed cycles to confirm.
+        _in_loss = current_price < pos.entry_price * 0.99  # >1% below entry
+        if _in_loss and pos.binance_reversal_count >= 15:
+            logger.warning(
+                "BINANCE_REVERSAL_EARLY %s/%s @ %.4f — Binance reversed for %d cycles, signal dead",
+                pos.asset, pos.direction.name, current_price, pos.binance_reversal_count,
+            )
+            return ExitDecision(True, "BINANCE_REVERSAL_EARLY", urgency="immediate")
+
+        # 1. -25% emergency brake: 5 cycles normally, 3 cycles if Binance confirmed reversed
         _below_25pct = current_price <= pos.entry_price * 0.75
         if _below_25pct:
+            _velocity_threshold = 3 if _binance_reversed else 5
             if pos.velocity_breach_ts == 0.0:
                 pos.velocity_breach_ts = now
                 logger.info(
-                    "VELOCITY BREACH %s/%s @ %.4f (entry=%.4f -25%%) — 5s timer started",
+                    "VELOCITY BREACH %s/%s @ %.4f (entry=%.4f -25%%) — threshold=%d cycles reversed=%s",
                     pos.asset, pos.direction.name, current_price, pos.entry_price,
+                    _velocity_threshold, _binance_reversed,
                 )
-            elif now - pos.velocity_breach_ts >= 5.0:
+            _t_below = now - pos.velocity_breach_ts
+            if _t_below >= _velocity_threshold:
                 logger.warning(
-                    "VELOCITY_EXIT %s/%s @ %.4f — no recovery in %.1fs",
+                    "VELOCITY_EXIT %s/%s @ %.4f — %.1fs elapsed threshold=%d reversed=%s",
                     pos.asset, pos.direction.name, current_price,
-                    now - pos.velocity_breach_ts,
+                    _t_below, _velocity_threshold, _binance_reversed,
                 )
                 return ExitDecision(True, "VELOCITY_EXIT", urgency="immediate")
         else:
@@ -994,28 +1042,32 @@ class RiskManager:
                              pos.asset, pos.direction.name)
             pos.velocity_breach_ts = 0.0
 
-        # 2. -15% hard ceiling: 15s shared timer (no stacking)
+        # 2. -15% hard ceiling: 15 cycles normally, 7 cycles if Binance confirmed reversed
         _below_15pct = current_price <= pos.entry_price * 0.85
         if _below_15pct:
+            _sl_threshold = 7 if _binance_reversed else 15
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
                 pos.sl_breach_price = current_price
                 logger.info(
-                    "SL_15S BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — 15s ceiling",
+                    "SL_15S BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — threshold=%d cycles reversed=%s",
                     pos.asset, pos.direction.name, current_price, pos.entry_price,
                     (1 - current_price / pos.entry_price) * 100,
+                    _sl_threshold, _binance_reversed,
                 )
             _t_below = now - pos.sl_breach_ts
-            if _t_below >= 15.0:
+            if _t_below >= _sl_threshold:
                 logger.warning(
-                    "SL_15S %s/%s @ %.4f (entry=%.4f -%.0f%%) t=%.1fs — ceiling hit",
+                    "SL_15S %s/%s @ %.4f (entry=%.4f -%.0f%%) t=%.1fs threshold=%d reversed=%s",
                     pos.asset, pos.direction.name, current_price, pos.entry_price,
-                    (1 - current_price / pos.entry_price) * 100, _t_below,
+                    (1 - current_price / pos.entry_price) * 100,
+                    _t_below, _sl_threshold, _binance_reversed,
                 )
                 return ExitDecision(True, "SL_15S", urgency="immediate")
             else:
-                logger.debug("SL_15S guard %s/%s @ %.4f t=%.1fs/15s",
-                             pos.asset, pos.direction.name, current_price, _t_below)
+                logger.debug("SL_15S guard %s/%s @ %.4f t=%.1fs/%d reversed=%s",
+                             pos.asset, pos.direction.name, current_price,
+                             _t_below, _sl_threshold, _binance_reversed)
         else:
             if pos.sl_breach_ts > 0.0:
                 logger.debug("SL_15S reset %s/%s — recovered above -15%%",
