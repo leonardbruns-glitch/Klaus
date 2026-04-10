@@ -96,6 +96,8 @@ MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only 
 WINDOW_ELAPSED_MIN = 0.05  # near-zero: pm_drift + lag_remaining + delta are the real
                             # freshness filters. Elapsed % doesn't determine trade quality.
 WINDOW_ELAPSED_MAX = 0.82
+SIGNAL_MAX_AGE_S = 90      # CLAUDE.md: information lag window is 30-90s. After 90s the move
+                            # is priced in — adverse selection. Measured from delta breach timestamp.
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
@@ -454,6 +456,18 @@ class WindowSniper:
         if sustained_for < required_sustain:
             logger.debug("SNIPER BLOCK %s/%s | sustain %.1fs / %.0fs delta=%.3f%%",
                          token.asset, token.side, sustained_for, required_sustain, delta_pct)
+            return None
+
+        # ── Signal age gate ────────────────────────────────────────────────────
+        # trigger_ts = when delta first breached the threshold = signal birth.
+        # After SIGNAL_MAX_AGE_S the Binance move is priced in — adverse selection.
+        signal_age_s = now - trigger_ts
+        if signal_age_s > SIGNAL_MAX_AGE_S:
+            logger.debug(
+                "SNIPER BLOCK %s/%s | signal_age=%.0fs > %ds — move priced in, adverse selection",
+                token.asset, token.side, signal_age_s, SIGNAL_MAX_AGE_S,
+            )
+            self._delta_sustained_since.pop(sustain_key, None)  # reset: wait for next spike
             return None
 
         # ── Regime classification (available for all subsequent blocks) ──────────
