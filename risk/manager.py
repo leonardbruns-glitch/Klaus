@@ -588,14 +588,7 @@ class RiskManager:
             elif _qs == 2:
                 _multiplier = 1.0   # qs=2: WR=54%, PF=2.19 — only confirmed profitable tier
             elif _qs == 3:
-                # qs=3: WR=20%, PF=0.53 — negative EV at any stake, blocked 2026-04-10
-                # Halving stake to 0.5× only made losses smaller, not edge-positive.
-                # n=18+ confirms this tier has no edge. Re-enable only if data changes.
-                logger.warning(
-                    "STAKE BLOCK %s | quality_score=3 WR=20%% PF=0.53 — negative EV, skip",
-                    asset,
-                )
-                return RiskDecision(False, 0, "qs=3 WR=20% blocked — negative EV")
+                _multiplier = 0.5   # qs=3: WR=20%, PF=0.53 — catastrophic, halved 2026-04-09
             else:
                 _multiplier = 0.5   # qs=0 or qs=1: low confidence
             # QUIET_DEAD + QUIET_FLOW hard cap: no informed flow = max 0.5x
