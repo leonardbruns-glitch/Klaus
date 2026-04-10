@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.075  # lowered 0.10→0.075: two wins at delta=0.084/0.089 blocked by 0.10 floor
-_DELTA_PCT_QUIET  = 0.075  # same as active
+_DELTA_PCT_ACTIVE = 0.10   # raised 0.075→0.10: n=540 — delta 0.08–0.10 bucket WR=39.2% PF=0.41 -$48.5k (n=79); below 0.10 is structurally losing
+_DELTA_PCT_QUIET  = 0.10   # same
 
-_DELTA_PCT_15M_ACTIVE       = 0.075
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.075
-_DELTA_PCT_15M_QUIET        = 0.075
+_DELTA_PCT_15M_ACTIVE       = 0.10
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
+_DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
@@ -100,8 +100,8 @@ MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard ag
                         # Real quality filtering done by lag gate + edge gate + OB gates.
 MAX_TOKEN_ASK = 0.70   # raised 0.65→0.70: explicit override — NOTE: param_analysis n=341 showed 0.60-0.65 cost -$91; 0.65-0.70 band unvalidated
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
-MIN_LAG_REMAINING_5M = 0.40   # data-validated floor: 1W/2L below 0.40; every clean win in dataset at lag≥0.40
-MIN_LAG_REMAINING_15M = 0.40  # same floor for 15m — fee math requires ≥0.40 to cover round-trip costs
+MIN_LAG_REMAINING_5M = 0.55   # raised 0.40→0.55: n=540 data — lag 0.40–0.55 costs -$133k (PF=0.59–0.68); lag≥0.55 approaches PF=0.85+
+MIN_LAG_REMAINING_15M = 0.55  # same — lag≥0.60+delta≥0.10 is first break-even combo (PF=1.00, n=162)
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 

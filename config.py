@@ -140,11 +140,10 @@ class EdgeConfig:
     allowed_hours_utc: List[int] = field(default_factory=lambda: [])
 
     # Blocked hours (UTC). Takes precedence over allowed_hours_utc.
-    # Empty = no hours blocked (collect data at all hours post-fix).
-    # Pre-fix T42-T51 data showed UTC 13-14h WR=22%, but those losses predate the
-    # funding gate fix, VPIN gate removal, and briefing latency removal. Not valid
-    # evidence against 13-14h under the current signal stack.
-    blocked_hours_utc: List[int] = field(default_factory=lambda: [])
+    # n=540 data: hr=07 WR=12.5% (n=8, PF=0.13, -$21.6) — approaching kill switch (<35% over 20).
+    # hr=02 also bad (WR=26.7%, n=15) but below n=20 threshold — watching.
+    # hr=22 is the strongest positive hour: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [7])
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
@@ -186,6 +185,7 @@ class EdgeConfig:
     # Require delta ≥ 0.12% for BTC entries. SOL/ETH unaffected (wins at 0.10-0.11%).
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
         "BTC": 0.13,  # raised 0.12→0.13: delta -0.119/-0.120 both STOP_LOSS (-$6.49 each); 0.13 blocks both
+        "SOL": 0.12,  # added n=540: SOL delta 0.10-0.12 WR=51.8% PF~0.78; 0.12-0.15 WR=64.9% PF=1.51 (only profitable SOL zone)
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated

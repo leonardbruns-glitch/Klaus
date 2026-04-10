@@ -226,17 +226,17 @@ analytics/lag_analysis.py     — retrospective Pearson correlation analysis
 analytics/shadow_log.py       — counterfactual analysis for blocked signals
 ```
 
-### Current Parameters
+### Current Parameters (updated 2026-04-10, n=540)
 | Parameter | Value | Notes |
 |---|---|---|
-| min_lag_5m | 0.30 | Scanner: WR=80% at ≥0.30 |
-| min_lag_15m | 0.25 | Data collection — WR unconfirmed |
-| MIN_TOKEN_ASK | 0.35 | Raised from 0.33 — entry floor |
-| MAX_TOKEN_ASK | 0.53 | Raised from 0.50 — allows entries up to $0.53 |
-| PREARM_ELAPSED_MIN | 0.20 | 20% = 60s min before PREARM fires |
-| base_stake | $3 | Raise to $5 after WR >55% over 20 trades |
-| max_open_positions | 2 | Max $10 deployed at once |
-| max_daily_loss | $10 | Hard halt |
+| MIN_LAG_REMAINING | 0.55 | Raised 0.40→0.55: lag 0.40–0.55 costs -$133k (PF=0.59–0.68); lag≥0.60+delta≥0.10 = first break-even |
+| _DELTA_PCT_ACTIVE | 0.10% | Raised 0.075→0.10: delta 0.08–0.10 bucket WR=39.2% PF=0.41 -$48.5k (n=79) |
+| per_asset_min_delta SOL | 0.12% | Added: SOL delta 0.12–0.15 WR=64.9% PF=1.51 — only profitable SOL zone |
+| per_asset_min_delta BTC | 0.13% | Unchanged |
+| blocked_hours_utc | [7] | hr=07 WR=12.5% (n=8) approaching kill switch; hr=22 best hour (WR=73.3%, PF=7.10) |
+| base_stake | $10 | Current (reset) |
+| max_open_positions | 3 | Data collection phase |
+| max_daily_loss | $100 | No intraday halt (data collection) |
 
 ### Infrastructure
 - **Run locally** (MacBook) for now — Cloudflare WAF blocks standard VPS
