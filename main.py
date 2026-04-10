@@ -1560,6 +1560,8 @@ class KlausBot:
                         signal_to_fill_ms=_meta.get("signal_to_fill_ms", 0.0),
                         ob_depth_at_entry=_meta.get("ob_depth_at_entry", 0.0),
                         pre_entry_momentum_pct=_meta.get("pre_entry_momentum_pct", 0.0),
+                        max_price_seen=pos.highest_price,
+                        min_price_seen=pos.lowest_price,
                     )
                 except Exception as _s1e:
                     logger.error("record_trade STAGE1_FULL_EXIT failed: %s", _s1e)
@@ -1741,6 +1743,8 @@ class KlausBot:
                         signal_to_fill_ms=_ext_meta.get("signal_to_fill_ms", 0.0),
                         ob_depth_at_entry=_ext_meta.get("ob_depth_at_entry", 0.0),
                         pre_entry_momentum_pct=_ext_meta.get("pre_entry_momentum_pct", 0.0),
+                        max_price_seen=pos.highest_price,
+                        min_price_seen=pos.lowest_price,
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
