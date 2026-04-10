@@ -974,8 +974,8 @@ class RiskManager:
         #
         # Rule 0 : Price floor 0.20          → instant, always
         # Rule -1: Binance early exit         → 15 counts (no SL threshold needed)
-        # Rule 1 : -25% VELOCITY              → reversed=3, flat=8, confirmed=5 counts
-        # Rule 2 : -15% SL_15S               → reversed=7, flat=25, confirmed=15 counts
+        # Rule 1 : -25% VELOCITY              → reversed=6, flat=32, confirmed=10 counts (sole owner below -25%)
+        # Rule 2 : -15% SL_15S               → reversed=7, flat=25, confirmed=15 counts (only active -15% to -25%)
         #
         # Three Binance states during a drawdown:
         #   REVERSED  (|move| > 0.10% against us) — signal dead, tighten timers
@@ -1034,8 +1034,15 @@ class RiskManager:
             return ExitDecision(True, "BINANCE_REVERSAL_EARLY", urgency="immediate")
 
         # 1. -25% emergency brake: reversed=6, flat=32, confirmed=10 cycles
+        # Sole owner of exit logic when price is below -25%. SL_15S is suspended here.
         _below_25pct = current_price <= pos.entry_price * 0.75
         if _below_25pct:
+            # Suspend SL_15S while VELOCITY owns this depth — reset its timer so it
+            # starts fresh if price recovers back into the -15% to -25% band.
+            if pos.sl_breach_ts > 0.0:
+                pos.sl_breach_ts = 0.0
+                pos.sl_breach_price = 0.0
+                pos.sl_breach_llm_queried = False
             _velocity_threshold = 6 if _binance_reversed else (32 if _binance_flat else 10)
             if pos.velocity_breach_ts == 0.0:
                 pos.velocity_breach_ts = now
@@ -1059,8 +1066,9 @@ class RiskManager:
             pos.velocity_breach_ts = 0.0
 
         # 2. -15% hard ceiling: reversed=7, flat=25, confirmed=15 cycles
+        # Only active when price is between -15% and -25%. VELOCITY_EXIT owns below -25%.
         _below_15pct = current_price <= pos.entry_price * 0.85
-        if _below_15pct:
+        if _below_15pct and not _below_25pct:
             _sl_threshold = 7 if _binance_reversed else (25 if _binance_flat else 15)
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
