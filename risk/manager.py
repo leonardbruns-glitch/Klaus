@@ -108,6 +108,7 @@ class PositionMeta:
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
     signal_flip_ts: float = 0.0      # when SIGNAL_FLIPPED condition first became true (Phase 2 confirmation)
+    moon_bag_high: float = 0.0       # highest price seen since Stage-1 completed (for trailing stop)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -290,6 +291,7 @@ class RiskManager:
                     "entry_delta_pct": pos.entry_delta_pct,
                     "entry_lag_pct": pos.entry_lag_pct,
                     "entry_fair_value": pos.entry_fair_value,
+                    "moon_bag_high": pos.moon_bag_high,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -355,6 +357,7 @@ class RiskManager:
                 pos.entry_delta_pct = float(d.get("entry_delta_pct", 0.0))
                 pos.entry_lag_pct = float(d.get("entry_lag_pct", 0.0))
                 pos.entry_fair_value = float(d.get("entry_fair_value", 0.0))
+                pos.moon_bag_high = float(d.get("moon_bag_high", 0.0))
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
@@ -881,10 +884,20 @@ class RiskManager:
                 pos.profit_trigger_ts = 0.0
 
         # ── 4. Stage-2: Moon Bag ─────────────────────────────────────────────
-        # After Stage-1 (60% sold at +22%), the remaining 40% is the moon bag.
-        # Hold until near-resolution price OR 60s before window close.
-        # No floor sell, no trail stop, no VPIN fade — let it run.
+        # After Stage-1 (60% sold at +22%), the remaining 40% rides with a
+        # 15% trailing stop from the highest price seen since Stage-1.
+        # This protects against manufactured wicks while still riding real runs.
+        _MOON_BAG_TRAIL = 0.15
+
         if pos.exit_stage == ExitStage.STAGE_1_DONE:
+            # Track post-Stage-1 high
+            if current_price > pos.moon_bag_high:
+                pos.moon_bag_high = current_price
+
+            # Use entry_price as baseline if moon_bag_high not yet set
+            _trail_ref = pos.moon_bag_high if pos.moon_bag_high > 0 else current_price
+            _trail_floor = _trail_ref * (1 - _MOON_BAG_TRAIL)
+
             # Exit 1: token approaching resolution value (0.82+)
             if current_price >= 0.82:
                 logger.info(
@@ -893,7 +906,16 @@ class RiskManager:
                 )
                 return ExitDecision(True, "MOON_BAG_TP", urgency="cascade")
 
-            # Exit 2: 60s before window close — don't hold into resolution uncertainty
+            # Exit 2: 15% trailing stop from post-Stage-1 high
+            if current_price <= _trail_floor:
+                logger.info(
+                    "MOON_BAG_TRAIL %s/%s @ %.4f — %.1f%% below post-S1 high %.4f (floor %.4f)",
+                    pos.asset, pos.direction.name, current_price,
+                    (1 - current_price / _trail_ref) * 100, _trail_ref, _trail_floor,
+                )
+                return ExitDecision(True, "MOON_BAG_TRAIL", urgency="cascade")
+
+            # Exit 3: 60s before window close — don't hold into resolution uncertainty
             if pos.window_end_ts > 0 and remaining <= 60:
                 logger.info(
                     "MOON_BAG_WINDOW %s/%s @ %.4f — 60s before window close (%.0fs remaining)",
