@@ -1,408 +1,492 @@
 #!/usr/bin/env python3
 """
-Parameter Analysis — reads logs/trades.jsonl and produces a full breakdown
-of every tunable parameter vs win/loss outcome.
+Parameter Analysis — deep dive into what entry conditions actually predict outcomes.
+
+Outputs:
+  1. Individual parameter WR breakdowns (lag, delta, elapsed, QS, hour, asset, etc.)
+  2. 2D combo grids (lag×delta, lag×elapsed, delta×elapsed)
+  3. Sequential filter table — what happens to n and WR as we tighten each gate
+  4. Exit reason × after-exit price data (was the exit correct?)
+  5. Slippage impact on WR
 
 Usage:
-    python3 analytics/param_analysis.py
+    python3 analytics/param_analysis.py [--asset BTC|ETH|SOL] [--since YYYY-MM-DD]
 """
 
-import json
-import os
-import sys
+import json, os, sys, datetime
 from collections import defaultdict
+from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-TRADES_PATH = os.path.join(REPO_ROOT, "logs", "trades.jsonl")
+REPO_ROOT  = os.path.dirname(SCRIPT_DIR)
+TRADES_PATH    = os.path.join(REPO_ROOT, "logs", "trades.jsonl")
+POST_EXIT_PATH = os.path.join(REPO_ROOT, "logs", "post_exit.jsonl")
 
-# ---------------------------------------------------------------------------
-# Data loading & filtering
-# ---------------------------------------------------------------------------
+# ─── CLI flags ───────────────────────────────────────────────────────────────
+FILTER_ASSET = None
+FILTER_SINCE = None
+for i, arg in enumerate(sys.argv[1:]):
+    if arg == "--asset" and i+1 < len(sys.argv)-1:
+        FILTER_ASSET = sys.argv[i+2].upper()
+    if arg == "--since" and i+1 < len(sys.argv)-1:
+        try:
+            FILTER_SINCE = datetime.datetime.strptime(sys.argv[i+2], "%Y-%m-%d").timestamp()
+        except ValueError:
+            pass
 
-def load_trades(path: str) -> list[dict]:
-    trades = []
-    skipped_orphan = 0
-    skipped_blank = 0
-    with open(path) as fh:
-        for lineno, raw in enumerate(fh, 1):
-            raw = raw.strip()
-            if not raw:
-                skipped_blank += 1
+# ─── Data loading ─────────────────────────────────────────────────────────────
+
+def load_trades():
+    trades, skip = [], 0
+    with open(TRADES_PATH) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
                 continue
             try:
-                t = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                print(f"  [WARN] line {lineno}: JSON parse error — {exc}", file=sys.stderr)
+                t = json.loads(line)
+            except Exception:
                 continue
-            # Orphan filter: must have is_live set AND entry_price > 0
             if not t.get("is_live"):
-                skipped_orphan += 1
+                skip += 1; continue
+            if (t.get("entry_price") or 0) == 0:
+                skip += 1; continue
+            # normalise PnL field
+            t["_pnl"] = t.get("net_pnl") or t.get("pnl") or t.get("gross_pnl") or 0.0
+            # optional filters
+            if FILTER_ASSET and t.get("asset","").upper() != FILTER_ASSET:
                 continue
-            if (t.get("entry_price") or 0.0) == 0.0:
-                skipped_orphan += 1
+            if FILTER_SINCE and (t.get("ts_open") or 0) < FILTER_SINCE:
                 continue
             trades.append(t)
-    print(f"Loaded {len(trades)} valid live trades  "
-          f"(skipped orphans/non-live: {skipped_orphan}, blank lines: {skipped_blank})\n")
+    print(f"Loaded {len(trades)} live trades (skipped {skip} orphans/dry-runs)")
     return trades
 
-# ---------------------------------------------------------------------------
-# Stats helpers
-# ---------------------------------------------------------------------------
+def load_post_exit():
+    """Load post_exit.jsonl keyed by trade_id."""
+    post = {}
+    if not os.path.exists(POST_EXIT_PATH):
+        return post
+    with open(POST_EXIT_PATH) as f:
+        for line in f:
+            line = line.strip()
+            if not line: continue
+            try:
+                r = json.loads(line)
+            except Exception:
+                continue
+            tid = r.get("trade_id","")
+            if tid and r.get("record_type") != "resolution":
+                post[tid] = r
+    return post
 
-def compute_stats(bucket_trades: list[dict]) -> dict:
-    """Compute n, wins, WR%, avg_win, avg_loss, profit_factor, net_pnl."""
-    n = len(bucket_trades)
+# ─── Stats helpers ────────────────────────────────────────────────────────────
+
+def stats(ts):
+    n = len(ts)
     if n == 0:
-        return dict(n=0, wins=0, wr=None, avg_win=None,
-                    avg_loss=None, pf=None, net_pnl=0.0)
+        return dict(n=0, wr=None, avg_w=None, avg_l=None, pf=None, net=0)
+    wins   = [t["_pnl"] for t in ts if t["_pnl"] > 0]
+    losses = [t["_pnl"] for t in ts if t["_pnl"] <= 0]
+    nw = len(wins)
+    wr = nw / n * 100
+    avg_w = sum(wins)/len(wins) if wins else 0
+    avg_l = sum(losses)/len(losses) if losses else 0
+    gw = sum(wins); gl = abs(sum(losses))
+    pf = gw/gl if gl > 0 else float("inf")
+    return dict(n=n, wr=wr, avg_w=avg_w, avg_l=avg_l, pf=pf, net=sum(t["_pnl"] for t in ts))
 
-    wins = [t["pnl"] for t in bucket_trades if t["pnl"] > 0]
-    losses = [t["pnl"] for t in bucket_trades if t["pnl"] <= 0]
+def _g(d, *keys, default=None):
+    for k in keys:
+        if k in d and d[k] is not None:
+            return d[k]
+    return default
 
-    n_wins = len(wins)
-    wr = (n_wins / n) * 100.0
-    avg_win = sum(wins) / len(wins) if wins else 0.0
-    avg_loss = sum(losses) / len(losses) if losses else 0.0
-    gross_wins = sum(wins)
-    gross_losses = abs(sum(losses))
-    pf = (gross_wins / gross_losses) if gross_losses > 0 else float("inf")
-    net_pnl = sum(t["pnl"] for t in bucket_trades)
-
-    return dict(n=n, wins=n_wins, wr=wr, avg_win=avg_win,
-                avg_loss=avg_loss, pf=pf, net_pnl=net_pnl)
-
-def fmt_pct(v) -> str:
-    if v is None:
-        return "  —  "
-    return f"{v:5.1f}%"
-
-def fmt_money(v, zero_dash: bool = False) -> str:
-    if v is None:
-        return "   —   "
-    if zero_dash and v == 0.0:
-        return "   —   "
-    return f"${v:+.3f}"
-
-def fmt_pf(v) -> str:
-    if v is None:
-        return "  —  "
-    if v == float("inf"):
-        return "  ∞  "
-    return f"{v:5.2f}"
-
-# ---------------------------------------------------------------------------
-# Table printing
-# ---------------------------------------------------------------------------
-
-SEP = "=" * 78
-
-def print_section_header(title: str):
-    print(f"\n{SEP}")
-    print(f"  {title}")
-    print(SEP)
-
-def print_table(rows: list[tuple[str, dict]], col_width: int = 22):
-    """rows = list of (label, stats_dict)"""
-    header = (
-        f"{'Bucket':<{col_width}} {'n':>5}  {'WR%':>7}  "
-        f"{'avg_win':>8}  {'avg_loss':>9}  {'PF':>6}  {'net_pnl':>9}"
-    )
-    print(header)
-    print("-" * len(header))
-    for label, s in rows:
-        if s["n"] == 0:
-            continue
-        print(
-            f"{label:<{col_width}} {s['n']:>5}  {fmt_pct(s['wr']):>7}  "
-            f"{fmt_money(s['avg_win'], zero_dash=True):>8}  "
-            f"{fmt_money(s['avg_loss'], zero_dash=True):>9}  "
-            f"{fmt_pf(s['pf']):>6}  {fmt_money(s['net_pnl']):>9}"
-        )
-
-# ---------------------------------------------------------------------------
-# Bucketing helpers
-# ---------------------------------------------------------------------------
-
-def bucket_continuous(value: float, breakpoints: list[float], labels: list[str]) -> str:
-    """Map a float to a bucket label using a sorted list of upper bounds."""
-    for bp, label in zip(breakpoints, labels[:-1]):
-        if value < bp:
-            return label
+def bucket(v, breaks, labels):
+    """Map float v to a label using upper-bound breakpoints."""
+    for bp, lbl in zip(breaks, labels):
+        if v < bp:
+            return lbl
     return labels[-1]
 
-# ---------------------------------------------------------------------------
-# Individual parameter analyses
-# ---------------------------------------------------------------------------
+# ─── Display helpers ──────────────────────────────────────────────────────────
 
-def analyse_quality_score(trades: list[dict]) -> tuple[list[tuple], float]:
-    groups: dict[str, list] = defaultdict(list)
+W = 78
+SEP = "=" * W
+
+def hdr(title):
+    print(f"\n{SEP}\n  {title}\n{SEP}")
+
+def tbl(rows, col=22):
+    """rows = [(label, stats_dict)]"""
+    h = f"{'Bucket':<{col}} {'n':>5}  {'WR%':>6}  {'avg_W':>7}  {'avg_L':>8}  {'PF':>5}  {'net':>8}"
+    print(h); print("-"*len(h))
+    for lbl, s in rows:
+        if s["n"] == 0: continue
+        wr   = f"{s['wr']:5.1f}%" if s['wr'] is not None else "  —  "
+        aw   = f"${s['avg_w']:+.3f}" if s['avg_w'] else "   —   "
+        al   = f"${s['avg_l']:+.3f}" if s['avg_l'] else "   —   "
+        pf   = f"{s['pf']:5.2f}" if s['pf'] not in (None, float("inf")) else ("  ∞  " if s['pf'] else "  —  ")
+        net  = f"${s['net']:+.3f}"
+        print(f"{lbl:<{col}} {s['n']:>5}  {wr:>6}  {aw:>7}  {al:>8}  {pf:>5}  {net:>8}")
+
+def spread(rows):
+    wrs = [s["wr"] for _, s in rows if s["n"] >= 5 and s["wr"] is not None]
+    return max(wrs) - min(wrs) if len(wrs) >= 2 else 0.0
+
+# ─── Individual analyses ──────────────────────────────────────────────────────
+
+LAG_BREAKS  = [0.35, 0.45, 0.55, 0.65, 0.75, 0.85]
+LAG_LABELS  = ["<0.35","0.35–0.45","0.45–0.55","0.55–0.65","0.65–0.75","0.75–0.85","0.85+"]
+
+DELTA_BREAKS = [0.08, 0.10, 0.12, 0.15, 0.20]
+DELTA_LABELS = ["<0.08","0.08–0.10","0.10–0.12","0.12–0.15","0.15–0.20","0.20+"]
+
+ELAP_BREAKS  = [0.10, 0.20, 0.35, 0.50, 0.65]
+ELAP_LABELS  = ["<0.10","0.10–0.20","0.20–0.35","0.35–0.50","0.50–0.65","0.65+"]
+
+SLIP_BREAKS  = [0.005, 0.01, 0.02, 0.035, 0.05]
+SLIP_LABELS  = ["<0.5%","0.5–1%","1–2%","2–3.5%","3.5–5%","5%+"]
+
+def get_lag(t):   return _g(t,"sniper_lag_remaining","lag_remaining","lag")
+def get_delta(t): return abs(_g(t,"sniper_delta_pct","delta_pct",default=0) or 0)
+def get_elap(t):  return _g(t,"sniper_elapsed_pct","elapsed_pct")
+def get_slip(t):
+    # slip_e is fraction (not pct) in trades.jsonl
+    v = _g(t,"slippage_entry","slip_e")
+    return abs(v) if v is not None else None
+
+def grp_by(trades, keyfn):
+    g = defaultdict(list)
+    for t in trades:
+        k = keyfn(t)
+        if k is not None:
+            g[k].append(t)
+    return g
+
+def analyse_1d(trades, keyfn, breaks, labels):
+    g = defaultdict(list)
+    for t in trades:
+        v = keyfn(t)
+        if v is None: continue
+        g[bucket(float(v), breaks, labels)].append(t)
+    return [(lbl, stats(g[lbl])) for lbl in labels]
+
+def analyse_exit_reason(trades):
+    g = defaultdict(list)
+    for t in trades:
+        r = (t.get("exit_reason") or "?").replace("_EXT","")
+        g[r].append(t)
+    ordered = sorted(g.keys(), key=lambda k: -len(g[k]))
+    return [(r, stats(g[r])) for r in ordered[:15]]
+
+def analyse_qs(trades):
+    g = defaultdict(list)
     for t in trades:
         qs = t.get("quality_score")
-        if qs is None:
-            continue
-        groups[str(int(qs))].append(t)
-    rows = []
-    for val in ["0", "1", "2", "3", "4"]:
-        rows.append((f"qs={val}", compute_stats(groups[val])))
-    return rows, _wr_spread(rows)
+        if qs is None: continue
+        g[int(qs)].append(t)
+    return [(f"QS={q}", stats(g[q])) for q in sorted(g.keys())]
 
-
-def analyse_lag(trades: list[dict]) -> tuple[list[tuple], float]:
-    breakpoints = [0.40, 0.50, 0.60, 0.70, 0.80]
-    labels = ["<0.40", "0.40–0.50", "0.50–0.60", "0.60–0.70", "0.70–0.80", "0.80+"]
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        # field is sniper_lag_remaining in trades.jsonl
-        v = t.get("sniper_lag_remaining") or t.get("lag_remaining") or t.get("lag")
-        if v is None:
-            continue
-        groups[bucket_continuous(float(v), breakpoints, labels)].append(t)
-    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
-    return rows, _wr_spread(rows)
-
-
-def analyse_delta_pct(trades: list[dict]) -> tuple[list[tuple], float]:
-    breakpoints = [0.10, 0.12, 0.15, 0.18]
-    labels = ["<0.10", "0.10–0.12", "0.12–0.15", "0.15–0.18", "0.18+"]
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        # field is sniper_delta_pct in trades.jsonl
-        v = t.get("sniper_delta_pct") or t.get("delta_pct") or t.get("intrawindow_delta")
-        if v is None:
-            continue
-        groups[bucket_continuous(abs(float(v)), breakpoints, labels)].append(t)
-    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
-    return rows, _wr_spread(rows)
-
-
-def analyse_elapsed_pct(trades: list[dict]) -> tuple[list[tuple], float]:
-    breakpoints = [0.10, 0.25, 0.40, 0.55, 0.70]
-    labels = ["<0.10", "0.10–0.25", "0.25–0.40", "0.40–0.55", "0.55–0.70", "0.70+"]
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        # field is sniper_elapsed_pct in trades.jsonl
-        v = t.get("sniper_elapsed_pct") or t.get("elapsed_pct")
-        if v is None:
-            continue
-        groups[bucket_continuous(float(v), breakpoints, labels)].append(t)
-    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
-    return rows, _wr_spread(rows)
-
-
-def analyse_entry_price(trades: list[dict]) -> tuple[list[tuple], float]:
-    breakpoints = [0.50, 0.55, 0.60, 0.65, 0.70]
-    labels = ["<0.50", "0.50–0.55", "0.55–0.60", "0.60–0.65", "0.65–0.70", "0.70+"]
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        v = t.get("entry_price")
-        if v is None:
-            continue
-        groups[bucket_continuous(float(v), breakpoints, labels)].append(t)
-    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
-    return rows, _wr_spread(rows)
-
-
-def analyse_vpin(trades: list[dict]) -> tuple[list[tuple], float]:
-    breakpoints = [0.25, 0.35, 0.45, 0.55]
-    labels = ["<0.25", "0.25–0.35", "0.35–0.45", "0.45–0.55", "0.55+"]
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        # field is sniper_vpin in trades.jsonl
-        v = t.get("sniper_vpin") or t.get("vpin_score") or t.get("vpin")
-        if v is None:
-            continue
-        groups[bucket_continuous(float(v), breakpoints, labels)].append(t)
-    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
-    return rows, _wr_spread(rows)
-
-
-def analyse_hour_utc(trades: list[dict], min_n: int = 3) -> tuple[list[tuple], float]:
-    groups: dict[int, list] = defaultdict(list)
+def analyse_hour(trades):
+    g = defaultdict(list)
     for t in trades:
         h = t.get("hour_utc")
-        if h is None:
-            continue
-        groups[int(h)].append(t)
-    rows = []
-    for h in sorted(groups.keys()):
-        s = compute_stats(groups[h])
-        if s["n"] >= min_n:
-            rows.append((f"hour={h:02d}UTC", s))
-    return rows, _wr_spread(rows)
+        if h is None: continue
+        g[int(h)].append(t)
+    return [(f"hr={h:02d}UTC", stats(g[h])) for h in sorted(g.keys()) if stats(g[h])["n"] >= 3]
 
+def analyse_asset(trades):
+    g = grp_by(trades, lambda t: t.get("asset"))
+    return [(a, stats(g[a])) for a in sorted(g.keys())]
 
-def analyse_asset(trades: list[dict]) -> tuple[list[tuple], float]:
-    groups: dict[str, list] = defaultdict(list)
+def analyse_regime(trades):
+    g = grp_by(trades, lambda t: t.get("regime"))
+    return [(r, stats(g[r])) for r in sorted(g.keys())]
+
+def analyse_direction(trades):
+    g = grp_by(trades, lambda t: t.get("direction","").replace("TradeDirection.",""))
+    return [(d, stats(g[d])) for d in sorted(g.keys())]
+
+def analyse_window(trades):
+    g = defaultdict(list)
     for t in trades:
-        v = t.get("asset")
-        if v is None:
-            continue
-        groups[str(v)].append(t)
-    ordered = sorted(groups.keys())
-    rows = [(a, compute_stats(groups[a])) for a in ordered]
-    return rows, _wr_spread(rows)
+        ws = t.get("window_size_s") or 0
+        lbl = f"{ws//60}m" if ws else "?"
+        g[lbl].append(t)
+    return [(lbl, stats(g[lbl])) for lbl in ["5m","15m","?"] if g[lbl]]
 
+# ─── 2D Combo grid ───────────────────────────────────────────────────────────
 
-def analyse_regime(trades: list[dict]) -> tuple[list[tuple], float]:
-    groups: dict[str, list] = defaultdict(list)
+def combo_grid(trades, row_fn, row_breaks, row_labels,
+               col_fn, col_breaks, col_labels,
+               row_name="row", col_name="col"):
+    """Print a 2D WR/n grid. Cell = WR%(n)."""
+    grid = {r: {c: [] for c in col_labels} for r in row_labels}
     for t in trades:
-        v = t.get("regime")
-        if v is None:
+        rv = row_fn(t); cv = col_fn(t)
+        if rv is None or cv is None: continue
+        rb = bucket(float(rv), row_breaks, row_labels)
+        cb = bucket(float(cv), col_breaks, col_labels)
+        grid[rb][cb].append(t)
+
+    col_w = 13
+    row_w = 12
+    header = f"{'':>{row_w}}" + "".join(f"{c:^{col_w}}" for c in col_labels)
+    print(f"\n  {row_name} \\ {col_name}")
+    print(header)
+    print("-" * len(header))
+    for rl in row_labels:
+        row_cells = []
+        for cl in col_labels:
+            s = stats(grid[rl][cl])
+            if s["n"] == 0:
+                cell = "   —   "
+            elif s["n"] < 3:
+                cell = f"  ?({s['n']})"
+            else:
+                cell = f"{s['wr']:.0f}%({s['n']})"
+            row_cells.append(f"{cell:^{col_w}}")
+        print(f"{rl:>{row_w}}" + "".join(row_cells))
+
+# ─── Sequential filter table ─────────────────────────────────────────────────
+
+def sequential_filter_table(trades):
+    """
+    Show how WR and n change as we progressively tighten each gate.
+    Starts from the full set and applies each filter cumulatively.
+    """
+    hdr("SEQUENTIAL FILTER TABLE  (each row adds one more gate on top)")
+
+    rows = [
+        ("All live trades",                     lambda t: True),
+        ("lag ≥ 0.30",                          lambda t: (get_lag(t) or 0) >= 0.30),
+        ("lag ≥ 0.35",                          lambda t: (get_lag(t) or 0) >= 0.35),
+        ("lag ≥ 0.40",                          lambda t: (get_lag(t) or 0) >= 0.40),
+        ("lag ≥ 0.50",                          lambda t: (get_lag(t) or 0) >= 0.50),
+        ("lag ≥ 0.60",                          lambda t: (get_lag(t) or 0) >= 0.60),
+        ("lag ≥ 0.40 + delta ≥ 0.08%",         lambda t: (get_lag(t) or 0) >= 0.40 and get_delta(t) >= 0.08),
+        ("lag ≥ 0.40 + delta ≥ 0.10%",         lambda t: (get_lag(t) or 0) >= 0.40 and get_delta(t) >= 0.10),
+        ("lag ≥ 0.40 + delta ≥ 0.12%",         lambda t: (get_lag(t) or 0) >= 0.40 and get_delta(t) >= 0.12),
+        ("lag ≥ 0.40 + delta ≥ 0.15%",         lambda t: (get_lag(t) or 0) >= 0.40 and get_delta(t) >= 0.15),
+        ("lag ≥ 0.50 + delta ≥ 0.10%",         lambda t: (get_lag(t) or 0) >= 0.50 and get_delta(t) >= 0.10),
+        ("lag ≥ 0.50 + delta ≥ 0.12%",         lambda t: (get_lag(t) or 0) >= 0.50 and get_delta(t) >= 0.12),
+        ("lag ≥ 0.60 + delta ≥ 0.10%",         lambda t: (get_lag(t) or 0) >= 0.60 and get_delta(t) >= 0.10),
+        ("lag ≥ 0.60 + delta ≥ 0.12%",         lambda t: (get_lag(t) or 0) >= 0.60 and get_delta(t) >= 0.12),
+        ("lag ≥ 0.50 + delta ≥ 0.10% + QS≥2",  lambda t: (get_lag(t) or 0) >= 0.50 and get_delta(t) >= 0.10 and (t.get("quality_score") or 0) >= 2),
+        ("lag ≥ 0.50 + delta ≥ 0.10% + QS≥3",  lambda t: (get_lag(t) or 0) >= 0.50 and get_delta(t) >= 0.10 and (t.get("quality_score") or 0) >= 3),
+        ("lag ≥ 0.40 + elap 0.45–0.80",         lambda t: (get_lag(t) or 0) >= 0.40 and 0.45 <= (get_elap(t) or 0) <= 0.80),
+        ("lag ≥ 0.50 + elap 0.45–0.80",         lambda t: (get_lag(t) or 0) >= 0.50 and 0.45 <= (get_elap(t) or 0) <= 0.80),
+        ("lag ≥ 0.50 + elap 0.45–0.80 + δ≥0.10", lambda t: (get_lag(t) or 0) >= 0.50 and 0.45 <= (get_elap(t) or 0) <= 0.80 and get_delta(t) >= 0.10),
+        ("slip_e ≤ 3.5% only",                  lambda t: (get_slip(t) or 0) <= 0.035),
+        ("slip_e ≤ 2.0% only",                  lambda t: (get_slip(t) or 0) <= 0.020),
+    ]
+
+    h = f"{'Filter':<47} {'n':>5}  {'WR%':>6}  {'net':>8}  {'PF':>5}"
+    print(h); print("-"*len(h))
+    for label, fn in rows:
+        subset = [t for t in trades if fn(t)]
+        s = stats(subset)
+        if s["n"] == 0:
+            print(f"{label:<47} {'0':>5}  {'—':>6}  {'—':>8}  {'—':>5}")
             continue
-        groups[str(v)].append(t)
-    ordered = sorted(groups.keys())
-    rows = [(r, compute_stats(groups[r])) for r in ordered]
-    return rows, _wr_spread(rows)
+        wr = f"{s['wr']:5.1f}%"
+        net = f"${s['net']:+.3f}"
+        pf = f"{s['pf']:5.2f}" if s['pf'] != float("inf") else "  ∞  "
+        print(f"{label:<47} {s['n']:>5}  {wr:>6}  {net:>8}  {pf:>5}")
 
+# ─── Exit quality using post_exit data ───────────────────────────────────────
 
-def analyse_direction(trades: list[dict]) -> tuple[list[tuple], float]:
-    groups: dict[str, list] = defaultdict(list)
+def exit_quality_table(trades, post):
+    """For each exit reason, show avg price movement after exit (using post_exit.jsonl)."""
+    if not post:
+        print("  (no post_exit.jsonl found — skipping)")
+        return
+
+    g = defaultdict(list)
     for t in trades:
-        v = t.get("direction")
-        if v is None:
+        tid = t.get("trade_id","")
+        pe  = post.get(tid)
+        if not pe:
             continue
-        groups[str(v)].append(t)
-    ordered = sorted(groups.keys())
-    rows = [(d, compute_stats(groups[d])) for d in ordered]
-    return rows, _wr_spread(rows)
+        mfe = pe.get("move_from_exit_pct", {})
+        reason = (t.get("exit_reason") or "?").replace("_EXT","")
+        pnl = t["_pnl"]
+        g[reason].append({
+            "pnl": pnl,
+            "t30":  mfe.get("t30s"),
+            "t60":  mfe.get("t60s"),
+            "t120": mfe.get("t120s"),
+        })
 
+    # Sort by frequency
+    ordered = sorted(g.keys(), key=lambda k: -len(g[k]))
+    h = f"{'Exit Reason':<22} {'n':>5}  {'WR%':>6}  {'avg+30s':>8}  {'avg+60s':>8}  {'avg+120s':>9}  note"
+    print(h); print("-"*len(h))
 
-def analyse_binance_reversal(trades: list[dict]) -> tuple[list[tuple], float]:
-    """WR by binance_reversal_count_at_exit: was Binance reversed when we exited?"""
-    breakpoints = [1, 4, 8, 15]
-    labels = ["0 (aligned)", "1–3", "4–7", "8–14", "15+ (confirmed)"]
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        v = t.get("binance_reversal_count_at_exit")
-        if v is None:
+    for reason in ordered[:15]:
+        rows_r = g[reason]
+        nr = len(rows_r)
+        n_wins = sum(1 for r in rows_r if r["pnl"] > 0)
+        wr = n_wins/nr*100 if nr else 0
+
+        def _avg(key):
+            vals = [r[key] for r in rows_r if r[key] is not None]
+            return sum(vals)/len(vals) if vals else None
+
+        t30  = _avg("t30")
+        t60  = _avg("t60")
+        t120 = _avg("t120")
+
+        def _fmt(v):
+            return f"{v:+.1f}%" if v is not None else "   —   "
+
+        # Classify: if avg after-exit is significantly positive, exit was premature
+        note = ""
+        if t60 is not None and t60 > 5 and wr < 50:
+            note = " ← EARLY EXIT (price continued up after)"
+        elif t60 is not None and t60 < -5:
+            note = " ✓ exit was correct (price fell after)"
+
+        print(f"{reason:<22} {nr:>5}  {wr:>5.1f}%  {_fmt(t30):>8}  {_fmt(t60):>8}  {_fmt(t120):>9}  {note}")
+
+# ─── Per-asset breakdown ──────────────────────────────────────────────────────
+
+def per_asset_detail(trades):
+    assets = sorted(set(t.get("asset","?") for t in trades))
+    for asset in assets:
+        sub = [t for t in trades if t.get("asset") == asset]
+        if len(sub) < 5:
             continue
-        cnt = int(v)
-        if cnt == 0:
-            bucket = "0 (aligned)"
-        elif cnt < 4:
-            bucket = "1–3"
-        elif cnt < 8:
-            bucket = "4–7"
-        elif cnt < 15:
-            bucket = "8–14"
-        else:
-            bucket = "15+ (confirmed)"
-        groups[bucket].append(t)
-    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
-    return rows, _wr_spread(rows)
+        hdr(f"ASSET: {asset}  (n={len(sub)})")
+        print("  — by lag:"); tbl(analyse_1d(sub, get_lag, LAG_BREAKS, LAG_LABELS))
+        print("  — by delta:"); tbl(analyse_1d(sub, get_delta, DELTA_BREAKS, DELTA_LABELS))
+        print("  — by elapsed:"); tbl(analyse_1d(sub, get_elap, ELAP_BREAKS, ELAP_LABELS))
 
+# ─── Correlation summary ──────────────────────────────────────────────────────
 
-def analyse_exit_reason(trades: list[dict], top_n: int = 10) -> tuple[list[tuple], float]:
-    groups: dict[str, list] = defaultdict(list)
-    for t in trades:
-        v = t.get("exit_reason")
-        if v is None:
-            continue
-        groups[str(v)].append(t)
-    # Sort by frequency, take top_n
-    ordered = sorted(groups.keys(), key=lambda k: len(groups[k]), reverse=True)[:top_n]
-    rows = [(r, compute_stats(groups[r])) for r in ordered]
-    return rows, _wr_spread(rows)
+def corr_summary(sections):
+    hdr("SIGNAL STRENGTH RANKING  (WR spread across buckets with n≥5)")
+    h = f"{'Parameter':<45} {'WR spread':>10}"
+    print(h); print("-"*55)
+    for name, rows_data in sorted(sections, key=lambda x: -spread(x[1])):
+        sp = spread(rows_data)
+        flag = "  *** strong" if sp >= 30 else ("  ** moderate" if sp >= 15 else "")
+        print(f"{name:<45} {sp:>9.1f}%{flag}")
 
-
-# ---------------------------------------------------------------------------
-# Correlation summary helpers
-# ---------------------------------------------------------------------------
-
-def _wr_spread(rows: list[tuple]) -> float:
-    """WR spread = max(WR%) - min(WR%) across buckets with n>=3."""
-    wrs = [s["wr"] for _, s in rows if s["n"] >= 3 and s["wr"] is not None]
-    if len(wrs) < 2:
-        return 0.0
-    return max(wrs) - min(wrs)
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+# ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     if not os.path.exists(TRADES_PATH):
-        print(f"ERROR: trades file not found at {TRADES_PATH}", file=sys.stderr)
-        sys.exit(1)
+        print(f"ERROR: {TRADES_PATH} not found", file=sys.stderr); sys.exit(1)
 
-    trades = load_trades(TRADES_PATH)
-
+    trades = load_trades()
     if not trades:
-        print("No valid live trades found. Nothing to analyse.")
-        return
+        print("No live trades found."); return
 
-    # Normalise pnl field: prefer net_pnl, fall back to pnl, then gross_pnl
-    for t in trades:
-        if "pnl" not in t:
-            if "net_pnl" in t:
-                t["pnl"] = t["net_pnl"]
-            elif "gross_pnl" in t:
-                t["pnl"] = t["gross_pnl"]
-            else:
-                t["pnl"] = 0.0
+    post = load_post_exit()
 
-    n_total = len(trades)
-    n_wins = sum(1 for t in trades if t["pnl"] > 0)
-    net_total = sum(t["pnl"] for t in trades)
-    print(f"{'='*78}")
-    print(f"  PARAMETER ANALYSIS  —  {n_total} live trades | "
-          f"WR={n_wins/n_total*100:.1f}% | net_pnl=${net_total:+.3f}")
-    print(f"  NOTE: n<20 — data collection mode. All patterns below are tentative.")
-    print(f"{'='*78}")
+    n  = len(trades)
+    nw = sum(1 for t in trades if t["_pnl"] > 0)
+    net = sum(t["_pnl"] for t in trades)
 
-    correlation_summary: list[tuple[str, float]] = []
+    print(f"\n{'='*W}")
+    filters = []
+    if FILTER_ASSET: filters.append(f"asset={FILTER_ASSET}")
+    if FILTER_SINCE: filters.append(f"since={datetime.datetime.utcfromtimestamp(FILTER_SINCE).date()}")
+    suffix = f"  [{', '.join(filters)}]" if filters else ""
+    print(f"  PARAMETER ANALYSIS — {n} live trades | WR={nw/n*100:.1f}% | net=${net:+.3f}{suffix}")
+    print(f"  post_exit records loaded: {len(post)}")
+    print(f"{'='*W}")
 
-    def run(title: str, fn, *args):
-        rows, spread = fn(*args)
-        visible = [(lbl, s) for lbl, s in rows if s["n"] > 0]
-        print_section_header(title)
-        if not visible:
-            print("  (no data — field absent from all trades)")
-        else:
-            print_table(visible)
-        correlation_summary.append((title, spread))
+    if n < 20:
+        print(f"\n  *** n={n} < 20 — DATA COLLECTION MODE. Patterns below are tentative.")
+        print(f"  *** Do not act on any single-parameter finding below n=20.")
 
-    run("QUALITY SCORE (qs)", analyse_quality_score, trades)
-    run("LAG (lag_remaining fraction)", analyse_lag, trades)
-    run("DELTA PCT (|delta_pct| or |intrawindow_delta|)", analyse_delta_pct, trades)
-    run("ELAPSED PCT (window elapsed at entry)", analyse_elapsed_pct, trades)
-    run("ENTRY PRICE", analyse_entry_price, trades)
-    run("VPIN SCORE", analyse_vpin, trades)
-    run("HOUR UTC (only hours with n≥3)", analyse_hour_utc, trades)
-    run("ASSET", analyse_asset, trades)
-    run("REGIME", analyse_regime, trades)
-    run("DIRECTION", analyse_direction, trades)
-    run("EXIT REASON (top 10 by frequency)", analyse_exit_reason, trades)
-    run("BINANCE REVERSAL COUNT AT EXIT", analyse_binance_reversal, trades)
+    # ── Individual breakdowns ─────────────────────────────────────────────────
+    sections = []
 
-    # ------------------------------------------------------------------
-    # Correlation summary
-    # ------------------------------------------------------------------
-    print(f"\n{SEP}")
-    print("  CORRELATION SUMMARY  —  ranked by WR spread (best bucket – worst bucket)")
-    print(f"  (only buckets with n≥3 count toward spread; 0.0 = insufficient data)")
+    def section(title, rows_data):
+        hdr(title)
+        tbl(rows_data)
+        sections.append((title, rows_data))
+
+    section("LAG (lag_remaining fraction — 1.0 = 100% of move unpriced by PM)",
+            analyse_1d(trades, get_lag, LAG_BREAKS, LAG_LABELS))
+
+    section("DELTA PCT (|Binance move from window open|)",
+            analyse_1d(trades, get_delta, DELTA_BREAKS, DELTA_LABELS))
+
+    section("ELAPSED PCT (fraction of window elapsed at entry)",
+            analyse_1d(trades, get_elap, ELAP_BREAKS, ELAP_LABELS))
+
+    section("ENTRY SLIPPAGE (fill vs signal price, as fraction)",
+            analyse_1d(trades, get_slip, SLIP_BREAKS, SLIP_LABELS))
+
+    section("QUALITY SCORE", analyse_qs(trades))
+    section("ASSET", analyse_asset(trades))
+    section("DIRECTION", analyse_direction(trades))
+    section("WINDOW SIZE", analyse_window(trades))
+    section("REGIME", analyse_regime(trades))
+    section("HOUR UTC (n≥3)", analyse_hour(trades))
+    section("EXIT REASON", analyse_exit_reason(trades))
+
+    # ── 2D Combo grids ────────────────────────────────────────────────────────
+    hdr("2D COMBO GRID: LAG × DELTA  (cell = WR%(n), — = 0 trades, ? = n<3)")
+    combo_grid(trades, get_lag, LAG_BREAKS, LAG_LABELS,
+                       get_delta, DELTA_BREAKS, DELTA_LABELS,
+                       row_name="lag", col_name="|delta|%")
+
+    hdr("2D COMBO GRID: LAG × ELAPSED PCT")
+    combo_grid(trades, get_lag, LAG_BREAKS, LAG_LABELS,
+                       get_elap, ELAP_BREAKS, ELAP_LABELS,
+                       row_name="lag", col_name="elapsed")
+
+    hdr("2D COMBO GRID: DELTA × ELAPSED PCT")
+    combo_grid(trades, get_delta, DELTA_BREAKS, DELTA_LABELS,
+                       get_elap, ELAP_BREAKS, ELAP_LABELS,
+                       row_name="|delta|%", col_name="elapsed")
+
+    hdr("2D COMBO GRID: LAG × QUALITY SCORE")
+    qs_breaks = [1, 2, 3, 4]; qs_labels = ["QS=0","QS=1","QS=2","QS=3","QS≥4"]
+    combo_grid(trades, get_lag, LAG_BREAKS, LAG_LABELS,
+                       lambda t: t.get("quality_score"), qs_breaks, qs_labels,
+                       row_name="lag", col_name="QS")
+
+    # ── Sequential filter table ───────────────────────────────────────────────
+    sequential_filter_table(trades)
+
+    # ── Exit quality ──────────────────────────────────────────────────────────
+    hdr("EXIT QUALITY  (avg price move AFTER exit — positive = price rose = early exit)")
+    exit_quality_table(trades, post)
+
+    # ── Per-asset detail ──────────────────────────────────────────────────────
+    per_asset_detail(trades)
+
+    # ── Correlation ranking ───────────────────────────────────────────────────
+    corr_summary(sections)
+
+    # ── Key findings ──────────────────────────────────────────────────────────
+    hdr("KEY FINDINGS & INTERPRETATION")
+    print("""
+  WR spread ≥30pp → parameter has strong predictive signal (validate with n≥20)
+  WR spread 15–30pp → moderate signal, worth monitoring
+  WR spread <15pp  → no meaningful edge in this dimension at current n
+
+  2D GRIDS: cells with WR>60% AND n≥5 are the high-conviction entry zones.
+            cells with WR<35% AND n≥5 are zones to block.
+
+  SEQUENTIAL FILTER: shows which gate combinations preserve WR while cutting n.
+                     Best gate = highest WR increase per % of n lost.
+
+  EXIT QUALITY: positive after-exit means the exit was premature (price kept going).
+                If SIGNAL_FLIPPED/VELOCITY_EXIT show +10%+ after-exit avg → false positives.
+                If HARD_EXIT shows +5%+ after-exit → max_trade_duration too short.
+
+  SLIPPAGE: if WR drops sharply above 2-3% slip → entry_slip_cap is working correctly.
+            if WR is similar across slip bands → slippage is not a major driver.
+""")
     print(SEP)
-    correlation_summary.sort(key=lambda x: x[1], reverse=True)
-    print(f"{'Parameter':<45} {'WR spread':>10}")
-    print("-" * 57)
-    for name, spread in correlation_summary:
-        flag = "  *** strong signal" if spread >= 30 else ("  ** moderate" if spread >= 15 else "")
-        print(f"{name:<45} {spread:>9.1f}%{flag}")
-
-    print(f"\n{SEP}")
-    print("  INTERPRETATION GUIDE")
-    print(SEP)
-    print("  WR spread ≥30pp  — parameter shows strong predictive signal (validate with n≥20)")
-    print("  WR spread 15–30pp — moderate signal worth monitoring")
-    print("  WR spread <15pp  — no meaningful edge found in this dimension")
-    print(f"  Current n={n_total} — minimum n=20 required before acting on any finding.")
-    print(f"{SEP}\n")
 
 
 if __name__ == "__main__":
