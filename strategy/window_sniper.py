@@ -90,10 +90,6 @@ _DELTA_PCT_15M_ACTIVE_EARLY = 0.10
 _DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
-# Elapsed-based delta tiering (primary gate, applied before window-type logic)
-_DELTA_PCT_EARLY = 0.085  # elapsed < 10%: very fresh signal, take almost anything
-_DELTA_PCT_MID   = 0.13   # elapsed 10–25%: only massive moves survive extra slippage
-
 MIN_EDGE = 0.05
 MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
 MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
@@ -128,17 +124,13 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-ELAPSED_DEAD_ZONE_LOW  = 0.25  # opened 0.10→0.25: delta tiering now allows 0.10-0.25 with min_delta=0.13
-ELAPSED_DEAD_ZONE_HIGH = 0.40  # moot — WINDOW_ELAPSED_MAX caps at 0.25; kept for reference
-WINDOW_ELAPSED_MAX_5M  = 0.25  # hard block: no entries at elapsed ≥ 25% (only first two delta tiers allowed)
-WINDOW_ELAPSED_MAX_15M = 0.25  # same — elapsed ≥ 25% blocked for all window types
-                                # At 75%: only 225s → hard exit fires at window end. Too tight.
+WINDOW_ELAPSED_MAX_5M  = 0.80  # last 60s of 5m window blocked (60/300 = 20% → ceiling 0.80)
+WINDOW_ELAPSED_MAX_15M = 0.93  # last 60s of 15m window blocked (60/900 = 6.7% → ceiling 0.93)
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
 # We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
-PREARM_ELAPSED_MIN = 0.40       # raised 0.20→0.40: dead zone 0.10-0.40 blocks all earlier entries;
-                                # prearmed entries must also clear the dead zone (2026-04-09)
+PREARM_ELAPSED_MIN = 0.20       # restored 0.40→0.20: dead zone removed, original value reinstated
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
                                 # was 0.5: reducing sustain caused low-quality early entries
@@ -287,18 +279,13 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
     """
-    Minimum delta threshold — elapsed-based tiering is the primary gate.
+    Minimum delta threshold — window-type based, no elapsed gate.
+    All elapsed allowed; end-of-window protection handled by WINDOW_ELAPSED_MAX.
 
-    elapsed < 0.10 (first 10% of window): 0.085 — very fresh signal, take almost anything.
-    elapsed 0.10–0.25: 0.13 — only massive moves survive the extra slippage at this age.
-    elapsed ≥ 0.25: blocked upstream by WINDOW_ELAPSED_MAX — this branch never reached.
+    15m: early window (< 40% elapsed) requires 0.10 — move unconfirmed.
+         late window (≥ 40%) relaxes to 0.07 — direction confirmed by sustained move.
+    5m:  flat 0.10 — small moves don't sustain regardless of session.
     """
-    # Primary: elapsed-based tiering
-    if elapsed_pct < 0.10:
-        return _DELTA_PCT_EARLY
-    if elapsed_pct < 0.25:
-        return _DELTA_PCT_MID
-    # elapsed ≥ 0.25: window-type logic
     if is_15m:
         if elapsed_pct < _EARLY_ELAPSED_CUTOFF:
             return _DELTA_PCT_15M_ACTIVE_EARLY
@@ -458,13 +445,6 @@ class WindowSniper:
                          token.asset, token.side, elapsed_pct*100, elapsed_max*100,
                          "5m" if not is_15m else "15m")
             return None
-        # Dead zone: 0.10–0.40 elapsed blocked. param_analysis n=341: only <0.10 profitable.
-        # 15m windows allow >0.40 late entries. 5m max (0.35) already blocks >0.40.
-        if ELAPSED_DEAD_ZONE_LOW <= elapsed_pct < ELAPSED_DEAD_ZONE_HIGH:
-            logger.debug("SNIPER BLOCK %s/%s | elapsed_dead_zone=%.1f%% (0.10-0.40 blocked 2026-04-09)",
-                         token.asset, token.side, elapsed_pct * 100)
-            return None
-
         # ── Sustained delta gate ───────────────────────────────────────────────
         required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
         if is_prearmed:
