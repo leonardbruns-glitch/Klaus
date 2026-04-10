@@ -1277,7 +1277,35 @@ class KlausBot:
             self.risk._pending_assets.discard(asset)  # release lock on fill failure
             return
 
-        # Slippage guard: if fill is >10¢ below limit, the market moved hard against
+        # Slippage guard: two tiers.
+        # Tier 1 (entry_slip_cap): fill is >3.5% ABOVE the signal price — we paid more
+        # than expected, meaning PM moved up between signal and fill. Our fair-value
+        # model used the pre-fill price; the entry is now anchored to a worse basis.
+        # At 3.5% above signal price the fee-adjusted edge is materially degraded.
+        # (Different from Tier 2: Tier 1 = fill too expensive; Tier 2 = fill too cheap)
+        _slip_cap = self.risk.exec_cfg.entry_slip_cap  # 0.035 = 3.5%
+        _slip_above = (fill.avg_fill_price - signal.entry_price) / signal.entry_price if signal.entry_price > 0 else 0
+        if _slip_above > _slip_cap:
+            self._buy_failed_reasons["entry_slip_cap"] = \
+                self._buy_failed_reasons.get("entry_slip_cap", 0) + 1
+            logger.warning(
+                "ENTRY_SLIP_CAP %s: fill=%.4f vs signal=%.4f (+%.1f%% > cap %.1f%%) "
+                "— paid too much above signal price, not opening position",
+                asset, fill.avg_fill_price, signal.entry_price,
+                _slip_above * 100, _slip_cap * 100,
+            )
+            await self.orders.cascade_sell(
+                token_id=token_id,
+                shares=fill.total_size,
+                current_price=fill.avg_fill_price,
+                reason="ENTRY_SLIP_CAP",
+                neg_risk=getattr(self.feed.tokens.get(token_id), "neg_risk", False),
+                tick_size=getattr(self.feed.tokens.get(token_id), "tick_size", "0.01"),
+            )
+            self.risk._pending_assets.discard(asset)
+            return
+
+        # Tier 2: if fill is >10¢ below limit, the market moved hard against
         # us mid-order — signal is invalidated. Close immediately rather than enter
         # a position anchored to a stale thesis. (T00026: limit=0.495 fill=0.310)
         slippage_on_entry = signal.entry_price - fill.avg_fill_price

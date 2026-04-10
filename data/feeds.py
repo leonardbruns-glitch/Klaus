@@ -316,7 +316,8 @@ class PolymarketFeed:
         self._spot_prev_15m: Dict[str, float] = {}    # asset → last CLOSED 15m close
         self._spot_open_5m: Dict[str, float] = {}     # asset → current 5m candle open
         self._spot_open_15m: Dict[str, float] = {}    # asset → current 15m candle open
-        self._kline_ts: Dict[str, float] = {}         # asset → last kline update ts
+        self._kline_ts: Dict[str, float] = {}         # asset → last aggTrade/spot price update ts
+        self._kline_open_ts: Dict[str, float] = {}    # asset → last time kline OPEN was updated (separate from spot)
         # ── Connectivity telemetry (VPS justification data) ──────────────────
         # Each reconnect = a period where the bot had no live data.
         # Export via connectivity_stats() for session report.
@@ -840,6 +841,7 @@ class PolymarketFeed:
 
                                     elif interval == "5m":
                                         self._spot_open_5m[asset] = open_
+                                        self._kline_open_ts[asset] = now_ts
                                         if is_closed:
                                             self._spot_prev_5m[asset] = close
 
@@ -1587,6 +1589,7 @@ class PolymarketFeed:
         # Spot klines: use WebSocket cache (zero-latency) or fall back to REST.
         # _run_binance_kline_ws() keeps these dicts updated in real-time.
         _KLINE_STALE_S = 3.0  # fall back to REST if cache not updated in 3s
+        _KLINE_OPEN_STALE_S = 360.0  # 5m open stale if not updated in 6min (more than one bar)
         kline_fresh = (time.time() - self._kline_ts.get(asset.upper(), 0)) < _KLINE_STALE_S
 
         if kline_fresh:
@@ -1597,6 +1600,19 @@ class PolymarketFeed:
             c1_15m = self._spot_prev_15m.get(asset.upper())
             open_5m = self._spot_open_5m.get(asset.upper())
             open_15m = self._spot_open_15m.get(asset.upper())
+
+            # Staleness guard: if the 5m open hasn't been refreshed by a kline event
+            # in more than one full bar (6min), it's likely from a previous window.
+            # Repeated stale delta (e.g. SOL delta=-0.083% across hundreds of trades)
+            # indicates this path is serving a frozen open. Suppress the open to force
+            # delta re-computation against fresh data.
+            _open_age = time.time() - self._kline_open_ts.get(asset.upper(), 0)
+            if _open_age > _KLINE_OPEN_STALE_S and open_5m:
+                logger.warning(
+                    "KLINE_OPEN_STALE %s: 5m open=%.4f not updated in %.0fs — suppressing to force REST refresh",
+                    asset.upper(), open_5m, _open_age,
+                )
+                open_5m = None  # force slow-path on next call
 
             if c0:
                 signal.spot_price = c0

@@ -682,6 +682,7 @@ class RiskManager:
             shares=shares,
             remaining_shares=shares,
             highest_price=entry_price,
+            lowest_price=entry_price,
             condition_id=condition_id,
             window_end_ts=window_end_ts,
             window_seconds=window_seconds,
@@ -1070,33 +1071,24 @@ class RiskManager:
             _signal_flipped = _delta_flipped and _lag_inverted
 
         if _signal_flipped:
-            if _phase == 2:
-                # Phase 2: require signal_flip_delay (3.5s) continuous confirmation
-                if pos.signal_flip_ts == 0.0:
-                    pos.signal_flip_ts = now
-                    logger.info(
-                        "SIGNAL_FLIPPED pending %s/%s @ %.4f — waiting %.1fs confirmation "
-                        "(phase=2, %.1fs held)",
-                        pos.asset, pos.direction.name, current_price,
-                        self.exec_cfg.signal_flip_delay, time_held,
-                    )
-                elif now - pos.signal_flip_ts >= self.exec_cfg.signal_flip_delay:
-                    logger.warning(
-                        "SIGNAL_FLIPPED %s/%s @ %.4f — delta reversed (binance %+.3f%% vs entry_delta %.3f%%) "
-                        "AND lag inverted (price %.4f ≤ inversion %.4f) confirmed %.1fs (phase=2)",
-                        pos.asset, pos.direction.name, current_price,
-                        _b_move * 100, pos.entry_delta_pct * 100,
-                        current_price, _lag_inversion_price, now - pos.signal_flip_ts,
-                    )
-                    return ExitDecision(True, "SIGNAL_FLIPPED", urgency="immediate")
-            else:
-                # Phase 3: fire immediately — normal operations
+            # Both Phase 2 and Phase 3: require signal_flip_delay continuous confirmation.
+            # Data shows Phase 3 false positives too (trades at 130-180s recovering +30%+ after exit).
+            # The 5s delay filters manufactured wicks in both phases.
+            if pos.signal_flip_ts == 0.0:
+                pos.signal_flip_ts = now
+                logger.info(
+                    "SIGNAL_FLIPPED pending %s/%s @ %.4f — waiting %.1fs confirmation "
+                    "(phase=%d, %.1fs held)",
+                    pos.asset, pos.direction.name, current_price,
+                    self.exec_cfg.signal_flip_delay, _phase, time_held,
+                )
+            elif now - pos.signal_flip_ts >= self.exec_cfg.signal_flip_delay:
                 logger.warning(
                     "SIGNAL_FLIPPED %s/%s @ %.4f — delta reversed (binance %+.3f%% vs entry_delta %.3f%%) "
-                    "AND lag inverted (price %.4f ≤ inversion %.4f) (phase=3)",
+                    "AND lag inverted (price %.4f ≤ inversion %.4f) confirmed %.1fs (phase=%d)",
                     pos.asset, pos.direction.name, current_price,
                     _b_move * 100, pos.entry_delta_pct * 100,
-                    current_price, _lag_inversion_price,
+                    current_price, _lag_inversion_price, now - pos.signal_flip_ts, _phase,
                 )
                 return ExitDecision(True, "SIGNAL_FLIPPED", urgency="immediate")
         else:
