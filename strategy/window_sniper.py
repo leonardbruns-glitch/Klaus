@@ -124,24 +124,16 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-ELAPSED_DEAD_ZONE_LOW  = 0.10  # param_analysis n=341: 0.10-0.40 elapsed = catastrophic (-$139 in 0.10-0.25 alone)
-ELAPSED_DEAD_ZONE_HIGH = 0.40  # only allow: <0.10 (fresh) or >0.40 (late-window, 15m only)
-WINDOW_ELAPSED_MAX_5M  = 0.35  # tightened 0.40→0.35: lag_analysis shows PM reprices at 135-225s
-                                # at 35% elapsed (105s in), remaining=195s → window expiry guard
-                                # fires at 150s from entry, capturing the 150s repricing cluster
-                                # at 40% elapsed only 135s remaining — exits before reprice
-                                # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
-WINDOW_ELAPSED_MAX_15M = 0.70  # raised 0.60→0.70: user data shows repricing to 0.65+ happens
-                                # in last 5-7 min (53-67% elapsed) — was cutting off too early.
-                                # At 70% elapsed: 270s remaining. Hard exit fires entry+180s =
-                                # 90s before window close. Stage-1 has 3 min to play out. ✓
-                                # At 75%: only 225s → hard exit fires at window end. Too tight.
+ELAPSED_DEAD_ZONE_LOW  = 0.30  # hard ceiling: ≥0.30 elapsed blocked (2026-04-10, n=78: late entries 40% WR)
+ELAPSED_DEAD_ZONE_HIGH = 1.01  # extends to end of window — no late entries for any window size
+WINDOW_ELAPSED_MAX_5M  = 0.30  # lowered 0.35→0.30: unified ceiling, ideal entry ≤0.10
+WINDOW_ELAPSED_MAX_15M = 0.30  # lowered 0.70→0.30: removes late 15m zone entirely
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
 # We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
-PREARM_ELAPSED_MIN = 0.40       # raised 0.20→0.40: dead zone 0.10-0.40 blocks all earlier entries;
-                                # prearmed entries must also clear the dead zone (2026-04-09)
+PREARM_ELAPSED_MIN = 0.05       # lowered 0.40→0.05: dead zone now starts at 0.30, not 0.40;
+                                # prearmed entries can fire early in new window (≥5% elapsed)
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
                                 # was 0.5: reducing sustain caused low-quality early entries
@@ -454,10 +446,10 @@ class WindowSniper:
                          token.asset, token.side, elapsed_pct*100, elapsed_max*100,
                          "5m" if not is_15m else "15m")
             return None
-        # Dead zone: 0.10–0.40 elapsed blocked. param_analysis n=341: only <0.10 profitable.
-        # 15m windows allow >0.40 late entries. 5m max (0.35) already blocks >0.40.
+        # Hard ceiling at 0.30: n=78 live data shows late entries (0.40-0.70) at 40% WR
+        # vs early entries (<0.10) at 52%. Ideal entry ≤0.10, allowed to 0.30.
         if ELAPSED_DEAD_ZONE_LOW <= elapsed_pct < ELAPSED_DEAD_ZONE_HIGH:
-            logger.debug("SNIPER BLOCK %s/%s | elapsed_dead_zone=%.1f%% (0.10-0.40 blocked 2026-04-09)",
+            logger.debug("SNIPER BLOCK %s/%s | elapsed=%.1f%% ≥ 30%% ceiling (2026-04-10)",
                          token.asset, token.side, elapsed_pct * 100)
             return None
 
