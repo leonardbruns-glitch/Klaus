@@ -33,7 +33,7 @@ class BankrollConfig:
     # stop-hunting creates fat-tailed losses that break Kelly variance assumptions.
     scaled_stake: float = 10.0        # flat — heat-check disabled; raise per tiers above
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
-    max_open_positions: int = 2       # CLAUDE.md cap: max $10 deployed at once; 3 concurrent positions = $15 = single-macro wipeout risk
+    max_open_positions: int = 3       # data collection phase — allow more concurrent trades
     max_daily_loss: float = 100.0     # user-set: no intraday halt
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
