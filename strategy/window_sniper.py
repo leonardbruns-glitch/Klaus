@@ -93,7 +93,7 @@ _EARLY_ELAPSED_CUTOFF       = 0.40
 MIN_EDGE = 0.05
 MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
 MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
-WINDOW_ELAPSED_MAX = 0.82
+WINDOW_ELAPSED_MAX = 0.80
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
@@ -122,8 +122,8 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-WINDOW_ELAPSED_MAX_5M  = 0.80  # last 60s of 5m window blocked (60/300 = 20% → ceiling 0.80)
-WINDOW_ELAPSED_MAX_15M = 0.93  # last 60s of 15m window blocked (60/900 = 6.7% → ceiling 0.93)
+WINDOW_ELAPSED_MAX_5M  = 0.80  # allowed: 0–20% and 45–79%; blocked: 20–44% dead zone and 80%+
+WINDOW_ELAPSED_MAX_15M = 0.80  # same ceiling for both window sizes
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
@@ -439,11 +439,19 @@ class WindowSniper:
             return None
         elapsed_pct = elapsed / token.window_seconds
 
+        # Elapsed zones: allowed 0–20% (fresh signal) and 45–79% (confirmed direction).
+        # Dead zone 20–44%: move unconfirmed, high reversal risk.
+        # Late block 80%+: too little time for edge to materialise.
+        if 0.20 <= elapsed_pct < 0.45:
+            logger.debug(
+                "SNIPER BLOCK %s/%s | elapsed_dead_zone=%.1f%% (20%%–44%% blocked)",
+                token.asset, token.side, elapsed_pct * 100,
+            )
+            return None
         elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
-        if elapsed_pct > elapsed_max:
-            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
-                         token.asset, token.side, elapsed_pct*100, elapsed_max*100,
-                         "5m" if not is_15m else "15m")
+        if elapsed_pct >= elapsed_max:
+            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% >= %.0f%%",
+                         token.asset, token.side, elapsed_pct*100, elapsed_max*100)
             return None
         # ── Sustained delta gate ───────────────────────────────────────────────
         required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
