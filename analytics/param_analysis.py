@@ -10,7 +10,7 @@ Outputs:
   5. Slippage impact on WR
 
 Usage:
-    python3 analytics/param_analysis.py [--asset BTC|ETH|SOL] [--since YYYY-MM-DD]
+    python3 analytics/param_analysis.py [--asset BTC|ETH|SOL] [--since YYYY-MM-DD] [--last N]
 """
 
 import json, os, sys, datetime
@@ -25,12 +25,18 @@ POST_EXIT_PATH = os.path.join(REPO_ROOT, "logs", "post_exit.jsonl")
 # ─── CLI flags ───────────────────────────────────────────────────────────────
 FILTER_ASSET = None
 FILTER_SINCE = None
+FILTER_LAST  = None
 for i, arg in enumerate(sys.argv[1:]):
     if arg == "--asset" and i+1 < len(sys.argv)-1:
         FILTER_ASSET = sys.argv[i+2].upper()
     if arg == "--since" and i+1 < len(sys.argv)-1:
         try:
             FILTER_SINCE = datetime.datetime.strptime(sys.argv[i+2], "%Y-%m-%d").timestamp()
+        except ValueError:
+            pass
+    if arg == "--last" and i+1 < len(sys.argv)-1:
+        try:
+            FILTER_LAST = int(sys.argv[i+2])
         except ValueError:
             pass
 
@@ -59,6 +65,8 @@ def load_trades():
             if FILTER_SINCE and (t.get("ts_open") or 0) < FILTER_SINCE:
                 continue
             trades.append(t)
+    if FILTER_LAST and len(trades) > FILTER_LAST:
+        trades = trades[-FILTER_LAST:]
     print(f"Loaded {len(trades)} live trades (skipped {skip} orphans/dry-runs)")
     return trades
 
