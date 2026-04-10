@@ -978,15 +978,19 @@ class RiskManager:
         # Rule 2 : -15% SL_15S               → 7 counts if reversed, 15 counts if aligned
 
         # ── Binance reversal flag (computed once, used by all rules) ─────────────
+        # Threshold: 0.001 fraction = 0.10% = 10 basis points.
+        # Stricter than 15m entry delta (0.07%) to avoid false reversal exits.
+        # Matches 5m entry delta (_DELTA_PCT_ACTIVE = 0.10 in plain-% units).
+        _BINANCE_REVERSAL_THRESHOLD = 0.001   # 0.10% as fraction — do not lower below entry delta
         _binance_reversed = False
         if binance_spot > 0 and pos.binance_price_at_entry > 0:
             _b_move = (binance_spot - pos.binance_price_at_entry) / pos.binance_price_at_entry
-            # BUY_NO: entered on asset going DOWN — reversal = Binance now going UP (+0.10%)
-            # BUY_YES: entered on asset going UP  — reversal = Binance now going DOWN (-0.10%)
+            # BUY_NO: entered on asset going DOWN — reversal = Binance now going UP
+            # BUY_YES: entered on asset going UP  — reversal = Binance now going DOWN
             if pos.direction.name == "BUY_NO":
-                _binance_reversed = _b_move > 0.001
+                _binance_reversed = _b_move > _BINANCE_REVERSAL_THRESHOLD
             else:
-                _binance_reversed = _b_move < -0.001
+                _binance_reversed = _b_move < -_BINANCE_REVERSAL_THRESHOLD
             logger.debug(
                 "BINANCE CHK %s/%s spot=%.2f entry_spot=%.2f move=%+.3f%% reversed=%s cnt=%d",
                 pos.asset, pos.direction.name, binance_spot, pos.binance_price_at_entry,
