@@ -430,11 +430,11 @@ class WindowSniper:
         window_start = token.window_end_ts - token.window_seconds
         elapsed = now - window_start
 
-        # Minimum 30s from window open — new window tokens have stale pricing
+        # Minimum 10s from window open — new window tokens have stale pricing
         # from the previous window. Market needs time to establish fresh liquidity.
-        if elapsed < 30:
+        if elapsed < 10:
             logger.debug(
-                "SNIPER BLOCK %s/%s | window_too_fresh=%.0fs < 30s — stale pricing from prev window",
+                "SNIPER BLOCK %s/%s | window_too_fresh=%.0fs < 10s — stale pricing from prev window",
                 token.asset, token.side, elapsed,
             )
             return None
