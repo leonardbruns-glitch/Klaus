@@ -100,8 +100,8 @@ MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard ag
                         # Real quality filtering done by lag gate + edge gate + OB gates.
 MAX_TOKEN_ASK = 0.70   # raised 0.65→0.70: explicit override — NOTE: param_analysis n=341 showed 0.60-0.65 cost -$91; 0.65-0.70 band unvalidated
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
-MIN_LAG_REMAINING_5M = 0.35   # lowered 0.50→0.35: explicit override — NOTE: param_analysis n=341 showed lag≥0.70 profitable; 0.35 broadens entry pool against data evidence
-MIN_LAG_REMAINING_15M = 0.35  # lowered 0.50→0.35: same override, same caveat
+MIN_LAG_REMAINING_5M = 0.40   # data-validated floor: 1W/2L below 0.40; every clean win in dataset at lag≥0.40
+MIN_LAG_REMAINING_15M = 0.40  # same floor for 15m — fee math requires ≥0.40 to cover round-trip costs
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 
@@ -218,15 +218,38 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
     lag_remaining: 1.0 = PM barely repriced = max opportunity (BEST)
                    0.0 = PM fully repriced = no edge (WORST)
 
+    Tradeable lag window: 0.40–0.85
+      < 0.40: fee math argues against — at lag=0.35 expected repricing ~3.5%
+              barely covers 2.5-3% round-trip fees. 1W/2L in live data.
+      ≥ 0.85: ghost reversal territory — 0W/6L in live data. Binance move
+              peaked and reversed before PM repriced; we enter into the snap.
+              Exception: abs_delta ≥ 0.20 = genuine large spike, not noise.
+
     Returns (score: int, breakdown: dict, hard_reject: bool, reject_reason: str)
-      hard_reject=True when: lag < 0.15  OR  (lag >= 0.70 AND vpin < 0.40)
+      hard_reject=True when: lag < 0.40  OR  lag >= 0.85 (unless abs_delta >= 0.20)
+                        OR  (lag >= 0.70 AND vpin < 0.40)
     """
     hard_reject = False
     reject_reason = ""
 
-    # ── High-Lag VPIN Gate ────────────────────────────────────────────────
+    # ── Low-lag gate: fee math requires minimum lag ───────────────────────
+    # At lag < 0.40: expected repricing ≈ 3.5%, round-trip fees ≈ 2.5-3%.
+    # Net expected gain too thin. Live data: 1W/2L at lag 0.15-0.40.
+    if lag < 0.40:
+        hard_reject = True
+        reject_reason = f"lag_too_low(<0.40,lag={lag:.2f})"
+        return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
+
+    # ── High-lag cap: ghost reversal territory ────────────────────────────
+    # At lag ≥ 0.85: Binance move peaked and reversed before PM repriced.
+    # 0W/6L in live data. Exception: abs_delta ≥ 0.20 = genuine large spike.
+    if lag >= 0.85 and abs_delta < 0.20:
+        hard_reject = True
+        reject_reason = f"lag_too_high(>=0.85,lag={lag:.2f},delta={abs_delta:.3f}<0.20)"
+        return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
+
+    # ── High-Lag VPIN Gate (0.70-0.85 zone) ──────────────────────────────
     # High lag without informed flow = ghost reversal risk.
-    # Evidence: high-lag entries (lag 0.78-0.82) failing when vpin < 0.40.
     # Binance moved, but without smart-money confirmation the move snaps
     # back before PM reprices — we enter at peak lag into a reversal.
     if lag >= 0.70 and vpin < 0.40:
@@ -234,19 +257,11 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
         reject_reason = f"high_lag_no_vpin(lag={lag:.2f},vpin={vpin:.2f}<0.40)"
         return 0, {"lag": 2, "mom": 0, "regime": 0, "vpin": "GATE"}, hard_reject, reject_reason
 
-    # ── Lag scoring (lag = distance-to-target, not a clock) ──────────────
-    # No upper ceiling — high lag is the goal, not a risk.
-    # pm_drift_at_entry and abs(mom) guard against reversed/stale moves.
-    if lag < 0.15:
-        hard_reject = True
-        reject_reason = "lag_too_low(<0.15)"
-        pts_lag = 0          # score irrelevant — hard reject fires
-    elif lag >= 0.70:
+    # ── Lag scoring (tradeable window: 0.40–0.85) ─────────────────────────
+    if lag >= 0.70:
         pts_lag = 2          # maximum edge: PM barely repriced (vpin confirmed above)
-    elif lag >= 0.40:
-        pts_lag = 1          # confirmation zone
     else:
-        pts_lag = 0          # 0.15-0.40: thin edge — let mom/regime decide
+        pts_lag = 1          # confirmation zone: 0.40–0.70
 
     # ── Momentum scoring (abs value — correct for both YES and NO) ────────
     if abs_delta >= 0.15:
@@ -555,18 +570,10 @@ class WindowSniper:
         pm_drift = (token_ask - ask_at_trigger) if ask_at_trigger > 0 else 0.0
         expected_move = fair_value - 0.50
         lag_remaining_pct = min(1.0, max(0.0, (fair_value - token_ask) / expected_move)) if expected_move > 0.01 else 0.0
-        # Gate: require sufficient lag remaining — adaptive to move magnitude.
-        # Override: if absolute edge is very large (≥0.10), the lag% floor is relaxed
-        # to 15% regardless. Rationale: FV=0.979, ask=0.840 → lag=29%, edge=+0.139.
-        # The lag% penalises extreme FV (large denominator) even when uncaptured
-        # repricing in dollar terms is huge. Edge ≥ 0.10 is strong evidence either way.
+        # Gate: require sufficient lag remaining.
+        # Floor is 0.40 for all windows — no pre-arm or edge relaxation.
+        # Data evidence: 1W/2L below 0.40; fee math confirms margin too thin below floor.
         min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING_15M
-        if is_prearmed:
-            min_lag = min_lag * 0.80  # pre-arm: slightly relaxed (prior window confirms direction)
-        # Edge override: only for 5m — at 15m, high edge doesn't rescue negative EV.
-        # Scanner: [15m] edge≥0.10 WR still 0% at lag≥0.25. No override for 15m.
-        if not is_15m and edge >= 0.10:
-            min_lag = min(min_lag, 0.20)   # 5m: large edge relaxes lag floor to 0.20
         if lag_remaining_pct < min_lag:
             logger.info(
                 "SNIPER BLOCK %s/%s | lag=%.0f%% < %.0f%% min (fv=%.3f ask=%.3f delta=%+.3f%%) — PM mostly repriced",
@@ -824,7 +831,7 @@ class WindowSniper:
 
         # ── Quality Score Gate ────────────────────────────────────────────────
         # Additive score from lag / momentum / regime / vpin.
-        # Hard reject: lag < 0.15 OR (lag >= 0.70 AND vpin < 0.40).
+        # Hard reject: lag < 0.40 OR lag >= 0.85 (unless abs_delta >= 0.20) OR (lag >= 0.70 AND vpin < 0.40).
         # Soft reject: score ≤ -1 (negative expected value composite).
         # Scores also drive stake sizing in risk/manager.py.
         _quality_score, _qbd, _hard_reject, _reject_reason = _compute_quality_score(
