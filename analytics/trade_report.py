@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Trade report — run: python3 analytics/trade_report.py"""
+"""Trade report — run from anywhere: python3 /root/Klaus/analytics/trade_report.py"""
 import json, datetime, os, sys
 
-TRADES_PATH = "logs/trades.jsonl"
-POST_PATH   = "logs/post_exit.jsonl"
+# Paths relative to project root, resolved from this file's location
+_ROOT       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TRADES_PATH = os.path.join(_ROOT, "logs", "trades.jsonl")
+POST_PATH   = os.path.join(_ROOT, "logs", "post_exit.jsonl")
 
 with open(TRADES_PATH) as f:
     trades = [json.loads(l) for l in f if l.strip()]
