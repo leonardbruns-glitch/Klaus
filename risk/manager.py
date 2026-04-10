@@ -822,9 +822,9 @@ class RiskManager:
         remaining = pos.window_end_ts - now if pos.window_end_ts > 0 else 999
 
         # ── Phase detection (3-phase exit architecture) ──────────────────────
-        # Phase 1 (0–25s):    Immunity Zone  — soft exits disabled, catastrophic stop only
-        # Phase 2 (26–120s):  Confirmation   — SIGNAL_FLIPPED requires 3.5s continuous confirmation
-        # Phase 3 (121–180s): Alpha Decay    — normal ops, hard close at max_trade_duration
+        # Phase 1 (0–30s):    Immunity Zone  — soft exits disabled, catastrophic stop only
+        # Phase 2 (31–120s):  Confirmation   — SIGNAL_FLIPPED requires 5s continuous confirmation
+        # Phase 3 (121–210s): Alpha Decay    — normal ops, hard close at max_trade_duration
         _phase = 1 if time_held < self.exec_cfg.min_hold_seconds else (
             2 if time_held < 120.0 else 3
         )
