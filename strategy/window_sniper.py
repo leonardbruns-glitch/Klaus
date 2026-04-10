@@ -429,12 +429,17 @@ class WindowSniper:
         window_start = token.window_end_ts - token.window_seconds
         elapsed = now - window_start
 
-        # Minimum 10s from window open — new window tokens have stale pricing
-        # from the previous window. Market needs time to establish fresh liquidity.
-        if elapsed < 10:
+        # Minimum elapsed floors:
+        # 5m windows: 10s absolute (stale pricing from previous window)
+        # 15m windows: 90s absolute — first 90s are high-noise; signal hasn't stabilised.
+        #   Observed elap=0.01-0.08 (9-72s) entries on 15m windows → all losses 2026-04-10.
+        #   At 90s (10%) the lag signal has had time to confirm vs. a snap-back reversal.
+        _min_elapsed_s = 90 if is_15m else 10
+        if elapsed < _min_elapsed_s:
             logger.debug(
-                "SNIPER BLOCK %s/%s | window_too_fresh=%.0fs < 10s — stale pricing from prev window",
-                token.asset, token.side, elapsed,
+                "SNIPER BLOCK %s/%s | window_too_fresh=%.0fs < %ds (%s floor)",
+                token.asset, token.side, elapsed, _min_elapsed_s,
+                "15m" if is_15m else "5m",
             )
             return None
         elapsed_pct = elapsed / token.window_seconds
