@@ -863,44 +863,63 @@ class RiskManager:
         if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
             return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
 
-        # ── 3. Stage-1 profit: time-aware target ────────────────────────────────
-        # Windowed markets: target scales with time remaining.
-        #   >120s remaining: hold for +30% (enough time; better R/R — breakeven WR ~40%)
-        #   60-120s remaining: standard +25%
-        #   <60s remaining: take +18% (window closing; don't die waiting for a higher target)
-        # Fee math: round-trip fees ~3.6% → breakeven WR at 25%/20% = ~50%;
-        #           at 30%/20% = ~40%. Raising TP to 30% when time allows crosses break-even.
+        # ── 3. Stage-1 profit: 60% of fair-value gap ────────────────────────────
+        # Thesis: we entered because PM hasn't priced in the Binance move.
+        # TP1 = entry + 60% of (FV - entry) — take partial profits at 60% of gap closed.
+        # Fallback to time-based if entry_fair_value not stored (old positions).
         if pos.exit_stage == ExitStage.NONE:
-            if pos.window_end_ts > 0:
+            _fv = getattr(pos, "entry_fair_value", 0.0)
+            if _fv > pos.entry_price > 0:
+                _edge_pct = (_fv - pos.entry_price) / pos.entry_price
+                profit1_pct = max(0.12, min(0.25, _edge_pct * 0.60))
+            elif pos.window_end_ts > 0:
                 if remaining > 120:
-                    profit1_pct = 0.30   # >2min left: hold for +30% (breakeven WR ~40% vs ~57% at +20%)
+                    profit1_pct = 0.20
                 elif remaining > 60:
-                    profit1_pct = 0.25   # 1-2min left: standard +25%
+                    profit1_pct = 0.15
                 else:
-                    profit1_pct = 0.15   # take what's available near window expiry
+                    profit1_pct = 0.12
             else:
-                profit1_pct = 0.20       # price-target markets
+                profit1_pct = 0.20
 
             if move_pct >= profit1_pct:
                 if pos.window_end_ts > 0:
-                    # Windowed markets: no confirmation timer — price decays near expiry.
                     return ExitDecision(True, "PROFIT_1", partial=True, urgency="cascade")
-                # Price-target markets: 2.5s confirmation to filter wicks
                 if pos.profit_trigger_ts == 0.0:
                     pos.profit_trigger_ts = now
-                    return None  # Start confirmation timer
+                    return None
                 if now - pos.profit_trigger_ts >= 2.5:
                     return ExitDecision(True, "PROFIT_1", partial=True, urgency="cascade")
-                return None  # Still confirming
+                return None
             else:
-                pos.profit_trigger_ts = 0.0  # Reset if price dropped
+                pos.profit_trigger_ts = 0.0
 
-        # ── 4. Stage-2: +35% target on remaining 40% ─────────────────────────
+        # ── 4. Stage-2: lag-adjusted fair-value target ───────────────────────
+        # TP2 = entry + fraction × (FV - entry)
+        # fraction depends on lag at entry:
+        #   lag ≥ 0.70 → 85%  (high lag = uncertain timing, exit slightly early)
+        #   lag 0.40–0.70 → 90%  (direction confirmed by partial repricing)
+        #   lag < 0.40 → 95%  (almost at FV, squeeze remaining gap)
+        # Fallback to 90% if no lag stored. Cap at 45%, floor at 20%.
         if pos.exit_stage == ExitStage.STAGE_1_DONE:
-            if move_pct >= 0.35:
+            _fv = getattr(pos, "entry_fair_value", 0.0)
+            if _fv > pos.entry_price > 0:
+                _edge_pct = (_fv - pos.entry_price) / pos.entry_price
+                _lag = getattr(pos, "entry_lag_pct", 0.0)
+                if _lag >= 0.70:
+                    _tp2_frac = 0.85
+                elif _lag >= 0.40:
+                    _tp2_frac = 0.90
+                else:
+                    _tp2_frac = 0.95
+                profit2_pct = max(0.20, min(0.45, _edge_pct * _tp2_frac))
+            else:
+                profit2_pct = 0.35  # fallback for old positions
+
+            if move_pct >= profit2_pct:
                 return ExitDecision(True, "PROFIT_2", urgency="cascade")
 
-            # Floor: cost+15% — raise from 12% to ensure Stage 2 never erodes Stage 1 gains
+            # Floor: +15% hard floor — never give back stage-1 gains
             if move_pct <= 0.15:
                 return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
 
