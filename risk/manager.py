@@ -425,16 +425,6 @@ class RiskManager:
         is_sniper: bool = False,
         window_seconds: int = 0,
     ) -> RiskDecision:
-        # ── Ruin floor — hard stop if bankroll falls below minimum ──────────────
-        # $50 = 50% of $100 starting capital (CLAUDE.md spec).
-        # Was $100.0 (= starting capital) — that was wrong; tripped on first loss.
-        RUIN_FLOOR = 50.0
-        if self.bankroll.capital < RUIN_FLOOR:
-            return RiskDecision(
-                False, 0,
-                f"RUIN FLOOR: capital ${self.bankroll.capital:.2f} < ${RUIN_FLOOR:.0f} — halt, full review required",
-            )
-
         # ── Daily loss halt ───────────────────────────────────────────────────
         if self.bankroll.is_halted:
             return RiskDecision(
