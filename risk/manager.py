@@ -974,15 +974,23 @@ class RiskManager:
         #
         # Rule 0 : Price floor 0.20          → instant, always
         # Rule -1: Binance early exit         → 15 counts (no SL threshold needed)
-        # Rule 1 : -25% VELOCITY              → 3 counts if reversed, 5 counts if aligned
-        # Rule 2 : -15% SL_15S               → 7 counts if reversed, 15 counts if aligned
+        # Rule 1 : -25% VELOCITY              → reversed=3, flat=8, confirmed=5 counts
+        # Rule 2 : -15% SL_15S               → reversed=7, flat=25, confirmed=15 counts
+        #
+        # Three Binance states during a drawdown:
+        #   REVERSED  (|move| > 0.10% against us) — signal dead, tighten timers
+        #   FLAT      (|move| < 0.03% either way) — PM-specific move (stop-hunt?), extend timers
+        #   CONFIRMED (|move| > 0.10% with us)    — real Binance-driven move, normal timers
+        # Only valid when binance_price_at_entry > 0; otherwise treat as CONFIRMED (unknown).
 
-        # ── Binance reversal flag (computed once, used by all rules) ─────────────
+        # ── Binance state flags (computed once, used by all rules) ───────────────
         # Threshold: 0.001 fraction = 0.10% = 10 basis points.
         # Stricter than 15m entry delta (0.07%) to avoid false reversal exits.
         # Matches 5m entry delta (_DELTA_PCT_ACTIVE = 0.10 in plain-% units).
         _BINANCE_REVERSAL_THRESHOLD = 0.001   # 0.10% as fraction — do not lower below entry delta
+        _BINANCE_FLAT_THRESHOLD = 0.0003      # 0.03% as fraction — below this = Binance flat (PM-specific move)
         _binance_reversed = False
+        _binance_flat = False
         if binance_spot > 0 and pos.binance_price_at_entry > 0:
             _b_move = (binance_spot - pos.binance_price_at_entry) / pos.binance_price_at_entry
             # BUY_NO: entered on asset going DOWN — reversal = Binance now going UP
@@ -991,10 +999,14 @@ class RiskManager:
                 _binance_reversed = _b_move > _BINANCE_REVERSAL_THRESHOLD
             else:
                 _binance_reversed = _b_move < -_BINANCE_REVERSAL_THRESHOLD
+            # Flat: Binance barely moved while PM dropped — no Binance backing for the move.
+            # Likely a PM-specific liquidity event (stop-hunting wick). Extend timer.
+            # Only meaningful when we have a valid entry spot price.
+            _binance_flat = not _binance_reversed and abs(_b_move) < _BINANCE_FLAT_THRESHOLD
             logger.debug(
-                "BINANCE CHK %s/%s spot=%.2f entry_spot=%.2f move=%+.3f%% reversed=%s cnt=%d",
+                "BINANCE CHK %s/%s spot=%.2f entry_spot=%.2f move=%+.3f%% reversed=%s flat=%s cnt=%d",
                 pos.asset, pos.direction.name, binance_spot, pos.binance_price_at_entry,
-                _b_move * 100, _binance_reversed, pos.binance_reversal_count,
+                _b_move * 100, _binance_reversed, _binance_flat, pos.binance_reversal_count,
             )
 
         # Update reversal counter
@@ -1021,23 +1033,23 @@ class RiskManager:
             )
             return ExitDecision(True, "BINANCE_REVERSAL_EARLY", urgency="immediate")
 
-        # 1. -25% emergency brake: 5 cycles normally, 3 cycles if Binance confirmed reversed
+        # 1. -25% emergency brake: reversed=3, flat=8, confirmed=5 cycles
         _below_25pct = current_price <= pos.entry_price * 0.75
         if _below_25pct:
-            _velocity_threshold = 3 if _binance_reversed else 5
+            _velocity_threshold = 3 if _binance_reversed else (8 if _binance_flat else 5)
             if pos.velocity_breach_ts == 0.0:
                 pos.velocity_breach_ts = now
                 logger.info(
-                    "VELOCITY BREACH %s/%s @ %.4f (entry=%.4f -25%%) — threshold=%d cycles reversed=%s",
+                    "VELOCITY BREACH %s/%s @ %.4f (entry=%.4f -25%%) — threshold=%d cycles reversed=%s flat=%s",
                     pos.asset, pos.direction.name, current_price, pos.entry_price,
-                    _velocity_threshold, _binance_reversed,
+                    _velocity_threshold, _binance_reversed, _binance_flat,
                 )
             _t_below = now - pos.velocity_breach_ts
             if _t_below >= _velocity_threshold:
                 logger.warning(
-                    "VELOCITY_EXIT %s/%s @ %.4f — %.1fs elapsed threshold=%d reversed=%s",
+                    "VELOCITY_EXIT %s/%s @ %.4f — %.1fs elapsed threshold=%d reversed=%s flat=%s",
                     pos.asset, pos.direction.name, current_price,
-                    _t_below, _velocity_threshold, _binance_reversed,
+                    _t_below, _velocity_threshold, _binance_reversed, _binance_flat,
                 )
                 return ExitDecision(True, "VELOCITY_EXIT", urgency="immediate")
         else:
@@ -1046,32 +1058,32 @@ class RiskManager:
                              pos.asset, pos.direction.name)
             pos.velocity_breach_ts = 0.0
 
-        # 2. -15% hard ceiling: 15 cycles normally, 7 cycles if Binance confirmed reversed
+        # 2. -15% hard ceiling: reversed=7, flat=25, confirmed=15 cycles
         _below_15pct = current_price <= pos.entry_price * 0.85
         if _below_15pct:
-            _sl_threshold = 7 if _binance_reversed else 15
+            _sl_threshold = 7 if _binance_reversed else (25 if _binance_flat else 15)
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
                 pos.sl_breach_price = current_price
                 logger.info(
-                    "SL_15S BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — threshold=%d cycles reversed=%s",
+                    "SL_15S BREACH %s/%s @ %.4f (entry=%.4f -%.0f%%) — threshold=%d cycles reversed=%s flat=%s",
                     pos.asset, pos.direction.name, current_price, pos.entry_price,
                     (1 - current_price / pos.entry_price) * 100,
-                    _sl_threshold, _binance_reversed,
+                    _sl_threshold, _binance_reversed, _binance_flat,
                 )
             _t_below = now - pos.sl_breach_ts
             if _t_below >= _sl_threshold:
                 logger.warning(
-                    "SL_15S %s/%s @ %.4f (entry=%.4f -%.0f%%) t=%.1fs threshold=%d reversed=%s",
+                    "SL_15S %s/%s @ %.4f (entry=%.4f -%.0f%%) t=%.1fs threshold=%d reversed=%s flat=%s",
                     pos.asset, pos.direction.name, current_price, pos.entry_price,
                     (1 - current_price / pos.entry_price) * 100,
-                    _t_below, _sl_threshold, _binance_reversed,
+                    _t_below, _sl_threshold, _binance_reversed, _binance_flat,
                 )
                 return ExitDecision(True, "SL_15S", urgency="immediate")
             else:
-                logger.debug("SL_15S guard %s/%s @ %.4f t=%.1fs/%d reversed=%s",
+                logger.debug("SL_15S guard %s/%s @ %.4f t=%.1fs/%d reversed=%s flat=%s",
                              pos.asset, pos.direction.name, current_price,
-                             _t_below, _sl_threshold, _binance_reversed)
+                             _t_below, _sl_threshold, _binance_reversed, _binance_flat)
         else:
             if pos.sl_breach_ts > 0.0:
                 logger.debug("SL_15S reset %s/%s — recovered above -15%%",
