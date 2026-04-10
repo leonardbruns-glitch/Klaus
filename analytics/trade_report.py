@@ -21,7 +21,7 @@ if os.path.exists(POST_PATH):
 def g(t, k, d=None):
     return t.get(k, d)
 
-def pf(v, fmt="+.3f", unit="", dash="--"):
+def pf(v, fmt="+.3f", unit="", dash="\u2014"):
     if v in (None, "", 0.0):
         return dash
     try:
@@ -29,7 +29,7 @@ def pf(v, fmt="+.3f", unit="", dash="--"):
     except Exception:
         return str(v)
 
-def ps(v, dash="--"):
+def ps(v, dash="\u2014"):
     return f"{v:.0f}s" if v not in (None, 0.0) else dash
 
 def pb(v):
@@ -37,7 +37,7 @@ def pb(v):
         return "?"
     return "Y" if v else "N"
 
-def pd(v, dash="--"):
+def pd(v, dash="\u2014"):
     return f"{v:+.1f}%" if v is not None else dash
 
 GREEN  = "\033[32m"
@@ -51,7 +51,7 @@ for t in trades:
     wl   = f"{ws//60}m" if ws else "?m"
     hc   = "*" if g(t, "heat_check_active") else ""
     ts   = g(t, "ts_open", 0)
-    dt   = datetime.datetime.utcfromtimestamp(ts).strftime("%m-%d %H:%M") if ts else "------"
+    dt   = datetime.datetime.utcfromtimestamp(ts).strftime("%m-%d %H:%M") if ts else "\u2014\u2014\u2014\u2014\u2014\u2014"
     adv  = g(t, "max_adverse_pct")
     fav  = g(t, "max_favourable_pct")
     t_fav = g(t, "t_fav_s")
@@ -76,9 +76,9 @@ for t in trades:
     lag  = g(t, "sniper_lag_remaining")
     delt = g(t, "sniper_delta_pct")
     elap = g(t, "sniper_elapsed_pct")
-    qs   = g(t, "quality_score", "--")
+    qs   = g(t, "quality_score", "\u2014")
     vpin = g(t, "sniper_vpin")
-    reg  = g(t, "regime", "--") or "--"
+    reg  = g(t, "regime", "\u2014") or "\u2014"
     hr   = g(t, "hour_utc", 0)
     hold = g(t, "hold_seconds", 0) or 0
     slip_e = g(t, "slippage_entry")
@@ -94,7 +94,7 @@ for t in trades:
     print(
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
         f"ep={ep:.4f} xp={xp:.4f} | "
-        f"fv={pf(fv, '.4f')} edge={pf(edge, '+.3f')} | "
+        f"fv={pf(fv, ',.4f')} edge={pf(edge, '+.3f')} | "
         f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f')} elap={pf(elap, '.2f')} | "
         f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
