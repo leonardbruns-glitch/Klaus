@@ -96,8 +96,7 @@ MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only 
 WINDOW_ELAPSED_MIN = 0.05  # near-zero: pm_drift + lag_remaining + delta are the real
                             # freshness filters. Elapsed % doesn't determine trade quality.
 WINDOW_ELAPSED_MAX = 0.82
-SIGNAL_MAX_AGE_S = 90      # CLAUDE.md: information lag window is 30-90s. After 90s the move
-                            # is priced in — adverse selection. Measured from delta breach timestamp.
+SIGNAL_MAX_AGE_S = 5       # enter within 5s of delta breach or skip — stale signal = adverse selection
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
