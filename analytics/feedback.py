@@ -82,6 +82,8 @@ class TradeRecord:
     sniper_lag_remaining: float = 0.0      # fraction of expected PM move unpriced at entry (1.0=max lag)
     quality_score: int = 0                 # pre-entry quality gate score (lag+mom+regime+vpin)
     regime: str = ""                       # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
+    binance_price_at_entry: float = 0.0    # Binance spot price at fill — baseline for reversal detection
+    binance_reversal_count_at_exit: int = 0  # consecutive cycles Binance was reversed at exit moment
 
     # Window context
     window_size_s: int = 0            # 300 (5m) or 900 (15m) — key for separate analysis
@@ -299,6 +301,8 @@ class FeedbackEngine:
         llm_rec_conf: float = 0.0,
         max_price_seen: float = 0.0,
         min_price_seen: float = 0.0,
+        binance_price_at_entry: float = 0.0,
+        binance_reversal_count_at_exit: int = 0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -438,6 +442,8 @@ class FeedbackEngine:
             min_price_seen=round(min_price_seen, 4),
             max_favourable_pct=round((max_price_seen - entry_price) / entry_price * 100, 2) if entry_price > 0 else 0.0,
             max_adverse_pct=round((entry_price - min_price_seen) / entry_price * 100, 2) if entry_price > 0 else 0.0,
+            binance_price_at_entry=round(binance_price_at_entry, 2),
+            binance_reversal_count_at_exit=binance_reversal_count_at_exit,
         )
 
         self._recent.append(rec)

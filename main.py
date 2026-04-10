@@ -2000,6 +2000,8 @@ class KlausBot:
                     llm_rec_conf=meta.get("llm_rec_conf", 0.0),
                     max_price_seen=_highest_price,
                     min_price_seen=_lowest_price,
+                    binance_price_at_entry=pos.binance_price_at_entry,
+                    binance_reversal_count_at_exit=pos.binance_reversal_count,
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

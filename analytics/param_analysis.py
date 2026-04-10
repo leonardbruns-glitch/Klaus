@@ -272,6 +272,31 @@ def analyse_direction(trades: list[dict]) -> tuple[list[tuple], float]:
     return rows, _wr_spread(rows)
 
 
+def analyse_binance_reversal(trades: list[dict]) -> tuple[list[tuple], float]:
+    """WR by binance_reversal_count_at_exit: was Binance reversed when we exited?"""
+    breakpoints = [1, 4, 8, 15]
+    labels = ["0 (aligned)", "1–3", "4–7", "8–14", "15+ (confirmed)"]
+    groups: dict[str, list] = defaultdict(list)
+    for t in trades:
+        v = t.get("binance_reversal_count_at_exit")
+        if v is None:
+            continue
+        cnt = int(v)
+        if cnt == 0:
+            bucket = "0 (aligned)"
+        elif cnt < 4:
+            bucket = "1–3"
+        elif cnt < 8:
+            bucket = "4–7"
+        elif cnt < 15:
+            bucket = "8–14"
+        else:
+            bucket = "15+ (confirmed)"
+        groups[bucket].append(t)
+    rows = [(lbl, compute_stats(groups[lbl])) for lbl in labels]
+    return rows, _wr_spread(rows)
+
+
 def analyse_exit_reason(trades: list[dict], top_n: int = 10) -> tuple[list[tuple], float]:
     groups: dict[str, list] = defaultdict(list)
     for t in trades:
@@ -354,6 +379,7 @@ def main():
     run("REGIME", analyse_regime, trades)
     run("DIRECTION", analyse_direction, trades)
     run("EXIT REASON (top 10 by frequency)", analyse_exit_reason, trades)
+    run("BINANCE REVERSAL COUNT AT EXIT", analyse_binance_reversal, trades)
 
     # ------------------------------------------------------------------
     # Correlation summary
