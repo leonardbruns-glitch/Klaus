@@ -128,17 +128,10 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-ELAPSED_DEAD_ZONE_LOW  = 0.10  # param_analysis n=341: 0.10-0.40 elapsed = catastrophic (-$139 in 0.10-0.25 alone)
-ELAPSED_DEAD_ZONE_HIGH = 0.40  # only allow: <0.10 (fresh) or >0.40 (late-window, 15m only)
-WINDOW_ELAPSED_MAX_5M  = 0.35  # tightened 0.40→0.35: lag_analysis shows PM reprices at 135-225s
-                                # at 35% elapsed (105s in), remaining=195s → window expiry guard
-                                # fires at 150s from entry, capturing the 150s repricing cluster
-                                # at 40% elapsed only 135s remaining — exits before reprice
-                                # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
-WINDOW_ELAPSED_MAX_15M = 0.70  # raised 0.60→0.70: user data shows repricing to 0.65+ happens
-                                # in last 5-7 min (53-67% elapsed) — was cutting off too early.
-                                # At 70% elapsed: 270s remaining. Hard exit fires entry+180s =
-                                # 90s before window close. Stage-1 has 3 min to play out. ✓
+ELAPSED_DEAD_ZONE_LOW  = 0.25  # opened 0.10→0.25: delta tiering now allows 0.10-0.25 with min_delta=0.13
+ELAPSED_DEAD_ZONE_HIGH = 0.40  # moot — WINDOW_ELAPSED_MAX caps at 0.25; kept for reference
+WINDOW_ELAPSED_MAX_5M  = 0.25  # hard block: no entries at elapsed ≥ 25% (only first two delta tiers allowed)
+WINDOW_ELAPSED_MAX_15M = 0.25  # same — elapsed ≥ 25% blocked for all window types
                                 # At 75%: only 225s → hard exit fires at window end. Too tight.
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
@@ -298,7 +291,7 @@ def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
 
     elapsed < 0.10 (first 10% of window): 0.085 — very fresh signal, take almost anything.
     elapsed 0.10–0.25: 0.13 — only massive moves survive the extra slippage at this age.
-    elapsed ≥ 0.25: falls through to window-type / session logic below.
+    elapsed ≥ 0.25: blocked upstream by WINDOW_ELAPSED_MAX — this branch never reached.
     """
     # Primary: elapsed-based tiering
     if elapsed_pct < 0.10:
