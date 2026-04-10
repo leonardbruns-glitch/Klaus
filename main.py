@@ -1337,7 +1337,10 @@ class KlausBot:
             window_end_ts=getattr(token, "window_end_ts", 0.0),
             window_seconds=getattr(token, "window_seconds", 0),
             quality_score=getattr(signal, "quality_score", 0),
-            binance_price_at_entry=self.feed._spot_price.get(asset.upper(), 0.0),
+            binance_price_at_entry=(
+                self.feed._spot_price.get(asset.upper(), 0.0)
+                or spot_at_entry  # fallback: ext signal spot price captured before order
+            ),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly
