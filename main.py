@@ -1750,6 +1750,34 @@ class KlausBot:
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
+            asyncio.create_task(self._track_post_exit(
+                token_id=token_id,
+                trade_id=self.analytics.last_trade_id,
+                asset=pos.asset,
+                direction=pos.direction.name,
+                exit_price=exit_price,
+                exit_reason=_logged_reason,
+                entry_price=pos.entry_price,
+                window_end_ts=pos.window_end_ts,
+                binance_price_at_entry=pos.binance_price_at_entry,
+            ))
+            if pos.window_end_ts > 0:
+                try:
+                    os.makedirs("logs", exist_ok=True)
+                    with open(os.path.join("logs", "pending_resolutions.jsonl"), "a") as _pf:
+                        _pf.write(json.dumps(dict(
+                            token_id=token_id,
+                            trade_id=self.analytics.last_trade_id,
+                            asset=pos.asset,
+                            direction=pos.direction.name,
+                            exit_price=exit_price,
+                            exit_reason=_logged_reason,
+                            entry_price=pos.entry_price,
+                            window_end_ts=pos.window_end_ts,
+                            binance_price_at_entry=pos.binance_price_at_entry,
+                        )) + "\n")
+                except Exception:
+                    pass
             return
 
         # Guard 1: zero sell before stage-1 → network/CLOB error, retry next scan.
@@ -1830,6 +1858,17 @@ class KlausBot:
                         )
                     except Exception as _s2re:
                         logger.error("record_trade STAGE2_RESOLVED failed: %s", _s2re)
+                asyncio.create_task(self._track_post_exit(
+                    token_id=token_id,
+                    trade_id=self.analytics.last_trade_id,
+                    asset=pos.asset,
+                    direction=pos.direction.name,
+                    exit_price=_s2r_exit_price,
+                    exit_reason="STAGE2_RESOLVED",
+                    entry_price=pos.entry_price,
+                    window_end_ts=pos.window_end_ts,
+                    binance_price_at_entry=pos.binance_price_at_entry,
+                ))
                 return
             # Shares still exist — reset and retry next cycle
             if token_id in self.risk.open_positions:
