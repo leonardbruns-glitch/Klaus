@@ -876,52 +876,26 @@ class RiskManager:
             else:
                 pos.profit_trigger_ts = 0.0
 
-        # ── 4. Stage-2: lag-adjusted fair-value target ───────────────────────
-        # TP2 = entry + fraction × (FV - entry)
-        # fraction depends on lag at entry:
-        #   lag ≥ 0.70 → 85%  (high lag = uncertain timing, exit slightly early)
-        #   lag 0.40–0.70 → 90%  (direction confirmed by partial repricing)
-        #   lag < 0.40 → 95%  (almost at FV, squeeze remaining gap)
-        # Fallback to 90% if no lag stored. Cap at 45%, floor at 20%.
+        # ── 4. Stage-2: Moon Bag ─────────────────────────────────────────────
+        # After Stage-1 (60% sold at +22%), the remaining 40% is the moon bag.
+        # Hold until near-resolution price OR 60s before window close.
+        # No floor sell, no trail stop, no VPIN fade — let it run.
         if pos.exit_stage == ExitStage.STAGE_1_DONE:
-            _fv = getattr(pos, "entry_fair_value", 0.0)
-            if _fv > pos.entry_price > 0:
-                _edge_pct = (_fv - pos.entry_price) / pos.entry_price
-                _lag = getattr(pos, "entry_lag_pct", 0.0)
-                if _lag >= 0.70:
-                    _tp2_frac = 0.85
-                elif _lag >= 0.40:
-                    _tp2_frac = 0.90
-                else:
-                    _tp2_frac = 0.95
-                profit2_pct = max(0.20, min(0.45, _edge_pct * _tp2_frac))
-            else:
-                profit2_pct = 0.35  # fallback for old positions
+            # Exit 1: token approaching resolution value (0.92+)
+            if current_price >= 0.92:
+                logger.info(
+                    "MOON_BAG_TP %s/%s @ %.4f ≥ 0.92 near-resolution — closing moon bag",
+                    pos.asset, pos.direction.name, current_price,
+                )
+                return ExitDecision(True, "MOON_BAG_TP", urgency="cascade")
 
-            if move_pct >= profit2_pct:
-                return ExitDecision(True, "PROFIT_2", urgency="cascade")
-
-            # Floor: +15% hard floor — never give back stage-1 gains
-            if move_pct <= 0.15:
-                return ExitDecision(True, "FLOOR_SELL", urgency="cascade")
-
-            # Trailing stop: 12% below peak — lets winner run but cuts reversals
-            trail_stop = pos.highest_price * 0.88
-            if current_price <= trail_stop:
-                return ExitDecision(True, "TRAIL_STOP", urgency="cascade")
-
-            # Conditional hold: if VPIN has faded since Stage 1, don't hold for +35%
-            # Informed flow that drove Stage 1 is gone — momentum likely exhausted.
-            if ext is not None and move_pct > 0.15:
-                _vpin = getattr(ext, 'vpin_score', None)
-                if _vpin is not None and _vpin < 0.40:
-                    logger.info(
-                        "STAGE2 VPIN FADE %s/%s @ %.4f | move=+%.1f%% VPIN=%.2f < 0.40 — "
-                        "informed flow gone, exiting Stage 2 now",
-                        pos.asset, pos.direction.name, current_price,
-                        move_pct * 100, _vpin,
-                    )
-                    return ExitDecision(True, "STAGE2_VPIN_FADE", urgency="cascade")
+            # Exit 2: 60s before window close — don't hold into resolution uncertainty
+            if pos.window_end_ts > 0 and remaining <= 60:
+                logger.info(
+                    "MOON_BAG_WINDOW %s/%s @ %.4f — 60s before window close (%.0fs remaining)",
+                    pos.asset, pos.direction.name, current_price, remaining,
+                )
+                return ExitDecision(True, "MOON_BAG_WINDOW", urgency="cascade")
 
             return None
 
