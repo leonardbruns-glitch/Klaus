@@ -90,6 +90,10 @@ _DELTA_PCT_15M_ACTIVE_EARLY = 0.10
 _DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
+# Elapsed-based delta tiering (primary gate, applied before window-type logic)
+_DELTA_PCT_EARLY = 0.085  # elapsed < 10%: very fresh signal, take almost anything
+_DELTA_PCT_MID   = 0.13   # elapsed 10–25%: only massive moves survive extra slippage
+
 MIN_EDGE = 0.05
 MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
 MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
@@ -100,7 +104,7 @@ VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
 MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
                         # Real quality filtering done by lag gate + edge gate + OB gates.
-MAX_TOKEN_ASK = 0.65   # lowered 0.70→0.65: param_analysis n=341 — entry_price 0.60-0.65 costs -$91; 0.65 allows up to mid-band (2026-04-09)
+MAX_TOKEN_ASK = 0.70   # raised 0.65→0.70: explicit override — NOTE: param_analysis n=341 showed 0.60-0.65 cost -$91; 0.65-0.70 band unvalidated
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
 MIN_LAG_REMAINING_5M = 0.35   # lowered 0.50→0.35: explicit override — NOTE: param_analysis n=341 showed lag≥0.70 profitable; 0.35 broadens entry pool against data evidence
 MIN_LAG_REMAINING_15M = 0.35  # lowered 0.50→0.35: same override, same caveat
@@ -290,11 +294,18 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
     """
-    Minimum delta threshold. For 15m windows, early entries (< 40% elapsed)
-    require 1.5× the normal threshold — move hasn't confirmed yet.
-    For 5m windows, quiet hours require 0.10% delta vs 0.04% during active sessions —
-    small moves outside active hours don't sustain (T00173: -0.054% at 17:xx, SL in 42s).
+    Minimum delta threshold — elapsed-based tiering is the primary gate.
+
+    elapsed < 0.10 (first 10% of window): 0.085 — very fresh signal, take almost anything.
+    elapsed 0.10–0.25: 0.13 — only massive moves survive the extra slippage at this age.
+    elapsed ≥ 0.25: falls through to window-type / session logic below.
     """
+    # Primary: elapsed-based tiering
+    if elapsed_pct < 0.10:
+        return _DELTA_PCT_EARLY
+    if elapsed_pct < 0.25:
+        return _DELTA_PCT_MID
+    # elapsed ≥ 0.25: window-type logic
     if is_15m:
         if elapsed_pct < _EARLY_ELAPSED_CUTOFF:
             return _DELTA_PCT_15M_ACTIVE_EARLY
