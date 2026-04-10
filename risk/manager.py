@@ -106,6 +106,7 @@ class PositionMeta:
     entry_fair_value: float = 0.0     # sigmoid fair value at entry — used for lag inversion check
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
+    signal_flip_ts: float = 0.0      # when SIGNAL_FLIPPED condition first became true (Phase 2 confirmation)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -830,6 +831,14 @@ class RiskManager:
         time_held = now - pos.open_ts
         remaining = pos.window_end_ts - now if pos.window_end_ts > 0 else 999
 
+        # ── Phase detection (3-phase exit architecture) ──────────────────────
+        # Phase 1 (0–25s):   Immunity Zone  — soft exits disabled, catastrophic stop only
+        # Phase 2 (26–60s):  Confirmation   — SIGNAL_FLIPPED requires 3.5s continuous confirmation
+        # Phase 3 (61–120s): Alpha Decay    — normal ops, hard close at max_trade_duration
+        _phase = 1 if time_held < self.exec_cfg.min_hold_seconds else (
+            2 if time_held < 60.0 else 3
+        )
+
         # Track price range + time to peak/trough from open
         if current_price > pos.highest_price:
             pos.highest_price = current_price
@@ -841,22 +850,11 @@ class RiskManager:
         # move_pct > 0 means profit for both directions
         move_pct = (current_price - pos.entry_price) / pos.entry_price
 
-        # ── 1. Hard-exit timer ────────────────────────────────────────────────
-        # Scale to window size: 180s flat is correct for 5-min windows but exits
-        # 15-min positions far too early (3 min into a 10-min remaining window).
-        # Adaptive: 60% of time remaining at entry, capped at 480s, floor at 180s.
-        #   5-min window, 225s remaining at entry  → max(180, min(135, 480)) = 180s
-        #   15-min window, 600s remaining at entry → max(180, min(360, 480)) = 360s (6 min)
-        #   15-min window, 840s remaining at entry → max(180, min(504, 480)) = 480s (8 min)
-        if pos.window_end_ts > 0:
-            remaining_at_entry = pos.window_end_ts - pos.open_ts
-            adaptive_hard_exit = max(
-                self.exec_cfg.hard_exit_seconds,
-                min(int(remaining_at_entry * 0.60), 480),
-            )
-        else:
-            adaptive_hard_exit = self.exec_cfg.hard_exit_seconds
-        if time_held >= adaptive_hard_exit and not pos.hard_exit_triggered:
+        # ── 1. Hard-exit timer (Phase 3: flat max_trade_duration) ────────────
+        # 3-phase architecture: hard close at max_trade_duration (120s).
+        # PM repricing is statistically complete within 120s — holding longer
+        # is alpha decay, not alpha capture.
+        if time_held >= self.exec_cfg.max_trade_duration and not pos.hard_exit_triggered:
             pos.hard_exit_triggered = True
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")
 
@@ -872,19 +870,9 @@ class RiskManager:
         # TP1 = entry + 60% of (FV - entry) — take partial profits at 60% of gap closed.
         # Fallback to time-based if entry_fair_value not stored (old positions).
         if pos.exit_stage == ExitStage.NONE:
-            _fv = getattr(pos, "entry_fair_value", 0.0)
-            if _fv > pos.entry_price > 0:
-                _edge_pct = (_fv - pos.entry_price) / pos.entry_price
-                profit1_pct = max(0.12, min(0.25, _edge_pct * 0.60))
-            elif pos.window_end_ts > 0:
-                if remaining > 120:
-                    profit1_pct = 0.20
-                elif remaining > 60:
-                    profit1_pct = 0.15
-                else:
-                    profit1_pct = 0.12
-            else:
-                profit1_pct = 0.20
+            # Flat pt_objective (22%) — edge is used as an entry filter, not a TP cap.
+            # Once in the trade, Patient Sniper carries to the statistical peak.
+            profit1_pct = self.exec_cfg.pt_objective
 
             if move_pct >= profit1_pct:
                 if pos.window_end_ts > 0:
@@ -1053,6 +1041,26 @@ class RiskManager:
         else:
             pos.binance_reversal_count = 0
 
+        # -2. Phase 1 immunity zone — soft exits disabled, catastrophic stop only
+        # All SIGNAL_FLIPPED / VELOCITY_EXIT / SL_15S are below this return None,
+        # so they are structurally unreachable during Phase 1.
+        if _phase == 1:
+            if move_pct <= -self.exec_cfg.catastrophic_sl_pct:
+                logger.warning(
+                    "CATASTROPHIC_SL %s/%s @ %.4f — %.1f%% loss exceeds %.0f%% threshold "
+                    "in immunity zone (%.1fs held)",
+                    pos.asset, pos.direction.name, current_price,
+                    abs(move_pct) * 100, self.exec_cfg.catastrophic_sl_pct * 100, time_held,
+                )
+                return ExitDecision(True, "CATASTROPHIC_SL", urgency="immediate")
+            # Reset soft-exit timers so they start cleanly when Phase 2 begins
+            pos.sl_breach_ts = 0.0
+            pos.sl_breach_price = 0.0
+            pos.sl_breach_llm_queried = False
+            pos.velocity_breach_ts = 0.0
+            pos.signal_flip_ts = 0.0
+            return None
+
         # 0. Absolute price floor
         if current_price <= 0.20:
             logger.warning(
@@ -1098,14 +1106,40 @@ class RiskManager:
             _signal_flipped = _delta_flipped and _lag_inverted
 
         if _signal_flipped:
-            logger.warning(
-                "SIGNAL_FLIPPED %s/%s @ %.4f — delta reversed (binance %+.3f%% vs entry_delta %.3f%%) "
-                "AND lag inverted (price %.4f ≤ inversion %.4f)",
-                pos.asset, pos.direction.name, current_price,
-                _b_move * 100, pos.entry_delta_pct * 100,
-                current_price, _lag_inversion_price,
-            )
-            return ExitDecision(True, "SIGNAL_FLIPPED", urgency="immediate")
+            if _phase == 2:
+                # Phase 2: require signal_flip_delay (3.5s) continuous confirmation
+                if pos.signal_flip_ts == 0.0:
+                    pos.signal_flip_ts = now
+                    logger.info(
+                        "SIGNAL_FLIPPED pending %s/%s @ %.4f — waiting %.1fs confirmation "
+                        "(phase=2, %.1fs held)",
+                        pos.asset, pos.direction.name, current_price,
+                        self.exec_cfg.signal_flip_delay, time_held,
+                    )
+                elif now - pos.signal_flip_ts >= self.exec_cfg.signal_flip_delay:
+                    logger.warning(
+                        "SIGNAL_FLIPPED %s/%s @ %.4f — delta reversed (binance %+.3f%% vs entry_delta %.3f%%) "
+                        "AND lag inverted (price %.4f ≤ inversion %.4f) confirmed %.1fs (phase=2)",
+                        pos.asset, pos.direction.name, current_price,
+                        _b_move * 100, pos.entry_delta_pct * 100,
+                        current_price, _lag_inversion_price, now - pos.signal_flip_ts,
+                    )
+                    return ExitDecision(True, "SIGNAL_FLIPPED", urgency="immediate")
+            else:
+                # Phase 3: fire immediately — normal operations
+                logger.warning(
+                    "SIGNAL_FLIPPED %s/%s @ %.4f — delta reversed (binance %+.3f%% vs entry_delta %.3f%%) "
+                    "AND lag inverted (price %.4f ≤ inversion %.4f) (phase=3)",
+                    pos.asset, pos.direction.name, current_price,
+                    _b_move * 100, pos.entry_delta_pct * 100,
+                    current_price, _lag_inversion_price,
+                )
+                return ExitDecision(True, "SIGNAL_FLIPPED", urgency="immediate")
+        else:
+            if pos.signal_flip_ts > 0.0:
+                logger.debug("SIGNAL_FLIPPED reset %s/%s — condition no longer true after %.1fs",
+                             pos.asset, pos.direction.name, now - pos.signal_flip_ts)
+            pos.signal_flip_ts = 0.0
 
         # 1. -25% emergency brake: reversed=6, flat=32, confirmed=10 cycles
         # Sole owner of exit logic when price is below -25%. SL_15S is suspended here.
