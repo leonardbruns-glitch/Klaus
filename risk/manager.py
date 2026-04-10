@@ -885,10 +885,10 @@ class RiskManager:
         # Hold until near-resolution price OR 60s before window close.
         # No floor sell, no trail stop, no VPIN fade — let it run.
         if pos.exit_stage == ExitStage.STAGE_1_DONE:
-            # Exit 1: token approaching resolution value (0.92+)
-            if current_price >= 0.92:
+            # Exit 1: token approaching resolution value (0.82+)
+            if current_price >= 0.82:
                 logger.info(
-                    "MOON_BAG_TP %s/%s @ %.4f ≥ 0.92 near-resolution — closing moon bag",
+                    "MOON_BAG_TP %s/%s @ %.4f ≥ 0.82 near-resolution — closing moon bag",
                     pos.asset, pos.direction.name, current_price,
                 )
                 return ExitDecision(True, "MOON_BAG_TP", urgency="cascade")
