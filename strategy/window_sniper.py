@@ -93,8 +93,6 @@ _EARLY_ELAPSED_CUTOFF       = 0.40
 MIN_EDGE = 0.05
 MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
 MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
-WINDOW_ELAPSED_MIN = 0.05  # near-zero: pm_drift + lag_remaining + delta are the real
-                            # freshness filters. Elapsed % doesn't determine trade quality.
 WINDOW_ELAPSED_MAX = 0.82
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
@@ -433,12 +431,6 @@ class WindowSniper:
         elapsed = now - window_start
         elapsed_pct = elapsed / token.window_seconds
 
-        elapsed_min = PREARM_ELAPSED_MIN if is_prearmed else WINDOW_ELAPSED_MIN
-        if elapsed_pct < elapsed_min:
-            logger.debug("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
-                         token.asset, token.side, elapsed_pct*100, elapsed_min*100,
-                         " (prearmed)" if is_prearmed else "")
-            return None
         elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
         if elapsed_pct > elapsed_max:
             logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
