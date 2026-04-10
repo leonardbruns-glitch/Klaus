@@ -2063,13 +2063,19 @@ class KlausBot:
             await asyncio.sleep(delay - elapsed)
             elapsed = delay
             try:
+                # Always use live fetch — in-memory cache (best_ask / _order_books)
+                # is stale or empty after exit, giving null samples. fetch_order_book
+                # makes a real API call and is confirmed working (same path as
+                # window_outcome_price which is always populated).
+                price = 0.0
                 token = self.feed.tokens.get(token_id)
                 if token and hasattr(token, "best_ask") and token.best_ask > 0:
                     price = token.best_ask
-                else:
-                    ob = self.feed._order_books.get(token_id, {})
-                    price = ob.get("ask", 0.0) if ob else 0.0
-                samples[f"t{delay}s"] = round(price, 4)
+                if not price:
+                    _ob = await self.feed.fetch_order_book(token_id)
+                    if _ob and _ob.asks:
+                        price = _ob.asks[0][0]
+                samples[f"t{delay}s"] = round(price, 4) if price else None
             except Exception:
                 samples[f"t{delay}s"] = None
 
