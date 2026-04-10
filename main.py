@@ -2077,6 +2077,7 @@ class KlausBot:
         resolution_delay_s = None
         _is_sl_exit = exit_reason.startswith("STOP_LOSS") or exit_reason in (
             "CIRCUIT_BREAKER", "TRAIL_STOP", "STOP_LOSS_EXT",
+            "VELOCITY_EXIT", "SL_15S", "PRICE_FLOOR", "RATCHET_SL",
         ) or "TIGHT_SL" in exit_reason
         if window_end_ts > 0:
             now_ts = time.time()
@@ -2099,8 +2100,11 @@ class KlausBot:
                 except Exception as _res_exc:
                     logger.debug("resolution sample failed %s: %s", token_id[:8], _res_exc)
 
-        if not any(v for v in samples.values()) and window_outcome_price is None:
-            return
+        # Always write the record — even if price samples failed (e.g. resolved token
+        # already removed from feed). Exit metadata alone is useful for analysis.
+        _has_price_data = any(v for v in samples.values()) or window_outcome_price is not None
+        if not _has_price_data:
+            logger.debug("post_exit: no price samples for %s [%s], writing metadata-only record", asset, exit_reason)
 
         # Was the exit correct?
         # For a win exit: price should stay high or go higher (exit was right)
