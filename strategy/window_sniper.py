@@ -429,6 +429,15 @@ class WindowSniper:
 
         window_start = token.window_end_ts - token.window_seconds
         elapsed = now - window_start
+
+        # Minimum 30s from window open — new window tokens have stale pricing
+        # from the previous window. Market needs time to establish fresh liquidity.
+        if elapsed < 30:
+            logger.debug(
+                "SNIPER BLOCK %s/%s | window_too_fresh=%.0fs < 30s — stale pricing from prev window",
+                token.asset, token.side, elapsed,
+            )
+            return None
         elapsed_pct = elapsed / token.window_seconds
 
         elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
@@ -538,7 +547,7 @@ class WindowSniper:
         # pm_drift = mechanical repricing since trigger fired (pure data, not a block).
         pm_drift = (token_ask - ask_at_trigger) if ask_at_trigger > 0 else 0.0
         expected_move = fair_value - 0.50
-        lag_remaining_pct = max(0.0, (fair_value - token_ask) / expected_move) if expected_move > 0.01 else 0.0
+        lag_remaining_pct = min(1.0, max(0.0, (fair_value - token_ask) / expected_move)) if expected_move > 0.01 else 0.0
         # Gate: require sufficient lag remaining — adaptive to move magnitude.
         # Override: if absolute edge is very large (≥0.10), the lag% floor is relaxed
         # to 15% regardless. Rationale: FV=0.979, ask=0.840 → lag=29%, edge=+0.139.
