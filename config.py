@@ -111,7 +111,7 @@ class ExecutionConfig:
     min_hold_seconds: float = 25.0     # Phase 1 immunity zone — soft exits disabled before this
     signal_flip_delay: float = 3.5     # Phase 2: SIGNAL_FLIPPED must persist this long before firing
     pt_objective: float = 0.22         # Stage-1 profit target (flat 22%)
-    max_trade_duration: float = 120.0  # Phase 3: hard close at this many seconds
+    max_trade_duration: float = 180.0  # Phase 3: hard close at this many seconds
     entry_slip_cap: float = 0.035      # reject fill if entry slippage > 3.5%
     catastrophic_sl_pct: float = 0.45  # Phase 1 only: exit immediately if loss exceeds this
 
