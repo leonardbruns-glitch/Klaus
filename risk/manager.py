@@ -1033,10 +1033,10 @@ class RiskManager:
             )
             return ExitDecision(True, "BINANCE_REVERSAL_EARLY", urgency="immediate")
 
-        # 1. -25% emergency brake: reversed=3, flat=8, confirmed=5 cycles
+        # 1. -25% emergency brake: reversed=6, flat=16, confirmed=10 cycles
         _below_25pct = current_price <= pos.entry_price * 0.75
         if _below_25pct:
-            _velocity_threshold = 3 if _binance_reversed else (8 if _binance_flat else 5)
+            _velocity_threshold = 6 if _binance_reversed else (16 if _binance_flat else 10)
             if pos.velocity_breach_ts == 0.0:
                 pos.velocity_breach_ts = now
                 logger.info(
