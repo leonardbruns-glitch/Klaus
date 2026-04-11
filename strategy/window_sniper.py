@@ -122,8 +122,8 @@ CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — ma
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-WINDOW_ELAPSED_MAX_5M  = 0.65  # lowered 0.80→0.65: elapsed 0.65+ WR=45% PF=0.39 -$16.8k (n=20, n=540 data)
-WINDOW_ELAPSED_MAX_15M = 0.65  # same — nothing after 65% elapsed earns; confirmed-direction zone tail is dead weight
+WINDOW_ELAPSED_MAX_5M  = 0.78  # raised 0.65→0.78: n=2 at 0.65+ in last 50 trades insufficient to justify ceiling
+WINDOW_ELAPSED_MAX_15M = 0.78  # at elapsed=0.78 on 15m: 198s remaining ≥ HARD_EXIT 210s so window still governs
 
 # ── Pre-arm: early entry when previous window already repriced ─────────────────
 # If current window's token repriced past 0.80, next window will open at ~0.50.
