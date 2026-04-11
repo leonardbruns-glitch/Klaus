@@ -622,11 +622,13 @@ class KlausBot:
         of the sweep cycle. The sniper's own gates (lag, edge, elapsed) filter quality.
         """
         now = time.time()
-        # Per-asset debounce — feeds.py debounces at 1.5s, this adds a session-level guard
+        # Per-asset debounce — feeds.py debounces at 1.5s, this adds a session-level guard.
+        # Timestamp set BEFORE the guard check to prevent two concurrent callbacks both
+        # passing when they arrive within the same event loop tick.
         last = self._last_spike_ts.get(asset, 0)
+        self._last_spike_ts[asset] = now
         if now - last < 1.5:
             return
-        self._last_spike_ts[asset] = now
 
         logger.info(
             "SPIKE %s | delta=%+.3f%% price=%.2f — immediate sniper eval",
