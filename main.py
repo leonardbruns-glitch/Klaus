@@ -1708,24 +1708,29 @@ class KlausBot:
             for r in exit_fills
         )
         if ext_sold_detected:
-            # Use the sell_price embedded in the error string (the price the cascade
-            # was attempting when it detected dust). This reflects what the shares
-            # were actually sold at, not the decayed live_price at detection time.
+            # Use weighted avg price across ALL fills (stage-1 + stage-2 attempt),
+            # same as the normal exit path. This prevents gross_pnl from being
+            # computed as (stage2_price - entry) × full_shares when stage1 already
+            # sold 60% at a different price — which inflated gross/fee in the log.
             import re as _re
-            exit_price = live_price
+            _raw_exit = live_price
             for _r in exit_fills:
                 _err = getattr(_r, "error", "") or ""
                 _m = _re.search(r'price=([0-9.]+)', _err)
                 if _m:
-                    exit_price = float(_m.group(1))
+                    _raw_exit = float(_m.group(1))
                     break
-            exit_price = exit_price if exit_price > 0 else pos.entry_price
+            _raw_exit = _raw_exit if _raw_exit > 0 else pos.entry_price
+            # Weighted avg across all fills gives correct gross_pnl when stage-1
+            # already sold 60% at a different price. Falls back to _raw_exit if
+            # no fills with sizes are present (e.g. pure externally-sold dust).
+            exit_price = self._calc_exit_price(all_exit_fills, _raw_exit)
             logger.warning(
-                "EXTERNALLY_SOLD purged: %s/%s — closing at sell_price %.4f. "
-                "Shares already sold externally, stopping retry loop.",
-                pos.asset, pos.direction.name, exit_price,
+                "EXTERNALLY_SOLD purged: %s/%s — closing at weighted_price %.4f "
+                "(raw=%.4f). Shares already sold externally, stopping retry loop.",
+                pos.asset, pos.direction.name, exit_price, _raw_exit,
             )
-            pnl = self.risk.close_position(token_id, exit_price, reason)
+            pnl = self.risk.close_position(token_id, _raw_exit, reason)
             _ext_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
             if pnl is not None:
