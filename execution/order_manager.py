@@ -283,6 +283,19 @@ class OrderManager:
         )
         size = round(stake_usd / limit_price, 2)
 
+        # Refresh USDC allowance before buy — CLOB allowance depletes with each order
+        # and must be reset or buys fail with "not enough balance / allowance".
+        # Same pattern as _approve_token() for sells (AssetType.CONDITIONAL).
+        try:
+            self._client.update_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.COLLATERAL,
+                    signature_type=CONFIG.signature_type,
+                )
+            )
+        except Exception as _exc:
+            logger.warning("USDC allowance refresh failed: %s", _exc)
+
         # Single attempt only for 5-min window entries.
         # Retrying a resting BUY wastes 3s × N attempts = up to 15s of a 240s window.
         # If the order doesn't fill in 3s, the price has moved — abort cleanly.
