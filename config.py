@@ -37,6 +37,8 @@ class BankrollConfig:
     max_daily_loss: float = 100.0     # user-set: no intraday halt
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
+    ruin_floor: float = 50.0          # hard stop — shut down entirely if capital < $50
+    weekly_floor: float = 75.0        # soft halt — full review required if capital < $75
 
 
 @dataclass
