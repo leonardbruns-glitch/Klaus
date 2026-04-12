@@ -187,7 +187,9 @@ class EdgeConfig:
     # BTC reprices faster than ETH/SOL — weak BTC moves recover within the window.
     # Require delta ≥ 0.12% for BTC entries. SOL/ETH unaffected (wins at 0.10-0.11%).
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.13,  # raised 0.12→0.13: delta -0.119/-0.120 both STOP_LOSS (-$6.49 each); 0.13 blocks both
+        "BTC": 0.12,  # lowered 0.13→0.12: shadow data n=8 shows 0.12-0.13% band ALL blocked by
+                      # lag_too_low (lag=0.06-0.34) or edge_negative — delta gate was redundant.
+                      # 0.13 was protecting nothing the lag/edge gates don't already cover.
         "SOL": 0.12,  # added n=540: SOL delta 0.10-0.12 WR=51.8% PF~0.78; 0.12-0.15 WR=64.9% PF=1.51 (only profitable SOL zone)
     })
 
