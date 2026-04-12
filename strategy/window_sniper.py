@@ -241,11 +241,16 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
         return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
 
     # ── High-lag cap: ghost reversal territory ────────────────────────────
-    # At lag ≥ 0.85: Binance move peaked and reversed before PM repriced.
-    # 0W/6L in live data. Exception: abs_delta ≥ 0.20 = genuine large spike.
-    if lag >= 0.85 and abs_delta < 0.20:
+    # Lag ≥ 0.80 without large delta = PM hasn't moved because Binance move
+    # already peaked/reversed (ghost reversal), not because lag is high.
+    # Live data n=19 at lag 0.80-0.85: WR=36.8%, net=-$27.09, avg=-$1.43
+    # Live data at lag 0.85+: dominated by EXTERNALLY_SOLD WR=35%, -$46
+    # Lowered 0.85→0.80 (2026-04-12): 0.80-0.85 zone is as bad as 0.85+.
+    # Exception: abs_delta ≥ 0.20 = genuine large spike, not noise.
+    # Cross-tab: lag≥0.75 + delta≥0.20 → WR=78% n=9 — preserve this path.
+    if lag >= 0.80 and abs_delta < 0.20:
         hard_reject = True
-        reject_reason = f"lag_too_high(>=0.85,lag={lag:.2f},delta={abs_delta:.3f}<0.20)"
+        reject_reason = f"lag_too_high(>=0.80,lag={lag:.2f},delta={abs_delta:.3f}<0.20)"
         return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
 
     # ── High-Lag VPIN Gate (0.70-0.85 zone) ──────────────────────────────
