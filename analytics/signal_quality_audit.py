@@ -117,6 +117,90 @@ print("  grep -c 'Entry not filled\\|FAILED.*fill' logs/bot.log")
 print()
 
 
+# ── QS=3 VPIN breakdown ───────────────────────────────────────────────────────
+# QS=3 all-time WR=41% (n=83) — worse than QS=0.
+# Hypothesis: QS=3 is reached via two paths:
+#   A) lag=1 + mom=2 + regime=1 + vpin=-1  (VPIN<0.30 is the drag — "looks great, no flow")
+#   B) lag=2 + mom=1 + regime=0 + vpin=0   (high lag, quiet regime, moderate delta)
+#   C) lag=1 + mom=1 + regime=1 + vpin=0   (moderate everything, ACTIVE, VPIN OK)
+# If losses cluster in A (VPIN<0.30), fix the VPIN threshold.
+# If losses spread evenly across paths, QS=3 as a concept is broken.
+# ---------------------------------------------------------------------------
+
+print("=" * 60)
+print("QS=3 VPIN BREAKDOWN")
+print("=" * 60)
+
+qs3 = [t for t in live if t.get("quality_score") == 3
+       and t.get("regime", "?") != "?"          # exclude orphans
+       and t.get("entry_price", 0) > 0]
+
+print(f"QS=3 real trades (excluding orphans): {len(qs3)}")
+if qs3:
+    # VPIN buckets
+    _VPIN_BOUNDARY = 0.30
+    low_vpin  = [t for t in qs3 if t.get("sniper_vpin", 0) <  _VPIN_BOUNDARY]
+    high_vpin = [t for t in qs3 if t.get("sniper_vpin", 0) >= _VPIN_BOUNDARY]
+
+    def _show_group(label, group):
+        if not group:
+            print(f"  {label}: n=0")
+            return
+        wr  = sum(1 for t in group if t.get("net_pnl", 0) > 0) / len(group)
+        net = sum(t.get("net_pnl", 0) for t in group)
+        avg = net / len(group)
+        avg_lag  = sum(t.get("sniper_lag_remaining", 0) for t in group) / len(group)
+        avg_delt = sum(abs(t.get("sniper_delta_pct", 0)) for t in group) / len(group)
+        avg_vpin = sum(t.get("sniper_vpin", 0) for t in group) / len(group)
+        print(f"  {label}")
+        print(f"    n={len(group)}  WR={wr*100:.1f}%  net=${net:.2f}  avg=${avg:.2f}")
+        print(f"    avg_lag={avg_lag:.2f}  avg_delta={avg_delt:.3f}%  avg_vpin={avg_vpin:.3f}")
+        # Regime breakdown within group
+        reg_counts = defaultdict(list)
+        for t in group:
+            reg_counts[t.get("regime", "?")].append(t.get("net_pnl", 0))
+        for reg in sorted(reg_counts):
+            rv = reg_counts[reg]
+            rwr = sum(1 for x in rv if x > 0) / len(rv)
+            print(f"      {reg:<14} n={len(rv)}  WR={rwr*100:.0f}%  net=${sum(rv):.2f}")
+
+    _show_group(f"VPIN < {_VPIN_BOUNDARY} (no informed flow — 'path A' hypothesis)", low_vpin)
+    print()
+    _show_group(f"VPIN >= {_VPIN_BOUNDARY} (flow confirmed)", high_vpin)
+    print()
+
+    # Lag breakdown within QS=3
+    print("  Lag sub-buckets within QS=3:")
+    lag_sub = defaultdict(list)
+    for t in qs3:
+        lag = t.get("sniper_lag_remaining", 0)
+        b = "0.55-0.65" if lag < 0.65 else ("0.65-0.75" if lag < 0.75 else "0.75+")
+        lag_sub[b].append(t.get("net_pnl", 0))
+    for b in sorted(lag_sub):
+        v = lag_sub[b]
+        wr = sum(1 for x in v if x > 0) / len(v)
+        print(f"    lag={b}  n={len(v)}  WR={wr*100:.0f}%  net=${sum(v):.2f}")
+    print()
+
+    # Verdict
+    if len(low_vpin) >= 5 and len(high_vpin) >= 5:
+        lv_wr  = sum(1 for t in low_vpin  if t.get("net_pnl", 0) > 0) / len(low_vpin)
+        hv_wr  = sum(1 for t in high_vpin if t.get("net_pnl", 0) > 0) / len(high_vpin)
+        spread = abs(lv_wr - hv_wr)
+        if spread >= 0.15:
+            worse = "VPIN<0.30" if lv_wr < hv_wr else "VPIN>=0.30"
+            print(f"  VERDICT: {spread*100:.0f}pp gap between VPIN groups.")
+            print(f"  Losses concentrated in {worse} — VPIN threshold is the signal.")
+            print(f"  Consider: raise pts_vpin penalty or hard-gate on VPIN<0.30 for QS=3 trades.")
+        else:
+            print(f"  VERDICT: only {spread*100:.0f}pp gap between VPIN groups — losses spread evenly.")
+            print(f"  VPIN is not the driver. QS=3 scoring is structurally broken — consider hard gate QS>=4.")
+    else:
+        print(f"  VERDICT: insufficient n in one group (low_vpin={len(low_vpin)}, high_vpin={len(high_vpin)}).")
+        print(f"  Need n>=5 in each group for a reliable verdict.")
+print()
+
+
 # ── Part 2: Velocity heatmap ─────────────────────────────────────────────────
 
 print("=" * 60)
