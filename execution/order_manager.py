@@ -317,6 +317,25 @@ class OrderManager:
             else:
                 logger.error("Limit buy failed: %s", exc)
 
+        # Last-resort orphan guard: _submit_limit_order returned FAILED (WS timeout,
+        # cancel race, CLOB read-replica lag). Wait 1.5s for propagation, then check
+        # if we actually hold tokens — order may have filled after our cancel attempt.
+        # Without this, a filled SOL/BTC/ETH position goes untracked (orphan).
+        await asyncio.sleep(1.5)
+        _orphan_balance = self.fetch_token_balance(token_id)
+        if _orphan_balance is not None and _orphan_balance >= 0.05:
+            logger.warning(
+                "ORPHAN FILL RECOVERED in limit_buy: _submit_limit_order returned FAILED "
+                "but CLOB balance=%.4f for %s — recovering @ estimated price=%.4f",
+                _orphan_balance, token_id[:12], limit_price,
+            )
+            return OrderResult(
+                status=OrderStatus.FILLED,
+                avg_fill_price=limit_price,
+                total_size=_orphan_balance,
+                order_id="orphan-recovered",
+            )
+
         return OrderResult(status=OrderStatus.FAILED, error="Entry not filled — price moved")
 
     # kept as alias for backward compatibility with main.py
