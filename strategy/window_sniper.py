@@ -254,12 +254,15 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
         return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
 
     # ── High-Lag VPIN Gate (0.70-0.85 zone) ──────────────────────────────
-    # High lag without informed flow = ghost reversal risk.
-    # Binance moved, but without smart-money confirmation the move snaps
-    # back before PM reprices — we enter at peak lag into a reversal.
-    if lag >= 0.70 and vpin < 0.40:
+    # High lag without ANY informed flow = ghost reversal risk.
+    # Lowered 0.40→0.20 (2026-04-12): avg VPIN=0.37 means 0.40 threshold was
+    # blocking the majority of high-lag candidates. VPIN 0.20-0.40 is not
+    # "no flow" — it's normal low-toxicity lag-arb territory. Only block at
+    # truly zero-flow (vpin<0.20) where ghost reversal risk is unambiguous.
+    # lag≥0.80 hard reject above already handles worst ghost reversal cases.
+    if lag >= 0.70 and vpin < 0.20:
         hard_reject = True
-        reject_reason = f"high_lag_no_vpin(lag={lag:.2f},vpin={vpin:.2f}<0.40)"
+        reject_reason = f"high_lag_no_vpin(lag={lag:.2f},vpin={vpin:.2f}<0.20)"
         return 0, {"lag": 2, "mom": 0, "regime": 0, "vpin": "GATE"}, hard_reject, reject_reason
 
     # ── Lag scoring (tradeable window: 0.40–0.85) ─────────────────────────
