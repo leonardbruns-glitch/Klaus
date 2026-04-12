@@ -181,19 +181,28 @@ class EdgeConfig:
     # Revisit when SOL has 20+ sniper trades with confirmed edge.
     sniper_excluded_assets: List[str] = field(default_factory=lambda: [])  # all assets active — gathering data
 
-    # Per-asset minimum delta override (absolute %). Takes precedence over the global
-    # _session_min_delta when set for a given asset.
-    # All three assets now at 0.12% — validated by live trade data:
-    #   ETH 0.10-0.12%: n=117 live entries WR=48.7% net=-$58.18 (passes lag/edge/QS but still loses)
-    #   SOL 0.10-0.12%: n=83  live entries WR=51.8% net=-$31.48 (fee-negative at PF~0.78)
-    #   BTC 0.10-0.12%: n=22  live entries WR=17%   net=-$12.19
-    # Shadow data confirms 0.12-0.13% BTC band is redundant (all blocked by lag/edge first).
-    # SOL and ETH 0.10-0.12% shadow blocks also all caught by other gates, but the historical
-    # live data proves weak-delta entries in this band lose even when other gates pass.
+    # Per-asset minimum delta (absolute %). Takes precedence over global _session_min_delta.
+    # Full delta analysis 2026-04-12 (delta x asset x WR):
+    #
+    #   BTC 0.12-0.18%: n=73  WR=46.7%  net=-$32.30 — broken across all sub-buckets
+    #   BTC 0.18-0.22%: n=4   WR=75%    net=+$7.71  — first profitable BTC zone
+    #   BTC 0.22-0.28%: n=5   WR=60%    net=+$5.57
+    #
+    #   ETH 0.12-0.18%: n=41  WR=41%    net=-$38.57 — catastrophic; 0.15-0.18 avg=-$2.45/trade
+    #   ETH 0.18-0.22%: n=11  WR=63.6%  net=+$13.02 — clean reversal, first profitable ETH zone
+    #   ETH 0.22+:      n=7   WR=100%   net=+$15.95
+    #
+    #   SOL 0.12-0.15%: n=44  WR=63.6%  net=+$21.70 — best performing zone across all assets
+    #   SOL 0.15-0.18%: n=16  WR=56.2%  net=+$2.41
+    #   SOL 0.18-0.22%: n=8   WR=37.5%  net=-$13.64 — drops off hard (watch for max_delta gate)
+    #
+    # YES vs NO at delta>=0.18: YES WR=100% n=9 net=+$14.55 vs NO WR=47% n=19 net=-$1.15
+    # Asymmetry noted — Binance up-moves close PM lag more reliably than down-moves.
+    # Not gated yet (n=9 YES is thin); collect 20+ before adding directional filter.
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.12,  # lowered 0.13→0.12: shadow data n=8 all blocked by lag/edge — gate redundant
-        "ETH": 0.12,  # added 2026-04-12: n=117 live entries at 0.10-0.12% WR=48.7% net=-$58.18
-        "SOL": 0.12,  # added n=540: SOL delta 0.10-0.12 WR=51.8% net=-$31.48 (PF~0.78, fee-negative)
+        "BTC": 0.18,  # raised 0.12→0.18: n=73 at 0.12-0.18% WR=46.7% net=-$32.30; profitable only at 0.18%+
+        "ETH": 0.18,  # raised 0.12→0.18: n=41 at 0.12-0.18% WR=41%   net=-$38.57; profitable only at 0.18%+
+        "SOL": 0.12,  # unchanged: SOL 0.12-0.18% is +$24.11 net (best zone); 0.18%+ loses — opposite of BTC/ETH
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
