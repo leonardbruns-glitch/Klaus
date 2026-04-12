@@ -650,6 +650,14 @@ class RiskManager:
         # entry path approves before first fill is confirmed in open_positions.
         if asset:
             self._pending_assets.add(asset)
+        # Lock condition immediately — prevents double-entry when fill orphans.
+        # Without this: fill not detected → open_position never called → condition_id
+        # never added → bot re-enters same market window on next signal (e.g. buys
+        # both ETH Down AND ETH Up in same window when Down entry orphans).
+        # condition_id is window-specific (includes window_end_ts hash) so locking
+        # here only blocks this window, not future windows.
+        if condition_id:
+            self._traded_conditions.add(condition_id)
         return RiskDecision(
             approved=True,
             stake=stake,
