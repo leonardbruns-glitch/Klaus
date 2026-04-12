@@ -1404,6 +1404,7 @@ class KlausBot:
             asyncio.create_task(self._deferred_balance_sync(token_id, asset))
 
         signal_to_fill_ms = (time.time() - ts_open) * 1000.0
+        _vel_5s, _move_age = self.feed.get_velocity_5s(asset)
 
         self._open_meta[token_id] = {
             "signal": signal,
@@ -1421,6 +1422,8 @@ class KlausBot:
             "signal_to_fill_ms": signal_to_fill_ms,
             "llm_rec": llm_rec,
             "llm_rec_conf": llm_rec_conf,
+            "velocity_5s_pct": _vel_5s,
+            "move_age_s": _move_age,
         }
 
     # ── Double-fill protection ────────────────────────────────────────────────
@@ -2090,6 +2093,8 @@ class KlausBot:
                     lowest_price_ts=pos.lowest_price_ts,
                     binance_price_at_entry=pos.binance_price_at_entry,
                     binance_reversal_count_at_exit=pos.binance_reversal_count,
+                    velocity_5s_pct=meta.get("velocity_5s_pct", 0.0),
+                    move_age_s=meta.get("move_age_s", 999.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

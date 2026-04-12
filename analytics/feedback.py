@@ -136,6 +136,9 @@ class TradeRecord:
     # Signal 4: Cross-exchange divergence at entry
     coinbase_price: float = 0.0   # Coinbase spot price (0 = not available)
     cross_exchange_div_pct: float = 0.0  # (binance-coinbase)/coinbase*100
+    # Signal 5: 5-second Binance velocity at entry (data collection only)
+    velocity_5s_pct: float = 0.0   # % Binance price change in last 5s (positive=up, negative=down)
+    move_age_s: float = 999.0      # seconds since last >0.02% Binance tick (999=no recent move)
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +310,8 @@ class FeedbackEngine:
         lowest_price_ts: float = 0.0,
         binance_price_at_entry: float = 0.0,
         binance_reversal_count_at_exit: int = 0,
+        velocity_5s_pct: float = 0.0,
+        move_age_s: float = 999.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -450,6 +455,8 @@ class FeedbackEngine:
             t_adv_s=round(lowest_price_ts, 1),
             binance_price_at_entry=round(binance_price_at_entry, 2),
             binance_reversal_count_at_exit=binance_reversal_count_at_exit,
+            velocity_5s_pct=round(velocity_5s_pct, 4),
+            move_age_s=round(move_age_s, 1),
         )
 
         self._recent.append(rec)

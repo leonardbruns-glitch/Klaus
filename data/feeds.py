@@ -340,6 +340,17 @@ class PolymarketFeed:
         # Coinbase spot prices: asset → price (USD)
         # Populated by _poll_coinbase_prices(). Used for cross-exchange divergence.
         self._coinbase_prices: Dict[str, float] = {}
+        # ── 5-second velocity buffer ─────────────────────────────────────────
+        # Circular buffer of (timestamp, price) tuples per asset.
+        # Fed from aggTrade WS on every tick. Used to compute:
+        #   velocity_5s  — % price change over last 5s (direction + magnitude)
+        #   move_age_s   — seconds since last tick that moved > 0.02%
+        # Logged at entry for post-session analysis; not yet used as a filter.
+        self._price_history: Dict[str, deque] = {
+            "BTC": deque(maxlen=300),   # ~5min at 1 tick/s
+            "ETH": deque(maxlen=300),
+            "SOL": deque(maxlen=300),
+        }
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -719,7 +730,9 @@ class PolymarketFeed:
                                                         # 2. Real-time spot price (sub-second,
                                                         #    more granular than kline 1m ticks)
                                                         self._spot_price[asset] = price
-                                                        self._kline_ts[asset] = time.time()
+                                                        _now_ts = time.time()
+                                                        self._kline_ts[asset] = _now_ts
+                                                        self._price_history[asset].append((_now_ts, price))
                                                         # 3. Delta spike detection
                                                         if self._delta_spike_cb is not None:
                                                             _open5m = self._spot_open_5m.get(asset, 0)
@@ -1688,6 +1701,52 @@ class PolymarketFeed:
         return signal
 
     # ── Convenience accessors ─────────────────────────────────────────────────
+
+    def get_velocity_5s(self, asset: str) -> tuple:
+        """
+        Compute 5-second Binance price velocity for an asset.
+
+        Returns (velocity_pct, move_age_s):
+            velocity_pct — % price change over the last 5s (positive = up, negative = down)
+                           0.0 if fewer than 2 ticks in the window
+            move_age_s   — seconds since the last tick that moved price > 0.02% in either direction
+                           999.0 if no such tick found in history (signal is cold)
+
+        Used at entry to log whether the Binance move backing the lag signal is
+        still live. Not used as a filter yet — collect n≥30 trades first.
+        """
+        hist = self._price_history.get(asset.upper())
+        if not hist or len(hist) < 2:
+            return 0.0, 999.0
+
+        now = time.time()
+        cutoff = now - 5.0
+
+        # velocity_pct: compare oldest tick in last 5s to newest tick
+        window = [(ts, px) for ts, px in hist if ts >= cutoff]
+        if len(window) >= 2:
+            oldest_px = window[0][1]
+            newest_px = window[-1][1]
+            velocity_pct = (newest_px - oldest_px) / oldest_px * 100 if oldest_px > 0 else 0.0
+        elif hist:
+            # fewer than 2 ticks in last 5s — use last known price vs 5s ago reference
+            newest_px = hist[-1][1]
+            velocity_pct = 0.0
+        else:
+            return 0.0, 999.0
+
+        # move_age_s: scan backward for last tick that moved > 0.02% from its predecessor
+        _MOVE_THRESHOLD_PCT = 0.02
+        move_age_s = 999.0
+        ticks = list(hist)
+        for i in range(len(ticks) - 1, 0, -1):
+            ts_i, px_i = ticks[i]
+            ts_prev, px_prev = ticks[i - 1]
+            if px_prev > 0 and abs((px_i - px_prev) / px_prev * 100) >= _MOVE_THRESHOLD_PCT:
+                move_age_s = now - ts_i
+                break
+
+        return round(velocity_pct, 4), round(move_age_s, 1)
 
     def register_delta_spike_callback(self, cb) -> None:
         """Register async callback fired on Binance aggTrade when delta threshold crossed."""
