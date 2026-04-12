@@ -183,14 +183,17 @@ class EdgeConfig:
 
     # Per-asset minimum delta override (absolute %). Takes precedence over the global
     # _session_min_delta when set for a given asset.
-    # BTC live data (n=22): delta > -0.10% → WR=17% (-$12.19); delta > -0.12% → WR=44% (-$14.10).
-    # BTC reprices faster than ETH/SOL — weak BTC moves recover within the window.
-    # Require delta ≥ 0.12% for BTC entries. SOL/ETH unaffected (wins at 0.10-0.11%).
+    # All three assets now at 0.12% — validated by live trade data:
+    #   ETH 0.10-0.12%: n=117 live entries WR=48.7% net=-$58.18 (passes lag/edge/QS but still loses)
+    #   SOL 0.10-0.12%: n=83  live entries WR=51.8% net=-$31.48 (fee-negative at PF~0.78)
+    #   BTC 0.10-0.12%: n=22  live entries WR=17%   net=-$12.19
+    # Shadow data confirms 0.12-0.13% BTC band is redundant (all blocked by lag/edge first).
+    # SOL and ETH 0.10-0.12% shadow blocks also all caught by other gates, but the historical
+    # live data proves weak-delta entries in this band lose even when other gates pass.
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.12,  # lowered 0.13→0.12: shadow data n=8 shows 0.12-0.13% band ALL blocked by
-                      # lag_too_low (lag=0.06-0.34) or edge_negative — delta gate was redundant.
-                      # 0.13 was protecting nothing the lag/edge gates don't already cover.
-        "SOL": 0.12,  # added n=540: SOL delta 0.10-0.12 WR=51.8% PF~0.78; 0.12-0.15 WR=64.9% PF=1.51 (only profitable SOL zone)
+        "BTC": 0.12,  # lowered 0.13→0.12: shadow data n=8 all blocked by lag/edge — gate redundant
+        "ETH": 0.12,  # added 2026-04-12: n=117 live entries at 0.10-0.12% WR=48.7% net=-$58.18
+        "SOL": 0.12,  # added n=540: SOL delta 0.10-0.12 WR=51.8% net=-$31.48 (PF~0.78, fee-negative)
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
