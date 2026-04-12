@@ -468,15 +468,9 @@ class WindowSniper:
             return None
         elapsed_pct = elapsed / token.window_seconds
 
-        # Elapsed zones: allowed 0–20% (fresh signal) and 45–79% (confirmed direction).
-        # Dead zone 20–44%: move unconfirmed, high reversal risk.
-        # Late block 65%+: n=540 data shows elapsed 0.65+ PF=0.39 (was 80%, now 65%).
-        if 0.20 <= elapsed_pct < 0.45:
-            logger.debug(
-                "SNIPER BLOCK %s/%s | elapsed_dead_zone=%.1f%% (20%%–44%% blocked)",
-                token.asset, token.side, elapsed_pct * 100,
-            )
-            return None
+        # Elapsed dead zone removed 2026-04-12: lag/delta/regime gates are the correct
+        # filters. The 20-44% block was a blunt proxy added before those gates existed.
+        # Let lag≥0.55 + delta≥0.12% + regime gate handle quality regardless of timing.
         elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
         if elapsed_pct >= elapsed_max:
             logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% >= %.0f%%",
