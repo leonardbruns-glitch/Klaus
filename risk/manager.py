@@ -207,18 +207,8 @@ class BankrollTracker:
         return self.daily_start_capital - self.capital
 
     @property
-    def is_ruined(self) -> bool:
-        """True when capital is below the hard ruin floor — no new entries allowed."""
-        return self.capital < self.cfg.ruin_floor
-
-    @property
-    def below_weekly_floor(self) -> bool:
-        """True when capital is below the weekly floor — requires manual review to continue."""
-        return self.capital < self.cfg.weekly_floor
-
-    @property
     def is_halted(self) -> bool:
-        return self.is_ruined or self.daily_loss >= self.cfg.max_daily_loss
+        return self.daily_loss >= self.cfg.max_daily_loss
 
     def reset_daily(self) -> None:
         self.daily_start_capital = self.capital
@@ -441,12 +431,7 @@ class RiskManager:
         is_sniper: bool = False,
         window_seconds: int = 0,
     ) -> RiskDecision:
-        # ── Ruin floor / daily loss halt ─────────────────────────────────────
-        if self.bankroll.is_ruined:
-            return RiskDecision(
-                False, 0,
-                f"RUIN FLOOR: capital=${self.bankroll.capital:.2f} < ${self.cfg.ruin_floor:.0f} floor — SHUT DOWN ENTIRELY",
-            )
+        # ── Daily loss halt ───────────────────────────────────────────────────
         if self.bankroll.is_halted:
             return RiskDecision(
                 False, 0,
