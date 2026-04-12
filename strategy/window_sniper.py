@@ -281,9 +281,18 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
     else:
         pts_regime = 0
 
-    # ── VPIN scaling: low VPIN = no informed flow = reduce conviction ─────
-    # Applies to moderate-lag trades; high-lag + low-vpin is hard-rejected above.
-    pts_vpin = -1 if vpin < 0.30 else 0
+    # ── VPIN scaling: DISABLED 2026-04-12 ────────────────────────────────
+    # Live data n=559 trades: VPIN has no monotonic WR relationship.
+    #   <0.30: WR=51.7% net=-$54  (best performing bucket — penalty was BACKWARDS)
+    #   0.30-0.40: WR=47.9% net=-$71
+    #   0.40-0.55: WR=49.8% net=-$74
+    # All buckets flat 48-52%. avg VPIN=0.370, 60% of trades below 0.40.
+    # This strategy fires in low-VPIN conditions by design (PM lag arbitrage,
+    # not institutional flow). VPIN penalty was dragging QS=4→3 for the best
+    # performing cohort. Removed — QS score now: lag + mom + regime only.
+    # NOTE: high_lag_no_vpin HARD REJECT (lag≥0.70 AND vpin<0.40) is separate
+    # and intentionally kept — ghost reversal risk at extreme lag needs own analysis.
+    pts_vpin = 0
 
     score = pts_lag + pts_mom + pts_regime + pts_vpin
     breakdown = {"lag": pts_lag, "mom": pts_mom, "regime": pts_regime, "vpin": pts_vpin}
