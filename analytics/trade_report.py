@@ -92,6 +92,8 @@ for t in trades:
     gross = g(t, "gross_pnl")
     cap  = g(t, "capital_after", 0) or 0.0
     reason = g(t, "exit_reason", "?")
+    vel  = g(t, "velocity_5s_pct")   # % Binance price change in last 5s at entry
+    age  = g(t, "move_age_s")        # seconds since last >0.02% Binance tick
 
     print(
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
@@ -104,6 +106,7 @@ for t in trades:
         f"after: +30s={d30} +60s={d60} +120s={d120} ec={ec2} | "
         f"slip_e={pf(slip_e, '+.4f')} slip_x={pf(slip_x, '+.4f')} | "
         f"llm={pf(llm, '+.2f')} cwin={cwin} | "
+        f"vel={pf(vel, '+.3f', '%')} age={'cold' if age is None or age >= 999 else f'{age:.0f}s'} | "
         f"stake=${stake:.2f} fee=${fee:.3f} gross={pf(gross, '+.3f', '$')} net={pnl:+.3f} cap=${cap:.2f} | "
         f"{reason}"
     )
