@@ -98,8 +98,10 @@ class PositionMeta:
     ratchet_sl: float = 0.0          # locked profit floor — only moves up, never down
                                       # 0.0 = inactive | entry*1.07 = +7% floor | entry*1.15 = +15% floor
     ratchet_lock_ts: float = 0.0      # timestamp when price first crossed the next ratchet tier (3s confirmation)
+    ratchet_exit_breach_ts: float = 0.0  # when price first touched ratchet floor (3s confirmation before exit)
     quality_score: int = 0            # QS at entry — drives ratchet floor buffer (see ratchet logic)
     velocity_breach_ts: float = 0.0   # when price first dropped below -25% (5s emergency brake)
+    moon_bag_trail_breach_ts: float = 0.0  # when moon bag trail floor first touched (3s confirmation before exit)
     binance_price_at_entry: float = 0.0  # Binance spot at entry — used to detect post-entry reversal
     binance_reversal_count: int = 0      # consecutive check cycles Binance has been reversed (each ~1s)
     entry_delta_pct: float = 0.0      # |Binance delta| at entry (fraction, e.g. 0.0013 = 0.13%)
@@ -915,13 +917,35 @@ class RiskManager:
                 return ExitDecision(True, "MOON_BAG_TP", urgency="cascade")
 
             # Exit 2: 15% trailing stop from post-Stage-1 high
+            # 3s confirmation required — prevents single manufactured wick from triggering
+            # (trade 16: +26.2% peak → wick to -52.5% in 9s → MOON_BAG_TRAIL fired immediately)
+            _MOON_BAG_TRAIL_CONFIRM_S = 3.0
             if current_price <= _trail_floor:
-                logger.info(
-                    "MOON_BAG_TRAIL %s/%s @ %.4f — %.1f%% below post-S1 high %.4f (floor %.4f)",
-                    pos.asset, pos.direction.name, current_price,
-                    (1 - current_price / _trail_ref) * 100, _trail_ref, _trail_floor,
-                )
-                return ExitDecision(True, "MOON_BAG_TRAIL", urgency="cascade")
+                if pos.moon_bag_trail_breach_ts == 0.0:
+                    pos.moon_bag_trail_breach_ts = now
+                    logger.info(
+                        "MOON_BAG_TRAIL breach pending %s/%s @ %.4f — %.1f%% below high %.4f "
+                        "(floor %.4f) — waiting %.1fs confirmation",
+                        pos.asset, pos.direction.name, current_price,
+                        (1 - current_price / _trail_ref) * 100, _trail_ref, _trail_floor,
+                        _MOON_BAG_TRAIL_CONFIRM_S,
+                    )
+                elif now - pos.moon_bag_trail_breach_ts >= _MOON_BAG_TRAIL_CONFIRM_S:
+                    logger.info(
+                        "MOON_BAG_TRAIL %s/%s @ %.4f — %.1f%% below high %.4f (floor %.4f) "
+                        "confirmed %.1fs",
+                        pos.asset, pos.direction.name, current_price,
+                        (1 - current_price / _trail_ref) * 100, _trail_ref, _trail_floor,
+                        now - pos.moon_bag_trail_breach_ts,
+                    )
+                    return ExitDecision(True, "MOON_BAG_TRAIL", urgency="cascade")
+            else:
+                if pos.moon_bag_trail_breach_ts > 0.0:
+                    logger.debug(
+                        "MOON_BAG_TRAIL breach cancelled %s/%s — price %.4f recovered above floor %.4f",
+                        pos.asset, pos.direction.name, current_price, _trail_floor,
+                    )
+                pos.moon_bag_trail_breach_ts = 0.0
 
             # Exit 3: 60s before window close — don't hold into resolution uncertainty
             if pos.window_end_ts > 0 and remaining <= 60:
@@ -1001,13 +1025,31 @@ class RiskManager:
                 )
             pos.ratchet_lock_ts = 0.0
 
+        _RATCHET_EXIT_CONFIRM_S = 3.0  # require 3s sustained breach before exiting — prevents single-tick wicks
         if pos.ratchet_sl > 0 and current_price <= pos.ratchet_sl:
             _locked_profit_pct = (pos.ratchet_sl - pos.entry_price) / pos.entry_price * 100
-            logger.info(
-                "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f (+%.1f%% locked profit)",
-                pos.asset, pos.direction.name, current_price, pos.ratchet_sl, _locked_profit_pct,
-            )
-            return ExitDecision(True, "RATCHET_SL", urgency="immediate")
+            if pos.ratchet_exit_breach_ts == 0.0:
+                pos.ratchet_exit_breach_ts = now
+                logger.info(
+                    "RATCHET_SL breach pending %s/%s @ %.4f ≤ floor %.4f (+%.1f%% locked) "
+                    "— waiting %.1fs confirmation",
+                    pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+                    _locked_profit_pct, _RATCHET_EXIT_CONFIRM_S,
+                )
+            elif now - pos.ratchet_exit_breach_ts >= _RATCHET_EXIT_CONFIRM_S:
+                logger.info(
+                    "RATCHET EXIT %s/%s @ %.4f ≤ floor %.4f (+%.1f%% locked) confirmed %.1fs",
+                    pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+                    _locked_profit_pct, now - pos.ratchet_exit_breach_ts,
+                )
+                return ExitDecision(True, "RATCHET_SL", urgency="immediate")
+        else:
+            if pos.ratchet_exit_breach_ts > 0.0:
+                logger.debug(
+                    "RATCHET_SL breach cancelled %s/%s — price %.4f recovered above floor %.4f",
+                    pos.asset, pos.direction.name, current_price, pos.ratchet_sl,
+                )
+            pos.ratchet_exit_breach_ts = 0.0
 
         # ── 7. Velocity SL — CTF V2 Speed Rules (2026-04-09, Binance-aware 2026-04-10) ─
         # Hope-based guards eliminated. Live data: 50–80% stake loss waiting for
@@ -1162,7 +1204,7 @@ class RiskManager:
                 pos.sl_breach_ts = 0.0
                 pos.sl_breach_price = 0.0
                 pos.sl_breach_llm_queried = False
-            _velocity_threshold = 6 if _binance_reversed else (32 if _binance_flat else 10)
+            _velocity_threshold = 6 if _binance_reversed else (32 if _binance_flat else 18)
             if pos.velocity_breach_ts == 0.0:
                 pos.velocity_breach_ts = now
                 logger.info(
@@ -1188,7 +1230,7 @@ class RiskManager:
         # Only active when price is between -15% and -25%. VELOCITY_EXIT owns below -25%.
         _below_15pct = current_price <= pos.entry_price * 0.85
         if _below_15pct and not _below_25pct:
-            _sl_threshold = 7 if _binance_reversed else (25 if _binance_flat else 15)
+            _sl_threshold = 7 if _binance_reversed else (25 if _binance_flat else 22)
             if pos.sl_breach_ts == 0.0:
                 pos.sl_breach_ts = now
                 pos.sl_breach_price = current_price
