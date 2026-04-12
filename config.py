@@ -200,9 +200,9 @@ class EdgeConfig:
     # Asymmetry noted — Binance up-moves close PM lag more reliably than down-moves.
     # Not gated yet (n=9 YES is thin); collect 20+ before adding directional filter.
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.18,  # raised 0.12→0.18: n=73 at 0.12-0.18% WR=46.7% net=-$32.30; profitable only at 0.18%+
-        "ETH": 0.18,  # raised 0.12→0.18: n=41 at 0.12-0.18% WR=41%   net=-$38.57; profitable only at 0.18%+
-        "SOL": 0.12,  # unchanged: SOL 0.12-0.18% is +$24.11 net (best zone); 0.18%+ loses — opposite of BTC/ETH
+        "BTC": 0.12,  # reset 0.18→0.12 per user instruction 2026-04-12
+        "ETH": 0.12,  # reset 0.18→0.12 per user instruction 2026-04-12
+        "SOL": 0.12,  # unchanged
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
