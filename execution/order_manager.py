@@ -318,19 +318,19 @@ class OrderManager:
                 logger.error("Limit buy failed: %s", exc)
 
         # Last-resort orphan guard: _submit_limit_order returned FAILED (WS timeout,
-        # cancel race, CLOB read-replica lag). CLOB read-replica can lag 1-4s after
-        # fill settles on-chain. Two-shot check: first at 3s, then at 5s total, to
-        # absorb both fast and slow propagation. 1.5s was confirmed insufficient
-        # (SOL orphan 2026-04-12: balance=0 at 1.5s, fill visible after ~3-4s).
-        for _wait_s in (3.0, 2.0):   # sleep 3s → check; sleep 2s more (5s total) → check
+        # cancel race, CLOB read-replica lag). Extended to 4 shots (3s/5s/10s/20s):
+        # 3s+5s confirmed insufficient — SOL fills appearing after 5s repeatedly.
+        # asyncio.sleep is non-blocking so other coroutines run during waits.
+        _cumulative = 0.0
+        for _wait_s in (3.0, 2.0, 5.0, 10.0):  # checks at 3s, 5s, 10s, 20s total
             await asyncio.sleep(_wait_s)
-            _elapsed = 3.0 if _wait_s == 3.0 else 5.0
+            _cumulative += _wait_s
             _orphan_balance = self.fetch_token_balance(token_id)
             if _orphan_balance is not None and _orphan_balance >= 0.05:
                 logger.warning(
                     "ORPHAN FILL RECOVERED in limit_buy @ %.0fs: _submit_limit_order returned "
                     "FAILED but CLOB balance=%.4f for %s — recovering @ estimated price=%.4f",
-                    _elapsed, _orphan_balance, token_id[:12], limit_price,
+                    _cumulative, _orphan_balance, token_id[:12], limit_price,
                 )
                 return OrderResult(
                     status=OrderStatus.FILLED,
@@ -340,7 +340,7 @@ class OrderManager:
                 )
             logger.debug(
                 "ORPHAN CHECK @%.0fs: balance=0 for %s — CLOB propagation still pending",
-                _elapsed, token_id[:12],
+                _cumulative, token_id[:12],
             )
 
         return OrderResult(status=OrderStatus.FAILED, error="Entry not filled — price moved")
