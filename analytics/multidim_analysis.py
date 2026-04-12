@@ -3,7 +3,8 @@
 multidim_analysis.py — Lag × VPIN × Delta × Elapsed cross-dimensional analysis.
 
 Run from Klaus root:
-    python3 analytics/multidim_analysis.py
+    python3 analytics/multidim_analysis.py           # all trades
+    python3 analytics/multidim_analysis.py --last 40 # last N live trades
 """
 
 import json
@@ -12,6 +13,15 @@ from collections import defaultdict
 from pathlib import Path
 
 TRADE_LOG = Path("logs/trades.jsonl")
+
+# Parse --last N argument
+last_n = None
+for i, arg in enumerate(sys.argv[1:]):
+    if arg == "--last" and i + 1 < len(sys.argv) - 1:
+        try:
+            last_n = int(sys.argv[i + 2])
+        except ValueError:
+            pass
 
 trades = []
 if not TRADE_LOG.exists():
@@ -33,7 +43,11 @@ live = [t for t in trades if t.get("is_live")
         and t.get("sniper_lag_remaining") is not None
         and t.get("sniper_delta_pct") is not None]
 
-print(f"Loaded {len(trades)} total, {len(live)} live with lag+delta\n")
+if last_n is not None:
+    live = live[-last_n:]
+    print(f"Loaded {len(trades)} total — analysing last {last_n} live trades (n={len(live)})\n")
+else:
+    print(f"Loaded {len(trades)} total, {len(live)} live with lag+delta\n")
 
 if not live:
     print("No usable live trades.")
