@@ -569,12 +569,15 @@ class RiskManager:
             # Quality Score stake mapping (Kelly-lite tier sizing).
             # Score computed in window_sniper._compute_quality_score() from lag/mom/regime.
             # Score ≤ -1 is hard-rejected by the sniper before reaching here.
-            # score ≥ 4 → 1.2x  (HIGH: n=3, WR=67% — small sample, keep watching)
-            # score = 2 → 1.0x  (CONFIRMED: n=???, WR=54%, PF=2.19 — only profitable tier)
-            # score = 3 → 0.5x  (CATASTROPHIC: n=18+, WR=20%, PF=0.53 — halved 2026-04-09)
-            # score = 1 → 0.5x  (WEAK: low confidence signal, minimise risk)
-            # score = 0 → 0.5x  (CAUTION: noisy signal, minimise risk)
-            # score < 0  → reject (safety net — sniper should have caught this)
+            #
+            # New tiers (2026-04-14) — delta scoring restructured:
+            #   score >= 5 → 1.5x  (Instant Max Stake: delta>0.25% + high lag + ACTIVE)
+            #   score >= 2 → 1.0x  (Base Stake: covers qs=2,3,4)
+            #   score 0-1  → 0.5x  (WEAK: low confidence, minimise risk)
+            #   score < 0  → reject (safety net — sniper should have caught this)
+            #
+            # Note: qs=3 was previously 0.5x (WR=20% at old scoring). With new delta
+            # tiers, qs=3 = delta 0.18%+ + moderate lag — higher quality signal.
             _qs = getattr(signal, 'quality_score', 0)
             if _qs < 0:
                 logger.warning(
@@ -582,12 +585,10 @@ class RiskManager:
                     asset, _qs,
                 )
                 return RiskDecision(False, 0, f"Quality score {_qs} < 0")
-            elif _qs >= 4:
-                _multiplier = 1.2   # qs≥4: n=3, WR=67% — small sample, keep watching
-            elif _qs == 2:
-                _multiplier = 1.0   # qs=2: WR=54%, PF=2.19 — only confirmed profitable tier
-            elif _qs == 3:
-                _multiplier = 0.5   # qs=3: WR=20%, PF=0.53 — catastrophic, halved 2026-04-09
+            elif _qs >= 5:
+                _multiplier = 1.5   # qs=5: Instant Max Stake (delta>0.25% + lag≥0.70 + ACTIVE)
+            elif _qs >= 2:
+                _multiplier = 1.0   # qs=2,3,4: Base Stake (sufficient combined signal)
             else:
                 _multiplier = 0.5   # qs=0 or qs=1: low confidence
             # QUIET_DEAD + QUIET_FLOW hard cap: no informed flow = max 0.5x

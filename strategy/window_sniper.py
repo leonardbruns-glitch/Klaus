@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.08   # lowered 0.15→0.08: velocity gate now filters bad entries; lower threshold = more opportunities
-_DELTA_PCT_QUIET  = 0.08   # same
+_DELTA_PCT_ACTIVE = 0.12   # raised 0.08→0.12: new scoring tiers start at 0.12%; below this = no momentum points
+_DELTA_PCT_QUIET  = 0.12   # same
 
-_DELTA_PCT_15M_ACTIVE       = 0.08
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.08
-_DELTA_PCT_15M_QUIET        = 0.08
+_DELTA_PCT_15M_ACTIVE       = 0.12
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.12
+_DELTA_PCT_15M_QUIET        = 0.12
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
@@ -283,14 +283,17 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
         pts_lag = 1          # confirmation zone: 0.40–0.70
 
     # ── Momentum scoring (abs value — correct for both YES and NO) ────────
-    if abs_delta >= 0.15:
-        pts_mom = 2
-    elif abs_delta >= 0.10:
-        pts_mom = 1
-    elif abs_delta >= 0.08:
-        pts_mom = 0          # neutral zone
+    # Tier structure (2026-04-14):
+    #   >0.25%  → +2 pts  (Instant Max Stake territory: qs can reach 5 = 1.5x)
+    #   0.18-0.25% → +2 pts  (Instant Base Stake territory: qs≥3 = 1.0x with normal lag)
+    #   0.12-0.18% → +1 pt   (entry zone: sufficient edge with good lag)
+    #   <0.12%  → -1 pt   (below min delta — delta gate should have blocked this)
+    if abs_delta >= 0.18:
+        pts_mom = 2          # strong move — base or max stake depending on total qs
+    elif abs_delta >= 0.12:
+        pts_mom = 1          # entry zone
     else:
-        pts_mom = -1
+        pts_mom = -1         # sub-threshold (shouldn't reach here post delta gate)
 
     # ── Regime scoring ────────────────────────────────────────────────────
     if regime.startswith("ACTIVE_"):
@@ -323,8 +326,8 @@ def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
     Minimum delta threshold — window-type based, no elapsed gate.
     All elapsed allowed; end-of-window protection handled by WINDOW_ELAPSED_MAX.
 
-    15m: flat 0.10 across all elapsed — weak moves don't sustain even when confirmed.
-    5m:  flat 0.10 — small moves don't sustain regardless of session.
+    15m: flat 0.12 across all elapsed — below this = no momentum points in scoring.
+    5m:  flat 0.12 — same rationale.
     """
     if is_15m:
         if elapsed_pct < _EARLY_ELAPSED_CUTOFF:
