@@ -879,6 +879,24 @@ class KlausBot:
                 _updown_scanned += 1
                 sniper_sig = self.sniper.score(token, ob, ext, now=time.time())
 
+            # ── Velocity gate: skip if Binance momentum is against trade direction ──
+            # NO trade requires price still falling (vel < 0); YES requires rising (vel > 0).
+            # Flat/cold (|vel| ≤ 0.001%) allowed through — no data is not a bad signal.
+            # Live data: vel against direction → 0W/4L on SNI NO trades.
+            if sniper_sig is not None:
+                _vel_now, _ = self.feed.get_velocity_5s(token.asset)
+                _VEL_THRESHOLD = 0.001   # % — dead zone for flat/no-data
+                _vel_against = (
+                    (token.side == "NO"  and _vel_now >  _VEL_THRESHOLD) or
+                    (token.side == "YES" and _vel_now < -_VEL_THRESHOLD)
+                )
+                if _vel_against:
+                    logger.info(
+                        "SNIPER VELOCITY_GATE %s/%s | vel=%+.4f%% against direction — skip",
+                        token.asset, token.side, _vel_now,
+                    )
+                    sniper_sig = None
+
             if sniper_sig is not None:
                 _updown_fired += 1
                 # Log the sniper detection here; briefing decision logged after the call
