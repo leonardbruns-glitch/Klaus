@@ -2714,10 +2714,73 @@ class KlausBot:
                         logger.error("record_trade STARTUP_EXTERNALLY_SOLD failed: %s", _e)
                     self._open_meta.pop(token_id, None)
                 else:
-                    logger.info(
-                        "STARTUP: %s/%s confirmed %.4f shares on CLOB — tracking continues",
-                        pos.asset, pos.direction.name, balance,
-                    )
+                    _token_in_feed = token_id in self.feed.tokens
+                    if not _token_in_feed:
+                        # Shares confirmed on CLOB but token is no longer in the feed
+                        # (window expired and was removed). The normal exit loop iterates
+                        # self.feed.tokens only — it will never fire for this token.
+                        # Force-sell immediately to recover the capital.
+                        logger.warning(
+                            "STARTUP: %s/%s has %.4f shares but token NOT in feed "
+                            "(window expired?) — force-selling orphan",
+                            pos.asset, pos.direction.name, balance,
+                        )
+                        self._exit_in_progress.add(token_id)
+                        try:
+                            ob = self.feed.get_order_book(token_id)
+                            sell_price = ob.bids[0][0] if (ob and ob.bids) else 0.50
+                            orphan_fills = await self.orders.cascade_sell(
+                                token_id=token_id,
+                                total_shares=balance,
+                                current_price=sell_price,
+                                reason="ORPHAN_SELL",
+                                neg_risk=False,
+                                tick_size="0.01",
+                                force_exit=True,
+                            )
+                            sold = sum(f.total_size for f in orphan_fills)
+                            avg_price = (
+                                sum(f.avg_fill_price * f.total_size for f in orphan_fills) / sold
+                                if sold > 0 else sell_price
+                            )
+                            if sold > 0:
+                                logger.info(
+                                    "STARTUP ORPHAN SOLD %s/%s: %.4f shares @ %.4f",
+                                    pos.asset, pos.direction.name, sold, avg_price,
+                                )
+                                if not CONFIG.dry_run:
+                                    _proceeds = round(sold * avg_price, 4)
+                                    self.risk.bankroll.capital = round(
+                                        self.risk.bankroll.capital + _proceeds, 4
+                                    )
+                                    self.risk.bankroll._save()
+                                    logger.warning(
+                                        "STARTUP ORPHAN PROCEEDS +$%.4f → cap=$%.2f",
+                                        _proceeds, self.risk.bankroll.capital,
+                                    )
+                            else:
+                                logger.warning(
+                                    "STARTUP ORPHAN SELL FAILED %s/%s: %.4f shares unsold",
+                                    pos.asset, pos.direction.name, balance,
+                                )
+                            self.risk.close_position(
+                                token_id,
+                                avg_price if sold > 0 else pos.entry_price,
+                                "ORPHAN_SELL",
+                            )
+                            self._open_meta.pop(token_id, None)
+                        except Exception as _oe:
+                            logger.error(
+                                "STARTUP ORPHAN SELL (tracked) failed for %s: %s",
+                                token_id[:12], _oe,
+                            )
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                    else:
+                        logger.info(
+                            "STARTUP: %s/%s confirmed %.4f shares on CLOB — tracking continues",
+                            pos.asset, pos.direction.name, balance,
+                        )
             except Exception as _e:
                 logger.error("STARTUP balance check failed for %s: %s", token_id[:12], _e)
 
