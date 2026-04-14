@@ -100,8 +100,8 @@ MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard ag
                         # Real quality filtering done by lag gate + edge gate + OB gates.
 MAX_TOKEN_ASK = 0.77   # raised 0.70→0.77: user instruction 2026-04-14; 0.70-0.77 band unvalidated — lag gate (0.55) will likely still block most entries in this zone
 MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
-MIN_LAG_REMAINING_5M = 0.55   # raised 0.40→0.55: n=540 data — lag 0.40–0.55 costs -$133k (PF=0.59–0.68); lag≥0.55 approaches PF=0.85+
-MIN_LAG_REMAINING_15M = 0.55  # same — lag≥0.60+delta≥0.10 is first break-even combo (PF=1.00, n=162)
+MIN_LAG_REMAINING_5M = 0.45   # lowered 0.55→0.45: user instruction 2026-04-14; WARNING: lag 0.40-0.55 was -$133k PF=0.59 at old delta 0.08%; untested at new delta 0.12%+
+MIN_LAG_REMAINING_15M = 0.45  # same
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 
