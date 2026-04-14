@@ -1357,27 +1357,22 @@ class KlausBot:
         # model used the pre-fill price; the entry is now anchored to a worse basis.
         # At 3.5% above signal price the fee-adjusted edge is materially degraded.
         # (Different from Tier 2: Tier 1 = fill too expensive; Tier 2 = fill too cheap)
+        #
+        # PREVIOUS BEHAVIOR (WRONG): sell immediately on slip cap breach.
+        # Problem: the fill already happened — selling immediately adds another round
+        # of fees and potentially exits at a worse price (observed: fill=0.64, sold=0.56
+        # → -12.5% loss on a position that would have won). 2026-04-14.
+        # NEW BEHAVIOR: warn and continue tracking at actual fill price. The fill is done,
+        # the edge still exists (slightly reduced). Normal exit logic manages it.
         _slip_cap = self.risk.exec_cfg.entry_slip_cap  # 0.035 = 3.5%
         _slip_above = (fill.avg_fill_price - signal.entry_price) / signal.entry_price if signal.entry_price > 0 else 0
         if _slip_above > _slip_cap:
-            self._buy_failed_reasons["entry_slip_cap"] = \
-                self._buy_failed_reasons.get("entry_slip_cap", 0) + 1
             logger.warning(
                 "ENTRY_SLIP_CAP %s: fill=%.4f vs signal=%.4f (+%.1f%% > cap %.1f%%) "
-                "— paid too much above signal price, not opening position",
+                "— tracking at fill price (position already open, selling would lose more)",
                 asset, fill.avg_fill_price, signal.entry_price,
                 _slip_above * 100, _slip_cap * 100,
             )
-            await self.orders.cascade_sell(
-                token_id=token_id,
-                shares=fill.total_size,
-                current_price=fill.avg_fill_price,
-                reason="ENTRY_SLIP_CAP",
-                neg_risk=getattr(self.feed.tokens.get(token_id), "neg_risk", False),
-                tick_size=getattr(self.feed.tokens.get(token_id), "tick_size", "0.01"),
-            )
-            self.risk._pending_assets.discard(asset)
-            return
 
         # Tier 2: if fill is >10¢ below limit, the market moved hard against
         # us mid-order — signal is invalidated. Close immediately rather than enter
