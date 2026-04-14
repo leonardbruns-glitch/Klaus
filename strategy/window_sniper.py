@@ -582,9 +582,13 @@ class WindowSniper:
         expected_move = fair_value - 0.50
         lag_remaining_pct = min(1.0, max(0.0, (fair_value - token_ask) / expected_move)) if expected_move > 0.01 else 0.0
         # Gate: require sufficient lag remaining.
-        # Floor is 0.40 for all windows — no pre-arm or edge relaxation.
-        # Data evidence: 1W/2L below 0.40; fee math confirms margin too thin below floor.
-        min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING_15M
+        # Pre-armed entries: relaxed to 0.20 — direction already confirmed by previous window
+        # hitting 0.80+. Still requires some fresh delta in new window (Binance still moving).
+        # Normal entries: 0.55 — no prior confirmation, need sufficient unpriced gap.
+        if is_prearmed:
+            min_lag = 0.20
+        else:
+            min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING_15M
         if lag_remaining_pct < min_lag:
             logger.info(
                 "SNIPER BLOCK %s/%s | lag=%.0f%% < %.0f%% min (fv=%.3f ask=%.3f delta=%+.3f%%) — PM mostly repriced",
