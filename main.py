@@ -2497,7 +2497,7 @@ class KlausBot:
         _RECONCILE_DRIFT_WARN = 0.50  # warn if internal vs actual diverges > $0.50
         _RECONCILE_DRIFT_CORRECT = 2.00  # auto-correct if divergence > $2.00
         _last_full_orphan_scan_ts = 0.0
-        _FULL_ORPHAN_SCAN_INTERVAL = 300  # full balance sweep every 5min (finds mid-session orphans)
+        _FULL_ORPHAN_SCAN_INTERVAL = 120  # full balance sweep every 2min — 5m windows need fast detection
         while self._running:
             await asyncio.sleep(10)
             # Ping watchdog — proves event loop is alive to the daemon thread
