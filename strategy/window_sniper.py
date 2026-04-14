@@ -126,7 +126,7 @@ CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window ope
 # Buy OPPOSITE direction token. Half stake. Skip fair-value/lag gates — pure mean-reversion bet.
 # Live data: 3 SIGNAL_FLIPPED losses at delta 0.05–0.07% → hypothesis: reversal is exploitable.
 # Validate: need n≥20 contrarian trades before crediting any edge.
-CONTRARIAN_DELTA_ENABLED  = True
+CONTRARIAN_DELTA_ENABLED  = False  # disabled: 4W/5L net=-$5.93 — correlated macro moves cause simultaneous multi-asset blowups
 CONTRARIAN_DELTA_MIN_PCT  = 0.050   # minimum abs Binance delta to trigger contrarian
 CONTRARIAN_DELTA_MAX_PCT  = 0.060   # maximum abs Binance delta to trigger contrarian
 
