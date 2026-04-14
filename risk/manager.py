@@ -509,7 +509,7 @@ class RiskManager:
             # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
             _signal_source = getattr(signal, "signal_source", "MOMENTUM")
             _is_contrarian = _signal_source == "CONTRARIAN"
-            _updown_max = 0.90 if _is_contrarian else 0.70
+            _updown_max = 0.90 if _is_contrarian else 0.77
             _updown_min = 0.03 if _is_contrarian else 0.05  # contrarian buys at ~0.10
             if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
