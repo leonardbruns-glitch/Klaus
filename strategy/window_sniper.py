@@ -125,10 +125,13 @@ CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window ope
 WINDOW_ELAPSED_MAX_5M  = 0.78  # raised 0.65→0.78: n=2 at 0.65+ in last 50 trades insufficient to justify ceiling
 WINDOW_ELAPSED_MAX_15M = 0.78  # at elapsed=0.78 on 15m: 198s remaining ≥ HARD_EXIT 210s so window still governs
 
-# ── Pre-arm: early entry when previous window already repriced ─────────────────
-# If current window's token repriced past 0.80, next window will open at ~0.50.
-# We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
-PREARM_ELAPSED_MIN = 0.20       # restored 0.40→0.20: dead zone removed, original value reinstated
+# ── Pre-arm: DISABLED 2026-04-14 ─────────────────────────────────────────────
+# Logic flaw: new window resets Binance reference to current price (delta=0%).
+# Previous window direction is irrelevant — no lag exists at new window open.
+# Trades entered at 3% elapsed with 0.57-0.68 ask, no real confirmation.
+# ETH pre-arm: hit +37.3% peak then reversed to -37% loss. Not a valid edge.
+PREARM_ENABLED = False
+PREARM_ELAPSED_MIN = 0.20
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
                                 # was 0.5: reducing sustain caused low-quality early entries
@@ -546,7 +549,7 @@ class WindowSniper:
 
         _effective_max = MAX_TOKEN_ASK
         if token_ask > _effective_max or token_ask < MIN_TOKEN_ASK:
-            if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
+            if PREARM_ENABLED and token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
                 self._prearm[prearm_key] = (now, token.window_end_ts)
                 logger.info(
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed",
