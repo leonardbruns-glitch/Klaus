@@ -2496,6 +2496,8 @@ class KlausBot:
         _RECONCILE_INTERVAL = 3600  # reconcile bankroll vs actual USDC every hour
         _RECONCILE_DRIFT_WARN = 0.50  # warn if internal vs actual diverges > $0.50
         _RECONCILE_DRIFT_CORRECT = 2.00  # auto-correct if divergence > $2.00
+        _last_full_orphan_scan_ts = 0.0
+        _FULL_ORPHAN_SCAN_INTERVAL = 300  # full balance sweep every 5min (finds mid-session orphans)
         while self._running:
             await asyncio.sleep(10)
             # Ping watchdog — proves event loop is alive to the daemon thread
@@ -2504,7 +2506,16 @@ class KlausBot:
             try:
                 await self.orders.post_heartbeat()
                 await self._sweep_residuals()
-                await self._window_end_balance_sweep()
+                # Periodic full scan: force_all=True every 5min catches orphans created
+                # mid-session (not just near window-close). Without this, an orphan can
+                # sit undetected for up to 13min (15m window) until the 120s horizon fires.
+                _now_hb = time.time()
+                if _now_hb - _last_full_orphan_scan_ts >= _FULL_ORPHAN_SCAN_INTERVAL:
+                    logger.debug("HEARTBEAT: periodic full orphan scan (force_all=True)")
+                    await self._window_end_balance_sweep(force_all=True)
+                    _last_full_orphan_scan_ts = _now_hb
+                else:
+                    await self._window_end_balance_sweep()
                 _hb_failures = 0  # reset on success
 
                 # ── Hourly bankroll reconciliation ───────────────────────────
@@ -2881,6 +2892,18 @@ class KlausBot:
         self.risk._expired_stage1_positions.clear()
 
         logger.info("STARTUP ORPHAN SWEEP: complete")
+
+        # Second sweep at t+30s — catches tokens that weren't in self.feed.tokens
+        # at the t+10s sweep because the feed loads asynchronously. Tokens for
+        # windows that started recently often appear 15-25s after bot startup.
+        asyncio.create_task(self._delayed_orphan_sweep())
+
+    async def _delayed_orphan_sweep(self) -> None:
+        """Second orphan sweep at t+30s after startup to catch late-loading tokens."""
+        await asyncio.sleep(20.0)  # 10s (first sweep) + 20s = t+30s total
+        logger.info("STARTUP ORPHAN SWEEP (delayed): scanning for late-loaded tokens...")
+        await self._window_end_balance_sweep(force_all=True)
+        logger.info("STARTUP ORPHAN SWEEP (delayed): complete")
 
     # ── 250s prewarm loop: refresh py_clob_client cache before 300s TTL expires ──
 
