@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.10   # reverted 0.05→0.10: 0.05% experiment failed — 2x SIGNAL_FLIPPED (BTC -$4.75, SOL -$3.22); small moves reverse before PM reprices
-_DELTA_PCT_QUIET  = 0.10   # same
+_DELTA_PCT_ACTIVE = 0.12   # raised 0.10→0.12: dead zone 0.06–0.12 (noisy); contrarian handles 0.05–0.06
+_DELTA_PCT_QUIET  = 0.12   # same
 
-_DELTA_PCT_15M_ACTIVE       = 0.10
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
-_DELTA_PCT_15M_QUIET        = 0.10
+_DELTA_PCT_15M_ACTIVE       = 0.12
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.12
+_DELTA_PCT_15M_QUIET        = 0.12
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
@@ -121,6 +121,14 @@ CONTRARIAN_OPPONENT_MIN = 0.92  # raised 0.90→0.92: only when opponent is ≥0
 CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — market must be extreme
 CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
+
+# Delta-based contrarian: small Binance moves (0.05–0.06%) tend to reverse before PM reprices.
+# Buy OPPOSITE direction token. Half stake. Skip fair-value/lag gates — pure mean-reversion bet.
+# Live data: 3 SIGNAL_FLIPPED losses at delta 0.05–0.07% → hypothesis: reversal is exploitable.
+# Validate: need n≥20 contrarian trades before crediting any edge.
+CONTRARIAN_DELTA_ENABLED  = True
+CONTRARIAN_DELTA_MIN_PCT  = 0.050   # minimum abs Binance delta to trigger contrarian
+CONTRARIAN_DELTA_MAX_PCT  = 0.060   # maximum abs Binance delta to trigger contrarian
 
 WINDOW_ELAPSED_MAX_5M  = 0.78  # raised 0.65→0.78: n=2 at 0.65+ in last 50 trades insufficient to justify ceiling
 WINDOW_ELAPSED_MAX_15M = 0.78  # at elapsed=0.78 on 15m: 198s remaining ≥ HARD_EXIT 210s so window still governs
@@ -1035,4 +1043,111 @@ class WindowSniper:
             funding_rate_pct=round(float(ext.funding_rate or 0.0), 3) if ext else 0.0,
             coinbase_price=round(_cb_price, 2),
             cross_exchange_div_pct=round(_cross_div, 4),
+        )
+
+    def score_delta_contrarian(
+        self,
+        token: MarketToken,
+        ob: Optional[OrderBook],
+        ext: Optional[ExternalSignal],
+        now: Optional[float] = None,
+    ) -> Optional[SniperSignal]:
+        """
+        Delta-based contrarian signal.
+
+        Fires when Binance delta is in [CONTRARIAN_DELTA_MIN_PCT, CONTRARIAN_DELTA_MAX_PCT]
+        AND this token is the OPPOSITE direction to the Binance move.
+
+        Hypothesis: small Binance moves (0.05–0.06%) tend to reverse before PM reprices.
+        We bet on the reversal by buying the token that profits if Binance snaps back.
+
+        No fair-value/lag/edge gates — pure mean-reversion. Half stake (qs=0).
+        Validate n≥20 before trusting any WR signal.
+        """
+        if now is None:
+            now = time.time()
+
+        if not CONTRARIAN_DELTA_ENABLED:
+            return None
+
+        if ob is None or ext is None or not ob.asks:
+            return None
+
+        # Compute delta
+        is_15m = token.window_seconds > 300
+        ref = (ext.spot_window_open_15m or 0) if is_15m else (ext.spot_window_open_5m or 0)
+        if not ref or not ext.spot_price:
+            return None
+        delta_pct = (ext.spot_price - ref) / ref * 100
+        abs_delta = abs(delta_pct)
+
+        if abs_delta < CONTRARIAN_DELTA_MIN_PCT or abs_delta > CONTRARIAN_DELTA_MAX_PCT:
+            return None
+
+        # Only fire on the OPPOSITE token: Binance falling → YES token, rising → NO token
+        asset_direction = 1 if delta_pct > 0 else -1
+        if token.side == "YES" and asset_direction > 0:
+            return None   # Binance rising → contrarian would be NO, not YES
+        if token.side == "NO" and asset_direction < 0:
+            return None   # Binance falling → contrarian would be YES, not NO
+
+        # Basic timing gate
+        if token.window_end_ts <= 0 or token.window_seconds <= 0:
+            return None
+        window_start = token.window_end_ts - token.window_seconds
+        elapsed = now - window_start
+        if elapsed < 10:
+            return None
+        elapsed_pct = elapsed / token.window_seconds
+        elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
+        if elapsed_pct >= elapsed_max:
+            return None
+
+        # Ask price must be in tradeable range
+        token_ask = ob.asks[0][0]
+        if token_ask <= 0 or token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
+            return None
+
+        # Spread gate: same as normal — wide spread = too much slippage
+        if ob.spread > 0.10:
+            return None
+
+        # Regime gate: skip QUIET_DEAD (historically 0% WR, negative EV even for contrarian)
+        hour_utc = datetime.now(timezone.utc).hour
+        _vpin_now = ext.vpin_score or 0.0
+        _regime = classify_regime(hour_utc, _vpin_now)
+        if _regime == "QUIET_DEAD":
+            return None
+
+        entry_price = min(0.97, round(token_ask + 0.005, 4))
+        fee_zone = FeeZone.EXTREME if token_ask < 0.35 or token_ask > 0.65 else FeeZone.FAT_MIDDLE
+
+        reason = (
+            f"DELTA_CONTRARIAN {token.asset}/{token.side}: Binance {delta_pct:+.3f}% "
+            f"(reversal bet) | {elapsed_pct:.0%} elapsed | ask={token_ask:.3f}"
+        )
+        logger.info(
+            "SNIPER DELTA_CONTRARIAN %s/%s | delta=%+.3f%% elapsed=%.0f%% ask=%.3f regime=%s",
+            token.asset, token.side, delta_pct, elapsed_pct * 100, token_ask, _regime,
+        )
+
+        return SniperSignal(
+            asset=token.asset,
+            side=token.side,
+            asset_direction=asset_direction,
+            delta_pct=delta_pct,
+            fair_value=token_ask,   # no fair-value model for mean-reversion
+            token_ask=token_ask,
+            edge=0.0,
+            entry_price=entry_price,
+            confidence=0.55,
+            composite=0.45,
+            direction=Direction.BUY_YES if token.side == "YES" else Direction.BUY_NO,
+            fee_zone=fee_zone,
+            elapsed_pct=elapsed_pct,
+            reason=reason,
+            signal_source="CONTRARIAN_DELTA",
+            regime=_regime,
+            quality_score=0,        # half stake
+            vpin_at_entry=round(_vpin_now, 4),
         )

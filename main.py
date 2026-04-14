@@ -26,7 +26,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
-from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta, CONTRARIAN_MAX_ASK
+from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
@@ -931,7 +931,44 @@ class KlausBot:
                             _queued_conditions.add(_cid)
                 continue  # updown token handled — skip momentum path
 
-            elif token.market_type == "updown":
+            elif token.market_type == "updown" and CONTRARIAN_DELTA_ENABLED:
+                # ── Delta contrarian: small Binance move → buy opposite direction ──
+                # Fires when abs(delta) in [0.05%, 0.06%] and this token is OPPOSITE
+                # to the Binance direction. Hypothesis: small moves reverse before PM reprices.
+                # Half stake (qs=0). No lag/edge gates.
+                if token.asset not in CONFIG.edge.sniper_excluded_assets:
+                    _dc_sig = self.sniper.score_delta_contrarian(token, ob, ext, now=time.time())
+                    if _dc_sig is not None:
+                        _wlabel = f"{token.window_seconds//60}m" if token.window_seconds else "?"
+                        logger.info(
+                            "SCAN [DELTA_CONTRARIAN] %s/%s [%s] | entry=%.4f delta=%+.3f%% elapsed=%.0f%%",
+                            token.asset, token.side, _wlabel,
+                            _dc_sig.entry_price, _dc_sig.delta_pct, _dc_sig.elapsed_pct * 100,
+                        )
+                        _dc_tpsl = calculate_tp_sl(_dc_sig.entry_price, _dc_sig.direction, bars_5m, ob)
+                        _dc_decision = self.risk.evaluate(
+                            token_id, _dc_sig, _dc_tpsl,
+                            condition_id=token.condition_id,
+                            window_end_ts=token.window_end_ts,
+                            asset=token.asset,
+                            market_type=token.market_type,
+                            cascade_discount=0.0,
+                            is_sniper=True,
+                            window_seconds=getattr(token, "window_seconds", 0),
+                        )
+                        if _dc_decision.approved:
+                            _dc_decision.stake = max(1.0, round(_dc_decision.stake / 2, 2))
+                            _cid = token.condition_id or ""
+                            if _cid and _cid in _queued_conditions:
+                                logger.info("  └─ DELTA_CONTRARIAN SKIP %s/%s — condition already queued", token.asset, token.side)
+                            else:
+                                sniper_queue.append((token_id, token, _dc_sig, _dc_tpsl, _dc_decision, ext))
+                                if _cid:
+                                    _queued_conditions.add(_cid)
+                        else:
+                            logger.info("  └─ DELTA_CONTRARIAN REJECTED: %s", _dc_decision.reason)
+
+            if token.market_type == "updown":
                 # ── Contrarian check: buy cheap side when opponent is ≥0.90 early ──
                 # When the opposite token is at ≥0.90 in the first 40% of the window,
                 # the cheap side (~0.10) may offer mean-reversion value.
