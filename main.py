@@ -672,6 +672,23 @@ class KlausBot:
             if sniper_sig.entry_price <= 0:
                 continue
 
+            # ── Velocity gate (event-driven path) ────────────────────────────
+            # Mirrors the gate in _signal_loop. Without this, aggTrade-triggered
+            # entries bypass velocity filtering entirely — confirmed root cause of
+            # vel=+0.050% NO trade firing at 14:35 (VELOCITY_EXIT -$6.08).
+            _vel_spike, _ = self.feed.get_velocity_5s(token.asset)
+            _VEL_THRESHOLD_SPIKE = 0.001
+            _vel_against_spike = (
+                (token.side == "NO"  and _vel_spike >  _VEL_THRESHOLD_SPIKE) or
+                (token.side == "YES" and _vel_spike < -_VEL_THRESHOLD_SPIKE)
+            )
+            if _vel_against_spike:
+                logger.info(
+                    "SPIKE VELOCITY_GATE %s/%s | vel=%+.4f%% against direction — skip",
+                    token.asset, token.side, _vel_spike,
+                )
+                continue
+
             _cid = token.condition_id or ""
             if _cid and _cid in _queued_this_spike:
                 continue
