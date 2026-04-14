@@ -855,6 +855,12 @@ class WindowSniper:
             regime=_regime,
             vpin=vpin,
         )
+        # Pre-armed entries: skip low-lag hard reject (lag 0.20-0.40 allowed).
+        # Direction already confirmed by previous window hitting 0.80+.
+        if _hard_reject and is_prearmed and "lag_too_low" in _reject_reason:
+            _hard_reject = False
+            _reject_reason = ""
+            _quality_score = 1  # treat as weak signal — 0.5x stake
         if _hard_reject:
             logger.info(
                 "SNIPER REJECT %s/%s | HARD_REJECT %s | breakdown=%s",
