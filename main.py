@@ -219,7 +219,7 @@ class KlausBot:
                 )
             else:
                 real_balance = self.orders.fetch_usdc_balance()
-                if real_balance is not None and real_balance > 1.0:
+                if real_balance is not None:
                     tracked = self.risk.bankroll.capital
                     delta = real_balance - tracked
                     if abs(delta) > 0.05:  # $0.05 tolerance for rounding
@@ -234,8 +234,6 @@ class KlausBot:
                         )
                     self.risk.bankroll.capital = real_balance
                     self.risk.bankroll._save()
-                elif real_balance is not None and real_balance <= 1.0:
-                    logger.warning("BANKROLL SYNC skipped: API returned %.2f (likely fetch error) — keeping tracked=%.2f", real_balance, self.risk.bankroll.capital)
                 else:
                     logger.warning("BANKROLL SYNC failed: fetch_usdc_balance returned None — using tracked=%.2f", self.risk.bankroll.capital)
 
@@ -2448,7 +2446,7 @@ class KlausBot:
                         and not has_open):  # only reconcile when flat — open positions distort USDC
                     _last_reconcile_ts = now
                     actual_usdc = self.orders.fetch_usdc_balance()
-                    if actual_usdc is not None and actual_usdc > 1.0:
+                    if actual_usdc is not None:
                         internal = self.risk.bankroll.capital
                         drift = actual_usdc - internal
                         if abs(drift) >= _RECONCILE_DRIFT_WARN:
