@@ -200,9 +200,9 @@ class EdgeConfig:
     # Asymmetry noted — Binance up-moves close PM lag more reliably than down-moves.
     # Not gated yet (n=9 YES is thin); collect 20+ before adding directional filter.
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.05,  # lowered 0.10→0.05: testing earlier-entry hypothesis
-        "ETH": 0.05,  # lowered 0.10→0.05: same
-        "SOL": 0.05,  # lowered 0.10→0.05: same
+        "BTC": 0.10,  # reverted 0.05→0.10: low delta = weak moves that reverse (SIGNAL_FLIPPED x2)
+        "ETH": 0.10,  # same
+        "SOL": 0.10,  # same
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated

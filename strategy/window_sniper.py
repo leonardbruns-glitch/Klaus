@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.05   # lowered 0.10→0.05: testing earlier-entry hypothesis — arriving late at 0.10%
-_DELTA_PCT_QUIET  = 0.05   # same
+_DELTA_PCT_ACTIVE = 0.10   # reverted 0.05→0.10: 0.05% experiment failed — 2x SIGNAL_FLIPPED (BTC -$4.75, SOL -$3.22); small moves reverse before PM reprices
+_DELTA_PCT_QUIET  = 0.10   # same
 
-_DELTA_PCT_15M_ACTIVE       = 0.05
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.05
-_DELTA_PCT_15M_QUIET        = 0.05
+_DELTA_PCT_15M_ACTIVE       = 0.10
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
+_DELTA_PCT_15M_QUIET        = 0.10
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
