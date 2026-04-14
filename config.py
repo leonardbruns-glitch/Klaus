@@ -24,7 +24,7 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 124.06             # updated: deposit 2026-04-12, capital=$124.06
-    base_stake: float = 25.0          # raised $10→$25 per user instruction 2026-04-12 (capital=$124)
+    base_stake: float = 24.0          # set $24 per user instruction 2026-04-14 (capital=$81.53, WARNING: 30% per trade)
     # Scale-up tiers (static sizing — Kelly deferred until n≥50 with stable per-regime WR):
     #   Tier 1: $10 — now active
     #   Tier 2: $20 — after confirmed WR>55% over 20+ live trades
@@ -200,9 +200,9 @@ class EdgeConfig:
     # Asymmetry noted — Binance up-moves close PM lag more reliably than down-moves.
     # Not gated yet (n=9 YES is thin); collect 20+ before adding directional filter.
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.12,  # raised 0.10→0.12: dead zone 0.06–0.12; contrarian handles 0.05–0.06
-        "ETH": 0.12,  # same
-        "SOL": 0.12,  # same
+        "BTC": 0.15,  # raised 0.12→0.15: stronger moves only
+        "ETH": 0.15,  # same
+        "SOL": 0.15,  # same
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
