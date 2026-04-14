@@ -105,9 +105,9 @@ MIN_LAG_REMAINING_15M = 0.55  # same — lag≥0.60+delta≥0.10 is first break-
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
 VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 
-# 15m ONLY: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
-# 5m disabled: WR=14.3% is capital destruction. Re-enable when n≥20 live 5m trades show WR>45%.
-_15M_ACTIVE_ONLY = True
+# 5m re-enabled 2026-04-14: collecting data with tighter gates (delta 0.15%, lag 0.55+).
+# Previous 5m WR=14.3% was under looser parameters — new data needed to validate.
+_15M_ACTIVE_ONLY = False
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
 # When a token is nearly resolved (≥0.90) in the first 40% of a window,
