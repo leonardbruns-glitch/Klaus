@@ -2211,6 +2211,11 @@ class KlausBot:
             if p and exit_price > 0:
                 move_from_exit[k] = round((p - exit_price) / exit_price * 100, 2)
 
+        move_from_entry = {}
+        for k, p in samples.items():
+            if p and entry_price > 0:
+                move_from_entry[k] = round((p - entry_price) / entry_price * 100, 2)
+
         record = {
             "trade_id": trade_id,
             "asset": asset,
@@ -2225,6 +2230,7 @@ class KlausBot:
                 else "T3_catastrophic"
             ) if exit_reason in ("STOP_LOSS", "STOP_LOSS_EXT") else None,
             **samples,
+            "move_from_entry_pct": move_from_entry,
             "move_from_exit_pct": move_from_exit,
             # Resolution fields — populated below after window ends, null for now
             "window_outcome_price": None,

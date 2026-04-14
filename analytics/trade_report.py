@@ -68,6 +68,10 @@ for t in trades:
     d30  = pd(mfe.get("t30s"))
     d60  = pd(mfe.get("t60s"))
     d120 = pd(mfe.get("t120s"))
+    mfn  = pe.get("move_from_entry_pct", {})
+    e30  = pd(mfn.get("t30s"))
+    e60  = pd(mfn.get("t60s"))
+    e120 = pd(mfn.get("t120s"))
     ec_raw = g(t, "entered_correctly")
     ec2  = pb(pe.get("entered_correctly", ec_raw))
 
@@ -103,7 +107,7 @@ for t in trades:
         f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
         f"adv={pf(adv, '+.1f', '%')}@{ps(t_adv)} fav={pf(fav, '+.1f', '%')}@{ps(t_fav)} | "
-        f"after: +30s={d30} +60s={d60} +120s={d120} ec={ec2} | "
+        f"from_exit: +30s={d30} +60s={d60} +120s={d120} | from_entry: +30s={e30} +60s={e60} +120s={e120} ec={ec2} | "
         f"slip_e={pf(slip_e, '+.4f')} slip_x={pf(slip_x, '+.4f')} | "
         f"llm={pf(llm, '+.2f')} cwin={cwin} | "
         f"vel={pf(vel, '+.3f', '%')} age={'cold' if age is None or age >= 999 else f'{age:.0f}s'} | "
