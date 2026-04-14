@@ -553,9 +553,9 @@ class WindowSniper:
                     token.asset, token.side, token_ask,
                 )
             _block_reason = "near_ceiling" if token_ask > _effective_max else "near_resolved"
-            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (max=%.2f elapsed=%.0f%% delta=%+.3f%%)",
+            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (max=%.2f elapsed=%.0f%% delta=%+.3f%% win=%s)",
                         token.asset, token.side, token_ask, _block_reason, _effective_max,
-                        elapsed_pct * 100, delta_pct)
+                        elapsed_pct * 100, delta_pct, "15m" if is_15m else "5m")
             return None
 
         edge = fair_value - token_ask
