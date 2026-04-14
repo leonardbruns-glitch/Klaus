@@ -243,14 +243,6 @@ def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: floa
     hard_reject = False
     reject_reason = ""
 
-    # ── QUIET_DEAD hard block ─────────────────────────────────────────────
-    # Live data: every QUIET_DEAD trade today lost. Historically 0% WR.
-    # Soft penalty (-1 pts) still allowed score=0 trades through. Hard block.
-    if regime == "QUIET_DEAD":
-        hard_reject = True
-        reject_reason = "regime_quiet_dead"
-        return 0, {"lag": 0, "mom": 0, "regime": -1, "vpin": 0}, hard_reject, reject_reason
-
     # ── Low-lag gate: fee math requires minimum lag ───────────────────────
     # At lag < 0.40: expected repricing ≈ 3.5%, round-trip fees ≈ 2.5-3%.
     # Net expected gain too thin. Live data: 1W/2L at lag 0.15-0.40.
