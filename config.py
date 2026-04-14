@@ -34,7 +34,7 @@ class BankrollConfig:
     scaled_stake: float = 10.0        # flat — heat-check disabled; raise per tiers above
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 3       # data collection phase — allow more concurrent trades
-    max_daily_loss: float = 100.0     # user-set: no intraday halt
+    max_daily_loss: float = 9999.0    # disabled: user does not want intraday halt
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
