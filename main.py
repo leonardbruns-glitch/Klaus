@@ -851,10 +851,13 @@ class KlausBot:
             if ask is None or ask < _BOND_MIN_ASK or ask > _BOND_MAX_ASK:
                 continue
 
-            # Velocity gate: skip if Binance is actively moving against the bet
+            # Velocity gate: skip if Binance moving against the bet direction
+            # YES token resolves if price goes UP → need vel >= 0
+            # NO token resolves if price stays flat/DOWN → need vel <= 0
             _vel, _vel_age = self.feed.get_velocity_5s(token.asset)
-            if _vel < 0.0:
-                logger.info("BOND SKIP %s/%s: velocity=%.4f%% (falling) age=%.1fs",
+            _vel_against = (_vel < 0.0 and token.side == "YES") or (_vel > 0.0 and token.side == "NO")
+            if _vel_against:
+                logger.info("BOND SKIP %s/%s: velocity=%.4f%% (against bet) age=%.1fs",
                             token.asset, token.side, _vel, _vel_age)
                 continue
 
