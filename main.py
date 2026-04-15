@@ -1138,8 +1138,10 @@ class KlausBot:
         # BOND has a softer gate (first 15 min only) in _scan_bond_entries.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _volatile_hours = getattr(CONFIG.edge, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
-        if _now_utc.hour in _volatile_hours:
+        _sniper_blocked_full = getattr(CONFIG.edge, "bond_blocked_hours_utc", [0, 8, 13, 18, 20])
+        _sniper_blocked_legacy = getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14])
+        _sniper_all_blocked = set(_sniper_blocked_full) | set(_sniper_blocked_legacy)
+        if _now_utc.hour in _sniper_all_blocked:
             return
 
         # ── Phase 1: scan all tokens, collect sniper candidates + run momentum ──
