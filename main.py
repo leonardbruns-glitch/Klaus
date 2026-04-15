@@ -839,7 +839,7 @@ class KlausBot:
                 if not (exit_sec + 15 <= remaining <= 120):  # ≤2 min remaining, sell at T-10s
                     continue
             elif is_5m:
-                exit_sec = 20
+                exit_sec = 10
                 if not (exit_sec + 15 <= remaining <= 90):   # ≤1.5 min remaining
                     continue
             else:
