@@ -1138,18 +1138,28 @@ class PolymarketFeed:
                 elif outcome_label.upper() == "DOWN":
                     outcome_direction = "down"
                 else:
-                    # Neg-risk sub-market: the question or slug identifies direction.
-                    # E.g. "Bitcoin Up or Down - Down 5:15AM" → "down"
-                    _q = (question + " " + slug).lower()
-                    _has_down = "down" in _q or "-no" in slug_lo
-                    _has_up   = "up" in _q   or "-yes" in slug_lo
-                    if _has_down and not _has_up:
+                    # Neg-risk sub-market: infer which direction (Up/Down) this
+                    # sub-market represents. The parent question always contains both
+                    # "up" and "down" (e.g. "SOL Up or Down - 11AM"), so full-text
+                    # search is ambiguous. Use the slug suffix first — sub-market
+                    # slugs end with "-up" or "-down" (e.g. "sol-updown-11am-down").
+                    _slug_last = slug_lo.rsplit("-", 1)[-1]  # final segment
+                    if _slug_last == "down" or slug_lo.endswith("-down"):
                         outcome_direction = "down" if _olabel_up else "up"
-                    elif _has_up and not _has_down:
+                    elif _slug_last == "up" or slug_lo.endswith("-up"):
                         outcome_direction = "up" if _olabel_up else "down"
                     else:
-                        # Ambiguous: fall back to side mapping
-                        outcome_direction = "up" if side == "YES" else "down"
+                        # Slug suffix ambiguous: check question text (excluding
+                        # "up or down" phrasing by looking at trailing word only)
+                        _q_words = question.lower().split()
+                        _tail = " ".join(_q_words[-3:])  # last 3 words of question
+                        if "down" in _tail and "up" not in _tail:
+                            outcome_direction = "down" if _olabel_up else "up"
+                        elif "up" in _tail and "down" not in _tail:
+                            outcome_direction = "up" if _olabel_up else "down"
+                        else:
+                            # Truly ambiguous: fall back to side mapping
+                            outcome_direction = "up" if side == "YES" else "down"
 
                 # Skip already-expired tokens
                 if window_end_ts > 0 and window_end_ts < now:
