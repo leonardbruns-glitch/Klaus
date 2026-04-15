@@ -145,8 +145,11 @@ class EdgeConfig:
     #   consistent 0-27% WR across both datasets. -$5.58 in last 25 trades alone.
     #   Single macro snap reversal at 02:xx hit BTC+ETH+SOL simultaneously (correlated loss).
     #   Meets kill switch criteria (<35% WR over 20+ trades). Blocked 2026-04-12.
+    # hr=06 BLOCKED 2026-04-15: BOND data n=14 WR=29% net=-$18.09 (European open volatility)
+    # hr=08 BLOCKED 2026-04-15: BOND data n=11 WR=45% net=-$18.86 (European open volatility)
+    # hr=13,14 BLOCKED 2026-04-15: sniper data WR=25% n=12 avg=-$3.5 (NYSE open volatility)
     # hr=22 is the crown jewel: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
-    blocked_hours_utc: List[int] = field(default_factory=lambda: [2])
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [2, 6, 8, 13, 14])
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
