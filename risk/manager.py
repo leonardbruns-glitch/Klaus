@@ -111,6 +111,8 @@ class PositionMeta:
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
     signal_flip_ts: float = 0.0      # when SIGNAL_FLIPPED condition first became true (Phase 2 confirmation)
     moon_bag_high: float = 0.0       # highest price seen since Stage-1 completed (for trailing stop)
+    is_bond: bool = False            # True for BOND trades — time-exit only, no TP/SL
+    bond_exit_sec: int = 0           # seconds before window close to exit (30=15m, 20=5m)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -503,19 +505,28 @@ class RiskManager:
                         f"NO entry {signal.entry_price:.4f} below min {min_no:.4f}",
                     )
         else:
-            # Updown: cap at 0.70 (user instruction 2026-04-09).
-            # Tokens above 0.70 are fully-priced — fee-adjusted edge shrinks dramatically.
-            # Confirmed: ETH@0.63 and SOL@0.60 both wicked out within 25s (2026-04-09).
+            # Updown: cap at 0.77 (sniper path) / 0.90 (contrarian) / 0.99 (bond).
+            # Sniper cap: tokens above 0.77 are fully-priced — fee-adjusted edge shrinks.
+            # Confirmed: ETH@0.63 and SOL@0.60 wicked out within 25s (2026-04-09).
             # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
+            # Bond: buys high-probability tokens (0.70+) near window close — no sniper cap.
             _signal_source = getattr(signal, "signal_source", "MOMENTUM")
             _is_contrarian = _signal_source == "CONTRARIAN"
-            _updown_max = 0.90 if _is_contrarian else 0.77
-            _updown_min = 0.03 if _is_contrarian else 0.05  # contrarian buys at ~0.10
+            _is_bond = _signal_source == "BOND"
+            if _is_contrarian:
+                _updown_max = 0.90
+                _updown_min = 0.03
+            elif _is_bond:
+                _updown_max = 0.99   # bond strategy: high-price tokens are the target
+                _updown_min = 0.70   # bond floor: must be at ≥0.70 to qualify
+            else:
+                _updown_max = 0.77
+                _updown_min = 0.05
             if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
                     False, 0,
                     f"Updown entry {signal.entry_price:.4f} outside [{_updown_min:.2f}, {_updown_max:.2f}] "
-                    f"({'contrarian' if _is_contrarian else 'sniper'} path)",
+                    f"({'contrarian' if _is_contrarian else 'bond' if _is_bond else 'sniper'} path)",
                 )
 
         # ── Per-asset confidence multiplier (data-driven) ──────────────────────
@@ -686,6 +697,8 @@ class RiskManager:
         entry_delta_pct: float = 0.0,
         entry_lag_pct: float = 0.0,
         entry_fair_value: float = 0.0,
+        is_bond: bool = False,
+        bond_exit_sec: int = 0,
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -708,6 +721,8 @@ class RiskManager:
             entry_delta_pct=entry_delta_pct,
             entry_lag_pct=entry_lag_pct,
             entry_fair_value=entry_fair_value,
+            is_bond=is_bond,
+            bond_exit_sec=bond_exit_sec,
         )
         self.open_positions[token_id] = pos
         self._pending_assets.discard(asset)  # fill confirmed — release lock

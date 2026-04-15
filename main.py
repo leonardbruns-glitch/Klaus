@@ -26,7 +26,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
-from strategy.window_sniper import WindowSniper, SniperBlock, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED
+from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
@@ -434,6 +434,46 @@ class KlausBot:
                     f" | window={remaining_sec:.0f}s" if remaining_sec > 0 else "",
                 )
 
+            # ── BOND: time-based exit (bypasses normal TP/SL logic) ──────────
+            if pos.is_bond and pos.window_end_ts > 0:
+                bond_remaining = max(0.0, pos.window_end_ts - now)
+                bond_move = (current_price - pos.entry_price) / pos.entry_price
+
+                # Catastrophic stop: price dropped 35% from entry
+                if bond_move <= -0.35:
+                    if token_id not in self._exit_in_progress:
+                        self._exit_in_progress.add(token_id)
+                        logger.warning(
+                            "BOND_STOP %s/%s | move=%.1f%% entry=%.4f curr=%.4f",
+                            pos.asset, pos.direction.name, bond_move * 100,
+                            pos.entry_price, current_price,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_STOP")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                    continue
+
+                # Time exit: sell at bond_exit_sec before window close
+                if bond_remaining <= pos.bond_exit_sec:
+                    if token_id not in self._exit_in_progress:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_TIME_EXIT %s/%s | remaining=%.0fs ≤ exit_at=%ds | "
+                            "entry=%.4f curr=%.4f move=%+.1f%%",
+                            pos.asset, pos.direction.name, bond_remaining,
+                            pos.bond_exit_sec, pos.entry_price, current_price,
+                            bond_move * 100,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_TIME_EXIT")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                    continue
+
+                # Still inside holding period — skip normal TP/SL
+                continue
+
             _pos_ext = self._last_ext_signals.get(pos.asset)
             _binance_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
             decision = self.risk.check_exit_conditions(
@@ -771,6 +811,118 @@ class KlausBot:
                 else:
                     logger.error("Signal loop error: %s\n%s", exc, tb)
             await asyncio.sleep(CONFIG.markets.scan_interval)
+
+    # ── High-probability bond scanner ────────────────────────────────────────
+
+    async def _scan_bond_entries(self) -> None:
+        """
+        Bond strategy: buy high-probability tokens near window close, exit by time.
+
+        15m windows: buy when ask ≥ 0.70 AND 4–10 min remaining, sell at T-30s.
+        5m windows:  buy when ask ≥ 0.70 AND 1.5–3.5 min remaining, sell at T-20s.
+
+        Edge: token at 0.70 has already committed to an outcome. We capture the
+        final repricing (0.70 → ~0.90) as the market price walks to resolution.
+        Fee advantage: extreme-zone fee (1.0–1.6% round trip vs 3.1% fat-middle).
+        """
+        now = time.time()
+        _BOND_MIN_ASK = 0.70
+
+        for token_id, token in list(self.feed.tokens.items()):
+            if token.market_type != "updown":
+                continue
+            if token.window_end_ts <= 0:
+                continue
+            if token_id in self.risk.open_positions:
+                continue
+            if token.asset in self.risk._pending_assets:
+                continue
+            if token.asset in self._pending_asset_entries:
+                continue
+
+            is_15m = getattr(token, "window_seconds", 0) >= 900
+            is_5m  = 250 <= getattr(token, "window_seconds", 0) < 900
+
+            remaining = token.window_end_ts - now
+
+            if is_15m:
+                if not (240 <= remaining <= 600):   # 4–10 min window
+                    continue
+                exit_sec = 30
+            elif is_5m:
+                if not (90 <= remaining <= 210):    # 1.5–3.5 min window
+                    continue
+                exit_sec = 20
+            else:
+                continue
+
+            ob = self.feed.get_order_book(token_id)
+            if ob is None:
+                continue
+            ask = ob.asks[0][0] if ob.asks else None
+            if ask is None or ask < _BOND_MIN_ASK:
+                continue
+
+            # Dedup: one entry per condition per session
+            cid = getattr(token, "condition_id", "") or ""
+            if cid and cid in self.risk._traded_conditions:
+                continue
+
+            # Build a minimal SniperSignal — reuses the existing entry machinery
+            _wlabel = f"{token.window_seconds // 60}m"
+            signal = SniperSignal(
+                asset=token.asset,
+                side=token.side,
+                asset_direction=1,           # direction doesn't drive edge here
+                delta_pct=0.0,
+                fair_value=ask,
+                token_ask=ask,
+                edge=round(1.0 - ask, 4),   # potential gain to resolution
+                entry_price=ask,
+                confidence=ask,              # high price = high market confidence
+                composite=ask,
+                direction=Direction.BUY_YES,
+                fee_zone=FeeZone.EXTREME,    # skip fat-middle fee gate
+                elapsed_pct=1.0 - remaining / token.window_seconds,
+                reason=f"BOND_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s exit@{exit_sec}s",
+                quality_score=3,             # 1.0x stake (qs=3 → _multiplier=1.0 in evaluate)
+                signal_source="BOND",
+                is_bond=True,
+                bond_exit_sec=exit_sec,
+            )
+            tpsl = TPSLLevels(
+                take_profit=min(0.99, round(ask + (1.0 - ask) * 0.90, 4)),  # 90% walk to resolution
+                stop_loss=max(0.01, round(ask * 0.80, 4)),   # 20% stop (for logging only — time exit is primary)
+                tp_pct=round((1.0 - ask) / ask * 90, 1),
+                sl_pct=20.0,
+                risk_reward=1.5,  # hardcoded: BOND exits by time; TP/SL values are record-keeping only
+            )
+
+            decision = self.risk.evaluate(
+                token_id, signal, tpsl,
+                condition_id=cid,
+                window_end_ts=token.window_end_ts,
+                asset=token.asset,
+                market_type=token.market_type,
+                cascade_discount=0.0,
+                is_sniper=True,
+                window_seconds=getattr(token, "window_seconds", 0),
+            )
+
+            if not decision.approved:
+                logger.debug("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
+                continue
+
+            logger.info(
+                "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | %s",
+                token.asset, token.side, _wlabel,
+                ask, remaining, exit_sec, decision.stake,
+                signal.reason,
+            )
+            asyncio.create_task(
+                self._enter_position(token_id, token.asset, signal, tpsl, decision),
+                name=f"bond_{token.asset}_{token.side}",
+            )
 
     async def _scan_for_signals(self) -> None:
 
@@ -1307,6 +1459,11 @@ class KlausBot:
                 await self._enter_position(token_id, token.asset, signal, tpsl, decision,
                                            llm_rec=llm_decision, llm_rec_conf=llm_conf)
 
+        # ── Bond scan: high-probability near-window-close entries ─────────────
+        # Runs after main sniper queue so bond doesn't compete with sniper for the
+        # same tokens. Asset-level dedup (_pending_assets) blocks overlap anyway.
+        await self._scan_bond_entries()
+
     # ── Entry ─────────────────────────────────────────────────────────────────
 
     async def _enter_position(self, token_id, asset, signal, tpsl, decision,
@@ -1486,6 +1643,8 @@ class KlausBot:
             entry_delta_pct=abs(getattr(signal, "delta_pct", 0.0)) / 100,  # convert % → fraction
             entry_lag_pct=getattr(signal, "lag_remaining_pct", 0.0),
             entry_fair_value=getattr(signal, "fair_value", 0.0),
+            is_bond=getattr(signal, "is_bond", False),
+            bond_exit_sec=getattr(signal, "bond_exit_sec", 0),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly
