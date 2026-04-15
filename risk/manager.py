@@ -509,7 +509,7 @@ class RiskManager:
             # Sniper cap: tokens above 0.77 are fully-priced — fee-adjusted edge shrinks.
             # Confirmed: ETH@0.63 and SOL@0.60 wicked out within 25s (2026-04-09).
             # Contrarian buys cheap tokens (~0.10) — floor doesn't apply, max is 0.90.
-            # Bond: buys high-probability tokens (0.70+) near window close — no sniper cap.
+            # Bond: buys low-probability tokens (≤0.20) near window close — contrarian bet.
             _signal_source = getattr(signal, "signal_source", "MOMENTUM")
             _is_contrarian = _signal_source == "CONTRARIAN"
             _is_bond = _signal_source == "BOND"
@@ -517,8 +517,8 @@ class RiskManager:
                 _updown_max = 0.90
                 _updown_min = 0.03
             elif _is_bond:
-                _updown_max = 0.90   # bond cap: above 0.90 fee math erodes edge
-                _updown_min = 0.80   # bond floor: raised from 0.70 — higher market conviction
+                _updown_max = 0.20   # bond cap: low-prob contrarian (flipped 2026-04-15)
+                _updown_min = 0.03   # bond floor: avoid sub-penny noise
             else:
                 _updown_max = 0.77
                 _updown_min = 0.05
