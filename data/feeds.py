@@ -1156,7 +1156,7 @@ class PolymarketFeed:
                         outcome_direction = "up" if side == "YES" else "down"
                         _odir_method = "side-fallback"
                     import logging as _logging
-                    _logging.getLogger(__name__).debug(
+                    _logging.getLogger(__name__).info(
                         "OUTCOME_DIR neg-risk %s/%s: outcome_direction=%s method=%s "
                         "slug_last=%r slug=%r question=%r",
                         asset_match, side, outcome_direction, _odir_method,
