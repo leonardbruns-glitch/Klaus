@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import signal
 import sys
@@ -866,24 +867,36 @@ class KlausBot:
             if cid and cid in self.risk._traded_conditions:
                 continue
 
+            # Compute real window delta from cached ext signals
+            _ext = getattr(self, "_last_ext_signals", {}).get(token.asset)
+            _bond_delta = 0.0
+            if _ext and _ext.spot_price:
+                _ref = (_ext.spot_window_open_15m if is_15m else _ext.spot_window_open_5m) or 0.0
+                if _ref > 0:
+                    _bond_delta = (_ext.spot_price - _ref) / _ref * 100
+            _elapsed_pct = 1.0 - remaining / token.window_seconds
+            _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
+            _edge = round(_fair_value - ask, 4)
+            _asset_direction = 1 if _bond_delta >= 0 else -1
+
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
-                asset_direction=1,           # direction doesn't drive edge here
-                delta_pct=0.0,
-                fair_value=ask,
+                asset_direction=_asset_direction,
+                delta_pct=round(_bond_delta, 4),
+                fair_value=round(_fair_value, 4),
                 token_ask=ask,
-                edge=round(1.0 - ask, 4),   # potential gain to resolution
+                edge=_edge,
                 entry_price=ask,
-                confidence=ask,              # high price = high market confidence
+                confidence=ask,
                 composite=ask,
                 direction=Direction.BUY_YES,
-                fee_zone=FeeZone.EXTREME,    # skip fat-middle fee gate
-                elapsed_pct=1.0 - remaining / token.window_seconds,
-                reason=f"BOND_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s exit@{exit_sec}s",
-                quality_score=3,             # 1.0x stake (qs=3 → _multiplier=1.0 in evaluate)
+                fee_zone=FeeZone.EXTREME,
+                elapsed_pct=_elapsed_pct,
+                reason=f"BOND_{_wlabel} ask={ask:.3f} δ={_bond_delta:+.3f}% fv={_fair_value:.3f} rem={remaining:.0f}s exit@{exit_sec}s",
+                quality_score=3,
                 signal_source="BOND",
                 is_bond=True,
                 bond_exit_sec=exit_sec,
