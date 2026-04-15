@@ -920,11 +920,17 @@ class KlausBot:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
             if ask is None or ask < _BOND_MIN_ASK or ask > _BOND_MAX_ASK:
+                logger.info("BOND SKIP %s/%s: ask=%s out of range [%.2f–%.2f]",
+                            token.asset, token.side,
+                            f"{ask:.4f}" if ask is not None else "None",
+                            _BOND_MIN_ASK, _BOND_MAX_ASK)
                 continue
 
             # Dedup: one entry per condition per session
             cid = getattr(token, "condition_id", "") or ""
             if cid and cid in self.risk._traded_conditions:
+                logger.info("BOND SKIP %s/%s: condition already traded this session",
+                            token.asset, token.side)
                 continue
 
             # Compute real window delta from cached ext signals
