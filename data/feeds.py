@@ -96,6 +96,9 @@ class MarketToken:
     window_seconds: int = 300       # window duration: 300 (5M) or 900 (15M)
     neg_risk: bool = False          # True for multi-outcome (neg-risk) markets
     tick_size: str = "0.01"         # CLOB order price tick size per market
+    outcome_direction: str = "up"   # "up" or "down" — which direction resolves this token
+                                    # Standard binary: YES→"up", NO→"down"
+                                    # Neg-risk sub-market: inferred from slug/question
 
 
 @dataclass
@@ -1125,6 +1128,29 @@ class PolymarketFeed:
                 # UP / YES → YES side; DOWN / NO → NO side
                 side = "YES" if outcome_label.upper() in ("YES", "UP", "TRUE", "1") else "NO"
 
+                # Determine which direction resolves this token.
+                # Standard binary ("Up"/"Down" outcome labels): direct mapping.
+                # Neg-risk sub-markets have "Yes"/"No" outcome labels — infer from
+                # slug/question which outcome (Up or Down) the sub-market represents.
+                _olabel_up = outcome_label.upper() in ("UP", "YES", "TRUE", "1")
+                if outcome_label.upper() == "UP":
+                    outcome_direction = "up"
+                elif outcome_label.upper() == "DOWN":
+                    outcome_direction = "down"
+                else:
+                    # Neg-risk sub-market: the question or slug identifies direction.
+                    # E.g. "Bitcoin Up or Down - Down 5:15AM" → "down"
+                    _q = (question + " " + slug).lower()
+                    _has_down = "down" in _q or "-no" in slug_lo
+                    _has_up   = "up" in _q   or "-yes" in slug_lo
+                    if _has_down and not _has_up:
+                        outcome_direction = "down" if _olabel_up else "up"
+                    elif _has_up and not _has_down:
+                        outcome_direction = "up" if _olabel_up else "down"
+                    else:
+                        # Ambiguous: fall back to side mapping
+                        outcome_direction = "up" if side == "YES" else "down"
+
                 # Skip already-expired tokens
                 if window_end_ts > 0 and window_end_ts < now:
                     continue
@@ -1142,6 +1168,7 @@ class PolymarketFeed:
                     window_seconds=900 if "15m" in slug.lower() else 300,
                     neg_risk=neg_risk,
                     tick_size=tick_size,
+                    outcome_direction=outcome_direction,
                 )
                 is_new = token_id not in self.tokens
                 self.tokens[token_id] = token

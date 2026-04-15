@@ -869,11 +869,19 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Delta direction gate removed 2026-04-15:
-            # Gate assumed YES = Up token, but all current BOND trades are YES DOWN.
-            # For Down YES tokens negative delta = asset falling = favorable direction.
-            # Gate was blocking our best high-conviction entries. n=16 shows losses
-            # are reversal events (asset briefly recovers), not delta-direction failures.
+            # Delta direction gate: skip if asset moved significantly AGAINST this token.
+            # Uses token.outcome_direction ("up"/"down") — direction-aware, handles both
+            # standard binary (YES=Up, NO=Down) and neg-risk sub-markets (Down YES = "down").
+            _BOND_DELTA_MAX_AGAINST = 0.07
+            _token_dir = getattr(token, "outcome_direction", "up")
+            _delta_against = (
+                (_token_dir == "up"   and _bond_delta < -_BOND_DELTA_MAX_AGAINST) or
+                (_token_dir == "down" and _bond_delta >  _BOND_DELTA_MAX_AGAINST)
+            )
+            if _delta_against:
+                logger.info("BOND SKIP %s/%s(%s): delta=%+.3f%% against token direction (threshold=%.2f%%)",
+                            token.asset, token.side, _token_dir, _bond_delta, _BOND_DELTA_MAX_AGAINST)
+                continue
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
