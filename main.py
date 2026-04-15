@@ -844,6 +844,7 @@ class KlausBot:
                     _entries_blocked = False
                 _consecutive_errors = 0  # reset on success
                 await self._scan_for_signals()
+                await self._scan_bond_entries()
             except Exception as exc:
                 _consecutive_errors += 1
                 tb = traceback.format_exc()
@@ -1569,10 +1570,8 @@ class KlausBot:
                 await self._enter_position(token_id, token.asset, signal, tpsl, decision,
                                            llm_rec=llm_decision, llm_rec_conf=llm_conf)
 
-        # ── Bond scan: high-probability near-window-close entries ─────────────
-        # Runs after main sniper queue so bond doesn't compete with sniper for the
-        # same tokens. Asset-level dedup (_pending_assets) blocks overlap anyway.
-        await self._scan_bond_entries()
+        # ── Bond scan moved to _signal_loop — runs independently of sniper ──────
+        # (removed from here so sniper's early return doesn't block BOND)
 
     # ── Entry ─────────────────────────────────────────────────────────────────
 
