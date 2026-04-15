@@ -879,7 +879,7 @@ class KlausBot:
             return
         now = time.time()
         _BOND_MIN_ASK = 0.70
-        _BOND_MAX_ASK = 0.90
+        _BOND_MAX_ASK = 0.85  # lowered from 0.90: ep≥0.87 trades showed poor risk/reward
 
         # Volatile hours gate — BOND: skip first 15 minutes of volatile hour opens.
         # Sniper blocks the full hour; BOND resumes after the initial spike settles.
