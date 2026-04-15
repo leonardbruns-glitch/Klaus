@@ -941,6 +941,12 @@ class KlausBot:
                 _ref = (_ext.spot_window_open_15m if is_15m else _ext.spot_window_open_5m) or 0.0
                 if _ref > 0:
                     _bond_delta = (_ext.spot_price - _ref) / _ref * 100
+                else:
+                    logger.info("BOND DELTA UNAVAIL %s: ext exists but window_open ref=0 — delta gate disabled",
+                                token.asset)
+            else:
+                logger.info("BOND DELTA UNAVAIL %s: no ext signals cached — delta gate disabled (ext=%s)",
+                            token.asset, "None" if _ext is None else "no spot_price")
             _elapsed_pct = 1.0 - remaining / token.window_seconds
             _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
             _edge = round(_fair_value - ask, 4)
