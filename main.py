@@ -653,6 +653,22 @@ class KlausBot:
                 continue
             if token_id in self.risk.open_positions:
                 continue
+            # Pre-evaluate check: skip if asset is already locked by a concurrent
+            # entry path (spike or scan loop). evaluate() has this check too, but
+            # an early guard here prevents the evaluate() call entirely — cleaner
+            # and eliminates any edge case where the lock state changes mid-loop.
+            if asset in self.risk._pending_assets:
+                logger.debug(
+                    "SPIKE SKIP %s — asset already in _pending_assets (concurrent entry in progress)",
+                    asset,
+                )
+                break  # no point checking other tokens for this asset
+            if asset in self._pending_asset_entries:
+                logger.debug(
+                    "SPIKE SKIP %s — asset already in _pending_asset_entries",
+                    asset,
+                )
+                break
             if token.window_end_ts > 0:
                 remaining = token.window_end_ts - now
                 if remaining < CONFIG.execution.no_trade_last_sec:
@@ -858,6 +874,14 @@ class KlausBot:
         for token_id, token in self.feed.tokens.items():
             # Skip tokens already in open positions
             if token_id in self.risk.open_positions:
+                continue
+
+            # Skip tokens whose asset is locked by a concurrent entry (spike or this loop).
+            # evaluate() has this check too, but an early guard here avoids the full
+            # scoring pipeline for tokens we can't trade anyway.
+            if token.asset in self.risk._pending_assets:
+                continue
+            if token.asset in self._pending_asset_entries:
                 continue
 
             # Skip tokens that are in the no-trade final window — saves scan noise
@@ -1313,6 +1337,16 @@ class KlausBot:
         try:
             await self._enter_position_inner(token_id, asset, signal, tpsl, decision,
                                              llm_rec=llm_rec, llm_rec_conf=llm_rec_conf)
+        except Exception as _entry_exc:
+            # Any exception in _enter_position_inner must clear the risk manager's
+            # _pending_assets lock. Without this, the asset is permanently locked
+            # until restart — bot stops entering that asset silently.
+            self.risk._pending_assets.discard(asset)
+            logger.error(
+                "ENTRY EXCEPTION %s — _pending_assets cleared, re-raising: %s",
+                asset, _entry_exc,
+            )
+            raise
         finally:
             self._pending_entries.discard(token_id)
             self._pending_asset_entries.discard(asset)
@@ -1386,17 +1420,28 @@ class KlausBot:
                 "— market moved against signal mid-order, not opening position",
                 asset, fill.avg_fill_price, signal.entry_price, slippage_on_entry,
             )
-            # Immediately sell back what we just bought to recover capital
-            await self.orders.cascade_sell(
-                token_id=token_id,
-                shares=fill.total_size,
-                current_price=fill.avg_fill_price,
-                reason="SLIPPAGE_ABORT",
-                neg_risk=getattr(self.feed.tokens.get(token_id), "neg_risk", False),
-                tick_size=getattr(self.feed.tokens.get(token_id), "tick_size", "0.01"),
-            )
-            self.risk._pending_assets.discard(asset)  # release lock on slippage abort
-            return
+            # Immediately sell back what we just bought to recover capital.
+            # If the sell fails (exception), fall through to track the position normally
+            # rather than leaving tokens in the wallet as an untracked orphan.
+            _token_meta_sa = self.feed.tokens.get(token_id)
+            try:
+                await self.orders.cascade_sell(
+                    token_id=token_id,
+                    total_shares=fill.total_size,
+                    current_price=fill.avg_fill_price,
+                    reason="SLIPPAGE_ABORT",
+                    neg_risk=getattr(_token_meta_sa, "neg_risk", False),
+                    tick_size=getattr(_token_meta_sa, "tick_size", "0.01"),
+                )
+                self.risk._pending_assets.discard(asset)  # release lock on slippage abort
+                return
+            except Exception as _sa_exc:
+                logger.error(
+                    "SLIPPAGE_ABORT cascade_sell failed for %s (%s) — "
+                    "tracking position at fill price instead to avoid orphan",
+                    asset, _sa_exc,
+                )
+                # Fall through: open_position() below will track it and clear _pending_assets
 
         self._buy_filled += 1
 
