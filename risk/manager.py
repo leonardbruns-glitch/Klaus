@@ -623,6 +623,10 @@ class RiskManager:
         max_pct = 0.25
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
+        # BOND stake cap: $5 max until edge is proven
+        if getattr(signal, "signal_source", "") == "BOND":
+            stake = min(stake, 5.0)
+
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
         min_rr = 0.9 if market_type == "updown" else 1.5
         if tpsl.risk_reward < min_rr:
