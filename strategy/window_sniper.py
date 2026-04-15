@@ -133,6 +133,7 @@ CONTRARIAN_DELTA_MAX_PCT  = 0.060   # maximum abs Binance delta to trigger contr
 BOND_ENABLED = True   # re-enabled 2026-04-15: back to high-prob tokens 0.70–0.90
                       # prior losses attributed to high-volatility bear conditions
                       # thesis: works in quiet/trending markets — capture final walk to resolution
+SNIPER_ENABLED = False  # disabled 2026-04-15: BOND 5m only until sniper edge re-validated
 
 WINDOW_ELAPSED_MAX_5M  = 0.78  # raised 0.65→0.78: n=2 at 0.65+ in last 50 trades insufficient to justify ceiling
 WINDOW_ELAPSED_MAX_15M = 0.78  # at elapsed=0.78 on 15m: 198s remaining ≥ HARD_EXIT 210s so window still governs

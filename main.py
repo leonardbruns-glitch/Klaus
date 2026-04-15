@@ -27,7 +27,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
-from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED
+from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
@@ -907,9 +907,7 @@ class KlausBot:
             remaining = token.window_end_ts - now
 
             if is_15m:
-                exit_sec = 10
-                if not (exit_sec + 15 <= remaining <= 120):  # ≤2 min remaining, sell at T-10s
-                    continue
+                continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10
                 if not (exit_sec + 15 <= remaining <= 90):   # ≤1.5 min remaining
@@ -1039,6 +1037,8 @@ class KlausBot:
             )
 
     async def _scan_for_signals(self) -> None:
+        if not SNIPER_ENABLED:
+            return
 
         # Periodic updown token count — fires every ~10s to confirm discovery health
         now_ts = time.time()
