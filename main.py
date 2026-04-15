@@ -869,6 +869,20 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
+            # Delta direction gate: asset must not have moved >0.07% against the bet
+            # YES token: delta ≥ -0.07 (asset not falling hard from window open)
+            # NO token:  delta ≤ +0.07 (asset not rising hard from window open)
+            # n=7: all 4 losses had delta<-0.079, all 3 wins had delta>-0.069
+            _BOND_DELTA_MAX_AGAINST = 0.07
+            _delta_against = (
+                (token.side == "YES" and _bond_delta < -_BOND_DELTA_MAX_AGAINST) or
+                (token.side == "NO"  and _bond_delta >  _BOND_DELTA_MAX_AGAINST)
+            )
+            if _delta_against:
+                logger.info("BOND SKIP %s/%s: delta=%+.3f%% against bet direction (threshold=%.2f%%)",
+                            token.asset, token.side, _bond_delta, _BOND_DELTA_MAX_AGAINST)
+                continue
+
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
             signal = SniperSignal(
