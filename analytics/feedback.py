@@ -377,7 +377,7 @@ class FeedbackEngine:
         slippage_exit = statistics.mean(exit_slippages) if exit_slippages else 0.0
 
         # Extract signal fields — handle both SniperSignal and SignalBreakdown
-        is_sniper = signal_source == "SNIPER"
+        is_sniper = signal_source in ("SNIPER", "BOND", "CONTRARIAN")
         rec = TradeRecord(
             trade_id=trade_id,
             token_id=token_id,
