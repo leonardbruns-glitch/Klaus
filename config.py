@@ -153,7 +153,7 @@ class EdgeConfig:
     # Minutes-into-hour gate: skip BOND entries in first N minutes of volatile hour starts.
     # Volatility spikes at top of hour then stabilizes — blocking full hour is too broad.
     bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6, 8, 12, 13, 14])
-    bond_volatile_minutes_gate: int = 5  # skip first 5 minutes of these hours
+    bond_volatile_minutes_gate: int = 15  # BOND: skip first 15 min; sniper: full hour blocked
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into

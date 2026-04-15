@@ -879,13 +879,12 @@ class KlausBot:
         _BOND_MIN_ASK = 0.70
         _BOND_MAX_ASK = 0.90
 
-        # Minutes-into-hour gate: skip first N minutes of volatile hour starts.
-        # Volatility spikes at top of hour then stabilizes quickly.
+        # Volatile hours gate — BOND: skip first 15 minutes of volatile hour opens.
+        # Sniper blocks the full hour; BOND resumes after the initial spike settles.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
         _volatile_starts = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
-        _volatile_gate_mins = getattr(CONFIG.strategy, "bond_volatile_minutes_gate", 5)
-        if _now_utc.hour in _volatile_starts and _now_utc.minute < _volatile_gate_mins:
+        if _now_utc.hour in _volatile_starts and _now_utc.minute < 15:
             return
 
         for token_id, token in list(self.feed.tokens.items()):
@@ -1106,14 +1105,13 @@ class KlausBot:
                 logger.debug("CASCADE: %s lead → %s gets %.2f score discount",
                              leader, follower, CONFIG.edge.cascade_score_discount)
 
-        # ── Volatile hour-start gate (sniper + BOND) ─────────────────────────
-        # Skip first N minutes of known volatile hour opens (European/NYSE/Asian).
-        # Same gate applied in _scan_bond_entries; duplicated here for sniper.
+        # ── Volatile hours gate — sniper: full hour block ────────────────────
+        # Sniper blocked for entire volatile hours (European/NYSE/Asian opens).
+        # BOND has a softer gate (first 15 min only) in _scan_bond_entries.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _volatile_starts = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
-        _volatile_gate_mins = getattr(CONFIG.strategy, "bond_volatile_minutes_gate", 5)
-        if _now_utc.hour in _volatile_starts and _now_utc.minute < _volatile_gate_mins:
+        _volatile_hours = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
+        if _now_utc.hour in _volatile_hours:
             return
 
         # ── Phase 1: scan all tokens, collect sniper candidates + run momentum ──
