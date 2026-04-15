@@ -445,7 +445,8 @@ class RiskManager:
 
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
-        if not CONFIG.dry_run:
+        # BOND is exempt — it has its own 15-min volatile gate in the scanner.
+        if not CONFIG.dry_run and getattr(signal, "signal_source", "") != "BOND":
             current_hour = datetime.datetime.utcnow().hour
             blocked = getattr(self.edge_cfg, "blocked_hours_utc", [])
             if blocked and current_hour in blocked:
