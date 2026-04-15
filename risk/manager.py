@@ -620,13 +620,13 @@ class RiskManager:
             )
         else:
             stake = self.bankroll.current_stake
-        # Cap at 25% of capital per position — allows $10 stake on $48+ capital.
-        max_pct = 0.25
+        # Cap at 50% of capital per position — user instruction 2026-04-15
+        max_pct = 0.50
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
-        # BOND stake cap: $5 max until edge is proven
+        # BOND stake cap: $10 per user instruction 2026-04-15
         if getattr(signal, "signal_source", "") == "BOND":
-            stake = min(stake, 5.0)
+            stake = min(stake, 10.0)
 
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
         min_rr = 0.9 if market_type == "updown" else 1.5
