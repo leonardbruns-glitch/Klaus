@@ -1282,6 +1282,11 @@ class KlausBot:
                 continue
             else:
                 # Non-updown (price-target markets): use momentum scorer
+                # MOM_ENABLED=False: disabled 2026-04-15 — high-price YES entries
+                # (ep=0.83, ep=0.72) bypassing price caps via NO→YES redirect.
+                # Investigate and re-enable once entry cap bug is fixed.
+                continue
+
                 if len(bars_5m) < 12:
                     continue  # not enough bar history yet
 
