@@ -827,6 +827,7 @@ class KlausBot:
         """
         now = time.time()
         _BOND_MIN_ASK = 0.70
+        _BOND_MAX_ASK = 0.90
 
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
@@ -860,7 +861,7 @@ class KlausBot:
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            if ask is None or ask < _BOND_MIN_ASK:
+            if ask is None or ask < _BOND_MIN_ASK or ask > _BOND_MAX_ASK:
                 continue
 
             # Dedup: one entry per condition per session

@@ -517,7 +517,7 @@ class RiskManager:
                 _updown_max = 0.90
                 _updown_min = 0.03
             elif _is_bond:
-                _updown_max = 0.99   # bond strategy: high-price tokens are the target
+                _updown_max = 0.90   # bond cap: above 0.90 fee math erodes edge
                 _updown_min = 0.70   # bond floor: must be at ≥0.70 to qualify
             else:
                 _updown_max = 0.77
