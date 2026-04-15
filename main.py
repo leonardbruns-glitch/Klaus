@@ -1106,6 +1106,16 @@ class KlausBot:
                 logger.debug("CASCADE: %s lead → %s gets %.2f score discount",
                              leader, follower, CONFIG.edge.cascade_score_discount)
 
+        # ── Volatile hour-start gate (sniper + BOND) ─────────────────────────
+        # Skip first N minutes of known volatile hour opens (European/NYSE/Asian).
+        # Same gate applied in _scan_bond_entries; duplicated here for sniper.
+        import datetime as _dt
+        _now_utc = _dt.datetime.utcnow()
+        _volatile_starts = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
+        _volatile_gate_mins = getattr(CONFIG.strategy, "bond_volatile_minutes_gate", 5)
+        if _now_utc.hour in _volatile_starts and _now_utc.minute < _volatile_gate_mins:
+            return
+
         # ── Phase 1: scan all tokens, collect sniper candidates + run momentum ──
         # Sniper candidates are queued for a single LLM briefing call (not per-token).
         # Momentum (non-updown) tokens are evaluated and entered inline as before.
