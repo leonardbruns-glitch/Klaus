@@ -6,6 +6,7 @@ All data is normalised into typed dataclasses before reaching strategy logic.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -1037,8 +1038,10 @@ class PolymarketFeed:
             asset_match = next(
                 (
                     a for a in tracked
-                    if any(alias.upper() in q_upper for alias in _QUESTION_ALIASES.get(a, [a]))
-                    or any(alias in slug_field for alias in _SLUG_ALIASES.get(a, [a.lower()]))
+                    if any(re.search(r'\b' + re.escape(alias.upper()) + r'\b', q_upper)
+                           for alias in _QUESTION_ALIASES.get(a, [a]))
+                    or any(re.search(r'\b' + re.escape(alias) + r'\b', slug_field)
+                           for alias in _SLUG_ALIASES.get(a, [a.lower()]))
                 ),
                 None,
             )
