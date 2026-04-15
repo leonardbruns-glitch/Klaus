@@ -879,7 +879,7 @@ class KlausBot:
             return
         now = time.time()
         _BOND_MIN_ASK = 0.70
-        _BOND_MAX_ASK = 0.85  # lowered from 0.90: ep≥0.87 trades showed poor risk/reward
+        _BOND_MAX_ASK = 0.82  # lowered 0.90→0.85→0.82: high-ask entries have tiny upside vs crash risk
 
         # Volatile hours gate — BOND: skip first 15 minutes of volatile hour opens.
         # Sniper blocks the full hour; BOND resumes after the initial spike settles.
@@ -942,19 +942,27 @@ class KlausBot:
                             token.asset, token.side)
                 continue
 
-            # Compute real window delta from cached ext signals
+            # Compute real window delta from cached ext signals.
+            # If delta is unavailable we have no directional information — skip rather than
+            # enter blind (delta=0 default gives fair_value=0.5, which is always negative
+            # edge vs ask≥0.70 and caused the -0.301 edge entries like trade #78).
             _ext = getattr(self, "_last_ext_signals", {}).get(token.asset)
             _bond_delta = 0.0
+            _delta_available = False
             if _ext and _ext.spot_price:
                 _ref = (_ext.spot_window_open_15m if is_15m else _ext.spot_window_open_5m) or 0.0
                 if _ref > 0:
                     _bond_delta = (_ext.spot_price - _ref) / _ref * 100
+                    _delta_available = True
                 else:
-                    logger.info("BOND DELTA UNAVAIL %s: ext exists but window_open ref=0 — delta gate disabled",
-                                token.asset)
+                    logger.info("BOND SKIP %s/%s: delta unavailable (ext exists but window_open ref=0)",
+                                token.asset, token.side)
             else:
-                logger.info("BOND DELTA UNAVAIL %s: no ext signals cached — delta gate disabled (ext=%s)",
-                            token.asset, "None" if _ext is None else "no spot_price")
+                logger.info("BOND SKIP %s/%s: delta unavailable (no ext signals cached, ext=%s)",
+                            token.asset, token.side,
+                            "None" if _ext is None else "no spot_price")
+            if not _delta_available:
+                continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
             _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
             _edge = round(_fair_value - ask, 4)
