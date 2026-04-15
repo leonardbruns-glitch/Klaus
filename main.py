@@ -891,12 +891,18 @@ class KlausBot:
                 is_bond=True,
                 bond_exit_sec=exit_sec,
             )
+            # Edge gate: skip if token priced above model fair value
+            if _edge <= 0:
+                logger.info("BOND SKIP %s/%s: edge=%.4f (ask=%.3f > fv=%.3f δ=%+.3f%%)",
+                            token.asset, token.side, _edge, ask, _fair_value, _bond_delta)
+                continue
+
             tpsl = TPSLLevels(
-                take_profit=min(0.99, round(ask + (1.0 - ask) * 0.90, 4)),  # 90% walk to resolution
-                stop_loss=max(0.01, round(ask * 0.80, 4)),   # 20% stop (for logging only — time exit is primary)
+                take_profit=min(0.99, round(ask + (1.0 - ask) * 0.90, 4)),
+                stop_loss=max(0.01, round(ask * 0.80, 4)),
                 tp_pct=round((1.0 - ask) / ask * 90, 1),
                 sl_pct=20.0,
-                risk_reward=1.5,  # hardcoded: BOND exits by time; TP/SL values are record-keeping only
+                risk_reward=1.5,
             )
 
             decision = self.risk.evaluate(
