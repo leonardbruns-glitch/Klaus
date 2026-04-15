@@ -881,11 +881,15 @@ class KlausBot:
         _BOND_MIN_ASK = 0.70
         _BOND_MAX_ASK = 0.82  # lowered 0.90→0.85→0.82: high-ask entries have tiny upside vs crash risk
 
-        # Volatile hours gate — BOND: skip first 15 minutes of volatile hour opens.
-        # Sniper blocks the full hour; BOND resumes after the initial spike settles.
+        # Hour gates — two tiers:
+        # 1. Full-hour block: no BOND entries at all (market open spikes, known volatile hours).
+        # 2. First-15-min block: volatile hour opens, resume after spike settles.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _volatile_starts = getattr(CONFIG.edge, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
+        _blocked_full = getattr(CONFIG.edge, "bond_blocked_hours_utc", [0, 8, 13, 18, 20])
+        if _now_utc.hour in _blocked_full:
+            return
+        _volatile_starts = getattr(CONFIG.edge, "bond_volatile_hour_starts", [6, 10, 12, 14])
         if _now_utc.hour in _volatile_starts and _now_utc.minute < 15:
             return
 

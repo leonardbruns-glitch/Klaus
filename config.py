@@ -150,10 +150,13 @@ class EdgeConfig:
     # hr=13,14 BLOCKED 2026-04-15: sniper data WR=25% n=12 avg=-$3.5 (NYSE open volatility)
     # hr=22 is the crown jewel: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
     blocked_hours_utc: List[int] = field(default_factory=lambda: [2, 6, 8, 13, 14])
+    # Full-hour BOND block: no entries at all during these UTC hours.
+    # 00=midnight reset, 08=EU open, 13=NYSE open, 18=NYSE midday spike, 20=late US session.
+    bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [0, 8, 13, 18, 20])
     # Minutes-into-hour gate: skip BOND entries in first N minutes of volatile hour starts.
     # Volatility spikes at top of hour then stabilizes — blocking full hour is too broad.
-    bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6, 8, 10, 12, 13, 14])
-    bond_volatile_minutes_gate: int = 15  # BOND: skip first 15 min; sniper: full hour blocked
+    bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6, 10, 12, 14])
+    bond_volatile_minutes_gate: int = 15  # BOND: skip first 15 min
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
