@@ -439,21 +439,6 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
-                # Catastrophic stop: price dropped 35% from entry
-                if bond_move <= -0.35:
-                    if token_id not in self._exit_in_progress:
-                        self._exit_in_progress.add(token_id)
-                        logger.warning(
-                            "BOND_STOP %s/%s | move=%.1f%% entry=%.4f curr=%.4f",
-                            pos.asset, pos.direction.name, bond_move * 100,
-                            pos.entry_price, current_price,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, "BOND_STOP")
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                    continue
-
                 # Time exit: sell at bond_exit_sec before window close
                 if bond_remaining <= pos.bond_exit_sec:
                     if token_id not in self._exit_in_progress:
