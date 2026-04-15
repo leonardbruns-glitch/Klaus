@@ -711,6 +711,16 @@ class KlausBot:
         of the sweep cycle. The sniper's own gates (lag, edge, elapsed) filter quality.
         """
         now = time.time()
+        # Hour gate — same blocked hours as _scan_for_signals.
+        import datetime as _dt
+        _spike_hour = _dt.datetime.utcnow().hour
+        _spike_blocked = (
+            set(getattr(CONFIG.edge, "bond_blocked_hours_utc", [0, 8, 13, 18, 20])) |
+            set(getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14]))
+        )
+        if _spike_hour in _spike_blocked:
+            return
+
         # Per-asset debounce — feeds.py debounces at 1.5s, this adds a session-level guard.
         # Timestamp set BEFORE the guard check to prevent two concurrent callbacks both
         # passing when they arrive within the same event loop tick.
