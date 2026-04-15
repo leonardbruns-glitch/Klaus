@@ -518,7 +518,7 @@ class RiskManager:
                 _updown_min = 0.03
             elif _is_bond:
                 _updown_max = 0.90   # bond cap: above 0.90 fee math erodes edge
-                _updown_min = 0.70   # bond floor: must be at ≥0.70 to qualify
+                _updown_min = 0.80   # bond floor: raised from 0.70 — higher market conviction
             else:
                 _updown_max = 0.77
                 _updown_min = 0.05

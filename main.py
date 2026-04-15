@@ -826,7 +826,7 @@ class KlausBot:
         Fee advantage: extreme-zone fee (1.0–1.6% round trip vs 3.1% fat-middle).
         """
         now = time.time()
-        _BOND_MIN_ASK = 0.70
+        _BOND_MIN_ASK = 0.80
         _BOND_MAX_ASK = 0.90
 
         for token_id, token in list(self.feed.tokens.items()):
