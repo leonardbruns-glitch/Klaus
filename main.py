@@ -961,18 +961,20 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Delta direction gate: skip if asset moved significantly AGAINST this token.
-            # Uses token.outcome_direction ("up"/"down") — direction-aware, handles both
-            # standard binary (YES=Up, NO=Down) and neg-risk sub-markets (Down YES = "down").
-            _BOND_DELTA_MAX_AGAINST = 0.07
+            # Delta confirmation gate: require minimum move IN the token's direction.
+            # Replaces the weaker "not-against" gate — -0.086% passes "not-against 0.07%"
+            # but is pure noise (reverses in seconds). Time-compression in fair_value
+            # inflates tiny moves into fake high-confidence signals (fv=0.82 on 0.086% delta).
+            # Minimum 0.10% confirms the move is real before committing capital.
+            _BOND_DELTA_MIN_FOR = 0.10
             _token_dir = getattr(token, "outcome_direction", "up")
-            _delta_against = (
-                (_token_dir == "up"   and _bond_delta < -_BOND_DELTA_MAX_AGAINST) or
-                (_token_dir == "down" and _bond_delta >  _BOND_DELTA_MAX_AGAINST)
+            _delta_confirmed = (
+                (_token_dir == "up"   and _bond_delta >= _BOND_DELTA_MIN_FOR) or
+                (_token_dir == "down" and _bond_delta <= -_BOND_DELTA_MIN_FOR)
             )
-            if _delta_against:
-                logger.info("BOND SKIP %s/%s(%s): delta=%+.3f%% against token direction (threshold=%.2f%%)",
-                            token.asset, token.side, _token_dir, _bond_delta, _BOND_DELTA_MAX_AGAINST)
+            if not _delta_confirmed:
+                logger.info("BOND SKIP %s/%s(%s): delta=%+.3f%% below min confirmation threshold (%.2f%%)",
+                            token.asset, token.side, _token_dir, _bond_delta, _BOND_DELTA_MIN_FOR)
                 continue
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
