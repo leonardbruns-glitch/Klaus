@@ -130,9 +130,9 @@ CONTRARIAN_DELTA_ENABLED  = False  # disabled: 4W/5L net=-$5.93 — correlated m
 CONTRARIAN_DELTA_MIN_PCT  = 0.050   # minimum abs Binance delta to trigger contrarian
 CONTRARIAN_DELTA_MAX_PCT  = 0.060   # maximum abs Binance delta to trigger contrarian
 
-BOND_ENABLED = True   # re-enabled 2026-04-15: flipped to low-probability tokens ≤0.20
-                      # previous 0.80-0.90 (YES) failed: avg win +$0.35 vs avg loss -$2.30 in down market
-                      # new thesis: buy low-prob tokens ≤0.20 near window close — opposite directional bet
+BOND_ENABLED = True   # re-enabled 2026-04-15: back to high-prob tokens 0.70–0.90
+                      # prior losses attributed to high-volatility bear conditions
+                      # thesis: works in quiet/trending markets — capture final walk to resolution
 
 WINDOW_ELAPSED_MAX_5M  = 0.78  # raised 0.65→0.78: n=2 at 0.65+ in last 50 trades insufficient to justify ceiling
 WINDOW_ELAPSED_MAX_15M = 0.78  # at elapsed=0.78 on 15m: 198s remaining ≥ HARD_EXIT 210s so window still governs

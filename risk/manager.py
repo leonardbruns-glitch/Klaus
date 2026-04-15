@@ -517,8 +517,8 @@ class RiskManager:
                 _updown_max = 0.90
                 _updown_min = 0.03
             elif _is_bond:
-                _updown_max = 0.20   # bond cap: low-prob contrarian (flipped 2026-04-15)
-                _updown_min = 0.03   # bond floor: avoid sub-penny noise
+                _updown_max = 0.90   # bond cap: above 0.90 fee math erodes edge
+                _updown_min = 0.70   # bond floor: market conviction threshold
             else:
                 _updown_max = 0.77
                 _updown_min = 0.05

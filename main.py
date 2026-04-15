@@ -801,20 +801,20 @@ class KlausBot:
 
     async def _scan_bond_entries(self) -> None:
         """
-        Bond strategy: buy low-probability tokens near window close, exit by time.
+        Bond strategy: buy high-probability tokens near window close, exit by time.
 
-        15m windows: buy when ask ≤ 0.20 AND remaining ≤ 4 min, sell at T-30s.
-        5m windows:  buy when ask ≤ 0.20 AND remaining ≤ 1.5 min, sell at T-20s.
+        15m windows: buy when ask ≥ 0.70 AND remaining ≤ 4 min, sell at T-30s.
+        5m windows:  buy when ask ≥ 0.70 AND remaining ≤ 1.5 min, sell at T-20s.
 
-        Thesis: contrarian bet near close — low-prob token at 0.20 that resolves YES
-        returns 4x. Fee advantage: extreme-zone (<0.35) round trip ~1.0%.
-        Opposite of failed 0.80-0.90 strategy (which bought high-prob YES in down market).
+        Edge: token at 0.70+ has already committed to an outcome. Capture final
+        repricing walk to ~1.0 as window closes. Works in quiet/trending markets;
+        prior losses were in high-volatility bearish conditions.
         """
         if not BOND_ENABLED:
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.03
-        _BOND_MAX_ASK = 0.20
+        _BOND_MIN_ASK = 0.70
+        _BOND_MAX_ASK = 0.90
 
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
@@ -865,9 +865,9 @@ class KlausBot:
                 delta_pct=0.0,
                 fair_value=ask,
                 token_ask=ask,
-                edge=round(1.0 - ask, 4),   # potential gain to resolution (large for low-prob tokens)
+                edge=round(1.0 - ask, 4),   # potential gain to resolution
                 entry_price=ask,
-                confidence=1.0 - ask,       # inverted: low price = high contrarian confidence
+                confidence=ask,              # high price = high market confidence
                 composite=ask,
                 direction=Direction.BUY_YES,
                 fee_zone=FeeZone.EXTREME,    # skip fat-middle fee gate
