@@ -835,8 +835,8 @@ class KlausBot:
             remaining = token.window_end_ts - now
 
             if is_15m:
-                exit_sec = 30
-                if not (exit_sec + 15 <= remaining <= 240):  # ≤4 min remaining, enough buffer to execute+exit
+                exit_sec = 10
+                if not (exit_sec + 15 <= remaining <= 120):  # ≤2 min remaining, sell at T-10s
                     continue
             elif is_5m:
                 exit_sec = 20
