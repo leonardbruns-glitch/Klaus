@@ -472,8 +472,9 @@ class KlausBot:
                                     self._exit_in_progress.discard(token_id)
                                 continue
                         elif pos.window_seconds < 900:
-                            # 5m per-asset reversal thresholds
-                            _REV_THRESH_5M = {"SOL": 0.020, "BTC": 0.055, "ETH": 0.035}.get(pos.asset.upper(), 0.055)
+                            # 5m per-asset reversal thresholds (raised 2026-04-15: volatile hours
+                            # now blocked at entry, so quiet-hour noise tolerance is higher)
+                            _REV_THRESH_5M = {"SOL": 0.040, "BTC": 0.080, "ETH": 0.060}.get(pos.asset.upper(), 0.080)
                             if abs(_spot_rev_pct) >= _REV_THRESH_5M:
                                 if token_id not in self._exit_in_progress:
                                     self._exit_in_progress.add(token_id)
