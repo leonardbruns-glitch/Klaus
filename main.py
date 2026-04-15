@@ -883,7 +883,7 @@ class KlausBot:
         # Sniper blocks the full hour; BOND resumes after the initial spike settles.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _volatile_starts = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
+        _volatile_starts = getattr(CONFIG.edge, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
         if _now_utc.hour in _volatile_starts and _now_utc.minute < 15:
             return
 
@@ -1110,7 +1110,7 @@ class KlausBot:
         # BOND has a softer gate (first 15 min only) in _scan_bond_entries.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _volatile_hours = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
+        _volatile_hours = getattr(CONFIG.edge, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
         if _now_utc.hour in _volatile_hours:
             return
 
