@@ -898,7 +898,7 @@ class KlausBot:
             )
 
             if not decision.approved:
-                logger.debug("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
+                logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
             logger.info(

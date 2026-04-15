@@ -546,7 +546,8 @@ class RiskManager:
             if cascade_discount > 0:
                 effective_min = max(0.20, effective_min - cascade_discount)
 
-            if signal.composite < effective_min:
+            _sig_src = getattr(signal, "signal_source", "MOMENTUM")
+            if _sig_src not in ("BOND", "CONTRARIAN") and signal.composite < effective_min:
                 return RiskDecision(
                     False, 0,
                     f"{asset} score {signal.composite:.2f} < effective_min {effective_min:.2f} "
