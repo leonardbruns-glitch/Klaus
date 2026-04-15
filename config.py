@@ -153,10 +153,8 @@ class EdgeConfig:
     # Full-hour BOND block: no entries at all during these UTC hours.
     # 00=midnight reset, 08=EU open, 13=NYSE open, 18=NYSE midday spike, 20=late US session.
     bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [0, 8, 13, 18, 20])
-    # Minutes-into-hour gate: skip BOND entries in first N minutes of volatile hour starts.
-    # Volatility spikes at top of hour then stabilizes — blocking full hour is too broad.
-    bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6, 10, 12, 14])
-    bond_volatile_minutes_gate: int = 15  # BOND: skip first 15 min
+    bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [])  # soft gate removed: no data backing
+    bond_volatile_minutes_gate: int = 15
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
