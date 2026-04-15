@@ -147,11 +147,13 @@ class EdgeConfig:
     #   Meets kill switch criteria (<35% WR over 20+ trades). Blocked 2026-04-12.
     # hr=06 BLOCKED 2026-04-15: BOND data n=14 WR=29% net=-$18.09 (European open volatility)
     # hr=08 BLOCKED 2026-04-15: BOND data n=11 WR=45% net=-$18.86 (European open volatility)
-    # hr=12 BLOCKED 2026-04-15: BOND n=2 WR=0% -$12.16 + crypto context: 12 UTC = Asian
-    #   business day start + pre-NYSE = confirmed high volatility window
     # hr=13,14 BLOCKED 2026-04-15: sniper data WR=25% n=12 avg=-$3.5 (NYSE open volatility)
     # hr=22 is the crown jewel: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
-    blocked_hours_utc: List[int] = field(default_factory=lambda: [2, 6, 8, 12, 13, 14])
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [2, 6, 8, 13, 14])
+    # Minutes-into-hour gate: skip BOND entries in first N minutes of volatile hour starts.
+    # Volatility spikes at top of hour then stabilizes — blocking full hour is too broad.
+    bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6, 8, 12, 13, 14])
+    bond_volatile_minutes_gate: int = 5  # skip first 5 minutes of these hours
 
     # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
     # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into

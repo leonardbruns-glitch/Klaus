@@ -879,6 +879,15 @@ class KlausBot:
         _BOND_MIN_ASK = 0.70
         _BOND_MAX_ASK = 0.90
 
+        # Minutes-into-hour gate: skip first N minutes of volatile hour starts.
+        # Volatility spikes at top of hour then stabilizes quickly.
+        import datetime as _dt
+        _now_utc = _dt.datetime.utcnow()
+        _volatile_starts = getattr(CONFIG.strategy, "bond_volatile_hour_starts", [6, 8, 12, 13, 14])
+        _volatile_gate_mins = getattr(CONFIG.strategy, "bond_volatile_minutes_gate", 5)
+        if _now_utc.hour in _volatile_starts and _now_utc.minute < _volatile_gate_mins:
+            return
+
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
                 continue
