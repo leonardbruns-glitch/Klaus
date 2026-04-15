@@ -851,6 +851,13 @@ class KlausBot:
             if ask is None or ask < _BOND_MIN_ASK or ask > _BOND_MAX_ASK:
                 continue
 
+            # Velocity gate: skip if Binance is actively moving against the bet
+            _vel, _vel_age = self.feed.get_velocity_5s(token.asset)
+            if _vel < 0.0:
+                logger.info("BOND SKIP %s/%s: velocity=%.4f%% (falling) age=%.1fs",
+                            token.asset, token.side, _vel, _vel_age)
+                continue
+
             # Dedup: one entry per condition per session
             cid = getattr(token, "condition_id", "") or ""
             if cid and cid in self.risk._traded_conditions:
