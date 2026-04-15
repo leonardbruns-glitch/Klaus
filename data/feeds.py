@@ -1146,20 +1146,22 @@ class PolymarketFeed:
                     _slug_last = slug_lo.rsplit("-", 1)[-1]  # final segment
                     if _slug_last == "down" or slug_lo.endswith("-down"):
                         outcome_direction = "down" if _olabel_up else "up"
+                        _odir_method = "slug-suffix"
                     elif _slug_last == "up" or slug_lo.endswith("-up"):
                         outcome_direction = "up" if _olabel_up else "down"
+                        _odir_method = "slug-suffix"
                     else:
-                        # Slug suffix ambiguous: check question text (excluding
-                        # "up or down" phrasing by looking at trailing word only)
-                        _q_words = question.lower().split()
-                        _tail = " ".join(_q_words[-3:])  # last 3 words of question
-                        if "down" in _tail and "up" not in _tail:
-                            outcome_direction = "down" if _olabel_up else "up"
-                        elif "up" in _tail and "down" not in _tail:
-                            outcome_direction = "up" if _olabel_up else "down"
-                        else:
-                            # Truly ambiguous: fall back to side mapping
-                            outcome_direction = "up" if side == "YES" else "down"
+                        # Slug suffix ambiguous — fall back to side mapping.
+                        # (Question text is unreliable: "Up or Down" contains both.)
+                        outcome_direction = "up" if side == "YES" else "down"
+                        _odir_method = "side-fallback"
+                    import logging as _logging
+                    _logging.getLogger(__name__).debug(
+                        "OUTCOME_DIR neg-risk %s/%s: outcome_direction=%s method=%s "
+                        "slug_last=%r slug=%r question=%r",
+                        asset_match, side, outcome_direction, _odir_method,
+                        _slug_last, slug_lo[:80], question[:80],
+                    )
 
                 # Skip already-expired tokens
                 if window_end_ts > 0 and window_end_ts < now:
