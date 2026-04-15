@@ -440,6 +440,46 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
+                # ── Spot reversal stop ────────────────────────────────────────
+                # 15m: exit if spot reverses >0.10% against token direction.
+                #      n=25 data: all 15m losses had reversal ≥0.145%, all wins ≤0.048%.
+                # 5m:  threshold unclear (win at 0.045% overlaps loss at 0.041%) —
+                #      log only, no action until more data.
+                _curr_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
+                if pos.binance_price_at_entry > 0 and _curr_spot > 0:
+                    _spot_rev_pct = (_curr_spot - pos.binance_price_at_entry) / pos.binance_price_at_entry * 100
+                    _rev_adverse = (
+                        (pos.bond_outcome_direction == "down" and _spot_rev_pct >  0) or
+                        (pos.bond_outcome_direction == "up"   and _spot_rev_pct < 0)
+                    )
+                    if _rev_adverse:
+                        _REV_THRESH_15M = 0.10
+                        if pos.window_seconds >= 900 and abs(_spot_rev_pct) >= _REV_THRESH_15M:
+                            if token_id not in self._exit_in_progress:
+                                self._exit_in_progress.add(token_id)
+                                logger.warning(
+                                    "BOND_REVERSAL_STOP %s/%s | spot_rev=%+.4f%% ≥ %.2f%% | "
+                                    "entry_spot=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f",
+                                    pos.asset, pos.bond_outcome_direction,
+                                    _spot_rev_pct, _REV_THRESH_15M,
+                                    pos.binance_price_at_entry, _curr_spot,
+                                    pos.entry_price, current_price,
+                                )
+                                try:
+                                    await self._exit_position(token_id, current_price, "BOND_REVERSAL_STOP")
+                                finally:
+                                    self._exit_in_progress.discard(token_id)
+                                continue
+                        else:
+                            # 5m or 15m below threshold: log for dataset building
+                            logger.debug(
+                                "BOND_REV_TRACK %s %s rev=%+.4f%% (no action%s)",
+                                pos.asset,
+                                "15m" if pos.window_seconds >= 900 else "5m",
+                                _spot_rev_pct,
+                                f", thresh={_REV_THRESH_15M}%" if pos.window_seconds >= 900 else "",
+                            )
+
                 # Time exit: sell at bond_exit_sec before window close
                 if bond_remaining <= pos.bond_exit_sec:
                     if token_id not in self._exit_in_progress:
@@ -904,6 +944,7 @@ class KlausBot:
                 signal_source="BOND",
                 is_bond=True,
                 bond_exit_sec=exit_sec,
+                bond_outcome_direction=getattr(token, "outcome_direction", "down"),
             )
             # Edge gate: skip if token priced above model fair value
             if _edge <= 0:
@@ -1671,6 +1712,7 @@ class KlausBot:
             entry_fair_value=getattr(signal, "fair_value", 0.0),
             is_bond=getattr(signal, "is_bond", False),
             bond_exit_sec=getattr(signal, "bond_exit_sec", 0),
+            bond_outcome_direction=getattr(signal, "bond_outcome_direction", "down"),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly

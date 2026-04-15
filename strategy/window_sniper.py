@@ -225,8 +225,9 @@ class SniperSignal:
     cross_exchange_div_pct: float = 0.0  # (binance - coinbase) / coinbase * 100
     quality_score: int = 0               # additive quality score (see _compute_quality_score)
     # ── BOND trade metadata ───────────────────────────────────────────────────
-    is_bond: bool = False        # True for high-probability bond entries (time-exit strategy)
-    bond_exit_sec: int = 0       # seconds before window close to exit (30=15m, 20=5m)
+    is_bond: bool = False             # True for high-probability bond entries (time-exit strategy)
+    bond_exit_sec: int = 0            # seconds before window close to exit (30=15m, 20=5m)
+    bond_outcome_direction: str = "down"  # "up" or "down" — which direction resolves this token
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):

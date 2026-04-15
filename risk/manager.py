@@ -113,6 +113,7 @@ class PositionMeta:
     moon_bag_high: float = 0.0       # highest price seen since Stage-1 completed (for trailing stop)
     is_bond: bool = False            # True for BOND trades — time-exit only, no TP/SL
     bond_exit_sec: int = 0           # seconds before window close to exit (30=15m, 20=5m)
+    bond_outcome_direction: str = "down"  # "up" or "down" — token resolves when asset goes this direction
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -704,6 +705,7 @@ class RiskManager:
         entry_fair_value: float = 0.0,
         is_bond: bool = False,
         bond_exit_sec: int = 0,
+        bond_outcome_direction: str = "down",
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -728,6 +730,7 @@ class RiskManager:
             entry_fair_value=entry_fair_value,
             is_bond=is_bond,
             bond_exit_sec=bond_exit_sec,
+            bond_outcome_direction=bond_outcome_direction,
         )
         self.open_positions[token_id] = pos
         self._pending_assets.discard(asset)  # fill confirmed — release lock
