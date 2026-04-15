@@ -200,9 +200,9 @@ class EdgeConfig:
     # Asymmetry noted — Binance up-moves close PM lag more reliably than down-moves.
     # Not gated yet (n=9 YES is thin); collect 20+ before adding directional filter.
     per_asset_min_delta_pct: dict = field(default_factory=lambda: {
-        "BTC": 0.12,  # raised 0.08→0.12: new scoring tiers start at 0.12% (2026-04-14)
-        "ETH": 0.12,  # same
-        "SOL": 0.12,  # same
+        "BTC": 0.15,  # raised 0.12→0.15 (2026-04-15)
+        "ETH": 0.15,  # same
+        "SOL": 0.15,  # same
     })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
