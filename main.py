@@ -917,6 +917,13 @@ class KlausBot:
             else:
                 continue
 
+            # YES direction block: data shows YES WR≈20% with all catastrophic losses;
+            # NO direction WR≈59%. Block YES entirely until data shows otherwise.
+            if token.side == "YES":
+                logger.info("BOND SKIP %s/YES: YES direction blocked (WR≈20%% vs NO WR≈59%%)",
+                            token.asset)
+                continue
+
             ob = self.feed.get_order_book(token_id)
             if ob is None:
                 continue
