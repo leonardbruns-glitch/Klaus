@@ -511,6 +511,7 @@ class OrderManager:
         total_sold = 0.0
         # Track actual fill prices per attempt for accurate analytics
         fill_value = 0.0   # sum(price * size) across all attempts
+        _last_was_resting = False  # True when previous attempt's SELL order rested (bid moved)
 
         for attempt in range(max_attempts):
             if shares - total_sold < 0.01:
@@ -551,6 +552,12 @@ class OrderManager:
                 # _submit_limit_order catches exceptions internally and returns FAILED.
                 # The except block below never fires for CLOB errors — check result.error.
                 err = result.error or ""
+                # SELL resting: bid moved below our limit after order submission.
+                # Mark for adaptive 2% stepdown on next retry (not full 10% which
+                # caused 0.99→0.22 cascades). e.g. TP_95 at 0.95 → bid at 0.84 →
+                # step to 0.93→0.91→...→0.83, fills in ~6 retries.
+                if "SELL resting on book" in err:
+                    _last_was_resting = True
                 # Network-level failure: no point retrying immediately.
                 if "curl: (7)" in err or "Failed to connect" in err or "Could not connect" in err:
                     logger.warning(
@@ -676,12 +683,20 @@ class OrderManager:
                     break
                 logger.debug("Sell attempt %d error: %s", attempt + 1, _sell_exc)
 
-            # Step price down 10% — only for reversal stops (allow_stepdown=True).
-            # TP/TIME_EXIT must NOT step down: USDC depletion caused 0.99→0.22
-            # fills on SOL TP_99 (2026-04-16) by stepping through 15 retries.
+            # Step price down toward market when bid has moved below our limit.
+            # allow_stepdown=True (reversal stops): 10% per step to exit quickly.
+            # _last_was_resting (TP/TIME_EXIT + bid moved): 2% per step — finds new
+            #   market bid in ~6 retries without the 0.99→0.22 over-cascade risk.
+            #   Example: TP_95 fires at 0.95, bid moves to 0.84 → retries at
+            #   0.93 → 0.91 → 0.89 → 0.87 → 0.85 → 0.83 → fills at 0.84 (6 retries).
             if allow_stepdown:
                 sell_price = max(sell_price * 0.90, 0.01)
-                logger.debug("Sell retry %d: %.4f @ %.4f", attempt + 1, remaining, sell_price)
+                _last_was_resting = False
+                logger.debug("Sell retry %d: %.4f @ %.4f (10%% stepdown)", attempt + 1, remaining, sell_price)
+            elif _last_was_resting:
+                sell_price = max(sell_price * 0.98, 0.01)  # 2% adaptive stepdown: bid moved
+                _last_was_resting = False
+                logger.debug("Sell retry %d: %.4f @ %.4f (2%% resting stepdown — bid moved)", attempt + 1, remaining, sell_price)
             else:
                 logger.debug("Sell retry %d: %.4f @ %.4f (price held — no stepdown)", attempt + 1, remaining, sell_price)
 
