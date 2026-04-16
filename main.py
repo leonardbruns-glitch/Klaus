@@ -445,7 +445,7 @@ class KlausBot:
 
                 # ── Spot reversal stop ────────────────────────────────────────
                 # 15m: exit if spot reverses >0.10% against token direction.
-                # 5m:  threshold 0.40% all assets — only catches catastrophic moves.
+                # 5m:  threshold 0.25% all assets — only catches sustained reversals.
                 #      Previous 0.15% thresholds ejected winners on mini wicks
                 #      (ETH $0.77→$0.70 stop-loss, then resolved $1.00 — 2026-04-16).
                 #      Dead zone ≤80s: TIME_EXIT+TP handle the final ~80s.
@@ -482,7 +482,7 @@ class KlausBot:
                             )
                     elif _rev_adverse and pos.window_seconds < 900:
                         # 5m: loose threshold — only catastrophic sustained reversals.
-                        _REV_THRESH_5M = 0.40   # same for all assets
+                        _REV_THRESH_5M = 0.25   # same for all assets
                         if bond_remaining <= 80.0:
                             # Dead zone: TIME_EXIT+TP cover the last 80s; clear count.
                             self._rev_breach_count.pop(token_id, None)
