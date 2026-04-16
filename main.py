@@ -448,7 +448,7 @@ class KlausBot:
                 # 5m:  threshold 0.25% all assets — only catches sustained reversals.
                 #      Previous 0.15% thresholds ejected winners on mini wicks
                 #      (ETH $0.77→$0.70 stop-loss, then resolved $1.00 — 2026-04-16).
-                #      Dead zone ≤80s: TIME_EXIT+TP handle the final ~80s.
+                #      Dead zone ≤60s: TIME_EXIT+TP handle the final ~60s.
                 #      Requires 3 consecutive checks (~3s) to filter wick noise.
                 _curr_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
                 if pos.binance_price_at_entry > 0 and _curr_spot > 0:
@@ -483,8 +483,8 @@ class KlausBot:
                     elif _rev_adverse and pos.window_seconds < 900:
                         # 5m: loose threshold — only catastrophic sustained reversals.
                         _REV_THRESH_5M = 0.25   # same for all assets
-                        if bond_remaining <= 80.0:
-                            # Dead zone: TIME_EXIT+TP cover the last 80s; clear count.
+                        if bond_remaining <= 60.0:
+                            # Dead zone: TIME_EXIT+TP cover the last 60s; clear count.
                             self._rev_breach_count.pop(token_id, None)
                         elif abs(_spot_rev_pct) >= _REV_THRESH_5M:
                             self._rev_breach_count[token_id] = self._rev_breach_count.get(token_id, 0) + 1
