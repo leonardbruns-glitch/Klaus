@@ -580,14 +580,23 @@ class OrderManager:
                     if _m:
                         actual_ticks = int(_m.group(1))
                         actual_shares = round(actual_ticks / 1_000_000, 6)
-                        # GHOST POSITION: balance=0 means we never owned these tokens.
-                        # Cancel-race false positive recorded a fill that never settled.
-                        # Retrying forever is useless — flag as ghost for main.py to purge.
+                        # GHOST POSITION: balance=0 — but may be CLOB propagation delay.
+                        # A fresh buy takes 3–10s to appear in CLOB balance. Retrying
+                        # immediately after entry will show balance=0 even though tokens
+                        # exist. Wait 3s and retry up to 3 times before declaring ghost.
                         if actual_ticks == 0:
+                            if attempt < 3:
+                                logger.warning(
+                                    "GHOST suspect %s (attempt %d) — CLOB balance=0 may be "
+                                    "propagation delay, waiting 3s before retry",
+                                    token_id[:12], attempt + 1,
+                                )
+                                await asyncio.sleep(3.0)
+                                continue  # retry at same price
                             logger.error(
-                                "GHOST POSITION %s: CLOB balance=0 — tokens never received. "
-                                "Flagging for immediate position purge.",
-                                token_id[:12],
+                                "GHOST POSITION %s: CLOB balance=0 after %d checks — "
+                                "tokens never received. Flagging for immediate position purge.",
+                                token_id[:12], attempt + 1,
                             )
                             return OrderResult(
                                 status=OrderStatus.FAILED,
