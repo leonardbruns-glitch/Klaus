@@ -494,11 +494,11 @@ class KlausBot:
                                 "BOND_REV_TRACK %s 5m breach=%d rev=%+.4f%% (thresh=%.2f%%)",
                                 pos.asset, self._rev_breach_count[token_id], _spot_rev_pct, _REV_THRESH_5M,
                             )
-                            if self._rev_breach_count.get(token_id, 0) >= 3:
+                            if self._rev_breach_count.get(token_id, 0) >= 10:
                                 if token_id not in self._exit_in_progress:
                                     self._exit_in_progress.add(token_id)
                                     logger.warning(
-                                        "BOND_REVERSAL_STOP %s/%s 5m | spot_rev=%+.4f%% ≥ %.2f%% (3 checks) | "
+                                        "BOND_REVERSAL_STOP %s/%s 5m | spot_rev=%+.4f%% ≥ %.2f%% (10 checks) | "
                                         "entry_spot=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f",
                                         pos.asset, pos.bond_outcome_direction,
                                         _spot_rev_pct, _REV_THRESH_5M,
