@@ -886,7 +886,13 @@ class RiskManager:
         # 3-phase architecture: hard close at max_trade_duration (120s).
         # PM repricing is statistically complete within 120s — holding longer
         # is alpha decay, not alpha capture.
-        if time_held >= self.exec_cfg.max_trade_duration and not pos.hard_exit_triggered:
+        # 15m SNI exception: 720s hard exit — 240s exited mid-window when
+        # 10+ min of resolution time remained (2026-04-16: saved 2 losses).
+        _hard_exit_limit = (
+            720 if pos.window_seconds >= 900 and not pos.is_bond
+            else self.exec_cfg.max_trade_duration
+        )
+        if time_held >= _hard_exit_limit and not pos.hard_exit_triggered:
             pos.hard_exit_triggered = True
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")
 
