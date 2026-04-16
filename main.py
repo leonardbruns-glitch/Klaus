@@ -355,6 +355,11 @@ class KlausBot:
             if ob is None or isinstance(ob, Exception):
                 now_ts = time.time()
                 remaining_ts = pos.window_end_ts - now_ts if pos.window_end_ts > 0 else 999
+                if pos.is_bond:
+                    # BOND positions have a dedicated precise timer — never sell via OB_NOOB.
+                    # OB commonly goes None in the last 45s of updown markets (thinning liquidity)
+                    # which was causing 15-20s premature exits on T-60s entries.
+                    continue
                 if pos.window_end_ts > 0 and remaining_ts <= 45:
                     logger.warning(
                         "OB UNAVAILABLE near window end %s (%.0fs remaining) — "
@@ -955,7 +960,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 60  # sell at T-60s: better CLOB liquidity than T-10s
-                if not (exit_sec + 30 <= remaining <= 120):  # entry: T-90s to T-120s
+                if not (exit_sec + 15 <= remaining <= 120):  # entry: T-75s to T-120s
                     continue
             else:
                 continue

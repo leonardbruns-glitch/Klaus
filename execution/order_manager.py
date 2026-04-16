@@ -587,10 +587,18 @@ class OrderManager:
                         if actual_ticks == 0:
                             if attempt < 3:
                                 logger.warning(
-                                    "GHOST suspect %s (attempt %d) — CLOB balance=0 may be "
-                                    "propagation delay, waiting 3s before retry",
+                                    "GHOST suspect %s (attempt %d) — CLOB balance=0 "
+                                    "(propagation delay or stale USDC cache), refreshing + retry",
                                     token_id[:12], attempt + 1,
                                 )
+                                try:
+                                    from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+                                    self._client.update_balance_allowance(
+                                        BalanceAllowanceParams(
+                                            asset_type=AssetType.COLLATERAL,
+                                            signature_type=CONFIG.signature_type))
+                                except Exception:
+                                    pass
                                 await asyncio.sleep(3.0)
                                 continue  # retry at same price
                             logger.error(
