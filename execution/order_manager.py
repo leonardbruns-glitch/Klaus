@@ -601,6 +601,15 @@ class OrderManager:
                                     pass
                                 await asyncio.sleep(3.0)
                                 continue  # retry at same price
+                            # CRITICAL: if some shares already sold before balance hit 0,
+                            # preserve those fills — don't declare full GHOST and lose them.
+                            if total_sold > 0:
+                                logger.warning(
+                                    "GHOST POSITION partial %s: CLOB balance=0 after %d checks "
+                                    "but %.4f shares already sold — returning partial fill.",
+                                    token_id[:12], attempt + 1, total_sold,
+                                )
+                                break  # fall through to FILLED path at line 672
                             logger.error(
                                 "GHOST POSITION %s: CLOB balance=0 after %d checks — "
                                 "tokens never received. Flagging for immediate position purge.",
@@ -613,7 +622,14 @@ class OrderManager:
                         if actual_shares < 0.05:
                             # Dust balance — position was sold externally (manual sell) or
                             # cascade partial-filled and leftover is sub-$1.50 dust.
-                            # 0.05 shares @ any reasonable price = < $0.05. Not worth retrying.
+                            # CRITICAL: if some shares already sold, preserve those fills.
+                            if total_sold > 0:
+                                logger.warning(
+                                    "EXTERNALLY_SOLD dust %s: %.6f shares remain but %.4f already "
+                                    "sold — returning partial fill, dust orphaned to residual tracker.",
+                                    token_id[:12], actual_shares, total_sold,
+                                )
+                                break  # fall through to FILLED path
                             logger.warning(
                                 "EXTERNALLY_SOLD %s: CLOB balance=%d micro-tokens (%.6f shares) "
                                 "— dust remainder, treating as closed.",
