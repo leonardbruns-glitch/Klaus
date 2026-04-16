@@ -909,8 +909,8 @@ class KlausBot:
         """
         Bond strategy: buy high-probability tokens near window close, exit by time.
 
-        15m windows: buy when ask ≥ 0.70 AND remaining ≤ 4 min, sell at T-30s.
-        5m windows:  buy when ask ≥ 0.70 AND remaining ≤ 1.5 min, sell at T-20s.
+        15m windows: buy when ask ≥ 0.66 AND remaining ≤ 4 min, sell at T-30s.
+        5m windows:  buy when ask ≥ 0.66 AND remaining ≤ 1.5 min, sell at T-20s.
 
         Edge: token at 0.70+ has already committed to an outcome. Capture final
         repricing walk to ~1.0 as window closes. Works in quiet/trending markets;
@@ -919,7 +919,7 @@ class KlausBot:
         if not BOND_ENABLED:
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.70
+        _BOND_MIN_ASK = 0.66  # lowered 0.70→0.66: wider entry window
         _BOND_MAX_ASK = 0.82  # lowered 0.90→0.85→0.82: high-ask entries have tiny upside vs crash risk
 
         # Hour gates — two tiers:
