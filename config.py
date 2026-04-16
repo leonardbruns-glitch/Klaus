@@ -24,7 +24,7 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 124.06             # updated: deposit 2026-04-12, capital=$124.06
-    base_stake: float = 10.0          # set $10 per user instruction 2026-04-15 (capital=~$22)
+    base_stake: float = 3.0           # reduced 2026-04-16: isolating BOND instant-sell bug
     # Scale-up tiers (static sizing — Kelly deferred until n≥50 with stable per-regime WR):
     #   Tier 1: $10 — now active
     #   Tier 2: $20 — after confirmed WR>55% over 20+ live trades
