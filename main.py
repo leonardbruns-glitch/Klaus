@@ -2323,6 +2323,7 @@ class KlausBot:
             neg_risk=getattr(token_meta, "neg_risk", False),
             tick_size=getattr(token_meta, "tick_size", "0.01"),
             force_exit=True,  # full exits must always succeed regardless of notional value
+            allow_stepdown="REVERSAL" in reason,  # step down only for reversal stops
         )
 
         # Combine stage-1 + stage-2 fills for full-position PnL accounting.
