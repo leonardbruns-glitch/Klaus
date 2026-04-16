@@ -3259,6 +3259,37 @@ class KlausBot:
                         "ORPHAN SOLD %s/%s: %.4f shares @ %.4f",
                         asset, side, sold, avg_price,
                     )
+                    # Recover entry price from CLOB BUY history so PnL is real.
+                    # Orphans arise when entry filled on Polymarket but wasn't tracked
+                    # locally (CF block during confirmation). The CLOB has the buy fill.
+                    _orphan_entry_price = 0.0
+                    if not CONFIG.dry_run:
+                        await asyncio.sleep(1.5)
+                        try:
+                            _all_fills = await asyncio.to_thread(
+                                self.orders.fetch_recent_token_sells,
+                                token_id,
+                                time.time() - 900,  # last 15 min
+                            )
+                            # Buys are fills priced meaningfully below the exit price.
+                            _buy_fills = [
+                                (p, s) for p, s in _all_fills
+                                if p < avg_price * 0.97
+                            ]
+                            if _buy_fills:
+                                _b_sz  = sum(s for _, s in _buy_fills)
+                                _b_val = sum(p * s for p, s in _buy_fills)
+                                if _b_sz > 0:
+                                    _orphan_entry_price = round(_b_val / _b_sz, 6)
+                                    logger.info(
+                                        "ORPHAN entry recovered from CLOB: %s/%s ep=%.4f "
+                                        "(%d buy fill(s), %.4f shares)",
+                                        asset, side, _orphan_entry_price,
+                                        len(_buy_fills), _b_sz,
+                                    )
+                        except Exception as _ce:
+                            logger.warning("ORPHAN CLOB entry lookup failed: %s", _ce)
+
                     self.analytics.record_orphan_sell(
                         token_id=token_id,
                         asset=asset,
@@ -3266,22 +3297,26 @@ class KlausBot:
                         shares_sold=sold,
                         avg_exit_price=avg_price,
                         is_live=not CONFIG.dry_run,
+                        avg_entry_price=_orphan_entry_price,
                     )
-                    # Orphan proceeds: entry cost was already deducted from bankroll
-                    # when the position originally opened, but close_position was called
-                    # with incorrect remaining_shares (0) so the stage-2 value was lost.
-                    # Add gross proceeds directly so capital doesn't drift until the next
-                    # hourly reconciliation picks them up.
+                    # Reconcile bankroll from actual CLOB USDC balance — ground truth.
+                    # Avoids drift from double-counting or missed entry deductions.
                     if not CONFIG.dry_run:
-                        _orphan_proceeds = round(sold * avg_price, 4)
-                        self.risk.bankroll.capital = round(
-                            self.risk.bankroll.capital + _orphan_proceeds, 4
-                        )
-                        self.risk.bankroll._save()
-                        logger.warning(
-                            "ORPHAN PROCEEDS +$%.4f added to bankroll → cap=$%.2f",
-                            _orphan_proceeds, self.risk.bankroll.capital,
-                        )
+                        await asyncio.sleep(2.0)
+                        try:
+                            _real_bal = await asyncio.to_thread(self.orders.fetch_usdc_balance)
+                            if _real_bal is not None:
+                                _old_cap = self.risk.bankroll.capital
+                                self.risk.bankroll.capital = round(_real_bal, 4)
+                                self.risk.bankroll._save()
+                                logger.warning(
+                                    "Post-orphan bankroll reconciled: $%.2f → $%.2f (delta=%+.2f)",
+                                    _old_cap, _real_bal, _real_bal - _old_cap,
+                                )
+                            else:
+                                logger.warning("Post-orphan USDC balance fetch returned None")
+                        except Exception as _re:
+                            logger.warning("Post-orphan bankroll reconcile failed: %s", _re)
                 else:
                     logger.warning(
                         "ORPHAN SELL FAILED %s/%s: %.4f shares unsold",

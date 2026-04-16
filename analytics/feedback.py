@@ -1124,6 +1124,7 @@ class FeedbackEngine:
         shares_sold: float,
         avg_exit_price: float,
         is_live: bool = True,
+        avg_entry_price: float = 0.0,
     ) -> None:
         """
         Log an ORPHAN_SELL event to trades.jsonl.
@@ -1132,15 +1133,32 @@ class FeedbackEngine:
         but the position tracker only knows about the first. At window-end these
         are detected and sold; without logging the financial result is invisible.
 
-        Entry price is unknown (position was never tracked), so gross_pnl and
-        net_pnl are left as 0. The record exists purely for audit/reconciliation:
-        bankroll.reconcile_usdc() should be called after any orphan sell to sync
-        the internal bankroll to the actual CLOB balance.
+        If avg_entry_price is provided (recovered from CLOB BUY history), real
+        gross/net PnL is computed. Otherwise gross_pnl/net_pnl are left 0.
+        Bankroll reconciliation from CLOB USDC balance should follow any orphan sell.
         """
         self._trade_counter += 1
         trade_id = f"T{self._trade_counter:05d}_{asset}_{int(time.time())}_ORPHAN"
         self.last_trade_id = trade_id
         now = time.time()
+
+        gross_pnl = 0.0
+        fee_paid  = 0.0
+        net_pnl   = 0.0
+        stake     = 0.0
+        if avg_entry_price > 0 and shares_sold > 0:
+            stake     = round(avg_entry_price * shares_sold, 4)
+            gross_pnl = round((avg_exit_price - avg_entry_price) * shares_sold, 4)
+            fee_rate  = 0.0142 if (avg_entry_price < 0.30 or avg_entry_price > 0.70) else 0.0312
+            fee_paid  = round((avg_entry_price + avg_exit_price) * shares_sold * fee_rate, 4)
+            net_pnl   = round(gross_pnl - fee_paid, 4)
+
+        note = (
+            f"entry recovered from CLOB history @ {avg_entry_price:.4f}"
+            if avg_entry_price > 0
+            else "entry cost unknown — bankroll reconciliation required"
+        )
+
         record = {
             "trade_id": trade_id,
             "token_id": token_id,
@@ -1149,24 +1167,23 @@ class FeedbackEngine:
             "market_type": "updown",
             "signal_source": "ORPHAN",
             "exit_reason": "ORPHAN_SELL",
-            "ts_open": 0.0,           # unknown — position was never tracked
+            "ts_open": 0.0,
             "ts_close": now,
-            "entry_price": 0.0,       # unknown
+            "entry_price": round(avg_entry_price, 4),
             "exit_price": round(avg_exit_price, 4),
-            "stake": 0.0,             # unknown
+            "stake": stake,
             "shares": round(shares_sold, 4),
-            "gross_pnl": 0.0,         # unknown without entry price
-            "fee_paid": 0.0,
-            "net_pnl": 0.0,           # unknown
+            "gross_pnl": gross_pnl,
+            "fee_paid": fee_paid,
+            "net_pnl": net_pnl,
             "is_live": is_live,
             "hour_utc": int(time.gmtime(now).tm_hour),
-            "note": "double-fill orphan — entry cost unknown, bankroll reconciliation required",
+            "note": note,
         }
         self._write_jsonl(self.cfg.trade_log, record)
         logger.warning(
-            "ORPHAN_SELL logged: %s/%s %.4f shares @ %.4f (trade_id=%s) — "
-            "run bankroll reconciliation to sync USDC balance",
-            asset, side, shares_sold, avg_exit_price, trade_id,
+            "ORPHAN_SELL logged: %s/%s %.4f shares ep=%.4f xp=%.4f net=%+.3f (trade_id=%s)",
+            asset, side, shares_sold, avg_entry_price, avg_exit_price, net_pnl, trade_id,
         )
 
     def load_trade_history(self, path: Optional[str] = None) -> List[dict]:
