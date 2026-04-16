@@ -451,25 +451,15 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
-                # ── Window-delta reversal guard (15m only) ────────────────────
-                # Uses the same metric as entry: spot vs window-open reference.
-                # Exit if _bond_delta has FULLY REVERSED past threshold in the
-                # WRONG direction — the event is no longer happening.
-                #
-                # 5m DISABLED: hold is ≤110s. Entry delta is only 0.077% minimum.
-                #   A +0.20% spot bounce (very common in crypto) would immediately
-                #   trigger the guard after 5 scans, ejecting winning positions.
-                #   Data confirms: BOND_DIR_REVERSAL was selling winners at bad
-                #   prices (e.g. 0.59¢ instead of letting them resolve at 0.95+).
-                #   BOND_TP_95 + TIME_EXIT are sufficient for 5m exits.
-                # 15m threshold: 0.10% — longer window, smaller moves matter more.
-                #   Only active when 15m BOND is re-enabled.
-                # Dead zone: ignore in final 30s — TIME_EXIT handles cleanly.
-                _is_15m_pos = pos.window_seconds >= 900
-                if _is_15m_pos:  # 15m only — 5m disabled (ejects winners)
+                # ── Window-delta reversal guard (5m + 15m) ───────────────────
+                # Exit if spot has reversed past threshold in the wrong direction
+                # for 5 consecutive scans (~5s sustained) — event no longer live.
+                # Threshold 0.10%. Dead zone: final 30s (TIME_EXIT handles it).
+                if True:
                     _ext_now = self._last_ext_signals.get(pos.asset)
                     if _ext_now and _ext_now.spot_price and bond_remaining > 30:
-                        _wref = (_ext_now.spot_window_open_15m or 0.0)
+                        _is_15m_pos = pos.window_seconds >= 900
+                        _wref = ((_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0)
                         if _wref > 0:
                             _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100
                             _REV_THRESH = 0.10
@@ -489,10 +479,11 @@ class KlausBot:
                                     if token_id not in self._exit_in_progress:
                                         self._exit_in_progress.add(token_id)
                                         logger.warning(
-                                            "BOND_DIR_REVERSAL %s/%s 15m | wdelta=%+.3f%% ≥ %.2f%% wrong side "
+                                            "BOND_DIR_REVERSAL %s/%s %s | wdelta=%+.3f%% ≥ %.2f%% wrong side "
                                             "for 5 consecutive scans | wref=%.4f curr_spot=%.4f | "
                                             "ep=%.4f curr=%.4f | rem=%.0fs",
                                             pos.asset, pos.bond_outcome_direction,
+                                            "15m" if _is_15m_pos else "5m",
                                             _wdelta_now, _REV_THRESH,
                                             _wref, _ext_now.spot_price,
                                             pos.entry_price, current_price, bond_remaining,
