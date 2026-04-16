@@ -1002,6 +1002,22 @@ class OrderManager:
                                 except Exception as _check_err:
                                     logger.debug("cancel-race order check failed: %s", _check_err)
                             if not cancel_race_fill:
+                                # CLOB silently ignores cancel on already-matched orders.
+                                # Wait 3s and recheck balance — fill may have landed between
+                                # the pre-cancel balance check and the cancel arriving at CLOB.
+                                await asyncio.sleep(3.0)
+                                _post_cancel_balance = self.fetch_token_balance(token_id)
+                                if _post_cancel_balance is not None and _post_cancel_balance >= 0.05:
+                                    logger.warning(
+                                        "BUY post-cancel recovery %s: %.4f shares found after 3s "
+                                        "— fill landed during WS miss window, cancel was no-op",
+                                        order_id[:12], _post_cancel_balance,
+                                    )
+                                    return OrderResult(
+                                        status=OrderStatus.FILLED,
+                                        avg_fill_price=price,
+                                        total_size=_post_cancel_balance,
+                                    )
                                 return OrderResult(
                                     status=OrderStatus.FAILED,
                                     error=f"BUY resting — cancelled after {_FILL_TIMEOUT:.0f}s (no fill)",
