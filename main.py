@@ -482,11 +482,8 @@ class KlausBot:
                             )
                     elif _rev_adverse and pos.window_seconds < 900:
                         # 5m: loose threshold — only catastrophic sustained reversals.
-                        _REV_THRESH_5M = 0.25   # same for all assets
-                        if bond_remaining <= 60.0:
-                            # Dead zone: TIME_EXIT+TP cover the last 60s; clear count.
-                            self._rev_breach_count.pop(token_id, None)
-                        elif abs(_spot_rev_pct) >= _REV_THRESH_5M:
+                        _REV_THRESH_5M = 0.20   # same for all assets
+                        if abs(_spot_rev_pct) >= _REV_THRESH_5M:
                             self._rev_breach_count[token_id] = self._rev_breach_count.get(token_id, 0) + 1
                             logger.debug(
                                 "BOND_REV_TRACK %s 5m breach=%d rev=%+.4f%% (thresh=%.2f%%)",
