@@ -192,11 +192,22 @@ class FillTracker:
                         await ws.send_str(sub)
                         self._connected = True
                         logger.info("FillTracker: user channel WS connected")
+                        _last_msg_ts = asyncio.get_event_loop().time()
 
-                        async for msg in ws:
+                        while True:
                             if not self._running:
                                 break
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=60.0)
+                            except asyncio.TimeoutError:
+                                # 60s silence — Cloudflare can silently drop the connection
+                                # without sending CLOSE. Reconnect proactively.
+                                logger.info(
+                                    "FillTracker: 60s silence on user WS — reconnecting"
+                                )
+                                break
                             if msg.type == aiohttp.WSMsgType.TEXT:
+                                _last_msg_ts = asyncio.get_event_loop().time()
                                 try:
                                     payload = _json.loads(msg.data)
                                     events = payload if isinstance(payload, list) else [payload]
@@ -237,40 +248,56 @@ class FillTracker:
         if status.upper() not in ("MATCHED", "MINED"):
             return
 
-        # Extract the normalised fill result once, check both maker/taker IDs
         try:
             size = float(ev.get("size", 0))
             price = float(ev.get("price", 0))
-            fill = {
-                "order_id": "",
-                "size": size,
-                "price": price,
-                "cost": round(size * price, 6),
-                "raw": ev,
-            }
         except Exception:
             return
 
+        # Collect all non-empty order IDs from the event (deduplicated, ordered)
+        all_ids: list[str] = []
         for id_field in ("taker_order_id", "maker_order_id", "id", "order_id"):
-            order_id = ev.get(id_field, "")
-            if not order_id:
-                continue
-            fill["order_id"] = order_id
-            if order_id in self._pending:
-                # Normal path: wait_fill() is already waiting
-                self._results[order_id] = fill
-                self._pending[order_id].set()
+            oid = ev.get(id_field, "")
+            if oid and oid not in all_ids:
+                all_ids.append(oid)
+
+        if not all_ids:
+            return
+
+        # Phase 1: check if ANY id matches a registered wait_fill() — fire immediately.
+        # Critical: must scan ALL ids before deciding "no match".
+        # Bug-before-fix: returning on the first non-empty id meant maker_order_id was
+        # never checked when taker_order_id was non-empty — fills stored under wrong key.
+        for oid in all_ids:
+            if oid in self._pending:
+                fill = {
+                    "order_id": oid,
+                    "size": size,
+                    "price": price,
+                    "cost": round(size * price, 6),
+                    "raw": ev,
+                }
+                self._results[oid] = fill
+                self._pending[oid].set()
                 logger.info(
                     "FillTracker: fill event → order %s | size=%.4f @ %.4f",
-                    order_id[:12], size, price,
+                    oid[:12], size, price,
                 )
                 return
-            else:
-                # Early-arrival path: wait_fill() hasn't registered yet.
-                # Buffer the fill so wait_fill() can claim it immediately.
-                self._early_fills[order_id] = fill
+
+        # Phase 2: no pending waiter — buffer under ALL ids so wait_fill() finds it
+        # regardless of which id (taker vs maker) the caller used to place the order.
+        for oid in all_ids:
+            if oid not in self._early_fills:
+                fill = {
+                    "order_id": oid,
+                    "size": size,
+                    "price": price,
+                    "cost": round(size * price, 6),
+                    "raw": ev,
+                }
+                self._early_fills[oid] = fill
                 logger.info(
                     "FillTracker: early fill buffered for order %s | size=%.4f @ %.4f",
-                    order_id[:12], size, price,
+                    oid[:12], size, price,
                 )
-                return
