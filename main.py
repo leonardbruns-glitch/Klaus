@@ -2210,6 +2210,8 @@ class KlausBot:
                 # (CF block / WS miss). Query CLOB trade history to recover the
                 # actual exit price. This fixes the bankroll drift seen 2026-04-16
                 # where real losses of ~$2 were recorded as -$0.10 (fee only).
+                # 1.5s delay: CLOB /trades indexing can lag by ~1-2s for fresh fills.
+                await asyncio.sleep(1.5)
                 try:
                     _clob_sells = await asyncio.to_thread(
                         self.orders.fetch_recent_token_sells,

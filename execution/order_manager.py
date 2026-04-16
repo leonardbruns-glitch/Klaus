@@ -1197,27 +1197,48 @@ class OrderManager:
         self, token_id: str, since_ts: float
     ) -> list:
         """
-        Query CLOB /trades for recent SELL fills on token_id since since_ts.
+        Query CLOB /trades for recent fills on token_id since since_ts.
         Returns list of (price, size) tuples.
 
         Called when cascade_sell fill confirmation was dropped (CF/WS miss) so
         the bot has no local fills but Polymarket executed the sale. Querying
         trade history recovers the real exit price for accurate PnL tracking.
 
-        Queries both taker_address and maker_address — on Polymarket, our sells
-        are usually taker, but maker fills happen too.
+        Queries both taker_address and maker_address with both funder_address
+        and EOA address (from private key) to handle sig_type=0 and sig_type=1/2.
+        Does NOT filter by side — CLOB side field perspective varies; any fill
+        for our token after entry timestamp is our exit.
         """
         if CONFIG.dry_run:
-            return []
-        wallet = getattr(CONFIG, "funder_address", "") or ""
-        if not wallet:
-            logger.warning("fetch_recent_token_sells: FUNDER_ADDRESS not set")
             return []
 
         try:
             import requests as _req
         except ImportError:
             logger.warning("fetch_recent_token_sells: requests not available")
+            return []
+
+        # Build candidate wallet addresses to query.
+        # sig_type=0 (EOA): trades associated with EOA derived from private key.
+        # sig_type=1/2 (proxy/safe): trades associated with funder_address.
+        # Try both so we always find the fills regardless of signature_type.
+        wallets: list[str] = []
+        funder = getattr(CONFIG, "funder_address", "") or ""
+        if funder:
+            wallets.append(funder)
+        try:
+            from eth_account import Account as _Acct
+            _eoa = _Acct.from_key(CONFIG.wallet_private_key).address
+            if _eoa.lower() != funder.lower():
+                wallets.append(_eoa)
+                logger.debug(
+                    "fetch_recent_token_sells: querying EOA=%s in addition to funder=%s",
+                    _eoa[:10], funder[:10] if funder else "none",
+                )
+        except Exception:
+            pass
+        if not wallets:
+            logger.warning("fetch_recent_token_sells: no wallet address available")
             return []
 
         def _parse_trade_ts(val) -> float:
@@ -1241,55 +1262,84 @@ class OrderManager:
         results = []
         seen_ids: set = set()
 
-        for role in ("taker_address", "maker_address"):
-            try:
-                r = _req.get(
-                    f"{CONFIG.markets.clob_api_url}/trades",
-                    params={role: wallet, "limit": 100},
-                    timeout=5,
-                    headers={"User-Agent": "Mozilla/5.0"},
-                )
-                r.raise_for_status()
-                data = r.json()
-                trades = (
-                    data.get("data", []) if isinstance(data, dict)
-                    else data if isinstance(data, list)
-                    else []
-                )
-                for t in trades:
-                    tid = t.get("id") or t.get("trade_id") or ""
-                    if tid and tid in seen_ids:
-                        continue
-                    if tid:
-                        seen_ids.add(tid)
-
-                    # Filter by token_id
-                    if (t.get("asset_id") or t.get("token_id") or "") != token_id:
-                        continue
-
-                    # Filter by timestamp — only fills after entry
-                    trade_ts = _parse_trade_ts(
-                        t.get("created_at") or t.get("timestamp")
+        for wallet in wallets:
+            for role in ("taker_address", "maker_address"):
+                try:
+                    r = _req.get(
+                        f"{CONFIG.markets.clob_api_url}/trades",
+                        params={role: wallet, "limit": 100},
+                        timeout=6,
+                        headers={"User-Agent": "Mozilla/5.0"},
                     )
-                    if trade_ts > 0 and trade_ts < since_ts:
-                        continue
+                    r.raise_for_status()
+                    data = r.json()
+                    trades = (
+                        data.get("data", []) if isinstance(data, dict)
+                        else data if isinstance(data, list)
+                        else []
+                    )
 
-                    # Filter by side = SELL
-                    side = (t.get("side") or t.get("type") or "").upper()
-                    if side != "SELL":
-                        continue
+                    # Debug: log raw schema of first trade so we can see field names
+                    if trades:
+                        logger.debug(
+                            "CLOB /trades wallet=%s role=%s → %d trades; "
+                            "first keys=%s",
+                            wallet[:10], role, len(trades),
+                            list(trades[0].keys())[:12],
+                        )
+                    else:
+                        logger.debug(
+                            "CLOB /trades wallet=%s role=%s → 0 trades",
+                            wallet[:10], role,
+                        )
 
-                    price = float(t.get("price") or 0)
-                    size = float(t.get("size") or t.get("shares") or 0)
-                    if price > 0 and size > 0:
-                        results.append((price, size))
+                    for t in trades:
+                        tid = t.get("id") or t.get("trade_id") or ""
+                        if tid and tid in seen_ids:
+                            continue
+                        if tid:
+                            seen_ids.add(tid)
 
-            except Exception as exc:
-                logger.warning(
-                    "fetch_recent_token_sells(%s) role=%s: %s",
-                    token_id[:8], role, exc,
-                )
+                        # Filter by token_id (field may be asset_id or token_id)
+                        t_token = t.get("asset_id") or t.get("token_id") or ""
+                        if t_token != token_id:
+                            continue
 
+                        # Filter by timestamp — only fills after entry
+                        trade_ts = _parse_trade_ts(
+                            t.get("created_at") or t.get("timestamp")
+                        )
+                        if trade_ts > 0 and trade_ts < since_ts:
+                            continue
+
+                        # Accept any side — perspective varies (taker vs maker).
+                        # Our cascades always SELL, so any fill here is our exit.
+                        price = float(t.get("price") or 0)
+                        size = float(t.get("size") or t.get("shares") or 0)
+                        if price > 0 and size > 0:
+                            side_raw = (t.get("side") or t.get("type") or "?").upper()
+                            logger.info(
+                                "CLOB fill found: token=%s wallet=%s role=%s "
+                                "side=%s price=%.4f size=%.4f ts=%s",
+                                token_id[:12], wallet[:10], role,
+                                side_raw, price, size,
+                                t.get("created_at") or t.get("timestamp", "?"),
+                            )
+                            results.append((price, size))
+
+                except Exception as exc:
+                    logger.warning(
+                        "fetch_recent_token_sells(%s) wallet=%s role=%s: %s",
+                        token_id[:8], wallet[:10], role, exc,
+                    )
+
+        if not results:
+            logger.warning(
+                "fetch_recent_token_sells(%s): no fills found across %d wallet(s) "
+                "since_ts=%.0f (now=%.0f delta=%.0fs)",
+                token_id[:12], len(wallets), since_ts,
+                time.time(), time.time() - since_ts,
+            )
         return results
 
     def fetch_usdc_balance(self) -> Optional[float]:
