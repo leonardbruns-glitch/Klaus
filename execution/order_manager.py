@@ -1474,7 +1474,7 @@ class OrderManager:
                 try:
                     r = _req.get(
                         f"{CONFIG.markets.clob_api_url}/trades",
-                        params={role: wallet, "limit": 100},
+                        params={role: wallet, "asset_id": token_id, "limit": 50},
                         timeout=6,
                         headers={"User-Agent": "Mozilla/5.0"},
                     )
@@ -1512,11 +1512,11 @@ class OrderManager:
                         if t_token != token_id:
                             continue
 
-                        # Filter by timestamp — only fills after entry
+                        # Filter by timestamp with 10s clock-skew buffer
                         trade_ts = _parse_trade_ts(
                             t.get("created_at") or t.get("timestamp")
                         )
-                        if trade_ts > 0 and trade_ts < since_ts:
+                        if trade_ts > 0 and trade_ts < since_ts - 10.0:
                             continue
 
                         # Accept any side — perspective varies (taker vs maker).
