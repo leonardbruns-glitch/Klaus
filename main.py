@@ -2206,9 +2206,36 @@ class KlausBot:
                     _price_found_in_error = True
                     break
             if not _price_found_in_error:
+                # No price in error message — cascade_sell confirmation was dropped
+                # (CF block / WS miss). Query CLOB trade history to recover the
+                # actual exit price. This fixes the bankroll drift seen 2026-04-16
+                # where real losses of ~$2 were recorded as -$0.10 (fee only).
+                try:
+                    _clob_sells = await asyncio.to_thread(
+                        self.orders.fetch_recent_token_sells,
+                        token_id,
+                        pos.open_ts,
+                    )
+                    if _clob_sells:
+                        _total_sz = sum(s for _, s in _clob_sells)
+                        _total_val = sum(p * s for p, s in _clob_sells)
+                        if _total_sz > 0:
+                            _raw_exit = round(_total_val / _total_sz, 6)
+                            _price_found_in_error = True
+                            logger.info(
+                                "EXT price recovered from CLOB history: %s/%s → %.4f "
+                                "(%d fill(s), %.4f shares total)",
+                                pos.asset, pos.direction.name,
+                                _raw_exit, len(_clob_sells), _total_sz,
+                            )
+                except Exception as _clob_exc:
+                    logger.warning(
+                        "fetch_recent_token_sells %s failed: %s", token_id[:8], _clob_exc
+                    )
+            if not _price_found_in_error:
                 logger.warning(
-                    "EXTERNALLY_SOLD %s/%s — no fill price in error, using entry_price=%.4f "
-                    "(actual fill unknown; bankroll may drift vs Polymarket balance)",
+                    "EXTERNALLY_SOLD %s/%s — no fill price in error or CLOB history, "
+                    "using entry_price=%.4f (bankroll may drift vs Polymarket balance)",
                     pos.asset, pos.direction.name, _raw_exit,
                 )
             _raw_exit = _raw_exit if _raw_exit > 0 else pos.entry_price

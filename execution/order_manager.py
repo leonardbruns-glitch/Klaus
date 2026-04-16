@@ -1193,6 +1193,105 @@ class OrderManager:
             logger.warning("fetch_token_balance %s failed: %s", token_id[:8], exc)
             return None
 
+    def fetch_recent_token_sells(
+        self, token_id: str, since_ts: float
+    ) -> list:
+        """
+        Query CLOB /trades for recent SELL fills on token_id since since_ts.
+        Returns list of (price, size) tuples.
+
+        Called when cascade_sell fill confirmation was dropped (CF/WS miss) so
+        the bot has no local fills but Polymarket executed the sale. Querying
+        trade history recovers the real exit price for accurate PnL tracking.
+
+        Queries both taker_address and maker_address — on Polymarket, our sells
+        are usually taker, but maker fills happen too.
+        """
+        if CONFIG.dry_run:
+            return []
+        wallet = getattr(CONFIG, "funder_address", "") or ""
+        if not wallet:
+            logger.warning("fetch_recent_token_sells: FUNDER_ADDRESS not set")
+            return []
+
+        try:
+            import requests as _req
+        except ImportError:
+            logger.warning("fetch_recent_token_sells: requests not available")
+            return []
+
+        def _parse_trade_ts(val) -> float:
+            """Parse CLOB timestamp to unix seconds."""
+            if not val:
+                return 0.0
+            if isinstance(val, (int, float)):
+                v = float(val)
+                return v / 1000.0 if v > 1e12 else v
+            try:
+                v = float(val)
+                return v / 1000.0 if v > 1e12 else v
+            except (ValueError, TypeError):
+                pass
+            try:
+                from datetime import datetime as _dt
+                return _dt.fromisoformat(str(val).replace("Z", "+00:00")).timestamp()
+            except Exception:
+                return 0.0
+
+        results = []
+        seen_ids: set = set()
+
+        for role in ("taker_address", "maker_address"):
+            try:
+                r = _req.get(
+                    f"{CONFIG.markets.clob_api_url}/trades",
+                    params={role: wallet, "limit": 100},
+                    timeout=5,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                r.raise_for_status()
+                data = r.json()
+                trades = (
+                    data.get("data", []) if isinstance(data, dict)
+                    else data if isinstance(data, list)
+                    else []
+                )
+                for t in trades:
+                    tid = t.get("id") or t.get("trade_id") or ""
+                    if tid and tid in seen_ids:
+                        continue
+                    if tid:
+                        seen_ids.add(tid)
+
+                    # Filter by token_id
+                    if (t.get("asset_id") or t.get("token_id") or "") != token_id:
+                        continue
+
+                    # Filter by timestamp — only fills after entry
+                    trade_ts = _parse_trade_ts(
+                        t.get("created_at") or t.get("timestamp")
+                    )
+                    if trade_ts > 0 and trade_ts < since_ts:
+                        continue
+
+                    # Filter by side = SELL
+                    side = (t.get("side") or t.get("type") or "").upper()
+                    if side != "SELL":
+                        continue
+
+                    price = float(t.get("price") or 0)
+                    size = float(t.get("size") or t.get("shares") or 0)
+                    if price > 0 and size > 0:
+                        results.append((price, size))
+
+            except Exception as exc:
+                logger.warning(
+                    "fetch_recent_token_sells(%s) role=%s: %s",
+                    token_id[:8], role, exc,
+                )
+
+        return results
+
     def fetch_usdc_balance(self) -> Optional[float]:
         """
         Fetch actual USDC balance from Polymarket CLOB.
