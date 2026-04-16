@@ -445,10 +445,11 @@ class KlausBot:
 
                 # ── Spot reversal stop ────────────────────────────────────────
                 # 15m: exit if spot reverses >0.10% against token direction.
-                #      n=25 data: all 15m losses had reversal ≥0.145%, all wins ≤0.048%.
-                # 5m:  per-asset thresholds from n=21 trades (8L all adverse, 3 wins with mild adverse):
-                #      SOL=0.020% (0W/6L adverse, min loss=+0.024%), BTC=0.055% (1L@0.069%, 1W@0.045%),
-                #      ETH=0.035% (1L@0.041%, 2W@0.031%/0.010%)
+                # 5m:  threshold 0.40% all assets — only catches catastrophic moves.
+                #      Previous 0.15% thresholds ejected winners on mini wicks
+                #      (ETH $0.77→$0.70 stop-loss, then resolved $1.00 — 2026-04-16).
+                #      Dead zone ≤80s: TIME_EXIT+TP handle the final ~80s.
+                #      Requires 3 consecutive checks (~3s) to filter wick noise.
                 _curr_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
                 if pos.binance_price_at_entry > 0 and _curr_spot > 0:
                     _spot_rev_pct = (_curr_spot - pos.binance_price_at_entry) / pos.binance_price_at_entry * 100
@@ -456,13 +457,13 @@ class KlausBot:
                         (pos.bond_outcome_direction == "down" and _spot_rev_pct >  0) or
                         (pos.bond_outcome_direction == "up"   and _spot_rev_pct < 0)
                     )
-                    if _rev_adverse:
+                    if _rev_adverse and pos.window_seconds >= 900:
                         _REV_THRESH_15M = 0.10
-                        if pos.window_seconds >= 900 and abs(_spot_rev_pct) >= _REV_THRESH_15M:
+                        if abs(_spot_rev_pct) >= _REV_THRESH_15M:
                             if token_id not in self._exit_in_progress:
                                 self._exit_in_progress.add(token_id)
                                 logger.warning(
-                                    "BOND_REVERSAL_STOP %s/%s | spot_rev=%+.4f%% ≥ %.2f%% | "
+                                    "BOND_REVERSAL_STOP %s/%s 15m | spot_rev=%+.4f%% ≥ %.2f%% | "
                                     "entry_spot=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f",
                                     pos.asset, pos.bond_outcome_direction,
                                     _spot_rev_pct, _REV_THRESH_15M,
@@ -474,65 +475,41 @@ class KlausBot:
                                 finally:
                                     self._exit_in_progress.discard(token_id)
                                 continue
-                        elif pos.window_seconds < 900:
-                            # 5m per-asset reversal thresholds.
-                            # Require 2 consecutive 1s checks above threshold before firing —
-                            # filters single-tick noise (8-13s false triggers) while still
-                            # catching sustained reversals within ~2s.
-                            # Late-window dead zone: if ≤40s remain, TIME_EXIT handles it —
-                            # reversal stop here hits stop-hunts that spike+reverse before
-                            # resolution (confirmed 2026-04-16, BTC n=2 false triggers).
-                            # BTC 0.080→0.150: false triggers at ≤0.12% with 2-check.
-                            # ETH 0.060→0.090: conservative raise, no recent ETH triggers.
-                            # SOL 0.040: unchanged (no recent false data).
-                            _REV_THRESH_5M = {"SOL": 0.150, "BTC": 0.200, "ETH": 0.150}.get(pos.asset.upper(), 0.200)
-                            if bond_remaining <= 60.0:
-                                # Dead zone: too close to TIME_EXIT; clear any pending count
-                                self._rev_breach_count.pop(token_id, None)
-                                logger.debug(
-                                    "BOND_REV_SKIP %s 5m dead zone remaining=%.0fs ≤ 60s — waiting for TIME_EXIT",
-                                    pos.asset, bond_remaining,
-                                )
-                            elif abs(_spot_rev_pct) >= _REV_THRESH_5M:
-                                self._rev_breach_count[token_id] = self._rev_breach_count.get(token_id, 0) + 1
-                                logger.debug(
-                                    "BOND_REV_TRACK %s 5m breach=%d rev=%+.4f%% (thresh=%.3f%%)",
-                                    pos.asset, self._rev_breach_count[token_id], _spot_rev_pct, _REV_THRESH_5M,
-                                )
-                                if self._rev_breach_count.get(token_id, 0) >= 2:
-                                    if token_id not in self._exit_in_progress:
-                                        self._exit_in_progress.add(token_id)
-                                        logger.warning(
-                                            "BOND_REVERSAL_STOP %s/%s 5m | spot_rev=%+.4f%% ≥ %.3f%% (confirmed 2 checks) | "
-                                            "entry_spot=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f",
-                                            pos.asset, pos.bond_outcome_direction,
-                                            _spot_rev_pct, _REV_THRESH_5M,
-                                            pos.binance_price_at_entry, _curr_spot,
-                                            pos.entry_price, current_price,
-                                        )
-                                        self._rev_breach_count.pop(token_id, None)
-                                        try:
-                                            await self._exit_position(token_id, current_price, "BOND_REVERSAL_STOP")
-                                        finally:
-                                            self._exit_in_progress.discard(token_id)
-                                        continue
-                            else:
-                                # Below threshold — reset counter (spike didn't sustain)
-                                if self._rev_breach_count.pop(token_id, 0) > 0:
-                                    logger.debug(
-                                        "BOND_REV_RESET %s 5m — breach count reset (rev=%+.4f%% dropped below %.3f%%)",
-                                        pos.asset, _spot_rev_pct, _REV_THRESH_5M,
-                                    )
-                                logger.debug(
-                                    "BOND_REV_TRACK %s 5m rev=%+.4f%% (thresh=%.3f%%)",
-                                    pos.asset, _spot_rev_pct, _REV_THRESH_5M,
-                                )
                         else:
-                            # 15m below threshold: log only
                             logger.debug(
                                 "BOND_REV_TRACK %s 15m rev=%+.4f%% (thresh=%.2f%%)",
                                 pos.asset, _spot_rev_pct, _REV_THRESH_15M,
                             )
+                    elif _rev_adverse and pos.window_seconds < 900:
+                        # 5m: loose threshold — only catastrophic sustained reversals.
+                        _REV_THRESH_5M = 0.40   # same for all assets
+                        if bond_remaining <= 80.0:
+                            # Dead zone: TIME_EXIT+TP cover the last 80s; clear count.
+                            self._rev_breach_count.pop(token_id, None)
+                        elif abs(_spot_rev_pct) >= _REV_THRESH_5M:
+                            self._rev_breach_count[token_id] = self._rev_breach_count.get(token_id, 0) + 1
+                            logger.debug(
+                                "BOND_REV_TRACK %s 5m breach=%d rev=%+.4f%% (thresh=%.2f%%)",
+                                pos.asset, self._rev_breach_count[token_id], _spot_rev_pct, _REV_THRESH_5M,
+                            )
+                            if self._rev_breach_count.get(token_id, 0) >= 3:
+                                if token_id not in self._exit_in_progress:
+                                    self._exit_in_progress.add(token_id)
+                                    logger.warning(
+                                        "BOND_REVERSAL_STOP %s/%s 5m | spot_rev=%+.4f%% ≥ %.2f%% (3 checks) | "
+                                        "entry_spot=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f",
+                                        pos.asset, pos.bond_outcome_direction,
+                                        _spot_rev_pct, _REV_THRESH_5M,
+                                        pos.binance_price_at_entry, _curr_spot,
+                                        pos.entry_price, current_price,
+                                    )
+                                    try:
+                                        await self._exit_position(token_id, current_price, "BOND_REVERSAL_STOP")
+                                    finally:
+                                        self._exit_in_progress.discard(token_id)
+                                    continue
+                        else:
+                            self._rev_breach_count.pop(token_id, None)
 
                 # BOND take-profit: lock in gains before TIME_EXIT
                 # $0.95 at any point — token at 95¢ with time remaining is high
