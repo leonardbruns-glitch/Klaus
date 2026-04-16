@@ -879,6 +879,19 @@ class KlausBot:
                 name=f"spike_{asset}_{token.side}",
             )
 
+    async def _refresh_ext_signals(self) -> None:
+        """Fetch Binance ext signals for all tracked assets and cache in _last_ext_signals.
+        Called every signal loop iteration regardless of SNIPER_ENABLED so BOND scanner
+        always has delta data (BOND skip 'delta unavailable' when SNIPER disabled)."""
+        ext_results = await asyncio.gather(
+            *[self.feed.fetch_external_signals(a) for a in CONFIG.markets.tracked_assets],
+            return_exceptions=True,
+        )
+        self._last_ext_signals = {
+            asset: (r if not isinstance(r, Exception) else None)
+            for asset, r in zip(CONFIG.markets.tracked_assets, ext_results)
+        }
+
     async def _signal_loop(self) -> None:
         _consecutive_errors = 0
         _entries_blocked = False
@@ -886,6 +899,7 @@ class KlausBot:
             try:
                 await self.feed.poll_order_books()
                 await self.feed.update_bars()
+                await self._refresh_ext_signals()
                 if _entries_blocked:
                     logger.info("Signal loop recovered — entries unblocked")
                     _entries_blocked = False
@@ -1291,15 +1305,8 @@ class KlausBot:
                     len(self.feed.tokens),
                 )
 
-        # Fetch optional external signals for all assets in parallel
-        ext_results = await asyncio.gather(
-            *[self.feed.fetch_external_signals(a) for a in CONFIG.markets.tracked_assets],
-            return_exceptions=True,
-        )
-        ext_signals = {
-            asset: (r if not isinstance(r, Exception) else None)
-            for asset, r in zip(CONFIG.markets.tracked_assets, ext_results)
-        }
+        # Ext signals already fetched by _refresh_ext_signals() earlier this loop tick.
+        ext_signals = dict(self._last_ext_signals)
 
         # ── LLM Signal Engine: inject Claude signal into external signals ────────
         # Fires all day on sharp BTC moves (≥0.25% in active sessions, ≥0.40% quiet)
