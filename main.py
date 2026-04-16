@@ -954,8 +954,8 @@ class KlausBot:
             if is_15m:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
-                exit_sec = 10
-                if not (exit_sec + 15 <= remaining <= 120):  # ≤2 min remaining
+                exit_sec = 60  # sell at T-60s: better CLOB liquidity than T-10s
+                if not (25 <= remaining <= 120):  # entry window: 25s–2min remaining
                     continue
             else:
                 continue
