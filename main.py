@@ -742,14 +742,13 @@ class KlausBot:
         of the sweep cycle. The sniper's own gates (lag, edge, elapsed) filter quality.
         """
         now = time.time()
-        # Hour gate — same blocked hours as _scan_for_signals.
+        # Hour gate — mirrors BOND first-15-min gate.
         import datetime as _dt
-        _spike_hour = _dt.datetime.utcnow().hour
-        _spike_blocked = (
-            set(getattr(CONFIG.edge, "bond_blocked_hours_utc", [0, 8, 13, 18, 20])) |
-            set(getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14]))
-        )
-        if _spike_hour in _spike_blocked:
+        _spike_dt = _dt.datetime.utcnow()
+        _spike_first15 = set(getattr(
+            CONFIG.edge, "bond_first15_blocked_hours_utc", [0, 6, 8, 13, 18, 20]
+        )) | set(getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14]))
+        if _spike_dt.hour in _spike_first15 and _spike_dt.minute < 15:
             return
 
         # Per-asset debounce — feeds.py debounces at 1.5s, this adds a session-level guard.
@@ -922,16 +921,17 @@ class KlausBot:
         _BOND_MIN_ASK = 0.66  # lowered 0.70→0.66: wider entry window
         _BOND_MAX_ASK = 0.82  # lowered 0.90→0.85→0.82: high-ask entries have tiny upside vs crash risk
 
-        # Hour gates — two tiers:
-        # 1. Full-hour block: no BOND entries at all (market open spikes, known volatile hours).
-        # 2. First-15-min block: volatile hour opens, resume after spike settles.
+        # Hour gate: block first 15 min of each volatile/risky hour.
+        # Formerly had full-hour blocks (0, 8, 13, 18, 20) but that's too blunt —
+        # the spike settles within 15 min and the rest of the hour is tradeable.
+        # All formerly full-blocked hours are now first-15-min only.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _blocked_full = getattr(CONFIG.edge, "bond_blocked_hours_utc", [0, 8, 13, 18, 20])
-        if _now_utc.hour in _blocked_full:
-            return
-        _volatile_starts = getattr(CONFIG.edge, "bond_volatile_hour_starts", [6, 10, 12, 14])
-        if _now_utc.hour in _volatile_starts and _now_utc.minute < 15:
+        _first15_blocked = getattr(
+            CONFIG.edge, "bond_first15_blocked_hours_utc",
+            [0, 6, 8, 13, 18, 20],  # default: all previously blocked hours + hr=6
+        )
+        if _now_utc.hour in _first15_blocked and _now_utc.minute < 15:
             return
 
         for token_id, token in list(self.feed.tokens.items()):
@@ -1009,7 +1009,7 @@ class KlausBot:
             # but is pure noise (reverses in seconds). Time-compression in fair_value
             # inflates tiny moves into fake high-confidence signals (fv=0.82 on 0.086% delta).
             # Minimum 0.10% confirms the move is real before committing capital.
-            _BOND_DELTA_MIN_FOR = 0.10
+            _BOND_DELTA_MIN_FOR = 0.077
             _token_dir = getattr(token, "outcome_direction", "up")
             _delta_confirmed = (
                 (_token_dir == "up"   and _bond_delta >= _BOND_DELTA_MIN_FOR) or
@@ -1179,10 +1179,11 @@ class KlausBot:
         # BOND has a softer gate (first 15 min only) in _scan_bond_entries.
         import datetime as _dt
         _now_utc = _dt.datetime.utcnow()
-        _sniper_blocked_full = getattr(CONFIG.edge, "bond_blocked_hours_utc", [0, 8, 13, 18, 20])
-        _sniper_blocked_legacy = getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14])
-        _sniper_all_blocked = set(_sniper_blocked_full) | set(_sniper_blocked_legacy)
-        if _now_utc.hour in _sniper_all_blocked:
+        _sniper_first15 = (
+            set(getattr(CONFIG.edge, "bond_first15_blocked_hours_utc", [0, 6, 8, 13, 18, 20]))
+            | set(getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14]))
+        )
+        if _now_utc.hour in _sniper_first15 and _now_utc.minute < 15:
             return
 
         # ── Phase 1: scan all tokens, collect sniper candidates + run momentum ──
@@ -2109,47 +2110,66 @@ class KlausBot:
         # Ghost position guard: MUST run BEFORE Guard 1 (which returns early on 0 fills).
         # CLOB balance=0 means we never owned these tokens — cancel-race false positive.
         # Close at 0 immediately so bot stops retrying and capital tracking stays honest.
+        # EXCEPTION: if entry_fill exists in meta, the position was real (we have proof of
+        # purchase). CLOB balance=0 then means it was sold/resolved externally — reclassify
+        # as EXTERNALLY_SOLD so the EXT path handles it (not recorded as full $0 loss).
+        # 2026-04-16: ETH GHOST_POSITION fired on a real position that resolved externally.
         ghost_detected = any(
             "GHOST_POSITION" in (getattr(r, "error", "") or "")
             for r in exit_fills
         )
         if ghost_detected:
-            logger.error(
-                "GHOST POSITION purged: %s/%s — stake=$%.2f recorded as total loss. "
-                "Cancel-race false positive in earlier session.",
-                pos.asset, pos.direction.name, pos.stake,
-            )
-            ghost_pnl = self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
-            _ghost_meta = self._open_meta.pop(token_id, {})
-            self._pos_log_ts.pop(token_id, None)
-            if ghost_pnl is not None:
-                _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
-                    direction=pos.direction, entry_price=pos.entry_price,
-                    composite=0.0, confidence=0.0, breakout_score=0.0,
-                    trend_score=0.0, volume_score=0.0, ob_score=0.0,
-                    fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
-                    reason="ghost_position",
+            _ghost_check_meta = self._open_meta.get(token_id, {})
+            _has_entry_fill = _ghost_check_meta.get("entry_fill") is not None
+            if _has_entry_fill:
+                # Real position confirmed by entry_fill — reclassify to EXTERNALLY_SOLD
+                # so EXT path uses entry_price fallback (not full $0 loss).
+                logger.warning(
+                    "GHOST→EXT reclassify %s/%s — entry_fill exists, position was real. "
+                    "CLOB balance=0 means externally sold/resolved. Using EXT path.",
+                    pos.asset, pos.direction.name,
                 )
-                try:
-                    self.analytics.record_trade(
-                        token_id=token_id, asset=pos.asset, direction=pos.direction,
-                        entry_price=pos.entry_price, exit_price=0.0,
-                        stake=pos.stake, shares=pos.shares,
-                        entry_fill=_ghost_meta.get("entry_fill"), exit_fills=[],
-                        exit_reason="GHOST_POSITION", signal=_ghost_signal,
-                        ts_open=_ghost_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
-                        capital_before=self.risk.bankroll.capital - ghost_pnl,
-                        heat_check_active=_ghost_meta.get("heat_check", False),
-                        consecutive_wins=_ghost_meta.get("consecutive_wins", 0),
-                        net_pnl_actual=ghost_pnl,
-                        market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
-                        is_live=not CONFIG.dry_run,
-                        signal_source=_ghost_meta.get("signal_source", "SNIPER"),
-                        window_size_s=_ghost_meta.get("window_size_s") or pos.window_seconds or 0,
+                for _r in exit_fills:
+                    if "GHOST_POSITION" in (getattr(_r, "error", "") or ""):
+                        _r.error = _r.error.replace("GHOST_POSITION", "EXTERNALLY_SOLD")
+                # Fall through to ext_sold_detected block below
+            else:
+                logger.error(
+                    "GHOST POSITION purged: %s/%s — stake=$%.2f recorded as total loss. "
+                    "Cancel-race false positive in earlier session.",
+                    pos.asset, pos.direction.name, pos.stake,
+                )
+                ghost_pnl = self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
+                _ghost_meta = self._open_meta.pop(token_id, {})
+                self._pos_log_ts.pop(token_id, None)
+                if ghost_pnl is not None:
+                    _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
+                        direction=pos.direction, entry_price=pos.entry_price,
+                        composite=0.0, confidence=0.0, breakout_score=0.0,
+                        trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                        fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                        reason="ghost_position",
                     )
-                except Exception as _e:
-                    logger.error("record_trade GHOST_POSITION failed: %s", _e)
-            return
+                    try:
+                        self.analytics.record_trade(
+                            token_id=token_id, asset=pos.asset, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=0.0,
+                            stake=pos.stake, shares=pos.shares,
+                            entry_fill=_ghost_meta.get("entry_fill"), exit_fills=[],
+                            exit_reason="GHOST_POSITION", signal=_ghost_signal,
+                            ts_open=_ghost_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                            capital_before=self.risk.bankroll.capital - ghost_pnl,
+                            heat_check_active=_ghost_meta.get("heat_check", False),
+                            consecutive_wins=_ghost_meta.get("consecutive_wins", 0),
+                            net_pnl_actual=ghost_pnl,
+                            market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                            is_live=not CONFIG.dry_run,
+                            signal_source=_ghost_meta.get("signal_source", "SNIPER"),
+                            window_size_s=_ghost_meta.get("window_size_s") or pos.window_seconds or 0,
+                        )
+                    except Exception as _e:
+                        logger.error("record_trade GHOST_POSITION failed: %s", _e)
+                return
 
         # Externally sold guard: balance < 0.01 shares = sold manually outside the bot.
         # Close the position at current price so PnL tracking stays accurate.
