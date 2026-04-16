@@ -1043,9 +1043,15 @@ class KlausBot:
                 bond_exit_sec=exit_sec,
                 bond_outcome_direction=getattr(token, "outcome_direction", "down"),
             )
-            # Edge gate removed: data showed edge (delta-based model) has no predictive
-            # power for BOND outcomes. Only spot movement during hold matters.
-            # Protection comes from ask range (0.70-0.90) + reversal stop during hold.
+            # Edge gate: require fair_value > ask (model says token is not overpriced).
+            # Negative edge = our own fair_value model says the token costs more than it's worth.
+            # Restored 2026-04-16: negative-edge entries at hr=07 all lost.
+            if _edge <= 0:
+                logger.info(
+                    "BOND SKIP %s/%s: negative edge=%.4f (fv=%.4f < ask=%.4f)",
+                    token.asset, token.side, _edge, _fair_value, ask,
+                )
+                continue
 
             tpsl = TPSLLevels(
                 take_profit=min(0.99, round(ask + (1.0 - ask) * 0.90, 4)),
