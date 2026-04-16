@@ -2071,6 +2071,59 @@ class KlausBot:
             "move_age_s": _move_age,
         }
 
+        # BOND: launch a dedicated timer task so TIME_EXIT fires at exactly
+        # T-exit_sec regardless of scan loop delays under load.
+        if getattr(signal, "is_bond", False) and pos.window_end_ts > 0:
+            asyncio.create_task(
+                self._bond_precise_timer(token_id, pos.window_end_ts, pos.bond_exit_sec),
+                name=f"bond_timer_{asset}_{token_id[:8]}",
+            )
+
+    # ── BOND precise timer ────────────────────────────────────────────────────
+
+    async def _bond_precise_timer(
+        self, token_id: str, window_end_ts: float, exit_sec: int
+    ) -> None:
+        """
+        Dedicated asyncio timer for BOND TIME_EXIT.
+
+        Sleeps until exactly window_end_ts - exit_sec, then fires the exit.
+        Bypasses the 1s scan loop which can drift 3-8s under load, causing
+        TIME_EXIT to fire too close to window close (→ BOND_TIME_EXIT_EXT).
+
+        The scan loop TIME_EXIT check remains as a fallback, but this task
+        fires first when both are eligible.
+        """
+        target_ts = window_end_ts - exit_sec
+        wait_s = target_ts - time.time()
+        if wait_s > 0:
+            await asyncio.sleep(wait_s)
+
+        # Re-check: position might have already been exited by TP or reversal stop
+        if token_id not in self.risk.open_positions:
+            return
+        pos = self.risk.open_positions.get(token_id)
+        if pos is None or not getattr(pos, "is_bond", False):
+            return
+        if token_id in self._exit_in_progress:
+            return
+
+        ob = self.feed.get_order_book(token_id)
+        current_price = (
+            ob.bids[0][0] if (ob and ob.bids)
+            else (pos.entry_price if pos else 0.50)
+        )
+        actual_remaining = max(0.0, window_end_ts - time.time())
+        logger.info(
+            "BOND_TIMER %s: precise exit firing | remaining=%.1fs target=T-%ds",
+            pos.asset if pos else token_id[:8], actual_remaining, exit_sec,
+        )
+        self._exit_in_progress.add(token_id)
+        try:
+            await self._exit_position(token_id, current_price, "BOND_TIME_EXIT")
+        finally:
+            self._exit_in_progress.discard(token_id)
+
     # ── Double-fill protection ────────────────────────────────────────────────
 
     async def _deferred_balance_sync(self, token_id: str, asset: str, delay: float = 1.5) -> None:
