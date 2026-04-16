@@ -522,7 +522,7 @@ class RiskManager:
                 _updown_max = 0.90   # bond cap: above 0.90 fee math erodes edge
                 _updown_min = 0.70   # bond floor: market conviction threshold
             else:
-                _updown_max = 0.77
+                _updown_max = 0.65   # BOND owns 0.66–0.82; sniper stays below to avoid overlap
                 _updown_min = 0.05
             if signal.entry_price > _updown_max or signal.entry_price < _updown_min:
                 return RiskDecision(
