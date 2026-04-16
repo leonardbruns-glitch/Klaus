@@ -996,22 +996,27 @@ class KlausBot:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
             _token_dir = getattr(token, "outcome_direction", "up")
-            # NOTE: directed delta disabled until outcome_direction is verified correct.
-            # Today's trades show YES tokens profiting when asset goes DOWN, suggesting
-            # YES→"up" (side-fallback) may be inverted for these markets. Using abs()
-            # until feeds.py OUTCOME_DIR logs confirm the actual direction assignment.
-            # See: feeds.py OUTCOME_DIR log lines on next restart.
+
+            # Directed delta gate: only enter a token when spot direction matches
+            # outcome_direction. Without this, abs() would give high fair_value for
+            # both sides and the bot enters the WRONG token when spot has reversed
+            # mid-window (e.g. was DOWN, briefly ticked UP, DOWN-YES still at 0.72).
+            # feeds.py OUTCOME_DIR logs confirm slug-suffix mapping is correct.
+            _BOND_DELTA_MIN = 0.077
+            _dir_match = (
+                (_token_dir == "down" and _bond_delta <= -_BOND_DELTA_MIN) or
+                (_token_dir == "up"   and _bond_delta >= _BOND_DELTA_MIN)
+            )
+            if not _dir_match:
+                logger.debug(
+                    "BOND SKIP %s/%s: delta=%+.3f%% direction mismatch odir=%s",
+                    token.asset, token.side, _bond_delta, _token_dir,
+                )
+                continue
+
             _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
-
-            # Delta magnitude gate: skip flat markets (noise below 0.077%).
-            # Direction is handled by fair_value above — no hard directional block.
-            _BOND_DELTA_MIN = 0.077
-            if abs(_bond_delta) < _BOND_DELTA_MIN:
-                logger.info("BOND SKIP %s/%s: |delta|=%.3f%% below min threshold (%.3f%%)",
-                            token.asset, token.side, abs(_bond_delta), _BOND_DELTA_MIN)
-                continue
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
@@ -1034,7 +1039,7 @@ class KlausBot:
                 signal_source="BOND",
                 is_bond=True,
                 bond_exit_sec=exit_sec,
-                bond_outcome_direction=getattr(token, "outcome_direction", "down"),
+                bond_outcome_direction=_token_dir,
             )
             # Edge gate: require fair_value > ask (model says token is not overpriced).
             # Negative edge = our own fair_value model says the token costs more than it's worth.
