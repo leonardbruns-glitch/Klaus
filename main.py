@@ -886,6 +886,7 @@ class KlausBot:
                 _consecutive_errors = 0  # reset on success
                 await self._scan_for_signals()
                 await self._scan_bond_entries()
+                await self._scan_reversal_candidates()
             except Exception as exc:
                 _consecutive_errors += 1
                 tb = traceback.format_exc()
@@ -1004,20 +1005,15 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Delta confirmation gate: require minimum move IN the token's direction.
-            # Replaces the weaker "not-against" gate — -0.086% passes "not-against 0.07%"
-            # but is pure noise (reverses in seconds). Time-compression in fair_value
-            # inflates tiny moves into fake high-confidence signals (fv=0.82 on 0.086% delta).
-            # Minimum 0.10% confirms the move is real before committing capital.
-            _BOND_DELTA_MIN_FOR = 0.077
-            _token_dir = getattr(token, "outcome_direction", "up")
-            _delta_confirmed = (
-                (_token_dir == "up"   and _bond_delta >= _BOND_DELTA_MIN_FOR) or
-                (_token_dir == "down" and _bond_delta <= -_BOND_DELTA_MIN_FOR)
-            )
-            if not _delta_confirmed:
-                logger.info("BOND SKIP %s/%s(%s): delta=%+.3f%% below min confirmation threshold (%.2f%%)",
-                            token.asset, token.side, _token_dir, _bond_delta, _BOND_DELTA_MIN_FOR)
+            # Delta gate: require any move ≥ threshold regardless of direction.
+            # Direction-checking was too restrictive — a DOWN token at 0.78 is still a
+            # valid bond even if delta is slightly positive (BTC moved up a little).
+            # The edge gate (fv > ask) already blocks bad-direction entries: if delta
+            # is strongly against the token, fair_value < 0.5 → negative edge → skipped.
+            _BOND_DELTA_MIN = 0.077
+            if abs(_bond_delta) < _BOND_DELTA_MIN:
+                logger.info("BOND SKIP %s/%s: |delta|=%.3f%% below min threshold (%.3f%%)",
+                            token.asset, token.side, abs(_bond_delta), _BOND_DELTA_MIN)
                 continue
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
@@ -1086,6 +1082,179 @@ class KlausBot:
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
                 name=f"bond_{token.asset}_{token.side}",
             )
+
+    # ── Reversal candidate shadow logger ─────────────────────────────────────
+
+    async def _scan_reversal_candidates(self) -> None:
+        """
+        Shadow-observe late-window reversal opportunities. No live trading.
+
+        Fires when:
+          - dominant token (ask ≥ 0.70) has the underlying spot moving AGAINST it
+          - 30–90 s remaining in a 5m window
+          - |delta_against| ≥ 0.05% (deliberately low for observation coverage)
+
+        Logs to logs/reversal_cands.jsonl. Analyse with:
+            python3 analytics/reversal_log.py
+        """
+        _DOM_MIN       = 0.70    # dominant token threshold
+        _DOM_MAX       = 0.90    # cap — above 0.90 underdog is illiquid
+        _DELTA_MIN     = 0.05    # min |delta| against dominant (low for coverage)
+        _REM_MIN       = 30.0    # seconds
+        _REM_MAX       = 90.0    # seconds
+
+        now = time.time()
+        seen_conditions: set = set()
+
+        for token_id, token in list(self.feed.tokens.items()):
+            if token.market_type != "updown":
+                continue
+            if not (250 <= getattr(token, "window_seconds", 0) < 900):
+                continue  # 5m only for now
+            if token.window_end_ts <= 0:
+                continue
+
+            remaining = token.window_end_ts - now
+            if not (_REM_MIN <= remaining <= _REM_MAX):
+                continue
+
+            ob = self.feed.get_order_book(token_id)
+            if ob is None:
+                continue
+            dom_ask = ob.asks[0][0] if ob.asks else None
+            if dom_ask is None or not (_DOM_MIN <= dom_ask <= _DOM_MAX):
+                continue
+
+            cid = getattr(token, "condition_id", "") or ""
+            if not cid or cid in seen_conditions:
+                continue
+            seen_conditions.add(cid)
+
+            # Find the partner token (same condition, opposite side)
+            underdog_id: str | None = None
+            underdog_token = None
+            underdog_ask: float | None = None
+            for other_id, other in self.feed.tokens.items():
+                if other_id == token_id:
+                    continue
+                if getattr(other, "condition_id", "") != cid:
+                    continue
+                other_ob = self.feed.get_order_book(other_id)
+                if other_ob is None:
+                    continue
+                other_ask = other_ob.asks[0][0] if other_ob.asks else None
+                if other_ask is None:
+                    continue
+                underdog_id = other_id
+                underdog_token = other
+                underdog_ask = other_ask
+                break
+
+            if underdog_id is None or underdog_ask is None:
+                continue
+
+            # Get delta for this asset
+            _ext = getattr(self, "_last_ext_signals", {}).get(token.asset)
+            if not _ext or not _ext.spot_price:
+                continue
+            _ref = _ext.spot_window_open_5m or 0.0
+            if _ref <= 0:
+                continue
+            _delta = (_ext.spot_price - _ref) / _ref * 100
+
+            # Is the underlying moving AGAINST the dominant token?
+            _dom_dir = getattr(token, "outcome_direction", "up")
+            _against = (
+                (_dom_dir == "up"   and _delta <= -_DELTA_MIN) or
+                (_dom_dir == "down" and _delta >= _DELTA_MIN)
+            )
+            if not _against:
+                continue
+
+            # Deduplicate: only log each condition once per scan cycle
+            _rev_key = f"{cid}_{remaining:.0f}"
+            _seen_rev = getattr(self, "_rev_cand_logged", set())
+            if _rev_key in _seen_rev:
+                continue
+            _seen_rev.add(_rev_key)
+            self._rev_cand_logged = _seen_rev
+
+            logger.info(
+                "REVERSAL_CAND %s dom=%s(%.3f) underdog=%s(%.3f) δ=%+.3f%% "
+                "against_%s rem=%.0fs — shadow logging, no trade",
+                token.asset, token.side, dom_ask,
+                underdog_token.side if underdog_token else "?", underdog_ask,
+                _delta, _dom_dir, remaining,
+            )
+
+            asyncio.create_task(
+                self._monitor_reversal_candidate(
+                    underdog_id=underdog_id,
+                    underdog_ask=underdog_ask,
+                    dominant_ask=dom_ask,
+                    dominant_side=token.side,
+                    asset=token.asset,
+                    delta_pct=_delta,
+                    remaining_s=remaining,
+                    window_end_ts=token.window_end_ts,
+                    window_seconds=getattr(token, "window_seconds", 0),
+                ),
+                name=f"rev_monitor_{token.asset}",
+            )
+
+    async def _monitor_reversal_candidate(
+        self,
+        underdog_id: str,
+        underdog_ask: float,
+        dominant_ask: float,
+        dominant_side: str,
+        asset: str,
+        delta_pct: float,
+        remaining_s: float,
+        window_end_ts: float,
+        window_seconds: int,
+    ) -> None:
+        """Track underdog price snapshots after REVERSAL_CAND detection."""
+        from analytics.reversal_log import log_reversal_cand
+
+        ts_detected = time.time()
+
+        async def _snap(delay_s: float) -> float | None:
+            await asyncio.sleep(delay_s)
+            ob = self.feed.get_order_book(underdog_id)
+            if ob and ob.asks:
+                return ob.asks[0][0]
+            return None
+
+        ask_10s = await _snap(10.0)
+        ask_20s = await _snap(10.0)   # cumulative 20s
+        ask_30s = await _snap(10.0)   # cumulative 30s
+
+        # Wait until just after window end
+        wait_to_end = (window_end_ts + 4.0) - time.time()
+        if wait_to_end > 0:
+            await asyncio.sleep(min(wait_to_end, 200.0))
+
+        ask_final: float | None = None
+        ob = self.feed.get_order_book(underdog_id)
+        if ob and ob.asks:
+            ask_final = ob.asks[0][0]
+
+        log_reversal_cand(
+            ts=ts_detected,
+            asset=asset,
+            dominant_side=dominant_side,
+            dominant_ask=dominant_ask,
+            underdog_token_id=underdog_id,
+            underdog_ask=underdog_ask,
+            delta_pct=delta_pct,
+            remaining_s=remaining_s,
+            window_seconds=window_seconds,
+            ask_at_10s=ask_10s,
+            ask_at_20s=ask_20s,
+            ask_at_30s=ask_30s,
+            ask_at_window_end=ask_final,
+        )
 
     async def _scan_for_signals(self) -> None:
         if not SNIPER_ENABLED:
