@@ -479,8 +479,21 @@ class KlausBot:
                             # Require 2 consecutive 1s checks above threshold before firing —
                             # filters single-tick noise (8-13s false triggers) while still
                             # catching sustained reversals within ~2s.
-                            _REV_THRESH_5M = {"SOL": 0.040, "BTC": 0.080, "ETH": 0.060}.get(pos.asset.upper(), 0.080)
-                            if abs(_spot_rev_pct) >= _REV_THRESH_5M:
+                            # Late-window dead zone: if ≤40s remain, TIME_EXIT handles it —
+                            # reversal stop here hits stop-hunts that spike+reverse before
+                            # resolution (confirmed 2026-04-16, BTC n=2 false triggers).
+                            # BTC 0.080→0.150: false triggers at ≤0.12% with 2-check.
+                            # ETH 0.060→0.090: conservative raise, no recent ETH triggers.
+                            # SOL 0.040: unchanged (no recent false data).
+                            _REV_THRESH_5M = {"SOL": 0.040, "BTC": 0.150, "ETH": 0.090}.get(pos.asset.upper(), 0.150)
+                            if bond_remaining <= 40.0:
+                                # Dead zone: too close to TIME_EXIT; clear any pending count
+                                self._rev_breach_count.pop(token_id, None)
+                                logger.debug(
+                                    "BOND_REV_SKIP %s 5m dead zone remaining=%.0fs — waiting for TIME_EXIT",
+                                    pos.asset, bond_remaining,
+                                )
+                            elif abs(_spot_rev_pct) >= _REV_THRESH_5M:
                                 self._rev_breach_count[token_id] = self._rev_breach_count.get(token_id, 0) + 1
                                 logger.debug(
                                     "BOND_REV_TRACK %s 5m breach=%d rev=%+.4f%% (thresh=%.3f%%)",
@@ -2150,13 +2163,28 @@ class KlausBot:
             # computed as (stage2_price - entry) × full_shares when stage1 already
             # sold 60% at a different price — which inflated gross/fee in the log.
             import re as _re
-            _raw_exit = live_price
+            # Only trust live_price if a price is embedded in the fill error — that
+            # means the CLOB confirmed the fill price. If no price is in the error
+            # (network-miss: our cascade timed out but order executed on Polymarket),
+            # fall back to entry_price so we record a flat exit instead of a phantom
+            # profit/loss at whatever the OB happens to show now (2026-04-16 bug:
+            # cascade failed on REVERSAL_STOP, TIME_EXIT_EXT used resolution price
+            # $0.96 while actual fill was $0.55 → fee ≈ gross, bankroll overstated ~$5).
+            _price_found_in_error = False
+            _raw_exit = pos.entry_price  # conservative fallback: flat exit
             for _r in exit_fills:
                 _err = getattr(_r, "error", "") or ""
                 _m = _re.search(r'price=([0-9.]+)', _err)
                 if _m:
                     _raw_exit = float(_m.group(1))
+                    _price_found_in_error = True
                     break
+            if not _price_found_in_error:
+                logger.warning(
+                    "EXTERNALLY_SOLD %s/%s — no fill price in error, using entry_price=%.4f "
+                    "(actual fill unknown; bankroll may drift vs Polymarket balance)",
+                    pos.asset, pos.direction.name, _raw_exit,
+                )
             _raw_exit = _raw_exit if _raw_exit > 0 else pos.entry_price
             # Weighted avg across all fills gives correct gross_pnl when stage-1
             # already sold 60% at a different price. Falls back to _raw_exit if
