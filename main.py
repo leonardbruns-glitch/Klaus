@@ -997,12 +997,7 @@ class KlausBot:
                             _BOND_MIN_ASK, _BOND_MAX_ASK)
                 continue
 
-            # Dedup: one entry per condition per session
             cid = getattr(token, "condition_id", "") or ""
-            if cid and cid in self.risk._traded_conditions:
-                logger.info("BOND SKIP %s/%s: condition already traded this session",
-                            token.asset, token.side)
-                continue
 
             # Compute real window delta from cached ext signals.
             # If delta is unavailable we have no directional information — skip rather than
