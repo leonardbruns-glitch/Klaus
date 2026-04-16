@@ -608,6 +608,26 @@ class OrderManager:
                             shares = actual_shares
                             remaining = actual_shares
                             continue  # retry immediately with corrected size
+                    # "not enough balance/allowance" — refresh USDC allowance and
+                    # retry at the SAME price. DO NOT step price down: this is a
+                    # USDC depletion issue, not a liquidity issue. Stepping down
+                    # caused 0.99→0.22 fills (2026-04-16 SOL TP_99 disaster).
+                    logger.warning(
+                        "SELL balance/allowance error %s (attempt %d) — "
+                        "refreshing USDC allowance, retrying at same price %.4f",
+                        token_id[:12], attempt + 1, sell_price,
+                    )
+                    try:
+                        from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+                        self._client.update_balance_allowance(
+                            BalanceAllowanceParams(
+                                asset_type=AssetType.COLLATERAL,
+                                signature_type=CONFIG.signature_type,
+                            )
+                        )
+                    except Exception as _usdc_exc:
+                        logger.debug("inline USDC refresh failed: %s", _usdc_exc)
+                    continue  # skip price step-down
             except Exception as _sell_exc:
                 # Safety net for exceptions that escape _submit_limit_order (rare).
                 err = str(_sell_exc)
