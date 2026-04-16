@@ -365,20 +365,33 @@ class OrderManager:
         Calls update_balance_allowance before any sell.
         Critical for live trading — sells fail without this.
         Ported from baseline bot v4.
+
+        Refreshes BOTH conditional token allowance AND USDC (collateral) allowance.
+        With multiple concurrent positions, free USDC depletes and sell orders fail
+        with "not enough balance / allowance" even though tokens are held.
         """
         if CONFIG.dry_run:
             return True
         if self._client is None:
             return False
         try:
+            # Refresh conditional token allowance (the tokens being sold)
             self._client.update_balance_allowance(
                 BalanceAllowanceParams(
                     asset_type=AssetType.CONDITIONAL,
                     token_id=token_id,
                 )
             )
+            # Refresh USDC allowance — required even for sells when free USDC is low
+            # (concurrent positions lock USDC; CLOB needs a small reserve for fees)
+            self._client.update_balance_allowance(
+                BalanceAllowanceParams(
+                    asset_type=AssetType.COLLATERAL,
+                    signature_type=CONFIG.signature_type,
+                )
+            )
             await asyncio.sleep(1.0)  # approval propagation delay
-            logger.debug("Token approved for sell: %s", token_id[:8])
+            logger.debug("Token + USDC approved for sell: %s", token_id[:8])
             return True
         except Exception as exc:
             logger.error("Token approval failed %s: %s", token_id[:8], exc)
