@@ -1022,12 +1022,12 @@ class KlausBot:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
             _token_dir = getattr(token, "outcome_direction", "up")
-            # Directed delta: positive means asset is moving IN the token's direction.
-            # YES/UP token: positive delta = good. NO/DOWN token: negative delta = good.
-            # Using directed (signed) delta in fair_value means wrong-direction entries
-            # get fv < 0.5 → negative edge → naturally blocked without a hard gate.
-            _directed_delta = _bond_delta if _token_dir == "up" else -_bond_delta
-            _fair_value = 1.0 / (1.0 + math.exp(-8.0 * _directed_delta * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
+            # NOTE: directed delta disabled until outcome_direction is verified correct.
+            # Today's trades show YES tokens profiting when asset goes DOWN, suggesting
+            # YES→"up" (side-fallback) may be inverted for these markets. Using abs()
+            # until feeds.py OUTCOME_DIR logs confirm the actual direction assignment.
+            # See: feeds.py OUTCOME_DIR log lines on next restart.
+            _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
@@ -1096,9 +1096,10 @@ class KlausBot:
                 continue
 
             logger.info(
-                "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | %s",
+                "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | odir=%s δ=%+.3f%% | %s",
                 token.asset, token.side, _wlabel,
                 ask, remaining, exit_sec, decision.stake,
+                _token_dir, _bond_delta,
                 signal.reason,
             )
             asyncio.create_task(

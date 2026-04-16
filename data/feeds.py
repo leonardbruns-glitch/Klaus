@@ -1136,10 +1136,13 @@ class PolymarketFeed:
                 # Neg-risk sub-markets have "Yes"/"No" outcome labels — infer from
                 # slug/question which outcome (Up or Down) the sub-market represents.
                 _olabel_up = outcome_label.upper() in ("UP", "YES", "TRUE", "1")
+                _odir_method = "unknown"
                 if outcome_label.upper() == "UP":
                     outcome_direction = "up"
+                    _odir_method = "label-UP"
                 elif outcome_label.upper() == "DOWN":
                     outcome_direction = "down"
+                    _odir_method = "label-DOWN"
                 else:
                     # Neg-risk sub-market: infer which direction (Up/Down) this
                     # sub-market represents. The parent question always contains both
@@ -1160,10 +1163,10 @@ class PolymarketFeed:
                         _odir_method = "side-fallback"
                     import logging as _logging
                     _logging.getLogger(__name__).info(
-                        "OUTCOME_DIR neg-risk %s/%s: outcome_direction=%s method=%s "
-                        "slug_last=%r slug=%r question=%r",
+                        "OUTCOME_DIR %s/%s: outcome_direction=%s method=%s "
+                        "label=%r slug_last=%r slug=%r question=%r",
                         asset_match, side, outcome_direction, _odir_method,
-                        _slug_last, slug_lo[:80], question[:80],
+                        outcome_label, _slug_last, slug_lo[:80], question[:80],
                     )
 
                 # Skip already-expired tokens
