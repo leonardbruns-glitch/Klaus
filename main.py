@@ -2483,13 +2483,29 @@ class KlausBot:
                     logger.warning(
                         "fetch_recent_token_sells %s failed: %s", token_id[:8], _clob_exc
                     )
+            _is_resolved_zero = False
             if not _price_found_in_error:
-                logger.warning(
-                    "EXTERNALLY_SOLD %s/%s — no fill price in error or CLOB history, "
-                    "using entry_price=%.4f (bankroll may drift vs Polymarket balance)",
-                    pos.asset, pos.direction.name, _raw_exit,
-                )
-            _raw_exit = _raw_exit if _raw_exit > 0 else pos.entry_price
+                # Check if the token resolved worthless (wrong direction).
+                # A best bid < $0.02 with no sell fills = token expired at $0,
+                # not an external sell. Record the real loss instead of entry_price.
+                _ob_chk = self.feed.get_order_book(token_id)
+                _best_bid_chk = _ob_chk.bids[0][0] if (_ob_chk and _ob_chk.bids) else 0.0
+                if _best_bid_chk < 0.02:
+                    _raw_exit = 0.0
+                    _is_resolved_zero = True
+                    logger.warning(
+                        "EXTERNALLY_SOLD %s/%s — token resolved worthless "
+                        "(best_bid=%.4f), recording full loss exit_price=0.0000",
+                        pos.asset, pos.direction.name, _best_bid_chk,
+                    )
+                else:
+                    logger.warning(
+                        "EXTERNALLY_SOLD %s/%s — no fill price in error or CLOB history, "
+                        "using entry_price=%.4f (bankroll may drift vs Polymarket balance)",
+                        pos.asset, pos.direction.name, _raw_exit,
+                    )
+            if not _is_resolved_zero:
+                _raw_exit = _raw_exit if _raw_exit > 0 else pos.entry_price
             # Weighted avg across all fills gives correct gross_pnl when stage-1
             # already sold 60% at a different price. Falls back to _raw_exit if
             # no fills with sizes are present (e.g. pure externally-sold dust).
