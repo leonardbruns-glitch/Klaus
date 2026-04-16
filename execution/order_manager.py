@@ -1021,13 +1021,74 @@ class OrderManager:
                             avg_fill_price=price,
                             total_size=taking_f,
                         )
-                    # No fill at all: cancel and retry at lower price in cascade
+                    # No fill at all: wait briefly for fill before cancelling.
+                    # At T-10s BOND exits the book is thin — sell orders go "live"
+                    # instead of matching immediately. Waiting 2s lets a buyer appear
+                    # rather than cancelling + retrying which creates cancel-race GHOST.
+                    _resting_fill = None
+                    if order_id and self._fill_tracker and self._fill_tracker.is_connected:
+                        _resting_fill = await self._fill_tracker.wait_fill(order_id, timeout=2.0)
+                    if _resting_fill is not None:
+                        fill_sz   = _resting_fill.get("size", 0)
+                        fill_cost = _resting_fill.get("cost") or (fill_sz * price)
+                        fill_pr   = fill_cost / fill_sz if fill_sz > 0 else price
+                        logger.info(
+                            "SELL resting-wait fill: %s size=%.4f @ %.4f (WS confirmed after 2s)",
+                            order_id[:12], fill_sz, fill_pr,
+                        )
+                        partial_fill = Fill(
+                            order_id=order_id, token_id=token_id,
+                            side=OrderSide.SELL, price=fill_pr, size=fill_sz, fee=0.0,
+                        )
+                        return OrderResult(
+                            status=OrderStatus.FILLED, fills=[partial_fill],
+                            avg_fill_price=fill_pr, total_size=fill_sz,
+                        )
+                    # Still no fill — cancel and let cascade retry.
                     if order_id:
                         try:
                             self._client.cancel(order_id)
                             logger.info("Cancelled resting GTC SELL %s", order_id[:12])
-                        except Exception:
-                            pass
+                        except Exception as _cancel_err:
+                            # Cancel failed = order filled in the cancel-race window.
+                            # Recover via fill_tracker or order status to avoid GHOST.
+                            logger.warning(
+                                "SELL cancel-race %s (%s) — recovering fill",
+                                order_id[:12], _cancel_err,
+                            )
+                            if self._fill_tracker and self._fill_tracker.is_connected:
+                                _race = self._fill_tracker.pop_fill_for_token(token_id)
+                                if _race is not None:
+                                    r_sz   = _race.get("size", 0)
+                                    r_cost = _race.get("cost") or (r_sz * price)
+                                    r_pr   = r_cost / r_sz if r_sz > 0 else price
+                                    partial_fill = Fill(
+                                        order_id=order_id, token_id=token_id,
+                                        side=OrderSide.SELL, price=r_pr, size=r_sz, fee=0.0,
+                                    )
+                                    return OrderResult(
+                                        status=OrderStatus.FILLED, fills=[partial_fill],
+                                        avg_fill_price=r_pr, total_size=r_sz,
+                                    )
+                            # Last resort: poll order status
+                            try:
+                                await asyncio.sleep(0.3)
+                                _oi = self._client.get_order(order_id)
+                                if _oi.get("status") == "matched":
+                                    _mk = _to_float(_oi.get("makingAmount", "0"))
+                                    _tk = _to_float(_oi.get("takingAmount", "0"))
+                                    _sz = _mk if _mk > 0 else _tk
+                                    _pr = _tk / _sz if _sz > 0 else price
+                                    partial_fill = Fill(
+                                        order_id=order_id, token_id=token_id,
+                                        side=OrderSide.SELL, price=_pr, size=_sz, fee=0.0,
+                                    )
+                                    return OrderResult(
+                                        status=OrderStatus.FILLED, fills=[partial_fill],
+                                        avg_fill_price=_pr, total_size=_sz,
+                                    )
+                            except Exception:
+                                pass
                     return OrderResult(status=OrderStatus.FAILED, error="SELL resting on book (live)")
 
             if status != "matched" or taking_f <= 0:
