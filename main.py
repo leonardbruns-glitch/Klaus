@@ -745,6 +745,8 @@ class KlausBot:
         PM OB is served from the 1s REST cache — at most 1s stale, still 4s ahead
         of the sweep cycle. The sniper's own gates (lag, edge, elapsed) filter quality.
         """
+        if not SNIPER_ENABLED:
+            return
         now = time.time()
         # Hour gate — mirrors BOND first-15-min gate.
         import datetime as _dt
