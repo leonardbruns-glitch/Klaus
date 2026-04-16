@@ -955,7 +955,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10
-                if not (exit_sec + 15 <= remaining <= 90):   # ≤1.5 min remaining
+                if not (exit_sec + 15 <= remaining <= 105):  # ≤1.75 min remaining
                     continue
             else:
                 continue
