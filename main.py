@@ -534,6 +534,31 @@ class KlausBot:
                                 pos.asset, _spot_rev_pct, _REV_THRESH_15M,
                             )
 
+                # BOND take-profit: lock in gains before TIME_EXIT
+                # $0.95 at any point — token at 95¢ with time remaining is high
+                #   confidence; a reversal back to 80¢ costs ~$1.90 vs locking $1.72.
+                # $0.99 in last 20s only — near-certain resolution, capture ~$0.49
+                #   extra vs $0.95 TP with virtually no reversal risk at T-20s.
+                _BOND_TP_EARLY  = 0.95   # fires any time during hold
+                _BOND_TP_LATE   = 0.99   # fires only in last 20s
+                _bond_tp_reason = None
+                if current_price >= _BOND_TP_LATE and bond_remaining <= 20.0:
+                    _bond_tp_reason = f"BOND_TP_99 curr={current_price:.4f} rem={bond_remaining:.0f}s"
+                elif current_price >= _BOND_TP_EARLY:
+                    _bond_tp_reason = f"BOND_TP_95 curr={current_price:.4f} rem={bond_remaining:.0f}s"
+                if _bond_tp_reason and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_TP %s/%s | %s | entry=%.4f move=%+.1f%%",
+                        pos.asset, pos.direction.name, _bond_tp_reason,
+                        pos.entry_price, bond_move * 100,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, _bond_tp_reason.split()[0])
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # Time exit: sell at bond_exit_sec before window close
                 if bond_remaining <= pos.bond_exit_sec:
                     if token_id not in self._exit_in_progress:
