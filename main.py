@@ -485,12 +485,12 @@ class KlausBot:
                             # BTC 0.080→0.150: false triggers at ≤0.12% with 2-check.
                             # ETH 0.060→0.090: conservative raise, no recent ETH triggers.
                             # SOL 0.040: unchanged (no recent false data).
-                            _REV_THRESH_5M = {"SOL": 0.040, "BTC": 0.150, "ETH": 0.090}.get(pos.asset.upper(), 0.150)
-                            if bond_remaining <= 40.0:
+                            _REV_THRESH_5M = {"SOL": 0.150, "BTC": 0.200, "ETH": 0.150}.get(pos.asset.upper(), 0.200)
+                            if bond_remaining <= 60.0:
                                 # Dead zone: too close to TIME_EXIT; clear any pending count
                                 self._rev_breach_count.pop(token_id, None)
                                 logger.debug(
-                                    "BOND_REV_SKIP %s 5m dead zone remaining=%.0fs — waiting for TIME_EXIT",
+                                    "BOND_REV_SKIP %s 5m dead zone remaining=%.0fs ≤ 60s — waiting for TIME_EXIT",
                                     pos.asset, bond_remaining,
                                 )
                             elif abs(_spot_rev_pct) >= _REV_THRESH_5M:
@@ -1001,15 +1001,18 @@ class KlausBot:
             if not _delta_available:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
-            _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
+            _token_dir = getattr(token, "outcome_direction", "up")
+            # Directed delta: positive means asset is moving IN the token's direction.
+            # YES/UP token: positive delta = good. NO/DOWN token: negative delta = good.
+            # Using directed (signed) delta in fair_value means wrong-direction entries
+            # get fv < 0.5 → negative edge → naturally blocked without a hard gate.
+            _directed_delta = _bond_delta if _token_dir == "up" else -_bond_delta
+            _fair_value = 1.0 / (1.0 + math.exp(-8.0 * _directed_delta * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Delta gate: require any move ≥ threshold regardless of direction.
-            # Direction-checking was too restrictive — a DOWN token at 0.78 is still a
-            # valid bond even if delta is slightly positive (BTC moved up a little).
-            # The edge gate (fv > ask) already blocks bad-direction entries: if delta
-            # is strongly against the token, fair_value < 0.5 → negative edge → skipped.
+            # Delta magnitude gate: skip flat markets (noise below 0.077%).
+            # Direction is handled by fair_value above — no hard directional block.
             _BOND_DELTA_MIN = 0.077
             if abs(_bond_delta) < _BOND_DELTA_MIN:
                 logger.info("BOND SKIP %s/%s: |delta|=%.3f%% below min threshold (%.3f%%)",
