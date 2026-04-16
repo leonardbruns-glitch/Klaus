@@ -448,43 +448,51 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
-                # ── Spot reversal stop (15m only) ────────────────────────────
-                # 15m: exit if spot reverses >0.10% against token direction.
-                # 5m:  DISABLED — 5m holds are ≤110s; a 0.20% spot reversal
-                #      does NOT mean the event failed (market has 2+ min left to
-                #      resolve). Reversal stop was ejecting winners consistently
-                #      (ETH $0.77→$0.70 stop, resolved $1.00; 10-check confirmation
-                #      still fired within 10-20s of entry). BOND_TP_95 + TIME_EXIT
-                #      are sufficient exits for 5m. Let the window resolve.
-                _curr_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
-                if pos.binance_price_at_entry > 0 and _curr_spot > 0 and pos.window_seconds >= 900:
-                    _spot_rev_pct = (_curr_spot - pos.binance_price_at_entry) / pos.binance_price_at_entry * 100
-                    _rev_adverse = (
-                        (pos.bond_outcome_direction == "down" and _spot_rev_pct >  0) or
-                        (pos.bond_outcome_direction == "up"   and _spot_rev_pct < 0)
-                    )
-                    if _rev_adverse:
-                        _REV_THRESH_15M = 0.10
-                        if abs(_spot_rev_pct) >= _REV_THRESH_15M:
+                # ── Window-delta reversal guard ───────────────────────────────
+                # Uses the same metric as entry: spot vs window-open reference.
+                # Entry was approved because _bond_delta was ≥0.077% in the right
+                # direction. Exit if _bond_delta has FULLY REVERSED past a threshold
+                # in the WRONG direction — the event is no longer happening.
+                #
+                # 5m threshold: 0.20% in wrong direction from window open.
+                #   e.g. entered DOWN because BTC was -0.5% from 5m open → exit
+                #   only if BTC has now recovered to +0.20% from 5m open.
+                #   (post-entry noise of ±0.20% from ENTRY is irrelevant here;
+                #    this checks from WINDOW OPEN which is what determines resolution)
+                # 15m threshold: 0.10% — longer window, smaller moves matter more.
+                # Dead zone: ignore in final 30s — TIME_EXIT handles cleanly.
+                _ext_now = self._last_ext_signals.get(pos.asset)
+                if _ext_now and _ext_now.spot_price and bond_remaining > 30:
+                    _is_15m_pos = pos.window_seconds >= 900
+                    _wref = (_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0
+                    if _wref > 0:
+                        _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100
+                        _REV_THRESH = 0.10 if _is_15m_pos else 0.20
+                        _wdelta_reversed = (
+                            (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
+                            (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
+                        )
+                        if _wdelta_reversed:
                             if token_id not in self._exit_in_progress:
                                 self._exit_in_progress.add(token_id)
                                 logger.warning(
-                                    "BOND_REVERSAL_STOP %s/%s 15m | spot_rev=%+.4f%% ≥ %.2f%% | "
-                                    "entry_spot=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f",
+                                    "BOND_DIR_REVERSAL %s/%s %s | wdelta=%+.3f%% crossed %.2f%% wrong side | "
+                                    "wref=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f | rem=%.0fs",
                                     pos.asset, pos.bond_outcome_direction,
-                                    _spot_rev_pct, _REV_THRESH_15M,
-                                    pos.binance_price_at_entry, _curr_spot,
-                                    pos.entry_price, current_price,
+                                    "15m" if _is_15m_pos else "5m",
+                                    _wdelta_now, _REV_THRESH,
+                                    _wref, _ext_now.spot_price,
+                                    pos.entry_price, current_price, bond_remaining,
                                 )
                                 try:
-                                    await self._exit_position(token_id, current_price, "BOND_REVERSAL_STOP")
+                                    await self._exit_position(token_id, current_price, "BOND_DIR_REVERSAL")
                                 finally:
                                     self._exit_in_progress.discard(token_id)
                                 continue
                         else:
                             logger.debug(
-                                "BOND_REV_TRACK %s 15m rev=%+.4f%% (thresh=%.2f%%)",
-                                pos.asset, _spot_rev_pct, _REV_THRESH_15M,
+                                "BOND_WDELTA %s/%s wdelta=%+.3f%% (thresh=%.2f%% — ok)",
+                                pos.asset, pos.bond_outcome_direction, _wdelta_now, _REV_THRESH,
                             )
 
                 # BOND take-profit: lock in gains before TIME_EXIT
