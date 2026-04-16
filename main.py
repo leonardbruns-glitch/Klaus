@@ -165,6 +165,9 @@ class KlausBot:
         # Reversal stop confirmation: counts consecutive 1s OB checks where spot is
         # above the adverse threshold. Fire only when count >= 2 — filters single-tick noise.
         self._rev_breach_count: Dict[str, int] = {}
+        # BOND_DIR_REVERSAL confirmation: consecutive scans where window delta has reversed.
+        # Requires 5 consecutive checks (~5s sustained) before firing exit.
+        self._dir_rev_count: Dict[str, int] = {}
         # Buy attempt tracking for session report
         self._buy_tried: int = 0
         self._buy_filled: int = 0
@@ -448,52 +451,67 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
-                # ── Window-delta reversal guard ───────────────────────────────
+                # ── Window-delta reversal guard (15m only) ────────────────────
                 # Uses the same metric as entry: spot vs window-open reference.
-                # Entry was approved because _bond_delta was ≥0.077% in the right
-                # direction. Exit if _bond_delta has FULLY REVERSED past a threshold
-                # in the WRONG direction — the event is no longer happening.
+                # Exit if _bond_delta has FULLY REVERSED past threshold in the
+                # WRONG direction — the event is no longer happening.
                 #
-                # 5m threshold: 0.20% in wrong direction from window open.
-                #   e.g. entered DOWN because BTC was -0.5% from 5m open → exit
-                #   only if BTC has now recovered to +0.20% from 5m open.
-                #   (post-entry noise of ±0.20% from ENTRY is irrelevant here;
-                #    this checks from WINDOW OPEN which is what determines resolution)
+                # 5m DISABLED: hold is ≤110s. Entry delta is only 0.077% minimum.
+                #   A +0.20% spot bounce (very common in crypto) would immediately
+                #   trigger the guard after 5 scans, ejecting winning positions.
+                #   Data confirms: BOND_DIR_REVERSAL was selling winners at bad
+                #   prices (e.g. 0.59¢ instead of letting them resolve at 0.95+).
+                #   BOND_TP_95 + TIME_EXIT are sufficient for 5m exits.
                 # 15m threshold: 0.10% — longer window, smaller moves matter more.
+                #   Only active when 15m BOND is re-enabled.
                 # Dead zone: ignore in final 30s — TIME_EXIT handles cleanly.
-                _ext_now = self._last_ext_signals.get(pos.asset)
-                if _ext_now and _ext_now.spot_price and bond_remaining > 30:
-                    _is_15m_pos = pos.window_seconds >= 900
-                    _wref = (_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0
-                    if _wref > 0:
-                        _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100
-                        _REV_THRESH = 0.10 if _is_15m_pos else 0.20
-                        _wdelta_reversed = (
-                            (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
-                            (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
-                        )
-                        if _wdelta_reversed:
-                            if token_id not in self._exit_in_progress:
-                                self._exit_in_progress.add(token_id)
-                                logger.warning(
-                                    "BOND_DIR_REVERSAL %s/%s %s | wdelta=%+.3f%% crossed %.2f%% wrong side | "
-                                    "wref=%.4f curr_spot=%.4f | ep=%.4f curr=%.4f | rem=%.0fs",
-                                    pos.asset, pos.bond_outcome_direction,
-                                    "15m" if _is_15m_pos else "5m",
-                                    _wdelta_now, _REV_THRESH,
-                                    _wref, _ext_now.spot_price,
-                                    pos.entry_price, current_price, bond_remaining,
-                                )
-                                try:
-                                    await self._exit_position(token_id, current_price, "BOND_DIR_REVERSAL")
-                                finally:
-                                    self._exit_in_progress.discard(token_id)
-                                continue
-                        else:
-                            logger.debug(
-                                "BOND_WDELTA %s/%s wdelta=%+.3f%% (thresh=%.2f%% — ok)",
-                                pos.asset, pos.bond_outcome_direction, _wdelta_now, _REV_THRESH,
+                _is_15m_pos = pos.window_seconds >= 900
+                if _is_15m_pos:  # 15m only — 5m disabled (ejects winners)
+                    _ext_now = self._last_ext_signals.get(pos.asset)
+                    if _ext_now and _ext_now.spot_price and bond_remaining > 30:
+                        _wref = (_ext_now.spot_window_open_15m or 0.0)
+                        if _wref > 0:
+                            _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100
+                            _REV_THRESH = 0.10
+                            _wdelta_reversed = (
+                                (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
+                                (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
                             )
+                            if _wdelta_reversed:
+                                self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
+                                logger.debug(
+                                    "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/5",
+                                    pos.asset, pos.bond_outcome_direction,
+                                    _wdelta_now, _REV_THRESH,
+                                    self._dir_rev_count[token_id],
+                                )
+                                if self._dir_rev_count.get(token_id, 0) >= 5:
+                                    if token_id not in self._exit_in_progress:
+                                        self._exit_in_progress.add(token_id)
+                                        logger.warning(
+                                            "BOND_DIR_REVERSAL %s/%s 15m | wdelta=%+.3f%% ≥ %.2f%% wrong side "
+                                            "for 5 consecutive scans | wref=%.4f curr_spot=%.4f | "
+                                            "ep=%.4f curr=%.4f | rem=%.0fs",
+                                            pos.asset, pos.bond_outcome_direction,
+                                            _wdelta_now, _REV_THRESH,
+                                            _wref, _ext_now.spot_price,
+                                            pos.entry_price, current_price, bond_remaining,
+                                        )
+                                        try:
+                                            await self._exit_position(token_id, current_price, "BOND_DIR_REVERSAL")
+                                        finally:
+                                            self._exit_in_progress.discard(token_id)
+                                            self._dir_rev_count.pop(token_id, None)
+                                        continue
+                            else:
+                                self._dir_rev_count.pop(token_id, None)
+                                logger.debug(
+                                    "BOND_WDELTA %s/%s wdelta=%+.3f%% (thresh=%.2f%% — ok, count reset)",
+                                    pos.asset, pos.bond_outcome_direction, _wdelta_now, _REV_THRESH,
+                                )
+                else:
+                    # 5m: no reversal guard — clear any stale count from prior position
+                    self._dir_rev_count.pop(token_id, None)
 
                 # BOND take-profit: lock in gains before TIME_EXIT
                 # $0.95 at any point — token at 95¢ with time remaining is high
@@ -2361,6 +2379,7 @@ class KlausBot:
                 ghost_pnl = self.risk.close_position(token_id, 0.0, "GHOST_POSITION", shares_override=pos.shares)
                 _ghost_meta = self._open_meta.pop(token_id, {})
                 self._pos_log_ts.pop(token_id, None)
+                self._dir_rev_count.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -2466,6 +2485,7 @@ class KlausBot:
             pnl = self.risk.close_position(token_id, _raw_exit, reason)
             _ext_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
+            self._dir_rev_count.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -2829,6 +2849,7 @@ class KlausBot:
 
         self._open_meta.pop(token_id, None)
         self._pos_log_ts.pop(token_id, None)
+        self._dir_rev_count.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",

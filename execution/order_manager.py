@@ -511,7 +511,6 @@ class OrderManager:
         total_sold = 0.0
         # Track actual fill prices per attempt for accurate analytics
         fill_value = 0.0   # sum(price * size) across all attempts
-        _last_was_resting = False  # True when previous attempt's SELL order rested (bid moved)
 
         for attempt in range(max_attempts):
             if shares - total_sold < 0.01:
@@ -553,11 +552,19 @@ class OrderManager:
                 # The except block below never fires for CLOB errors — check result.error.
                 err = result.error or ""
                 # SELL resting: bid moved below our limit after order submission.
-                # Mark for adaptive 2% stepdown on next retry (not full 10% which
-                # caused 0.99→0.22 cascades). e.g. TP_95 at 0.95 → bid at 0.84 →
-                # step to 0.93→0.91→...→0.83, fills in ~6 retries.
-                if "SELL resting on book" in err:
-                    _last_was_resting = True
+                # allow_stepdown=False (TP/TIME_EXIT): break out immediately so Guard 1
+                #   retries next OB scan with a fresh bid. Staying in the loop wastes
+                #   45s (15 × 3s) stuck in _exit_in_progress while stepping toward a
+                #   bad fill and potentially missing the fill confirmation (→ ep=xp).
+                # allow_stepdown=True (reversal stops): keep stepping down 10% to force
+                #   exit regardless of price — reversal means we MUST exit now.
+                if "SELL resting on book" in err and not allow_stepdown:
+                    logger.info(
+                        "SELL resting %s — bid moved below %.4f, Guard 1 will retry "
+                        "next scan with fresh OB price",
+                        token_id[:12], sell_price,
+                    )
+                    break
                 # Network-level failure: no point retrying immediately.
                 if "curl: (7)" in err or "Failed to connect" in err or "Could not connect" in err:
                     logger.warning(
@@ -683,20 +690,13 @@ class OrderManager:
                     break
                 logger.debug("Sell attempt %d error: %s", attempt + 1, _sell_exc)
 
-            # Step price down toward market when bid has moved below our limit.
-            # allow_stepdown=True (reversal stops): 10% per step to exit quickly.
-            # _last_was_resting (TP/TIME_EXIT + bid moved): 2% per step — finds new
-            #   market bid in ~6 retries without the 0.99→0.22 over-cascade risk.
-            #   Example: TP_95 fires at 0.95, bid moves to 0.84 → retries at
-            #   0.93 → 0.91 → 0.89 → 0.87 → 0.85 → 0.83 → fills at 0.84 (6 retries).
+            # Step price down 10% — only for reversal stops (allow_stepdown=True).
+            # TP/TIME_EXIT: price held. "SELL resting" with allow_stepdown=False
+            # already broke out of the loop above — this branch only runs when
+            # the error was something other than resting (e.g. balance error retry).
             if allow_stepdown:
                 sell_price = max(sell_price * 0.90, 0.01)
-                _last_was_resting = False
                 logger.debug("Sell retry %d: %.4f @ %.4f (10%% stepdown)", attempt + 1, remaining, sell_price)
-            elif _last_was_resting:
-                sell_price = max(sell_price * 0.98, 0.01)  # 2% adaptive stepdown: bid moved
-                _last_was_resting = False
-                logger.debug("Sell retry %d: %.4f @ %.4f (2%% resting stepdown — bid moved)", attempt + 1, remaining, sell_price)
             else:
                 logger.debug("Sell retry %d: %.4f @ %.4f (price held — no stepdown)", attempt + 1, remaining, sell_price)
 
@@ -1064,6 +1064,60 @@ class OrderManager:
                         try:
                             self._client.cancel(order_id)
                             logger.info("Cancelled resting GTC SELL %s", order_id[:12])
+                            # ── Post-cancel fill recovery ──────────────────────────────
+                            # Polymarket cancel is IDEMPOTENT: cancelling an already-filled
+                            # order returns SUCCESS (no exception). The cancel-exception path
+                            # below never fires for fills that completed just before cancel.
+                            # Check fill_tracker buffer AND REST to avoid logging ep=xp.
+                            if self._fill_tracker and self._fill_tracker.is_connected:
+                                _post_cancel = self._fill_tracker.pop_fill_for_token(token_id)
+                                if _post_cancel is not None:
+                                    _pc_sz   = _post_cancel.get("size", 0)
+                                    _pc_cost = _post_cancel.get("cost") or (_pc_sz * price)
+                                    _pc_pr   = _pc_cost / _pc_sz if _pc_sz > 0 else price
+                                    logger.info(
+                                        "Post-cancel fill recovered (WS buffer): %s "
+                                        "size=%.4f @ %.4f (fill arrived after 2s timeout, "
+                                        "cancel was no-op on Polymarket)",
+                                        order_id[:12], _pc_sz, _pc_pr,
+                                    )
+                                    partial_fill = Fill(
+                                        order_id=order_id, token_id=token_id,
+                                        side=OrderSide.SELL, price=_pc_pr,
+                                        size=_pc_sz, fee=0.0,
+                                    )
+                                    return OrderResult(
+                                        status=OrderStatus.FILLED, fills=[partial_fill],
+                                        avg_fill_price=_pc_pr, total_size=_pc_sz,
+                                    )
+                            # REST fallback: WS disconnected or fill not in buffer yet
+                            try:
+                                await asyncio.sleep(0.5)
+                                _oi = self._client.get_order(order_id)
+                                _oi_st = (_oi.get("status") or "").lower()
+                                if _oi_st in ("matched", "filled"):
+                                    _mk = _to_float(_oi.get("makingAmount", "0"))
+                                    _tk = _to_float(_oi.get("takingAmount", "0"))
+                                    # SELL: makingAmount=tokens given, takingAmount=USDC received
+                                    _sz = _mk if _mk > 0 else _tk
+                                    _pr = _tk / _sz if _sz > 0 else price
+                                    if _sz > 0:
+                                        logger.info(
+                                            "Post-cancel fill recovered (REST): %s "
+                                            "size=%.4f @ %.4f",
+                                            order_id[:12], _sz, _pr,
+                                        )
+                                        partial_fill = Fill(
+                                            order_id=order_id, token_id=token_id,
+                                            side=OrderSide.SELL, price=_pr,
+                                            size=_sz, fee=0.0,
+                                        )
+                                        return OrderResult(
+                                            status=OrderStatus.FILLED, fills=[partial_fill],
+                                            avg_fill_price=_pr, total_size=_sz,
+                                        )
+                            except Exception:
+                                pass
                         except Exception as _cancel_err:
                             # Cancel failed = order filled in the cancel-race window.
                             # Recover via fill_tracker or order status to avoid GHOST.

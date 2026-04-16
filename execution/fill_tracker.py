@@ -234,7 +234,7 @@ class FillTracker:
             return
 
         status = ev.get("status", "")
-        if status.upper() not in ("MATCHED",):
+        if status.upper() not in ("MATCHED", "MINED"):
             return
 
         # Extract the normalised fill result once, check both maker/taker IDs
