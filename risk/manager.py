@@ -900,8 +900,22 @@ class RiskManager:
         # Fire when entering the final no_trade_last_sec window OR when window has
         # already passed (remaining <= 0). The original `0 < remaining` check meant
         # positions stayed open forever once the window expired mid-session.
+        #
+        # Min-hold gate: entry gate uses `< no_trade_last_sec` (strict) while this
+        # exit uses `<=` (inclusive). A position entered at remaining=46s opens at
+        # ~44s after order latency — EXIT_WINDOW_END then fires on the very next
+        # OB scan, producing a 1-2s hold before Phase 1 immunity even starts.
+        # Fix: suppress EXIT_WINDOW_END for the first 15s after open. Exception:
+        # let it fire immediately when remaining ≤ 5s (window truly ending).
         if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
-            return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
+            if now - pos.open_ts < 15.0 and remaining > 5:
+                logger.debug(
+                    "EXIT_WINDOW_END suppressed for %s/%s — only %.1fs held "
+                    "(min 15s before window exit fires)",
+                    pos.asset, pos.direction.name, now - pos.open_ts,
+                )
+            else:
+                return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
 
         # ── 3. Stage-1 profit: 60% of fair-value gap ────────────────────────────
         # Thesis: we entered because PM hasn't priced in the Binance move.

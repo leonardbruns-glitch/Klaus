@@ -2322,6 +2322,14 @@ class KlausBot:
         spot_at_exit = _ext_exit.spot_price if _ext_exit and _ext_exit.spot_price else 0.0
 
         token_meta = self.feed.tokens.get(token_id)
+        # Mandatory exits (TIME_EXIT, WINDOW_END, HARD_EXIT, REVERSAL, VELOCITY,
+        # SIGNAL_FLIPPED, PRICE_FLOOR, CATASTROPHIC_SL) MUST fill at any cost —
+        # allow 10% price stepdown so thin OBs near window close don't cause a
+        # sell-resting spin loop (Guard 1 retry every 4.5s → window closes → ep=xp).
+        # Profit exits (PROFIT_*, MOON_BAG*, RATCHET*, BOND_TP*) hold their price
+        # and retry with a fresh OB price next scan — Guard 1 handles that cleanly.
+        _PROFIT_REASONS = ("PROFIT", "MOON_BAG", "RATCHET", "BOND_TP")
+        _allow_stepdown = not any(r in reason for r in _PROFIT_REASONS)
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
             total_shares=pos.remaining_shares,
@@ -2330,7 +2338,7 @@ class KlausBot:
             neg_risk=getattr(token_meta, "neg_risk", False),
             tick_size=getattr(token_meta, "tick_size", "0.01"),
             force_exit=True,  # full exits must always succeed regardless of notional value
-            allow_stepdown="REVERSAL" in reason,  # step down only for reversal stops
+            allow_stepdown=_allow_stepdown,
         )
 
         # Combine stage-1 + stage-2 fills for full-position PnL accounting.

@@ -502,11 +502,13 @@ class OrderManager:
 
         # Start at 5% discount (was 10%).
         # For profit-taking (not force_exit): 5% below mid ensures immediate fill vs resting orders.
-        # For SL/hard exits (force_exit=True): start AT current price — market has already moved
-        # against us and the bid may be below our limit. Starting at 100% (not 95%) reduces
-        # the number of retries needed and prevents the cascade from stepping down into terrible
-        # prices (20% SL entry at 0.57 → first try 0.456*0.95=0.433 → multiple misses → exit at 0.32).
-        sell_price = max(current_price * (1.00 if force_exit else 0.95), 0.01)
+        # For SL/hard exits (force_exit=True): start at 99% of current bid.
+        #   OB data is ~100-300ms stale by the time the order reaches the CLOB.
+        #   Starting at 100% means the bid may have moved 0.5-1% → order rests.
+        #   1% below bid guarantees taker fill even with OB staleness, without
+        #   meaningfully reducing exit price (BOND exit at 0.85 → 0.842 start,
+        #   still well above entry; Polymarket may even fill at the full bid).
+        sell_price = max(current_price * (0.99 if force_exit else 0.95), 0.01)
         orig_price = sell_price
         total_sold = 0.0
         # Track actual fill prices per attempt for accurate analytics
