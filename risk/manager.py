@@ -905,14 +905,18 @@ class RiskManager:
         # exit uses `<=` (inclusive). A position entered at remaining=46s opens at
         # ~44s after order latency — EXIT_WINDOW_END then fires on the very next
         # OB scan, producing a 1-2s hold before Phase 1 immunity even starts.
-        # Fix: suppress EXIT_WINDOW_END for the first 15s after open. Exception:
-        # let it fire immediately when remaining ≤ 5s (window truly ending).
+        # Fix: suppress EXIT_WINDOW_END for the first min_hold_seconds after open.
+        # Exception: let it fire immediately when remaining ≤ 5s (window truly ending).
+        # BOND positions never use EXIT_WINDOW_END — they have _bond_precise_timer.
         if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
-            if now - pos.open_ts < 15.0 and remaining > 5:
+            if pos.is_bond:
+                pass  # BOND exits via _bond_precise_timer at T-bond_exit_sec
+            elif now - pos.open_ts < self.exec_cfg.min_hold_seconds and remaining > 5:
                 logger.debug(
                     "EXIT_WINDOW_END suppressed for %s/%s — only %.1fs held "
-                    "(min 15s before window exit fires)",
+                    "(min %.0fs before window exit fires)",
                     pos.asset, pos.direction.name, now - pos.open_ts,
+                    self.exec_cfg.min_hold_seconds,
                 )
             else:
                 return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
