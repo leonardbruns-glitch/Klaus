@@ -3410,12 +3410,42 @@ class KlausBot:
                     )
                     continue
                 if balance < 0.05:
-                    # Shares are gone — sold manually last session. Close the record.
+                    # Guard: if position was opened very recently, CLOB balance may not
+                    # have propagated yet (fresh buy shows 0 for up to ~30s).
+                    # Don't close a position that was just bought this session.
+                    _pos_age_s = time.time() - pos.open_ts
+                    if _pos_age_s < 120:
+                        logger.warning(
+                            "STARTUP: %s/%s balance=0 but position only %.0fs old — "
+                            "CLOB propagation lag, skipping close, normal loop will handle",
+                            pos.asset, pos.direction.name, _pos_age_s,
+                        )
+                        continue
+                    # Shares are gone — sold last session (cascade or manual).
+                    # Try CLOB history to recover actual exit price before closing flat.
                     logger.warning(
-                        "STARTUP: %s/%s has 0 CLOB balance (manually sold) — purging tracked position",
+                        "STARTUP: %s/%s has 0 CLOB balance — querying CLOB history for exit price",
                         pos.asset, pos.direction.name,
                     )
-                    pnl = self.risk.close_position(token_id, pos.entry_price, "STARTUP_EXTERNALLY_SOLD")
+                    _startup_exit_price = pos.entry_price  # fallback: flat
+                    try:
+                        _clob_sells = await asyncio.to_thread(
+                            self.orders.fetch_recent_token_sells,
+                            token_id,
+                            pos.open_ts,
+                        )
+                        if _clob_sells:
+                            _sz = sum(s for _, s in _clob_sells)
+                            _val = sum(p * s for p, s in _clob_sells)
+                            if _sz > 0:
+                                _startup_exit_price = round(_val / _sz, 6)
+                                logger.info(
+                                    "STARTUP: %s/%s exit price recovered from CLOB → %.4f",
+                                    pos.asset, pos.direction.name, _startup_exit_price,
+                                )
+                    except Exception as _ce:
+                        logger.warning("STARTUP CLOB recovery %s failed: %s", token_id[:8], _ce)
+                    pnl = self.risk.close_position(token_id, _startup_exit_price, "STARTUP_EXTERNALLY_SOLD")
                     meta = self._open_meta.get(token_id, {})
                     _sig = meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -3427,14 +3457,14 @@ class KlausBot:
                     try:
                         self.analytics.record_trade(
                             token_id=token_id, asset=pos.asset, direction=pos.direction,
-                            entry_price=pos.entry_price, exit_price=pos.entry_price,
+                            entry_price=pos.entry_price, exit_price=_startup_exit_price,
                             stake=pos.stake, shares=pos.shares,
                             entry_fill=meta.get("entry_fill"), exit_fills=[],
                             exit_reason="STARTUP_EXTERNALLY_SOLD", signal=_sig,
                             ts_open=meta.get("ts_open", pos.open_ts), ts_close=time.time(),
                             capital_before=self.risk.bankroll.capital,
                             heat_check_active=False, consecutive_wins=0,
-                            net_pnl_actual=0.0,
+                            net_pnl_actual=pnl or 0.0,
                             market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
                             is_live=not CONFIG.dry_run,
                             signal_source=meta.get("signal_source", "SNIPER"),
