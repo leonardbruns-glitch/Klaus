@@ -1088,7 +1088,7 @@ class KlausBot:
         if not BOND_ENABLED:
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.65
+        _BOND_MIN_ASK = 0.57
         _BOND_MAX_ASK = 0.79
 
         # Hour gate: block first 15 min of each volatile/risky hour.
@@ -1223,7 +1223,7 @@ class KlausBot:
 
             # ── Delta + Edge hard filters ─────────────────────────────────────
             _abs_delta = abs(_bond_delta)
-            if _abs_delta < 0.10 or _abs_delta > 0.13:
+            if _abs_delta < 0.065 or _abs_delta > 0.13:
                 logger.info(
                     "BOND SKIP %s/%s: delta=%.3f%% outside [0.10–0.13]",
                     token.asset, token.side, _abs_delta,
