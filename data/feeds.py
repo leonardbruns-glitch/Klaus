@@ -572,7 +572,8 @@ class PolymarketFeed:
                 self.order_books[asset_id] = ob
                 self._ws_ob_ts[asset_id] = time.time()
                 if self._on_bbo_update is not None and bids:
-                    asyncio.create_task(self._on_bbo_update(asset_id, bids[0][0]))
+                    _t = asyncio.create_task(self._on_bbo_update(asset_id, bids[0][0]))
+                    _t.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
         elif ev_type == "last_trade_price":
             price = ev.get("price")

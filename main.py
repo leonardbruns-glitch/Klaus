@@ -358,11 +358,11 @@ class KlausBot:
             else:
                 return
             self._exit_in_progress.add(token_id)
-            logger.info(
-                "BOND_TP_WS %s/%s bid=%.4f rem=%.0fs entry=%.4f",
-                pos.asset, pos.direction.name, bid_price, bond_remaining, pos.entry_price,
-            )
             try:
+                logger.info(
+                    "BOND_TP_WS %s/%s bid=%.4f rem=%.0fs entry=%.4f",
+                    pos.asset, pos.direction.name, bid_price, bond_remaining, pos.entry_price,
+                )
                 await self._exit_position(token_id, bid_price, tp_reason)
             finally:
                 self._exit_in_progress.discard(token_id)
@@ -2563,6 +2563,7 @@ class KlausBot:
                 _ghost_meta = self._open_meta.pop(token_id, {})
                 self._pos_log_ts.pop(token_id, None)
                 self._dir_rev_count.pop(token_id, None)
+                self._entry_snaps.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -2685,6 +2686,7 @@ class KlausBot:
             _ext_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
             self._dir_rev_count.pop(token_id, None)
+            self._entry_snaps.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -2810,6 +2812,8 @@ class KlausBot:
                 _s2r_signal = _s2_meta.get("signal")
                 self._open_meta.pop(token_id, None)
                 self._pos_log_ts.pop(token_id, None)
+                self._dir_rev_count.pop(token_id, None)
+                self._entry_snaps.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
