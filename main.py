@@ -200,6 +200,8 @@ class KlausBot:
         # BOND_PRICE_SL confirmation counter: increments each scan price is below 50%.
         # SL only fires after 7 consecutive scans (~7s) to filter stop-hunt wicks.
         self._sl_below_count: Dict[str, int] = {}
+        # Tokens that have had the T+30s no-expansion evaluation (one-shot per position).
+        self._no_exp_checked: set = set()
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -557,6 +559,30 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
+                # ── No-expansion exit (T+30s, one-shot, 5m + 15m) ────────────
+                # If token hasn't moved +6% from entry AND spot hasn't expanded
+                # further in our direction → thesis not working → exit.
+                _held_ne = now - pos.open_ts
+                if (_held_ne >= 30
+                        and token_id not in self._no_exp_checked
+                        and token_id not in self._exit_in_progress):
+                    self._no_exp_checked.add(token_id)
+                    _delta_growing = (
+                        (pos.bond_outcome_direction == "down" and _wdelta_now <= -0.02) or
+                        (pos.bond_outcome_direction == "up"   and _wdelta_now >=  0.02)
+                    )
+                    if bond_move < 0.06 and not _delta_growing:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_NO_EXPANSION %s/%s | T+%.0fs move=%+.1f%% wdelta=%+.3f%% — not expanding, exiting",
+                            pos.asset, pos.direction.name, _held_ne, bond_move * 100, _wdelta_now,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_NO_EXPANSION")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 # ── BOND token price stop-loss (75% drawdown, 7s confirmation) ─
                 # Fires only when price is BELOW entry (never exits profitable)
                 # AND stays below entry*0.80 for 7 consecutive scans (~7s).
@@ -584,6 +610,7 @@ class KlausBot:
                             finally:
                                 self._exit_in_progress.discard(token_id)
                                 self._sl_below_count.pop(token_id, None)
+                                self._no_exp_checked.discard(token_id)
                             continue
                     else:
                         if self._sl_below_count.pop(token_id, 0) > 0:
@@ -2532,6 +2559,7 @@ class KlausBot:
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
+                self._no_exp_checked.discard(token_id)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -2656,6 +2684,7 @@ class KlausBot:
             self._dir_rev_count.pop(token_id, None)
             self._entry_snaps.pop(token_id, None)
             self._sl_below_count.pop(token_id, None)
+            self._no_exp_checked.discard(token_id)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -2784,6 +2813,7 @@ class KlausBot:
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
+                self._no_exp_checked.discard(token_id)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3051,6 +3081,7 @@ class KlausBot:
         self._dir_rev_count.pop(token_id, None)
         self._entry_snaps.pop(token_id, None)
         self._sl_below_count.pop(token_id, None)
+        self._no_exp_checked.discard(token_id)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
