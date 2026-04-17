@@ -1072,10 +1072,10 @@ class KlausBot:
             # both sides and the bot enters the WRONG token when spot has reversed
             # mid-window (e.g. was DOWN, briefly ticked UP, DOWN-YES still at 0.72).
             # feeds.py OUTCOME_DIR logs confirm slug-suffix mapping is correct.
-            _BOND_DELTA_MIN = 0.100
+            # Direction match: sign alignment only — band gates handle minimums below.
             _dir_match = (
-                (_token_dir == "down" and _bond_delta <= -_BOND_DELTA_MIN) or
-                (_token_dir == "up"   and _bond_delta >= _BOND_DELTA_MIN)
+                (_token_dir == "down" and _bond_delta < 0) or
+                (_token_dir == "up"   and _bond_delta > 0)
             )
             if not _dir_match:
                 logger.debug(
@@ -1088,8 +1088,83 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
+            # ── Velocity classification ───────────────────────────────────────
+            # Must happen before band gates (band conditions depend on vel class).
+            _VEL_BOND_THRESHOLD = 0.010
+            _vel_now, _vel_age = self.feed.get_velocity_5s(token.asset)
+            _vel_cold = (_vel_age >= 999.0)
+            # INIT = measured velocity actively moving in trade direction.
+            # Distinguishes fresh momentum entries from exhaustion/cold entries.
+            _vel_init = (
+                not _vel_cold and (
+                    (_token_dir == "up"   and _vel_now >=  _VEL_BOND_THRESHOLD) or
+                    (_token_dir == "down" and _vel_now <= -_VEL_BOND_THRESHOLD)
+                )
+            )
+            _vel_label = (
+                "INIT" if _vel_init
+                else ("COLD" if _vel_cold else "CONT/EXH")
+            )
+
+            # ── Delta band gates ──────────────────────────────────────────────
+            # Three zones with different quality/permission profiles.
+            # CORE  (0.08–0.13): highest quality, normal gates apply.
+            # EARLY (<0.08):     weak signal — require INIT velocity + strong edge.
+            # STRETCH (>0.13):   stretched move — require INIT velocity + strong edge.
+            _abs_delta = abs(_bond_delta)
+            _DELTA_CORE_LO  = 0.080
+            _DELTA_CORE_HI  = 0.130
+            _STRONG_EDGE    = 0.050  # EARLY/STRETCH require edge > this
+
+            if _abs_delta < _DELTA_CORE_LO:
+                # EARLY zone: weak signal, needs strong conviction on both axes
+                if _edge < _STRONG_EDGE or not _vel_init:
+                    logger.info(
+                        "BOND SKIP %s/%s: EARLY delta=%.3f%% requires edge>%.2f+INIT "
+                        "(edge=%.4f vel=%s[%s])",
+                        token.asset, token.side, _abs_delta, _STRONG_EDGE,
+                        _edge, f"{_vel_now:+.4f}%" if not _vel_cold else "—", _vel_label,
+                    )
+                    continue
+            elif _abs_delta > _DELTA_CORE_HI:
+                # STRETCHED zone: late/overextended move — wick-prone without INIT
+                if not _vel_init or _edge < _STRONG_EDGE:
+                    logger.info(
+                        "BOND SKIP %s/%s: STRETCH delta=%.3f%% requires INIT+edge>%.2f "
+                        "(edge=%.4f vel=%s[%s])",
+                        token.asset, token.side, _abs_delta, _STRONG_EDGE,
+                        _edge, f"{_vel_now:+.4f}%" if not _vel_cold else "—", _vel_label,
+                    )
+                    continue
+            # CORE zone: fall through to standard gates below
+
+            # Edge gate: base >0.01; raised to >0.02 when velocity is cold.
+            _edge_min = 0.02 if _vel_cold else 0.01
+            if _edge <= _edge_min:
+                logger.info(
+                    "BOND SKIP %s/%s: insufficient edge=%.4f (min=%.2f vel=%s[%s] fv=%.4f ask=%.4f)",
+                    token.asset, token.side, _edge, _edge_min,
+                    f"{_vel_now:+.4f}%" if not _vel_cold else "—", _vel_label, _fair_value, ask,
+                )
+                continue
+
+            # Velocity against gate: block if momentum is actively opposing direction.
+            _vel_against = (
+                (_token_dir == "down" and _vel_now >  _VEL_BOND_THRESHOLD) or
+                (_token_dir == "up"   and _vel_now < -_VEL_BOND_THRESHOLD)
+            )
+            if _vel_against:
+                logger.info(
+                    "BOND SKIP %s/%s: vel=%+.4f%%[%s] against direction %s (thresh=%.3f%%)",
+                    token.asset, token.side, _vel_now, _vel_label, _token_dir, _VEL_BOND_THRESHOLD,
+                )
+                continue
+
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
+            _dzone = "CORE" if _DELTA_CORE_LO <= _abs_delta <= _DELTA_CORE_HI else (
+                "EARLY" if _abs_delta < _DELTA_CORE_LO else "STRETCH"
+            )
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
@@ -1104,41 +1179,13 @@ class KlausBot:
                 direction=Direction.BUY_YES,
                 fee_zone=FeeZone.EXTREME,
                 elapsed_pct=_elapsed_pct,
-                reason=f"BOND_{_wlabel} ask={ask:.3f} δ={_bond_delta:+.3f}% fv={_fair_value:.3f} rem={remaining:.0f}s exit@{exit_sec}s",
+                reason=f"BOND_{_wlabel}[{_dzone}/{_vel_label}] ask={ask:.3f} δ={_bond_delta:+.3f}% fv={_fair_value:.3f} rem={remaining:.0f}s exit@{exit_sec}s",
                 quality_score=3,
                 signal_source="BOND",
                 is_bond=True,
                 bond_exit_sec=exit_sec,
                 bond_outcome_direction=_token_dir,
             )
-            # Velocity gate: block if spot is already moving against the trade direction.
-            # Positive vel for down-direction token = spot reversing = entry is chasing.
-            # Uses outcome_direction (not token.side) — BOND YES tokens can be down-direction.
-            # Threshold 0.010%: data (n=68) shows losses at 0.011-0.022%, wins at 0.005-0.009%.
-            _vel_now, _vel_age = self.feed.get_velocity_5s(token.asset)
-            _vel_cold = (_vel_age >= 999.0)
-
-            # Edge gate: base >0.01; raised to >0.02 when velocity is cold.
-            # Cold entry = no Binance momentum data = blind entry; higher edge compensates.
-            _edge_min = 0.02 if _vel_cold else 0.01
-            if _edge <= _edge_min:
-                logger.info(
-                    "BOND SKIP %s/%s: insufficient edge=%.4f (min=%.2f vel=%s fv=%.4f ask=%.4f)",
-                    token.asset, token.side, _edge, _edge_min,
-                    "cold" if _vel_cold else f"{_vel_now:+.4f}%", _fair_value, ask,
-                )
-                continue
-            _VEL_BOND_THRESHOLD = 0.010
-            _vel_against = (
-                (_token_dir == "down" and _vel_now >  _VEL_BOND_THRESHOLD) or
-                (_token_dir == "up"   and _vel_now < -_VEL_BOND_THRESHOLD)
-            )
-            if _vel_against:
-                logger.info(
-                    "BOND SKIP %s/%s: vel=%+.4f%% against direction %s (thresh=%.3f%%) — spot reversing",
-                    token.asset, token.side, _vel_now, _token_dir, _VEL_BOND_THRESHOLD,
-                )
-                continue
 
             tpsl = TPSLLevels(
                 take_profit=min(0.99, round(ask + (1.0 - ask) * 0.90, 4)),
