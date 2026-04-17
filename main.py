@@ -525,32 +525,37 @@ class KlausBot:
                             )
                             if _wdelta_reversed:
                                 _held_s = now - pos.open_ts
-                                self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
-                                logger.debug(
-                                    "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/3 move=%+.1f%% held=%.0fs",
-                                    pos.asset, pos.bond_outcome_direction,
-                                    _wdelta_now, _REV_THRESH,
-                                    self._dir_rev_count[token_id], bond_move * 100, _held_s,
-                                )
-                                if self._dir_rev_count.get(token_id, 0) >= 3:
-                                    if token_id not in self._exit_in_progress:
-                                        self._exit_in_progress.add(token_id)
-                                        logger.warning(
-                                            "BOND_DIR_REVERSAL %s/%s %s | spot_rev=%+.3f%% ≥ %.2f%% from entry "
-                                            "for 3 consecutive scans | entry_spot=%.4f curr_spot=%.4f | "
-                                            "ep=%.4f curr=%.4f | rem=%.0fs",
-                                            pos.asset, pos.bond_outcome_direction,
-                                            "15m" if _is_15m_pos else "5m",
-                                            _wdelta_now, _REV_THRESH,
-                                            _entry_spot, _ext_now.spot_price,
-                                            pos.entry_price, current_price, bond_remaining,
-                                        )
-                                        try:
-                                            await self._exit_position(token_id, current_price, "BOND_DIR_REVERSAL")
-                                        finally:
-                                            self._exit_in_progress.discard(token_id)
-                                            self._dir_rev_count.pop(token_id, None)
-                                        continue
+                                if _held_s < 5.0:
+                                    # ECW: Entry Confirmation Window — microstructure noise
+                                    # in first 5s is indistinguishable from real reversal.
+                                    pass
+                                else:
+                                    self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
+                                    logger.debug(
+                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/3 move=%+.1f%% held=%.0fs",
+                                        pos.asset, pos.bond_outcome_direction,
+                                        _wdelta_now, _REV_THRESH,
+                                        self._dir_rev_count[token_id], bond_move * 100, _held_s,
+                                    )
+                                    if self._dir_rev_count.get(token_id, 0) >= 3:
+                                        if token_id not in self._exit_in_progress:
+                                            self._exit_in_progress.add(token_id)
+                                            logger.warning(
+                                                "BOND_DIR_REVERSAL %s/%s %s | spot_rev=%+.3f%% ≥ %.2f%% from entry "
+                                                "for 3 consecutive scans | entry_spot=%.4f curr_spot=%.4f | "
+                                                "ep=%.4f curr=%.4f | rem=%.0fs",
+                                                pos.asset, pos.bond_outcome_direction,
+                                                "15m" if _is_15m_pos else "5m",
+                                                _wdelta_now, _REV_THRESH,
+                                                _entry_spot, _ext_now.spot_price,
+                                                pos.entry_price, current_price, bond_remaining,
+                                            )
+                                            try:
+                                                await self._exit_position(token_id, current_price, "BOND_DIR_REVERSAL")
+                                            finally:
+                                                self._exit_in_progress.discard(token_id)
+                                                self._dir_rev_count.pop(token_id, None)
+                                            continue
                             else:
                                 self._dir_rev_count.pop(token_id, None)
                                 logger.debug(
