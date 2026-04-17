@@ -1080,17 +1080,18 @@ class KlausBot:
             # Velocity gate: block if spot is already moving against the trade direction.
             # Positive vel for down-direction token = spot reversing = entry is chasing.
             # Uses outcome_direction (not token.side) — BOND YES tokens can be down-direction.
+            # Threshold 0.010%: data (n=68) shows losses at 0.011-0.022%, wins at 0.005-0.009%.
             _vel_now, _ = self.feed.get_velocity_5s(token.asset)
+            _VEL_BOND_THRESHOLD = 0.010
             _vel_against = (
-                (_token_dir == "down" and _vel_now > 0.0) or
-                (_token_dir == "up"   and _vel_now < 0.0)
+                (_token_dir == "down" and _vel_now >  _VEL_BOND_THRESHOLD) or
+                (_token_dir == "up"   and _vel_now < -_VEL_BOND_THRESHOLD)
             )
             if _vel_against:
                 logger.info(
-                    "BOND SKIP %s/%s: vel=%+.4f%% against direction %s — spot already reversing",
-                    token.asset, token.side, _vel_now, _token_dir,
+                    "BOND SKIP %s/%s: vel=%+.4f%% against direction %s (thresh=%.3f%%) — spot reversing",
+                    token.asset, token.side, _vel_now, _token_dir, _VEL_BOND_THRESHOLD,
                 )
-                continue
                 continue
 
             tpsl = TPSLLevels(
