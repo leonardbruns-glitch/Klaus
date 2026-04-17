@@ -526,26 +526,70 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── BOND token price stop-loss (35% drawdown) ────────────────
-                # DIR_REVERSAL watches Binance spot, not token price.
-                # When a token resolves wrong direction it collapses to $0
-                # within 30s — bot previously held to T-10s with no escape.
-                # n=84 data: 18/20 major losses caught; saves ~$29 vs $0 exits.
-                _BOND_SL_MULT = 0.65  # exit if token < 65% of entry price
-                _bond_sl_level = pos.entry_price * _BOND_SL_MULT
-                if current_price < _bond_sl_level and token_id not in self._exit_in_progress:
+                # ── BOND token price stop-loss (state-aware) ─────────────────
+                # Two regimes keyed on bond_entry_class:
+                #
+                # CORE/INIT — dual-axis SL:
+                #   INIT entries with core delta can show "dirty path" (OB thinness
+                #   dip post-entry that recovers at resolution). Exit only if BOTH
+                #   token is below floor AND Binance spot confirms adverse movement
+                #   from entry. Catastrophic override if token < 40% of entry.
+                #   BTC 10:43 case: token dipped to 0.42× but spot was flat → hold.
+                #
+                # All other classes — standard 35% SL (no spot confirmation needed).
+                #   Weaker signals (COLD, CONT-EXH, EARLY, STRETCH) are not granted
+                #   dirty-path tolerance.
+                _drawdown_pct = (current_price - pos.entry_price) / pos.entry_price * 100
+                _is_core_init = pos.bond_entry_class == "CORE/INIT"
+
+                if _is_core_init:
+                    _CI_SL_MULT        = 0.50   # dual-axis trigger floor (−50% drawdown)
+                    _CI_CATASTROPHIC   = 0.40   # always exit if token < 40% of entry
+                    _CI_SPOT_ADV_THRESH = 0.10  # 0.10% adverse spot from entry = failure confirmed
+
+                    _ci_token_breach = current_price < pos.entry_price * _CI_SL_MULT
+                    _ci_catastrophic = current_price < pos.entry_price * _CI_CATASTROPHIC
+
+                    _ci_ext = self._last_ext_signals.get(pos.asset)
+                    _ci_entry_spot = pos.binance_price_at_entry
+                    _ci_curr_spot  = (_ci_ext.spot_price if _ci_ext and _ci_ext.spot_price else 0)
+                    if _ci_entry_spot > 0 and _ci_curr_spot > 0:
+                        _ci_spot_move = (_ci_curr_spot - _ci_entry_spot) / _ci_entry_spot * 100
+                        _ci_spot_confirms = (
+                            (pos.bond_outcome_direction == "up"   and _ci_spot_move < -_CI_SPOT_ADV_THRESH) or
+                            (pos.bond_outcome_direction == "down" and _ci_spot_move >  _CI_SPOT_ADV_THRESH)
+                        )
+                    else:
+                        _ci_spot_move = 0.0
+                        _ci_spot_confirms = True  # no spot data → assume failure confirmed
+
+                    _do_exit = _ci_catastrophic or (_ci_token_breach and _ci_spot_confirms)
+
+                    if _ci_token_breach and not _ci_spot_confirms and not _ci_catastrophic:
+                        logger.warning(
+                            "BOND_SL_HELD CORE/INIT %s/%s | token=%.4f (%.1f%% ep) spot_move=%+.3f%% "
+                            "(thresh=%.2f%%) — dirty path, holding | rem=%.0fs",
+                            pos.asset, pos.direction.name,
+                            current_price, (current_price / pos.entry_price) * 100,
+                            _ci_spot_move, _CI_SPOT_ADV_THRESH, bond_remaining,
+                        )
+
+                else:
+                    # Standard 35% SL for all non-CORE/INIT entries
+                    _BOND_SL_MULT = 0.65
+                    _do_exit = current_price < pos.entry_price * _BOND_SL_MULT
+
+                if _do_exit and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
+                    _sl_label = "BOND_PRICE_SL_CATASTROPHIC" if (_is_core_init and _ci_catastrophic) else "BOND_PRICE_SL"
                     logger.warning(
-                        "BOND_PRICE_SL %s/%s | curr=%.4f < sl=%.4f (%.0f%% of ep=%.4f) | "
-                        "drawdown=%.1f%% | rem=%.0fs",
-                        pos.asset, pos.direction.name,
-                        current_price, _bond_sl_level, _BOND_SL_MULT * 100,
-                        pos.entry_price,
-                        (current_price - pos.entry_price) / pos.entry_price * 100,
-                        bond_remaining,
+                        "%s %s/%s [%s] | curr=%.4f drawdown=%.1f%% | rem=%.0fs",
+                        _sl_label, pos.asset, pos.direction.name,
+                        pos.bond_entry_class or "?",
+                        current_price, _drawdown_pct, bond_remaining,
                     )
                     try:
-                        await self._exit_position(token_id, current_price, "BOND_PRICE_SL")
+                        await self._exit_position(token_id, current_price, _sl_label)
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
@@ -1185,6 +1229,7 @@ class KlausBot:
                 is_bond=True,
                 bond_exit_sec=exit_sec,
                 bond_outcome_direction=_token_dir,
+                bond_entry_class=f"{_dzone}/{_vel_label}",
             )
 
             tpsl = TPSLLevels(
@@ -2127,6 +2172,7 @@ class KlausBot:
             is_bond=getattr(signal, "is_bond", False),
             bond_exit_sec=getattr(signal, "bond_exit_sec", 0),
             bond_outcome_direction=getattr(signal, "bond_outcome_direction", "down"),
+            bond_entry_class=getattr(signal, "bond_entry_class", ""),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly

@@ -229,6 +229,7 @@ class SniperSignal:
     is_bond: bool = False             # True for high-probability bond entries (time-exit strategy)
     bond_exit_sec: int = 0            # seconds before window close to exit (30=15m, 20=5m)
     bond_outcome_direction: str = "down"  # "up" or "down" — which direction resolves this token
+    bond_entry_class: str = ""        # e.g. "CORE/INIT", "CORE/COLD", "STRETCH/INIT" — drives SL regime
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
