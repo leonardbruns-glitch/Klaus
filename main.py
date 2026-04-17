@@ -569,13 +569,13 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── BOND token price stop-loss (50%, 7s confirmation) ───────
-                # Requires price to stay below 50% of entry for 7 consecutive
-                # scans (~7s) before firing — filters stop-hunt wicks that
-                # briefly dip then recover.
+                # ── BOND token price stop-loss (25% drawdown, 7s confirmation) ─
+                # Fires only when price is BELOW entry (never exits profitable)
+                # AND stays below entry*0.75 for 7 consecutive scans (~7s).
+                # Filters manufactured wicks that dip and recover quickly.
                 _held_s = now - pos.open_ts
                 if _held_s >= 3.0 and token_id not in self._exit_in_progress:
-                    if current_price < pos.entry_price * 0.50:
+                    if current_price < pos.entry_price and current_price < pos.entry_price * 0.75:
                         self._sl_below_count[token_id] = self._sl_below_count.get(token_id, 0) + 1
                         logger.debug(
                             "BOND_SL_BELOW %s/%s curr=%.4f (%.1f%%) count=%d/7",
