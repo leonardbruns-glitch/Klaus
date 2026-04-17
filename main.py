@@ -1054,7 +1054,7 @@ class KlausBot:
             # both sides and the bot enters the WRONG token when spot has reversed
             # mid-window (e.g. was DOWN, briefly ticked UP, DOWN-YES still at 0.72).
             # feeds.py OUTCOME_DIR logs confirm slug-suffix mapping is correct.
-            _BOND_DELTA_MIN = 0.077
+            _BOND_DELTA_MIN = 0.100
             _dir_match = (
                 (_token_dir == "down" and _bond_delta <= -_BOND_DELTA_MIN) or
                 (_token_dir == "up"   and _bond_delta >= _BOND_DELTA_MIN)
