@@ -2586,7 +2586,7 @@ class KlausBot:
             # cascade failed on REVERSAL_STOP, TIME_EXIT_EXT used resolution price
             # $0.96 while actual fill was $0.55 → fee ≈ gross, bankroll overstated ~$5).
             _price_found_in_error = False
-            _raw_exit = pos.entry_price  # conservative fallback: flat exit
+            _raw_exit = live_price if live_price > 0 else pos.entry_price  # use trigger price, not entry
             for _r in exit_fills:
                 _err = getattr(_r, "error", "") or ""
                 _m = _re.search(r'price=([0-9.]+)', _err)

@@ -1490,7 +1490,7 @@ class OrderManager:
                 try:
                     r = _req.get(
                         f"{CONFIG.markets.clob_api_url}/trades",
-                        params={role: wallet, "limit": 100},
+                        params={role: wallet, "limit": 200},
                         timeout=6,
                         headers={"User-Agent": "Mozilla/5.0"},
                     )
