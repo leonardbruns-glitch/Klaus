@@ -1255,6 +1255,16 @@ class KlausBot:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
+            # STRETCH zone: delta > 0.13% = exhaustion trade — reduce size by half.
+            # Overextended moves are wick-prone; halved stake caps dollar exposure
+            # while still allowing the trade to run.
+            if _dzone == "STRETCH":
+                decision.stake = round(decision.stake * 0.5, 2)
+                logger.info(
+                    "BOND STRETCH %s/%s: halved stake → $%.2f (delta=%.3f%% > 0.13%%)",
+                    token.asset, token.side, decision.stake, _abs_delta,
+                )
+
             logger.info(
                 "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | odir=%s δ=%+.3f%% | %s",
                 token.asset, token.side, _wlabel,
