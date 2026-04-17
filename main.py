@@ -976,7 +976,7 @@ class KlausBot:
         if not BOND_ENABLED:
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.66  # lowered 0.70→0.66: wider entry window
+        _BOND_MIN_ASK = 0.72  # raised 0.66→0.72: ep<0.72 losses show large slippage on thin near-expiry book (2026-04-17, n=2)
         _BOND_MAX_ASK = 0.82  # lowered 0.90→0.85→0.82: high-ask entries have tiny upside vs crash risk
 
         # Hour gate: block first 15 min of each volatile/risky hour.
