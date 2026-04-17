@@ -485,7 +485,7 @@ class KlausBot:
                             _wref = ((_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0)
                             _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100 if _wref > 0 else 0.0
                         if _entry_spot > 0 or True:
-                            _REV_THRESH = 0.10
+                            _REV_THRESH = 0.06
                             _wdelta_reversed = (
                                 (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
                                 (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
