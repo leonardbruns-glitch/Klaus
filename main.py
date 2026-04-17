@@ -1132,7 +1132,7 @@ class KlausBot:
             if not _delta_available:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
-            if _elapsed_pct > 0.78:
+            if _elapsed_pct < 0.50 or _elapsed_pct > 0.85:
                 continue
             _token_dir = getattr(token, "outcome_direction", "up")
 
