@@ -24,7 +24,7 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 124.06             # updated: deposit 2026-04-12, capital=$124.06
-    base_stake: float = 8.0           # raised 3→8 2026-04-17
+    base_stake: float = 15.0          # raised 8→15 2026-04-17
     # Scale-up tiers (static sizing — Kelly deferred until n≥50 with stable per-regime WR):
     #   Tier 1: $10 — now active
     #   Tier 2: $20 — after confirmed WR>55% over 20+ live trades
