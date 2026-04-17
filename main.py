@@ -202,6 +202,7 @@ class KlausBot:
 
     async def start(self) -> None:
         await self.feed.start()
+        self.feed._on_bbo_update = self._ws_bond_tp_check
         await self.orders.start()
         self._running = True
         mode = "DRY RUN" if CONFIG.dry_run else "LIVE"
@@ -342,6 +343,31 @@ class KlausBot:
             except Exception as exc:
                 logger.error("OB scan error: %s", exc)
             await asyncio.sleep(CONFIG.execution.ob_scan_interval)
+
+    async def _ws_bond_tp_check(self, token_id: str, ask_price: float) -> None:
+        """Instant BOND TP triggered by WS BBO update — no 1s scan delay."""
+        try:
+            pos = self.risk.open_positions.get(token_id)
+            if pos is None or not pos.is_bond or token_id in self._exit_in_progress:
+                return
+            bond_remaining = pos.window_end_ts - time.time() if pos.window_end_ts > 0 else 999.0
+            if ask_price >= 0.99 and bond_remaining <= 20.0:
+                tp_reason = "BOND_TP_99"
+            elif ask_price >= 0.95:
+                tp_reason = "BOND_TP_95"
+            else:
+                return
+            self._exit_in_progress.add(token_id)
+            logger.info(
+                "BOND_TP_WS %s/%s curr=%.4f rem=%.0fs entry=%.4f",
+                pos.asset, pos.direction.name, ask_price, bond_remaining, pos.entry_price,
+            )
+            try:
+                await self._exit_position(token_id, ask_price, tp_reason)
+            finally:
+                self._exit_in_progress.discard(token_id)
+        except Exception as exc:
+            logger.error("_ws_bond_tp_check error: %s", exc)
 
     async def _check_open_positions(self) -> None:
         positions = list(self.risk.open_positions.items())

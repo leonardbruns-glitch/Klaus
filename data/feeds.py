@@ -297,6 +297,9 @@ class PolymarketFeed:
         # Queue for sending new token subscriptions to the running CLOB WS.
         # refresh_markets() puts new token_id lists here; _run_clob_ws() drains it.
         self._clob_ws_sub_queue: asyncio.Queue = asyncio.Queue()
+        # Optional callback: fires on every BBO update with (token_id, ask_price).
+        # Used by main bot for instant TP checks without waiting for the 1s scan loop.
+        self._on_bbo_update = None
         # VPIN trackers per asset (fed from Binance aggTrade WebSocket)
         self.vpin_trackers: Dict[str, VPINTracker] = {
             "BTC": VPINTracker(),
@@ -568,6 +571,8 @@ class PolymarketFeed:
                 )
                 self.order_books[asset_id] = ob
                 self._ws_ob_ts[asset_id] = time.time()
+                if self._on_bbo_update is not None and asks:
+                    asyncio.create_task(self._on_bbo_update(asset_id, asks[0][0]))
 
         elif ev_type == "last_trade_price":
             price = ev.get("price")
