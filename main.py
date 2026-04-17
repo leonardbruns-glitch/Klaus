@@ -1068,14 +1068,29 @@ class KlausBot:
                 bond_exit_sec=exit_sec,
                 bond_outcome_direction=_token_dir,
             )
-            # Edge gate: require fair_value > ask (model says token is not overpriced).
-            # Negative edge = our own fair_value model says the token costs more than it's worth.
-            # Restored 2026-04-16: negative-edge entries at hr=07 all lost.
-            if _edge <= 0:
+            # Edge gate: require edge > 0.01 (model says token has meaningful value).
+            # edge=0.000 entries (near-zero edge) were passing float comparison — tightened.
+            if _edge <= 0.01:
                 logger.info(
-                    "BOND SKIP %s/%s: negative edge=%.4f (fv=%.4f < ask=%.4f)",
+                    "BOND SKIP %s/%s: insufficient edge=%.4f (fv=%.4f ask=%.4f)",
                     token.asset, token.side, _edge, _fair_value, ask,
                 )
+                continue
+
+            # Velocity gate: block if spot is already moving against the trade direction.
+            # Positive vel for down-direction token = spot reversing = entry is chasing.
+            # Uses outcome_direction (not token.side) — BOND YES tokens can be down-direction.
+            _vel_now, _ = self.feed.get_velocity_5s(token.asset)
+            _vel_against = (
+                (_token_dir == "down" and _vel_now > 0.0) or
+                (_token_dir == "up"   and _vel_now < 0.0)
+            )
+            if _vel_against:
+                logger.info(
+                    "BOND SKIP %s/%s: vel=%+.4f%% against direction %s — spot already reversing",
+                    token.asset, token.side, _vel_now, _token_dir,
+                )
+                continue
                 continue
 
             tpsl = TPSLLevels(
