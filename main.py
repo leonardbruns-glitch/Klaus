@@ -197,6 +197,9 @@ class KlausBot:
         # token_id → {30: price_at_T30s, 60: price_at_T60s}
         # Populated in _check_open_positions; consumed and cleared at close.
         self._entry_snaps: Dict[str, Dict[int, float]] = {}
+        # BOND_PRICE_SL confirmation counter: increments each scan price is below 50%.
+        # SL only fires after 7 consecutive scans (~7s) to filter stop-hunt wicks.
+        self._sl_below_count: Dict[str, int] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -511,7 +514,7 @@ class KlausBot:
                             _wref = ((_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0)
                             _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100 if _wref > 0 else 0.0
                         if _entry_spot > 0 or True:
-                            _REV_THRESH = 0.06
+                            _REV_THRESH = 0.04
                             _wdelta_reversed = (
                                 (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
                                 (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
@@ -566,28 +569,40 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── BOND token price stop-loss (35%, 3s hold) ────────────────
-                # Simple fixed SL: exit if token drops 35% below entry.
-                # 3-second hold prevents firing on entry-tick noise.
+                # ── BOND token price stop-loss (50%, 7s confirmation) ───────
+                # Requires price to stay below 50% of entry for 7 consecutive
+                # scans (~7s) before firing — filters stop-hunt wicks that
+                # briefly dip then recover.
                 _held_s = now - pos.open_ts
-                if (
-                    _held_s >= 3.0
-                    and current_price < pos.entry_price * 0.50
-                    and token_id not in self._exit_in_progress
-                ):
-                    self._exit_in_progress.add(token_id)
-                    logger.warning(
-                        "BOND_PRICE_SL %s/%s | curr=%.4f drawdown=%.1f%% | held=%.0fs rem=%.0fs",
-                        pos.asset, pos.direction.name,
-                        current_price,
-                        (current_price - pos.entry_price) / pos.entry_price * 100,
-                        _held_s, bond_remaining,
-                    )
-                    try:
-                        await self._exit_position(token_id, current_price, "BOND_PRICE_SL")
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
+                if _held_s >= 3.0 and token_id not in self._exit_in_progress:
+                    if current_price < pos.entry_price * 0.50:
+                        self._sl_below_count[token_id] = self._sl_below_count.get(token_id, 0) + 1
+                        logger.debug(
+                            "BOND_SL_BELOW %s/%s curr=%.4f (%.1f%%) count=%d/7",
+                            pos.asset, pos.direction.name, current_price,
+                            (current_price - pos.entry_price) / pos.entry_price * 100,
+                            self._sl_below_count[token_id],
+                        )
+                        if self._sl_below_count[token_id] >= 7:
+                            self._exit_in_progress.add(token_id)
+                            logger.warning(
+                                "BOND_PRICE_SL %s/%s | curr=%.4f drawdown=%.1f%% | held=%.0fs rem=%.0fs (7s confirmed)",
+                                pos.asset, pos.direction.name, current_price,
+                                (current_price - pos.entry_price) / pos.entry_price * 100,
+                                _held_s, bond_remaining,
+                            )
+                            try:
+                                await self._exit_position(token_id, current_price, "BOND_PRICE_SL")
+                            finally:
+                                self._exit_in_progress.discard(token_id)
+                                self._sl_below_count.pop(token_id, None)
+                            continue
+                    else:
+                        if self._sl_below_count.pop(token_id, 0) > 0:
+                            logger.debug(
+                                "BOND_SL_RESET %s/%s — price recovered to %.4f",
+                                pos.asset, pos.direction.name, current_price,
+                            )
 
 
                 # $0.95 at any point — token at 95¢ with time remaining is high
@@ -2565,6 +2580,7 @@ class KlausBot:
                 self._pos_log_ts.pop(token_id, None)
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
+                self._sl_below_count.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -2688,6 +2704,7 @@ class KlausBot:
             self._pos_log_ts.pop(token_id, None)
             self._dir_rev_count.pop(token_id, None)
             self._entry_snaps.pop(token_id, None)
+            self._sl_below_count.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -2815,6 +2832,7 @@ class KlausBot:
                 self._pos_log_ts.pop(token_id, None)
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
+                self._sl_below_count.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3081,6 +3099,7 @@ class KlausBot:
         self._pos_log_ts.pop(token_id, None)
         self._dir_rev_count.pop(token_id, None)
         self._entry_snaps.pop(token_id, None)
+        self._sl_below_count.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
