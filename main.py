@@ -1138,7 +1138,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10  # T-10s: OB_NOOB skip for BOND ensures precise timer fires cleanly
-                if not (exit_sec + 15 <= remaining <= 105):  # entry: T-25s to T-105s (1.75min)
+                if not (exit_sec + 15 <= remaining <= 150):  # entry: T-25s to T-150s (2.5min)
                     continue
             else:
                 continue
@@ -1178,7 +1178,7 @@ class KlausBot:
             if not _delta_available:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
-            if _elapsed_pct < 0.50 or _elapsed_pct > 0.85:
+            if _elapsed_pct < 0.50 or _elapsed_pct > 0.92:
                 continue
             _token_dir = getattr(token, "outcome_direction", "up")
 
