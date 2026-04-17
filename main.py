@@ -1225,7 +1225,7 @@ class KlausBot:
             _abs_delta = abs(_bond_delta)
             if _abs_delta < 0.065 or _abs_delta > 0.13:
                 logger.info(
-                    "BOND SKIP %s/%s: delta=%.3f%% outside [0.10–0.13]",
+                    "BOND SKIP %s/%s: delta=%.3f%% outside [0.065–0.13]",
                     token.asset, token.side, _abs_delta,
                 )
                 continue
