@@ -451,18 +451,27 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
-                # ── Window-delta reversal guard (5m + 15m) ───────────────────
-                # Exit if spot has reversed past threshold in the wrong direction
-                # for 5 consecutive scans (~5s sustained) — event no longer live.
-                # Threshold 0.10%. Dead zone: final 30s (TIME_EXIT handles it).
+                # ── Entry-relative reversal guard (5m + 15m) ─────────────────
+                # Measures reversal from entry-time spot, not window_open.
+                # Old: window_open ref required +0.20% total reversal for -0.10%
+                #   entry (spot must cross zero AND another 0.10%) — missed fast
+                #   collapses where token hits $0 with only +0.10% reversal.
+                # New: fires at 0.07% from entry spot — catches the first real
+                #   sign of failure before token price collapses.
+                # Dead zone: final 30s (TIME_EXIT handles cleanly).
                 if True:
                     _ext_now = self._last_ext_signals.get(pos.asset)
                     if _ext_now and _ext_now.spot_price and bond_remaining > 30:
                         _is_15m_pos = pos.window_seconds >= 900
-                        _wref = ((_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0)
-                        if _wref > 0:
-                            _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100
-                            _REV_THRESH = 0.10
+                        _entry_spot = pos.binance_price_at_entry
+                        if _entry_spot > 0:
+                            _wdelta_now = (_ext_now.spot_price - _entry_spot) / _entry_spot * 100
+                        else:
+                            # Fallback to window_open if entry spot not stored
+                            _wref = ((_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0)
+                            _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100 if _wref > 0 else 0.0
+                        if _entry_spot > 0 or True:
+                            _REV_THRESH = 0.07
                             _wdelta_reversed = (
                                 (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
                                 (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
@@ -479,13 +488,13 @@ class KlausBot:
                                     if token_id not in self._exit_in_progress:
                                         self._exit_in_progress.add(token_id)
                                         logger.warning(
-                                            "BOND_DIR_REVERSAL %s/%s %s | wdelta=%+.3f%% ≥ %.2f%% wrong side "
-                                            "for 5 consecutive scans | wref=%.4f curr_spot=%.4f | "
+                                            "BOND_DIR_REVERSAL %s/%s %s | spot_rev=%+.3f%% ≥ %.2f%% from entry "
+                                            "for 5 consecutive scans | entry_spot=%.4f curr_spot=%.4f | "
                                             "ep=%.4f curr=%.4f | rem=%.0fs",
                                             pos.asset, pos.bond_outcome_direction,
                                             "15m" if _is_15m_pos else "5m",
                                             _wdelta_now, _REV_THRESH,
-                                            _wref, _ext_now.spot_price,
+                                            _entry_spot, _ext_now.spot_price,
                                             pos.entry_price, current_price, bond_remaining,
                                         )
                                         try:
@@ -497,7 +506,7 @@ class KlausBot:
                             else:
                                 self._dir_rev_count.pop(token_id, None)
                                 logger.debug(
-                                    "BOND_WDELTA %s/%s wdelta=%+.3f%% (thresh=%.2f%% — ok, count reset)",
+                                    "BOND_REV_OK %s/%s spot_rev=%+.3f%% (thresh=%.2f%% from entry — ok, count reset)",
                                     pos.asset, pos.bond_outcome_direction, _wdelta_now, _REV_THRESH,
                                 )
                 else:
@@ -946,6 +955,10 @@ class KlausBot:
         if _now_utc.hour in _first15_blocked and _now_utc.minute < 15:
             return
 
+        # Full-hour blocks: data shows consistent losses at these hours.
+        # SOL hr=03: 3W/2L net=-$0.2; SOL hr=04: 1W/4L net=-$8.2 (2026-04-17, n=59)
+        _full_blocked_asset_hours = {("SOL", 3), ("SOL", 4)}
+
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
                 continue
@@ -954,6 +967,8 @@ class KlausBot:
             if token_id in self.risk.open_positions:
                 continue
             if token.asset in self.risk._pending_assets:
+                continue
+            if (token.asset, _now_utc.hour) in _full_blocked_asset_hours:
                 continue
             if token.asset in self._pending_asset_entries:
                 continue
