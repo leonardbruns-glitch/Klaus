@@ -514,38 +514,35 @@ class KlausBot:
                             _wref = ((_ext_now.spot_window_open_15m if _is_15m_pos else _ext_now.spot_window_open_5m) or 0.0)
                             _wdelta_now = (_ext_now.spot_price - _wref) / _wref * 100 if _wref > 0 else 0.0
                         if _entry_spot > 0 or True:
-                            _REV_THRESH = 0.04
+                            _REV_THRESH = 0.03
                             _wdelta_reversed = (
                                 (pos.bond_outcome_direction == "down" and _wdelta_now >= _REV_THRESH) or
                                 (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
                             )
                             if _wdelta_reversed:
-                                # Guard: suppress DIR_REVERSAL when token is still
-                                # above entry (profitable — likely a stop-hunt wick)
-                                # or position held < 15s (too early to confirm reversal).
                                 _held_s = now - pos.open_ts
-                                if bond_move > 0 or _held_s < 15:
+                                if _held_s < 15:
                                     self._dir_rev_count.pop(token_id, None)
                                     logger.debug(
                                         "BOND_DIR_REV_SUPPRESSED %s/%s wdelta=%+.3f%% "
-                                        "| move=%+.1f%% held=%.0fs — profitable/early, skip",
+                                        "| held=%.0fs — too early, skip",
                                         pos.asset, pos.bond_outcome_direction,
-                                        _wdelta_now, bond_move * 100, _held_s,
+                                        _wdelta_now, _held_s,
                                     )
                                 else:
                                     self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
                                     logger.debug(
-                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/5",
+                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/3 move=%+.1f%%",
                                         pos.asset, pos.bond_outcome_direction,
                                         _wdelta_now, _REV_THRESH,
-                                        self._dir_rev_count[token_id],
+                                        self._dir_rev_count[token_id], bond_move * 100,
                                     )
-                                if self._dir_rev_count.get(token_id, 0) >= 5:
+                                if self._dir_rev_count.get(token_id, 0) >= 3:
                                     if token_id not in self._exit_in_progress:
                                         self._exit_in_progress.add(token_id)
                                         logger.warning(
                                             "BOND_DIR_REVERSAL %s/%s %s | spot_rev=%+.3f%% ≥ %.2f%% from entry "
-                                            "for 5 consecutive scans | entry_spot=%.4f curr_spot=%.4f | "
+                                            "for 3 consecutive scans | entry_spot=%.4f curr_spot=%.4f | "
                                             "ep=%.4f curr=%.4f | rem=%.0fs",
                                             pos.asset, pos.bond_outcome_direction,
                                             "15m" if _is_15m_pos else "5m",
