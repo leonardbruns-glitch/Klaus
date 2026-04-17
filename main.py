@@ -546,7 +546,7 @@ class KlausBot:
                 _held_s = now - pos.open_ts
                 if (
                     _held_s >= 3.0
-                    and current_price < pos.entry_price * 0.65
+                    and current_price < pos.entry_price * 0.50
                     and token_id not in self._exit_in_progress
                 ):
                     self._exit_in_progress.add(token_id)
