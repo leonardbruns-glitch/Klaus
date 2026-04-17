@@ -1031,7 +1031,7 @@ class KlausBot:
         _now_utc = _dt.datetime.utcnow()
         _first15_blocked = getattr(
             CONFIG.edge, "bond_first15_blocked_hours_utc",
-            [0, 6, 8, 13, 18, 20],  # default: all previously blocked hours + hr=6
+            [0, 6, 8, 12, 13, 18, 20],  # default: all previously blocked hours + hr=6/12
         )
         if _now_utc.hour in _first15_blocked and _now_utc.minute < 15:
             return
