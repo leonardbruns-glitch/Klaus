@@ -477,13 +477,26 @@ class KlausBot:
                                 (pos.bond_outcome_direction == "up"   and _wdelta_now <= -_REV_THRESH)
                             )
                             if _wdelta_reversed:
-                                self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
-                                logger.debug(
-                                    "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/5",
-                                    pos.asset, pos.bond_outcome_direction,
-                                    _wdelta_now, _REV_THRESH,
-                                    self._dir_rev_count[token_id],
-                                )
+                                # Guard: suppress DIR_REVERSAL when token is still
+                                # above entry (profitable — likely a stop-hunt wick)
+                                # or position held < 45s (too early to confirm reversal).
+                                _held_s = now - pos.open_ts
+                                if bond_move > 0 or _held_s < 45:
+                                    self._dir_rev_count.pop(token_id, None)
+                                    logger.debug(
+                                        "BOND_DIR_REV_SUPPRESSED %s/%s wdelta=%+.3f%% "
+                                        "| move=%+.1f%% held=%.0fs — profitable/early, skip",
+                                        pos.asset, pos.bond_outcome_direction,
+                                        _wdelta_now, bond_move * 100, _held_s,
+                                    )
+                                else:
+                                    self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
+                                    logger.debug(
+                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/5",
+                                        pos.asset, pos.bond_outcome_direction,
+                                        _wdelta_now, _REV_THRESH,
+                                        self._dir_rev_count[token_id],
+                                    )
                                 if self._dir_rev_count.get(token_id, 0) >= 5:
                                     if token_id not in self._exit_in_progress:
                                         self._exit_in_progress.add(token_id)
@@ -982,7 +995,12 @@ class KlausBot:
         # Full-hour blocks: data shows consistent losses at these hours.
         # SOL hr=03: 3W/2L net=-$0.2; SOL hr=04: 1W/4L net=-$8.2 (2026-04-17, n=59)
         # ALL hr=06: 0W/3L net=-$4.9 (2026-04-17, n=84)
-        _full_blocked_asset_hours = {("SOL", 3), ("SOL", 4), ("SOL", 6), ("BTC", 6), ("ETH", 6)}
+        # BTC hr=07-09: 33% WR!!, -$7.25 (2026-04-17, n=90)
+        _full_blocked_asset_hours = {
+            ("SOL", 3), ("SOL", 4), ("SOL", 6),
+            ("BTC", 6), ("BTC", 7), ("BTC", 8), ("BTC", 9),
+            ("ETH", 6),
+        }
 
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
