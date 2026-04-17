@@ -166,14 +166,9 @@ EP_BINS = ["ep<0.72","ep0.72-0.77","ep0.77-0.82","ep0.82+"]
 
 ASSET_BINS = ["SOL","BTC","ETH","other"]
 
-HRGRP_BINS = ["hr20-01","hr02-05","hr06-09","hr10-13","hr14-17","hr18-19"]
+HRGRP_BINS = [f"hr{h:02d}" for h in range(24)]
 def hour_grp(h):
-    if h >= 20 or h < 2:  return "hr20-01"
-    if 2  <= h < 6:       return "hr02-05"
-    if 6  <= h < 10:      return "hr06-09"
-    if 10 <= h < 14:      return "hr10-13"
-    if 14 <= h < 18:      return "hr14-17"
-    return                        "hr18-19"
+    return f"hr{h:02d}"
 
 
 # ── Pre-classify ──────────────────────────────────────────────────────────────
@@ -290,19 +285,20 @@ for b in ASSET_BINS:
 print()
 
 
-# ── Section 7: HOUR GROUP breakdown ──────────────────────────────────────────
+# ── Section 7: HOUR breakdown (UTC, per hour) ─────────────────────────────────
 print("=" * 60)
-print("SECTION 7: HOUR GROUP breakdown (UTC)")
+print("SECTION 7: HOUR breakdown (UTC, per hour)")
 print("=" * 60)
 bkts = defaultdict(list)
 for t in live:
     bkts[t["_hg"]].append(t["_pnl"])
-print(f"{'Hours (UTC)':<14} {'WR':>16} {'Net PnL':>10}")
-print("-" * 42)
-for b in HRGRP_BINS:
+print(f"{'Hour (UTC)':<12} {'n':>4} {'WR':>16} {'Net PnL':>10}")
+print("-" * 44)
+for h in range(24):
+    b = f"hr{h:02d}"
     g = bkts.get(b, [])
     if g:
-        print(f"{b:<14} {wr_str(g):>16} {net_str(g):>10}")
+        print(f"{b:<12} {len(g):>4} {wr_str(g):>16} {net_str(g):>10}")
 print()
 
 
@@ -402,25 +398,26 @@ for ab in ASSET_BINS:
 print()
 
 
-# ── Section 11: ASSET × HOUR GROUP ────────────────────────────────────────────
+# ── Section 11: ASSET × HOUR (per hour) ───────────────────────────────────────
 print("=" * 60)
-print("SECTION 11: ASSET × HOUR GROUP  (WR%)")
+print("SECTION 11: ASSET × HOUR  (per hour, UTC)")
 print("=" * 60)
 grid = defaultdict(list)
 for t in live:
     grid[(t["_asset"], t["_hg"])].append(t["_pnl"])
 
-header = f"{'':8}" + "".join(f"{h:>{W}}" for h in HRGRP_BINS)
-print(header)
-print("-" * (8 + W * len(HRGRP_BINS)))
-for ab in ASSET_BINS:
-    row = f"{ab:<8}"
-    has = any(grid.get((ab, hg)) for hg in HRGRP_BINS)
-    if not has:
-        continue
-    for hg in HRGRP_BINS:
-        row += f"{wr_str(grid.get((ab, hg), [])):>{W}}"
-    print(row)
+print(f"{'Hour':<8} {'Asset':<8} {'n':>4} {'WR':>16} {'Net PnL':>10}")
+print("-" * 48)
+for h in range(24):
+    hg = f"hr{h:02d}"
+    printed_any = False
+    for ab in ASSET_BINS:
+        g = grid.get((ab, hg), [])
+        if g:
+            print(f"{hg:<8} {ab:<8} {len(g):>4} {wr_str(g):>16} {net_str(g):>10}")
+            printed_any = True
+    if printed_any:
+        print()
 print()
 print("Net PnL ASSET × HOUR GROUP:")
 for ab in ASSET_BINS:
