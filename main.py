@@ -513,7 +513,31 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # BOND take-profit: lock in gains before TIME_EXIT
+                # ── BOND token price stop-loss (35% drawdown) ────────────────
+                # DIR_REVERSAL watches Binance spot, not token price.
+                # When a token resolves wrong direction it collapses to $0
+                # within 30s — bot previously held to T-10s with no escape.
+                # n=84 data: 18/20 major losses caught; saves ~$29 vs $0 exits.
+                _BOND_SL_MULT = 0.65  # exit if token < 65% of entry price
+                _bond_sl_level = pos.entry_price * _BOND_SL_MULT
+                if current_price < _bond_sl_level and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.warning(
+                        "BOND_PRICE_SL %s/%s | curr=%.4f < sl=%.4f (%.0f%% of ep=%.4f) | "
+                        "drawdown=%.1f%% | rem=%.0fs",
+                        pos.asset, pos.direction.name,
+                        current_price, _bond_sl_level, _BOND_SL_MULT * 100,
+                        pos.entry_price,
+                        (current_price - pos.entry_price) / pos.entry_price * 100,
+                        bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_PRICE_SL")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+
                 # $0.95 at any point — token at 95¢ with time remaining is high
                 #   confidence; a reversal back to 80¢ costs ~$1.90 vs locking $1.72.
                 # $0.99 in last 20s only — near-certain resolution, capture ~$0.49
@@ -957,7 +981,8 @@ class KlausBot:
 
         # Full-hour blocks: data shows consistent losses at these hours.
         # SOL hr=03: 3W/2L net=-$0.2; SOL hr=04: 1W/4L net=-$8.2 (2026-04-17, n=59)
-        _full_blocked_asset_hours = {("SOL", 3), ("SOL", 4)}
+        # ALL hr=06: 0W/3L net=-$4.9 (2026-04-17, n=84)
+        _full_blocked_asset_hours = {("SOL", 3), ("SOL", 4), ("SOL", 6), ("BTC", 6), ("ETH", 6)}
 
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
