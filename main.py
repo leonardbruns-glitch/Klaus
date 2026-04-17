@@ -521,22 +521,13 @@ class KlausBot:
                             )
                             if _wdelta_reversed:
                                 _held_s = now - pos.open_ts
-                                if _held_s < 15:
-                                    self._dir_rev_count.pop(token_id, None)
-                                    logger.debug(
-                                        "BOND_DIR_REV_SUPPRESSED %s/%s wdelta=%+.3f%% "
-                                        "| held=%.0fs — too early, skip",
-                                        pos.asset, pos.bond_outcome_direction,
-                                        _wdelta_now, _held_s,
-                                    )
-                                else:
-                                    self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
-                                    logger.debug(
-                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/3 move=%+.1f%%",
-                                        pos.asset, pos.bond_outcome_direction,
-                                        _wdelta_now, _REV_THRESH,
-                                        self._dir_rev_count[token_id], bond_move * 100,
-                                    )
+                                self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
+                                logger.debug(
+                                    "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/3 move=%+.1f%% held=%.0fs",
+                                    pos.asset, pos.bond_outcome_direction,
+                                    _wdelta_now, _REV_THRESH,
+                                    self._dir_rev_count[token_id], bond_move * 100, _held_s,
+                                )
                                 if self._dir_rev_count.get(token_id, 0) >= 3:
                                     if token_id not in self._exit_in_progress:
                                         self._exit_in_progress.add(token_id)
