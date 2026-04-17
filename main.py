@@ -1039,6 +1039,7 @@ class KlausBot:
             ("SOL", 3), ("SOL", 4), ("SOL", 6),
             ("BTC", 6), ("BTC", 7), ("BTC", 8), ("BTC", 9),
             ("ETH", 6),
+            ("BTC", 15), ("ETH", 15), ("SOL", 15),  # hr=15 stop-hunt pattern confirmed 2026-04-17
         }
 
         for token_id, token in list(self.feed.tokens.items()):
