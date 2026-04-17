@@ -1108,6 +1108,8 @@ class KlausBot:
             if not _delta_available:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
+            if _elapsed_pct > 0.78:
+                continue
             _token_dir = getattr(token, "outcome_direction", "up")
 
             # Directed delta gate: only enter a token when spot direction matches
