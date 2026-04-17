@@ -200,6 +200,8 @@ class KlausBot:
         # BOND_PRICE_SL confirmation counter: increments each scan price is below 50%.
         # SL only fires after 7 consecutive scans (~7s) to filter stop-hunt wicks.
         self._sl_below_count: Dict[str, int] = {}
+        # Positions that have had the T+30s stall check (one-shot per position).
+        self._stall_checked: set = set()
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -494,6 +496,8 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
+                _wdelta_now = 0.0  # updated inside DIR_REVERSAL block when ext signal available
+
                 # ── Entry-relative reversal guard (5m + 15m) ─────────────────
                 # Measures reversal from entry-time spot, not window_open.
                 # Old: window_open ref required +0.20% total reversal for -0.10%
@@ -557,7 +561,30 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── Progress exit: trade used >60% of available time, price < 0.92 ──
+                # ── T+30s stall exit (one-shot) ───────────────────────────────
+                # If token hasn't moved +3% AND spot not improving → thesis not working.
+                _hold_s = now - pos.open_ts
+                if (_hold_s >= 30.0
+                        and token_id not in self._stall_checked
+                        and token_id not in self._exit_in_progress):
+                    self._stall_checked.add(token_id)
+                    _delta_growing = (
+                        (pos.bond_outcome_direction == "down" and _wdelta_now <= -0.02) or
+                        (pos.bond_outcome_direction == "up"   and _wdelta_now >=  0.02)
+                    )
+                    if bond_move < 0.03 and not _delta_growing:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_STALL %s/%s | T+%.0fs move=%+.1f%% wdelta=%+.3f%% — no expansion, exiting",
+                            pos.asset, pos.direction.name, _hold_s, bond_move * 100, _wdelta_now,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_STALL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
+                # ── Progress exit: trade used >60% of available time ──────────
                 # Normalises time to entry: max_hold = (1 - elap_entry) * 0.60 * window_s
                 # Late entries get proportionally less absolute time — not punished early.
                 _sig_meta = self._open_meta.get(token_id, {}).get("signal")
@@ -566,7 +593,7 @@ class KlausBot:
                     _avail_s   = (1.0 - _elap_entry) * pos.window_seconds
                     _max_hold  = _avail_s * 0.60
                     _hold_time = now - pos.open_ts
-                    if _hold_time > _max_hold and current_price < 0.92:
+                    if _hold_time > _max_hold:
                         self._exit_in_progress.add(token_id)
                         logger.info(
                             "BOND_PROGRESS_EXIT %s/%s | held=%.0fs max=%.0fs "
@@ -608,6 +635,7 @@ class KlausBot:
                             finally:
                                 self._exit_in_progress.discard(token_id)
                                 self._sl_below_count.pop(token_id, None)
+                                self._stall_checked.discard(token_id)
                             continue
                     else:
                         if self._sl_below_count.pop(token_id, 0) > 0:
@@ -2556,6 +2584,7 @@ class KlausBot:
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
+                self._stall_checked.discard(token_id)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -2680,6 +2709,7 @@ class KlausBot:
             self._dir_rev_count.pop(token_id, None)
             self._entry_snaps.pop(token_id, None)
             self._sl_below_count.pop(token_id, None)
+            self._stall_checked.discard(token_id)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -2808,6 +2838,7 @@ class KlausBot:
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
+                self._stall_checked.discard(token_id)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3075,6 +3106,7 @@ class KlausBot:
         self._dir_rev_count.pop(token_id, None)
         self._entry_snaps.pop(token_id, None)
         self._sl_below_count.pop(token_id, None)
+        self._stall_checked.discard(token_id)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
