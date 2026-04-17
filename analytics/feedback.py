@@ -139,6 +139,13 @@ class TradeRecord:
     # Signal 5: 5-second Binance velocity at entry (data collection only)
     velocity_5s_pct: float = 0.0   # % Binance price change in last 5s (positive=up, negative=down)
     move_age_s: float = 999.0      # seconds since last >0.02% Binance tick (999=no recent move)
+    # Post-entry path classification (SMOOTH_RUNNER / EARLY_CHOP / DEAD_DRIFT)
+    # Diagnostic label only — not used by any entry/exit rule.
+    path_class: str = ""
+    path_confidence: int = 0       # 0–100
+    path_reason: str = ""
+    entry_snap_30s_pct: float = 0.0   # token return vs entry at T+30s (0 if not captured)
+    entry_snap_60s_pct: float = 0.0   # token return vs entry at T+60s (0 if not captured)
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +319,11 @@ class FeedbackEngine:
         binance_reversal_count_at_exit: int = 0,
         velocity_5s_pct: float = 0.0,
         move_age_s: float = 999.0,
+        path_class: str = "",
+        path_confidence: int = 0,
+        path_reason: str = "",
+        entry_snap_30s_pct: float = 0.0,
+        entry_snap_60s_pct: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -457,6 +469,11 @@ class FeedbackEngine:
             binance_reversal_count_at_exit=binance_reversal_count_at_exit,
             velocity_5s_pct=round(velocity_5s_pct, 4),
             move_age_s=round(move_age_s, 1),
+            path_class=path_class,
+            path_confidence=path_confidence,
+            path_reason=path_reason,
+            entry_snap_30s_pct=round(entry_snap_30s_pct, 2),
+            entry_snap_60s_pct=round(entry_snap_60s_pct, 2),
         )
 
         self._recent.append(rec)

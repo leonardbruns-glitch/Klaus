@@ -193,6 +193,10 @@ class KlausBot:
         # Event-driven spike dedup: tracks last spike entry attempt per asset.
         # Separate from the 5s sweep — prevents double-entry when both paths fire.
         self._last_spike_ts: Dict[str, float] = {}
+        # Post-entry price snapshots for path classification.
+        # token_id → {30: price_at_T30s, 60: price_at_T60s}
+        # Populated in _check_open_positions; consumed and cleared at close.
+        self._entry_snaps: Dict[str, Dict[int, float]] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -445,6 +449,16 @@ class KlausBot:
                     pos.tp, pos.sl, int(held),
                     f" | window={remaining_sec:.0f}s" if remaining_sec > 0 else "",
                 )
+
+            # ── Post-entry path snapshots (T+30s, T+60s) ─────────────────────
+            # Captured once per threshold — used by path classifier at close.
+            # Diagnostic only: no entry/exit logic reads these.
+            _held_for_snap = now - pos.open_ts
+            _snaps = self._entry_snaps.setdefault(token_id, {})
+            if 30 not in _snaps and _held_for_snap >= 30:
+                _snaps[30] = current_price
+            if 60 not in _snaps and _held_for_snap >= 60:
+                _snaps[60] = current_price
 
             # ── BOND: time-based exit (bypasses normal TP/SL logic) ──────────
             if pos.is_bond and pos.window_end_ts > 0:
@@ -3008,6 +3022,27 @@ class KlausBot:
                 )
 
             token_meta = self.feed.tokens.get(token_id)
+            # ── Path classification ───────────────────────────────────────────
+            _snaps = self._entry_snaps.pop(token_id, {})
+            _ep = pos.entry_price
+            _s30 = _snaps.get(30, 0.0)
+            _s60 = _snaps.get(60, 0.0)
+            _r30 = (_s30 - _ep) / _ep * 100 if _ep > 0 and _s30 > 0 else None
+            _r60 = (_s60 - _ep) / _ep * 100 if _ep > 0 and _s60 > 0 else None
+            _max_adv = ((_ep - _lowest_price) / _ep * 100) if _ep > 0 and _lowest_price > 0 else 0.0
+            _hold_s = time.time() - meta.get("ts_open", pos.open_ts)
+            _path_class, _path_conf, _path_reason = _classify_path(
+                r30=_r30, r60=_r60, max_adv_pct=_max_adv, hold_s=_hold_s,
+                exit_reason=reason, exit_price=analytics_exit_price, entry_price=_ep,
+            )
+            logger.info(
+                "PATH_CLASS %s/%s [%s] | conf=%d | %s | r30=%s r60=%s max_adv=%.1f%%",
+                pos.asset, pos.direction.name, _path_class, _path_conf, _path_reason,
+                f"{_r30:+.1f}%" if _r30 is not None else "—",
+                f"{_r60:+.1f}%" if _r60 is not None else "—",
+                _max_adv,
+            )
+
             try:
                 self.analytics.record_trade(
                     token_id=token_id,
@@ -3047,6 +3082,11 @@ class KlausBot:
                     binance_reversal_count_at_exit=pos.binance_reversal_count,
                     velocity_5s_pct=meta.get("velocity_5s_pct", 0.0),
                     move_age_s=meta.get("move_age_s", 999.0),
+                    path_class=_path_class,
+                    path_confidence=_path_conf,
+                    path_reason=_path_reason,
+                    entry_snap_30s_pct=_r30 if _r30 is not None else 0.0,
+                    entry_snap_60s_pct=_r60 if _r60 is not None else 0.0,
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
@@ -3054,6 +3094,7 @@ class KlausBot:
         self._open_meta.pop(token_id, None)
         self._pos_log_ts.pop(token_id, None)
         self._dir_rev_count.pop(token_id, None)
+        self._entry_snaps.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
@@ -3891,6 +3932,123 @@ class KlausBot:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+def _classify_path(
+    r30: Optional[float],
+    r60: Optional[float],
+    max_adv_pct: float,
+    hold_s: float,
+    exit_reason: str,
+    exit_price: float,
+    entry_price: float,
+) -> tuple:
+    """
+    Classify post-entry price path into SMOOTH_RUNNER / EARLY_CHOP / DEAD_DRIFT.
+
+    Diagnostic label only — no entry/exit logic uses this output.
+
+    Returns (path_class: str, confidence: int 0-100, reason: str).
+    """
+    ep = entry_price
+    xp = exit_price
+    exit_pct = (xp - ep) / ep * 100 if ep > 0 else 0.0
+    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2")
+    _sl_exit = "SL" in exit_reason or "STOP" in exit_reason or "PRICE_SL" in exit_reason
+
+    # ── SMOOTH_RUNNER ────────────────────────────────────────────────────────
+    # Immediate follow-through, no significant adverse excursion, TP likely.
+    smooth_score = 0
+    smooth_reasons = []
+
+    if r30 is not None and r30 >= 10:
+        smooth_score += 35
+        smooth_reasons.append(f"r30={r30:+.1f}%≥+10%")
+    elif r30 is not None and r30 >= 5:
+        smooth_score += 15
+        smooth_reasons.append(f"r30={r30:+.1f}%")
+
+    if max_adv_pct < 10:
+        smooth_score += 20
+        smooth_reasons.append(f"max_adv={max_adv_pct:.1f}%<10%")
+
+    if _tp_exit and exit_pct >= 15:
+        smooth_score += 30
+        smooth_reasons.append(f"TP exit +{exit_pct:.1f}%")
+
+    if r60 is not None and r60 >= 15:
+        smooth_score += 15
+        smooth_reasons.append(f"r60={r60:+.1f}%≥+15%")
+
+    # ── EARLY_CHOP ───────────────────────────────────────────────────────────
+    # Significant adverse dip but recovery — OB noise / wick-driven.
+    chop_score = 0
+    chop_reasons = []
+
+    if max_adv_pct >= 15 and max_adv_pct <= 50:
+        chop_score += 35
+        chop_reasons.append(f"max_adv={max_adv_pct:.1f}% (15–50%)")
+
+    if r30 is not None and -15 <= r30 < 5:
+        chop_score += 20
+        chop_reasons.append(f"r30={r30:+.1f}% (noise range)")
+
+    if _sl_exit and exit_pct > -50:
+        # SL fired but not catastrophic — could be dirty-path exit
+        chop_score += 20
+        chop_reasons.append(f"SL but moderate exit {exit_pct:.1f}%")
+    elif _tp_exit and max_adv_pct >= 15:
+        # TP but had adverse excursion first
+        chop_score += 25
+        chop_reasons.append(f"TP after {max_adv_pct:.1f}% dip")
+
+    if r60 is not None and r30 is not None and r60 > r30 and r30 < 0:
+        chop_score += 20
+        chop_reasons.append(f"recovery r30={r30:+.1f}%→r60={r60:+.1f}%")
+
+    # ── DEAD_DRIFT ───────────────────────────────────────────────────────────
+    # No sustained directional movement; flat path with micro-reversals.
+    drift_score = 0
+    drift_reasons = []
+
+    if r30 is not None and -10 <= r30 <= 8:
+        drift_score += 30
+        drift_reasons.append(f"r30={r30:+.1f}% (flat)")
+
+    if r60 is not None and -10 <= r60 <= 8:
+        drift_score += 20
+        drift_reasons.append(f"r60={r60:+.1f}% (flat)")
+
+    if max_adv_pct < 15 and not _tp_exit and exit_pct < 15:
+        drift_score += 25
+        drift_reasons.append("no expansion, no TP")
+
+    if hold_s >= 60 and exit_pct < 10 and not _tp_exit:
+        drift_score += 15
+        drift_reasons.append(f"held {hold_s:.0f}s without direction")
+
+    # ── Decision ─────────────────────────────────────────────────────────────
+    if r30 is None and r60 is None:
+        # Insufficient data (trade < 30s) — use exit outcome only
+        if _tp_exit and exit_pct >= 15:
+            return "SMOOTH_RUNNER", 50, f"short hold, TP +{exit_pct:.1f}% (no snaps)"
+        elif _sl_exit:
+            return "EARLY_CHOP", 40, f"short hold, SL {exit_pct:.1f}% (no snaps)"
+        return "DEAD_DRIFT", 30, f"short hold {hold_s:.0f}s, no snaps"
+
+    scores = {
+        "SMOOTH_RUNNER": smooth_score,
+        "EARLY_CHOP": chop_score,
+        "DEAD_DRIFT": drift_score,
+    }
+    winner = max(scores, key=scores.__getitem__)
+    conf = min(100, scores[winner])
+    if winner == "SMOOTH_RUNNER":
+        return winner, conf, "; ".join(smooth_reasons) or "smooth"
+    elif winner == "EARLY_CHOP":
+        return winner, conf, "; ".join(chop_reasons) or "chop"
+    else:
+        return winner, conf, "; ".join(drift_reasons) or "drift"
+
 
 async def _main() -> None:
     bot = KlausBot()
