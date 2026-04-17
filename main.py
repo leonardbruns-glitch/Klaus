@@ -1151,47 +1151,21 @@ class KlausBot:
                 else ("COLD" if _vel_cold else "CONT/EXH")
             )
 
-            # ── Delta band gates ──────────────────────────────────────────────
-            # Three zones with different quality/permission profiles.
-            # CORE  (0.08–0.13): highest quality, normal gates apply.
-            # EARLY (<0.08):     weak signal — require INIT velocity + strong edge.
-            # STRETCH (>0.13):   stretched move — require INIT velocity + strong edge.
+            # ── Delta + Edge hard filters ─────────────────────────────────────
             _abs_delta = abs(_bond_delta)
-            _DELTA_CORE_LO  = 0.080
-            _DELTA_CORE_HI  = 0.130
-            _STRONG_EDGE    = 0.050  # EARLY/STRETCH require edge > this
-
-            if _abs_delta < _DELTA_CORE_LO:
-                # EARLY zone: weak signal, needs strong conviction on both axes
-                if _edge < _STRONG_EDGE or not _vel_init:
-                    logger.info(
-                        "BOND SKIP %s/%s: EARLY delta=%.3f%% requires edge>%.2f+INIT "
-                        "(edge=%.4f vel=%s[%s])",
-                        token.asset, token.side, _abs_delta, _STRONG_EDGE,
-                        _edge, f"{_vel_now:+.4f}%" if not _vel_cold else "—", _vel_label,
-                    )
-                    continue
-            elif _abs_delta > _DELTA_CORE_HI:
-                # STRETCHED zone: late/overextended move — wick-prone without INIT
-                if not _vel_init or _edge < _STRONG_EDGE:
-                    logger.info(
-                        "BOND SKIP %s/%s: STRETCH delta=%.3f%% requires INIT+edge>%.2f "
-                        "(edge=%.4f vel=%s[%s])",
-                        token.asset, token.side, _abs_delta, _STRONG_EDGE,
-                        _edge, f"{_vel_now:+.4f}%" if not _vel_cold else "—", _vel_label,
-                    )
-                    continue
-            # CORE zone: fall through to standard gates below
-
-            # Edge gate: base >0.01; raised to >0.02 when velocity is cold.
-            _edge_min = 0.02 if _vel_cold else 0.01
-            if _edge <= _edge_min:
+            if _abs_delta < 0.10 or _abs_delta > 0.13:
                 logger.info(
-                    "BOND SKIP %s/%s: insufficient edge=%.4f (min=%.2f vel=%s[%s] fv=%.4f ask=%.4f)",
-                    token.asset, token.side, _edge, _edge_min,
-                    f"{_vel_now:+.4f}%" if not _vel_cold else "—", _vel_label, _fair_value, ask,
+                    "BOND SKIP %s/%s: delta=%.3f%% outside [0.10–0.13]",
+                    token.asset, token.side, _abs_delta,
                 )
                 continue
+            if _edge < 0.04 or _edge > 0.08:
+                logger.info(
+                    "BOND SKIP %s/%s: edge=%.4f outside [0.04–0.08] (fv=%.4f ask=%.4f)",
+                    token.asset, token.side, _edge, _fair_value, ask,
+                )
+                continue
+            _dzone = "CORE"
 
             # Velocity against gate: block if momentum is actively opposing direction.
             _vel_against = (
@@ -1207,9 +1181,6 @@ class KlausBot:
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
-            _dzone = "CORE" if _DELTA_CORE_LO <= _abs_delta <= _DELTA_CORE_HI else (
-                "EARLY" if _abs_delta < _DELTA_CORE_LO else "STRETCH"
-            )
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
@@ -1255,16 +1226,6 @@ class KlausBot:
             if not decision.approved:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
-
-            # STRETCH zone: delta > 0.13% = exhaustion trade — reduce size by half.
-            # Overextended moves are wick-prone; halved stake caps dollar exposure
-            # while still allowing the trade to run.
-            if _dzone == "STRETCH":
-                decision.stake = round(decision.stake * 0.5, 2)
-                logger.info(
-                    "BOND STRETCH %s/%s: halved stake → $%.2f (delta=%.3f%% > 0.13%%)",
-                    token.asset, token.side, decision.stake, _abs_delta,
-                )
 
             logger.info(
                 "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | odir=%s δ=%+.3f%% | %s",
