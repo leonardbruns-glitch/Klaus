@@ -1068,20 +1068,23 @@ class KlausBot:
                 bond_exit_sec=exit_sec,
                 bond_outcome_direction=_token_dir,
             )
-            # Edge gate: require edge > 0.01 (model says token has meaningful value).
-            # edge=0.000 entries (near-zero edge) were passing float comparison — tightened.
-            if _edge <= 0.01:
-                logger.info(
-                    "BOND SKIP %s/%s: insufficient edge=%.4f (fv=%.4f ask=%.4f)",
-                    token.asset, token.side, _edge, _fair_value, ask,
-                )
-                continue
-
             # Velocity gate: block if spot is already moving against the trade direction.
             # Positive vel for down-direction token = spot reversing = entry is chasing.
             # Uses outcome_direction (not token.side) — BOND YES tokens can be down-direction.
             # Threshold 0.010%: data (n=68) shows losses at 0.011-0.022%, wins at 0.005-0.009%.
-            _vel_now, _ = self.feed.get_velocity_5s(token.asset)
+            _vel_now, _vel_age = self.feed.get_velocity_5s(token.asset)
+            _vel_cold = (_vel_age >= 999.0)
+
+            # Edge gate: base >0.01; raised to >0.02 when velocity is cold.
+            # Cold entry = no Binance momentum data = blind entry; higher edge compensates.
+            _edge_min = 0.02 if _vel_cold else 0.01
+            if _edge <= _edge_min:
+                logger.info(
+                    "BOND SKIP %s/%s: insufficient edge=%.4f (min=%.2f vel=%s fv=%.4f ask=%.4f)",
+                    token.asset, token.side, _edge, _edge_min,
+                    "cold" if _vel_cold else f"{_vel_now:+.4f}%", _fair_value, ask,
+                )
+                continue
             _VEL_BOND_THRESHOLD = 0.010
             _vel_against = (
                 (_token_dir == "down" and _vel_now >  _VEL_BOND_THRESHOLD) or
