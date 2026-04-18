@@ -1245,15 +1245,27 @@ class KlausBot:
                 )
                 _dzone = "IMPULSE"
             elif _bond_zone == "CORE":
-                _skip = (
-                    (_abs_delta < 0.09 or _abs_delta > 0.13) or
-                    (_edge < 0.04 or _edge > 0.08) or
-                    (_has_hist and (_delta_accel < 0 or _edge_drift < _EDGE_DRIFT_CORE))
-                )
-                _skip_reason = (
-                    f"CORE: delta={_abs_delta:.3f}% edge={_edge:.4f} "
-                    f"accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f} hist={_has_hist}"
-                )
+                # Hard anchor: edge < 0.03 is non-compensable (deeply overpriced token).
+                if _edge < 0.03:
+                    _skip = True
+                    _skip_reason = f"CORE: edge={_edge:.4f} < 0.03 (hard floor)"
+                else:
+                    _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
+                    _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
+                    _edge_score = math.log(1.0 + _edge / 0.03)
+                    _core_score = (
+                        _edge_score                             * 0.40 +
+                        min(1.0, _abs_delta / 0.13)            * 0.25 +
+                        _drift_flag                            * 0.20 +
+                        _accel_flag                            * 0.15
+                    )
+                    _skip = _core_score < 0.55
+                    _skip_reason = (
+                        f"CORE score={_core_score:.3f} (edge_s={_edge_score:.3f}×0.40 "
+                        f"delta_s={min(1.0,_abs_delta/0.13):.2f}×0.25 "
+                        f"drift={_drift_flag:.0f}×0.20 accel={_accel_flag:.0f}×0.15) | "
+                        f"edge={_edge:.4f} delta={_abs_delta:.3f}% drift={_edge_drift:+.4f} accel={_delta_accel:+.4f}%"
+                    )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
                 _skip = (
