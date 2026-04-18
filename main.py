@@ -1444,10 +1444,10 @@ class KlausBot:
                 )
                 _dzone = "IMPULSE"
             elif _bond_zone == "CORE":
-                # Hard anchor: edge < 0.03 is non-compensable (deeply overpriced token).
-                if _edge < 0.03:
+                # Hard anchor: edge < 0.045 is non-compensable (deeply overpriced token).
+                if _edge < 0.045:
                     _skip = True
-                    _skip_reason = f"CORE: edge={_edge:.4f} < 0.03 (hard floor)"
+                    _skip_reason = f"CORE: edge={_edge:.4f} < 0.045 (hard floor)"
                 else:
                     _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
                     _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
@@ -1467,13 +1467,14 @@ class KlausBot:
                     )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
+                _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.015
                 _skip = (
-                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.03) or
+                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.055 or not _early_vel_ok) or
                     (_has_hist and not (_delta_accel > 0 or _edge_drift > 0))
                 )
                 _skip_reason = (
                     f"EARLY: delta={_abs_delta:.3f}% edge={_edge:.4f} "
-                    f"accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
+                    f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
                 )
                 _dzone = "EARLY"
             else:  # LATE (45–90s)
@@ -1486,6 +1487,11 @@ class KlausBot:
                     f"ask={ask:.4f} drift={_edge_drift:+.4f}"
                 )
                 _dzone = "LATE"
+
+            # Global edge floor: block any trade below 0.045 regardless of score
+            if _edge < 0.045:
+                _skip = True
+                _skip_reason = f"edge={_edge:.4f} < 0.045 (global floor)"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
@@ -1539,13 +1545,20 @@ class KlausBot:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
-            # EXTREME EDGE: reduce stake 35% — high-edge trades are volatile,
-            # tighter sizing keeps equity curve stable while still trading the edge.
+            # EXTREME EDGE: reduce stake 35% — high-edge trades are volatile.
+            # WEAK EDGE: reduce stake 50% — lower conviction, limit exposure.
             if _edge >= 0.10:
                 _orig_stake = decision.stake
                 decision.stake = max(1.0, round(_orig_stake * 0.65, 2))
                 logger.info(
                     "BOND EXTREME EDGE stake reduction %s: $%.2f → $%.2f (edge=%.4f)",
+                    token.asset, _orig_stake, decision.stake, _edge,
+                )
+            elif _edge < 0.05:
+                _orig_stake = decision.stake
+                decision.stake = max(1.0, round(_orig_stake * 0.50, 2))
+                logger.info(
+                    "BOND WEAK EDGE stake reduction %s: $%.2f → $%.2f (edge=%.4f < 0.05)",
                     token.asset, _orig_stake, decision.stake, _edge,
                 )
 
