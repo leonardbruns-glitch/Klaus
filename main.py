@@ -205,6 +205,8 @@ class KlausBot:
         self._stall_checked: set = set()
         # Per-token rolling snapshot: deque of (ts, bond_delta, edge) for acceleration/drift.
         self._bond_snapshots: Dict[str, deque] = {}
+        # Peak bond_move reached per position (for trailing stop on winners).
+        self._peak_bond_move: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -499,6 +501,17 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
+                # ── Entry regime classification for this position ─────────────
+                _entry_meta_b  = self._open_meta.get(token_id, {})
+                _entry_sig_b   = _entry_meta_b.get("signal")
+                _entry_edge_b  = getattr(_entry_sig_b, "edge", 0.0) if _entry_sig_b else 0.0
+                _is_impulse_pos = bool(pos.bond_entry_class and pos.bond_entry_class.startswith("IMPULSE"))
+                _is_extreme_pos = _entry_edge_b >= 0.10
+                # Peak move tracker — update every scan for trailing stop
+                if bond_move > self._peak_bond_move.get(token_id, -999.0):
+                    self._peak_bond_move[token_id] = bond_move
+                _peak_move = self._peak_bond_move.get(token_id, 0.0)
+
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
                 _pos_accel = None   # delta_accel: positive = momentum building
@@ -549,9 +562,10 @@ class KlausBot:
                             )
                             if _wdelta_reversed:
                                 _held_s = now - pos.open_ts
-                                if _held_s < 5.0:
+                                if _held_s < 5.0 and not _is_impulse_pos:
                                     # ECW: Entry Confirmation Window — microstructure noise
                                     # in first 5s is indistinguishable from real reversal.
+                                    # IMPULSE skips ECW: velocity thesis must hold from tick 1.
                                     pass
                                 else:
                                     self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
@@ -623,6 +637,10 @@ class KlausBot:
                     _delta_factor  = 1.15 if _entry_delta_s >= 0.11 else (0.85 if _entry_delta_s < 0.09 else 1.0)
                     _base_delay    = 30.0 + _edge_bonus
                     _stall_delay   = min(75.0, _base_delay * _delta_factor) if _is_patient else 30.0
+                    if _is_extreme_pos:
+                        _stall_delay = 20.0  # EXTREME: no patience, quick stall detection
+                    elif _is_impulse_pos:
+                        _stall_delay = 15.0  # IMPULSE: stall faster (velocity thesis or nothing)
                     if _hold_s >= _stall_delay:
                         self._stall_checked.add(token_id)
                         _ext_stall = self._last_ext_signals.get(pos.asset)
@@ -657,6 +675,10 @@ class KlausBot:
                 if _elap_entry is not None and token_id not in self._exit_in_progress:
                     _avail_s   = (1.0 - _elap_entry) * pos.window_seconds
                     _max_hold  = _avail_s * 0.60
+                    if _is_extreme_pos:
+                        _max_hold = min(_max_hold, 40.0)
+                    elif _is_impulse_pos:
+                        _max_hold = min(_max_hold, 30.0)
                     _hold_time = now - pos.open_ts
                     if _hold_time > _max_hold:
                         # Only exit if decay detected: both edge and momentum fading.
@@ -716,12 +738,121 @@ class KlausBot:
                             )
 
 
+                # ── Hard stop-loss: -25% of entry price, no conditions ────────
+                # Prevents catastrophic losses when token collapses (e.g. news event
+                # flips direction mid-window). No confirmation delay — immediate exit.
+                if (bond_move <= -0.25
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.warning(
+                        "BOND_HARD_SL %s/%s | move=%+.1f%% entry=%.4f curr=%.4f | held=%.0fs rem=%.0fs",
+                        pos.asset, pos.direction.name,
+                        bond_move * 100, pos.entry_price, current_price,
+                        _held_s, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_HARD_SL")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                        self._sl_below_count.pop(token_id, None)
+                        self._stall_checked.discard(token_id)
+                        self._peak_bond_move.pop(token_id, None)
+                    continue
+
+                # ── IMPULSE / EXTREME fast-fail and velocity-decay exits ───────
+                if token_id not in self._exit_in_progress:
+                    _vel_now_ff, _vel_age_ff = self.feed.get_velocity_5s(pos.asset)
+                    _dir_sign_ff = 1.0 if pos.bond_outcome_direction == "up" else -1.0
+                    _vel_aligned_ff = (_vel_now_ff * _dir_sign_ff) if _vel_age_ff < 999.0 else 0.0
+
+                    # IMPULSE: velocity dropped below threshold in first 10s → thesis failed
+                    if (_is_impulse_pos
+                            and _held_s <= 10.0
+                            and _vel_age_ff < 999.0
+                            and abs(_vel_aligned_ff) < 0.01):
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_IMPULSE_VDECAY %s/%s | vel=%.4f%% < 0.01%% at %.0fs — impulse thesis gone",
+                            pos.asset, pos.direction.name, _vel_now_ff, _held_s,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_IMPULSE_FAIL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
+                    # IMPULSE: no profit after 10s → cut immediately
+                    if (_is_impulse_pos
+                            and _held_s >= 10.0
+                            and bond_move <= 0.0):
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_IMPULSE_FAIL %s/%s | move=%+.1f%% at %.0fs — no progress",
+                            pos.asset, pos.direction.name, bond_move * 100, _held_s,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_IMPULSE_FAIL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
+                    # EXTREME EDGE: no profit after 20s → cut
+                    if (_is_extreme_pos
+                            and _held_s >= 20.0
+                            and bond_move <= 0.0):
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_EXTREME_FAIL %s/%s | edge=%.4f move=%+.1f%% at %.0fs — no profit",
+                            pos.asset, pos.direction.name, _entry_edge_b, bond_move * 100, _held_s,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_EXTREME_FAIL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
+                    # Global early loss: any entry type, pnl <= 0 after 20s
+                    if (not _is_impulse_pos        # IMPULSE handled above
+                            and _held_s >= 20.0
+                            and bond_move <= 0.0):
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_EARLY_LOSS %s/%s | move=%+.1f%% at %.0fs — cut loser",
+                            pos.asset, pos.direction.name, bond_move * 100, _held_s,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_EARLY_LOSS")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
+                # ── Winner trailing stop (protect expanded profits) ────────────
+                # Activates once peak move ≥ 1.5%. Exits if giveback > 50%.
+                # Lets +2% become +4% instead of being locked in at +0.6%.
+                if (_peak_move >= 0.015
+                        and bond_move < _peak_move * 0.50
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_TRAIL_SL %s/%s | peak=%+.1f%% curr=%+.1f%% giveback=%.0f%% > 50%%",
+                        pos.asset, pos.direction.name,
+                        _peak_move * 100, bond_move * 100,
+                        (1.0 - bond_move / _peak_move) * 100 if _peak_move > 0 else 0,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_TRAIL_SL")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                        self._peak_bond_move.pop(token_id, None)
+                    continue
+
                 # ── BOND exhaustion exit (dynamic continuation vs decay) ─────
                 # Fires when expected remaining upside < risk of giving back gains.
-                # Requires 30s of position history and ≥2% profit before evaluating.
+                # Requires 30s of position history, ≥5% profit, and ≥20s held.
                 # DIR_REVERSAL and STALL handle their own regimes — this only fires
                 # when the trend is still nominally valid but momentum is fading.
-                if (bond_move >= 0.02
+                if (bond_move >= 0.05
+                        and _held_s >= 20.0
                         and _pos_drift is not None
                         and token_id not in self._exit_in_progress
                         and self._dir_rev_count.get(token_id, 0) < 2):
@@ -1428,6 +1559,16 @@ class KlausBot:
             if not decision.approved:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
+
+            # EXTREME EDGE: reduce stake 35% — high-edge trades are volatile,
+            # tighter sizing keeps equity curve stable while still trading the edge.
+            if _edge >= 0.10:
+                _orig_stake = decision.stake
+                decision.stake = max(1.0, round(_orig_stake * 0.65, 2))
+                logger.info(
+                    "BOND EXTREME EDGE stake reduction %s: $%.2f → $%.2f (edge=%.4f)",
+                    token.asset, _orig_stake, decision.stake, _edge,
+                )
 
             logger.info(
                 "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | odir=%s δ=%+.3f%% | %s",
@@ -2673,7 +2814,7 @@ class KlausBot:
         # sell-resting spin loop (Guard 1 retry every 4.5s → window closes → ep=xp).
         # Profit exits (PROFIT_*, MOON_BAG*, RATCHET*, BOND_TP*) hold their price
         # and retry with a fresh OB price next scan — Guard 1 handles that cleanly.
-        _PROFIT_REASONS = ("PROFIT", "MOON_BAG", "RATCHET", "BOND_TP", "BOND_EXHAUSTION")
+        _PROFIT_REASONS = ("PROFIT", "MOON_BAG", "RATCHET", "BOND_TP", "BOND_EXHAUSTION", "BOND_TRAIL_SL")
         _allow_stepdown = not any(r in reason for r in _PROFIT_REASONS)
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
@@ -2736,6 +2877,7 @@ class KlausBot:
                 self._entry_snaps.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
+                self._peak_bond_move.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -2902,6 +3044,7 @@ class KlausBot:
             self._entry_snaps.pop(token_id, None)
             self._sl_below_count.pop(token_id, None)
             self._stall_checked.discard(token_id)
+            self._peak_bond_move.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -3032,6 +3175,7 @@ class KlausBot:
                 self._entry_snaps.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
+                self._peak_bond_move.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3301,6 +3445,7 @@ class KlausBot:
         self._entry_snaps.pop(token_id, None)
         self._sl_below_count.pop(token_id, None)
         self._stall_checked.discard(token_id)
+        self._peak_bond_move.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
@@ -4158,7 +4303,7 @@ def _classify_path(
     ep = entry_price
     xp = exit_price
     exit_pct = (xp - ep) / ep * 100 if ep > 0 else 0.0
-    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT")
+    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT", "BOND_TRAIL_SL")
     _sl_exit = "SL" in exit_reason or "STOP" in exit_reason or "PRICE_SL" in exit_reason
 
     # ── SMOOTH_RUNNER ────────────────────────────────────────────────────────
