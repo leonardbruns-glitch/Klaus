@@ -587,7 +587,9 @@ class KlausBot:
                     # Delta gates eligibility only — does NOT modulate time directly.
                     _is_patient    = _entry_edge_s >= 0.05 and _entry_delta_s >= 0.08
                     _edge_bonus    = max(0.0, (_entry_edge_s - 0.04) * 1000) if _is_patient else 0.0
-                    _stall_delay   = min(75.0, 30.0 + _edge_bonus)
+                    _delta_factor  = 1.15 if _entry_delta_s >= 0.11 else (0.85 if _entry_delta_s < 0.09 else 1.0)
+                    _base_delay    = 30.0 + _edge_bonus
+                    _stall_delay   = min(75.0, _base_delay * _delta_factor) if _is_patient else 30.0
                     if _hold_s >= _stall_delay:
                         self._stall_checked.add(token_id)
                         _ext_stall = self._last_ext_signals.get(pos.asset)
