@@ -1223,9 +1223,9 @@ class KlausBot:
 
             # ── Delta + Edge hard filters ─────────────────────────────────────
             _abs_delta = abs(_bond_delta)
-            if _abs_delta < 0.065 or _abs_delta > 0.13:
+            if _abs_delta < 0.09 or _abs_delta > 0.13:
                 logger.info(
-                    "BOND SKIP %s/%s: delta=%.3f%% outside [0.065–0.13]",
+                    "BOND SKIP %s/%s: delta=%.3f%% outside [0.09–0.13]",
                     token.asset, token.side, _abs_delta,
                 )
                 continue
@@ -1236,6 +1236,15 @@ class KlausBot:
                 )
                 continue
             _dzone = "CORE"
+
+            # Velocity hard filter: require active momentum ≥ 0.010% in trade direction.
+            # Cold or weak velocity = stale signal, high orphan/SL risk.
+            if _vel_cold or abs(_vel_now) < _VEL_BOND_THRESHOLD:
+                logger.info(
+                    "BOND SKIP %s/%s: vel=%+.4f%%[%s] below min |%.3f%%| or cold",
+                    token.asset, token.side, _vel_now, _vel_label, _VEL_BOND_THRESHOLD,
+                )
+                continue
 
             # Velocity against gate: block if momentum is actively opposing direction.
             _vel_against = (
