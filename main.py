@@ -28,7 +28,7 @@ from typing import Dict, Optional, Set
 from config import CONFIG
 from data.feeds import PolymarketFeed
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
-from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED
+from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED, MOM_ENABLED
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
@@ -1752,7 +1752,7 @@ class KlausBot:
         )
 
     async def _scan_for_signals(self) -> None:
-        if not SNIPER_ENABLED:
+        if not SNIPER_ENABLED and not MOM_ENABLED:
             return
 
         # Periodic updown token count — fires every ~10s to confirm discovery health
@@ -2109,10 +2109,9 @@ class KlausBot:
                 continue
             else:
                 # Non-updown (price-target markets): use momentum scorer
-                # MOM_ENABLED=False: disabled 2026-04-15 — high-price YES entries
-                # (ep=0.83, ep=0.72) bypassing price caps via NO→YES redirect.
-                # Investigate and re-enable once entry cap bug is fixed.
-                continue
+                # Re-enabled 2026-04-18 at 0.5× stake for data collection.
+                if not MOM_ENABLED:
+                    continue
 
                 if len(bars_5m) < 12:
                     continue  # not enough bar history yet
@@ -2206,6 +2205,15 @@ class KlausBot:
                 logger.info("  └─ REJECTED: %s", decision.reason)
                 continue
 
+            # MOMENTUM: trade at 0.5× size while the strategy is re-validating
+            if signal_source == "MOMENTUM":
+                _orig_stake = decision.stake
+                decision.stake = max(1.0, round(_orig_stake * 0.50, 2))
+                logger.info(
+                    "  └─ MOMENTUM stake reduction %s: $%.2f → $%.2f (0.5×)",
+                    token.asset, _orig_stake, decision.stake,
+                )
+
             cascade_tag = " [CASCADE]" if token.asset in discounted_assets else ""
             logger.info(
                 "  └─ SIGNAL%s %s | %s %s | entry=%.4f conf=%.2f score=%.2f | %s",
@@ -2288,6 +2296,12 @@ class KlausBot:
                         token.asset, token.side, llm_conf, llm_reason,
                     )
 
+                if not SNIPER_ENABLED:
+                    logger.info(
+                        "  └─ SNIPER GATED (SNIPER_ENABLED=False) %s/%s — skipping entry",
+                        token.asset, token.side,
+                    )
+                    continue
                 logger.info(
                     "  └─ SNIPER ENTER %s/%s [p=%d conf=%.2f] | entry=%.4f edge=%.3f | %s",
                     token.asset, token.side,
