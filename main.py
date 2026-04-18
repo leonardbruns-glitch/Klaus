@@ -1239,43 +1239,61 @@ class KlausBot:
             _edge_drift  = (_edge      - _ref30[2]) if _ref30 else 0.0
             _has_hist    = _ref30 is not None
 
-            # ── Zone-aware delta / edge filters (velocity = diagnostic only) ──
+            # ── Regime classification + entry filters ────────────────────────
             _abs_delta = abs(_bond_delta)
-            _EDGE_DRIFT_CORE = 0.002   # edge must be rising or flat in CORE zone
+            _EDGE_DRIFT_CORE = 0.002
 
-            if _bond_zone == "CORE":
+            # IMPULSE regime: velocity spike overrides accel/drift requirements.
+            # Fires only in early window when the velocity IS the signal.
+            _is_impulse = (
+                not _vel_cold
+                and abs(_vel_now) > 0.04
+                and _elapsed_pct < 0.60
+                and _edge > 0.035
+            )
+
+            if _is_impulse:
+                _skip = _abs_delta < 0.05
+                _skip_reason = (
+                    f"IMPULSE needs delta≥0.05 | "
+                    f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% edge={_edge:.4f} elap={_elapsed_pct:.2f}"
+                )
+                _dzone = "IMPULSE"
+            elif _bond_zone == "CORE":
                 _skip = (
                     (_abs_delta < 0.09 or _abs_delta > 0.13) or
                     (_edge < 0.04 or _edge > 0.08) or
                     (_has_hist and (_delta_accel < 0 or _edge_drift < _EDGE_DRIFT_CORE))
                 )
                 _skip_reason = (
-                    f"delta={_abs_delta:.3f}% edge={_edge:.4f} "
+                    f"CORE: delta={_abs_delta:.3f}% edge={_edge:.4f} "
                     f"accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f} hist={_has_hist}"
                 )
+                _dzone = "CORE"
             elif _bond_zone == "EARLY":
                 _skip = (
                     (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.03) or
                     (_has_hist and not (_delta_accel > 0 or _edge_drift > 0))
                 )
                 _skip_reason = (
-                    f"EARLY needs delta≥0.12 edge≥0.03 (accel>0 OR drift>0) | "
-                    f"delta={_abs_delta:.3f}% edge={_edge:.4f} accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
+                    f"EARLY: delta={_abs_delta:.3f}% edge={_edge:.4f} "
+                    f"accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
                 )
+                _dzone = "EARLY"
             else:  # LATE (45–90s)
                 _skip = (
                     (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or ask > 0.75) or
                     (_has_hist and _edge_drift < -0.005)
                 )
                 _skip_reason = (
-                    f"LATE needs delta≥0.12 edge≥0.06 ask≤0.75 drift≥-0.005 | "
-                    f"delta={_abs_delta:.3f}% edge={_edge:.4f} ask={ask:.4f} drift={_edge_drift:+.4f}"
+                    f"LATE: delta={_abs_delta:.3f}% edge={_edge:.4f} "
+                    f"ask={ask:.4f} drift={_edge_drift:+.4f}"
                 )
+                _dzone = "LATE"
 
             if _skip:
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _bond_zone, _skip_reason)
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
                 continue
-            _dzone = _bond_zone
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
