@@ -2838,11 +2838,52 @@ class KlausBot:
                         pos.asset, pos.direction.name, _best_bid_chk,
                     )
                 else:
-                    logger.warning(
-                        "EXTERNALLY_SOLD %s/%s — no fill price in error or CLOB history, "
-                        "using entry_price=%.4f (bankroll may drift vs Polymarket balance)",
-                        pos.asset, pos.direction.name, _raw_exit,
-                    )
+                    # Shares not confirmed sold — check CLOB balance before giving up.
+                    # If balance > 0, shares are still in wallet (thin OB stalled the exit).
+                    # Force-sell them now before closing position tracking.
+                    _residual_bal = await asyncio.to_thread(
+                        self.orders.fetch_token_balance, token_id
+                    ) if not CONFIG.dry_run else None
+                    if _residual_bal and _residual_bal > 0.05:
+                        logger.warning(
+                            "EXTERNALLY_SOLD %s/%s — CLOB balance=%.4f shares still in wallet "
+                            "(thin OB stalled exit). Force-selling before close.",
+                            pos.asset, pos.direction.name, _residual_bal,
+                        )
+                        _ob_now = self.feed.get_order_book(token_id)
+                        _bid_now = _ob_now.bids[0][0] if (_ob_now and _ob_now.bids) else _best_bid_chk
+                        _rescue_fills = await self.orders.cascade_sell(
+                            token_id=token_id,
+                            total_shares=_residual_bal,
+                            current_price=_bid_now if _bid_now > 0.001 else 0.01,
+                            reason="EXT_RESCUE",
+                            neg_risk=getattr(token_meta, "neg_risk", False),
+                            tick_size=getattr(token_meta, "tick_size", "0.01"),
+                            force_exit=True,
+                        )
+                        _rescued = sum(f.total_size for f in _rescue_fills)
+                        if _rescued > 0:
+                            all_exit_fills.extend(_rescue_fills)
+                            _rescue_val = sum(f.avg_fill_price * f.total_size for f in _rescue_fills)
+                            _raw_exit = round(_rescue_val / _rescued, 6)
+                            _price_found_in_error = True
+                            logger.info(
+                                "EXT_RESCUE %s/%s: sold %.4f shares @ %.4f",
+                                pos.asset, pos.direction.name, _rescued, _raw_exit,
+                            )
+                        else:
+                            logger.warning(
+                                "EXT_RESCUE %s/%s failed — using live_price=%.4f as fallback",
+                                pos.asset, pos.direction.name, _raw_exit,
+                            )
+                    else:
+                        logger.warning(
+                            "EXTERNALLY_SOLD %s/%s — no fill price in error or CLOB history, "
+                            "CLOB balance=%.4f (sold externally or resolved). "
+                            "using live_price=%.4f (bankroll may drift vs Polymarket balance)",
+                            pos.asset, pos.direction.name,
+                            _residual_bal if _residual_bal is not None else -1.0, _raw_exit,
+                        )
             if not _is_resolved_zero:
                 _raw_exit = _raw_exit if _raw_exit > 0 else pos.entry_price
             # Weighted avg across all fills gives correct gross_pnl when stage-1
