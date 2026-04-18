@@ -1444,10 +1444,10 @@ class KlausBot:
                 )
                 _dzone = "IMPULSE"
             elif _bond_zone == "CORE":
-                # Hard anchor: edge < 0.045 is non-compensable (deeply overpriced token).
-                if _edge < 0.045:
+                # Hard anchor: edge < 0.04 is non-compensable. Above this, score filters.
+                if _edge < 0.04:
                     _skip = True
-                    _skip_reason = f"CORE: edge={_edge:.4f} < 0.045 (hard floor)"
+                    _skip_reason = f"CORE: edge={_edge:.4f} < 0.04 (hard floor)"
                 else:
                     _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
                     _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
@@ -1467,9 +1467,9 @@ class KlausBot:
                     )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
-                _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.015
+                _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.012
                 _skip = (
-                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.055 or not _early_vel_ok) or
+                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.05 or not _early_vel_ok) or
                     (_has_hist and not (_delta_accel > 0 or _edge_drift > 0))
                 )
                 _skip_reason = (
@@ -1488,10 +1488,10 @@ class KlausBot:
                 )
                 _dzone = "LATE"
 
-            # Global edge floor: block any trade below 0.045 regardless of score
-            if _edge < 0.045:
+            # Global edge floor: block any trade below 0.04 regardless of score
+            if _edge < 0.04:
                 _skip = True
-                _skip_reason = f"edge={_edge:.4f} < 0.045 (global floor)"
+                _skip_reason = f"edge={_edge:.4f} < 0.04 (global floor)"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
