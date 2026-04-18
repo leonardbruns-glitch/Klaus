@@ -570,41 +570,47 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── T+30s stall exit (one-shot) ───────────────────────────────
-                # Fires if all three conditions hold simultaneously at T+30s:
+                # ── T+Xs stall exit (one-shot, dynamic delay) ────────────────
+                # Fires if all three conditions hold simultaneously:
                 #   1. bond_move < +3%           — token hasn't moved meaningfully
-                #   2. delta_now ≤ delta_entry   — window momentum not improved since entry
-                #   3. velocity not increasing   — spot not moving toward thesis from entry spot
+                #   2. delta_now ≤ delta_entry   — window momentum not improved
+                #   3. velocity not increasing   — spot not moving toward thesis
+                # Delay scales with edge + delta: high edge / weak delta = more
+                # time allowed before calling it a stall.
                 _hold_s = now - pos.open_ts
-                if (_hold_s >= 30.0
-                        and token_id not in self._stall_checked
+                if (token_id not in self._stall_checked
                         and token_id not in self._exit_in_progress):
-                    self._stall_checked.add(token_id)
-                    _ext_stall = self._last_ext_signals.get(pos.asset)
-                    if _ext_stall and _ext_stall.spot_price:
-                        _sig_stall = self._open_meta.get(token_id, {}).get("signal")
-                        _delta_entry = getattr(_sig_stall, "delta_pct", 0.0) if _sig_stall else 0.0
-                        _is_15m_st = pos.window_seconds >= 900
-                        _wref_st = ((_ext_stall.spot_window_open_15m if _is_15m_st else _ext_stall.spot_window_open_5m) or 0.0)
-                        _delta_now_st = (_ext_stall.spot_price - _wref_st) / _wref_st * 100 if _wref_st > 0 else _delta_entry
-                        _dir_sign = 1.0 if pos.bond_outcome_direction == "up" else -1.0
-                        # delta_now ≤ delta_entry (direction-aware): momentum hasn't improved
-                        _delta_not_improving = (_delta_now_st * _dir_sign) <= (_delta_entry * _dir_sign)
-                        # velocity not increasing: spot hasn't moved toward thesis from entry spot
-                        _vel_not_increasing = (_wdelta_now * _dir_sign) <= 0.0
-                        if bond_move < 0.03 and _delta_not_improving and _vel_not_increasing:
-                            self._exit_in_progress.add(token_id)
-                            logger.info(
-                                "BOND_STALL %s/%s | T+%.0fs move=%+.1f%% "
-                                "delta_now=%+.3f%% delta_entry=%+.3f%% wdelta=%+.3f%%",
-                                pos.asset, pos.direction.name, _hold_s, bond_move * 100,
-                                _delta_now_st, _delta_entry, _wdelta_now,
-                            )
-                            try:
-                                await self._exit_position(token_id, current_price, "BOND_STALL")
-                            finally:
-                                self._exit_in_progress.discard(token_id)
-                            continue
+                    _sig_stall = self._open_meta.get(token_id, {}).get("signal")
+                    _entry_edge_s  = getattr(_sig_stall, "edge",      0.05) if _sig_stall else 0.05
+                    _entry_delta_s = abs(getattr(_sig_stall, "delta_pct", 0.09)) if _sig_stall else 0.09
+                    _edge_bonus    = max(0.0, (_entry_edge_s - 0.04) * 1000)   # +15s at 0.055, +30s at 0.07
+                    _delta_bonus   = max(0.0, (0.12 - _entry_delta_s) * 300)   # +9s at 0.09, +16s at 0.065
+                    _stall_delay   = min(75.0, 30.0 + _edge_bonus + _delta_bonus)
+                    if _hold_s >= _stall_delay:
+                        self._stall_checked.add(token_id)
+                        _ext_stall = self._last_ext_signals.get(pos.asset)
+                        if _ext_stall and _ext_stall.spot_price:
+                            _delta_entry = getattr(_sig_stall, "delta_pct", 0.0) if _sig_stall else 0.0
+                            _is_15m_st = pos.window_seconds >= 900
+                            _wref_st = ((_ext_stall.spot_window_open_15m if _is_15m_st else _ext_stall.spot_window_open_5m) or 0.0)
+                            _delta_now_st = (_ext_stall.spot_price - _wref_st) / _wref_st * 100 if _wref_st > 0 else _delta_entry
+                            _dir_sign = 1.0 if pos.bond_outcome_direction == "up" else -1.0
+                            _delta_not_improving = (_delta_now_st * _dir_sign) <= (_delta_entry * _dir_sign)
+                            _vel_not_increasing  = (_wdelta_now * _dir_sign) <= 0.0
+                            if bond_move < 0.03 and _delta_not_improving and _vel_not_increasing:
+                                self._exit_in_progress.add(token_id)
+                                logger.info(
+                                    "BOND_STALL %s/%s | T+%.0fs (delay=%.0fs edge=%.3f Δ=%.3f%%) "
+                                    "move=%+.1f%% delta_now=%+.3f%% delta_entry=%+.3f%% wdelta=%+.3f%%",
+                                    pos.asset, pos.direction.name, _hold_s, _stall_delay,
+                                    _entry_edge_s, _entry_delta_s,
+                                    bond_move * 100, _delta_now_st, _delta_entry, _wdelta_now,
+                                )
+                                try:
+                                    await self._exit_position(token_id, current_price, "BOND_STALL")
+                                finally:
+                                    self._exit_in_progress.discard(token_id)
+                                continue
 
                 # ── Progress exit: trade used >60% of available time ──────────
                 # Normalises time to entry: max_hold = (1 - elap_entry) * 0.60 * window_s
