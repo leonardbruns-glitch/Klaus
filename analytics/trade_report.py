@@ -98,13 +98,14 @@ for t in trades:
     reason = g(t, "exit_reason", "?")
     vel  = g(t, "velocity_5s_pct")   # % Binance price change in last 5s at entry
     age  = g(t, "move_age_s")        # seconds since last >0.02% Binance tick
+    bec  = g(t, "bond_entry_class", "") or ""   # e.g. "CORE/hot", "IMPULSE/hot"
 
     print(
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
         f"ep={ep:.4f} xp={xp:.4f} | "
         f"fv={pf(fv, ',.4f')} edge={pf(edge, '+.3f')} | "
         f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f')} elap={pf(elap, '.2f')} | "
-        f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} | "
+        f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
         f"adv={pf(adv, '+.1f', '%')}@{ps(t_adv)} fav={pf(fav, '+.1f', '%')}@{ps(t_fav)} | "
         f"from_exit: +30s={d30} +60s={d60} +120s={d120} | from_entry: +30s={e30} +60s={e60} +120s={e120} ec={ec2} | "

@@ -146,6 +146,7 @@ class TradeRecord:
     path_reason: str = ""
     entry_snap_30s_pct: float = 0.0   # token return vs entry at T+30s (0 if not captured)
     entry_snap_60s_pct: float = 0.0   # token return vs entry at T+60s (0 if not captured)
+    bond_entry_class: str = ""        # BOND zone/velocity at entry e.g. "CORE/hot", "IMPULSE/hot"
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +325,7 @@ class FeedbackEngine:
         path_reason: str = "",
         entry_snap_30s_pct: float = 0.0,
         entry_snap_60s_pct: float = 0.0,
+        bond_entry_class: str = "",
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -474,6 +476,7 @@ class FeedbackEngine:
             path_reason=path_reason,
             entry_snap_30s_pct=round(entry_snap_30s_pct, 2),
             entry_snap_60s_pct=round(entry_snap_60s_pct, 2),
+            bond_entry_class=bond_entry_class,
         )
 
         self._recent.append(rec)

@@ -2621,6 +2621,7 @@ class KlausBot:
                         pre_entry_momentum_pct=_meta.get("pre_entry_momentum_pct", 0.0),
                         max_price_seen=pos.highest_price,
                         min_price_seen=pos.lowest_price,
+                        bond_entry_class=pos.bond_entry_class,
                     )
                 except Exception as _s1e:
                     logger.error("record_trade STAGE1_FULL_EXIT failed: %s", _s1e)
@@ -2907,6 +2908,7 @@ class KlausBot:
                         min_price_seen=pos.lowest_price,
                         highest_price_ts=pos.highest_price_ts,
                         lowest_price_ts=pos.lowest_price_ts,
+                        bond_entry_class=pos.bond_entry_class,
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
@@ -3247,6 +3249,7 @@ class KlausBot:
                     path_reason=_path_reason,
                     entry_snap_30s_pct=_r30 if _r30 is not None else 0.0,
                     entry_snap_60s_pct=_r60 if _r60 is not None else 0.0,
+                    bond_entry_class=pos.bond_entry_class,
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
