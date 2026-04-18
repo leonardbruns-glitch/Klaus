@@ -499,6 +499,27 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
+                # ── Position snapshot (30s edge/delta drift for open positions) ─
+                _pos_drift = None   # edge_drift: positive = edge expanding (good)
+                _pos_accel = None   # delta_accel: positive = momentum building
+                _ext_pos = self._last_ext_signals.get(pos.asset)
+                if _ext_pos and _ext_pos.spot_price:
+                    _is_15m_pos_snap = pos.window_seconds >= 900
+                    _ref_pos = ((_ext_pos.spot_window_open_15m if _is_15m_pos_snap else _ext_pos.spot_window_open_5m) or 0.0)
+                    if _ref_pos > 0:
+                        _delta_pos = (_ext_pos.spot_price - _ref_pos) / _ref_pos * 100
+                        _elap_pos  = max(0.01, 1.0 - bond_remaining / pos.window_seconds)
+                        _fv_pos    = 1.0 / (1.0 + math.exp(-8.0 * abs(_delta_pos) * min(4.0, 1.0 / max(0.05, 1.0 - _elap_pos) ** 0.5)))
+                        _edge_pos  = _fv_pos - current_price
+                        _snaps_pos = self._bond_snapshots.setdefault(token_id, deque())
+                        _snaps_pos.append((now, _delta_pos, _edge_pos))
+                        while _snaps_pos and now - _snaps_pos[0][0] > 60.0:
+                            _snaps_pos.popleft()
+                        _ref30_pos = next((s for s in _snaps_pos if 25.0 <= now - s[0] <= 35.0), None)
+                        if _ref30_pos:
+                            _pos_drift = _edge_pos  - _ref30_pos[2]
+                            _pos_accel = _delta_pos - _ref30_pos[1]
+
                 _wdelta_now = 0.0  # updated inside DIR_REVERSAL block when ext signal available
 
                 # ── Entry-relative reversal guard (5m + 15m) ─────────────────
@@ -541,7 +562,19 @@ class KlausBot:
                                         self._dir_rev_count[token_id], bond_move * 100, _held_s,
                                     )
                                     if self._dir_rev_count.get(token_id, 0) >= 2:
-                                        if token_id not in self._exit_in_progress:
+                                        # Structural filter: don't fire into expanding edge
+                                        # (pullback in strong edge env ≠ reversal).
+                                        _rev_edge_ok = _pos_drift is None or _pos_drift <= 0
+                                        _rev_accel_ok = _pos_accel is None or _pos_accel < 0
+                                        if not (_rev_edge_ok and _rev_accel_ok):
+                                            logger.debug(
+                                                "BOND_DIR_REV_SUPPRESSED %s/%s — edge expanding drift=%s accel=%s",
+                                                pos.asset, pos.bond_outcome_direction,
+                                                f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
+                                                f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
+                                            )
+                                            self._dir_rev_count.pop(token_id, None)
+                                        elif token_id not in self._exit_in_progress:
                                             self._exit_in_progress.add(token_id)
                                             logger.warning(
                                                 "BOND_DIR_REVERSAL %s/%s %s | spot_rev=%+.3f%% ≥ %.2f%% from entry "
@@ -626,19 +659,25 @@ class KlausBot:
                     _max_hold  = _avail_s * 0.60
                     _hold_time = now - pos.open_ts
                     if _hold_time > _max_hold:
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            "BOND_PROGRESS_EXIT %s/%s | held=%.0fs max=%.0fs "
-                            "(60%% of %.0fs avail elap_entry=%.2f) price=%.4f entry=%.4f",
-                            pos.asset, pos.direction.name,
-                            _hold_time, _max_hold, _avail_s, _elap_entry,
-                            current_price, pos.entry_price,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, "BOND_PROGRESS_EXIT")
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
+                        # Only exit if decay detected: both edge and momentum fading.
+                        # If trend still alive (drift≥0 OR accel≥0), hold.
+                        _decay = (_pos_drift is None) or (_pos_drift < 0 and _pos_accel < 0)
+                        if _decay:
+                            self._exit_in_progress.add(token_id)
+                            logger.info(
+                                "BOND_PROGRESS_EXIT %s/%s | held=%.0fs max=%.0fs "
+                                "drift=%s accel=%s price=%.4f entry=%.4f",
+                                pos.asset, pos.direction.name,
+                                _hold_time, _max_hold,
+                                f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
+                                f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
+                                current_price, pos.entry_price,
+                            )
+                            try:
+                                await self._exit_position(token_id, current_price, "BOND_PROGRESS_EXIT")
+                            finally:
+                                self._exit_in_progress.discard(token_id)
+                            continue
 
                 # ── BOND token price stop-loss (75% drawdown, 7s confirmation) ─
                 # Fires only when price is BELOW entry (never exits profitable)
