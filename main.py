@@ -1545,21 +1545,25 @@ class KlausBot:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
-            # EXTREME EDGE: reduce stake 35% — high-edge trades are volatile.
-            # WEAK EDGE: reduce stake 50% — lower conviction, limit exposure.
+            # Edge-confidence stake scaling:
+            #   edge < 0.05      → 50%  (weak, capped exposure)
+            #   edge 0.05–0.07   → 75%  (moderate conviction)
+            #   edge 0.07–0.10   → 100% (full size)
+            #   edge ≥ 0.10      → 65%  (EXTREME cap — volatile, risk-adjusted)
             if _edge >= 0.10:
-                _orig_stake = decision.stake
-                decision.stake = max(1.0, round(_orig_stake * 0.65, 2))
-                logger.info(
-                    "BOND EXTREME EDGE stake reduction %s: $%.2f → $%.2f (edge=%.4f)",
-                    token.asset, _orig_stake, decision.stake, _edge,
-                )
+                _edge_mult, _edge_label = 0.65, "EXTREME"
             elif _edge < 0.05:
+                _edge_mult, _edge_label = 0.50, "WEAK"
+            elif _edge < 0.07:
+                _edge_mult, _edge_label = 0.75, "MODERATE"
+            else:
+                _edge_mult, _edge_label = 1.00, "FULL"
+            if _edge_mult != 1.00:
                 _orig_stake = decision.stake
-                decision.stake = max(1.0, round(_orig_stake * 0.50, 2))
+                decision.stake = max(1.0, round(_orig_stake * _edge_mult, 2))
                 logger.info(
-                    "BOND WEAK EDGE stake reduction %s: $%.2f → $%.2f (edge=%.4f < 0.05)",
-                    token.asset, _orig_stake, decision.stake, _edge,
+                    "BOND %s EDGE stake %s: $%.2f → $%.2f (edge=%.4f × %.2f)",
+                    _edge_label, token.asset, _orig_stake, decision.stake, _edge, _edge_mult,
                 )
 
             logger.info(
