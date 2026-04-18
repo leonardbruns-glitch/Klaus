@@ -583,9 +583,11 @@ class KlausBot:
                     _sig_stall = self._open_meta.get(token_id, {}).get("signal")
                     _entry_edge_s  = getattr(_sig_stall, "edge",      0.05) if _sig_stall else 0.05
                     _entry_delta_s = abs(getattr(_sig_stall, "delta_pct", 0.09)) if _sig_stall else 0.09
-                    _edge_bonus    = max(0.0, (_entry_edge_s - 0.04) * 1000)   # +15s at 0.055, +30s at 0.07
-                    _delta_bonus   = max(0.0, (0.12 - _entry_delta_s) * 300)   # +9s at 0.09, +16s at 0.065
-                    _stall_delay   = min(75.0, 30.0 + _edge_bonus + _delta_bonus)
+                    # Patient trade: high edge + confirmed delta → eligible for adaptive delay.
+                    # Delta gates eligibility only — does NOT modulate time directly.
+                    _is_patient    = _entry_edge_s >= 0.05 and _entry_delta_s >= 0.08
+                    _edge_bonus    = max(0.0, (_entry_edge_s - 0.04) * 1000) if _is_patient else 0.0
+                    _stall_delay   = min(75.0, 30.0 + _edge_bonus)
                     if _hold_s >= _stall_delay:
                         self._stall_checked.add(token_id)
                         _ext_stall = self._last_ext_signals.get(pos.asset)
@@ -600,10 +602,10 @@ class KlausBot:
                             if bond_move < 0.03 and _delta_not_improving and _vel_not_increasing:
                                 self._exit_in_progress.add(token_id)
                                 logger.info(
-                                    "BOND_STALL %s/%s | T+%.0fs (delay=%.0fs edge=%.3f Δ=%.3f%%) "
+                                    "BOND_STALL %s/%s | T+%.0fs (delay=%.0fs edge=%.3f patient=%s) "
                                     "move=%+.1f%% delta_now=%+.3f%% delta_entry=%+.3f%% wdelta=%+.3f%%",
                                     pos.asset, pos.direction.name, _hold_s, _stall_delay,
-                                    _entry_edge_s, _entry_delta_s,
+                                    _entry_edge_s, _is_patient,
                                     bond_move * 100, _delta_now_st, _delta_entry, _wdelta_now,
                                 )
                                 try:
