@@ -332,11 +332,19 @@ class OrderManager:
                     "FAILED but CLOB balance=%.4f for %s — recovering @ estimated price=%.4f",
                     _cumulative, _orphan_balance, token_id[:12], limit_price,
                 )
+                _orphan_fill = Fill(
+                    order_id="orphan-recovered",
+                    token_id=token_id,
+                    side=OrderSide.BUY,
+                    price=limit_price,
+                    size=_orphan_balance,
+                    fee=0.0,
+                )
                 return OrderResult(
                     status=OrderStatus.FILLED,
+                    fills=[_orphan_fill],
                     avg_fill_price=limit_price,
                     total_size=_orphan_balance,
-                    order_id="orphan-recovered",
                 )
             logger.debug(
                 "ORPHAN CHECK @%.0fs: balance=0 for %s — CLOB propagation still pending",
