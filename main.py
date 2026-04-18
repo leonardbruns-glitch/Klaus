@@ -1105,30 +1105,6 @@ class KlausBot:
         _BOND_MIN_ASK = 0.57
         _BOND_MAX_ASK = 0.79
 
-        # Hour gate: block first 15 min of each volatile/risky hour.
-        # Formerly had full-hour blocks (0, 8, 13, 18, 20) but that's too blunt —
-        # the spike settles within 15 min and the rest of the hour is tradeable.
-        # All formerly full-blocked hours are now first-15-min only.
-        import datetime as _dt
-        _now_utc = _dt.datetime.utcnow()
-        _first15_blocked = getattr(
-            CONFIG.edge, "bond_first15_blocked_hours_utc",
-            [0, 6, 8, 12, 13, 14, 18, 20],  # default: all previously blocked hours + hr=6/12/14
-        )
-        if _now_utc.hour in _first15_blocked and _now_utc.minute < 15:
-            return
-
-        # Full-hour blocks: data shows consistent losses at these hours.
-        # SOL hr=03: 3W/2L net=-$0.2; SOL hr=04: 1W/4L net=-$8.2 (2026-04-17, n=59)
-        # ALL hr=06: 0W/3L net=-$4.9 (2026-04-17, n=84)
-        # BTC hr=07-09: 33% WR!!, -$7.25 (2026-04-17, n=90)
-        _full_blocked_asset_hours = {
-            ("SOL", 3), ("SOL", 4), ("SOL", 6),
-            ("BTC", 6), ("BTC", 7), ("BTC", 8), ("BTC", 9),
-            ("ETH", 6),
-            ("BTC", 15), ("ETH", 15), ("SOL", 15),  # hr=15 stop-hunt pattern confirmed 2026-04-17
-        }
-
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
                 continue
@@ -1137,8 +1113,6 @@ class KlausBot:
             if token_id in self.risk.open_positions:
                 continue
             if token.asset in self.risk._pending_assets:
-                continue
-            if (token.asset, _now_utc.hour) in _full_blocked_asset_hours:
                 continue
             if token.asset in self._pending_asset_entries:
                 continue
