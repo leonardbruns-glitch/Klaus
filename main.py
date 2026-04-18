@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+from collections import deque
 import os
 import signal
 import sys
@@ -202,6 +203,8 @@ class KlausBot:
         self._sl_below_count: Dict[str, int] = {}
         # Positions that have had the T+30s stall check (one-shot per position).
         self._stall_checked: set = set()
+        # Per-token rolling snapshot: deque of (ts, bond_delta, edge) for acceleration/drift.
+        self._bond_snapshots: Dict[str, deque] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -1222,21 +1225,52 @@ class KlausBot:
                 else ("COLD" if _vel_cold else "CONT/EXH")
             )
 
+            # ── 30s acceleration / drift snapshot ────────────────────────────
+            _snaps = self._bond_snapshots.setdefault(token_id, deque())
+            _snaps.append((now, _bond_delta, _edge))
+            while _snaps and now - _snaps[0][0] > 60.0:
+                _snaps.popleft()
+            # Find snapshot closest to 30s ago (accept 25–35s window)
+            _ref30 = next(
+                (s for s in _snaps if 25.0 <= now - s[0] <= 35.0),
+                None,
+            )
+            _delta_accel = (_bond_delta - _ref30[1]) if _ref30 else 0.0
+            _edge_drift  = (_edge      - _ref30[2]) if _ref30 else 0.0
+            _has_hist    = _ref30 is not None
+
             # ── Zone-aware delta / edge filters (velocity = diagnostic only) ──
             _abs_delta = abs(_bond_delta)
+            _EDGE_DRIFT_CORE = 0.002   # edge must be rising or flat in CORE zone
 
             if _bond_zone == "CORE":
                 _skip = (
                     (_abs_delta < 0.09 or _abs_delta > 0.13) or
-                    (_edge < 0.04 or _edge > 0.08)
+                    (_edge < 0.04 or _edge > 0.08) or
+                    (_has_hist and (_delta_accel < 0 or _edge_drift < _EDGE_DRIFT_CORE))
                 )
-                _skip_reason = f"delta={_abs_delta:.3f}% [0.09–0.13] edge={_edge:.4f} [0.04–0.08]"
+                _skip_reason = (
+                    f"delta={_abs_delta:.3f}% edge={_edge:.4f} "
+                    f"accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f} hist={_has_hist}"
+                )
             elif _bond_zone == "EARLY":
-                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.03
-                _skip_reason = f"EARLY needs delta≥0.12 edge≥0.03 | delta={_abs_delta:.3f}% edge={_edge:.4f}"
+                _skip = (
+                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.03) or
+                    (_has_hist and not (_delta_accel > 0 or _edge_drift > 0))
+                )
+                _skip_reason = (
+                    f"EARLY needs delta≥0.12 edge≥0.03 (accel>0 OR drift>0) | "
+                    f"delta={_abs_delta:.3f}% edge={_edge:.4f} accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
+                )
             else:  # LATE (45–90s)
-                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or ask > 0.75
-                _skip_reason = f"LATE needs delta≥0.12 edge≥0.06 ask≤0.75 | delta={_abs_delta:.3f}% edge={_edge:.4f} ask={ask:.4f}"
+                _skip = (
+                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or ask > 0.75) or
+                    (_has_hist and _edge_drift < -0.005)
+                )
+                _skip_reason = (
+                    f"LATE needs delta≥0.12 edge≥0.06 ask≤0.75 drift≥-0.005 | "
+                    f"delta={_abs_delta:.3f}% edge={_edge:.4f} ask={ask:.4f} drift={_edge_drift:+.4f}"
+                )
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _bond_zone, _skip_reason)
