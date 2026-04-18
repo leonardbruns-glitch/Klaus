@@ -738,27 +738,6 @@ class KlausBot:
                             )
 
 
-                # ── Hard stop-loss: -25% of entry price, no conditions ────────
-                # Prevents catastrophic losses when token collapses (e.g. news event
-                # flips direction mid-window). No confirmation delay — immediate exit.
-                if (bond_move <= -0.25
-                        and token_id not in self._exit_in_progress):
-                    self._exit_in_progress.add(token_id)
-                    logger.warning(
-                        "BOND_HARD_SL %s/%s | move=%+.1f%% entry=%.4f curr=%.4f | held=%.0fs rem=%.0fs",
-                        pos.asset, pos.direction.name,
-                        bond_move * 100, pos.entry_price, current_price,
-                        _held_s, bond_remaining,
-                    )
-                    try:
-                        await self._exit_position(token_id, current_price, "BOND_HARD_SL")
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                        self._sl_below_count.pop(token_id, None)
-                        self._stall_checked.discard(token_id)
-                        self._peak_bond_move.pop(token_id, None)
-                    continue
-
                 # ── IMPULSE / EXTREME fast-fail and velocity-decay exits ───────
                 if token_id not in self._exit_in_progress:
                     _vel_now_ff, _vel_age_ff = self.feed.get_velocity_5s(pos.asset)
