@@ -1138,7 +1138,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10  # T-10s: OB_NOOB skip for BOND ensures precise timer fires cleanly
-                if not (90 <= remaining <= 150):  # entry: T-90s to T-150s (optimal zone 2:30→3:30)
+                if not (exit_sec + 15 <= remaining <= 175):  # CORE 90–150s; overrides: EARLY >150s, LATE <90s
                     continue
             else:
                 continue
@@ -1178,8 +1178,9 @@ class KlausBot:
             if not _delta_available:
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
-            if _elapsed_pct < 0.50 or _elapsed_pct > 0.92:
+            if _elapsed_pct > 0.92:
                 continue
+            _bond_zone = "EARLY" if remaining > 150 else ("LATE" if remaining < 90 else "CORE")
             _token_dir = getattr(token, "outcome_direction", "up")
 
             # Directed delta gate: only enter a token when spot direction matches
@@ -1221,40 +1222,40 @@ class KlausBot:
                 else ("COLD" if _vel_cold else "CONT/EXH")
             )
 
-            # ── Delta + Edge hard filters ─────────────────────────────────────
+            # ── Zone-aware delta / edge / velocity filters ────────────────────
             _abs_delta = abs(_bond_delta)
-            if _abs_delta < 0.09 or _abs_delta > 0.13:
-                logger.info(
-                    "BOND SKIP %s/%s: delta=%.3f%% outside [0.09–0.13]",
-                    token.asset, token.side, _abs_delta,
-                )
-                continue
-            if _edge < 0.04 or _edge > 0.08:
-                logger.info(
-                    "BOND SKIP %s/%s: edge=%.4f outside [0.04–0.08] (fv=%.4f ask=%.4f)",
-                    token.asset, token.side, _edge, _fair_value, ask,
-                )
-                continue
-            _dzone = "CORE"
+            _abs_vel   = abs(_vel_now)
 
-            # Velocity hard filter: require active momentum ≥ 0.010% in trade direction.
-            # Cold or weak velocity = stale signal, high orphan/SL risk.
-            if _vel_cold or abs(_vel_now) < _VEL_BOND_THRESHOLD:
-                logger.info(
-                    "BOND SKIP %s/%s: vel=%+.4f%%[%s] below min |%.3f%%| or cold",
-                    token.asset, token.side, _vel_now, _vel_label, _VEL_BOND_THRESHOLD,
+            if _bond_zone == "CORE":
+                _skip = (
+                    (_abs_delta < 0.09 or _abs_delta > 0.13) or
+                    (_edge < 0.04 or _edge > 0.08) or
+                    (_vel_cold or _abs_vel < 0.010)
                 )
-                continue
+                _skip_reason = (
+                    f"delta={_abs_delta:.3f}% [0.09–0.13] edge={_edge:.4f} [0.04–0.08] vel={_vel_now:+.4f}%[{_vel_label}]"
+                )
+            elif _bond_zone == "EARLY":
+                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _vel_cold or _abs_vel < 0.015
+                _skip_reason = f"EARLY override needs delta≥0.12 vel≥0.015 | delta={_abs_delta:.3f}% vel={_vel_now:+.4f}%"
+            else:  # LATE
+                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or _vel_cold or _abs_vel < 0.015
+                _skip_reason = f"LATE override needs delta≥0.12 edge≥0.06 vel≥0.015 | delta={_abs_delta:.3f}% edge={_edge:.4f} vel={_vel_now:+.4f}%"
 
-            # Velocity against gate: block if momentum is actively opposing direction.
+            if _skip:
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _bond_zone, _skip_reason)
+                continue
+            _dzone = _bond_zone
+
+            # Velocity direction gate: block if momentum actively opposes thesis (all zones).
             _vel_against = (
                 (_token_dir == "down" and _vel_now >  _VEL_BOND_THRESHOLD) or
                 (_token_dir == "up"   and _vel_now < -_VEL_BOND_THRESHOLD)
             )
             if _vel_against:
                 logger.info(
-                    "BOND SKIP %s/%s: vel=%+.4f%%[%s] against direction %s (thresh=%.3f%%)",
-                    token.asset, token.side, _vel_now, _vel_label, _token_dir, _VEL_BOND_THRESHOLD,
+                    "BOND SKIP %s/%s: vel=%+.4f%%[%s] against direction %s",
+                    token.asset, token.side, _vel_now, _vel_label, _token_dir,
                 )
                 continue
 
