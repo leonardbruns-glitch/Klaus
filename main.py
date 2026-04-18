@@ -535,17 +535,17 @@ class KlausBot:
                                 else:
                                     self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
                                     logger.debug(
-                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/3 move=%+.1f%% held=%.0fs",
+                                        "BOND_DIR_REV_TRACK %s/%s wdelta=%+.3f%% (thresh=%.2f%%) count=%d/2 move=%+.1f%% held=%.0fs",
                                         pos.asset, pos.bond_outcome_direction,
                                         _wdelta_now, _REV_THRESH,
                                         self._dir_rev_count[token_id], bond_move * 100, _held_s,
                                     )
-                                    if self._dir_rev_count.get(token_id, 0) >= 3:
+                                    if self._dir_rev_count.get(token_id, 0) >= 2:
                                         if token_id not in self._exit_in_progress:
                                             self._exit_in_progress.add(token_id)
                                             logger.warning(
                                                 "BOND_DIR_REVERSAL %s/%s %s | spot_rev=%+.3f%% ≥ %.2f%% from entry "
-                                                "for 3 consecutive scans | entry_spot=%.4f curr_spot=%.4f | "
+                                                "confirmed 2 scans (no recovery) | entry_spot=%.4f curr_spot=%.4f | "
                                                 "ep=%.4f curr=%.4f | rem=%.0fs",
                                                 pos.asset, pos.bond_outcome_direction,
                                                 "15m" if _is_15m_pos else "5m",
@@ -560,9 +560,10 @@ class KlausBot:
                                                 self._dir_rev_count.pop(token_id, None)
                                             continue
                             else:
+                                # Recovery detected — reset immediately (no partial credit)
                                 self._dir_rev_count.pop(token_id, None)
                                 logger.debug(
-                                    "BOND_REV_OK %s/%s spot_rev=%+.3f%% (thresh=%.2f%% from entry — ok, count reset)",
+                                    "BOND_REV_OK %s/%s spot_rev=%+.3f%% (recovered within next scan — count reset)",
                                     pos.asset, pos.bond_outcome_direction, _wdelta_now, _REV_THRESH,
                                 )
                 else:
