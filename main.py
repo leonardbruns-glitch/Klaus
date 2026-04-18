@@ -716,6 +716,56 @@ class KlausBot:
                             )
 
 
+                # ── BOND exhaustion exit (dynamic continuation vs decay) ─────
+                # Fires when expected remaining upside < risk of giving back gains.
+                # Requires 30s of position history and ≥2% profit before evaluating.
+                # DIR_REVERSAL and STALL handle their own regimes — this only fires
+                # when the trend is still nominally valid but momentum is fading.
+                if (bond_move >= 0.02
+                        and _pos_drift is not None
+                        and token_id not in self._exit_in_progress
+                        and self._dir_rev_count.get(token_id, 0) < 2):
+                    _dir_sign_ex = 1.0 if pos.bond_outcome_direction == "up" else -1.0
+
+                    # continuation_score [0,1]: how likely is further gain?
+                    _drift_c    = min(1.0, max(0.0, _pos_drift / 0.05 + 0.5))
+                    _accel_c    = min(1.0, max(0.0, _pos_accel / 0.12 + 0.5))
+                    _vel_c      = 1.0 if (_wdelta_now * _dir_sign_ex) >= 0.02 else 0.0
+                    _cont_score = _drift_c * 0.45 + _accel_c * 0.35 + _vel_c * 0.20
+
+                    # decay_pressure [0,1]: how likely is giving back gains?
+                    _time_frac_ex = 1.0 - bond_remaining / max(1.0, pos.window_seconds)
+                    _time_p_ex    = min(1.0, _time_frac_ex ** 2)
+                    _ob_ex        = self.feed.get_order_book(token_id)
+                    _bid_ex       = _ob_ex.bids[0][0] if (_ob_ex and _ob_ex.bids) else 0.0
+                    _ask_ex       = _ob_ex.asks[0][0] if (_ob_ex and _ob_ex.asks) else 0.0
+                    _spread_ex    = (_ask_ex - _bid_ex) if _ask_ex > _bid_ex else 0.05
+                    _spread_p_ex  = min(1.0, _spread_ex / 0.06)
+                    _decay_score  = _time_p_ex * 0.65 + _spread_p_ex * 0.35
+
+                    logger.debug(
+                        "BOND_EXHAUST_CHK %s/%s | cont=%.3f (drift=%.3f accel=%.3f vel=%d) "
+                        "decay=%.3f (time=%.3f spread=%.3f) move=%+.1f%% rem=%.0fs",
+                        pos.asset, pos.direction.name,
+                        _cont_score, _drift_c, _accel_c, int(_vel_c),
+                        _decay_score, _time_p_ex, _spread_p_ex,
+                        bond_move * 100, bond_remaining,
+                    )
+                    if _cont_score < _decay_score:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_EXHAUSTION_EXIT %s/%s | cont=%.3f < decay=%.3f "
+                            "move=%+.1f%% drift=%+.4f accel=%+.4f vel_ok=%s rem=%.0fs",
+                            pos.asset, pos.direction.name,
+                            _cont_score, _decay_score, bond_move * 100,
+                            _pos_drift, _pos_accel, bool(_vel_c), bond_remaining,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_EXHAUSTION_EXIT")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 # $0.95 at any point — token at 95¢ with time remaining is high
                 #   confidence; a reversal back to 80¢ costs ~$1.90 vs locking $1.72.
                 # $0.99 in last 20s only — near-certain resolution, capture ~$0.49
@@ -2622,7 +2672,7 @@ class KlausBot:
         # sell-resting spin loop (Guard 1 retry every 4.5s → window closes → ep=xp).
         # Profit exits (PROFIT_*, MOON_BAG*, RATCHET*, BOND_TP*) hold their price
         # and retry with a fresh OB price next scan — Guard 1 handles that cleanly.
-        _PROFIT_REASONS = ("PROFIT", "MOON_BAG", "RATCHET", "BOND_TP")
+        _PROFIT_REASONS = ("PROFIT", "MOON_BAG", "RATCHET", "BOND_TP", "BOND_EXHAUSTION")
         _allow_stepdown = not any(r in reason for r in _PROFIT_REASONS)
         exit_fills = await self.orders.cascade_sell(
             token_id=token_id,
@@ -4064,7 +4114,7 @@ def _classify_path(
     ep = entry_price
     xp = exit_price
     exit_pct = (xp - ep) / ep * 100 if ep > 0 else 0.0
-    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2")
+    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT")
     _sl_exit = "SL" in exit_reason or "STOP" in exit_reason or "PRICE_SL" in exit_reason
 
     # ── SMOOTH_RUNNER ────────────────────────────────────────────────────────
