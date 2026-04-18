@@ -1138,7 +1138,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10  # T-10s: OB_NOOB skip for BOND ensures precise timer fires cleanly
-                if not (exit_sec + 15 <= remaining <= 175):  # CORE 90–150s; overrides: EARLY >150s, LATE <90s
+                if not (45 <= remaining <= 175):  # CORE 90–150s; EARLY >150s; LATE 45–90s
                     continue
             else:
                 continue
@@ -1236,11 +1236,11 @@ class KlausBot:
                     f"delta={_abs_delta:.3f}% [0.09–0.13] edge={_edge:.4f} [0.04–0.08] vel={_vel_now:+.4f}%[{_vel_label}]"
                 )
             elif _bond_zone == "EARLY":
-                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _vel_cold or _abs_vel < 0.015
-                _skip_reason = f"EARLY override needs delta≥0.12 vel≥0.015 | delta={_abs_delta:.3f}% vel={_vel_now:+.4f}%"
-            else:  # LATE
-                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or _vel_cold or _abs_vel < 0.015
-                _skip_reason = f"LATE override needs delta≥0.12 edge≥0.06 vel≥0.015 | delta={_abs_delta:.3f}% edge={_edge:.4f} vel={_vel_now:+.4f}%"
+                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.03 or _vel_cold or _abs_vel < 0.015
+                _skip_reason = f"EARLY override needs delta≥0.12 edge≥0.03 vel≥0.015 | delta={_abs_delta:.3f}% edge={_edge:.4f} vel={_vel_now:+.4f}%"
+            else:  # LATE (45–90s)
+                _skip = _abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or ask > 0.75 or _vel_cold or _abs_vel < 0.015
+                _skip_reason = f"LATE override needs delta≥0.12 edge≥0.06 ask≤0.75 vel≥0.015 | delta={_abs_delta:.3f}% edge={_edge:.4f} ask={ask:.4f} vel={_vel_now:+.4f}%"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _bond_zone, _skip_reason)
