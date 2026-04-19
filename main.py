@@ -919,18 +919,26 @@ class KlausBot:
 
                 # ── Winner trailing stop (protect expanded profits) ────────────
                 # Activates once peak move ≥ 8% and held ≥ 25s. Exits if giveback > 50%.
+                # Acceleration filter: only exit if momentum is also decaying
+                # (delta_accel < 0 AND vel ≤ 0) — prevents cutting valid pullbacks
+                # within a still-live trend.
                 # Structural exit — blocked during compression.
                 if (_peak_move >= 0.08
                         and _held_s >= 25.0
                         and bond_move < _peak_move * 0.50
                         and not _compressed
+                        and (_pos_accel is None or _pos_accel < 0)
+                        and _vel_neg
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        "BOND_TRAIL_SL %s/%s | peak=%+.1f%% curr=%+.1f%% giveback=%.0f%% > 50%%",
+                        "BOND_TRAIL_SL %s/%s | peak=%+.1f%% curr=%+.1f%% giveback=%.0f%% "
+                        "accel=%+.4f vel=%+.4f",
                         pos.asset, pos.direction.name,
                         _peak_move * 100, bond_move * 100,
                         (1.0 - bond_move / _peak_move) * 100 if _peak_move > 0 else 0,
+                        _pos_accel if _pos_accel is not None else 0.0,
+                        _vel_aligned_cl,
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_TRAIL_SL")
