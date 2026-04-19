@@ -808,27 +808,44 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Time-based HARD_SL (drawdown tightens as position ages) ───
-                # 0-25s:   no hard SL (fast-fail block handles early weakness)
-                # 25-60s:  -15% drawdown (-18% if entry edge ≥ 0.08)
-                # 60s+:    -10% drawdown
-                # Goal: give trades time to develop, then cut losers before
-                # they compound into large losses.
-                if (_held_s >= 25.0
-                        and token_id not in self._exit_in_progress):
-                    if _held_s >= 60.0:
-                        _hard_sl_thresh = -0.10
-                        _hard_sl_label  = "60s+"
-                    else:
-                        _relaxed = _entry_edge_b >= 0.08
-                        _hard_sl_thresh = -0.18 if _relaxed else -0.15
-                        _hard_sl_label  = "25-60s" + ("/edge≥0.08" if _relaxed else "")
-                    if bond_move <= _hard_sl_thresh:
+                # ── Conditional loss exit (replaces fixed HARD_SL) ─────────────
+                # BOND: fixed price stops misfire because winners routinely dip
+                # -5% to -12% before expanding. Exit based on phase + signal state:
+                #   hold < 15s:  panic cut on -6% move AND vel ≤ 0
+                #   hold ≥ 25s:  sustained drawdown -12%
+                #   any time:    -8% AND bad_state (all 3 signals deteriorating:
+                #                delta_accel<0, edge_drift<0, vel≤0)
+                # HARD_SL remains the sole exit permitted before the 25s min-hold.
+                if token_id not in self._exit_in_progress:
+                    _vel_cl, _vel_age_cl = self.feed.get_velocity_5s(pos.asset)
+                    _dir_sign_cl = 1.0 if pos.bond_outcome_direction == "up" else -1.0
+                    _vel_aligned_cl = (_vel_cl * _dir_sign_cl) if _vel_age_cl < 999.0 else 0.0
+                    _vel_neg = _vel_aligned_cl <= 0.0
+
+                    _bad_state = (
+                        _pos_accel is not None and _pos_accel < 0
+                        and _pos_drift is not None and _pos_drift < 0
+                        and _vel_neg
+                    )
+
+                    _exit_label_cl = ""
+                    if _held_s < 15.0 and bond_move <= -0.06 and _vel_neg:
+                        _exit_label_cl = "<15s/move≤-6%+vel≤0"
+                    elif _held_s >= 25.0 and bond_move <= -0.12:
+                        _exit_label_cl = "≥25s/move≤-12%"
+                    elif bond_move <= -0.08 and _bad_state:
+                        _exit_label_cl = "move≤-8%/bad_state"
+
+                    if _exit_label_cl:
                         self._exit_in_progress.add(token_id)
                         logger.warning(
-                            "BOND_HARD_SL %s/%s | move=%+.1f%% ≤ %.0f%% at %.0fs [%s] | entry=%.4f curr=%.4f",
+                            "BOND_HARD_SL %s/%s | move=%+.1f%% held=%.0fs [%s] | "
+                            "vel=%+.4f%% drift=%s accel=%s | entry=%.4f curr=%.4f",
                             pos.asset, pos.direction.name,
-                            bond_move * 100, _hard_sl_thresh * 100, _held_s, _hard_sl_label,
+                            bond_move * 100, _held_s, _exit_label_cl,
+                            _vel_aligned_cl,
+                            f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
+                            f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
                             pos.entry_price, current_price,
                         )
                         try:
