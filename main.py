@@ -207,6 +207,10 @@ class KlausBot:
         self._bond_snapshots: Dict[str, deque] = {}
         # Peak bond_move reached per position (for trailing stop on winners).
         self._peak_bond_move: Dict[str, float] = {}
+        # Trough bond_move + peak timestamp per position (for compression /
+        # expansion detection in STALL and EXHAUSTION).
+        self._trough_bond_move: Dict[str, float] = {}
+        self._peak_ts: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -507,10 +511,26 @@ class KlausBot:
                 _entry_edge_b  = getattr(_entry_sig_b, "edge", 0.0) if _entry_sig_b else 0.0
                 _is_impulse_pos = bool(pos.bond_entry_class and pos.bond_entry_class.startswith("IMPULSE"))
                 _is_extreme_pos = _entry_edge_b >= 0.10
-                # Peak move tracker — update every scan for trailing stop
+                # Peak / trough tracker — updated every scan. Peak drives trailing
+                # stop; trough + peak_ts drive compression & expansion detection.
                 if bond_move > self._peak_bond_move.get(token_id, -999.0):
                     self._peak_bond_move[token_id] = bond_move
-                _peak_move = self._peak_bond_move.get(token_id, 0.0)
+                    self._peak_ts[token_id] = now
+                elif token_id not in self._peak_ts:
+                    self._peak_ts[token_id] = pos.open_ts
+                if bond_move < self._trough_bond_move.get(token_id, 999.0):
+                    self._trough_bond_move[token_id] = bond_move
+                _peak_move   = self._peak_bond_move.get(token_id, 0.0)
+                _trough_move = self._trough_bond_move.get(token_id, 0.0)
+                _peak_age    = now - self._peak_ts.get(token_id, pos.open_ts)
+                _vol_range   = _peak_move - _trough_move
+
+                # Direction-aligned velocity — hoisted so downstream blocks
+                # (compression, STALL, EXHAUSTION, HARD_SL) all share one value.
+                _vel_cl, _vel_age_cl = self.feed.get_velocity_5s(pos.asset)
+                _dir_sign_cl = 1.0 if pos.bond_outcome_direction == "up" else -1.0
+                _vel_aligned_cl = (_vel_cl * _dir_sign_cl) if _vel_age_cl < 999.0 else 0.0
+                _vel_neg = _vel_aligned_cl <= 0.0
 
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
@@ -616,57 +636,40 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── T+Xs stall exit (one-shot, dynamic delay) ────────────────
-                # Fires if all three conditions hold simultaneously:
-                #   1. bond_move < +3%           — token hasn't moved meaningfully
-                #   2. delta_now ≤ delta_entry   — window momentum not improved
-                #   3. velocity not increasing   — spot not moving toward thesis
-                # Delay scales with edge + delta: high edge / weak delta = more
-                # time allowed before calling it a stall.
+                # ── STALL exit (confirmed structural decay only) ──────────────
+                # Compression (flat tape + stable edge) is NOT a stall — it's
+                # often the pause before a second leg. Only exit when all four
+                # decay signals confirm:
+                #   1. no movement           — |bond_move| < 2%
+                #   2. no volatility expansion — realized range (peak−trough) < 2%
+                #   3. no rebound attempts   — peak hasn't been updated in 15s+
+                #   4. structural decay      — edge_drift<0 AND delta_accel<0
                 _hold_s = now - pos.open_ts
                 if (token_id not in self._stall_checked
-                        and token_id not in self._exit_in_progress):
-                    _sig_stall = self._open_meta.get(token_id, {}).get("signal")
-                    _entry_edge_s  = getattr(_sig_stall, "edge",      0.05) if _sig_stall else 0.05
-                    _entry_delta_s = abs(getattr(_sig_stall, "delta_pct", 0.09)) if _sig_stall else 0.09
-                    # Patient trade: high edge + confirmed delta → eligible for adaptive delay.
-                    # Delta gates eligibility only — does NOT modulate time directly.
-                    _is_patient    = _entry_edge_s >= 0.05 and _entry_delta_s >= 0.08
-                    _edge_bonus    = max(0.0, (_entry_edge_s - 0.04) * 1000) if _is_patient else 0.0
-                    _delta_factor  = 1.15 if _entry_delta_s >= 0.11 else (0.85 if _entry_delta_s < 0.09 else 1.0)
-                    _base_delay    = 30.0 + _edge_bonus
-                    _stall_delay   = min(75.0, _base_delay * _delta_factor) if _is_patient else 30.0
-                    if _is_extreme_pos:
-                        _stall_delay = 20.0  # EXTREME: no patience, quick stall detection
-                    elif _is_impulse_pos:
-                        _stall_delay = 15.0  # IMPULSE: stall faster (velocity thesis or nothing)
-                    # Minimum-hold gate: no non-HARD_SL exits before 25s.
-                    _stall_delay = max(_stall_delay, 25.0)
-                    if _hold_s >= _stall_delay:
+                        and token_id not in self._exit_in_progress
+                        and _hold_s >= 30.0):   # minimum-hold gate
+                    _no_movement   = abs(bond_move) < 0.02
+                    _no_vol_expand = _vol_range < 0.02
+                    _no_rebound    = _peak_age > 15.0
+                    _decay_conf    = (
+                        _pos_drift is not None and _pos_drift < 0
+                        and _pos_accel is not None and _pos_accel < 0
+                    )
+                    if _no_movement and _no_vol_expand and _no_rebound and _decay_conf:
                         self._stall_checked.add(token_id)
-                        _ext_stall = self._last_ext_signals.get(pos.asset)
-                        if _ext_stall and _ext_stall.spot_price:
-                            _delta_entry = getattr(_sig_stall, "delta_pct", 0.0) if _sig_stall else 0.0
-                            _is_15m_st = pos.window_seconds >= 900
-                            _wref_st = ((_ext_stall.spot_window_open_15m if _is_15m_st else _ext_stall.spot_window_open_5m) or 0.0)
-                            _delta_now_st = (_ext_stall.spot_price - _wref_st) / _wref_st * 100 if _wref_st > 0 else _delta_entry
-                            _dir_sign = 1.0 if pos.bond_outcome_direction == "up" else -1.0
-                            _delta_not_improving = (_delta_now_st * _dir_sign) <= (_delta_entry * _dir_sign)
-                            _vel_not_increasing  = (_wdelta_now * _dir_sign) <= 0.0
-                            if bond_move < 0.03 and _delta_not_improving and _vel_not_increasing:
-                                self._exit_in_progress.add(token_id)
-                                logger.info(
-                                    "BOND_STALL %s/%s | T+%.0fs (delay=%.0fs edge=%.3f patient=%s) "
-                                    "move=%+.1f%% delta_now=%+.3f%% delta_entry=%+.3f%% wdelta=%+.3f%%",
-                                    pos.asset, pos.direction.name, _hold_s, _stall_delay,
-                                    _entry_edge_s, _is_patient,
-                                    bond_move * 100, _delta_now_st, _delta_entry, _wdelta_now,
-                                )
-                                try:
-                                    await self._exit_position(token_id, current_price, "BOND_STALL")
-                                finally:
-                                    self._exit_in_progress.discard(token_id)
-                                continue
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_STALL %s/%s | T+%.0fs | move=%+.1f%% range=%.1f%% "
+                            "peak_age=%.0fs drift=%+.4f accel=%+.4f — confirmed decay",
+                            pos.asset, pos.direction.name, _hold_s,
+                            bond_move * 100, _vol_range * 100, _peak_age,
+                            _pos_drift, _pos_accel,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_STALL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
 
                 # ── Progress exit: trade used >60% of available time ──────────
                 # Normalises time to entry: max_hold = (1 - elap_entry) * 0.60 * window_s
@@ -823,11 +826,6 @@ class KlausBot:
                 #
                 # Catastrophic: -25% no state required — pure disaster cut.
                 if token_id not in self._exit_in_progress:
-                    _vel_cl, _vel_age_cl = self.feed.get_velocity_5s(pos.asset)
-                    _dir_sign_cl = 1.0 if pos.bond_outcome_direction == "up" else -1.0
-                    _vel_aligned_cl = (_vel_cl * _dir_sign_cl) if _vel_age_cl < 999.0 else 0.0
-                    _vel_neg = _vel_aligned_cl <= 0.0
-
                     # Degradation check: full 3-signal when history available, vel-only otherwise
                     if _pos_drift is not None and _pos_accel is not None:
                         _degraded = _pos_accel < 0 and _pos_drift < 0 and _vel_neg
@@ -866,14 +864,30 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                             self._sl_below_count.pop(token_id, None)
                             self._peak_bond_move.pop(token_id, None)
+                            self._trough_bond_move.pop(token_id, None)
+                            self._peak_ts.pop(token_id, None)
                         continue
+
+                # ── Compression state detection ────────────────────────────────
+                # COMPRESSION = low velocity + low movement + stable edge.
+                # These are normal pauses between legs of a trend, NOT exit
+                # signals. Block all structural exits (TRAIL_SL, STALL,
+                # EXHAUSTION) while compressed. SL paths remain active.
+                _edge_stable = _pos_drift is None or abs(_pos_drift) < 0.003
+                _compressed = (
+                    abs(_vel_aligned_cl) < 0.005
+                    and abs(bond_move) < 0.02
+                    and _vol_range < 0.03
+                    and _edge_stable
+                )
 
                 # ── Winner trailing stop (protect expanded profits) ────────────
                 # Activates once peak move ≥ 8% and held ≥ 25s. Exits if giveback > 50%.
-                # Minimum-hold gate: lets trades develop before trailing kicks in.
+                # Structural exit — blocked during compression.
                 if (_peak_move >= 0.08
                         and _held_s >= 25.0
                         and bond_move < _peak_move * 0.50
+                        and not _compressed
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -887,58 +901,43 @@ class KlausBot:
                     finally:
                         self._exit_in_progress.discard(token_id)
                         self._peak_bond_move.pop(token_id, None)
+                        self._trough_bond_move.pop(token_id, None)
+                        self._peak_ts.pop(token_id, None)
                     continue
 
-                # ── BOND exhaustion exit (dynamic continuation vs decay) ─────
-                # Fires when expected remaining upside < risk of giving back gains.
-                # Requires 30s of position history, ≥8% profit, and ≥25s held.
-                # DIR_REVERSAL and STALL handle their own regimes — this only fires
-                # when the trend is still nominally valid but momentum is fading.
-                if (bond_move >= 0.08
+                # ── BOND exhaustion exit (confirmed trend failure only) ──────
+                # Only fires when a real expansion happened AND failed to continue.
+                # Prevents firing during first expansion leg or consolidation.
+                # Required conditions:
+                #   1. prior expansion: _peak_move ≥ +8%
+                #   2. failed continuation:
+                #        - peak hasn't been updated in 20s+ (no new higher high)
+                #        - current has given back >30% of peak
+                #   3. structural weakening: edge_drift<0 AND delta_accel<0
+                #   4. min hold 25s, dir-reversal not pending
+                if (_peak_move >= 0.08
                         and _held_s >= 25.0
-                        and _pos_drift is not None
+                        and _peak_age > 20.0
+                        and bond_move < _peak_move * 0.70
+                        and _pos_drift is not None and _pos_drift < 0
+                        and _pos_accel is not None and _pos_accel < 0
                         and token_id not in self._exit_in_progress
                         and self._dir_rev_count.get(token_id, 0) < 2):
-                    _dir_sign_ex = 1.0 if pos.bond_outcome_direction == "up" else -1.0
-
-                    # continuation_score [0,1]: how likely is further gain?
-                    _drift_c    = min(1.0, max(0.0, _pos_drift / 0.05 + 0.5))
-                    _accel_c    = min(1.0, max(0.0, _pos_accel / 0.12 + 0.5))
-                    _vel_c      = 1.0 if (_wdelta_now * _dir_sign_ex) >= 0.02 else 0.0
-                    _cont_score = _drift_c * 0.45 + _accel_c * 0.35 + _vel_c * 0.20
-
-                    # decay_pressure [0,1]: how likely is giving back gains?
-                    _time_frac_ex = 1.0 - bond_remaining / max(1.0, pos.window_seconds)
-                    _time_p_ex    = min(1.0, _time_frac_ex ** 2)
-                    _ob_ex        = self.feed.get_order_book(token_id)
-                    _bid_ex       = _ob_ex.bids[0][0] if (_ob_ex and _ob_ex.bids) else 0.0
-                    _ask_ex       = _ob_ex.asks[0][0] if (_ob_ex and _ob_ex.asks) else 0.0
-                    _spread_ex    = (_ask_ex - _bid_ex) if _ask_ex > _bid_ex else 0.05
-                    _spread_p_ex  = min(1.0, _spread_ex / 0.06)
-                    _decay_score  = _time_p_ex * 0.65 + _spread_p_ex * 0.35
-
-                    logger.debug(
-                        "BOND_EXHAUST_CHK %s/%s | cont=%.3f (drift=%.3f accel=%.3f vel=%d) "
-                        "decay=%.3f (time=%.3f spread=%.3f) move=%+.1f%% rem=%.0fs",
+                    self._exit_in_progress.add(token_id)
+                    _giveback_pct = (1.0 - bond_move / _peak_move) * 100 if _peak_move > 0 else 0.0
+                    logger.info(
+                        "BOND_EXHAUSTION_EXIT %s/%s | peak=%+.1f%% curr=%+.1f%% "
+                        "giveback=%.0f%% peak_age=%.0fs drift=%+.4f accel=%+.4f rem=%.0fs",
                         pos.asset, pos.direction.name,
-                        _cont_score, _drift_c, _accel_c, int(_vel_c),
-                        _decay_score, _time_p_ex, _spread_p_ex,
-                        bond_move * 100, bond_remaining,
+                        _peak_move * 100, bond_move * 100,
+                        _giveback_pct, _peak_age,
+                        _pos_drift, _pos_accel, bond_remaining,
                     )
-                    if _cont_score < _decay_score:
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            "BOND_EXHAUSTION_EXIT %s/%s | cont=%.3f < decay=%.3f "
-                            "move=%+.1f%% drift=%+.4f accel=%+.4f vel_ok=%s rem=%.0fs",
-                            pos.asset, pos.direction.name,
-                            _cont_score, _decay_score, bond_move * 100,
-                            _pos_drift, _pos_accel, bool(_vel_c), bond_remaining,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, "BOND_EXHAUSTION_EXIT")
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_EXHAUSTION_EXIT")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
 
                 # $0.95 at any point — token at 95¢ with time remaining is high
                 #   confidence; a reversal back to 80¢ costs ~$1.90 vs locking $1.72.
@@ -2944,6 +2943,8 @@ class KlausBot:
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
                 self._peak_bond_move.pop(token_id, None)
+                self._trough_bond_move.pop(token_id, None)
+                self._peak_ts.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -3111,6 +3112,8 @@ class KlausBot:
             self._sl_below_count.pop(token_id, None)
             self._stall_checked.discard(token_id)
             self._peak_bond_move.pop(token_id, None)
+            self._trough_bond_move.pop(token_id, None)
+            self._peak_ts.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -3242,6 +3245,8 @@ class KlausBot:
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
                 self._peak_bond_move.pop(token_id, None)
+                self._trough_bond_move.pop(token_id, None)
+                self._peak_ts.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3512,6 +3517,8 @@ class KlausBot:
         self._sl_below_count.pop(token_id, None)
         self._stall_checked.discard(token_id)
         self._peak_bond_move.pop(token_id, None)
+        self._trough_bond_move.pop(token_id, None)
+        self._peak_ts.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
