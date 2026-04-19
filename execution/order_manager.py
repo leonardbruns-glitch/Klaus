@@ -823,10 +823,12 @@ class OrderManager:
             order_type = OrderType.GTC
 
             # Cloudflare WAF blocks datacenter IPs on POST /order ~30-50% of the time.
-            # Retry with exponential backoff; CF challenges are transient.
+            # CLOB also returns transient 5xx (e.g. 'could not run the execution') under
+            # load. Retry both with exponential backoff; both are server-side and transient.
             # CRITICAL: create_order INSIDE the retry loop — reusing the same signed
             # order across retries triggers "order is invalid. Duplicated." from CLOB.
             resp = None
+            _transient_exc = None
             _order_t0 = time.time()
             _attempted_order_ids: list = []   # track ALL order IDs placed this call
             for _cf_attempt in range(3):
@@ -841,28 +843,46 @@ class OrderManager:
                 )
                 if _signed_id:
                     _attempted_order_ids.append(_signed_id)
-                resp = self._client.post_order(signed, order_type)
-                err_str = str(resp) if resp else ""
+                try:
+                    resp = self._client.post_order(signed, order_type)
+                    _transient_exc = None
+                except Exception as _post_exc:
+                    # PolyApiException: status_code=500 with 'could not run the execution'
+                    # is a transient CLOB execution-engine error — retry with backoff.
+                    # Also catch 502/503/504 and timeouts. 4xx errors (invalid order,
+                    # auth failure) are permanent and bubble up to the outer except.
+                    _exc_str = str(_post_exc)
+                    _is_5xx = any(f"status_code={c}" in _exc_str for c in (500, 502, 503, 504))
+                    _is_exec_err = "could not run the execution" in _exc_str
+                    _is_timeout = "timeout" in _exc_str.lower() or "timed out" in _exc_str.lower()
+                    if _is_5xx or _is_exec_err or _is_timeout:
+                        _transient_exc = _post_exc
+                        resp = None
+                    else:
+                        raise
+                err_str = str(resp) if resp else (str(_transient_exc) if _transient_exc else "")
                 if resp and "cloudflare" not in err_str.lower() and "403" not in err_str:
                     break
                 if _cf_attempt < 2:
                     wait = 0.5 * (2 ** _cf_attempt)  # 0.5s, 1s
-                    logger.warning("Cloudflare block on order POST (attempt %d) — retry in %.1fs",
-                                   _cf_attempt + 1, wait)
+                    _reason = "CLOB 5xx/exec error" if _transient_exc else "Cloudflare block"
+                    logger.warning("%s on order POST (attempt %d) — retry in %.1fs: %s",
+                                   _reason, _cf_attempt + 1, wait, err_str[:140])
                     await asyncio.sleep(wait)
                     # Before retrying, check if the previous attempt actually filled
-                    # despite the CF 403 response. If the WS buffered a fill for this
+                    # despite the error response. If the WS buffered a fill for this
                     # token, skip the retry — a second order would create double-fill orphans.
                     if self._fill_tracker and self._fill_tracker.is_connected:
                         _early = self._fill_tracker.pop_fill_for_token(token_id)
                         if _early is not None:
                             logger.warning(
-                                "CF retry cancelled — attempt %d already filled token %s",
+                                "Retry cancelled — attempt %d already filled token %s",
                                 _cf_attempt + 1, token_id[:12],
                             )
                             resp = {"status": "matched", "takingAmount": str(_early["size"]),
                                     "makingAmount": str(_early["cost"]),
                                     "id": _early["order_id"], "_from_early_fill": True}
+                            _transient_exc = None
                             break
             _order_ms = (time.time() - _order_t0) * 1000
             self._order_latencies_ms.append(_order_ms)
@@ -871,7 +891,11 @@ class OrderManager:
                                _order_ms, _cf_attempt + 1)
 
             if not resp:
-                return OrderResult(status=OrderStatus.FAILED, error="Empty response")
+                _err_msg = (
+                    f"CLOB transient error after 3 retries: {_transient_exc}"
+                    if _transient_exc else "Empty response"
+                )
+                return OrderResult(status=OrderStatus.FAILED, error=_err_msg)
 
             # Fill verification: only trust matched orders with actual fill
             status = resp.get("status", "")
