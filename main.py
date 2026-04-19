@@ -217,6 +217,11 @@ class KlausBot:
         self._stall_conf_count: Dict[str, int] = {}
         self._exhaustion_conf_count: Dict[str, int] = {}
         self._early_loss_conf_count: Dict[str, int] = {}
+        # Peak-stability tracker: timestamp of first scan where bond_move
+        # dropped below 80% of peak after peak_ts. Absence = no breach yet.
+        # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
+        # from a wick peak (immediate reversal).
+        self._peak_breach_ts: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -522,6 +527,10 @@ class KlausBot:
                 if bond_move > self._peak_bond_move.get(token_id, -999.0):
                     self._peak_bond_move[token_id] = bond_move
                     self._peak_ts[token_id] = now
+                    # New peak — reset the breach marker. If price immediately drops,
+                    # the next scan will record a fresh breach_ts close to peak_ts
+                    # → peak_stable_s stays small → TRAIL_SL blocked (wick case).
+                    self._peak_breach_ts.pop(token_id, None)
                 elif token_id not in self._peak_ts:
                     self._peak_ts[token_id] = pos.open_ts
                 if bond_move < self._trough_bond_move.get(token_id, 999.0):
@@ -530,6 +539,20 @@ class KlausBot:
                 _trough_move = self._trough_bond_move.get(token_id, 0.0)
                 _peak_age    = now - self._peak_ts.get(token_id, pos.open_ts)
                 _vol_range   = _peak_move - _trough_move
+                # Peak-stability: record first scan where bond_move drops below
+                # 80% of peak. Distance (breach_ts − peak_ts) = seconds the peak
+                # was held above that band. Stable peak ≥ 8s = TRAIL_SL allowed.
+                if (_peak_move > 0
+                        and bond_move < 0.80 * _peak_move
+                        and token_id not in self._peak_breach_ts):
+                    self._peak_breach_ts[token_id] = now
+                if token_id in self._peak_breach_ts:
+                    _peak_stable_s = (
+                        self._peak_breach_ts[token_id]
+                        - self._peak_ts.get(token_id, pos.open_ts)
+                    )
+                else:
+                    _peak_stable_s = _peak_age   # no breach yet → full duration stable
 
                 # Direction-aligned velocity — hoisted so downstream blocks
                 # (compression, STALL, EXHAUSTION, HARD_SL) all share one value.
@@ -715,6 +738,7 @@ class KlausBot:
                         finally:
                             self._exit_in_progress.discard(token_id)
                             self._stall_conf_count.pop(token_id, None)
+                            self._peak_breach_ts.pop(token_id, None)
                         continue
 
                 # ── Progress exit: trade used >60% of available time ──────────
@@ -883,6 +907,7 @@ class KlausBot:
                         finally:
                             self._exit_in_progress.discard(token_id)
                             self._early_loss_conf_count.pop(token_id, None)
+                            self._peak_breach_ts.pop(token_id, None)
                         continue
 
                 # ── Adaptive SL envelope (regime-gated, noise-tolerant) ────────
@@ -936,6 +961,7 @@ class KlausBot:
                             self._peak_ts.pop(token_id, None)
                             self._stall_conf_count.pop(token_id, None)
                             self._exhaustion_conf_count.pop(token_id, None)
+                            self._peak_breach_ts.pop(token_id, None)
                         continue
 
                 # ── Compression state detection ────────────────────────────────
@@ -951,30 +977,35 @@ class KlausBot:
                     and _edge_stable
                 )
 
-                # ── Winner trailing stop (protect expanded profits) ────────────
-                # Activates once peak move ≥ 8% and held ≥ 25s. Exits if giveback > 50%.
-                # Filters — all must confirm to cut the winner:
-                #   1. peak_age > 15s     — peak stale, not a fresh high
-                #   2. delta_accel < 0    — momentum decaying
-                #   3. vel ≤ 0            — direction-aligned velocity negative/flat
-                # Prevents cutting valid pullbacks within a still-live trend.
+                # ── Winner trailing stop (require real trend, not micro-peak) ──
+                # Cuts a winner only when a genuinely big, held peak gives back.
+                # All six must confirm:
+                #   1. peak_move ≥ 12%        — real expansion, not micro-peak
+                #   2. peak_age ≥ 25s         — peak is stale
+                #   3. giveback ≥ 50%         — bond_move < 0.50 × peak
+                #   4. delta_accel < 0        — momentum decaying
+                #   5. vel ≤ 0                — velocity dead
+                #   6. peak was stable ≥ 8s   — held within 80–100% of peak before
+                #                               pulling back (blocks wick-peaks that
+                #                               reversed immediately with no hold)
                 # Structural exit — blocked during compression.
-                if (_peak_move >= 0.08
+                if (_peak_move >= 0.12
                         and _held_s >= 25.0
                         and bond_move < _peak_move * 0.50
-                        and _peak_age > 15.0
+                        and _peak_age >= 25.0
                         and (_pos_accel is None or _pos_accel < 0)
                         and _vel_neg
+                        and _peak_stable_s >= 8.0
                         and not _compressed
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         "BOND_TRAIL_SL %s/%s | peak=%+.1f%% curr=%+.1f%% giveback=%.0f%% "
-                        "peak_age=%.0fs accel=%+.4f vel=%+.4f",
+                        "peak_age=%.0fs stable=%.0fs accel=%+.4f vel=%+.4f",
                         pos.asset, pos.direction.name,
                         _peak_move * 100, bond_move * 100,
                         (1.0 - bond_move / _peak_move) * 100 if _peak_move > 0 else 0,
-                        _peak_age,
+                        _peak_age, _peak_stable_s,
                         _pos_accel if _pos_accel is not None else 0.0,
                         _vel_aligned_cl,
                     )
@@ -987,6 +1018,7 @@ class KlausBot:
                         self._peak_ts.pop(token_id, None)
                         self._stall_conf_count.pop(token_id, None)
                         self._exhaustion_conf_count.pop(token_id, None)
+                        self._peak_breach_ts.pop(token_id, None)
                     continue
 
                 # ── BOND exhaustion exit (regime-gated — trend failure only) ──
@@ -1056,6 +1088,7 @@ class KlausBot:
                     finally:
                         self._exit_in_progress.discard(token_id)
                         self._exhaustion_conf_count.pop(token_id, None)
+                        self._peak_breach_ts.pop(token_id, None)
                     continue
 
                 # $0.95 at any point — token at 95¢ with time remaining is high
@@ -3067,6 +3100,7 @@ class KlausBot:
                 self._stall_conf_count.pop(token_id, None)
                 self._exhaustion_conf_count.pop(token_id, None)
                 self._early_loss_conf_count.pop(token_id, None)
+                self._peak_breach_ts.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -3239,6 +3273,7 @@ class KlausBot:
             self._stall_conf_count.pop(token_id, None)
             self._exhaustion_conf_count.pop(token_id, None)
             self._early_loss_conf_count.pop(token_id, None)
+            self._peak_breach_ts.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -3375,6 +3410,7 @@ class KlausBot:
                 self._stall_conf_count.pop(token_id, None)
                 self._exhaustion_conf_count.pop(token_id, None)
                 self._early_loss_conf_count.pop(token_id, None)
+                self._peak_breach_ts.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3650,6 +3686,7 @@ class KlausBot:
         self._stall_conf_count.pop(token_id, None)
         self._exhaustion_conf_count.pop(token_id, None)
         self._early_loss_conf_count.pop(token_id, None)
+        self._peak_breach_ts.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
