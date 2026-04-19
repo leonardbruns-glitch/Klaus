@@ -986,8 +986,8 @@ class KlausBot:
                 )
                 _exh_cond = (
                     _peak_move >= 0.08
-                    and _peak_age > 20.0
-                    and bond_move < _peak_move * 0.70
+                    and _peak_age > 30.0
+                    and bond_move < _peak_move * 0.50
                     and _breakdown_confirmed
                     and _continuation_failure
                     and not _continuation_pressure
