@@ -562,10 +562,9 @@ class KlausBot:
                             )
                             if _wdelta_reversed:
                                 _held_s = now - pos.open_ts
-                                if _held_s < 5.0 and not _is_impulse_pos:
-                                    # ECW: Entry Confirmation Window — microstructure noise
-                                    # in first 5s is indistinguishable from real reversal.
-                                    # IMPULSE skips ECW: velocity thesis must hold from tick 1.
+                                if _held_s < 25.0:
+                                    # Minimum-hold gate: no non-HARD_SL exits before 25s.
+                                    # Gives trades time to develop before evaluating reversal.
                                     pass
                                 else:
                                     self._dir_rev_count[token_id] = self._dir_rev_count.get(token_id, 0) + 1
@@ -641,6 +640,8 @@ class KlausBot:
                         _stall_delay = 20.0  # EXTREME: no patience, quick stall detection
                     elif _is_impulse_pos:
                         _stall_delay = 15.0  # IMPULSE: stall faster (velocity thesis or nothing)
+                    # Minimum-hold gate: no non-HARD_SL exits before 25s.
+                    _stall_delay = max(_stall_delay, 25.0)
                     if _hold_s >= _stall_delay:
                         self._stall_checked.add(token_id)
                         _ext_stall = self._last_ext_signals.get(pos.asset)
@@ -680,7 +681,8 @@ class KlausBot:
                     elif _is_impulse_pos:
                         _max_hold = min(_max_hold, 30.0)
                     _hold_time = now - pos.open_ts
-                    if _hold_time > _max_hold:
+                    # Minimum-hold gate: no non-HARD_SL exits before 25s.
+                    if _hold_time > _max_hold and _hold_time >= 25.0:
                         # Only exit if decay detected: both edge and momentum fading.
                         # If trend still alive (drift≥0 OR accel≥0), hold.
                         _decay = (_pos_drift is None) or (_pos_drift < 0 and _pos_accel < 0)
@@ -744,9 +746,10 @@ class KlausBot:
                     _dir_sign_ff = 1.0 if pos.bond_outcome_direction == "up" else -1.0
                     _vel_aligned_ff = (_vel_now_ff * _dir_sign_ff) if _vel_age_ff < 999.0 else 0.0
 
-                    # IMPULSE: velocity dropped below threshold in first 10s → thesis failed
+                    # IMPULSE: velocity dropped below threshold → thesis failed
+                    # Minimum-hold gate: no non-HARD_SL exits before 25s.
                     if (_is_impulse_pos
-                            and _held_s <= 10.0
+                            and 25.0 <= _held_s <= 35.0
                             and _vel_age_ff < 999.0
                             and abs(_vel_aligned_ff) < 0.01):
                         self._exit_in_progress.add(token_id)
@@ -760,9 +763,9 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # IMPULSE: no profit after 10s → cut immediately
+                    # IMPULSE: no profit → cut (minimum-hold gate: 25s)
                     if (_is_impulse_pos
-                            and _held_s >= 10.0
+                            and _held_s >= 25.0
                             and bond_move <= 0.0):
                         self._exit_in_progress.add(token_id)
                         logger.info(
@@ -775,9 +778,9 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # EXTREME EDGE: no profit after 20s → cut
+                    # EXTREME EDGE: no profit → cut (minimum-hold gate: 25s)
                     if (_is_extreme_pos
-                            and _held_s >= 20.0
+                            and _held_s >= 25.0
                             and bond_move <= 0.0):
                         self._exit_in_progress.add(token_id)
                         logger.info(
@@ -790,9 +793,9 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # Global early loss: any entry type, pnl <= 0 after 20s
+                    # Global early loss: any entry type, pnl <= 0 after 30s
                     if (not _is_impulse_pos        # IMPULSE handled above
-                            and _held_s >= 20.0
+                            and _held_s >= 30.0
                             and bond_move <= 0.0):
                         self._exit_in_progress.add(token_id)
                         logger.info(
@@ -805,10 +808,42 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
+                # ── Time-based HARD_SL (drawdown tightens as position ages) ───
+                # 0-25s:   no hard SL (fast-fail block handles early weakness)
+                # 25-60s:  -15% drawdown (-18% if entry edge ≥ 0.08)
+                # 60s+:    -10% drawdown
+                # Goal: give trades time to develop, then cut losers before
+                # they compound into large losses.
+                if (_held_s >= 25.0
+                        and token_id not in self._exit_in_progress):
+                    if _held_s >= 60.0:
+                        _hard_sl_thresh = -0.10
+                        _hard_sl_label  = "60s+"
+                    else:
+                        _relaxed = _entry_edge_b >= 0.08
+                        _hard_sl_thresh = -0.18 if _relaxed else -0.15
+                        _hard_sl_label  = "25-60s" + ("/edge≥0.08" if _relaxed else "")
+                    if bond_move <= _hard_sl_thresh:
+                        self._exit_in_progress.add(token_id)
+                        logger.warning(
+                            "BOND_HARD_SL %s/%s | move=%+.1f%% ≤ %.0f%% at %.0fs [%s] | entry=%.4f curr=%.4f",
+                            pos.asset, pos.direction.name,
+                            bond_move * 100, _hard_sl_thresh * 100, _held_s, _hard_sl_label,
+                            pos.entry_price, current_price,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_HARD_SL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                            self._sl_below_count.pop(token_id, None)
+                            self._peak_bond_move.pop(token_id, None)
+                        continue
+
                 # ── Winner trailing stop (protect expanded profits) ────────────
-                # Activates once peak move ≥ 1.5%. Exits if giveback > 50%.
-                # Lets +2% become +4% instead of being locked in at +0.6%.
-                if (_peak_move >= 0.015
+                # Activates once peak move ≥ 8% and held ≥ 25s. Exits if giveback > 50%.
+                # Minimum-hold gate: lets trades develop before trailing kicks in.
+                if (_peak_move >= 0.08
+                        and _held_s >= 25.0
                         and bond_move < _peak_move * 0.50
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
@@ -827,11 +862,11 @@ class KlausBot:
 
                 # ── BOND exhaustion exit (dynamic continuation vs decay) ─────
                 # Fires when expected remaining upside < risk of giving back gains.
-                # Requires 30s of position history, ≥5% profit, and ≥20s held.
+                # Requires 30s of position history, ≥8% profit, and ≥25s held.
                 # DIR_REVERSAL and STALL handle their own regimes — this only fires
                 # when the trend is still nominally valid but momentum is fading.
-                if (bond_move >= 0.05
-                        and _held_s >= 20.0
+                if (bond_move >= 0.08
+                        and _held_s >= 25.0
                         and _pos_drift is not None
                         and token_id not in self._exit_in_progress
                         and self._dir_rev_count.get(token_id, 0) < 2):
