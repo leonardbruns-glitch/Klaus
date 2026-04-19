@@ -151,10 +151,10 @@ class EdgeConfig:
     # hr=08 BLOCKED 2026-04-15: BOND data n=11 WR=45% net=-$18.86 (European open volatility)
     # hr=13,14 BLOCKED 2026-04-15: sniper data WR=25% n=12 avg=-$3.5 (NYSE open volatility)
     # hr=22 is the crown jewel: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
-    blocked_hours_utc: List[int] = field(default_factory=lambda: [2, 8, 13, 14])
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [])
     # Full-hour BOND block: no entries at all during these UTC hours.
     # 00=midnight reset, 08=EU open, 13=NYSE open, 18=NYSE midday spike, 20=late US session.
-    bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [0, 8, 13, 18, 20])
+    bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [])
     bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6])  # first 15 min only
     bond_volatile_minutes_gate: int = 15
 

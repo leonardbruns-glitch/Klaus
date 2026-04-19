@@ -1167,14 +1167,7 @@ class KlausBot:
         if not SNIPER_ENABLED:
             return
         now = time.time()
-        # Hour gate — mirrors BOND first-15-min gate.
-        import datetime as _dt
-        _spike_dt = _dt.datetime.utcnow()
-        _spike_first15 = set(getattr(
-            CONFIG.edge, "bond_first15_blocked_hours_utc", [0, 6, 8, 13, 18, 20]
-        )) | set(getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14]))
-        if _spike_dt.hour in _spike_first15 and _spike_dt.minute < 15:
-            return
+        # Hour gates removed — all UTC hours permitted.
 
         # Per-asset debounce — feeds.py debounces at 1.5s, this adds a session-level guard.
         # Timestamp set BEFORE the guard check to prevent two concurrent callbacks both
@@ -1894,17 +1887,7 @@ class KlausBot:
                 logger.debug("CASCADE: %s lead → %s gets %.2f score discount",
                              leader, follower, CONFIG.edge.cascade_score_discount)
 
-        # ── Volatile hours gate — sniper: full hour block ────────────────────
-        # Sniper blocked for entire volatile hours (European/NYSE/Asian opens).
-        # BOND has a softer gate (first 15 min only) in _scan_bond_entries.
-        import datetime as _dt
-        _now_utc = _dt.datetime.utcnow()
-        _sniper_first15 = (
-            set(getattr(CONFIG.edge, "bond_first15_blocked_hours_utc", [0, 6, 8, 13, 18, 20]))
-            | set(getattr(CONFIG.edge, "blocked_hours_utc", [2, 6, 14]))
-        )
-        if _now_utc.hour in _sniper_first15 and _now_utc.minute < 15:
-            return
+        # Volatile-hours gate removed — all UTC hours permitted.
 
         # ── Phase 1: scan all tokens, collect sniper candidates + run momentum ──
         # Sniper candidates are queued for a single LLM briefing call (not per-token).
