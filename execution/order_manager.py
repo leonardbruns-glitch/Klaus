@@ -884,6 +884,39 @@ class OrderManager:
                                     "id": _early["order_id"], "_from_early_fill": True}
                             _transient_exc = None
                             break
+                    # Belt-and-suspenders: check CLOB directly for the previous attempt's
+                    # order ID. Fill tracker only sees FILLED orders via WS — a resting
+                    # order that landed silently on CLOB (5xx ambiguous case) would be
+                    # missed here, leading to a duplicate order on retry. get_order
+                    # covers that gap. If the order is on the book in ANY active state,
+                    # skip the retry and let downstream logic handle the existing order.
+                    if _signed_id:
+                        try:
+                            _prev_order = self._client.get_order(_signed_id)
+                            _prev_status = (
+                                (_prev_order.get("status") or "").lower()
+                                if _prev_order else ""
+                            )
+                            # Active statuses = order alive on CLOB → reuse, do not retry.
+                            # Terminal failure statuses (canceled/expired/failed/rejected)
+                            # mean the order is dead and retry is safe.
+                            if _prev_status in ("matched", "filled", "live", "open"):
+                                logger.warning(
+                                    "Retry cancelled — previous attempt %d on CLOB "
+                                    "(status=%s): %s — reusing existing order",
+                                    _cf_attempt + 1, _prev_status, _signed_id[:12],
+                                )
+                                resp = _prev_order
+                                _transient_exc = None
+                                break
+                        except Exception as _gs_exc:
+                            # get_order failure typically = order not found on CLOB
+                            # (never ingested) → safe to retry with a fresh order.
+                            logger.debug(
+                                "pre-retry get_order check failed for %s (assuming "
+                                "order not ingested, retry safe): %s",
+                                _signed_id[:12], _gs_exc,
+                            )
             _order_ms = (time.time() - _order_t0) * 1000
             self._order_latencies_ms.append(_order_ms)
             if _order_ms > 500:
