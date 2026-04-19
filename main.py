@@ -2390,6 +2390,10 @@ class KlausBot:
             # _pending_assets lock. Without this, the asset is permanently locked
             # until restart — bot stops entering that asset silently.
             self.risk._pending_assets.discard(asset)
+            # Same for condition dedup: exception before fill means no trade happened.
+            _cid_exc = getattr(self.feed.tokens.get(token_id), "condition_id", "")
+            if _cid_exc:
+                self.risk._traded_conditions.discard(_cid_exc)
             logger.error(
                 "ENTRY EXCEPTION %s — _pending_assets cleared, re-raising: %s",
                 asset, _entry_exc,
@@ -2431,6 +2435,11 @@ class KlausBot:
             self._buy_failed_reasons[reason] = self._buy_failed_reasons.get(reason, 0) + 1
             logger.error("Fill failed for %s: %s", asset, reason)
             self.risk._pending_assets.discard(asset)  # release lock on fill failure
+            # Release condition dedup lock: the trade never actually happened, so
+            # the same condition must be eligible for re-entry on the next signal.
+            _cid_fail = getattr(self.feed.tokens.get(token_id), "condition_id", "")
+            if _cid_fail:
+                self.risk._traded_conditions.discard(_cid_fail)
             return
 
         # Slippage guard: two tiers.
