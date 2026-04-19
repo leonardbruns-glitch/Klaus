@@ -216,6 +216,7 @@ class KlausBot:
         # before firing — prevents single-snapshot noise from triggering exit.
         self._stall_conf_count: Dict[str, int] = {}
         self._exhaustion_conf_count: Dict[str, int] = {}
+        self._early_loss_conf_count: Dict[str, int] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -665,27 +666,29 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── STALL exit (regime-gated + compression bias rule) ─────────
-                # STALL = trend built a range, then died back to flat without rebound.
+                # ── STALL exit (no-expansion case only) ──────────────────────
+                # STALL = some range built, then completely died — no rebound,
+                # no momentum, no edge. Clear separation from EXHAUSTION:
+                #   STALL:      peak_move < 8%  (no major expansion)
+                #   EXHAUSTION: peak_move ≥ 12% (post-expansion failure)
                 # Required signals:
                 #   1. no movement           — |bond_move| < 2%
-                #   2. range was built       — _vol_range ≥ 2% (NOT compression)
-                #   3. no rebound attempts   — peak hasn't updated in 25s+
-                #   4. _breakdown_confirmed  — noise-tolerant structural decay
-                # Compression filter: _vol_range < 2% means pure consolidation
-                # (no prior expansion yet) — never a STALL, always hold for the
-                # second leg. Prevents cutting mid-cycle pauses before continuation.
-                # COMPRESSION BIAS: if in COMPRESSION state, all four must
+                #   2. range was built       — _vol_range ≥ 2% (NOT pure compression)
+                #   3. no rebound            — peak_age > 35s
+                #   4. no expansion          — peak_move < 8% (EXHAUSTION handles ≥12%)
+                #   5. _breakdown_confirmed  — noise-tolerant structural decay
+                # COMPRESSION BIAS: if in COMPRESSION state, all five must
                 # persist for 3 consecutive scans before firing.
                 _hold_s = now - pos.open_ts
                 if (token_id not in self._stall_checked
                         and token_id not in self._exit_in_progress):
                     _no_movement  = abs(bond_move) < 0.02
                     _range_built  = _vol_range >= 0.02
-                    _no_rebound   = _peak_age > 25.0
+                    _no_rebound   = _peak_age > 35.0
                     _stall_cond_met = (
                         _no_movement and _range_built
                         and _no_rebound and _breakdown_confirmed
+                        and _peak_move < 0.08
                     )
                     if _stall_cond_met:
                         self._stall_conf_count[token_id] = (
@@ -728,7 +731,10 @@ class KlausBot:
                         _max_hold = min(_max_hold, 30.0)
                     _hold_time = now - pos.open_ts
                     # Minimum-hold gate: no non-HARD_SL exits before 25s.
-                    if _hold_time > _max_hold and _hold_time >= 25.0:
+                    # PROGRESS_EXIT = time-decay only. If peak_move ≥ 8%, the
+                    # trade expanded — EXHAUSTION handles post-expansion failure.
+                    if (_hold_time > _max_hold and _hold_time >= 25.0
+                            and _peak_move < 0.08):
                         # Only exit if decay detected: both edge and momentum fading.
                         # If trend still alive (drift≥0 OR accel≥0), hold.
                         _decay = (_pos_drift is None) or (_pos_drift < 0 and _pos_accel < 0)
@@ -839,25 +845,36 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # Global early loss (structural-failure only — no pure time exit).
-                    # A flat trade is never cut: being unprofitable at T+45s is NOT
-                    # edge failure. Only exit when the loss is real and momentum has
-                    # explicitly turned. All five must confirm:
+                    # Global early loss (structural-failure only, 2-scan persistence).
+                    # A flat or mildly losing trade is NEVER cut — only confirmed
+                    # structural failure across 2 consecutive scans exits:
                     #   1. bond_move ≤ -5%      — real loss, not noise
                     #   2. delta_accel < 0       — momentum decaying
                     #   3. edge_drift < 0        — edge deteriorating
                     #   4. vel ≤ 0               — direction-aligned velocity dead
-                    #   5. held ≥ 45s            — gave the setup time to develop
-                    if (not _is_impulse_pos        # IMPULSE handled above
-                            and _held_s >= 45.0
-                            and bond_move <= -0.05
-                            and _pos_drift is not None and _pos_drift < 0
-                            and _pos_accel is not None and _pos_accel < 0
-                            and _vel_neg):
+                    #   5. held ≥ 45s            — setup had time to develop
+                    #   6. 2 consecutive scans   — not a single-snapshot dip
+                    _el_cond = (
+                        not _is_impulse_pos
+                        and _held_s >= 45.0
+                        and bond_move <= -0.05
+                        and _pos_drift is not None and _pos_drift < 0
+                        and _pos_accel is not None and _pos_accel < 0
+                        and _vel_neg
+                    )
+                    if _el_cond:
+                        self._early_loss_conf_count[token_id] = (
+                            self._early_loss_conf_count.get(token_id, 0) + 1
+                        )
+                    else:
+                        self._early_loss_conf_count.pop(token_id, None)
+
+                    if (self._early_loss_conf_count.get(token_id, 0) >= 2
+                            and token_id not in self._exit_in_progress):
                         self._exit_in_progress.add(token_id)
                         logger.info(
                             "BOND_EARLY_LOSS %s/%s | move=%+.1f%% held=%.0fs "
-                            "drift=%+.4f accel=%+.4f vel=%+.4f — structural failure",
+                            "drift=%+.4f accel=%+.4f vel=%+.4f — structural failure (2 scans)",
                             pos.asset, pos.direction.name, bond_move * 100, _held_s,
                             _pos_drift, _pos_accel, _vel_aligned_cl,
                         )
@@ -865,6 +882,7 @@ class KlausBot:
                             await self._exit_position(token_id, current_price, "BOND_EARLY_LOSS")
                         finally:
                             self._exit_in_progress.discard(token_id)
+                            self._early_loss_conf_count.pop(token_id, None)
                         continue
 
                 # ── Adaptive SL envelope (regime-gated, noise-tolerant) ────────
@@ -1002,7 +1020,7 @@ class KlausBot:
                 )
                 _exh_cond = (
                     _peak_move >= 0.12
-                    and _peak_age > 30.0
+                    and _peak_age > 40.0
                     and bond_move < _peak_move * 0.50
                     and _breakdown_confirmed
                     and _continuation_failure
@@ -3048,6 +3066,7 @@ class KlausBot:
                 self._peak_ts.pop(token_id, None)
                 self._stall_conf_count.pop(token_id, None)
                 self._exhaustion_conf_count.pop(token_id, None)
+                self._early_loss_conf_count.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -3219,6 +3238,7 @@ class KlausBot:
             self._peak_ts.pop(token_id, None)
             self._stall_conf_count.pop(token_id, None)
             self._exhaustion_conf_count.pop(token_id, None)
+            self._early_loss_conf_count.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -3354,6 +3374,7 @@ class KlausBot:
                 self._peak_ts.pop(token_id, None)
                 self._stall_conf_count.pop(token_id, None)
                 self._exhaustion_conf_count.pop(token_id, None)
+                self._early_loss_conf_count.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3628,6 +3649,7 @@ class KlausBot:
         self._peak_ts.pop(token_id, None)
         self._stall_conf_count.pop(token_id, None)
         self._exhaustion_conf_count.pop(token_id, None)
+        self._early_loss_conf_count.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
