@@ -666,22 +666,25 @@ class KlausBot:
                     self._dir_rev_count.pop(token_id, None)
 
                 # ── STALL exit (regime-gated + compression bias rule) ─────────
-                # All four signals must be present:
+                # STALL = trend built a range, then died back to flat without rebound.
+                # Required signals:
                 #   1. no movement           — |bond_move| < 2%
-                #   2. no volatility expansion — peak−trough range < 2%
-                #   3. no rebound attempts   — peak hasn't updated in 15s+
+                #   2. range was built       — _vol_range ≥ 2% (NOT compression)
+                #   3. no rebound attempts   — peak hasn't updated in 25s+
                 #   4. _breakdown_confirmed  — noise-tolerant structural decay
+                # Compression filter: _vol_range < 2% means pure consolidation
+                # (no prior expansion yet) — never a STALL, always hold for the
+                # second leg. Prevents cutting mid-cycle pauses before continuation.
                 # COMPRESSION BIAS: if in COMPRESSION state, all four must
-                # persist for 3 consecutive scans before firing. Prevents
-                # single-snapshot noise from exiting a valid compression pause.
+                # persist for 3 consecutive scans before firing.
                 _hold_s = now - pos.open_ts
                 if (token_id not in self._stall_checked
                         and token_id not in self._exit_in_progress):
-                    _no_movement   = abs(bond_move) < 0.02
-                    _no_vol_expand = _vol_range < 0.02
-                    _no_rebound    = _peak_age > 15.0
+                    _no_movement  = abs(bond_move) < 0.02
+                    _range_built  = _vol_range >= 0.02
+                    _no_rebound   = _peak_age > 25.0
                     _stall_cond_met = (
-                        _no_movement and _no_vol_expand
+                        _no_movement and _range_built
                         and _no_rebound and _breakdown_confirmed
                     )
                     if _stall_cond_met:
@@ -836,14 +839,28 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # Global early loss: any entry type, pnl <= 0 after 30s
+                    # Global early loss: any entry type, pnl <= 0 after 30s.
+                    # To avoid cutting noisy entries before they develop, require
+                    # EITHER sufficient age (≥45s) OR structural decay confirmed
+                    # (drift<0 AND accel<0). Flat/neutral pullbacks at 30s no
+                    # longer trigger unless momentum has actually turned against us.
+                    _early_loss_structural = (
+                        _pos_drift is not None and _pos_drift < 0
+                        and _pos_accel is not None and _pos_accel < 0
+                    )
                     if (not _is_impulse_pos        # IMPULSE handled above
-                            and _held_s >= 30.0
-                            and bond_move <= 0.0):
+                            and bond_move <= 0.0
+                            and (_held_s >= 45.0
+                                 or (_held_s >= 30.0 and _early_loss_structural))):
                         self._exit_in_progress.add(token_id)
+                        _reason_tag = "age" if _held_s >= 45.0 else "structural_decay"
                         logger.info(
-                            "BOND_EARLY_LOSS %s/%s | move=%+.1f%% at %.0fs — cut loser",
+                            "BOND_EARLY_LOSS %s/%s | move=%+.1f%% at %.0fs drift=%s "
+                            "accel=%s — cut loser (%s)",
                             pos.asset, pos.direction.name, bond_move * 100, _held_s,
+                            f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
+                            f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
+                            _reason_tag,
                         )
                         try:
                             await self._exit_position(token_id, current_price, "BOND_EARLY_LOSS")
@@ -985,7 +1002,7 @@ class KlausBot:
                     and _edge_stable
                 )
                 _exh_cond = (
-                    _peak_move >= 0.08
+                    _peak_move >= 0.12
                     and _peak_age > 30.0
                     and bond_move < _peak_move * 0.50
                     and _breakdown_confirmed
