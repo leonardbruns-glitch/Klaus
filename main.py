@@ -808,14 +808,14 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Conditional loss exit (replaces fixed HARD_SL) ─────────────
+                # ── Phase-based loss exit (strictly non-overlapping) ───────────
                 # BOND: fixed price stops misfire because winners routinely dip
-                # -5% to -12% before expanding. Exit based on phase + signal state:
-                #   hold < 15s:  panic cut on -6% move AND vel ≤ 0
-                #   hold ≥ 25s:  sustained drawdown -12%
-                #   any time:    -8% AND bad_state (all 3 signals deteriorating:
-                #                delta_accel<0, edge_drift<0, vel≤0)
-                # HARD_SL remains the sole exit permitted before the 25s min-hold.
+                # -5% to -12% before expanding. Exactly one rule per phase:
+                #   0-15s   : move ≤ -6%  AND vel ≤ 0        (panic cut)
+                #   15-25s  : move ≤ -8%  AND bad_state      (signal failure)
+                #   25s+    : move ≤ -12% OR (move ≤ -6% AND bad_state)
+                # bad_state = delta_accel<0 AND edge_drift<0 AND vel≤0
+                # HARD_SL is the only exit path permitted before the 25s min-hold.
                 if token_id not in self._exit_in_progress:
                     _vel_cl, _vel_age_cl = self.feed.get_velocity_5s(pos.asset)
                     _dir_sign_cl = 1.0 if pos.bond_outcome_direction == "up" else -1.0
@@ -829,12 +829,17 @@ class KlausBot:
                     )
 
                     _exit_label_cl = ""
-                    if _held_s < 15.0 and bond_move <= -0.06 and _vel_neg:
-                        _exit_label_cl = "<15s/move≤-6%+vel≤0"
-                    elif _held_s >= 25.0 and bond_move <= -0.12:
-                        _exit_label_cl = "≥25s/move≤-12%"
-                    elif bond_move <= -0.08 and _bad_state:
-                        _exit_label_cl = "move≤-8%/bad_state"
+                    if _held_s < 15.0:
+                        if bond_move <= -0.06 and _vel_neg:
+                            _exit_label_cl = "0-15s/move≤-6%+vel≤0"
+                    elif _held_s < 25.0:
+                        if bond_move <= -0.08 and _bad_state:
+                            _exit_label_cl = "15-25s/move≤-8%+bad_state"
+                    else:
+                        if bond_move <= -0.12:
+                            _exit_label_cl = "≥25s/move≤-12%"
+                        elif bond_move <= -0.06 and _bad_state:
+                            _exit_label_cl = "≥25s/move≤-6%+bad_state"
 
                     if _exit_label_cl:
                         self._exit_in_progress.add(token_id)
