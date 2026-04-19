@@ -839,28 +839,27 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # Global early loss: any entry type, pnl <= 0 after 30s.
-                    # To avoid cutting noisy entries before they develop, require
-                    # EITHER sufficient age (≥45s) OR structural decay confirmed
-                    # (drift<0 AND accel<0). Flat/neutral pullbacks at 30s no
-                    # longer trigger unless momentum has actually turned against us.
-                    _early_loss_structural = (
-                        _pos_drift is not None and _pos_drift < 0
-                        and _pos_accel is not None and _pos_accel < 0
-                    )
+                    # Global early loss (structural-failure only — no pure time exit).
+                    # A flat trade is never cut: being unprofitable at T+45s is NOT
+                    # edge failure. Only exit when the loss is real and momentum has
+                    # explicitly turned. All five must confirm:
+                    #   1. bond_move ≤ -5%      — real loss, not noise
+                    #   2. delta_accel < 0       — momentum decaying
+                    #   3. edge_drift < 0        — edge deteriorating
+                    #   4. vel ≤ 0               — direction-aligned velocity dead
+                    #   5. held ≥ 45s            — gave the setup time to develop
                     if (not _is_impulse_pos        # IMPULSE handled above
-                            and bond_move <= 0.0
-                            and (_held_s >= 45.0
-                                 or (_held_s >= 30.0 and _early_loss_structural))):
+                            and _held_s >= 45.0
+                            and bond_move <= -0.05
+                            and _pos_drift is not None and _pos_drift < 0
+                            and _pos_accel is not None and _pos_accel < 0
+                            and _vel_neg):
                         self._exit_in_progress.add(token_id)
-                        _reason_tag = "age" if _held_s >= 45.0 else "structural_decay"
                         logger.info(
-                            "BOND_EARLY_LOSS %s/%s | move=%+.1f%% at %.0fs drift=%s "
-                            "accel=%s — cut loser (%s)",
+                            "BOND_EARLY_LOSS %s/%s | move=%+.1f%% held=%.0fs "
+                            "drift=%+.4f accel=%+.4f vel=%+.4f — structural failure",
                             pos.asset, pos.direction.name, bond_move * 100, _held_s,
-                            f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
-                            f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
-                            _reason_tag,
+                            _pos_drift, _pos_accel, _vel_aligned_cl,
                         )
                         try:
                             await self._exit_position(token_id, current_price, "BOND_EARLY_LOSS")
