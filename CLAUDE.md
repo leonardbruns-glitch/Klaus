@@ -239,9 +239,12 @@ analytics/shadow_log.py       — counterfactual analysis for blocked signals
 | max_daily_loss | $100 | No intraday halt (data collection) |
 
 ### Infrastructure
-- **Run locally** (MacBook) for now — Cloudflare WAF blocks standard VPS
-- **Next step**: QuantVPS Dublin (~$42/mo) — purpose-built IP not on CF blocklist
-- **Development branch**: `claude/investigate-zero-entry-price-lWxej`
+- **Running on VPS** — systemd unit `klaus` at `/root/Klaus`
+- **Deploy**: `cd /root/Klaus && git pull && systemctl restart klaus`
+  - `systemctl restart` kills the active session (SIGTERM → SIGKILL) before
+    relaunching; open positions persist via state files and resume on start
+- **Logs**: `journalctl -u klaus -f` or `tail -f /root/Klaus/logs/bot.log`
+- **Development branch**: `claude/find-lag-parameter-rFQ0N`
 
 ### Run
 ```bash
