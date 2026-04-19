@@ -211,6 +211,11 @@ class KlausBot:
         # expansion detection in STALL and EXHAUSTION).
         self._trough_bond_move: Dict[str, float] = {}
         self._peak_ts: Dict[str, float] = {}
+        # COMPRESSION BIAS RULE: consecutive-scan confirmation counters for
+        # STALL and EXHAUSTION. In compression, require multi-scan persistence
+        # before firing — prevents single-snapshot noise from triggering exit.
+        self._stall_conf_count: Dict[str, int] = {}
+        self._exhaustion_conf_count: Dict[str, int] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -553,6 +558,30 @@ class KlausBot:
                             _pos_drift = _edge_pos  - _ref30_pos[2]
                             _pos_accel = _delta_pos - _ref30_pos[1]
 
+                # ── Regime classification (replaces time-based gating) ────────
+                # COMPRESSION: quiet tape + stable edge — NO signal exits allowed.
+                # LOW_VOL: realized range < 3% — signal thresholds need noise
+                #   tolerance because delta_accel/edge_drift are noisy at 5m.
+                # _breakdown_confirmed: structural failure that CAN trigger an
+                #   exit. Stricter thresholds in low-vol to filter noise:
+                #     low-vol:  drift<-0.005 AND accel<-0.05 AND vel≤0
+                #     normal:   drift<0      AND accel<0     AND vel≤0
+                _edge_stable = _pos_drift is None or abs(_pos_drift) < 0.003
+                _low_vol = _vol_range < 0.03
+                _compressed = (
+                    abs(_vel_aligned_cl) < 0.005
+                    and abs(bond_move) < 0.02
+                    and _low_vol
+                    and _edge_stable
+                )
+                _drift_thr = -0.005 if _low_vol else 0.0
+                _accel_thr = -0.05  if _low_vol else 0.0
+                _breakdown_confirmed = (
+                    _pos_drift is not None and _pos_drift < _drift_thr
+                    and _pos_accel is not None and _pos_accel < _accel_thr
+                    and _vel_neg
+                )
+
                 _wdelta_now = 0.0  # updated inside DIR_REVERSAL block when ext signal available
 
                 # ── Entry-relative reversal guard (5m + 15m) ─────────────────
@@ -636,39 +665,50 @@ class KlausBot:
                     # 5m: no reversal guard — clear any stale count from prior position
                     self._dir_rev_count.pop(token_id, None)
 
-                # ── STALL exit (confirmed structural decay only) ──────────────
-                # Compression (flat tape + stable edge) is NOT a stall — it's
-                # often the pause before a second leg. Only exit when all four
-                # decay signals confirm:
+                # ── STALL exit (regime-gated + compression bias rule) ─────────
+                # All four signals must be present:
                 #   1. no movement           — |bond_move| < 2%
-                #   2. no volatility expansion — realized range (peak−trough) < 2%
-                #   3. no rebound attempts   — peak hasn't been updated in 15s+
-                #   4. structural decay      — edge_drift<0 AND delta_accel<0
+                #   2. no volatility expansion — peak−trough range < 2%
+                #   3. no rebound attempts   — peak hasn't updated in 15s+
+                #   4. _breakdown_confirmed  — noise-tolerant structural decay
+                # COMPRESSION BIAS: if in COMPRESSION state, all four must
+                # persist for 3 consecutive scans before firing. Prevents
+                # single-snapshot noise from exiting a valid compression pause.
                 _hold_s = now - pos.open_ts
                 if (token_id not in self._stall_checked
-                        and token_id not in self._exit_in_progress
-                        and _hold_s >= 30.0):   # minimum-hold gate
+                        and token_id not in self._exit_in_progress):
                     _no_movement   = abs(bond_move) < 0.02
                     _no_vol_expand = _vol_range < 0.02
                     _no_rebound    = _peak_age > 15.0
-                    _decay_conf    = (
-                        _pos_drift is not None and _pos_drift < 0
-                        and _pos_accel is not None and _pos_accel < 0
+                    _stall_cond_met = (
+                        _no_movement and _no_vol_expand
+                        and _no_rebound and _breakdown_confirmed
                     )
-                    if _no_movement and _no_vol_expand and _no_rebound and _decay_conf:
+                    if _stall_cond_met:
+                        self._stall_conf_count[token_id] = (
+                            self._stall_conf_count.get(token_id, 0) + 1
+                        )
+                    else:
+                        self._stall_conf_count.pop(token_id, None)
+                    _stall_req = 3 if _compressed else 1
+                    if self._stall_conf_count.get(token_id, 0) >= _stall_req:
                         self._stall_checked.add(token_id)
                         self._exit_in_progress.add(token_id)
                         logger.info(
                             "BOND_STALL %s/%s | T+%.0fs | move=%+.1f%% range=%.1f%% "
-                            "peak_age=%.0fs drift=%+.4f accel=%+.4f — confirmed decay",
+                            "peak_age=%.0fs drift=%+.4f accel=%+.4f conf=%d/%d%s",
                             pos.asset, pos.direction.name, _hold_s,
                             bond_move * 100, _vol_range * 100, _peak_age,
-                            _pos_drift, _pos_accel,
+                            _pos_drift if _pos_drift is not None else 0.0,
+                            _pos_accel if _pos_accel is not None else 0.0,
+                            self._stall_conf_count.get(token_id, 0), _stall_req,
+                            " (COMPRESSION bias)" if _compressed else "",
                         )
                         try:
                             await self._exit_position(token_id, current_price, "BOND_STALL")
                         finally:
                             self._exit_in_progress.discard(token_id)
+                            self._stall_conf_count.pop(token_id, None)
                         continue
 
                 # ── Progress exit: trade used >60% of available time ──────────
@@ -811,39 +851,33 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Adaptive SL envelope (time-decaying, state-gated) ─────────
+                # ── Adaptive SL envelope (regime-gated, noise-tolerant) ────────
                 # Tolerance expands over time so normal mid-trade dips aren't cut.
-                # All exits require structural degradation confirmation except the
-                # catastrophic hard stop.
+                # Exits require regime-based confirmation:
+                #   - CATASTROPHE (-25%): fires regardless of state
+                #   - COMPRESSION (quiet tape within envelope): NO-DECISION, hold
+                #   - BREAKDOWN (envelope breached + _breakdown_confirmed): exit
                 #
-                # Envelope: starts at -5% (t=0), widens by 0.2% per 10s, caps at -18%
-                #   t=0s  → -5%    t=20s → -9%    t=40s → -13%
-                #   t=10s → -7%    t=30s → -11%   t=65s → -18% (cap)
+                # Envelope: starts at -5% (t=0), widens 0.2% per 10s, caps at -18%
+                #   t=0s → -5%   t=20s → -9%   t=40s → -13%   t=65s → -18%
                 #
-                # Structural degradation (_degraded):
-                #   When 30s history available: delta_accel<0 AND edge_drift<0 AND vel≤0
-                #   When history unavailable (hold<25s): velocity-only (vel≤0)
-                #
-                # Catastrophic: -25% no state required — pure disaster cut.
+                # _breakdown_confirmed already applies noise tolerance in low-vol
+                # regimes (drift<-0.005, accel<-0.05 vs. drift<0, accel<0 normal).
                 if token_id not in self._exit_in_progress:
-                    # Degradation check: full 3-signal when history available, vel-only otherwise
-                    if _pos_drift is not None and _pos_accel is not None:
-                        _degraded = _pos_accel < 0 and _pos_drift < 0 and _vel_neg
-                    else:
-                        _degraded = _vel_neg  # no 30s history yet — velocity is sole signal
-
                     # Smooth envelope: -(0.05 + 0.002*t) capped at -0.18
                     _sl_env = -(0.05 + min(0.002 * _held_s, 0.13))
-                    # _sl_env at: t=0→-5%, t=10→-7%, t=20→-9%, t=30→-11%, t=65→-18%
 
                     _exit_label_cl = ""
                     if bond_move <= -0.25:
-                        # Catastrophic: no state confirmation needed
-                        _exit_label_cl = f"catastrophic/move≤-25%"
-                    elif bond_move <= _sl_env and _degraded:
+                        # Catastrophic: regime-independent, always fires
+                        _exit_label_cl = "catastrophic/move≤-25%"
+                    elif _compressed and bond_move > _sl_env:
+                        # NO-DECISION: price within envelope, quiet regime — hold
+                        pass
+                    elif bond_move <= _sl_env and _breakdown_confirmed:
                         _exit_label_cl = (
-                            f"adaptive/move≤{_sl_env:.1%}"
-                            f"+{'full' if _pos_drift is not None else 'vel'}_degraded"
+                            f"breakdown/move≤{_sl_env:.1%}+structural"
+                            f"{'/lowvol' if _low_vol else ''}"
                         )
 
                     if _exit_label_cl:
@@ -866,6 +900,8 @@ class KlausBot:
                             self._peak_bond_move.pop(token_id, None)
                             self._trough_bond_move.pop(token_id, None)
                             self._peak_ts.pop(token_id, None)
+                            self._stall_conf_count.pop(token_id, None)
+                            self._exhaustion_conf_count.pop(token_id, None)
                         continue
 
                 # ── Compression state detection ────────────────────────────────
@@ -903,40 +939,77 @@ class KlausBot:
                         self._peak_bond_move.pop(token_id, None)
                         self._trough_bond_move.pop(token_id, None)
                         self._peak_ts.pop(token_id, None)
+                        self._stall_conf_count.pop(token_id, None)
+                        self._exhaustion_conf_count.pop(token_id, None)
                     continue
 
-                # ── BOND exhaustion exit (confirmed trend failure only) ──────
-                # Only fires when a real expansion happened AND failed to continue.
-                # Prevents firing during first expansion leg or consolidation.
-                # Required conditions:
-                #   1. prior expansion: _peak_move ≥ +8%
-                #   2. failed continuation:
-                #        - peak hasn't been updated in 20s+ (no new higher high)
-                #        - current has given back >30% of peak
-                #   3. structural weakening: edge_drift<0 AND delta_accel<0
-                #   4. min hold 25s, dir-reversal not pending
-                if (_peak_move >= 0.08
-                        and _held_s >= 25.0
-                        and _peak_age > 20.0
-                        and bond_move < _peak_move * 0.70
-                        and _pos_drift is not None and _pos_drift < 0
-                        and _pos_accel is not None and _pos_accel < 0
-                        and token_id not in self._exit_in_progress
-                        and self._dir_rev_count.get(token_id, 0) < 2):
+                # ── BOND exhaustion exit (regime-gated — trend failure only) ──
+                # Over-triggered historically in mid-cycle compression: high
+                # bond_move + quiet tape = second-leg setup, NOT exhaustion.
+                # Strict _compressed gate missed these (requires bond_move<2%).
+                # Gates:
+                #   1. _peak_move ≥ +8%                 — prior expansion
+                #   2. _peak_age > 20s, giveback > 30%  — time + retrace
+                #   3. _breakdown_confirmed             — drift<0, accel<0, vel≤0
+                #   4. explicit continuation failure    — vel<0 AND drift<0 AND accel<0
+                #      (not just flat — flat ≠ failure)
+                #   5. not _compressed (strict)         — quiet tape near flat
+                #   6. not _mid_cycle_consol            — quiet tape at any move level
+                #   7. sustained decay (3 consecutive scans) — filters single-window dips
+                #   8. dir-reversal not pending
+                _continuation_pressure = (
+                    _vel_aligned_cl > 0.0
+                    or (_pos_drift is not None and _pos_drift > 0.0)
+                    or (_pos_accel is not None and _pos_accel > 0.0)
+                )
+                _continuation_failure = (
+                    _vel_aligned_cl < -0.003
+                    and _pos_drift is not None and _pos_drift < _drift_thr
+                    and _pos_accel is not None and _pos_accel < _accel_thr
+                )
+                _mid_cycle_consol = (
+                    abs(_vel_aligned_cl) < 0.005
+                    and _vol_range < 0.04
+                    and _edge_stable
+                )
+                _exh_cond = (
+                    _peak_move >= 0.08
+                    and _peak_age > 20.0
+                    and bond_move < _peak_move * 0.70
+                    and _breakdown_confirmed
+                    and _continuation_failure
+                    and not _continuation_pressure
+                    and not _compressed
+                    and not _mid_cycle_consol
+                    and self._dir_rev_count.get(token_id, 0) < 2
+                )
+                if _exh_cond:
+                    self._exhaustion_conf_count[token_id] = (
+                        self._exhaustion_conf_count.get(token_id, 0) + 1
+                    )
+                else:
+                    self._exhaustion_conf_count.pop(token_id, None)
+
+                if (self._exhaustion_conf_count.get(token_id, 0) >= 3
+                        and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     _giveback_pct = (1.0 - bond_move / _peak_move) * 100 if _peak_move > 0 else 0.0
                     logger.info(
                         "BOND_EXHAUSTION_EXIT %s/%s | peak=%+.1f%% curr=%+.1f%% "
-                        "giveback=%.0f%% peak_age=%.0fs drift=%+.4f accel=%+.4f rem=%.0fs",
+                        "giveback=%.0f%% peak_age=%.0fs drift=%+.4f accel=%+.4f "
+                        "vel_aligned=%+.4f rem=%.0fs conf=3/3",
                         pos.asset, pos.direction.name,
                         _peak_move * 100, bond_move * 100,
                         _giveback_pct, _peak_age,
-                        _pos_drift, _pos_accel, bond_remaining,
+                        _pos_drift if _pos_drift is not None else 0.0,
+                        _pos_accel if _pos_accel is not None else 0.0,
+                        _vel_aligned_cl, bond_remaining,
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_EXHAUSTION_EXIT")
                     finally:
                         self._exit_in_progress.discard(token_id)
+                        self._exhaustion_conf_count.pop(token_id, None)
                     continue
 
                 # $0.95 at any point — token at 95¢ with time remaining is high
@@ -2945,6 +3018,8 @@ class KlausBot:
                 self._peak_bond_move.pop(token_id, None)
                 self._trough_bond_move.pop(token_id, None)
                 self._peak_ts.pop(token_id, None)
+                self._stall_conf_count.pop(token_id, None)
+                self._exhaustion_conf_count.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -3114,6 +3189,8 @@ class KlausBot:
             self._peak_bond_move.pop(token_id, None)
             self._trough_bond_move.pop(token_id, None)
             self._peak_ts.pop(token_id, None)
+            self._stall_conf_count.pop(token_id, None)
+            self._exhaustion_conf_count.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -3247,6 +3324,8 @@ class KlausBot:
                 self._peak_bond_move.pop(token_id, None)
                 self._trough_bond_move.pop(token_id, None)
                 self._peak_ts.pop(token_id, None)
+                self._stall_conf_count.pop(token_id, None)
+                self._exhaustion_conf_count.pop(token_id, None)
                 if pnl is not None:
                     if _s2r_entry_fill is None:
                         _s2r_entry_fill = OrderResult(
@@ -3519,6 +3598,8 @@ class KlausBot:
         self._peak_bond_move.pop(token_id, None)
         self._trough_bond_move.pop(token_id, None)
         self._peak_ts.pop(token_id, None)
+        self._stall_conf_count.pop(token_id, None)
+        self._exhaustion_conf_count.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
