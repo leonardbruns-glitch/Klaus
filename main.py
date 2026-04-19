@@ -741,14 +741,16 @@ class KlausBot:
                             self._peak_breach_ts.pop(token_id, None)
                         continue
 
-                # ── Progress exit: trade used >60% of available time ──────────
-                # Normalises time to entry: max_hold = (1 - elap_entry) * 0.60 * window_s
+                # ── Progress exit: trade used >75% of available time ──────────
+                # Normalises time to entry: max_hold = (1 - elap_entry) * 0.75 * window_s
                 # Late entries get proportionally less absolute time — not punished early.
+                # Only fires when ALL three decay signals confirm AND no fresh peak
+                # within the last 15s. Prevents cutting live pullbacks mid-recovery.
                 _sig_meta = self._open_meta.get(token_id, {}).get("signal")
                 _elap_entry = getattr(_sig_meta, "elapsed_pct", None) if _sig_meta else None
                 if _elap_entry is not None and token_id not in self._exit_in_progress:
                     _avail_s   = (1.0 - _elap_entry) * pos.window_seconds
-                    _max_hold  = _avail_s * 0.60
+                    _max_hold  = _avail_s * 0.75
                     if _is_extreme_pos:
                         _max_hold = min(_max_hold, 40.0)
                     elif _is_impulse_pos:
@@ -757,20 +759,30 @@ class KlausBot:
                     # Minimum-hold gate: no non-HARD_SL exits before 25s.
                     # PROGRESS_EXIT = time-decay only. If peak_move ≥ 8%, the
                     # trade expanded — EXHAUSTION handles post-expansion failure.
+                    # Require full decay confluence:
+                    #   delta_accel < 0 AND edge_drift < 0 AND vel_aligned ≤ 0
+                    # Block if vel is recovering (vel > 0) or a fresh peak was
+                    # set within the last 15s (peak_age < 15s = trend still alive).
                     if (_hold_time > _max_hold and _hold_time >= 25.0
                             and _peak_move < 0.08):
-                        # Only exit if decay detected: both edge and momentum fading.
-                        # If trend still alive (drift≥0 OR accel≥0), hold.
-                        _decay = (_pos_drift is None) or (_pos_drift < 0 and _pos_accel < 0)
-                        if _decay:
+                        _decay_full = (
+                            _pos_drift is not None and _pos_drift < 0
+                            and _pos_accel is not None and _pos_accel < 0
+                            and _vel_aligned_cl <= 0
+                        )
+                        _fresh_peak = _peak_age < 15.0
+                        _vel_recovering = _vel_aligned_cl > 0
+                        if _decay_full and not _fresh_peak and not _vel_recovering:
                             self._exit_in_progress.add(token_id)
                             logger.info(
                                 "BOND_PROGRESS_EXIT %s/%s | held=%.0fs max=%.0fs "
-                                "drift=%s accel=%s price=%.4f entry=%.4f",
+                                "drift=%s accel=%s vel=%+.4f peak_age=%.0fs "
+                                "price=%.4f entry=%.4f",
                                 pos.asset, pos.direction.name,
                                 _hold_time, _max_hold,
                                 f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
                                 f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
+                                _vel_aligned_cl, _peak_age,
                                 current_price, pos.entry_price,
                             )
                             try:
