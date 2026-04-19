@@ -808,47 +808,54 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Phase-based loss exit (strictly non-overlapping) ───────────
-                # BOND: fixed price stops misfire because winners routinely dip
-                # -5% to -12% before expanding. Exactly one rule per phase:
-                #   0-15s   : move ≤ -6%  AND vel ≤ 0        (panic cut)
-                #   15-25s  : move ≤ -8%  AND bad_state      (signal failure)
-                #   25s+    : move ≤ -12% OR (move ≤ -6% AND bad_state)
-                # bad_state = delta_accel<0 AND edge_drift<0 AND vel≤0
-                # HARD_SL is the only exit path permitted before the 25s min-hold.
+                # ── Adaptive SL envelope (time-decaying, state-gated) ─────────
+                # Tolerance expands over time so normal mid-trade dips aren't cut.
+                # All exits require structural degradation confirmation except the
+                # catastrophic hard stop.
+                #
+                # Envelope: starts at -5% (t=0), widens by 0.2% per 10s, caps at -18%
+                #   t=0s  → -5%    t=20s → -9%    t=40s → -13%
+                #   t=10s → -7%    t=30s → -11%   t=65s → -18% (cap)
+                #
+                # Structural degradation (_degraded):
+                #   When 30s history available: delta_accel<0 AND edge_drift<0 AND vel≤0
+                #   When history unavailable (hold<25s): velocity-only (vel≤0)
+                #
+                # Catastrophic: -25% no state required — pure disaster cut.
                 if token_id not in self._exit_in_progress:
                     _vel_cl, _vel_age_cl = self.feed.get_velocity_5s(pos.asset)
                     _dir_sign_cl = 1.0 if pos.bond_outcome_direction == "up" else -1.0
                     _vel_aligned_cl = (_vel_cl * _dir_sign_cl) if _vel_age_cl < 999.0 else 0.0
                     _vel_neg = _vel_aligned_cl <= 0.0
 
-                    _bad_state = (
-                        _pos_accel is not None and _pos_accel < 0
-                        and _pos_drift is not None and _pos_drift < 0
-                        and _vel_neg
-                    )
+                    # Degradation check: full 3-signal when history available, vel-only otherwise
+                    if _pos_drift is not None and _pos_accel is not None:
+                        _degraded = _pos_accel < 0 and _pos_drift < 0 and _vel_neg
+                    else:
+                        _degraded = _vel_neg  # no 30s history yet — velocity is sole signal
+
+                    # Smooth envelope: -(0.05 + 0.002*t) capped at -0.18
+                    _sl_env = -(0.05 + min(0.002 * _held_s, 0.13))
+                    # _sl_env at: t=0→-5%, t=10→-7%, t=20→-9%, t=30→-11%, t=65→-18%
 
                     _exit_label_cl = ""
-                    if _held_s < 15.0:
-                        if bond_move <= -0.06 and _vel_neg:
-                            _exit_label_cl = "0-15s/move≤-6%+vel≤0"
-                    elif _held_s < 25.0:
-                        if bond_move <= -0.08 and _bad_state:
-                            _exit_label_cl = "15-25s/move≤-8%+bad_state"
-                    else:
-                        if bond_move <= -0.12:
-                            _exit_label_cl = "≥25s/move≤-12%"
-                        elif bond_move <= -0.06 and _bad_state:
-                            _exit_label_cl = "≥25s/move≤-6%+bad_state"
+                    if bond_move <= -0.25:
+                        # Catastrophic: no state confirmation needed
+                        _exit_label_cl = f"catastrophic/move≤-25%"
+                    elif bond_move <= _sl_env and _degraded:
+                        _exit_label_cl = (
+                            f"adaptive/move≤{_sl_env:.1%}"
+                            f"+{'full' if _pos_drift is not None else 'vel'}_degraded"
+                        )
 
                     if _exit_label_cl:
                         self._exit_in_progress.add(token_id)
                         logger.warning(
                             "BOND_HARD_SL %s/%s | move=%+.1f%% held=%.0fs [%s] | "
-                            "vel=%+.4f%% drift=%s accel=%s | entry=%.4f curr=%.4f",
+                            "envelope=%.1f%% vel=%+.4f%% drift=%s accel=%s | entry=%.4f curr=%.4f",
                             pos.asset, pos.direction.name,
                             bond_move * 100, _held_s, _exit_label_cl,
-                            _vel_aligned_cl,
+                            _sl_env * 100, _vel_aligned_cl,
                             f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
                             f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
                             pos.entry_price, current_price,
