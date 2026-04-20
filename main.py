@@ -1691,6 +1691,40 @@ class KlausBot:
             # all require _in_trend and skip otherwise.
             # ─────────────────────────────────────────────────────────────────
 
+            # ── Shared EDGE_VALID precondition (applies to EARLY/CORE-B/IMPULSE)
+            # Microstructure consistency check: edge must pass before any mode
+            # that trusts it. Not a new mode — a precondition so EARLY, CORE-B,
+            # and IMPULSE share one "truth standard" for edge acceptance.
+            #
+            #   (1) delta_coherent    — bond_delta is not pointing strongly
+            #       OPPOSITE the token direction. Token UP with delta≤-0.05%
+            #       (or Token DOWN with delta≥+0.05%) = asset moving the wrong
+            #       way; edge is illusory.
+            #   (2) vel_coherent      — if velocity is sampled at all, its
+            #       magnitude must clear the microstructure noise band
+            #       (|vel|≥0.003%). vel_cold passes (no vel data is OK); vel
+            #       inside the noise band is worse than none.
+            #   (3) not coherence_spike — a large single-bar bond_delta that
+            #       disagrees in sign with the 60s-smoothed delta is one tick
+            #       spike, not a regime. Reject when |delta|≥0.06% AND
+            #       bond_delta × smooth_delta < 0.
+            _delta_coherent = not (
+                (_token_dir == "up"   and _bond_delta <= -0.05) or
+                (_token_dir == "down" and _bond_delta >=  0.05)
+            )
+            _vel_coherent = _vel_cold or abs(_vel_now) >= 0.003
+            _coherence_spike = (
+                _abs_delta >= 0.06
+                and (_bond_delta * _smooth_delta) < 0.0
+            )
+            _edge_valid = _delta_coherent and _vel_coherent and not _coherence_spike
+            _edge_valid_detail = (
+                f"delta_coh={_delta_coherent} vel_coh={_vel_coherent} "
+                f"spike={_coherence_spike} bond_d={_bond_delta:+.3f}% "
+                f"smooth_d={_smooth_delta:+.3f}% vel={_vel_now:+.4f}%"
+            )
+            # ─────────────────────────────────────────────────────────────────
+
             # IMPULSE regime: velocity spike overrides accel/drift requirements.
             # Fires only in early window when the velocity IS the signal.
             _is_impulse = (
@@ -1707,6 +1741,9 @@ class KlausBot:
                         f"IMPULSE[CHOP]: trend required | "
                         f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
                     )
+                elif not _edge_valid:
+                    _skip = True
+                    _skip_reason = f"IMPULSE[EDGE_INVALID]: {_edge_valid_detail}"
                 else:
                     _skip = _abs_delta < 0.05
                     _skip_reason = (
@@ -1768,11 +1805,17 @@ class KlausBot:
                 elif _core_b_profile:
                     # Compression: strong edge carries the trade; accel/drift optional.
                     # Global 0.04 floor is redundant here (profile already enforces ≥0.08).
-                    _skip = False
-                    _skip_reason = (
-                        f"CORE-B[COMP] pass: adj_edge={_adjusted_edge:.4f} "
-                        f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% regime={_macro_regime}"
-                    )
+                    # EDGE_VALID required — CORE-B leans entirely on edge, so an
+                    # incoherent/noise-band signal can't be allowed through.
+                    if not _edge_valid:
+                        _skip = True
+                        _skip_reason = f"CORE-B[EDGE_INVALID]: {_edge_valid_detail}"
+                    else:
+                        _skip = False
+                        _skip_reason = (
+                            f"CORE-B[COMP] pass: adj_edge={_adjusted_edge:.4f} "
+                            f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% regime={_macro_regime}"
+                        )
                     _dzone = "CORE-B-COMP"
                 else:
                     _skip = True
@@ -1801,6 +1844,12 @@ class KlausBot:
                         f"EARLY[LOW_INFO]: delta={_abs_delta:.3f}%<0.06 AND "
                         f"vel={_vel_mag_now:.4f}%<0.02 — no structure"
                     )
+                    _dzone = "EARLY"
+                elif not _edge_valid:
+                    # Shared EDGE_VALID precondition — edge must pass microstructure
+                    # coherence check before EARLY trusts it (Mode A or Mode B).
+                    _skip = True
+                    _skip_reason = f"EARLY[EDGE_INVALID]: {_edge_valid_detail}"
                     _dzone = "EARLY"
                 else:
                     # Two explicit entry modes — no cross-mode OR bypass logic.
