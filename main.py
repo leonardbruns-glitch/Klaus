@@ -1681,17 +1681,34 @@ class KlausBot:
                     )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
-                # Velocity is a confidence modifier, not a hard gate.
-                # Strong adjusted_edge (≥0.08) allows entry even with weak/misaligned velocity.
+                # EARLY intent: capture ignition before confirmation, not wait for it.
+                #   edge  = confirmation signal
+                #   accel = ignition signal (delta expanding — transition-to-move)
+                #   drift = persistence signal (edge widening — mispricing growing)
+                # Entry: adj_edge ≥ 0.06  OR  strong accel+drift (ignition bypass).
                 _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.012
                 _early_edge_dominant = _adjusted_edge >= 0.08
-                _early_skip_base = _abs_delta < 0.07 or _adjusted_edge < 0.05
-                _early_skip_vel  = not _early_vel_ok and not _early_edge_dominant
-                _early_skip_hist = _has_hist and not (_delta_accel > 0 or _edge_drift > 0) and not _early_edge_dominant
+                _ignition = (
+                    _has_hist
+                    and _delta_accel > 0.02
+                    and _edge_drift  > 0.01
+                )
+                # Edge threshold relaxes to global floor (0.04) when ignition fires.
+                _early_edge_floor = 0.04 if _ignition else 0.06
+                _early_skip_base = _abs_delta < 0.07 or _adjusted_edge < _early_edge_floor
+                # Velocity and hist requirements bypassed by edge-dominance OR ignition.
+                _early_skip_vel  = not _early_vel_ok and not _early_edge_dominant and not _ignition
+                _early_skip_hist = (
+                    _has_hist
+                    and not (_delta_accel > 0 or _edge_drift > 0)
+                    and not _early_edge_dominant
+                    and not _ignition
+                )
                 _skip = _early_skip_base or _early_skip_vel or _early_skip_hist
                 _skip_reason = (
                     f"EARLY: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
-                    f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
+                    f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f} "
+                    f"ign={_ignition} floor={_early_edge_floor:.2f}"
                 )
                 _dzone = "EARLY"
             else:  # LATE (45–90s)
