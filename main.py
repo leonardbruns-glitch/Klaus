@@ -396,10 +396,7 @@ class KlausBot:
                 )
                 await self._bond_partial_tp_sell(token_id, 0.25, bid_price, "BOND_PARTIAL_TP2")
 
-            # Hard rule: +50% gain → sell ALL remaining immediately.
-            if bid_price >= pos.entry_price * 1.50:
-                tp_reason = "BOND_TP_50"
-            elif bid_price >= 0.99 and bond_remaining <= 20.0:
+            if bid_price >= 0.99 and bond_remaining <= 20.0:
                 tp_reason = "BOND_TP_99"
             elif bid_price >= 0.95:
                 tp_reason = "BOND_TP_95"
@@ -1150,14 +1147,11 @@ class KlausBot:
                             token_id, 0.25, current_price, "BOND_PARTIAL_TP2"
                         )
 
-                # Hard rule: +50% gain → sell ALL remaining (price-independent).
                 # Absolute TPs: $0.95 any time; $0.99 in last 20s only.
-                _BOND_TP_EARLY  = 0.95   # fires any time during hold
-                _BOND_TP_LATE   = 0.99   # fires only in last 20s
+                _BOND_TP_EARLY  = 0.95
+                _BOND_TP_LATE   = 0.99
                 _bond_tp_reason = None
-                if pos.entry_price > 0 and current_price >= pos.entry_price * 1.50:
-                    _bond_tp_reason = f"BOND_TP_50 curr={current_price:.4f} entry={pos.entry_price:.4f} gain={bond_move*100:+.1f}%"
-                elif current_price >= _BOND_TP_LATE and bond_remaining <= 20.0:
+                if current_price >= _BOND_TP_LATE and bond_remaining <= 20.0:
                     _bond_tp_reason = f"BOND_TP_99 curr={current_price:.4f} rem={bond_remaining:.0f}s"
                 elif current_price >= _BOND_TP_EARLY:
                     _bond_tp_reason = f"BOND_TP_95 curr={current_price:.4f} rem={bond_remaining:.0f}s"
@@ -4885,7 +4879,7 @@ def _classify_path(
     ep = entry_price
     xp = exit_price
     exit_pct = (xp - ep) / ep * 100 if ep > 0 else 0.0
-    _tp_exit = exit_reason in ("BOND_TP_50", "BOND_TP_95", "BOND_TP_95_EXT", "BOND_TP_99", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT", "BOND_TRAIL_SL")
+    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "BOND_TP_99", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT", "BOND_TRAIL_SL")
     _sl_exit = "SL" in exit_reason or "STOP" in exit_reason or "PRICE_SL" in exit_reason
 
     # ── SMOOTH_RUNNER ────────────────────────────────────────────────────────
