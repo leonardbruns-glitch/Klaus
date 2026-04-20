@@ -1637,6 +1637,9 @@ class KlausBot:
             # ── Regime classification + entry filters ────────────────────────
             _abs_delta = abs(_bond_delta)
             _EDGE_DRIFT_CORE = 0.002
+            # EARLY-zone instrumentation defaults — overridden inside EARLY branch
+            _delta_excess_penalty = 0.0
+            _weak_vel_penalty = 0.0
 
             # IMPULSE regime: velocity spike overrides accel/drift requirements.
             # Fires only in early window when the velocity IS the signal.
@@ -1702,6 +1705,7 @@ class KlausBot:
                 # R2: weak-velocity downweight — |vel| < 0.01 is neutral, not confirmation.
                 #     Only applied when vel is the SOLE positive signal (accel not helping).
                 #     Up to 15% additional reduction, proportional to how weak vel is.
+                _weak_vel_penalty = 0.0
                 if _vel_dir_pos and not _accel_pos and _vel_mag < 0.01:
                     _weak_vel_penalty = (1.0 - _vel_mag / 0.01) * 0.15
                     _early_adj_edge *= (1.0 - _weak_vel_penalty)
@@ -1780,6 +1784,8 @@ class KlausBot:
                 bond_exit_sec=exit_sec,
                 bond_outcome_direction=_token_dir,
                 bond_entry_class=f"{_dzone}/{_vel_label}",
+                bond_delta_penalty=round(_delta_excess_penalty, 4),
+                bond_weak_vel_penalty=round(_weak_vel_penalty, 4),
             )
 
             tpsl = TPSLLevels(

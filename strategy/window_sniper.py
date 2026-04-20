@@ -231,6 +231,9 @@ class SniperSignal:
     bond_exit_sec: int = 0            # seconds before window close to exit (30=15m, 20=5m)
     bond_outcome_direction: str = "down"  # "up" or "down" — which direction resolves this token
     bond_entry_class: str = ""        # e.g. "CORE/INIT", "CORE/COLD", "STRETCH/INIT" — drives SL regime
+    # EARLY-zone adj_edge modifier instrumentation (evaluation phase — analytics only)
+    bond_delta_penalty: float = 0.0       # 0.0–0.30, additional reduction from |delta|>0.05 soft penalty
+    bond_weak_vel_penalty: float = 0.0    # 0.0–0.15, additional reduction from weak-vel sole-confirmation case
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
