@@ -1611,6 +1611,27 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
+            # Hard edge floor: edge < 0.08 is not compensable after fees + slippage.
+            # Losing trades cluster at edge 0.04–0.07; winners at edge ≥ 0.08+.
+            if _edge < 0.08:
+                logger.debug(
+                    "BOND SKIP %s/%s: edge=%.4f < 0.08 hard floor",
+                    token.asset, token.side, _edge,
+                )
+                continue
+
+            # Spread guard: if bid-ask spread consumes ≥ 50% of edge, expected
+            # slippage wipes the signal. Use OB spread as pre-fill proxy.
+            _best_bid = ob.bids[0][0] if ob.bids else None
+            if _best_bid is not None:
+                _ob_spread = ask - _best_bid
+                if _ob_spread >= _edge * 0.5:
+                    logger.debug(
+                        "BOND SKIP %s/%s: spread=%.4f >= 0.5×edge=%.4f (slip risk)",
+                        token.asset, token.side, _ob_spread, _edge,
+                    )
+                    continue
+
             # ── Velocity classification ───────────────────────────────────────
             # Must happen before band gates (band conditions depend on vel class).
             _VEL_BOND_THRESHOLD = 0.010
@@ -1628,6 +1649,17 @@ class KlausBot:
                 "INIT" if _vel_init
                 else ("COLD" if _vel_cold else "CONT/EXH")
             )
+
+            # Hard velocity gate: direction-aligned momentum is required.
+            # COLD entries (vel not measured) and CONT/EXH (vel measured but
+            # not aligned) are both blocked — low-quality mean-reversion trades.
+            if not _vel_init:
+                logger.debug(
+                    "BOND SKIP %s/%s: vel=%s vel_now=%+.4f%% not aligned for %s",
+                    token.asset, token.side,
+                    _vel_label, _vel_now if not _vel_cold else 0.0, _token_dir,
+                )
+                continue
 
             # ── 30s acceleration / drift snapshot ────────────────────────────
             _snaps = self._bond_snapshots.setdefault(token_id, deque())
