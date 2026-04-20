@@ -1661,6 +1661,38 @@ class KlausBot:
             # Tightened: delta<0.06 AND vel<0.02 = no structural basis (vs old 0.08/0.01)
             _low_info = _abs_delta < 0.06 and _vel_mag_now < 0.02
 
+            # ── Layer 1: Macro Regime Engine ──────────────────────────────────
+            # Classifies the market as TREND_UP / TREND_DOWN / CHOP using
+            # smoothed signals only (60s avg delta + current vel). This layer
+            # decides if the market is TRADABLE AT ALL, independent of entry logic.
+            # Hard rule: CHOP → skip ALL modes (CORE / EARLY / IMPULSE / LATE).
+            _snap_deltas = [s[1] for s in _snaps]
+            _smooth_delta = (sum(_snap_deltas) / len(_snap_deltas)) if _snap_deltas else _bond_delta
+            if _vel_cold:
+                # No velocity: regime from smoothed delta strength alone
+                if _smooth_delta >= 0.06:
+                    _macro_regime = "TREND_UP"
+                elif _smooth_delta <= -0.06:
+                    _macro_regime = "TREND_DOWN"
+                else:
+                    _macro_regime = "CHOP"
+            else:
+                _regime_aligned = (_smooth_delta * _vel_now) >= 0.0
+                _trend_ok = (
+                    abs(_smooth_delta) >= 0.06
+                    and abs(_vel_now) >= 0.008
+                    and _regime_aligned
+                )
+                _macro_regime = ("TREND_UP" if _smooth_delta > 0 else "TREND_DOWN") if _trend_ok else "CHOP"
+
+            if _macro_regime == "CHOP":
+                logger.info(
+                    "BOND SKIP %s/%s [CHOP/L1]: smooth_d=%+.3f vel=%+.4f",
+                    token.asset, token.side, _smooth_delta, _vel_now,
+                )
+                continue
+            # ─────────────────────────────────────────────────────────────────
+
             # IMPULSE regime: velocity spike overrides accel/drift requirements.
             # Fires only in early window when the velocity IS the signal.
             _is_impulse = (
@@ -1678,7 +1710,22 @@ class KlausBot:
                 )
                 _dzone = "IMPULSE"
             elif _bond_zone == "CORE":
-                if _adjusted_edge < 0.04:
+                # Macro quality gate (Layer 2 — CORE only):
+                # Reject when low-signal AND direction-misaligned.
+                # A TREND regime passed Layer 1, but borderline CORE entries
+                # still fire in near-chop conditions. This gate blocks them.
+                _core_regime_ok = (
+                    not (_abs_delta < 0.08 and _vel_mag_now < 0.02)
+                    and (_vel_cold or _bond_delta * _vel_now >= 0.0)
+                )
+                if not _core_regime_ok:
+                    _skip = True
+                    _skip_reason = (
+                        f"CORE[REGIME_WEAK]: delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% "
+                        f"(need delta≥0.08 OR vel≥0.02, AND same sign)"
+                    )
+                    _dzone = "CORE"
+                elif _adjusted_edge < 0.04:
                     _skip = True
                     _skip_reason = f"CORE: adj_edge={_adjusted_edge:.4f} < 0.04 (hard floor)"
                 else:
