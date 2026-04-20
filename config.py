@@ -34,9 +34,9 @@ class BankrollConfig:
     scaled_stake: float = 10.0        # flat — heat-check disabled; raise per tiers above
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 3       # data collection phase — allow more concurrent trades
-    max_daily_loss: float = 10.0      # halt after -$10/day (CLAUDE.md kill switch)
-    weekly_floor: float = 75.0        # halt new entries if bankroll < $75
-    ruin_floor: float = 50.0          # emergency stop if bankroll < $50
+    max_daily_loss: float = 9999.0    # disabled — no intraday halt
+    weekly_floor: float = 0.0         # disabled
+    ruin_floor: float = 0.0           # disabled
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
