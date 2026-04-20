@@ -1848,28 +1848,50 @@ class KlausBot:
                     or abs(_vel_now) < 0.015
                     or _bond_delta * _vel_now < 0.0
                 )
-                # CORE-B: rare high-conviction exception, not a default or fallback.
-                # Three hard requirements:
-                #   (1) edge ≥ 0.13 — only very strong mispricings qualify
-                #   (2) not pure compression — |delta|<0.06 AND vel≈0 → reject
-                #   (3) volatility expanding — at least one expansion signal
-                # CHOP allowed only when expansion is unambiguous (vel ≥ 0.01 + edge drifting).
-                _pure_compression_cb = _abs_delta < 0.06 and _vel_mag_now < 0.01
-                _vol_expanding_cb = (
-                    (not _vel_cold and _vel_mag_now >= 0.005)
-                    or (_has_hist and _delta_accel > 0)
-                    or (_has_hist and _edge_drift > 0.005)
+                # CORE-B: EXPANSION-CONFIRMATION ONLY — validates an ongoing move,
+                # never predicts one from compression. Compression or stagnation is
+                # invalid regardless of edge/fv. Must show active directional expansion
+                # already in progress.
+                # Hard requirements:
+                #   (1) edge ≥ 0.13 — high-conviction mispricing
+                #   (2) delta direction-aligned OR actively improving toward direction
+                #       (no persistent negative drift in trade direction)
+                #   (3) non-flat velocity — vel_mag ≥ 0.01 (quiet/neutral excluded)
+                #   (4) visible expansion — at least one of: aligned vel, improving
+                #       delta (accel toward direction), positive edge drift
+                #   (5) not stagnant — vel < 0.01 with no accel/drift → reject
+                _delta_dir_aligned_cb = (
+                    (_token_dir == "up"   and _bond_delta >  0.0) or
+                    (_token_dir == "down" and _bond_delta <  0.0)
                 )
-                _core_b_chop_ok = (
-                    not _in_trend
-                    and _vel_mag_now >= 0.01
-                    and _has_hist and _edge_drift > 0.005
+                _delta_improving_cb = _has_hist and (
+                    (_token_dir == "up"   and _delta_accel > 0.0) or
+                    (_token_dir == "down" and _delta_accel < 0.0)
+                )
+                _edge_drifting_up_cb = _has_hist and _edge_drift > 0.005
+                _vel_aligned_cb = (
+                    not _vel_cold and _vel_mag_now >= 0.01 and (
+                        (_token_dir == "up"   and _vel_now > 0) or
+                        (_token_dir == "down" and _vel_now < 0)
+                    )
+                )
+                _vel_nonflat_cb = not _vel_cold and _vel_mag_now >= 0.01
+                _visible_expansion_cb = (
+                    _vel_aligned_cb
+                    or _delta_improving_cb
+                    or _edge_drifting_up_cb
+                )
+                _stagnant_cb = (
+                    _vel_mag_now < 0.01
+                    and not _delta_improving_cb
+                    and not _edge_drifting_up_cb
                 )
                 _core_b_profile = (
                     _adjusted_edge >= 0.13
-                    and not _pure_compression_cb
-                    and _vol_expanding_cb
-                    and (_in_trend or _core_b_chop_ok)
+                    and _vel_nonflat_cb
+                    and (_delta_dir_aligned_cb or _delta_improving_cb)
+                    and _visible_expansion_cb
+                    and not _stagnant_cb
                 )
 
                 if _core_a_profile:
@@ -1896,28 +1918,29 @@ class KlausBot:
                         )
                     _dzone = "CORE-A-CONT"
                 elif _core_b_profile:
-                    # Compression: strong edge carries the trade; accel/drift optional.
-                    # Global 0.04 floor is redundant here (profile already enforces ≥0.08).
-                    # EDGE_VALID required — CORE-B leans entirely on edge, so an
-                    # incoherent/noise-band signal can't be allowed through.
+                    # Expansion-confirmation: validates an ongoing move.
+                    # EDGE_VALID still required — microstructure coherence check.
                     if not _edge_valid:
                         _skip = True
                         _skip_reason = f"CORE-B[EDGE_INVALID]: {_edge_valid_detail}"
                     else:
                         _skip = False
                         _skip_reason = (
-                            f"CORE-B[COMP] pass: adj_edge={_adjusted_edge:.4f} "
-                            f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% regime={_macro_regime}"
+                            f"CORE-B[EXP] pass: adj_edge={_adjusted_edge:.4f} "
+                            f"delta={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
+                            f"dir_aln={_delta_dir_aligned_cb} dir_imp={_delta_improving_cb} "
+                            f"vel_aln={_vel_aligned_cb} drift={_edge_drift:+.4f} "
+                            f"regime={_macro_regime}"
                         )
-                    _dzone = "CORE-B-COMP"
+                    _dzone = "CORE-B-EXP"
                 else:
                     _skip = True
                     _skip_reason = (
-                        f"CORE[AMBIGUOUS]: neither continuation nor compression profile | "
-                        f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% "
+                        f"CORE[AMBIGUOUS]: neither continuation nor expansion-confirm profile | "
+                        f"delta={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
                         f"adj_edge={_adjusted_edge:.4f} regime={_macro_regime} "
                         f"(A needs trend+aligned+|d|≥0.08+|v|≥0.02; "
-                        f"B needs quiet/misaligned vel + |d|<0.08 + adj_edge≥0.08)"
+                        f"B needs adj_edge≥0.13 + dir-aligned/improving delta + |v|≥0.01 + expansion)"
                     )
                     _dzone = "CORE"
             elif _bond_zone == "EARLY":
@@ -1970,12 +1993,50 @@ class KlausBot:
 
                     _early_adj_edge = round(_early_adj_edge, 4)
 
-                    # MODE A — EDGE-DRIVEN (trend-confirmed only)
+                    # MODE A — PRE-IGNITION DISCOVERY (formation phase, 150–240s).
+                    # Identifies setups BEFORE expansion begins, not after.
+                    # Allows weak/neutral delta IF structure is stable AND building.
+                    # Hard rejects: strongly negative delta decay, collapsing vel,
+                    # late compression (flat vel + weak delta + no build).
+                    _delta_accel_aligned_a = _has_hist and (
+                        (_token_dir == "up"   and _delta_accel >  0.0) or
+                        (_token_dir == "down" and _delta_accel <  0.0)
+                    )
+                    _edge_drift_up_a = _has_hist and _edge_drift > 0.005
+                    # Building: at least one sign of acceleration toward direction.
+                    _building_a = (
+                        _delta_accel_aligned_a
+                        or _accel_sustained
+                        or _edge_drift_up_a
+                        or _vel_dir_pos
+                    )
+                    # Collapsing vel: meaningful magnitude against direction.
+                    _vel_collapsing_a = (
+                        not _vel_cold and _vel_mag_now >= 0.02 and (
+                            (_token_dir == "up"   and _vel_now < 0) or
+                            (_token_dir == "down" and _vel_now > 0)
+                        )
+                    )
+                    # Delta decaying: persistent accel AGAINST direction.
+                    _delta_decaying_a = _has_hist and (
+                        (_token_dir == "up"   and _delta_accel < -0.02) or
+                        (_token_dir == "down" and _delta_accel >  0.02)
+                    )
+                    # Late compression: flat vel + weak delta + no build signals.
+                    # Belongs to CORE-B (expansion-confirm) or should be skipped.
+                    _late_compression_a = (
+                        _vel_mag_now < 0.005
+                        and _abs_delta < 0.04
+                        and not _accel_sustained
+                        and not _edge_drift_up_a
+                    )
                     _mode_a = (
                         _in_trend
-                        and _early_adj_edge >= 0.10
-                        and _abs_delta >= 0.07
-                        and (_vel_dir_pos or _accel_pos)
+                        and _early_adj_edge >= 0.06
+                        and _building_a
+                        and not _vel_collapsing_a
+                        and not _delta_decaying_a
+                        and not _late_compression_a
                     )
 
                     # MODE B — IGNITION-DRIVEN
@@ -1995,13 +2056,16 @@ class KlausBot:
                     )
 
                     _skip = not (_mode_a or _mode_b)
-                    _mode_tag = "A-EDGE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
+                    _mode_tag = "A-PRE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
                     _skip_reason = (
-                        f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj={_adjusted_edge:.4f} "
+                        f"EARLY[{_mode_tag}]: delta={_bond_delta:+.3f}% adj={_adjusted_edge:.4f} "
                         f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
                         f"vel={_vel_now:+.4f}% trend_aln={_trend_aligned} "
                         f"accel30={_delta_accel:+.4f}% accel15={_accel_15!r} "
-                        f"drift={_edge_drift:+.4f} sustain={_accel_sustained} A={_mode_a} B={_mode_b}"
+                        f"drift={_edge_drift:+.4f} sustain={_accel_sustained} "
+                        f"build={_building_a} coll={_vel_collapsing_a} "
+                        f"decay={_delta_decaying_a} latecmp={_late_compression_a} "
+                        f"A={_mode_a} B={_mode_b}"
                     )
                     _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
