@@ -2086,17 +2086,16 @@ class KlausBot:
                     )
                 _dzone = "LATE"
 
-            # Global no-trade zone: structural edge/basis floor for modes that
-            # lean on edge threshold (CORE / LATE / IMPULSE / EARLY-B).
-            #   (1) adj_edge < 0.10 — below this level fee drag dominates at 0.51+ entries
-            #   (2) |delta| < 0.05 AND vel ≈ 0 — no directional basis at all
-            # EARLY-A is EXEMPT when a build signal is present. Pre-ignition
-            # discovery trades on emerging structure BEFORE edge threshold is met;
-            # its mode-level checks (building + not-collapsing + not-decaying +
-            # not-late-compression) already replace the global structural filter.
-            # Mode A always passes with build signal (mode_a ⇒ _building_a),
-            # so in practice EARLY-A-PRE is always exempt — the guard is defensive.
-            _early_a_bypass = (
+            # Global no-trade zone: two independent rejection criteria.
+            #   (1) adj_edge < 0.10 — edge floor (CORE / LATE / IMPULSE / EARLY-B).
+            #       EARLY-A is EXEMPT when a build signal is present — pre-ignition
+            #       discovery trades on emerging structure BEFORE edge meets the
+            #       threshold. Build signal: delta accel toward direction OR
+            #       edge drift rising OR aligned velocity.
+            #   (2) |delta| < 0.05 AND vel ≈ 0 — no directional basis at all.
+            #       Applies universally (including EARLY-A); without any structural
+            #       basis there's nothing to build on.
+            _early_a_edge_bypass = (
                 _dzone == "EARLY-A-PRE"
                 and (
                     _delta_accel_aligned_a
@@ -2104,13 +2103,12 @@ class KlausBot:
                     or _vel_dir_pos
                 )
             )
-            if not _early_a_bypass:
-                if _adjusted_edge < 0.10:
-                    _skip = True
-                    _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.10 edge={_edge:.4f} rw={_regime_weight:.2f}"
-                elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
-                    _skip = True
-                    _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
+            if _adjusted_edge < 0.10 and not _early_a_edge_bypass:
+                _skip = True
+                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.10 edge={_edge:.4f} rw={_regime_weight:.2f}"
+            elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
+                _skip = True
+                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
