@@ -2273,6 +2273,45 @@ class KlausBot:
                 _token_dir, _bond_delta,
                 signal.reason,
             )
+
+            # ── Entry stability classification (observability only) ────────────
+            # Derives instability regime labels for post-hoc PnL analysis.
+            # DOES NOT affect execution — entries proceed regardless of stab_class.
+            # Goal: empirically answer whether FATAL / RECOVERABLE_RISK entries
+            # account for most losses, or still contain significant winners.
+            #
+            # xp: execution quality proxy = edge / remaining_upside.
+            #   Captures both low-edge and high-ask scenarios as bad quality.
+            #   xp=0.25 → paying 75% of remaining value; xp=0.60 → solid margin.
+            # slip: edge < 0.05 → fill cost likely erodes edge, execution vulnerable.
+            # delta_bad: underlying not meaningfully confirming direction at entry.
+            _xp = round(_edge / max(0.01, 1.0 - ask), 4)
+            stab_xp_bad    = _xp < 0.50
+            stab_slip_bad  = _edge < 0.05
+            stab_delta_bad = (
+                (_token_dir == "up"   and _bond_delta <  0.01) or
+                (_token_dir == "down" and _bond_delta > -0.01)
+            )
+            _stable_pre_entry = not (stab_xp_bad or stab_slip_bad or stab_delta_bad)
+            if stab_xp_bad and _xp < 0.40:
+                stab_class = "FATAL"
+            elif stab_delta_bad or stab_slip_bad:
+                stab_class = "RECOVERABLE_RISK"
+            elif not _stable_pre_entry:
+                stab_class = "MILD_NOISE"
+            else:
+                stab_class = "STABLE"
+            stability_ok = stab_class == "STABLE"
+            logger.info(
+                "BOND_STAB %s/%s [%s] | class=%-18s ok=%s | "
+                "xp=%.3f(bad=%s) slip_bad=%s delta_bad=%s | "
+                "edge=%.4f fv=%.4f delta=%+.3f%% vel=%+.4f%%",
+                token.asset, token.side, _dzone,
+                stab_class, stability_ok,
+                _xp, stab_xp_bad, stab_slip_bad, stab_delta_bad,
+                _edge, _fair_value, _bond_delta,
+                _vel_now if not _vel_cold else 0.0,
+            )
             asyncio.create_task(
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
                 name=f"bond_{token.asset}_{token.side}",
