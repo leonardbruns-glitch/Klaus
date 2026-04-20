@@ -869,11 +869,10 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # EXTREME EDGE: cut only on realized adverse move (≥6% loss).
-                    # Flat / slightly negative = regime disagreement, not failure.
+                    # EXTREME EDGE: cut only on realized adverse move (≥85% loss).
                     if (_is_extreme_pos
                             and _held_s >= 25.0
-                            and bond_move <= -0.06):
+                            and bond_move <= -0.85):
                         self._exit_in_progress.add(token_id)
                         logger.info(
                             "BOND_EXTREME_FAIL %s/%s | edge=%.4f move=%+.1f%% at %.0fs — realized loss",
@@ -943,9 +942,9 @@ class KlausBot:
                     _sl_env = -(0.05 + min(0.002 * _held_s, 0.13))
 
                     _exit_label_cl = ""
-                    if bond_move <= -0.25:
+                    if bond_move <= -0.85:
                         # Catastrophic: regime-independent, always fires
-                        _exit_label_cl = "catastrophic/move≤-25%"
+                        _exit_label_cl = "catastrophic/move≤-85%"
                     elif _compressed and bond_move > _sl_env:
                         # NO-DECISION: price within envelope, quiet regime — hold
                         pass
