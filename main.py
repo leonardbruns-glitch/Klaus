@@ -584,6 +584,7 @@ class KlausBot:
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
                 _pos_accel = None   # delta_accel: positive = momentum building
+                _delta_pos = 0.0   # current window delta (used by MOMENTUM_FAIL below)
                 _ext_pos = self._last_ext_signals.get(pos.asset)
                 if _ext_pos and _ext_pos.spot_price:
                     _is_15m_pos_snap = pos.window_seconds >= 900
@@ -949,12 +950,14 @@ class KlausBot:
                 #   (1) delta reversed ≥ 0.05 against entry direction
                 #   (2) vel flipped or dropped below noise floor (<0.01)
                 #   (3) hold 25–60s (setup had time to develop; not a 1s wick)
-                _entry_dir_up = _token_dir == "up"
+                _entry_dir_up = pos.bond_outcome_direction == "up"
+                _mf_vel_cold  = _vel_age_cl >= 999.0
+                _mf_vel_mag   = abs(_vel_cl) if not _mf_vel_cold else 0.0
                 _delta_reversed_mf = (
-                    (_entry_dir_up  and _bond_delta <= -0.05) or
-                    (not _entry_dir_up and _bond_delta >=  0.05)
+                    (_entry_dir_up  and _delta_pos <= -0.05) or
+                    (not _entry_dir_up and _delta_pos >=  0.05)
                 )
-                _vel_failed_mf = _vel_cold or _vel_mag_now < 0.01
+                _vel_failed_mf = _mf_vel_cold or _mf_vel_mag < 0.01
                 if (not pos.bond_entry_class.startswith("IMPULSE")
                         and _delta_reversed_mf
                         and _vel_failed_mf
@@ -965,7 +968,7 @@ class KlausBot:
                         "BOND_MOMENTUM_FAIL %s/%s | bond_d=%+.3f%% vel=%.4f%% "
                         "held=%.0fs move=%+.1f%% — thesis reversed, cutting",
                         pos.asset, pos.direction.name,
-                        _bond_delta, _vel_mag_now, _held_s, bond_move * 100,
+                        _delta_pos, _mf_vel_mag, _held_s, bond_move * 100,
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_MOMENTUM_FAIL")
@@ -1199,6 +1202,34 @@ class KlausBot:
                     )
                     try:
                         await self._exit_position(token_id, current_price, _bond_tp_reason.split()[0])
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── LATE-zone fragility exit (pre-exit override) ─────────────
+                # In LATE zone (45–90s remaining), a strongly adverse delta with
+                # dead velocity signals exhaustion: a high-edge spike that has
+                # already reversed. Exit immediately — BOND_TIME_EXIT is fallback
+                # only, not primary protection in LATE.
+                _in_late_zone = 45.0 <= bond_remaining <= 90.0
+                _late_delta_adverse = (
+                    (_entry_dir_up  and _delta_pos <= -0.10) or
+                    (not _entry_dir_up and _delta_pos >=  0.10)
+                )
+                _late_vel_flat = _mf_vel_mag <= 0.005
+                if (_in_late_zone
+                        and _late_delta_adverse
+                        and _late_vel_flat
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.warning(
+                        "BOND_LATE_EXHAUST %s/%s | rem=%.0fs delta=%+.3f%% "
+                        "vel=%.4f%% move=%+.1f%% — exhaustion trap, overriding TIME_EXIT",
+                        pos.asset, pos.direction.name, bond_remaining,
+                        _delta_pos, _mf_vel_mag, bond_move * 100,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_LATE_EXHAUST")
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
