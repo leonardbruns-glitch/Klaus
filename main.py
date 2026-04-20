@@ -1625,14 +1625,27 @@ class KlausBot:
             _snaps.append((now, _bond_delta, _edge))
             while _snaps and now - _snaps[0][0] > 60.0:
                 _snaps.popleft()
-            # Find snapshot closest to 30s ago (accept 25–35s window)
+            # 30s reference (25–35s window) — primary accel / drift signal
             _ref30 = next(
                 (s for s in _snaps if 25.0 <= now - s[0] <= 35.0),
+                None,
+            )
+            # 15s reference (12–18s window) — persistence check for ignition
+            _ref15 = next(
+                (s for s in _snaps if 12.0 <= now - s[0] <= 18.0),
                 None,
             )
             _delta_accel = (_bond_delta - _ref30[1]) if _ref30 else 0.0
             _edge_drift  = (_edge      - _ref30[2]) if _ref30 else 0.0
             _has_hist    = _ref30 is not None
+            # accel_sustained: both 15s and 30s reference confirm positive acceleration.
+            # Filters single-bar "flash ignition" that reverses immediately.
+            _accel_15    = (_bond_delta - _ref15[1]) if _ref15 else None
+            _accel_sustained = (
+                _ref15 is not None
+                and _accel_15 > 0.01     # 15s window: delta still building
+                and _delta_accel > 0.02  # 30s window: cumulative build confirmed
+            )
 
             # ── Regime classification + entry filters ────────────────────────
             _abs_delta = abs(_bond_delta)
@@ -1645,7 +1658,8 @@ class KlausBot:
             # Applied as a pre-gate on EARLY only (IMPULSE already requires vel>0.04,
             # CORE/LATE have stronger delta minimums that implicitly cover this).
             _vel_mag_now = 0.0 if _vel_cold else abs(_vel_now)
-            _low_info = _abs_delta < 0.08 and _vel_mag_now < 0.01
+            # Tightened: delta<0.06 AND vel<0.02 = no structural basis (vs old 0.08/0.01)
+            _low_info = _abs_delta < 0.06 and _vel_mag_now < 0.02
 
             # IMPULSE regime: velocity spike overrides accel/drift requirements.
             # Fires only in early window when the velocity IS the signal.
@@ -1729,9 +1743,16 @@ class KlausBot:
                     )
 
                     # MODE B — IGNITION-DRIVEN
+                    # Requires: trend alignment (delta * vel same sign, not vel_cold),
+                    #           sustained accel (both 15s and 30s reference positive),
+                    #           edge floor, and minimum delta.
+                    _trend_aligned = (
+                        not _vel_cold
+                        and _bond_delta * _vel_now >= 0.0
+                    )
                     _mode_b = (
-                        _has_hist
-                        and _delta_accel > 0.02
+                        _trend_aligned
+                        and _accel_sustained
                         and _edge_drift  > 0.01
                         and _early_adj_edge >= 0.04
                         and _abs_delta >= 0.07
@@ -1742,8 +1763,9 @@ class KlausBot:
                     _skip_reason = (
                         f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj={_adjusted_edge:.4f} "
                         f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
-                        f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% "
-                        f"drift={_edge_drift:+.4f} A={_mode_a} B={_mode_b}"
+                        f"vel={_vel_now:+.4f}% trend_aln={_trend_aligned} "
+                        f"accel30={_delta_accel:+.4f}% accel15={_accel_15!r} "
+                        f"drift={_edge_drift:+.4f} sustain={_accel_sustained} A={_mode_a} B={_mode_b}"
                     )
                     _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
