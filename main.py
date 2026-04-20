@@ -1545,7 +1545,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10  # T-10s: OB_NOOB skip for BOND ensures precise timer fires cleanly
-                if not (45 <= remaining <= 175):  # CORE 90–150s; EARLY >150s; LATE 45–90s
+                if not (45 <= remaining <= 240):  # EARLY 150–240s; CORE 90–150s; LATE 45–90s
                     continue
             else:
                 continue
