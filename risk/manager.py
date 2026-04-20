@@ -115,6 +115,7 @@ class PositionMeta:
     bond_exit_sec: int = 0           # seconds before window close to exit (30=15m, 20=5m)
     bond_outcome_direction: str = "down"  # "up" or "down" — token resolves when asset goes this direction
     bond_entry_class: str = ""       # e.g. "CORE/INIT" — drives SL regime in _check_open_positions
+    bond_macro_regime: str = ""      # Layer-1 regime at entry: TREND_UP / TREND_DOWN / CHOP
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -723,6 +724,7 @@ class RiskManager:
         bond_exit_sec: int = 0,
         bond_outcome_direction: str = "down",
         bond_entry_class: str = "",
+        bond_macro_regime: str = "",
     ) -> PositionMeta:
         shares = stake / entry_price if entry_price > 0 else 0
         pos = PositionMeta(
@@ -749,6 +751,7 @@ class RiskManager:
             bond_exit_sec=bond_exit_sec,
             bond_outcome_direction=bond_outcome_direction,
             bond_entry_class=bond_entry_class,
+            bond_macro_regime=bond_macro_regime,
         )
         self.open_positions[token_id] = pos
         self._pending_assets.discard(asset)  # fill confirmed — release lock

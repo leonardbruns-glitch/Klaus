@@ -1,13 +1,15 @@
 """
-Klaus — EARLY-zone evaluation report (analytics only)
+Klaus — EARLY-zone + layer × regime evaluation report (analytics only)
 
-Tracks the new EARLY entry path in the BOND scanner. Reports:
+Tracks BOND scanner entry paths. Reports:
   1. EARLY-A (edge-driven) vs EARLY-B (ignition-driven) PnL split
   2. delta_penalty impact distribution (how often / how strongly applied)
   3. weak_vel_penalty activation frequency
+  4. Layer × regime PnL attribution (which execution layer is profitable
+     inside which Layer-1 regime: TREND_UP / TREND_DOWN / CHOP)
 
-No new gates or thresholds — pure post-hoc evaluation of whether the
-delta and weak-vel penalties improve realized expectancy.
+No new gates or thresholds — pure post-hoc evaluation of whether each
+(layer, regime) cell carries realized edge.
 
 Usage:
     python3 -m analytics.early_eval
@@ -171,6 +173,78 @@ def report(records: list[dict]) -> None:
         if active:
             avg_p = statistics.mean(float(r.get("bond_weak_vel_penalty", 0.0)) for r in active)
             print(f"    avg penalty when active: {avg_p:.4f}")
+
+    # ── 4. Layer × regime PnL attribution ────────────────────────────────────
+    # Which execution layer (CORE-A / CORE-B / EARLY-A / EARLY-B / IMPULSE /
+    # LATE) is profitable inside which Layer-1 regime (TREND_UP / TREND_DOWN /
+    # CHOP). Answers "where does the bot actually have edge?" rather than
+    # "which thresholds should I tune?".
+    print("\n── Layer × regime PnL attribution ──")
+    regimes = ["TREND_UP", "TREND_DOWN", "CHOP", ""]
+    layer_order = ["CORE-A-CONT", "CORE-B-COMP", "EARLY-A-EDGE",
+                   "EARLY-B-IGN", "EARLY", "IMPULSE", "LATE"]
+    cells: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    all_layers: set[str] = set()
+    all_regimes: set[str] = set()
+    for r in records:
+        layer = _split_class(r.get("bond_entry_class", ""))
+        regime = r.get("bond_macro_regime", "") or ""
+        cells[(layer, regime)].append(r)
+        all_layers.add(layer)
+        all_regimes.add(regime)
+
+    if not all_regimes or all_regimes == {""}:
+        print("  (bond_macro_regime not populated — need trades recorded after "
+              "P&L attribution rollout)")
+    else:
+        # Build row order: known layers first, then any unexpected ones.
+        ordered_layers = [l for l in layer_order if l in all_layers] + sorted(
+            l for l in all_layers if l not in layer_order
+        )
+        # Column order: known regimes present, then any extras (incl. "" blank).
+        ordered_regimes = [g for g in regimes if g in all_regimes] + sorted(
+            g for g in all_regimes if g not in regimes
+        )
+
+        print(f"{'layer':<14} {'regime':<11} {'n':>4} {'wr%':>6} "
+              f"{'pf':>6} {'sum$':>9} {'avg$':>8}")
+        print("-" * 64)
+        for layer in ordered_layers:
+            # Skip layers with no trades at all (shouldn't happen but safe).
+            layer_total_n = sum(len(cells[(layer, g)]) for g in ordered_regimes)
+            if layer_total_n == 0:
+                continue
+            for regime in ordered_regimes:
+                bucket = cells[(layer, regime)]
+                if not bucket:
+                    continue
+                s = _stats(bucket)
+                pf_str = f"{s['pf']:.2f}" if s['pf'] != float("inf") else "inf"
+                regime_label = regime if regime else "(none)"
+                print(f"{layer:<14} {regime_label:<11} {s['n']:>4} "
+                      f"{s['wr']:>6.1f} {pf_str:>6} "
+                      f"{s['sum']:>9.2f} {s['avg']:>8.3f}")
+
+        # Regime totals — helps see which macro regime the bot is even in
+        # most often, independent of layer.
+        print("\n── Regime totals (all layers combined) ──")
+        regime_totals: dict[str, list[dict]] = defaultdict(list)
+        for (_l, g), bucket in cells.items():
+            regime_totals[g].extend(bucket)
+        print(f"{'regime':<11} {'n':>4} {'pct':>6} {'wr%':>6} {'pf':>6} "
+              f"{'sum$':>9}")
+        print("-" * 52)
+        grand_n = sum(len(b) for b in regime_totals.values())
+        for regime in ordered_regimes:
+            bucket = regime_totals.get(regime, [])
+            if not bucket:
+                continue
+            s = _stats(bucket)
+            pf_str = f"{s['pf']:.2f}" if s['pf'] != float("inf") else "inf"
+            pct = (s['n'] / grand_n) * 100.0 if grand_n else 0.0
+            regime_label = regime if regime else "(none)"
+            print(f"{regime_label:<11} {s['n']:>4} {pct:>5.1f}% "
+                  f"{s['wr']:>6.1f} {pf_str:>6} {s['sum']:>9.2f}")
 
     print()
 

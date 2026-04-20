@@ -150,6 +150,7 @@ class TradeRecord:
     # EARLY-zone adj_edge modifier instrumentation (evaluation phase — analytics only)
     bond_delta_penalty: float = 0.0        # 0.0–0.30, proportional |delta|>0.05 soft penalty applied
     bond_weak_vel_penalty: float = 0.0     # 0.0–0.15, weak-vel sole-confirmation penalty applied
+    bond_macro_regime: str = ""            # Layer-1 regime at entry: TREND_UP / TREND_DOWN / CHOP
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +330,7 @@ class FeedbackEngine:
         entry_snap_30s_pct: float = 0.0,
         entry_snap_60s_pct: float = 0.0,
         bond_entry_class: str = "",
+        bond_macro_regime: str = "",
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -482,6 +484,7 @@ class FeedbackEngine:
             bond_entry_class=bond_entry_class,
             bond_delta_penalty=round(float(getattr(signal, "bond_delta_penalty", 0.0)), 4),
             bond_weak_vel_penalty=round(float(getattr(signal, "bond_weak_vel_penalty", 0.0)), 4),
+            bond_macro_regime=bond_macro_regime,
         )
 
         self._recent.append(rec)

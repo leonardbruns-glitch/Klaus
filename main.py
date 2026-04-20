@@ -1913,6 +1913,7 @@ class KlausBot:
                 bond_entry_class=f"{_dzone}/{_vel_label}",
                 bond_delta_penalty=round(_delta_excess_penalty, 4),
                 bond_weak_vel_penalty=round(_weak_vel_penalty, 4),
+                bond_macro_regime=_macro_regime,
             )
 
             tpsl = TPSLLevels(
@@ -2901,6 +2902,7 @@ class KlausBot:
             bond_exit_sec=getattr(signal, "bond_exit_sec", 0),
             bond_outcome_direction=getattr(signal, "bond_outcome_direction", "down"),
             bond_entry_class=getattr(signal, "bond_entry_class", ""),
+            bond_macro_regime=getattr(signal, "bond_macro_regime", ""),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly
@@ -3176,6 +3178,7 @@ class KlausBot:
                         max_price_seen=pos.highest_price,
                         min_price_seen=pos.lowest_price,
                         bond_entry_class=pos.bond_entry_class,
+                        bond_macro_regime=pos.bond_macro_regime,
                     )
                 except Exception as _s1e:
                     logger.error("record_trade STAGE1_FULL_EXIT failed: %s", _s1e)
@@ -3518,6 +3521,7 @@ class KlausBot:
                         highest_price_ts=pos.highest_price_ts,
                         lowest_price_ts=pos.lowest_price_ts,
                         bond_entry_class=pos.bond_entry_class,
+                        bond_macro_regime=pos.bond_macro_regime,
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
@@ -3866,6 +3870,7 @@ class KlausBot:
                     entry_snap_30s_pct=_r30 if _r30 is not None else 0.0,
                     entry_snap_60s_pct=_r60 if _r60 is not None else 0.0,
                     bond_entry_class=pos.bond_entry_class,
+                    bond_macro_regime=pos.bond_macro_regime,
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

@@ -234,6 +234,8 @@ class SniperSignal:
     # EARLY-zone adj_edge modifier instrumentation (evaluation phase — analytics only)
     bond_delta_penalty: float = 0.0       # 0.0–0.30, additional reduction from |delta|>0.05 soft penalty
     bond_weak_vel_penalty: float = 0.0    # 0.0–0.15, additional reduction from weak-vel sole-confirmation case
+    # Layer-1 macro regime at entry (TREND_UP / TREND_DOWN / CHOP) — for per-regime PnL attribution
+    bond_macro_regime: str = ""
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
