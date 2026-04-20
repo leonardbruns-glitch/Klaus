@@ -1917,9 +1917,10 @@ class KlausBot:
 
                     _early_adj_edge = round(_early_adj_edge, 4)
 
-                    # MODE A — EDGE-DRIVEN
+                    # MODE A — EDGE-DRIVEN (trend-confirmed only)
                     _mode_a = (
-                        _early_adj_edge >= 0.06
+                        _in_trend
+                        and _early_adj_edge >= 0.06
                         and _abs_delta >= 0.07
                         and (_vel_dir_pos or _accel_pos)
                     )
