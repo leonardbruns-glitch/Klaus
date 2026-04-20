@@ -376,7 +376,10 @@ class KlausBot:
             if pos is None or not pos.is_bond or token_id in self._exit_in_progress:
                 return
             bond_remaining = pos.window_end_ts - time.time() if pos.window_end_ts > 0 else 999.0
-            if bid_price >= 0.99 and bond_remaining <= 20.0:
+            # Hard rule: +50% gain → sell immediately regardless of absolute price.
+            if pos.entry_price > 0 and bid_price >= pos.entry_price * 1.50:
+                tp_reason = "BOND_TP_50"
+            elif bid_price >= 0.99 and bond_remaining <= 20.0:
                 tp_reason = "BOND_TP_99"
             elif bid_price >= 0.95:
                 tp_reason = "BOND_TP_95"
@@ -1104,14 +1107,14 @@ class KlausBot:
                         self._peak_breach_ts.pop(token_id, None)
                     continue
 
-                # $0.95 at any point — token at 95¢ with time remaining is high
-                #   confidence; a reversal back to 80¢ costs ~$1.90 vs locking $1.72.
-                # $0.99 in last 20s only — near-certain resolution, capture ~$0.49
-                #   extra vs $0.95 TP with virtually no reversal risk at T-20s.
+                # Hard rule: +50% gain → sell immediately (price-independent).
+                # Absolute TPs: $0.95 any time; $0.99 in last 20s only.
                 _BOND_TP_EARLY  = 0.95   # fires any time during hold
                 _BOND_TP_LATE   = 0.99   # fires only in last 20s
                 _bond_tp_reason = None
-                if current_price >= _BOND_TP_LATE and bond_remaining <= 20.0:
+                if pos.entry_price > 0 and current_price >= pos.entry_price * 1.50:
+                    _bond_tp_reason = f"BOND_TP_50 curr={current_price:.4f} entry={pos.entry_price:.4f} gain={bond_move*100:+.1f}%"
+                elif current_price >= _BOND_TP_LATE and bond_remaining <= 20.0:
                     _bond_tp_reason = f"BOND_TP_99 curr={current_price:.4f} rem={bond_remaining:.0f}s"
                 elif current_price >= _BOND_TP_EARLY:
                     _bond_tp_reason = f"BOND_TP_95 curr={current_price:.4f} rem={bond_remaining:.0f}s"
@@ -4794,7 +4797,7 @@ def _classify_path(
     ep = entry_price
     xp = exit_price
     exit_pct = (xp - ep) / ep * 100 if ep > 0 else 0.0
-    _tp_exit = exit_reason in ("BOND_TP_95", "BOND_TP_95_EXT", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT", "BOND_TRAIL_SL")
+    _tp_exit = exit_reason in ("BOND_TP_50", "BOND_TP_95", "BOND_TP_95_EXT", "BOND_TP_99", "SNIPER_TP", "TP_STAGE1", "TP_STAGE2", "BOND_EXHAUSTION_EXIT", "BOND_TRAIL_SL")
     _sl_exit = "SL" in exit_reason or "STOP" in exit_reason or "PRICE_SL" in exit_reason
 
     # ── SMOOTH_RUNNER ────────────────────────────────────────────────────────
