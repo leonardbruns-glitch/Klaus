@@ -1689,7 +1689,7 @@ class KlausBot:
             elif _bond_zone == "EARLY":
                 _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.012
                 _skip = (
-                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.05 or not _early_vel_ok) or
+                    (_abs_delta < 0.07 or _edge < 0.05 or not _early_vel_ok) or
                     (_has_hist and not (_delta_accel > 0 or _edge_drift > 0))
                 )
                 _skip_reason = (
