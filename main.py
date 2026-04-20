@@ -1545,7 +1545,7 @@ class KlausBot:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
                 exit_sec = 10  # T-10s: OB_NOOB skip for BOND ensures precise timer fires cleanly
-                if not (45 <= remaining <= 240):  # CORE 90–150s; EARLY 150–240s; LATE 45–90s
+                if not (45 <= remaining <= 175):  # CORE 90–150s; EARLY >150s; LATE 45–90s
                     continue
             else:
                 continue
@@ -1611,39 +1611,10 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Tiered edge floor: strong velocity earns a looser edge requirement.
-            # vel > 0.02 aligned → edge ≥ 0.06 (momentum does part of the work)
-            # vel 0.01–0.02 aligned → edge ≥ 0.08 (weaker momentum needs more margin)
-            # vel < 0.01 / COLD → blocked by hard vel gate below (not reached here)
-            _vel_now_pre, _vel_age_pre = self.feed.get_velocity_5s(token.asset)
-            _vel_strong = (
-                not (_vel_age_pre >= 999.0)
-                and abs(_vel_now_pre) > 0.02
-            )
-            _edge_floor = 0.06 if _vel_strong else 0.08
-            if _edge < _edge_floor:
-                logger.debug(
-                    "BOND SKIP %s/%s: edge=%.4f < %.2f floor (vel_strong=%s)",
-                    token.asset, token.side, _edge, _edge_floor, _vel_strong,
-                )
-                continue
-
-            # Spread guard: if bid-ask spread consumes ≥ 50% of edge, expected
-            # slippage wipes the signal. Use OB spread as pre-fill proxy.
-            _best_bid = ob.bids[0][0] if ob.bids else None
-            if _best_bid is not None:
-                _ob_spread = ask - _best_bid
-                if _ob_spread >= _edge * 0.5:
-                    logger.debug(
-                        "BOND SKIP %s/%s: spread=%.4f >= 0.5×edge=%.4f (slip risk)",
-                        token.asset, token.side, _ob_spread, _edge,
-                    )
-                    continue
-
             # ── Velocity classification ───────────────────────────────────────
             # Must happen before band gates (band conditions depend on vel class).
             _VEL_BOND_THRESHOLD = 0.010
-            _vel_now, _vel_age = _vel_now_pre, _vel_age_pre   # reuse pre-fetched value
+            _vel_now, _vel_age = self.feed.get_velocity_5s(token.asset)
             _vel_cold = (_vel_age >= 999.0)
             # INIT = measured velocity actively moving in trade direction.
             # Distinguishes fresh momentum entries from exhaustion/cold entries.
@@ -1657,17 +1628,6 @@ class KlausBot:
                 "INIT" if _vel_init
                 else ("COLD" if _vel_cold else "CONT/EXH")
             )
-
-            # Hard velocity gate: direction-aligned momentum is required.
-            # COLD entries (vel not measured) and CONT/EXH (vel measured but
-            # not aligned) are both blocked — low-quality mean-reversion trades.
-            if not _vel_init:
-                logger.debug(
-                    "BOND SKIP %s/%s: vel=%s vel_now=%+.4f%% not aligned for %s",
-                    token.asset, token.side,
-                    _vel_label, _vel_now if not _vel_cold else 0.0, _token_dir,
-                )
-                continue
 
             # ── 30s acceleration / drift snapshot ────────────────────────────
             _snaps = self._bond_snapshots.setdefault(token_id, deque())
