@@ -1686,33 +1686,54 @@ class KlausBot:
                         (_token_dir == "down" and _vel_now < 0)
                     )
                 )
+                _vel_mag = abs(_vel_now)
                 _accel_pos = _has_hist and _delta_accel > 0
 
+                # EARLY-specific adj_edge refinements (thresholds unchanged; only the
+                # effective edge fed into those gates is tightened by regime context).
+                #
+                # R1: delta excess penalty — proportional soft penalty when |delta| > 0.05.
+                #     Steeper than global regime_weight alone (which caps at 50% reduction).
+                #     Extra penalty capped at 30% to avoid double-crushing moderate entries.
+                _delta_excess = max(0.0, abs(_bond_delta) - 0.05)
+                _delta_excess_penalty = min(0.30, _delta_excess * 2.0)
+                _early_adj_edge = _adjusted_edge * (1.0 - _delta_excess_penalty)
+
+                # R2: weak-velocity downweight — |vel| < 0.01 is neutral, not confirmation.
+                #     Only applied when vel is the SOLE positive signal (accel not helping).
+                #     Up to 15% additional reduction, proportional to how weak vel is.
+                if _vel_dir_pos and not _accel_pos and _vel_mag < 0.01:
+                    _weak_vel_penalty = (1.0 - _vel_mag / 0.01) * 0.15
+                    _early_adj_edge *= (1.0 - _weak_vel_penalty)
+
+                _early_adj_edge = round(_early_adj_edge, 4)
+
                 # MODE A — EDGE-DRIVEN: strong edge + minimal confirmation.
-                #   adj_edge ≥ 0.06, delta ≥ 0.07, AND (vel_dir_pos OR accel>0).
+                #   early_adj_edge ≥ 0.06, delta ≥ 0.07, AND (vel_dir_pos OR accel>0).
                 #   Ignition logic disabled inside this mode.
                 _mode_a = (
-                    _adjusted_edge >= 0.06
+                    _early_adj_edge >= 0.06
                     and _abs_delta >= 0.07
                     and (_vel_dir_pos or _accel_pos)
                 )
 
                 # MODE B — IGNITION-DRIVEN: strong accel+drift, lower edge floor.
-                #   accel > 0.02 AND drift > 0.01 AND adj_edge ≥ 0.04 AND delta ≥ 0.07.
+                #   accel > 0.02 AND drift > 0.01 AND early_adj_edge ≥ 0.04 AND delta ≥ 0.07.
                 #   Edge acts as min-floor only; accel+drift carry the thesis.
                 _mode_b = (
                     _has_hist
                     and _delta_accel > 0.02
                     and _edge_drift  > 0.01
-                    and _adjusted_edge >= 0.04
+                    and _early_adj_edge >= 0.04
                     and _abs_delta >= 0.07
                 )
 
                 _skip = not (_mode_a or _mode_b)
                 _mode_tag = "A-EDGE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
                 _skip_reason = (
-                    f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} "
-                    f"rw={_regime_weight:.2f} vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% "
+                    f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj={_adjusted_edge:.4f} "
+                    f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
+                    f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% "
                     f"drift={_edge_drift:+.4f} A={_mode_a} B={_mode_b}"
                 )
                 _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
