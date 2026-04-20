@@ -2061,6 +2061,26 @@ class KlausBot:
                         and not _accel_sustained
                         and not _edge_drift_up_a
                     )
+                    # Stagnation filter — all three must hold simultaneously.
+                    # Rejects "statistically valid but structurally dead" setups.
+                    # Does NOT fire if ANY build signal exists (even weak).
+                    # (1) delta adverse AND not improving toward zero/reversal
+                    _delta_adverse_a = (
+                        (_token_dir == "up"   and _bond_delta < 0) or
+                        (_token_dir == "down" and _bond_delta > 0)
+                    )
+                    _delta_not_improving_a = not _has_hist or (
+                        (_token_dir == "up"   and _delta_accel <= 0.0) or
+                        (_token_dir == "down" and _delta_accel >= 0.0)
+                    )
+                    # (2) velocity near-flat (|vel| ≤ 0.01)
+                    # (3) no build signal — uses _building_a (any signal breaks stagnation)
+                    _stagnant_a = (
+                        _delta_adverse_a
+                        and _delta_not_improving_a
+                        and _vel_mag_now <= 0.01
+                        and not _building_a
+                    )
                     _mode_a = (
                         _in_trend
                         and _early_adj_edge >= 0.06
@@ -2068,6 +2088,7 @@ class KlausBot:
                         and not _vel_collapsing_a
                         and not _delta_decaying_a
                         and not _late_compression_a
+                        and not _stagnant_a
                     )
 
                     # MODE B — IGNITION-DRIVEN
@@ -2096,7 +2117,7 @@ class KlausBot:
                         f"drift={_edge_drift:+.4f} sustain={_accel_sustained} "
                         f"build={_building_a} coll={_vel_collapsing_a} "
                         f"decay={_delta_decaying_a} latecmp={_late_compression_a} "
-                        f"A={_mode_a} B={_mode_b}"
+                        f"stagnant={_stagnant_a} A={_mode_a} B={_mode_b}"
                     )
                     _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
