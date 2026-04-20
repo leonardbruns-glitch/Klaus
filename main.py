@@ -1595,15 +1595,11 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Regime weight: penalise only when delta direction conflicts with
-            # token outcome_direction (mean-reversion entries allowed but discounted).
-            # Aligned delta keeps full weight; k=2.0 means delta=0.25% conflict → 50% penalty.
-            _dir_aligned = (
-                (_token_dir == "down" and _bond_delta < 0) or
-                (_token_dir == "up"   and _bond_delta > 0)
-            )
-            _conflict_delta = 0.0 if _dir_aligned else abs(_bond_delta)
-            _regime_weight = max(0.0, 1.0 - 2.0 * _conflict_delta)
+            # Regime weight: delta magnitude scales edge (no directional bias).
+            # Capped at 0.5 so extreme delta can't fully zero-out valid edge.
+            #   k=2.0  → delta=0.25% = 50% weight (cap)
+            #   aligned and conflicting delta treated symmetrically
+            _regime_weight = max(0.5, 1.0 - 2.0 * abs(_bond_delta))
             _adjusted_edge = round(_edge * _regime_weight, 4)
 
             # ── Velocity classification ───────────────────────────────────────
@@ -1687,7 +1683,17 @@ class KlausBot:
                 #   drift = persistence signal (edge widening — mispricing growing)
                 # Entry: adj_edge ≥ 0.06  OR  strong accel+drift (ignition bypass).
                 _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.012
-                _early_edge_dominant = _adjusted_edge >= 0.08
+                # Direction-aligned positive velocity — minimal structure signal.
+                _vel_dir_pos = (
+                    not _vel_cold and (
+                        (_token_dir == "up"   and _vel_now > 0) or
+                        (_token_dir == "down" and _vel_now < 0)
+                    )
+                )
+                _any_pos_signal = _vel_dir_pos or (_has_hist and _delta_accel > 0)
+                # Edge-dominant bypass still requires MINIMAL structure
+                # (vel-aligned > 0 OR accel > 0) — prevents pure edge noise trades.
+                _early_edge_dominant = _adjusted_edge >= 0.08 and _any_pos_signal
                 _ignition = (
                     _has_hist
                     and _delta_accel > 0.02
@@ -1708,7 +1714,7 @@ class KlausBot:
                 _skip_reason = (
                     f"EARLY: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
                     f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f} "
-                    f"ign={_ignition} floor={_early_edge_floor:.2f}"
+                    f"ign={_ignition} ed={_early_edge_dominant} floor={_early_edge_floor:.2f}"
                 )
                 _dzone = "EARLY"
             else:  # LATE (45–90s)
