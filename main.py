@@ -866,13 +866,14 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                    # EXTREME EDGE: no profit → cut (minimum-hold gate: 25s)
+                    # EXTREME EDGE: cut only on realized adverse move (≥6% loss).
+                    # Flat / slightly negative = regime disagreement, not failure.
                     if (_is_extreme_pos
                             and _held_s >= 25.0
-                            and bond_move <= 0.0):
+                            and bond_move <= -0.06):
                         self._exit_in_progress.add(token_id)
                         logger.info(
-                            "BOND_EXTREME_FAIL %s/%s | edge=%.4f move=%+.1f%% at %.0fs — no profit",
+                            "BOND_EXTREME_FAIL %s/%s | edge=%.4f move=%+.1f%% at %.0fs — realized loss",
                             pos.asset, pos.direction.name, _entry_edge_b, bond_move * 100, _held_s,
                         )
                         try:
@@ -1590,26 +1591,20 @@ class KlausBot:
             _bond_zone = "EARLY" if remaining > 150 else ("LATE" if remaining < 90 else "CORE")
             _token_dir = getattr(token, "outcome_direction", "up")
 
-            # Directed delta gate: only enter a token when spot direction matches
-            # outcome_direction. Without this, abs() would give high fair_value for
-            # both sides and the bot enters the WRONG token when spot has reversed
-            # mid-window (e.g. was DOWN, briefly ticked UP, DOWN-YES still at 0.72).
-            # feeds.py OUTCOME_DIR logs confirm slug-suffix mapping is correct.
-            # Direction match: sign alignment only — band gates handle minimums below.
-            _dir_match = (
-                (_token_dir == "down" and _bond_delta < 0) or
-                (_token_dir == "up"   and _bond_delta > 0)
-            )
-            if not _dir_match:
-                logger.debug(
-                    "BOND SKIP %s/%s: delta=%+.3f%% direction mismatch odir=%s",
-                    token.asset, token.side, _bond_delta, _token_dir,
-                )
-                continue
-
             _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
+
+            # Regime weight: penalise only when delta direction conflicts with
+            # token outcome_direction (mean-reversion entries allowed but discounted).
+            # Aligned delta keeps full weight; k=2.0 means delta=0.25% conflict → 50% penalty.
+            _dir_aligned = (
+                (_token_dir == "down" and _bond_delta < 0) or
+                (_token_dir == "up"   and _bond_delta > 0)
+            )
+            _conflict_delta = 0.0 if _dir_aligned else abs(_bond_delta)
+            _regime_weight = max(0.0, 1.0 - 2.0 * _conflict_delta)
+            _adjusted_edge = round(_edge * _regime_weight, 4)
 
             # ── Velocity classification ───────────────────────────────────────
             # Must happen before band gates (band conditions depend on vel class).
@@ -1653,25 +1648,24 @@ class KlausBot:
                 not _vel_cold
                 and abs(_vel_now) > 0.04
                 and _elapsed_pct < 0.60
-                and _edge > 0.035
+                and _adjusted_edge > 0.035
             )
 
             if _is_impulse:
                 _skip = _abs_delta < 0.05
                 _skip_reason = (
                     f"IMPULSE needs delta≥0.05 | "
-                    f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% edge={_edge:.4f} elap={_elapsed_pct:.2f}"
+                    f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% adj_edge={_adjusted_edge:.4f} elap={_elapsed_pct:.2f}"
                 )
                 _dzone = "IMPULSE"
             elif _bond_zone == "CORE":
-                # Hard anchor: edge < 0.04 is non-compensable. Above this, score filters.
-                if _edge < 0.04:
+                if _adjusted_edge < 0.04:
                     _skip = True
-                    _skip_reason = f"CORE: edge={_edge:.4f} < 0.04 (hard floor)"
+                    _skip_reason = f"CORE: adj_edge={_adjusted_edge:.4f} < 0.04 (hard floor)"
                 else:
                     _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
                     _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
-                    _edge_score = math.log(1.0 + _edge / 0.03)
+                    _edge_score = math.log(1.0 + _adjusted_edge / 0.03)
                     _core_score = (
                         _edge_score                             * 0.40 +
                         min(1.0, _abs_delta / 0.13)            * 0.25 +
@@ -1683,35 +1677,38 @@ class KlausBot:
                         f"CORE score={_core_score:.3f} (edge_s={_edge_score:.3f}×0.40 "
                         f"delta_s={min(1.0,_abs_delta/0.13):.2f}×0.25 "
                         f"drift={_drift_flag:.0f}×0.20 accel={_accel_flag:.0f}×0.15) | "
-                        f"edge={_edge:.4f} delta={_abs_delta:.3f}% drift={_edge_drift:+.4f} accel={_delta_accel:+.4f}%"
+                        f"adj_edge={_adjusted_edge:.4f} edge={_edge:.4f} rw={_regime_weight:.2f} delta={_abs_delta:.3f}%"
                     )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
+                # Velocity is a confidence modifier, not a hard gate.
+                # Strong adjusted_edge (≥0.08) allows entry even with weak/misaligned velocity.
                 _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.012
-                _skip = (
-                    (_abs_delta < 0.07 or _edge < 0.05 or not _early_vel_ok) or
-                    (_has_hist and not (_delta_accel > 0 or _edge_drift > 0))
-                )
+                _early_edge_dominant = _adjusted_edge >= 0.08
+                _early_skip_base = _abs_delta < 0.07 or _adjusted_edge < 0.05
+                _early_skip_vel  = not _early_vel_ok and not _early_edge_dominant
+                _early_skip_hist = _has_hist and not (_delta_accel > 0 or _edge_drift > 0) and not _early_edge_dominant
+                _skip = _early_skip_base or _early_skip_vel or _early_skip_hist
                 _skip_reason = (
-                    f"EARLY: delta={_abs_delta:.3f}% edge={_edge:.4f} "
+                    f"EARLY: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
                     f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f}"
                 )
                 _dzone = "EARLY"
             else:  # LATE (45–90s)
                 _skip = (
-                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _edge < 0.06 or ask > 0.75) or
+                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _adjusted_edge < 0.06 or ask > 0.75) or
                     (_has_hist and _edge_drift < -0.005)
                 )
                 _skip_reason = (
-                    f"LATE: delta={_abs_delta:.3f}% edge={_edge:.4f} "
+                    f"LATE: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
                     f"ask={ask:.4f} drift={_edge_drift:+.4f}"
                 )
                 _dzone = "LATE"
 
-            # Global edge floor: block any trade below 0.04 regardless of score
-            if _edge < 0.04:
+            # Global adjusted-edge floor: magnitude-based, direction is regime weight
+            if _adjusted_edge < 0.04:
                 _skip = True
-                _skip_reason = f"edge={_edge:.4f} < 0.04 (global floor)"
+                _skip_reason = f"adj_edge={_adjusted_edge:.4f} < 0.04 (magnitude floor) edge={_edge:.4f} rw={_regime_weight:.2f}"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
