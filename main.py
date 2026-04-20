@@ -1685,12 +1685,10 @@ class KlausBot:
                 )
                 _macro_regime = ("TREND_UP" if _smooth_delta > 0 else "TREND_DOWN") if _trend_ok else "CHOP"
 
-            if _macro_regime == "CHOP":
-                logger.info(
-                    "BOND SKIP %s/%s [CHOP/L1]: smooth_d=%+.3f vel=%+.4f",
-                    token.asset, token.side, _smooth_delta, _vel_now,
-                )
-                continue
+            _in_trend = _macro_regime in ("TREND_UP", "TREND_DOWN")
+            # CHOP is NOT hard-skipped — CORE-B (compression/reversion) can still
+            # fire in CHOP with a strong edge. IMPULSE / EARLY / LATE / CORE-A
+            # all require _in_trend and skip otherwise.
             # ─────────────────────────────────────────────────────────────────
 
             # IMPULSE regime: velocity spike overrides accel/drift requirements.
@@ -1703,57 +1701,105 @@ class KlausBot:
             )
 
             if _is_impulse:
-                _skip = _abs_delta < 0.05
-                _skip_reason = (
-                    f"IMPULSE needs delta≥0.05 | "
-                    f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% adj_edge={_adjusted_edge:.4f} elap={_elapsed_pct:.2f}"
-                )
+                if not _in_trend:
+                    _skip = True
+                    _skip_reason = (
+                        f"IMPULSE[CHOP]: trend required | "
+                        f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
+                    )
+                else:
+                    _skip = _abs_delta < 0.05
+                    _skip_reason = (
+                        f"IMPULSE needs delta≥0.05 | "
+                        f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% adj_edge={_adjusted_edge:.4f} elap={_elapsed_pct:.2f}"
+                    )
                 _dzone = "IMPULSE"
             elif _bond_zone == "CORE":
-                # Macro quality gate (Layer 2 — CORE only):
-                # Reject when low-signal AND direction-misaligned.
-                # A TREND regime passed Layer 1, but borderline CORE entries
-                # still fire in near-chop conditions. This gate blocks them.
-                _core_regime_ok = (
-                    not (_abs_delta < 0.08 and _vel_mag_now < 0.02)
-                    and (_vel_cold or _bond_delta * _vel_now >= 0.0)
+                # CORE splits into two behavioral modes — not a single filter.
+                #
+                #   CORE-A (CONTINUATION) — ride aligned trends with velocity confirmation.
+                #     requires: _in_trend AND aligned vel AND aligned+strong delta
+                #     runs existing composite-score gate on edge/delta/drift/accel.
+                #
+                #   CORE-B (COMPRESSION / MEAN-REVERSION) — exploit mispricing when macro
+                #     is quiet (weak delta, quiet/misaligned vel), edge must carry the trade.
+                #     fires in both TREND and CHOP; edge alone qualifies.
+                _core_a_profile = (
+                    _in_trend
+                    and not _vel_cold
+                    and _bond_delta * _vel_now >= 0.0
+                    and _abs_delta >= 0.08
+                    and abs(_vel_now) >= 0.02
                 )
-                if not _core_regime_ok:
+                _vel_quiet_or_misaligned = (
+                    _vel_cold
+                    or abs(_vel_now) < 0.015
+                    or _bond_delta * _vel_now < 0.0
+                )
+                _core_b_profile = (
+                    _vel_quiet_or_misaligned
+                    and _abs_delta < 0.08
+                    and _adjusted_edge >= 0.08
+                )
+
+                if _core_a_profile:
+                    # Continuation: existing composite-score logic unchanged.
+                    if _adjusted_edge < 0.04:
+                        _skip = True
+                        _skip_reason = f"CORE-A: adj_edge={_adjusted_edge:.4f} < 0.04 (hard floor)"
+                    else:
+                        _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
+                        _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
+                        _edge_score = math.log(1.0 + _adjusted_edge / 0.03)
+                        _core_score = (
+                            _edge_score                             * 0.40 +
+                            min(1.0, _abs_delta / 0.13)            * 0.25 +
+                            _drift_flag                            * 0.20 +
+                            _accel_flag                            * 0.15
+                        )
+                        _skip = _core_score < 0.55
+                        _skip_reason = (
+                            f"CORE-A score={_core_score:.3f} (edge_s={_edge_score:.3f}×0.40 "
+                            f"delta_s={min(1.0,_abs_delta/0.13):.2f}×0.25 "
+                            f"drift={_drift_flag:.0f}×0.20 accel={_accel_flag:.0f}×0.15) | "
+                            f"adj_edge={_adjusted_edge:.4f} edge={_edge:.4f} delta={_abs_delta:.3f}%"
+                        )
+                    _dzone = "CORE-A-CONT"
+                elif _core_b_profile:
+                    # Compression: strong edge carries the trade; accel/drift optional.
+                    # Global 0.04 floor is redundant here (profile already enforces ≥0.08).
+                    _skip = False
+                    _skip_reason = (
+                        f"CORE-B[COMP] pass: adj_edge={_adjusted_edge:.4f} "
+                        f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% regime={_macro_regime}"
+                    )
+                    _dzone = "CORE-B-COMP"
+                else:
                     _skip = True
                     _skip_reason = (
-                        f"CORE[REGIME_WEAK]: delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% "
-                        f"(need delta≥0.08 OR vel≥0.02, AND same sign)"
+                        f"CORE[AMBIGUOUS]: neither continuation nor compression profile | "
+                        f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% "
+                        f"adj_edge={_adjusted_edge:.4f} regime={_macro_regime} "
+                        f"(A needs trend+aligned+|d|≥0.08+|v|≥0.02; "
+                        f"B needs quiet/misaligned vel + |d|<0.08 + adj_edge≥0.08)"
                     )
                     _dzone = "CORE"
-                elif _adjusted_edge < 0.04:
-                    _skip = True
-                    _skip_reason = f"CORE: adj_edge={_adjusted_edge:.4f} < 0.04 (hard floor)"
-                else:
-                    _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
-                    _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
-                    _edge_score = math.log(1.0 + _adjusted_edge / 0.03)
-                    _core_score = (
-                        _edge_score                             * 0.40 +
-                        min(1.0, _abs_delta / 0.13)            * 0.25 +
-                        _drift_flag                            * 0.20 +
-                        _accel_flag                            * 0.15
-                    )
-                    _skip = _core_score < 0.55
-                    _skip_reason = (
-                        f"CORE score={_core_score:.3f} (edge_s={_edge_score:.3f}×0.40 "
-                        f"delta_s={min(1.0,_abs_delta/0.13):.2f}×0.25 "
-                        f"drift={_drift_flag:.0f}×0.20 accel={_accel_flag:.0f}×0.15) | "
-                        f"adj_edge={_adjusted_edge:.4f} edge={_edge:.4f} rw={_regime_weight:.2f} delta={_abs_delta:.3f}%"
-                    )
-                _dzone = "CORE"
             elif _bond_zone == "EARLY":
-                # Low-information pre-gate: both |delta| < 0.08 AND |vel| < 0.01
-                # means neither signal provides structural basis — regime noise only.
-                if _low_info:
+                # Layer-1 gate: EARLY only fires in TREND regimes.
+                if not _in_trend:
                     _skip = True
                     _skip_reason = (
-                        f"EARLY[LOW_INFO]: delta={_abs_delta:.3f}%<0.08 AND "
-                        f"vel={_vel_mag_now:.4f}%<0.01 — no structure"
+                        f"EARLY[CHOP]: trend required | "
+                        f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
+                    )
+                    _dzone = "EARLY"
+                # Low-information pre-gate: both |delta| < 0.06 AND |vel| < 0.02
+                # means neither signal provides structural basis — regime noise only.
+                elif _low_info:
+                    _skip = True
+                    _skip_reason = (
+                        f"EARLY[LOW_INFO]: delta={_abs_delta:.3f}%<0.06 AND "
+                        f"vel={_vel_mag_now:.4f}%<0.02 — no structure"
                     )
                     _dzone = "EARLY"
                 else:
@@ -1816,14 +1862,21 @@ class KlausBot:
                     )
                     _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
-                _skip = (
-                    (_abs_delta < 0.12 or _abs_delta > 0.13 or _adjusted_edge < 0.06 or ask > 0.75) or
-                    (_has_hist and _edge_drift < -0.005)
-                )
-                _skip_reason = (
-                    f"LATE: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
-                    f"ask={ask:.4f} drift={_edge_drift:+.4f}"
-                )
+                if not _in_trend:
+                    _skip = True
+                    _skip_reason = (
+                        f"LATE[CHOP]: trend required | "
+                        f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
+                    )
+                else:
+                    _skip = (
+                        (_abs_delta < 0.12 or _abs_delta > 0.13 or _adjusted_edge < 0.06 or ask > 0.75) or
+                        (_has_hist and _edge_drift < -0.005)
+                    )
+                    _skip_reason = (
+                        f"LATE: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
+                        f"ask={ask:.4f} drift={_edge_drift:+.4f}"
+                    )
                 _dzone = "LATE"
 
             # Global adjusted-edge floor: magnitude-based, direction is regime weight
