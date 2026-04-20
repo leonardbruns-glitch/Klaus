@@ -1611,12 +1611,20 @@ class KlausBot:
             _edge = round(_fair_value - ask, 4)
             _asset_direction = 1 if _bond_delta >= 0 else -1
 
-            # Hard edge floor: edge < 0.08 is not compensable after fees + slippage.
-            # Losing trades cluster at edge 0.04–0.07; winners at edge ≥ 0.08+.
-            if _edge < 0.08:
+            # Tiered edge floor: strong velocity earns a looser edge requirement.
+            # vel > 0.02 aligned → edge ≥ 0.06 (momentum does part of the work)
+            # vel 0.01–0.02 aligned → edge ≥ 0.08 (weaker momentum needs more margin)
+            # vel < 0.01 / COLD → blocked by hard vel gate below (not reached here)
+            _vel_now_pre, _vel_age_pre = self.feed.get_velocity_5s(token.asset)
+            _vel_strong = (
+                not (_vel_age_pre >= 999.0)
+                and abs(_vel_now_pre) > 0.02
+            )
+            _edge_floor = 0.06 if _vel_strong else 0.08
+            if _edge < _edge_floor:
                 logger.debug(
-                    "BOND SKIP %s/%s: edge=%.4f < 0.08 hard floor",
-                    token.asset, token.side, _edge,
+                    "BOND SKIP %s/%s: edge=%.4f < %.2f floor (vel_strong=%s)",
+                    token.asset, token.side, _edge, _edge_floor, _vel_strong,
                 )
                 continue
 
@@ -1635,7 +1643,7 @@ class KlausBot:
             # ── Velocity classification ───────────────────────────────────────
             # Must happen before band gates (band conditions depend on vel class).
             _VEL_BOND_THRESHOLD = 0.010
-            _vel_now, _vel_age = self.feed.get_velocity_5s(token.asset)
+            _vel_now, _vel_age = _vel_now_pre, _vel_age_pre   # reuse pre-fetched value
             _vel_cold = (_vel_age >= 999.0)
             # INIT = measured velocity actively moving in trade direction.
             # Distinguishes fresh momentum entries from exhaustion/cold entries.
