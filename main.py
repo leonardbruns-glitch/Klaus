@@ -1641,6 +1641,12 @@ class KlausBot:
             _delta_excess_penalty = 0.0
             _weak_vel_penalty = 0.0
 
+            # Low-information regime: neither delta nor velocity provides structure.
+            # Applied as a pre-gate on EARLY only (IMPULSE already requires vel>0.04,
+            # CORE/LATE have stronger delta minimums that implicitly cover this).
+            _vel_mag_now = 0.0 if _vel_cold else abs(_vel_now)
+            _low_info = _abs_delta < 0.08 and _vel_mag_now < 0.01
+
             # IMPULSE regime: velocity spike overrides accel/drift requirements.
             # Fires only in early window when the velocity IS the signal.
             _is_impulse = (
@@ -1680,67 +1686,66 @@ class KlausBot:
                     )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
-                # Two explicit entry modes — no cross-mode OR bypass logic.
-                # Each mode is a self-contained AND-chain; delta/regime_weight are
-                # risk modifiers (already applied to adj_edge), not routing signals.
-                _vel_dir_pos = (
-                    not _vel_cold and (
-                        (_token_dir == "up"   and _vel_now > 0) or
-                        (_token_dir == "down" and _vel_now < 0)
+                # Low-information pre-gate: both |delta| < 0.08 AND |vel| < 0.01
+                # means neither signal provides structural basis — regime noise only.
+                if _low_info:
+                    _skip = True
+                    _skip_reason = (
+                        f"EARLY[LOW_INFO]: delta={_abs_delta:.3f}%<0.08 AND "
+                        f"vel={_vel_mag_now:.4f}%<0.01 — no structure"
                     )
-                )
-                _vel_mag = abs(_vel_now)
-                _accel_pos = _has_hist and _delta_accel > 0
+                    _dzone = "EARLY"
+                else:
+                    # Two explicit entry modes — no cross-mode OR bypass logic.
+                    # Each mode is a self-contained AND-chain; delta/regime_weight are
+                    # risk modifiers (already applied to adj_edge), not routing signals.
+                    _vel_dir_pos = (
+                        not _vel_cold and (
+                            (_token_dir == "up"   and _vel_now > 0) or
+                            (_token_dir == "down" and _vel_now < 0)
+                        )
+                    )
+                    _vel_mag = abs(_vel_now)
+                    _accel_pos = _has_hist and _delta_accel > 0
 
-                # EARLY-specific adj_edge refinements (thresholds unchanged; only the
-                # effective edge fed into those gates is tightened by regime context).
-                #
-                # R1: delta excess penalty — proportional soft penalty when |delta| > 0.05.
-                #     Steeper than global regime_weight alone (which caps at 50% reduction).
-                #     Extra penalty capped at 30% to avoid double-crushing moderate entries.
-                _delta_excess = max(0.0, abs(_bond_delta) - 0.05)
-                _delta_excess_penalty = min(0.30, _delta_excess * 2.0)
-                _early_adj_edge = _adjusted_edge * (1.0 - _delta_excess_penalty)
+                    # R1: delta excess penalty — proportional soft penalty when |delta|>0.05.
+                    _delta_excess = max(0.0, abs(_bond_delta) - 0.05)
+                    _delta_excess_penalty = min(0.30, _delta_excess * 2.0)
+                    _early_adj_edge = _adjusted_edge * (1.0 - _delta_excess_penalty)
 
-                # R2: weak-velocity downweight — |vel| < 0.01 is neutral, not confirmation.
-                #     Only applied when vel is the SOLE positive signal (accel not helping).
-                #     Up to 15% additional reduction, proportional to how weak vel is.
-                _weak_vel_penalty = 0.0
-                if _vel_dir_pos and not _accel_pos and _vel_mag < 0.01:
-                    _weak_vel_penalty = (1.0 - _vel_mag / 0.01) * 0.15
-                    _early_adj_edge *= (1.0 - _weak_vel_penalty)
+                    # R2: weak-velocity downweight — |vel|<0.01 sole-signal → up to -15%.
+                    _weak_vel_penalty = 0.0
+                    if _vel_dir_pos and not _accel_pos and _vel_mag < 0.01:
+                        _weak_vel_penalty = (1.0 - _vel_mag / 0.01) * 0.15
+                        _early_adj_edge *= (1.0 - _weak_vel_penalty)
 
-                _early_adj_edge = round(_early_adj_edge, 4)
+                    _early_adj_edge = round(_early_adj_edge, 4)
 
-                # MODE A — EDGE-DRIVEN: strong edge + minimal confirmation.
-                #   early_adj_edge ≥ 0.06, delta ≥ 0.07, AND (vel_dir_pos OR accel>0).
-                #   Ignition logic disabled inside this mode.
-                _mode_a = (
-                    _early_adj_edge >= 0.06
-                    and _abs_delta >= 0.07
-                    and (_vel_dir_pos or _accel_pos)
-                )
+                    # MODE A — EDGE-DRIVEN
+                    _mode_a = (
+                        _early_adj_edge >= 0.06
+                        and _abs_delta >= 0.07
+                        and (_vel_dir_pos or _accel_pos)
+                    )
 
-                # MODE B — IGNITION-DRIVEN: strong accel+drift, lower edge floor.
-                #   accel > 0.02 AND drift > 0.01 AND early_adj_edge ≥ 0.04 AND delta ≥ 0.07.
-                #   Edge acts as min-floor only; accel+drift carry the thesis.
-                _mode_b = (
-                    _has_hist
-                    and _delta_accel > 0.02
-                    and _edge_drift  > 0.01
-                    and _early_adj_edge >= 0.04
-                    and _abs_delta >= 0.07
-                )
+                    # MODE B — IGNITION-DRIVEN
+                    _mode_b = (
+                        _has_hist
+                        and _delta_accel > 0.02
+                        and _edge_drift  > 0.01
+                        and _early_adj_edge >= 0.04
+                        and _abs_delta >= 0.07
+                    )
 
-                _skip = not (_mode_a or _mode_b)
-                _mode_tag = "A-EDGE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
-                _skip_reason = (
-                    f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj={_adjusted_edge:.4f} "
-                    f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
-                    f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% "
-                    f"drift={_edge_drift:+.4f} A={_mode_a} B={_mode_b}"
-                )
-                _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
+                    _skip = not (_mode_a or _mode_b)
+                    _mode_tag = "A-EDGE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
+                    _skip_reason = (
+                        f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj={_adjusted_edge:.4f} "
+                        f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
+                        f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% "
+                        f"drift={_edge_drift:+.4f} A={_mode_a} B={_mode_b}"
+                    )
+                    _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
                 _skip = (
                     (_abs_delta < 0.12 or _abs_delta > 0.13 or _adjusted_edge < 0.06 or ask > 0.75) or
