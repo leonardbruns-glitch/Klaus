@@ -376,8 +376,28 @@ class KlausBot:
             if pos is None or not pos.is_bond or token_id in self._exit_in_progress:
                 return
             bond_remaining = pos.window_end_ts - time.time() if pos.window_end_ts > 0 else 999.0
-            # Hard rule: +50% gain → sell immediately regardless of absolute price.
-            if pos.entry_price > 0 and bid_price >= pos.entry_price * 1.50:
+            if pos.entry_price <= 0:
+                return
+            bond_move_ws = (bid_price - pos.entry_price) / pos.entry_price
+
+            # Partial TP1 / TP2 (non-closing — no _exit_in_progress guard needed)
+            if bond_move_ws >= 0.40 and not pos.bond_tp1_done:
+                pos.bond_tp1_done = True
+                logger.info(
+                    "BOND_PARTIAL_TP1_WS %s/%s gain=%+.1f%% — selling 50%% of remaining",
+                    pos.asset, pos.direction.name, bond_move_ws * 100,
+                )
+                await self._bond_partial_tp_sell(token_id, 0.50, bid_price, "BOND_PARTIAL_TP1")
+            if bond_move_ws >= 0.80 and not pos.bond_tp2_done:
+                pos.bond_tp2_done = True
+                logger.info(
+                    "BOND_PARTIAL_TP2_WS %s/%s gain=%+.1f%% — selling 25%% of remaining",
+                    pos.asset, pos.direction.name, bond_move_ws * 100,
+                )
+                await self._bond_partial_tp_sell(token_id, 0.25, bid_price, "BOND_PARTIAL_TP2")
+
+            # Hard rule: +50% gain → sell ALL remaining immediately.
+            if bid_price >= pos.entry_price * 1.50:
                 tp_reason = "BOND_TP_50"
             elif bid_price >= 0.99 and bond_remaining <= 20.0:
                 tp_reason = "BOND_TP_99"
@@ -1106,7 +1126,31 @@ class KlausBot:
                         self._peak_breach_ts.pop(token_id, None)
                     continue
 
-                # Hard rule: +50% gain → sell immediately (price-independent).
+                # Partial TP captures — convex upside lock-in.
+                # TP1 (+40%): sell 50% of remaining; TP2 (+80%): sell 25% of remaining.
+                # These are non-closing partial sells; position continues under SL/trailing.
+                # Flags persist to disk so restarts don't re-trigger.
+                if pos.entry_price > 0 and token_id not in self._exit_in_progress:
+                    if bond_move >= 0.40 and not pos.bond_tp1_done:
+                        pos.bond_tp1_done = True
+                        logger.info(
+                            "BOND_PARTIAL_TP1 %s/%s gain=%+.1f%% — selling 50%% of remaining",
+                            pos.asset, pos.direction.name, bond_move * 100,
+                        )
+                        await self._bond_partial_tp_sell(
+                            token_id, 0.50, current_price, "BOND_PARTIAL_TP1"
+                        )
+                    if bond_move >= 0.80 and not pos.bond_tp2_done:
+                        pos.bond_tp2_done = True
+                        logger.info(
+                            "BOND_PARTIAL_TP2 %s/%s gain=%+.1f%% — selling 25%% of remaining",
+                            pos.asset, pos.direction.name, bond_move * 100,
+                        )
+                        await self._bond_partial_tp_sell(
+                            token_id, 0.25, current_price, "BOND_PARTIAL_TP2"
+                        )
+
+                # Hard rule: +50% gain → sell ALL remaining (price-independent).
                 # Absolute TPs: $0.95 any time; $0.99 in last 20s only.
                 _BOND_TP_EARLY  = 0.95   # fires any time during hold
                 _BOND_TP_LATE   = 0.99   # fires only in last 20s
@@ -3099,6 +3143,51 @@ class KlausBot:
             sum(f.avg_fill_price * f.total_size for f in exit_fills) / total_size
             if exit_fills and total_size > 0 else fallback
         )
+
+    async def _bond_partial_tp_sell(
+        self,
+        token_id: str,
+        fraction: float,
+        current_price: float,
+        reason: str,
+    ) -> None:
+        """Sell `fraction` of remaining BOND shares as a partial TP capture.
+        Does NOT close the position — remaining shares continue under SL/trailing.
+        """
+        pos = self.risk.open_positions.get(token_id)
+        if not pos or pos.remaining_shares < 0.05:
+            return
+        token_meta = self.feed.tokens.get(token_id)
+        sell_shares = round(pos.remaining_shares * fraction, 4)
+        if sell_shares < 0.01:
+            return
+        fills = await self.orders.cascade_sell(
+            token_id=token_id,
+            total_shares=sell_shares,
+            current_price=current_price,
+            reason=reason,
+            neg_risk=getattr(token_meta, "neg_risk", False),
+            tick_size=getattr(token_meta, "tick_size", "0.01"),
+            force_exit=True,
+        )
+        sold = sum(f.total_size for f in fills)
+        fill_price = self._calc_exit_price(fills, current_price)
+        if sold > 0:
+            pos.remaining_shares = max(0.0, round(pos.remaining_shares - sold, 4))
+            self.risk._save_positions()
+            logger.info(
+                "BOND_PARTIAL_TP %s/%s [%s] sold=%.4f @ %.4f remaining=%.4f "
+                "entry=%.4f gain=%+.1f%%",
+                pos.asset, pos.direction.name, reason,
+                sold, fill_price, pos.remaining_shares,
+                pos.entry_price,
+                (current_price - pos.entry_price) / pos.entry_price * 100,
+            )
+        else:
+            logger.warning(
+                "BOND_PARTIAL_TP %s/%s [%s] 0 fills — will retry next scan",
+                pos.asset, pos.direction.name, reason,
+            )
 
     async def _partial_exit(self, token_id: str, live_price: float, reason: str) -> None:
         """Stage-1: sell 60%, leave 40% for stage-2 with floor stop at cost+12%."""

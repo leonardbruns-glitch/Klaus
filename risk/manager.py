@@ -116,6 +116,8 @@ class PositionMeta:
     bond_outcome_direction: str = "down"  # "up" or "down" — token resolves when asset goes this direction
     bond_entry_class: str = ""       # e.g. "CORE/INIT" — drives SL regime in _check_open_positions
     bond_macro_regime: str = ""      # Layer-1 regime at entry: TREND_UP / TREND_DOWN / CHOP
+    bond_tp1_done: bool = False      # True after +40% partial sell (50% of remaining)
+    bond_tp2_done: bool = False      # True after +80% partial sell (25% of remaining)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -299,6 +301,8 @@ class RiskManager:
                     "entry_lag_pct": pos.entry_lag_pct,
                     "entry_fair_value": pos.entry_fair_value,
                     "moon_bag_high": pos.moon_bag_high,
+                    "bond_tp1_done": pos.bond_tp1_done,
+                    "bond_tp2_done": pos.bond_tp2_done,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -366,6 +370,8 @@ class RiskManager:
                 pos.entry_fair_value = float(d.get("entry_fair_value", 0.0))
                 pos.moon_bag_high = float(d.get("moon_bag_high", 0.0))
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
+                pos.bond_tp1_done = bool(d.get("bond_tp1_done", False))
+                pos.bond_tp2_done = bool(d.get("bond_tp2_done", False))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
