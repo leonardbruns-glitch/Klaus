@@ -2081,6 +2081,19 @@ class KlausBot:
                         and _vel_mag_now <= 0.01
                         and not _building_a
                     )
+                    # Observability-only: would-be soft velocity regime gate.
+                    # NOT enforced on _mode_a — computed so we can log when an
+                    # active-vel entry (|vel| ≥ 0.015) lacks confirming structure.
+                    # Compare 24–48h against baseline before deciding whether to
+                    # promote this to a real gate.
+                    _VEL_QUIET_A = 0.015
+                    _vel_quiet_a = _vel_mag_now < _VEL_QUIET_A
+                    _vel_active_ok_a = (
+                        _delta_accel_aligned_a
+                        and _edge_drift_up_a
+                        and not _stagnant_a
+                    )
+                    _vel_regime_ok_a = _vel_quiet_a or _vel_active_ok_a
                     _mode_a = (
                         _in_trend
                         and _early_adj_edge >= 0.06
@@ -2117,9 +2130,24 @@ class KlausBot:
                         f"drift={_edge_drift:+.4f} sustain={_accel_sustained} "
                         f"build={_building_a} coll={_vel_collapsing_a} "
                         f"decay={_delta_decaying_a} latecmp={_late_compression_a} "
-                        f"stagnant={_stagnant_a} A={_mode_a} B={_mode_b}"
+                        f"stagnant={_stagnant_a} velreg={_vel_regime_ok_a} "
+                        f"(quiet={_vel_quiet_a} actok={_vel_active_ok_a}) "
+                        f"A={_mode_a} B={_mode_b}"
                     )
                     _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
+                    # Observability: Mode A passed BUT soft vel-regime gate
+                    # would have blocked it. Grep "EARLY_A_VELREG_WOULDBLOCK"
+                    # to correlate these entries with outcomes.
+                    if _mode_a and not _vel_regime_ok_a:
+                        logger.info(
+                            "EARLY_A_VELREG_WOULDBLOCK %s/%s | vel=%+.4f%% "
+                            "(|vel|≥%.3f) delta=%+.3f%% adj=%.4f ej=%.4f "
+                            "d_accel_aln=%s edge_drift_up=%s stagnant=%s "
+                            "— entry PROCEEDING, outcome flagged",
+                            token.asset, token.side, _vel_now, _VEL_QUIET_A,
+                            _bond_delta, _adjusted_edge, _early_adj_edge,
+                            _delta_accel_aligned_a, _edge_drift_up_a, _stagnant_a,
+                        )
             else:  # LATE (45–90s)
                 if not _in_trend:
                     _skip = True
