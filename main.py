@@ -2140,6 +2140,17 @@ class KlausBot:
                 # Skip them rather than wasting a scan cycle on entry=0.0000 noise.
                 if token.market_type == "target" and _ask <= 0:
                     continue
+                # Target NO tokens structurally fail the min_no price gate every scan
+                # when priced below 1 - max_entry_price. Skip before scoring to avoid
+                # INFO log spam on entries that can never pass risk evaluation.
+                if token.market_type == "target" and token.side.upper() == "NO":
+                    _min_no = 1.0 - self.risk.edge_cfg.max_entry_price
+                    if _ask < _min_no:
+                        logger.debug(
+                            "SCAN SKIP %s/%s: NO ask=%.4f < min_no=%.4f (structural)",
+                            token.asset, token.side, _ask, _min_no,
+                        )
+                        continue
 
             bars_5m = self.feed.get_bars_5m(token_id, n=30)
             bars_15m = self.feed.get_bars_15m(token_id, n=30)
