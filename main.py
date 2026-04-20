@@ -1677,46 +1677,45 @@ class KlausBot:
                     )
                 _dzone = "CORE"
             elif _bond_zone == "EARLY":
-                # EARLY intent: capture ignition before confirmation, not wait for it.
-                #   edge  = confirmation signal
-                #   accel = ignition signal (delta expanding — transition-to-move)
-                #   drift = persistence signal (edge widening — mispricing growing)
-                # Entry: adj_edge ≥ 0.06  OR  strong accel+drift (ignition bypass).
-                _early_vel_ok = not _vel_cold and abs(_vel_now) >= 0.012
-                # Direction-aligned positive velocity — minimal structure signal.
+                # Two explicit entry modes — no cross-mode OR bypass logic.
+                # Each mode is a self-contained AND-chain; delta/regime_weight are
+                # risk modifiers (already applied to adj_edge), not routing signals.
                 _vel_dir_pos = (
                     not _vel_cold and (
                         (_token_dir == "up"   and _vel_now > 0) or
                         (_token_dir == "down" and _vel_now < 0)
                     )
                 )
-                _any_pos_signal = _vel_dir_pos or (_has_hist and _delta_accel > 0)
-                # Edge-dominant bypass still requires MINIMAL structure
-                # (vel-aligned > 0 OR accel > 0) — prevents pure edge noise trades.
-                _early_edge_dominant = _adjusted_edge >= 0.08 and _any_pos_signal
-                _ignition = (
+                _accel_pos = _has_hist and _delta_accel > 0
+
+                # MODE A — EDGE-DRIVEN: strong edge + minimal confirmation.
+                #   adj_edge ≥ 0.06, delta ≥ 0.07, AND (vel_dir_pos OR accel>0).
+                #   Ignition logic disabled inside this mode.
+                _mode_a = (
+                    _adjusted_edge >= 0.06
+                    and _abs_delta >= 0.07
+                    and (_vel_dir_pos or _accel_pos)
+                )
+
+                # MODE B — IGNITION-DRIVEN: strong accel+drift, lower edge floor.
+                #   accel > 0.02 AND drift > 0.01 AND adj_edge ≥ 0.04 AND delta ≥ 0.07.
+                #   Edge acts as min-floor only; accel+drift carry the thesis.
+                _mode_b = (
                     _has_hist
                     and _delta_accel > 0.02
                     and _edge_drift  > 0.01
+                    and _adjusted_edge >= 0.04
+                    and _abs_delta >= 0.07
                 )
-                # Edge threshold relaxes to global floor (0.04) when ignition fires.
-                _early_edge_floor = 0.04 if _ignition else 0.06
-                _early_skip_base = _abs_delta < 0.07 or _adjusted_edge < _early_edge_floor
-                # Velocity and hist requirements bypassed by edge-dominance OR ignition.
-                _early_skip_vel  = not _early_vel_ok and not _early_edge_dominant and not _ignition
-                _early_skip_hist = (
-                    _has_hist
-                    and not (_delta_accel > 0 or _edge_drift > 0)
-                    and not _early_edge_dominant
-                    and not _ignition
-                )
-                _skip = _early_skip_base or _early_skip_vel or _early_skip_hist
+
+                _skip = not (_mode_a or _mode_b)
+                _mode_tag = "A-EDGE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
                 _skip_reason = (
-                    f"EARLY: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
-                    f"vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% drift={_edge_drift:+.4f} "
-                    f"ign={_ignition} ed={_early_edge_dominant} floor={_early_edge_floor:.2f}"
+                    f"EARLY[{_mode_tag}]: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} "
+                    f"rw={_regime_weight:.2f} vel={_vel_now:+.4f}% accel={_delta_accel:+.4f}% "
+                    f"drift={_edge_drift:+.4f} A={_mode_a} B={_mode_b}"
                 )
-                _dzone = "EARLY"
+                _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
                 _skip = (
                     (_abs_delta < 0.12 or _abs_delta > 0.13 or _adjusted_edge < 0.06 or ask > 0.75) or
