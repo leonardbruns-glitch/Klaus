@@ -942,6 +942,37 @@ class KlausBot:
                             self._peak_breach_ts.pop(token_id, None)
                         continue
 
+                # ── Momentum failure exit (EARLY / CORE trades) ──────────────
+                # Prevents -70%–98% collapse: when the entry thesis reverses within
+                # the hold window, exit before the drawdown deepens. Three criteria
+                # must all hold simultaneously:
+                #   (1) delta reversed ≥ 0.05 against entry direction
+                #   (2) vel flipped or dropped below noise floor (<0.01)
+                #   (3) hold 25–60s (setup had time to develop; not a 1s wick)
+                _entry_dir_up = _token_dir == "up"
+                _delta_reversed_mf = (
+                    (_entry_dir_up  and _bond_delta <= -0.05) or
+                    (not _entry_dir_up and _bond_delta >=  0.05)
+                )
+                _vel_failed_mf = _vel_cold or _vel_mag_now < 0.01
+                if (not pos.bond_entry_class.startswith("IMPULSE")
+                        and _delta_reversed_mf
+                        and _vel_failed_mf
+                        and 25.0 <= _held_s <= 60.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.warning(
+                        "BOND_MOMENTUM_FAIL %s/%s | bond_d=%+.3f%% vel=%.4f%% "
+                        "held=%.0fs move=%+.1f%% — thesis reversed, cutting",
+                        pos.asset, pos.direction.name,
+                        _bond_delta, _vel_mag_now, _held_s, bond_move * 100,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_MOMENTUM_FAIL")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── Adaptive SL envelope (regime-gated, noise-tolerant) ────────
                 # Tolerance expands over time so normal mid-trade dips aren't cut.
                 # Exits require regime-based confirmation:
@@ -957,6 +988,10 @@ class KlausBot:
                 if token_id not in self._exit_in_progress:
                     # Smooth envelope: -(0.05 + 0.002*t) capped at -0.18
                     _sl_env = -(0.05 + min(0.002 * _held_s, 0.13))
+                    # CORE-B: 35% tighter — these are exception entries that must
+                    # not wait for deep drawdown before cutting.
+                    if pos.bond_entry_class.startswith("CORE-B"):
+                        _sl_env *= 0.65
 
                     _exit_label_cl = ""
                     if bond_move <= -0.85:
@@ -1813,10 +1848,28 @@ class KlausBot:
                     or abs(_vel_now) < 0.015
                     or _bond_delta * _vel_now < 0.0
                 )
+                # CORE-B: rare high-conviction exception, not a default or fallback.
+                # Three hard requirements:
+                #   (1) edge ≥ 0.13 — only very strong mispricings qualify
+                #   (2) not pure compression — |delta|<0.06 AND vel≈0 → reject
+                #   (3) volatility expanding — at least one expansion signal
+                # CHOP allowed only when expansion is unambiguous (vel ≥ 0.01 + edge drifting).
+                _pure_compression_cb = _abs_delta < 0.06 and _vel_mag_now < 0.01
+                _vol_expanding_cb = (
+                    (not _vel_cold and _vel_mag_now >= 0.005)
+                    or (_has_hist and _delta_accel > 0)
+                    or (_has_hist and _edge_drift > 0.005)
+                )
+                _core_b_chop_ok = (
+                    not _in_trend
+                    and _vel_mag_now >= 0.01
+                    and _has_hist and _edge_drift > 0.005
+                )
                 _core_b_profile = (
-                    _vel_quiet_or_misaligned
-                    and _abs_delta < 0.08
-                    and _adjusted_edge >= 0.08
+                    _adjusted_edge >= 0.13
+                    and not _pure_compression_cb
+                    and _vol_expanding_cb
+                    and (_in_trend or _core_b_chop_ok)
                 )
 
                 if _core_a_profile:
@@ -1920,7 +1973,7 @@ class KlausBot:
                     # MODE A — EDGE-DRIVEN (trend-confirmed only)
                     _mode_a = (
                         _in_trend
-                        and _early_adj_edge >= 0.06
+                        and _early_adj_edge >= 0.10
                         and _abs_delta >= 0.07
                         and (_vel_dir_pos or _accel_pos)
                     )
@@ -1969,10 +2022,15 @@ class KlausBot:
                     )
                 _dzone = "LATE"
 
-            # Global adjusted-edge floor: magnitude-based, direction is regime weight
-            if _adjusted_edge < 0.04:
+            # Global no-trade zone: two independent rejection criteria.
+            #   (1) adj_edge < 0.10 — below this level fee drag dominates at 0.51+ entries
+            #   (2) |delta| < 0.05 AND vel ≈ 0 — no directional basis at all
+            if _adjusted_edge < 0.10:
                 _skip = True
-                _skip_reason = f"adj_edge={_adjusted_edge:.4f} < 0.04 (magnitude floor) edge={_edge:.4f} rw={_regime_weight:.2f}"
+                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.10 edge={_edge:.4f} rw={_regime_weight:.2f}"
+            elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
+                _skip = True
+                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
