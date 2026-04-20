@@ -1522,7 +1522,7 @@ class KlausBot:
         if not BOND_ENABLED:
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.57
+        _BOND_MIN_ASK = 0.25
         _BOND_MAX_ASK = 0.79
 
         for token_id, token in list(self.feed.tokens.items()):
