@@ -2081,10 +2081,24 @@ class KlausBot:
                         and _vel_mag_now <= 0.01
                         and not _building_a
                     )
+                    # Soft velocity regime gate — not a hard block.
+                    # EARLY-A-PRE is a quiet-structure regime. When micro-momentum is
+                    # active (|vel| ≥ 0.015), losses cluster (MOMENTUM_FAIL / HARD_SL
+                    # / time-exit decay). Allow active-vel entries only if structure
+                    # is actively expanding (delta improving + edge expanding + no stagnation).
+                    _VEL_QUIET_A = 0.015
+                    _vel_quiet_a = _vel_mag_now < _VEL_QUIET_A
+                    _vel_active_ok_a = (
+                        _delta_accel_aligned_a   # delta improving toward direction
+                        and _edge_drift_up_a      # edge expanding (not static)
+                        and not _stagnant_a       # structural life present
+                    )
+                    _vel_regime_ok_a = _vel_quiet_a or _vel_active_ok_a
                     _mode_a = (
                         _in_trend
                         and _early_adj_edge >= 0.06
                         and _building_a
+                        and _vel_regime_ok_a
                         and not _vel_collapsing_a
                         and not _delta_decaying_a
                         and not _late_compression_a
@@ -2117,7 +2131,9 @@ class KlausBot:
                         f"drift={_edge_drift:+.4f} sustain={_accel_sustained} "
                         f"build={_building_a} coll={_vel_collapsing_a} "
                         f"decay={_delta_decaying_a} latecmp={_late_compression_a} "
-                        f"stagnant={_stagnant_a} A={_mode_a} B={_mode_b}"
+                        f"stagnant={_stagnant_a} velreg={_vel_regime_ok_a} "
+                        f"(quiet={_vel_quiet_a} actok={_vel_active_ok_a}) "
+                        f"A={_mode_a} B={_mode_b}"
                     )
                     _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
             else:  # LATE (45–90s)
