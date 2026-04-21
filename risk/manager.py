@@ -87,6 +87,10 @@ class PositionMeta:
     lowest_price: float = 0.0         # trough since open (for volatility analysis)
     highest_price_ts: float = 0.0     # seconds from open_ts when highest_price was set
     lowest_price_ts: float = 0.0      # seconds from open_ts when lowest_price was set
+    # Bounce-from-MAE: max price within 10s after a new lowest_price was set.
+    # Separates reversals (fast bounce) from collapses (no bounce) when MAE > 40%.
+    mae_bounce_peak: float = 0.0      # highest price seen within 10s of last new low
+    mae_bounce_start_ts: float = 0.0  # absolute ts when current MAE window opened
     exit_stage: ExitStage = ExitStage.NONE
     profit_trigger_ts: float = 0.0    # timestamp when +25 % first seen
     hard_exit_triggered: bool = False
@@ -904,6 +908,13 @@ class RiskManager:
         if current_price < pos.lowest_price:
             pos.lowest_price = current_price
             pos.lowest_price_ts = now - pos.open_ts
+            # Reset 10s bounce window on every new low
+            pos.mae_bounce_peak = current_price
+            pos.mae_bounce_start_ts = now
+        elif (pos.mae_bounce_start_ts > 0
+              and (now - pos.mae_bounce_start_ts) <= 10.0
+              and current_price > pos.mae_bounce_peak):
+            pos.mae_bounce_peak = current_price
 
         # move_pct > 0 means profit for both directions
         move_pct = (current_price - pos.entry_price) / pos.entry_price

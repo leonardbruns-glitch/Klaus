@@ -567,6 +567,12 @@ class KlausBot:
                 if current_price < pos.lowest_price:
                     pos.lowest_price = current_price
                     pos.lowest_price_ts = now - pos.open_ts
+                    pos.mae_bounce_peak = current_price
+                    pos.mae_bounce_start_ts = now
+                elif (pos.mae_bounce_start_ts > 0
+                      and (now - pos.mae_bounce_start_ts) <= 10.0
+                      and current_price > pos.mae_bounce_peak):
+                    pos.mae_bounce_peak = current_price
                 _peak_move   = self._peak_bond_move.get(token_id, 0.0)
                 _trough_move = self._trough_bond_move.get(token_id, 0.0)
                 _peak_age    = now - self._peak_ts.get(token_id, pos.open_ts)
@@ -4286,6 +4292,11 @@ class KlausBot:
                 _max_adv,
             )
 
+            _bounce_pct = 0.0
+            if (pos.entry_price > 0 and pos.mae_bounce_peak > 0
+                    and pos.lowest_price > 0 and pos.mae_bounce_peak > pos.lowest_price):
+                _bounce_pct = (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price * 100
+
             try:
                 self.analytics.record_trade(
                     token_id=token_id,
@@ -4332,6 +4343,7 @@ class KlausBot:
                     entry_snap_60s_pct=_r60 if _r60 is not None else 0.0,
                     bond_entry_class=pos.bond_entry_class,
                     bond_macro_regime=pos.bond_macro_regime,
+                    mae_bounce_10s_pct=_bounce_pct,
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

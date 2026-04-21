@@ -108,6 +108,9 @@ class TradeRecord:
     max_adverse_pct: float = 0.0        # worst point reached as % from entry (how deep the dip)
     t_fav_s: float = 0.0               # seconds from open to when max_favourable_pct was reached
     t_adv_s: float = 0.0               # seconds from open to when max_adverse_pct was reached
+    # Bounce-from-MAE: max price increase within 10s after the last new low, as % of entry.
+    # Separates reversals (fast bounce) from collapses (no bounce). Meaningful when MAE > 40%.
+    mae_bounce_10s_pct: float = 0.0
 
     # Window resolution outcome — populated async at window_end+60s for all trades
     # Answers: did the market resolve in our predicted direction regardless of how we exited?
@@ -335,6 +338,7 @@ class FeedbackEngine:
         entry_snap_60s_pct: float = 0.0,
         bond_entry_class: str = "",
         bond_macro_regime: str = "",
+        mae_bounce_10s_pct: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -489,6 +493,7 @@ class FeedbackEngine:
             bond_delta_penalty=round(float(getattr(signal, "bond_delta_penalty", 0.0)), 4),
             bond_weak_vel_penalty=round(float(getattr(signal, "bond_weak_vel_penalty", 0.0)), 4),
             bond_macro_regime=bond_macro_regime,
+            mae_bounce_10s_pct=round(mae_bounce_10s_pct, 2),
         )
 
         self._recent.append(rec)
