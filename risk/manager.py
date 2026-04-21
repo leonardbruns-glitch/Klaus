@@ -647,9 +647,9 @@ class RiskManager:
         max_pct = 0.50
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
-        # BOND stake cap: $15 per user instruction 2026-04-20
+        # BOND stake cap: $20 per user instruction 2026-04-21 (raised from $15)
         if getattr(signal, "signal_source", "") == "BOND":
-            stake = min(stake, 15.0)
+            stake = min(stake, 20.0)
 
         # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
         min_rr = 0.9 if market_type == "updown" else 1.5
