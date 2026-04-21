@@ -46,7 +46,7 @@ if os.path.exists(POST_PATH):
 def g(t, k, d=None):
     return t.get(k, d)
 
-def pf(v, fmt="+.3f", unit="", dash="\u2014"):
+def pf(v, fmt="+.3f", unit="", dash="—"):
     if v in (None, "", 0.0):
         return dash
     try:
@@ -54,7 +54,7 @@ def pf(v, fmt="+.3f", unit="", dash="\u2014"):
     except Exception:
         return str(v)
 
-def ps(v, dash="\u2014"):
+def ps(v, dash="—"):
     return f"{v:.0f}s" if v not in (None, 0.0) else dash
 
 def pb(v):
@@ -62,7 +62,7 @@ def pb(v):
         return "?"
     return "Y" if v else "N"
 
-def pd(v, dash="\u2014"):
+def pd(v, dash="—"):
     return f"{v:+.1f}%" if v is not None else dash
 
 GREEN  = "\033[32m"
@@ -76,7 +76,7 @@ for t in trades:
     wl   = f"{ws//60}m" if ws else "?m"
     hc   = "*" if g(t, "heat_check_active") else ""
     ts   = g(t, "ts_open", 0)
-    dt   = datetime.datetime.utcfromtimestamp(ts).strftime("%m-%d %H:%M") if ts else "\u2014\u2014\u2014\u2014\u2014\u2014"
+    dt   = datetime.datetime.utcfromtimestamp(ts).strftime("%m-%d %H:%M") if ts else "——————"
     adv  = g(t, "max_adverse_pct")
     fav  = g(t, "max_favourable_pct")
     t_fav = g(t, "t_fav_s")
@@ -105,9 +105,9 @@ for t in trades:
     lag  = g(t, "sniper_lag_remaining")
     delt = g(t, "sniper_delta_pct")
     elap = g(t, "sniper_elapsed_pct")
-    qs   = g(t, "quality_score", "\u2014")
+    qs   = g(t, "quality_score", "—")
     vpin = g(t, "sniper_vpin")
-    reg  = g(t, "regime", "\u2014") or "\u2014"
+    reg  = g(t, "regime", "—") or "—"
     hr   = g(t, "hour_utc", 0)
     hold = g(t, "hold_seconds", 0) or 0
     slip_e = g(t, "slippage_entry")
@@ -119,18 +119,21 @@ for t in trades:
     gross = g(t, "gross_pnl")
     cap  = g(t, "capital_after", 0) or 0.0
     reason = g(t, "exit_reason", "?")
-    vel  = g(t, "velocity_5s_pct")   # % Binance price change in last 5s at entry
-    age  = g(t, "move_age_s")        # seconds since last >0.02% Binance tick
-    bec  = g(t, "bond_entry_class", "") or ""   # e.g. "CORE/hot", "IMPULSE/hot"
+    vel  = g(t, "velocity_5s_pct")
+    age  = g(t, "move_age_s")
+    bec  = g(t, "bond_entry_class", "") or ""
+    mac  = (g(t, "bond_macro_regime", "") or "")[:8]   # TREND_UP / TREND_DOWN / CHOP
+    pc   = (g(t, "path_class", "") or "")[:12]         # SMOOTH_RUNNER / EARLY_CHOP / DEAD_DRIFT
+    b10  = g(t, "mae_bounce_10s_pct")                  # bounce within 10s of MAE (% of entry)
 
     print(
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
         f"ep={ep:.4f} xp={xp:.4f} | "
         f"fv={pf(fv, ',.4f')} edge={pf(edge, '+.3f')} | "
         f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f')} elap={pf(elap, '.2f')} | "
-        f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} | "
+        f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} mac={mac or '—':<9} pc={pc or '—'} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
-        f"adv={pf(adv, '+.1f', '%')}@{ps(t_adv)} fav={pf(fav, '+.1f', '%')}@{ps(t_fav)} | "
+        f"adv={pf(adv, '+.1f', '%')}@{ps(t_adv)} fav={pf(fav, '+.1f', '%')}@{ps(t_fav)} bounce10={pf(b10, '+.1f', '%')} | "
         f"from_exit: +30s={d30} +60s={d60} +120s={d120} | from_entry: +30s={e30} +60s={e60} +120s={e120} ec={ec2} | "
         f"slip_e={pf(slip_e, '+.4f')} slip_x={pf(slip_x, '+.4f')} | "
         f"llm={pf(llm, '+.2f')} cwin={cwin} | "
@@ -174,11 +177,11 @@ if bond_trades:
     wr    = len(wins) / len(bond_trades) * 100 if bond_trades else 0
     aw    = sum(t["net_pnl"] for t in wins) / len(wins) if wins else 0
     al    = sum(t["net_pnl"] for t in loss) / len(loss) if loss else 0
-    pf    = (sum(t["net_pnl"] for t in wins)
+    pf_   = (sum(t["net_pnl"] for t in wins)
              / max(0.01, abs(sum(t["net_pnl"] for t in loss)))) if loss else 0
     print(f"\n── OVERVIEW ────────────────────────────────────────────────────────────")
     print(f"  n={len(bond_trades)}  WR={wr:.1f}%  net={_fmt_pnl(total)}  "
-          f"avg_win={_fmt_pnl(aw)}  avg_loss={_fmt_pnl(al)}  PF={pf:.2f}")
+          f"avg_win={_fmt_pnl(aw)}  avg_loss={_fmt_pnl(al)}  PF={pf_:.2f}")
 
     # By exit bucket
     by_b: dict = defaultdict(list)
@@ -202,6 +205,18 @@ if bond_trades:
         print(f"  {c:<30} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
               f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
 
+    # By macro regime
+    by_mac: dict = defaultdict(list)
+    for t in bond_trades:
+        by_mac[t.get("bond_macro_regime", "?") or "?"].append(t["net_pnl"])
+    if len(by_mac) > 1 or (len(by_mac) == 1 and "?" not in by_mac):
+        print(f"\n── BY MACRO REGIME ─────────────────────────────────────────────────────")
+        for m in sorted(by_mac, key=lambda k: sum(by_mac[k]), reverse=True):
+            v = by_mac[m]
+            w = sum(1 for x in v if x > 0)
+            print(f"  {m:<12} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
     # By path class (if any labels exist)
     by_p: dict = defaultdict(list)
     for t in bond_trades:
@@ -216,10 +231,6 @@ if bond_trades:
                   f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
 
     # SL signature decomposition (ZOMBIE / FLASH / COLLAPSE)
-    # Classify every losing-bucket trade by how much upside it ever saw.
-    # ZOMBIE   = fav ≤ 0%    — never profitable → entry filter
-    # FLASH    = fav 0%–5%   — brief flicker → micro-structure filter
-    # COLLAPSE = fav > 5%    — was profitable → trailing-stop / peel logic
     sl_trades = [t for t in bond_trades
                  if _outcome_bucket(t.get("exit_reason"), t.get("net_pnl", 0))
                  in ("HARD_SL", "SL", "EARLY_LOSS", "LATE_EXHAUST", "MOMENTUM_FAIL")]
@@ -244,32 +255,139 @@ if bond_trades:
                   f"avg_fav={sum(favs)/len(favs):+.1f}%  "
                   f"avg_adv={sum(advs)/len(advs):+.1f}%  {hint}")
 
+    # MAE > 40% bounce cohort: reversal vs collapse discriminator
+    # bounce_10s = max price recovery within 10s after MAE, as % of entry.
+    # REVERSAL  = bounce ≥ 5% of entry  → price snapped back quickly
+    # COLLAPSE  = bounce < 5% of entry  → price kept falling (real breakdown)
+    # Only trades with mae_bounce_10s_pct populated (post-fix deployments).
+    mae40 = [t for t in bond_trades
+             if float(t.get("max_adverse_pct", 0) or 0) >= 40.0
+             and float(t.get("mae_bounce_10s_pct", 0) or 0) > 0]
+    if mae40:
+        print(f"\n── MAE>40% BOUNCE COHORT (reversal vs collapse, n={len(mae40)}) ─────────")
+        rev = [t for t in mae40 if float(t.get("mae_bounce_10s_pct", 0) or 0) >= 5.0]
+        col = [t for t in mae40 if float(t.get("mae_bounce_10s_pct", 0) or 0) < 5.0]
+        for label, rows in [("REVERSAL (bounce≥5%)", rev), ("COLLAPSE (bounce<5%)", col)]:
+            if not rows:
+                continue
+            pnls  = [(t.get("net_pnl", 0) or 0) for t in rows]
+            advs  = [float(t.get("max_adverse_pct",  0) or 0) for t in rows]
+            b10s  = [float(t.get("mae_bounce_10s_pct", 0) or 0) for t in rows]
+            w     = sum(1 for x in pnls if x > 0)
+            print(f"  {label:<22} n={len(rows):>3}  WR={w/len(rows)*100:>4.0f}%  "
+                  f"sum={_fmt_pnl(sum(pnls))}  "
+                  f"avg_adv={sum(advs)/len(advs):+.1f}%  "
+                  f"avg_bounce={sum(b10s)/len(b10s):+.1f}%")
+    elif any(float(t.get("max_adverse_pct", 0) or 0) >= 40.0 for t in bond_trades):
+        print(f"\n── MAE>40% BOUNCE COHORT ───────────────────────────────────────────────")
+        print(f"  (no bounce data yet — will populate after next deploy)")
+
     # Winner vs loser distribution
-    def _row(label, w_vals, l_vals, fmt="+.2f"):
+    #
+    # Some fields were added after many BOND trades were recorded (e.g. MFE/MAE
+    # mirror 215af00, mae_bounce_10s_pct 1c350fa). Those trades have the field
+    # as 0 in the log — which means "not measured", not "actually zero".
+    # Showing p25/p50/p75 = 0/0/0 on such fields is misinformation, not data.
+    # Per CLAUDE.md data-integrity rule: "distinguish signal absence from zero".
+    #
+    # The `measured_fn` hook filters out trades where the field was not captured.
+    # Returns True if the trade has a real measurement for this field.
+    def _row(label, w_vals, l_vals, fmt="+.2f", n_total=None):
+        if n_total and (not w_vals or not l_vals):
+            # Sparse field with no measurements on at least one side — make
+            # the absence explicit rather than silently dropping the row.
+            print(f"  {label:<26}  "
+                  f"(not enough measured data — n_w={len(w_vals)}/{n_total[0]} "
+                  f"n_l={len(l_vals)}/{n_total[1]})")
+            return
         if not w_vals or not l_vals:
             return
-        print(f"  {label:<24}  "
+        n_suffix = f"  n_w={len(w_vals)}/{n_total[0]} n_l={len(l_vals)}/{n_total[1]}" if n_total else ""
+        print(f"  {label:<26}  "
               f"W[p25/p50/p75]={_pct(w_vals,25):{fmt}}/{_pct(w_vals,50):{fmt}}/{_pct(w_vals,75):{fmt}}  "
-              f"L[p25/p50/p75]={_pct(l_vals,25):{fmt}}/{_pct(l_vals,50):{fmt}}/{_pct(l_vals,75):{fmt}}")
+              f"L[p25/p50/p75]={_pct(l_vals,25):{fmt}}/{_pct(l_vals,50):{fmt}}/{_pct(l_vals,75):{fmt}}"
+              f"{n_suffix}")
+
+    def _measured_mfe_mae(t):
+        """True if the trade recorded any price movement from entry.
+        Pre-215af00 BOND trades have both fav=0 and adv=0 (not measured).
+        Post-fix trades almost always have at least one side non-zero."""
+        return (float(t.get("max_favourable_pct", 0) or 0) != 0.0
+                or float(t.get("max_adverse_pct", 0) or 0) != 0.0)
+
+    def _measured_bounce(t):
+        """mae_bounce_10s_pct only populates on trades after 1c350fa and
+        only when price dipped below entry (to set a lowest_price anchor)."""
+        return float(t.get("mae_bounce_10s_pct", 0) or 0) > 0.0
+
+    def _measured_penalty(t, key):
+        """Penalties only fire under specific signal conditions.
+        Treat 0 as 'penalty not applied' — not 'not measured'. Include them,
+        but report applied-rate separately below."""
+        return True
+
+    def _measured_snap(t, sec):
+        """entry_snap_Ns captured only when hold_seconds ≥ N AND the snapshot
+        differs from entry. Value of exactly 0 almost always means not captured."""
+        hold = float(t.get("hold_seconds", 0) or 0)
+        return hold >= sec and float(t.get(f"entry_snap_{sec}s_pct", 0) or 0) != 0.0
+
+    def _collect(rows, key, filter_fn=None):
+        if filter_fn is None:
+            return [float(t.get(key, 0) or 0) for t in rows]
+        return [float(t.get(key, 0) or 0) for t in rows if filter_fn(t)]
 
     if wins and loss:
         print(f"\n── WINNER vs LOSER DISTRIBUTION ────────────────────────────────────────")
+        # Dense fields: every trade has them populated
         for label, key, fmt in [
-            ("entry_price",           "entry_price",            ".3f"),
-            ("max_favourable_pct",    "max_favourable_pct",     "+.1f"),
-            ("max_adverse_pct",       "max_adverse_pct",        "+.1f"),
-            ("hold_seconds",          "hold_seconds",           ".0f"),
-            ("velocity_5s_pct",       "velocity_5s_pct",        "+.3f"),
-            ("bond_delta_penalty",    "bond_delta_penalty",     ".3f"),
-            ("bond_weak_vel_penalty", "bond_weak_vel_penalty",  ".3f"),
-            ("entry_snap_30s_pct",    "entry_snap_30s_pct",     "+.1f"),
-            ("entry_snap_60s_pct",    "entry_snap_60s_pct",     "+.1f"),
+            ("entry_price",             "entry_price",            ".3f"),
+            ("hold_seconds",            "hold_seconds",           ".0f"),
+            ("velocity_5s_pct",         "velocity_5s_pct",        "+.3f"),
         ]:
-            _row(label,
-                 [float(t.get(key, 0) or 0) for t in wins],
-                 [float(t.get(key, 0) or 0) for t in loss],
-                 fmt)
-        # Newly added raw primitives — only non-zero for post-fix trades
+            _row(label, _collect(wins, key), _collect(loss, key), fmt)
+
+        # Sparse fields: filter to trades where the field was actually measured
+        # and report sample size alongside percentiles (n_measured/n_total).
+        _nw, _nl = len(wins), len(loss)
+
+        _wf = _collect(wins, "max_favourable_pct", _measured_mfe_mae)
+        _lf = _collect(loss, "max_favourable_pct", _measured_mfe_mae)
+        _row("max_favourable_pct", _wf, _lf, "+.1f", n_total=(_nw, _nl))
+
+        _wa = _collect(wins, "max_adverse_pct", _measured_mfe_mae)
+        _la = _collect(loss, "max_adverse_pct", _measured_mfe_mae)
+        _row("max_adverse_pct", _wa, _la, "+.1f", n_total=(_nw, _nl))
+
+        _wb = _collect(wins, "mae_bounce_10s_pct", _measured_bounce)
+        _lb = _collect(loss, "mae_bounce_10s_pct", _measured_bounce)
+        _row("mae_bounce_10s_pct", _wb, _lb, "+.1f", n_total=(_nw, _nl))
+
+        _w30 = _collect(wins, "entry_snap_30s_pct", lambda t: _measured_snap(t, 30))
+        _l30 = _collect(loss, "entry_snap_30s_pct", lambda t: _measured_snap(t, 30))
+        _row("entry_snap_30s_pct", _w30, _l30, "+.1f", n_total=(_nw, _nl))
+
+        _w60 = _collect(wins, "entry_snap_60s_pct", lambda t: _measured_snap(t, 60))
+        _l60 = _collect(loss, "entry_snap_60s_pct", lambda t: _measured_snap(t, 60))
+        _row("entry_snap_60s_pct", _w60, _l60, "+.1f", n_total=(_nw, _nl))
+
+        # Penalties: 0 is legitimate (penalty not applied). Include all trades,
+        # but also print applied-rate as a separate line for interpretability.
+        for label, key in [
+            ("bond_delta_penalty",    "bond_delta_penalty"),
+            ("bond_weak_vel_penalty", "bond_weak_vel_penalty"),
+        ]:
+            w_all = _collect(wins, key)
+            l_all = _collect(loss, key)
+            _row(label, w_all, l_all, ".3f")
+            w_app = sum(1 for v in w_all if v > 0)
+            l_app = sum(1 for v in l_all if v > 0)
+            if w_app or l_app:
+                print(f"    ↳ applied: W={w_app}/{_nw} ({w_app/_nw*100:.0f}%)  "
+                      f"L={l_app}/{_nl} ({l_app/_nl*100:.0f}%)")
+            else:
+                print(f"    ↳ never applied to any trade — signal condition not firing")
+        # Raw entry primitives — only non-zero for post-fix trades
         new_w = [t for t in wins if float(t.get("bond_adj_edge_at_entry", 0) or 0) != 0]
         new_l = [t for t in loss if float(t.get("bond_adj_edge_at_entry", 0) or 0) != 0]
         if new_w and new_l:
