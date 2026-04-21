@@ -1646,6 +1646,7 @@ class KlausBot:
         _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
 
         for token_id, token in list(self.feed.tokens.items()):
+          try:
             if token.market_type != "updown":
                 continue
             if token.window_end_ts <= 0:
@@ -2354,6 +2355,12 @@ class KlausBot:
             asyncio.create_task(
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
                 name=f"bond_{token.asset}_{token.side}",
+            )
+          except Exception as _bond_tok_exc:
+            logger.error(
+                "BOND SCAN ERROR %s/%s — skipping token: %s",
+                getattr(token, "asset", "?"), getattr(token, "side", "?"),
+                _bond_tok_exc, exc_info=True,
             )
 
         _bond_status = "BOND FIRED" if _b_fired else "BOND WAITING"
