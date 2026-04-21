@@ -408,6 +408,10 @@ class KlausBot:
                     "BOND_TP_WS %s/%s bid=%.4f rem=%.0fs entry=%.4f",
                     pos.asset, pos.direction.name, bid_price, bond_remaining, pos.entry_price,
                 )
+                # Ensure MFE is recorded at the TP price before close.
+                if bid_price > pos.highest_price:
+                    pos.highest_price = bid_price
+                    pos.highest_price_ts = time.time() - pos.open_ts
                 await self._exit_position(token_id, bid_price, tp_reason)
             finally:
                 self._exit_in_progress.discard(token_id)
@@ -555,6 +559,14 @@ class KlausBot:
                     self._peak_ts[token_id] = pos.open_ts
                 if bond_move < self._trough_bond_move.get(token_id, 999.0):
                     self._trough_bond_move[token_id] = bond_move
+                # Mirror onto pos so MFE/MAE are populated at close (BOND bypasses should_exit
+                # which normally updates these fields).
+                if current_price > pos.highest_price:
+                    pos.highest_price = current_price
+                    pos.highest_price_ts = now - pos.open_ts
+                if current_price < pos.lowest_price:
+                    pos.lowest_price = current_price
+                    pos.lowest_price_ts = now - pos.open_ts
                 _peak_move   = self._peak_bond_move.get(token_id, 0.0)
                 _trough_move = self._trough_bond_move.get(token_id, 0.0)
                 _peak_age    = now - self._peak_ts.get(token_id, pos.open_ts)
