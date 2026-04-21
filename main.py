@@ -3264,9 +3264,6 @@ class KlausBot:
             bond_outcome_direction=getattr(signal, "bond_outcome_direction", "down"),
             bond_entry_class=getattr(signal, "bond_entry_class", ""),
             bond_macro_regime=getattr(signal, "bond_macro_regime", ""),
-            bond_delta_at_entry=getattr(signal, "bond_delta_at_entry", 0.0),
-            bond_adj_edge_at_entry=getattr(signal, "bond_adj_edge_at_entry", 0.0),
-            bond_vel_at_entry=getattr(signal, "bond_vel_at_entry", 0.0),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly
