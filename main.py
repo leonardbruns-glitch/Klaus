@@ -2922,6 +2922,14 @@ class KlausBot:
                 if not MOM_ENABLED:
                     continue
 
+                # Skip long-dated target markets (e.g. "Will BTC hit $150k by Dec 31?").
+                # MOM has no edge on markets that resolve months away — their price
+                # reflects long-term probability, not 5-min momentum. The HARD_EXIT
+                # at 180s caps individual loss but bleeds fees. Only enter if resolution
+                # is within 24 hours.
+                if token.window_end_ts > 0 and (token.window_end_ts - now) > 86_400:
+                    continue
+
                 if len(bars_5m) < 12:
                     continue  # not enough bar history yet
 
@@ -3457,10 +3465,14 @@ class KlausBot:
     # ── Exit helpers ──────────────────────────────────────────────────────────
 
     def _calc_exit_price(self, exit_fills, fallback: float) -> float:
-        total_size = sum(f.total_size for f in exit_fills)
+        # Only include fills that have a confirmed price. WS-confirmation misses
+        # leave avg_fill_price=0 on the OrderResult; including those zeros dilutes
+        # the weighted average (0 × shares adds to denominator, not numerator).
+        valid = [f for f in exit_fills if f.avg_fill_price > 0 and f.total_size > 0]
+        total_size = sum(f.total_size for f in valid)
         return (
-            sum(f.avg_fill_price * f.total_size for f in exit_fills) / total_size
-            if exit_fills and total_size > 0 else fallback
+            sum(f.avg_fill_price * f.total_size for f in valid) / total_size
+            if valid and total_size > 0 else fallback
         )
 
     async def _bond_partial_tp_sell(
