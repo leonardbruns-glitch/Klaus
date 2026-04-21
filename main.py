@@ -1606,7 +1606,13 @@ class KlausBot:
                     _entries_blocked = False
                 _consecutive_errors = 0  # reset on success
                 await self._scan_for_signals()
-                await self._scan_bond_entries()
+                try:
+                    await self._scan_bond_entries()
+                except Exception as _bond_exc:
+                    logger.error(
+                        "BOND SCAN LOOP ERROR (isolated) — bond scan skipped this cycle: %s",
+                        _bond_exc, exc_info=True,
+                    )
                 await self._scan_reversal_candidates()
             except Exception as exc:
                 _consecutive_errors += 1
@@ -1638,12 +1644,14 @@ class KlausBot:
         prior losses were in high-volatility bearish conditions.
         """
         if not BOND_ENABLED:
+            logger.debug("[BOND] disabled — skipping")
             return
         now = time.time()
         _BOND_MIN_ASK = 0.51
         _BOND_MAX_ASK = 0.79
 
         _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
+        logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
 
         for token_id, token in list(self.feed.tokens.items()):
           try:
@@ -2363,11 +2371,14 @@ class KlausBot:
                 _bond_tok_exc, exc_info=True,
             )
 
-        _bond_status = "BOND FIRED" if _b_fired else "BOND WAITING"
-        logger.info(
-            "[BOND] %s | updown=%d in_window=%d ask_skip=%d delta_skip=%d chop=%d no_hist=%d fired=%d",
-            _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_delta_skip, _b_chop, _b_no_hist, _b_fired,
-        )
+        try:
+            _bond_status = "BOND FIRED" if _b_fired else "BOND WAITING"
+            logger.info(
+                "[BOND] %s | updown=%d in_window=%d ask_skip=%d delta_skip=%d chop=%d no_hist=%d fired=%d",
+                _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_delta_skip, _b_chop, _b_no_hist, _b_fired,
+            )
+        except Exception as _sum_exc:
+            logger.error("[BOND] summary log failed: %s", _sum_exc)
 
     # ── Reversal candidate shadow logger ─────────────────────────────────────
 
