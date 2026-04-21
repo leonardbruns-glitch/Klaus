@@ -3488,6 +3488,14 @@ class KlausBot:
         if sold > 0:
             pos.remaining_shares = max(0.0, round(pos.remaining_shares - sold, 4))
             self.risk._save_positions()
+            # Store BOND partial-TP fills so when TIME_EXIT later calls _exit_position
+            # the weighted-avg exit price includes these tranches. Without this the
+            # final exit's analytics_exit_price falls back to entry_price when the
+            # final cascade returns 0 fills (resting / already sold) → trade logged
+            # at ep=xp with fee-only PnL even though real partial profits happened.
+            meta = self._open_meta.get(token_id)
+            if meta is not None:
+                meta.setdefault("stage1_fills", []).extend(fills)
             logger.info(
                 "BOND_PARTIAL_TP %s/%s [%s] sold=%.4f @ %.4f remaining=%.4f "
                 "entry=%.4f gain=%+.1f%%",
