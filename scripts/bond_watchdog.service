@@ -1,0 +1,7 @@
+[Unit]
+Description=Klaus BOND scanner stall watchdog
+After=klaus.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/klaus_bond_watchdog.sh

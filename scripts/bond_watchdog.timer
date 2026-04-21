@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Klaus BOND watchdog every 60s
+
+[Timer]
+OnBootSec=120s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=bond_watchdog.service
+
+[Install]
+WantedBy=timers.target
