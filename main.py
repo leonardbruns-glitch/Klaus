@@ -2927,7 +2927,7 @@ class KlausBot:
                 # reflects long-term probability, not 5-min momentum. The HARD_EXIT
                 # at 180s caps individual loss but bleeds fees. Only enter if resolution
                 # is within 24 hours.
-                if token.window_end_ts > 0 and (token.window_end_ts - now) > 86_400:
+                if token.window_end_ts > 0 and (token.window_end_ts - time.time()) > 86_400:
                     continue
 
                 if len(bars_5m) < 12:
