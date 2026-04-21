@@ -1643,6 +1643,8 @@ class KlausBot:
         _BOND_MIN_ASK = 0.51
         _BOND_MAX_ASK = 0.79
 
+        _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
+
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
                 continue
@@ -1654,6 +1656,7 @@ class KlausBot:
                 continue
             if token.asset in self._pending_asset_entries:
                 continue
+            _b_total += 1
 
             is_15m = getattr(token, "window_seconds", 0) >= 900
             is_5m  = 250 <= getattr(token, "window_seconds", 0) < 900
@@ -1668,6 +1671,7 @@ class KlausBot:
                     continue
             else:
                 continue
+            _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
             if ob is None:
@@ -1678,6 +1682,7 @@ class KlausBot:
                             token.asset, token.side,
                             f"{ask:.4f}" if ask is not None else "None",
                             _BOND_MIN_ASK, _BOND_MAX_ASK)
+                _b_ask_skip += 1
                 continue
 
             cid = getattr(token, "condition_id", "") or ""
@@ -1702,6 +1707,7 @@ class KlausBot:
                             token.asset, token.side,
                             "None" if _ext is None else "no spot_price")
             if not _delta_available:
+                _b_delta_skip += 1
                 continue
             _elapsed_pct = 1.0 - remaining / token.window_seconds
             if _elapsed_pct > 0.92:
@@ -1804,6 +1810,10 @@ class KlausBot:
                 _macro_regime = ("TREND_UP" if _smooth_delta > 0 else "TREND_DOWN") if _trend_ok else "CHOP"
 
             _in_trend = _macro_regime in ("TREND_UP", "TREND_DOWN")
+            if not _in_trend:
+                _b_chop += 1
+            if not _has_hist:
+                _b_no_hist += 1
             # CHOP is NOT hard-skipped — CORE-B (compression/reversion) can still
             # fire in CHOP with a strong edge. IMPULSE / EARLY / LATE / CORE-A
             # all require _in_trend and skip otherwise.
@@ -2340,10 +2350,17 @@ class KlausBot:
                 stab_xp_bad, stab_slip_bad, stab_delta_bad, stab_edge_weak, stab_vel_flat,
                 _xp, _slip_e, _edge, _fair_value, _bond_delta, _vel_for_stab,
             )
+            _b_fired += 1
             asyncio.create_task(
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
                 name=f"bond_{token.asset}_{token.side}",
             )
+
+        _bond_status = "BOND FIRED" if _b_fired else "BOND WAITING"
+        logger.info(
+            "[BOND] %s | updown=%d in_window=%d ask_skip=%d delta_skip=%d chop=%d no_hist=%d fired=%d",
+            _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_delta_skip, _b_chop, _b_no_hist, _b_fired,
+        )
 
     # ── Reversal candidate shadow logger ─────────────────────────────────────
 
