@@ -232,21 +232,125 @@ def _print_bond_report(trades: list[dict], stab_log: dict, velreg_set: set):
         for b, pnls in sorted(by_bk.items(), key=lambda x: sum(x[1]), reverse=True):
             print(f"    {b:<20} {_stats(pnls)}")
 
-    # ── Per-trade detail ──────────────────────────────────────────────────────
+    # ── SL signature decomposition (ZOMBIE vs FLASH vs COLLAPSE) ──────────────
+    # For each SL-bucket trade, classify by how much upside it ever saw:
+    #   ZOMBIE   = fav ≤ 0%         — never had upside; pure bad entry
+    #   FLASH    = fav 0%–5%        — brief flicker then reversed
+    #   COLLAPSE = fav > 5%         — was profitable, got stop-hunted / thesis flipped
+    # Opposite fix required for each: entry filter vs micro-structure vs trailing stop.
+    sl_trades = [t for t in trades if t["_bucket"] in ("HARD_SL", "SL", "EARLY_LOSS", "LATE_EXHAUST", "MOMENTUM_FAIL")]
+    if sl_trades:
+        print(f"\n── SL SIGNATURE DECOMPOSITION (max_favourable_pct at peak) ────────────")
+        sigs: dict[str, list] = defaultdict(list)
+        for t in sl_trades:
+            fav = float(t.get("max_favourable_pct", 0.0) or 0.0)
+            if   fav <= 0.0:   sig = "ZOMBIE"    # never profitable — bad entry
+            elif fav <= 5.0:   sig = "FLASH"     # brief flicker, reversed
+            else:              sig = "COLLAPSE"  # was profitable, got stopped
+            sigs[sig].append(t)
+        for sig in ("ZOMBIE", "FLASH", "COLLAPSE"):
+            rows = sigs.get(sig, [])
+            if not rows:
+                continue
+            pnls = [t.get("net_pnl", 0) for t in rows]
+            favs = [float(t.get("max_favourable_pct", 0) or 0) for t in rows]
+            advs = [float(t.get("max_adverse_pct",   0) or 0) for t in rows]
+            avg_fav = sum(favs) / len(favs)
+            avg_adv = sum(advs) / len(advs)
+            hint = {
+                "ZOMBIE":   "→ entry filter required (no upside ever seen)",
+                "FLASH":    "→ entry micro-structure (bad timing within zone)",
+                "COLLAPSE": "→ exit logic (trailing stop / early peel on max_fav)",
+            }[sig]
+            print(f"  {sig:<9} n={len(rows):>3}  sum={_fmt_pnl(sum(pnls))}  "
+                  f"avg_fav={avg_fav:+.1f}%  avg_adv={avg_adv:+.1f}%  {hint}")
+
+    # ── Winner vs loser distribution on continuous fields ─────────────────────
+    # Shows which variables actually separate the two populations.
+    # Key: if winner/loser medians overlap, the field has no discriminating power.
+    wins_t = [t for t in trades if t.get("net_pnl", 0) > 0]
+    loss_t = [t for t in trades if t.get("net_pnl", 0) <= 0]
+    def _p(vals, q):
+        s = sorted(vals); n = len(s)
+        return s[max(0, min(n-1, int(q * n / 100)))] if n else 0.0
+    def _row(label, w_vals, l_vals, fmt="+.2f"):
+        if not w_vals or not l_vals: return
+        w_med = _p(w_vals, 50); l_med = _p(l_vals, 50)
+        w_p25 = _p(w_vals, 25); l_p25 = _p(l_vals, 25)
+        w_p75 = _p(w_vals, 75); l_p75 = _p(l_vals, 75)
+        print(f"  {label:<24}  W[p25/med/p75]={w_p25:{fmt}}/{w_med:{fmt}}/{w_p75:{fmt}}  "
+              f"L[p25/med/p75]={l_p25:{fmt}}/{l_med:{fmt}}/{l_p75:{fmt}}")
+    if wins_t and loss_t:
+        print(f"\n── WINNER vs LOSER DISTRIBUTION (p25 / median / p75) ──────────────────")
+        _row("entry_price",
+             [float(t.get("entry_price", 0) or 0) for t in wins_t],
+             [float(t.get("entry_price", 0) or 0) for t in loss_t], ".3f")
+        _row("max_favourable_pct",
+             [float(t.get("max_favourable_pct", 0) or 0) for t in wins_t],
+             [float(t.get("max_favourable_pct", 0) or 0) for t in loss_t], "+.1f")
+        _row("max_adverse_pct",
+             [float(t.get("max_adverse_pct", 0) or 0) for t in wins_t],
+             [float(t.get("max_adverse_pct", 0) or 0) for t in loss_t], "+.1f")
+        _row("hold_seconds",
+             [float(t.get("hold_seconds", 0) or 0) for t in wins_t],
+             [float(t.get("hold_seconds", 0) or 0) for t in loss_t], ".0f")
+        _row("velocity_5s_pct (entry)",
+             [float(t.get("velocity_5s_pct", 0) or 0) for t in wins_t],
+             [float(t.get("velocity_5s_pct", 0) or 0) for t in loss_t], "+.3f")
+        _row("bond_delta_penalty",
+             [float(t.get("bond_delta_penalty", 0) or 0) for t in wins_t],
+             [float(t.get("bond_delta_penalty", 0) or 0) for t in loss_t], ".3f")
+        _row("bond_weak_vel_penalty",
+             [float(t.get("bond_weak_vel_penalty", 0) or 0) for t in wins_t],
+             [float(t.get("bond_weak_vel_penalty", 0) or 0) for t in loss_t], ".3f")
+        _row("entry_snap_30s_pct",
+             [float(t.get("entry_snap_30s_pct", 0) or 0) for t in wins_t],
+             [float(t.get("entry_snap_30s_pct", 0) or 0) for t in loss_t], "+.1f")
+        _row("entry_snap_60s_pct",
+             [float(t.get("entry_snap_60s_pct", 0) or 0) for t in wins_t],
+             [float(t.get("entry_snap_60s_pct", 0) or 0) for t in loss_t], "+.1f")
+        # New raw primitives — only populated for post-fix trades
+        new_w = [t for t in wins_t if float(t.get("bond_adj_edge_at_entry", 0) or 0) != 0]
+        new_l = [t for t in loss_t if float(t.get("bond_adj_edge_at_entry", 0) or 0) != 0]
+        if new_w and new_l:
+            _row("bond_adj_edge_at_entry",
+                 [float(t.get("bond_adj_edge_at_entry", 0) or 0) for t in new_w],
+                 [float(t.get("bond_adj_edge_at_entry", 0) or 0) for t in new_l], ".3f")
+            _row("bond_delta_at_entry",
+                 [float(t.get("bond_delta_at_entry", 0) or 0) for t in new_w],
+                 [float(t.get("bond_delta_at_entry", 0) or 0) for t in new_l], "+.3f")
+            _row("bond_vel_at_entry",
+                 [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_w],
+                 [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_l], ".3f")
+
+    # ── Path class breakdown (SMOOTH_RUNNER / EARLY_CHOP / DEAD_DRIFT) ────────
+    path_buckets: dict[str, list] = defaultdict(list)
+    for t in trades:
+        pc = t.get("path_class", "") or "UNLABELED"
+        path_buckets[pc].append(t.get("net_pnl", 0))
+    if len(path_buckets) > 1:
+        print(f"\n── BY PATH CLASS ──────────────────────────────────────────────────────")
+        for pc in sorted(path_buckets, key=lambda k: sum(path_buckets[k]), reverse=True):
+            print(f"  {pc:<20} {_stats(path_buckets[pc])}")
+
+    # ── Per-trade detail (enriched) ───────────────────────────────────────────
     print(f"\n── PER-TRADE DETAIL ────────────────────────────────────────────────────")
-    print(f"  {'TIME':>16}  {'ASSET':<8}  {'CLASS':>10}  {'ENTRY':>6}  {'EXIT':>6}"
-          f"  {'MOVE':>7}  {'PNL':>8}  {'REASON':<22}  {'STAB':<10}  SCORE")
+    print(f"  {'TIME':>14}  {'AST':<4}  {'CLASS':<12}  {'EP':>5}  {'XP':>5}"
+          f"  {'MOVE':>6}  {'FAV':>6}  {'ADV':>6}  {'HOLD':>5}  {'VEL':>6}"
+          f"  {'PNL':>7}  REASON")
     for t in sorted(trades, key=lambda x: x.get("ts_open", 0)):
-        ts   = datetime.fromtimestamp(t.get("ts_open", 0), tz=timezone.utc).strftime("%m-%d %H:%M:%S")
+        ts   = datetime.fromtimestamp(t.get("ts_open", 0), tz=timezone.utc).strftime("%m-%d %H:%M")
         move = (t.get("exit_price",0) - t.get("entry_price",0)) / max(0.001, t.get("entry_price",1)) * 100
-        stab = t["_stab"]
-        sc   = stab.get("stab_class", "?") if stab else "?"
-        sc_n = stab.get("score", "?") if stab else "?"
-        velreg_flag = "⚑" if t["_velreg"] else ""
-        print(f"  {ts:>16}  {t.get('asset','?'):<8}  {t.get('bond_entry_class','?')[:10]:>10}"
+        fav  = float(t.get("max_favourable_pct", 0) or 0)
+        adv  = float(t.get("max_adverse_pct",   0) or 0)
+        hold = float(t.get("hold_seconds",      0) or 0)
+        vel  = float(t.get("velocity_5s_pct",   0) or 0)
+        print(f"  {ts:>14}  {t.get('asset','?'):<4}"
+              f"  {(t.get('bond_entry_class','?') or '?')[:12]:<12}"
               f"  {t.get('entry_price',0):.3f}  {t.get('exit_price',0):.3f}"
-              f"  {move:>+6.1f}%  {_fmt_pnl(t.get('net_pnl',0)):>8}"
-              f"  {t.get('exit_reason','?'):<22}  {sc:<10}  {sc_n}{velreg_flag}")
+              f"  {move:>+5.1f}%  {fav:>+5.1f}%  {adv:>+5.1f}%  {hold:>4.0f}s"
+              f"  {vel:>+5.2f}%  {_fmt_pnl(t.get('net_pnl',0)):>7}"
+              f"  {t.get('exit_reason','?')}")
 
     # ── Raw stab signal distributions (for matched trades) ────────────────────
     if stab_matched:
