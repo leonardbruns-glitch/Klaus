@@ -1429,6 +1429,46 @@ class KlausBot:
                             s2_action, pos.asset, pos.direction.name,
                             s2_conf, move_pct * 100, s2_reason,
                         )
+
+                # ── ZOMBIE_EXIT: cut flat dead trades to free capital ──────
+                # Triggers only when check_exit_conditions returned None (no
+                # TP/SL/momentum rule fired) AND the trade has been flat for
+                # ≥60s. Guards ensure SMOOTH_RUNNER-style early directional
+                # moves are never cut: both the 60s snap and the running MFE
+                # must be below 5%, and the Binance underlying velocity must
+                # be near zero (no fresh catalyst). Every condition is on an
+                # already-live field — no new metrics introduced.
+                _zombie_hold = now - pos.open_ts
+                _zombie_snap60 = self._entry_snaps.get(token_id, {}).get(60, 0.0)
+                if (
+                    _zombie_hold >= 60.0
+                    and _zombie_snap60 > 0
+                    and pos.entry_price > 0
+                    and token_id not in self._exit_in_progress
+                ):
+                    _z_s60_pct = (_zombie_snap60 - pos.entry_price) / pos.entry_price * 100
+                    _z_vel, _ = self.feed.get_velocity_5s(pos.asset)
+                    _z_mfe_pct = (
+                        (pos.highest_price - pos.entry_price) / pos.entry_price * 100
+                        if pos.highest_price > pos.entry_price else 0.0
+                    )
+                    if (
+                        abs(_z_s60_pct) < 5.0
+                        and abs(_z_vel) < 0.15
+                        and _z_mfe_pct < 5.0
+                    ):
+                        _z_pnl = (current_price - pos.entry_price) * pos.remaining_shares
+                        logger.info(
+                            "ZOMBIE_EXIT %s/%s | hold=%.0fs snap60=%+.2f%% "
+                            "vel=%+.4f%% mfe=%.2f%% PnL=$%+.3f",
+                            pos.asset, pos.direction.name,
+                            _zombie_hold, _z_s60_pct, _z_vel, _z_mfe_pct, _z_pnl,
+                        )
+                        self._exit_in_progress.add(token_id)
+                        try:
+                            await self._exit_position(token_id, current_price, "ZOMBIE_EXIT")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
                 continue
 
             if token_id in self._exit_in_progress:
