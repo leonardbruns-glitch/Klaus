@@ -151,6 +151,10 @@ class TradeRecord:
     bond_delta_penalty: float = 0.0        # 0.0–0.30, proportional |delta|>0.05 soft penalty applied
     bond_weak_vel_penalty: float = 0.0     # 0.0–0.15, weak-vel sole-confirmation penalty applied
     bond_macro_regime: str = ""            # Layer-1 regime at entry: TREND_UP / TREND_DOWN / CHOP
+    # Raw entry primitives — direct inputs to entry decision (analytics only)
+    bond_delta_at_entry: float = 0.0       # raw _bond_delta at entry (signed %)
+    bond_adj_edge_at_entry: float = 0.0    # _adjusted_edge = edge × regime_weight
+    bond_vel_at_entry: float = 0.0         # velocity magnitude at entry (%/s, unsigned)
 
 
 # ---------------------------------------------------------------------------

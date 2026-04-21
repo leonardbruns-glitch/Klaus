@@ -2220,6 +2220,9 @@ class KlausBot:
                 bond_delta_penalty=round(_delta_excess_penalty, 4),
                 bond_weak_vel_penalty=round(_weak_vel_penalty, 4),
                 bond_macro_regime=_macro_regime,
+                bond_delta_at_entry=round(_bond_delta, 4),
+                bond_adj_edge_at_entry=round(_adjusted_edge, 4),
+                bond_vel_at_entry=round(0.0 if _vel_cold else abs(_vel_now), 4),
             )
 
             tpsl = TPSLLevels(
@@ -3261,6 +3264,9 @@ class KlausBot:
             bond_outcome_direction=getattr(signal, "bond_outcome_direction", "down"),
             bond_entry_class=getattr(signal, "bond_entry_class", ""),
             bond_macro_regime=getattr(signal, "bond_macro_regime", ""),
+            bond_delta_at_entry=getattr(signal, "bond_delta_at_entry", 0.0),
+            bond_adj_edge_at_entry=getattr(signal, "bond_adj_edge_at_entry", 0.0),
+            bond_vel_at_entry=getattr(signal, "bond_vel_at_entry", 0.0),
         )
 
         # Verify actual CLOB balance immediately after fill — CLOB may credit slightly

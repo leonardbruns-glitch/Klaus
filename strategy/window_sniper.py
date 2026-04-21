@@ -236,6 +236,10 @@ class SniperSignal:
     bond_weak_vel_penalty: float = 0.0    # 0.0–0.15, additional reduction from weak-vel sole-confirmation case
     # Layer-1 macro regime at entry (TREND_UP / TREND_DOWN / CHOP) — for per-regime PnL attribution
     bond_macro_regime: str = ""
+    # Raw entry primitives for post-trade analysis
+    bond_delta_at_entry: float = 0.0      # raw signed bond_delta at entry (%)
+    bond_adj_edge_at_entry: float = 0.0   # adjusted edge (edge × regime_weight)
+    bond_vel_at_entry: float = 0.0        # velocity magnitude at entry (%/s, unsigned)
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
