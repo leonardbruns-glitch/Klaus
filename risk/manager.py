@@ -101,6 +101,11 @@ class PositionMeta:
     binance_reversal_count: int = 0      # consecutive check cycles Binance has been reversed (each ~1s)
     stage1_attempts: int = 0         # failed stage-1 attempts (0 fills); force STAGE_1_DONE after 3
     stage1_sell_price: float = 0.0   # actual fill price at stage-1 exit — saved for crash recovery
+    # Bond-specific fields — populated by bond strategy during position lifecycle.
+    # entry_snap values are 0.0 until measured; 0.0 means "not yet captured".
+    bond_entry_class: str = ""         # e.g. "EARLY-A-PRE/COLD" — drives cascade abort logic
+    entry_snap_30s_pct: float = 0.0   # (current_price - entry_price) / entry_price at T+30s
+    entry_snap_60s_pct: float = 0.0   # same metric at T+60s
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -412,6 +417,8 @@ class RiskManager:
         cascade_discount: float = 0.0,
         is_sniper: bool = False,
         window_seconds: int = 0,
+        bond_entry_class: str = "",
+        bond_macro_regime: str = "",
     ) -> RiskDecision:
         # ── Ruin floor — hard stop if bankroll falls below minimum ──────────────
         # $50 = 50% of $100 starting capital (CLAUDE.md spec).
@@ -595,7 +602,26 @@ class RiskManager:
                 asset, _qs, _regime_sig or 'unknown', _multiplier, stake,
             )
         else:
-            stake = self.bankroll.current_stake
+            # Bond trades: scale stake by EV prior derived from 1170-trade dataset.
+            # TREND_UP → 0.0 (hard veto). All other classes scaled proportionally.
+            # Falls back to full current_stake when no entry class supplied.
+            if bond_entry_class or bond_macro_regime:
+                from analytics.regime_filter import bond_stake_multiplier
+                stake = bond_stake_multiplier(
+                    bond_entry_class, bond_macro_regime, self.bankroll.current_stake,
+                )
+                if stake == 0.0:
+                    return RiskDecision(
+                        False, 0,
+                        f"Bond EV veto: {bond_macro_regime} macro — WR=0% EV=-0.99",
+                    )
+                logger.info(
+                    "BOND STAKE %s: class=%s macro=%s → $%.2f (base=$%.2f)",
+                    asset, bond_entry_class or "?", bond_macro_regime or "?",
+                    stake, self.bankroll.current_stake,
+                )
+            else:
+                stake = self.bankroll.current_stake
         # Cap at 25% of capital per position — allows $10 stake on $48+ capital.
         max_pct = 0.25
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
@@ -847,6 +873,24 @@ class RiskManager:
         # positions stayed open forever once the window expired mid-session.
         if pos.window_end_ts > 0 and remaining <= self.exec_cfg.no_trade_last_sec:
             return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
+
+        # ── 2b. Bond cascade abort — Rule B (T+60s trajectory classifier) ──────
+        # P(cascade | Rule B fires) ≈ 0.85. Only fires when both snaps populated.
+        # P(recovery | snap30<-5, winner) = 0.79 — do NOT abort on snap30 alone;
+        # snap60 ≤ snap30 confirms cascade vs wick. See analytics/regime_filter.py.
+        if time_held >= 60 and pos.entry_snap_30s_pct != 0.0:
+            from analytics.regime_filter import cascade_detected
+            _abort, _abort_reason = cascade_detected(
+                pos.entry_snap_30s_pct,
+                pos.entry_snap_60s_pct if pos.entry_snap_60s_pct != 0.0 else None,
+                pos.bond_entry_class or None,
+            )
+            if _abort:
+                logger.info(
+                    "CASCADE ABORT %s/%s @ %.4f | held=%.0fs | %s",
+                    pos.asset, pos.direction.name, current_price, time_held, _abort_reason,
+                )
+                return ExitDecision(True, _abort_reason, urgency="immediate")
 
         # ── 3. Stage-1 profit: time-aware target ────────────────────────────────
         # Windowed markets: target scales with time remaining.
