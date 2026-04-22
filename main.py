@@ -569,8 +569,9 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
-                # ── Hard TP: take profit at +10% always (user directive) ─────
-                # Preempts ratchet/runner/trailing — no exceptions.
+                # ── Hard TP/SL: ±10% always (user directive) ─────────────────
+                # Preempts ratchet/runner/trailing/chop/EL — no exceptions,
+                # instant exit when move crosses either bound.
                 if bond_move >= 0.10 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -580,6 +581,18 @@ class KlausBot:
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_TP_10")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+                if bond_move <= -0.10 and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_SL_10 %s/%s | move=%+.1f%% entry=%.4f curr=%.4f (hard rule)",
+                        pos.asset, pos.direction.name,
+                        bond_move * 100, pos.entry_price, current_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_SL_10")
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
@@ -2129,7 +2142,7 @@ class KlausBot:
             logger.debug("[BOND] disabled — skipping")
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.51
+        _BOND_MIN_ASK = 0.20   # 2026-04-22 (user directive: min ask 0.51→0.20)
         _BOND_MAX_ASK = 0.79
 
         _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
@@ -2406,9 +2419,9 @@ class KlausBot:
                     _skip = True
                     _skip_reason = f"IMPULSE[EDGE_INVALID]: {_edge_valid_detail}"
                 else:
-                    _skip = _abs_delta < 0.05
+                    _skip = False   # delta floor removed (user directive)
                     _skip_reason = (
-                        f"IMPULSE needs delta≥0.05 | "
+                        f"IMPULSE | "
                         f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% adj_edge={_adjusted_edge:.4f} elap={_elapsed_pct:.2f}"
                     )
                 _dzone = "IMPULSE"
@@ -2426,7 +2439,7 @@ class KlausBot:
                     _in_trend
                     and not _vel_cold
                     and _bond_delta * _vel_now >= 0.0
-                    and _abs_delta >= 0.08
+                    and _abs_delta >= 0.0    # delta floor removed (user directive)
                     and abs(_vel_now) >= 0.02
                 )
                 _vel_quiet_or_misaligned = (
@@ -2672,7 +2685,7 @@ class KlausBot:
                         and _accel_sustained
                         and _edge_drift  > 0.01
                         and _early_adj_edge >= 0.04
-                        and _abs_delta >= 0.07
+                        and _abs_delta >= 0.0    # delta floor removed (user directive)
                     )
 
                     _skip = not (_mode_a or _mode_b)
@@ -2711,8 +2724,9 @@ class KlausBot:
                         f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
                     )
                 else:
+                    # delta lower bound removed (user directive); keep upper + edge + ask gates
                     _skip = (
-                        (_abs_delta < 0.12 or _abs_delta > 0.13 or _adjusted_edge < 0.06 or ask > 0.75) or
+                        (_abs_delta > 0.13 or _adjusted_edge < 0.04 or ask > 0.75) or
                         (_has_hist and _edge_drift < -0.005)
                     )
                     _skip_reason = (
@@ -2738,9 +2752,9 @@ class KlausBot:
                     or _vel_dir_pos
                 )
             )
-            if _adjusted_edge < 0.06 and not _early_a_edge_bypass:
+            if _adjusted_edge < 0.04 and not _early_a_edge_bypass:
                 _skip = True
-                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.06 edge={_edge:.4f} rw={_regime_weight:.2f}"
+                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.04 edge={_edge:.4f} rw={_regime_weight:.2f}"
             elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
                 _skip = True
                 _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
