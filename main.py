@@ -627,22 +627,35 @@ class KlausBot:
                 _vel_aligned_cl = (_vel_cl * _dir_sign_cl) if _vel_age_cl < 999.0 else 0.0
                 _vel_neg = _vel_aligned_cl <= 0.0
 
-                # ── SMOOTH_RUNNER live state (bond) — hoisted for all exit gates ─
-                # Computed once here; used by STALL, TRAIL_SL, EARLY_LOSS, HARD_SL.
-                # Cold velocity (age=999) is treated as "not collapsed" — a data gap
-                # is not a confirmed reversal.
+                # ── 3-state bond classifier (hoisted — gates all exit logic) ──
+                # State is computed once per scan from T+30s snapshot + peak.
+                # Cold velocity (age=999) treated as "not collapsed" — a data
+                # gap is not a confirmed reversal.
+                #
+                # ZOMBIE:     snap30 <  0%           → entry never gained traction
+                # TRANSITION: snap30 0–2% or weak    → undecided, allow structural exits
+                # RUNNER:     snap30 ≥ +2% AND peak ≥ +3% → expansion confirmed
+                #
+                # Allowed exits per state:
+                #   ZOMBIE:     EARLY_LOSS, HARD_SL (full), MOMENTUM_FAIL, PROGRESS_EXIT
+                #   TRANSITION: STALL, TRAIL_SL, MOMENTUM_FAIL, EARLY_LOSS, HARD_SL, EXHAUSTION
+                #   RUNNER:     TP targets, HARD_SL (accel_breakdown), TIME_EXIT only
                 _runner_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
                 _snap30_pct = (
                     (_runner_snap30 - pos.entry_price) / pos.entry_price
                     if pos.entry_price > 0 and _runner_snap30 > 0 else None
                 )
                 _peak_bm = self._peak_bond_move.get(token_id, 0.0)
-                _is_bond_runner = (
-                    (now - pos.open_ts) >= 30.0
-                    and _snap30_pct is not None and _snap30_pct >= 0.02
-                    and _peak_bm >= 0.03
-                    and (_vel_age_cl >= 999.0 or _vel_aligned_cl > -0.005)
-                )
+                if _snap30_pct is not None:
+                    if _snap30_pct >= 0.02 and _peak_bm >= 0.03:
+                        _bond_state = "RUNNER"
+                    elif _snap30_pct < 0.0:
+                        _bond_state = "ZOMBIE"
+                    else:
+                        _bond_state = "TRANSITION"
+                else:
+                    _bond_state = "TRANSITION"   # pre-T30: no data yet
+                _is_bond_runner = (_bond_state == "RUNNER")
 
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
@@ -999,11 +1012,11 @@ class KlausBot:
                         if _is_bond_runner and bond_move <= -0.05 and _vel_neg:
                             logger.info(
                                 "BOND_RUNNER_HOLD_EL %s/%s | move=%+.1f%% snap30=%s "
-                                "peak=%+.1f%% — early-loss held by runner state",
+                                "peak=%+.1f%% state=%s — early-loss held by runner state",
                                 pos.asset, pos.direction.name,
                                 bond_move * 100,
                                 f"{_snap30_pct*100:+.1f}%" if _snap30_pct is not None else "—",
-                                _peak_bm * 100,
+                                _peak_bm * 100, _bond_state,
                             )
                         self._early_loss_conf_count.pop(token_id, None)
 
@@ -1012,9 +1025,9 @@ class KlausBot:
                         self._exit_in_progress.add(token_id)
                         logger.info(
                             "BOND_EARLY_LOSS %s/%s | move=%+.1f%% held=%.0fs "
-                            "drift=%+.4f accel=%+.4f vel=%+.4f — structural failure (2 scans)",
+                            "drift=%+.4f accel=%+.4f vel=%+.4f state=%s — structural failure (2 scans)",
                             pos.asset, pos.direction.name, bond_move * 100, _held_s,
-                            _pos_drift, _pos_accel, _vel_aligned_cl,
+                            _pos_drift, _pos_accel, _vel_aligned_cl, _bond_state,
                         )
                         try:
                             await self._exit_position(token_id, current_price, "BOND_EARLY_LOSS")
@@ -1043,13 +1056,14 @@ class KlausBot:
                         and _delta_reversed_mf
                         and _vel_failed_mf
                         and 25.0 <= _held_s <= 60.0
+                        and _bond_state != "RUNNER"   # RUNNER exempt: thesis intact
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.warning(
                         "BOND_MOMENTUM_FAIL %s/%s | bond_d=%+.3f%% vel=%.4f%% "
-                        "held=%.0fs move=%+.1f%% — thesis reversed, cutting",
+                        "held=%.0fs move=%+.1f%% state=%s — thesis reversed, cutting",
                         pos.asset, pos.direction.name,
-                        _delta_pos, _mf_vel_mag, _held_s, bond_move * 100,
+                        _delta_pos, _mf_vel_mag, _held_s, bond_move * 100, _bond_state,
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_MOMENTUM_FAIL")
@@ -1247,6 +1261,7 @@ class KlausBot:
                     and not _compressed
                     and not _mid_cycle_consol
                     and self._dir_rev_count.get(token_id, 0) < 2
+                    and _bond_state != "RUNNER"   # RUNNER: use HARD_SL accel gate
                 )
                 if _exh_cond:
                     self._exhaustion_conf_count[token_id] = (
@@ -1262,13 +1277,13 @@ class KlausBot:
                     logger.info(
                         "BOND_EXHAUSTION_EXIT %s/%s | peak=%+.1f%% curr=%+.1f%% "
                         "giveback=%.0f%% peak_age=%.0fs drift=%+.4f accel=%+.4f "
-                        "vel_aligned=%+.4f rem=%.0fs conf=3/3",
+                        "vel_aligned=%+.4f rem=%.0fs state=%s conf=3/3",
                         pos.asset, pos.direction.name,
                         _peak_move * 100, bond_move * 100,
                         _giveback_pct, _peak_age,
                         _pos_drift if _pos_drift is not None else 0.0,
                         _pos_accel if _pos_accel is not None else 0.0,
-                        _vel_aligned_cl, bond_remaining,
+                        _vel_aligned_cl, bond_remaining, _bond_state,
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_EXHAUSTION_EXIT")
