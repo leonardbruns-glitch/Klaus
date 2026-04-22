@@ -556,21 +556,36 @@ class KlausBot:
                       and current_price > pos.mae_bounce_peak):
                     pos.mae_bounce_peak = current_price
 
-                # ── Hard SL: -20% after first 30s ────────────────────────────
+                # ── Hard SL: -20% from T+30s, with shakeout protection ──────────
                 if (_held_s >= 30.0
                         and bond_move <= -0.20
                         and token_id not in self._exit_in_progress):
-                    self._exit_in_progress.add(token_id)
-                    logger.info(
-                        "BOND_SL_20 %s/%s | move=%+.1f%% held=%.0fs entry=%.4f curr=%.4f",
-                        pos.asset, pos.direction.name,
-                        bond_move * 100, _held_s, pos.entry_price, current_price,
+                    _fav_sl      = self._peak_bond_move.get(token_id, 0.0)
+                    _bounce10_sl = (
+                        (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price
+                        if pos.entry_price > 0 and pos.lowest_price > 0
+                        and pos.mae_bounce_peak > pos.lowest_price
+                        else 0.0
                     )
-                    try:
-                        await self._exit_position(token_id, current_price, "BOND_SL_20")
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
+                    _sl_protected = (
+                        _fav_sl >= 0.15          # showed real upside
+                        or _bounce10_sl >= 0.12  # bouncing off the low
+                        or _fav_sl >= 0.20       # SMOOTH_RUNNER
+                    )
+                    if not _sl_protected:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_SL_20 %s/%s | move=%+.1f%% fav=%.1f%% "
+                            "bounce10=%.1f%% held=%.0fs",
+                            pos.asset, pos.direction.name,
+                            bond_move * 100, _fav_sl * 100,
+                            _bounce10_sl * 100, _held_s,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_SL_20")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
 
                 # ── Early-chop filter (T+25–40s) ─────────────────────────────
                 # Exit if position is structurally dead: deep adverse with no
