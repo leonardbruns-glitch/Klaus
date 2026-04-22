@@ -222,6 +222,10 @@ class KlausBot:
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
         # from a wick peak (immediate reversal).
         self._peak_breach_ts: Dict[str, float] = {}
+        # 2-stage zombie gate state.
+        # Stage 1 (T+30s): sets token_id → flag_ts when mfe<3% and snap30<5%.
+        # Stage 2 (T+50s): exits as ZOMBIE_EARLY_EXIT when also mae>25% and bounce<8%.
+        self._zombie_flag_ts: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -1430,43 +1434,87 @@ class KlausBot:
                             s2_conf, move_pct * 100, s2_reason,
                         )
 
-                # ── ZOMBIE_EXIT: cut flat dead trades to free capital ──────
-                # Triggers only when check_exit_conditions returned None (no
-                # TP/SL/momentum rule fired) AND the trade has been flat for
-                # ≥60s. Guards ensure SMOOTH_RUNNER-style early directional
-                # moves are never cut: both the 60s snap and the running MFE
-                # must be below 5%, and the Binance underlying velocity must
-                # be near zero (no fresh catalyst). Every condition is on an
-                # already-live field — no new metrics introduced.
-                _zombie_hold = now - pos.open_ts
-                _zombie_snap60 = self._entry_snaps.get(token_id, {}).get(60, 0.0)
+                # ── 2-stage zombie gate ────────────────────────────────────
+                # Stage 1 (T+30s): flag only, no exit.
+                #   Condition: mfe_at_30s < 3% AND snap30 < +5%.
+                #   This marks the trade as a zombie CANDIDATE. Runners show
+                #   r30 ≥ 5-10% and MFE ≥ 3% by T+30s — the guard separates
+                #   them cleanly (data-driven, not intuition-based).
+                #   Never flags BOND positions (they have their own exit logic).
+                #
+                # Stage 2 (T+50s): confirm and exit as ZOMBIE_EARLY_EXIT.
+                #   All conditions must hold simultaneously:
+                #   - zombie_candidate flag set (Stage 1 fired)
+                #   - MFE still < 5%         — never became a runner
+                #   - MAE > 25%              — sustained adverse move confirmed
+                #   - bounce < 8%            — price didn't recover from adverse
+                #   Runner protection: MFE ≥ 10% clears the flag permanently.
+                #   Velocity is NOT used — not discriminative enough per data.
+                _z_hold = now - pos.open_ts
+                _z_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
+                _z_mfe_pct = (
+                    (pos.highest_price - pos.entry_price) / pos.entry_price * 100
+                    if pos.entry_price > 0 and pos.highest_price > pos.entry_price
+                    else 0.0
+                )
+
+                # Stage 1: flag zombie candidates at T+30s (one-shot, no exit)
                 if (
-                    _zombie_hold >= 60.0
-                    and _zombie_snap60 > 0
+                    _z_hold >= 30.0
+                    and _z_snap30 > 0
+                    and pos.entry_price > 0
+                    and not pos.is_bond
+                    and token_id not in self._zombie_flag_ts
+                ):
+                    _z_snap30_pct = (_z_snap30 - pos.entry_price) / pos.entry_price * 100
+                    if _z_mfe_pct < 3.0 and _z_snap30_pct < 5.0:
+                        self._zombie_flag_ts[token_id] = now
+                        logger.info(
+                            "ZOMBIE_CANDIDATE %s/%s | hold=%.0fs snap30=%+.2f%% mfe=%.2f%%",
+                            pos.asset, pos.direction.name,
+                            _z_hold, _z_snap30_pct, _z_mfe_pct,
+                        )
+
+                # Stage 2: confirm + exit at T+50s
+                if (
+                    token_id in self._zombie_flag_ts
+                    and _z_hold >= 50.0
                     and pos.entry_price > 0
                     and token_id not in self._exit_in_progress
                 ):
-                    _z_s60_pct = (_zombie_snap60 - pos.entry_price) / pos.entry_price * 100
-                    _z_vel, _ = self.feed.get_velocity_5s(pos.asset)
-                    _z_mfe_pct = (
-                        (pos.highest_price - pos.entry_price) / pos.entry_price * 100
-                        if pos.highest_price > pos.entry_price else 0.0
+                    _z_mae_pct = (
+                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
+                        if pos.lowest_price > 0 else 0.0
                     )
-                    if (
-                        abs(_z_s60_pct) < 5.0
-                        and abs(_z_vel) < 0.15
-                        and _z_mfe_pct < 5.0
+                    _z_bounce_pct = (
+                        (pos.mae_bounce_peak - pos.lowest_price) / pos.lowest_price * 100
+                        if pos.lowest_price > 0 and pos.mae_bounce_peak > pos.lowest_price
+                        else 0.0
+                    )
+                    _z_snap30_pct = (
+                        (_z_snap30 - pos.entry_price) / pos.entry_price * 100
+                        if _z_snap30 > 0 else 0.0
+                    )
+                    if _z_mfe_pct >= 10.0:
+                        # Became a runner after flag — clear flag, never exit
+                        self._zombie_flag_ts.pop(token_id, None)
+                    elif (
+                        _z_mfe_pct < 5.0
+                        and _z_mae_pct > 25.0
+                        and _z_bounce_pct < 8.0
                     ):
-                        _z_pnl = (current_price - pos.entry_price) * pos.remaining_shares
+                        _z_pnl_est = (current_price - pos.entry_price) * pos.remaining_shares
                         logger.info(
-                            "ZOMBIE_EXIT %s/%s | hold=%.0fs snap60=%+.2f%% "
-                            "vel=%+.4f%% mfe=%.2f%% PnL=$%+.3f",
+                            "ZOMBIE_EARLY_EXIT %s/%s | hold=%.0fs snap30=%+.2f%% "
+                            "mfe=%.2f%% mae=%.2f%% bounce=%.2f%% PnL≈$%+.3f",
                             pos.asset, pos.direction.name,
-                            _zombie_hold, _z_s60_pct, _z_vel, _z_mfe_pct, _z_pnl,
+                            _z_hold, _z_snap30_pct, _z_mfe_pct,
+                            _z_mae_pct, _z_bounce_pct, _z_pnl_est,
                         )
+                        self._zombie_flag_ts.pop(token_id, None)
                         self._exit_in_progress.add(token_id)
                         try:
-                            await self._exit_position(token_id, current_price, "ZOMBIE_EXIT")
+                            await self._exit_position(token_id, current_price, "ZOMBIE_EARLY_EXIT")
                         finally:
                             self._exit_in_progress.discard(token_id)
                 continue
@@ -3829,6 +3877,7 @@ class KlausBot:
                 self._exhaustion_conf_count.pop(token_id, None)
                 self._early_loss_conf_count.pop(token_id, None)
                 self._peak_breach_ts.pop(token_id, None)
+                self._zombie_flag_ts.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -4002,6 +4051,7 @@ class KlausBot:
             self._exhaustion_conf_count.pop(token_id, None)
             self._early_loss_conf_count.pop(token_id, None)
             self._peak_breach_ts.pop(token_id, None)
+            self._zombie_flag_ts.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -4423,6 +4473,7 @@ class KlausBot:
         self._exhaustion_conf_count.pop(token_id, None)
         self._early_loss_conf_count.pop(token_id, None)
         self._peak_breach_ts.pop(token_id, None)
+        self._zombie_flag_ts.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
