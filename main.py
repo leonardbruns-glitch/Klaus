@@ -556,8 +556,9 @@ class KlausBot:
                       and current_price > pos.mae_bounce_peak):
                     pos.mae_bounce_peak = current_price
 
-                # ── Hard SL: -20% at any point ───────────────────────────────
-                if (bond_move <= -0.20
+                # ── Hard SL: -20% after first 30s ────────────────────────────
+                if (_held_s >= 30.0
+                        and bond_move <= -0.20
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
