@@ -706,6 +706,54 @@ class KlausBot:
 
                 _wdelta_now = 0.0  # updated inside DIR_REVERSAL block when ext signal available
 
+                # ── Profit ratchet (winners only) ────────────────────────────
+                # Three tiers keyed on peak_bm (high-water MFE). One-shot checks
+                # are guarded in _open_meta_t to prevent re-firing.
+                #
+                # Tier 3 — peak ≥ 50%: tight 10% trailing stop from peak.
+                #   Prevents full collapse after a very large run.
+                # Tier 2 — peak ≥ 30%: sell 50% at market, let rest ride.
+                #   Locks in half the gain; remaining position runs to TP.
+                # Tier 1 — peak ≥ 15%: breakeven floor (can't lose more than fees).
+                #   Checked inside BOND_HARD_SL; marked here for early awareness.
+                _ratchet_be_active = _peak_bm >= 0.15
+
+                if (token_id not in self._exit_in_progress
+                        and pos.remaining_shares > 0.01):
+                    # Tier 3: 10% trailing stop once peak ≥ 50%
+                    if (_peak_bm >= 0.50
+                            and bond_move < _peak_bm - 0.10):
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "RATCHET_TRAIL %s/%s | peak=%+.1f%% curr=%+.1f%% "
+                            "(10%% off peak) | entry=%.4f curr=%.4f",
+                            pos.asset, pos.direction.name,
+                            _peak_bm * 100, bond_move * 100,
+                            pos.entry_price, current_price,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "RATCHET_TRAIL")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
+                    # Tier 2: sell 50% at market once peak ≥ 30% (one-shot)
+                    if (_peak_bm >= 0.30
+                            and not _open_meta_t.get("ratchet_50pct_sold")):
+                        _open_meta_t["ratchet_50pct_sold"] = True
+                        logger.info(
+                            "RATCHET_PARTIAL %s/%s | peak=%+.1f%% curr=%+.1f%% "
+                            "— selling 50%% at tier-2 +30%% threshold",
+                            pos.asset, pos.direction.name,
+                            _peak_bm * 100, bond_move * 100,
+                        )
+                        try:
+                            await self._bond_partial_tp_sell(
+                                token_id, 0.50, current_price, "RATCHET_PARTIAL"
+                            )
+                        except Exception as _re:
+                            logger.warning("RATCHET_PARTIAL failed: %s", _re)
+
                 # ── Entry-relative reversal guard (5m + 15m) ─────────────────
                 # Measures reversal from entry-time spot, not window_open.
                 # Old: window_open ref required +0.20% total reversal for -0.10%
@@ -1108,6 +1156,10 @@ class KlausBot:
                     if bond_move <= -0.85:
                         # Catastrophic: regime-independent, always fires
                         _exit_label_cl = "catastrophic/move≤-85%"
+                    elif _ratchet_be_active and bond_move < -0.02:
+                        # Ratchet tier-1 breakeven floor: peak was ≥15%, can't
+                        # lose more than fees from here. State-agnostic.
+                        _exit_label_cl = f"ratchet_breakeven/peak={_peak_bm:+.1%}→move={bond_move:+.1%}"
                     elif _is_bond_runner:
                         # Runner: envelope SL disabled, only acceleration
                         # breakdown (vel collapse + snap30 reversal) exits.
@@ -2198,6 +2250,24 @@ class KlausBot:
                 _b_chop += 1
             if not _has_hist:
                 _b_no_hist += 1
+
+            # ── Hard entry gates (data-driven, no exceptions) ─────────────────
+            # Gate 1: EARLY_CHOP proxy — cold velocity at entry.
+            #   EARLY_CHOP cohort: n=15, WR=7%, -$26.91. Predicting characteristic:
+            #   no directional momentum → adverse dip with no follow-through.
+            if _vel_cold:
+                _skip_reason = "EARLY_CHOP_GATE: vel=COLD — 7% WR cohort, blocked"
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
+                continue
+
+            # Gate 2: TREND_UP + DOWN-YES contradiction.
+            #   n=6, -$8. Macro trend up, buying YES that resolves on price going down
+            #   — structurally self-contradictory. One-line reject.
+            if _macro_regime == "TREND_UP" and _token_dir == "down":
+                _skip_reason = "TREND_UP/DOWN-YES: macro up, token resolves down — contradictory"
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
+                continue
+
             # CHOP is NOT hard-skipped — CORE-B (compression/reversion) can still
             # fire in CHOP with a strong edge. IMPULSE / EARLY / LATE / CORE-A
             # all require _in_trend and skip otherwise.
