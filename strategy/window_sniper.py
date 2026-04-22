@@ -82,12 +82,12 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.0    # 2026-04-22 (user directive: delta requirements → 0.0)
-_DELTA_PCT_QUIET  = 0.0
+_DELTA_PCT_ACTIVE = 0.06   # 2026-04-22 (user directive: delta floor → 0.06)
+_DELTA_PCT_QUIET  = 0.06
 
-_DELTA_PCT_15M_ACTIVE       = 0.0
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.0
-_DELTA_PCT_15M_QUIET        = 0.0
+_DELTA_PCT_15M_ACTIVE       = 0.06
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.06
+_DELTA_PCT_15M_QUIET        = 0.06
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
