@@ -2300,6 +2300,38 @@ class KlausBot:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
                 continue
 
+            # Gate 2: universal directional-delta coherence.
+            # Block when asset is moving AGAINST token direction (>0.02%)
+            # UNLESS there's directional confirmation — either velocity now
+            # reversing into our direction (live reversal signal) or a
+            # sustained burst where delta and smoothed trend agree toward us.
+            # Closes the LATE-zone loophole (LATE uses abs(delta) only) and
+            # enforces coherence universally instead of per-mode.
+            _directional_delta = _bond_delta if _token_dir == "up" else -_bond_delta
+            _vel_reversing_in = (
+                not _vel_cold
+                and abs(_vel_now) >= 0.005
+                and (
+                    (_token_dir == "up"   and _vel_now > 0)
+                    or (_token_dir == "down" and _vel_now < 0)
+                )
+            )
+            _dir_burst_confirm = (
+                _abs_delta >= 0.04
+                and (
+                    (_token_dir == "up"   and _bond_delta > 0 and _smooth_delta > 0)
+                    or (_token_dir == "down" and _bond_delta < 0 and _smooth_delta < 0)
+                )
+            )
+            if _directional_delta < -0.02 and not (_vel_reversing_in or _dir_burst_confirm):
+                _skip_reason = (
+                    f"DELTA_AGAINST_UNCONFIRMED: dir_delta={_directional_delta:+.3f}% "
+                    f"dir={_token_dir} bond_d={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
+                    f"vel_rev={_vel_reversing_in} burst={_dir_burst_confirm}"
+                )
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
+                continue
+
             # CHOP is NOT hard-skipped — CORE-B (compression/reversion) can still
             # fire in CHOP with a strong edge. IMPULSE / EARLY / LATE / CORE-A
             # all require _in_trend and skip otherwise.
