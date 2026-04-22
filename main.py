@@ -226,6 +226,11 @@ class KlausBot:
         # Stage 1 (T+30s): sets token_id → flag_ts when mfe<3% and snap30<5%.
         # Stage 2 (T+50s): exits as ZOMBIE_EARLY_EXIT when also mae>25% and bounce<8%.
         self._zombie_flag_ts: Dict[str, float] = {}
+        # Trajectory snapshots for structure_state classification (T+60s).
+        # token_id → {t_sec: value_pct} at t ∈ {10, 30, 60}.
+        # Used to compute MFE slope, monotonic expansion, early adverse timing.
+        self._traj_mfe: Dict[str, Dict[int, float]] = {}
+        self._traj_mae: Dict[str, Dict[int, float]] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -538,6 +543,25 @@ class KlausBot:
                 _snaps[30] = current_price
             if 60 not in _snaps and _held_for_snap >= 60:
                 _snaps[60] = current_price
+
+            # ── Trajectory snapshots (T+10s, T+30s, T+60s) for structure_state ──
+            # Captures running MFE/MAE at three checkpoints so slope, monotonic
+            # expansion, and early-adverse timing can be computed at T+60s.
+            _traj_mfe_pos = self._traj_mfe.setdefault(token_id, {})
+            _traj_mae_pos = self._traj_mae.setdefault(token_id, {})
+            if pos.entry_price > 0:
+                _mfe_pct_now = (
+                    (pos.highest_price - pos.entry_price) / pos.entry_price * 100
+                    if pos.highest_price > pos.entry_price else 0.0
+                )
+                _mae_pct_now = (
+                    (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
+                    if pos.lowest_price > 0 and pos.lowest_price < pos.entry_price else 0.0
+                )
+                for _t_sec in (10, 30, 60):
+                    if _t_sec not in _traj_mfe_pos and _held_for_snap >= _t_sec:
+                        _traj_mfe_pos[_t_sec] = _mfe_pct_now
+                        _traj_mae_pos[_t_sec] = _mae_pct_now
 
             # ── BOND: time-based exit (bypasses normal TP/SL logic) ──────────
             if pos.is_bond and pos.window_end_ts > 0:
@@ -1434,13 +1458,10 @@ class KlausBot:
                             s2_conf, move_pct * 100, s2_reason,
                         )
 
-                # ── T+30s one-shot block: runner classification + zombie flag ──
-                # Fires once when the 30s price snapshot first becomes available.
-                # Stored in _open_meta so it survives across scan iterations.
-                # Covers three simultaneous assessments:
-                #   (A) runner_confidence [0–1]: how likely this is a SMOOTH_RUNNER
-                #   (B) DEAD_DRIFT_RISK flag: MFE flat + MAE just starting → scale-up blocked
-                #   (C) zombie candidate flag: both MFE and snap30 near zero → Stage 2 eligible
+                # ── T+30s: zombie candidate flag (snapshot — loser detection) ──
+                # Kept snapshot-based: detecting losers at T+30s only needs the
+                # current MFE and snap30. Trajectory structure is evaluated at
+                # T+60s once enough history exists for slope computation.
                 _z_hold = now - pos.open_ts
                 _z_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
                 _z_mfe_pct = (
@@ -1455,41 +1476,9 @@ class KlausBot:
                     and _z_snap30 > 0
                     and pos.entry_price > 0
                     and not pos.is_bond
-                    and "runner_conf" not in _open_meta_t
+                    and token_id not in self._zombie_flag_ts
                 ):
                     _z_snap30_pct = (_z_snap30 - pos.entry_price) / pos.entry_price * 100
-                    _z_mae30_pct = (
-                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
-                        if pos.lowest_price > 0 else 0.0
-                    )
-                    # (A) runner_confidence: snap30 and MFE are positive signals;
-                    #     MAE is a penalty. Thresholds conservative until n≥20 scaled exits.
-                    _snap_score = min(1.0, max(0.0, _z_snap30_pct / 12.0))
-                    _mfe_score  = min(1.0, max(0.0, _z_mfe_pct / 15.0))
-                    _mae_pen    = min(1.0, max(0.0, _z_mae30_pct / 20.0))
-                    _runner_conf = round(
-                        max(0.0, (0.6 * _snap_score + 0.4 * _mfe_score) * (1.0 - _mae_pen)), 3
-                    )
-                    # (B) DEAD_DRIFT_RISK: flat snap, minimal MFE, MAE just building
-                    _dd_risk = (
-                        _z_snap30_pct < 3.0
-                        and _z_mfe_pct < 4.0
-                        and _z_mae30_pct > 3.0
-                    )
-                    _scale_tier = (
-                        "2.0x" if _runner_conf > 0.90
-                        else ("1.5x" if _runner_conf > 0.75 else "1x")
-                    )
-                    _open_meta_t["runner_conf"] = _runner_conf
-                    _open_meta_t["dd_risk"] = _dd_risk
-                    logger.info(
-                        "RUNNER_CONF %s/%s | hold=%.0fs snap30=%+.2f%% mfe=%.2f%% mae=%.2f%% "
-                        "conf=%.3f scale=%s dd_risk=%s",
-                        pos.asset, pos.direction.name,
-                        _z_hold, _z_snap30_pct, _z_mfe_pct, _z_mae30_pct,
-                        _runner_conf, _scale_tier, _dd_risk,
-                    )
-                    # (C) zombie Stage 1 flag (subset: also mfe<3 and snap30<5)
                     if _z_mfe_pct < 3.0 and _z_snap30_pct < 5.0:
                         self._zombie_flag_ts[token_id] = now
                         logger.info(
@@ -1540,36 +1529,112 @@ class KlausBot:
                         finally:
                             self._exit_in_progress.discard(token_id)
 
-                # ── DEAD_DRIFT_EXIT: cut flat/stuck trades at T+60s ───────────
-                # Orthogonal to ZOMBIE_EARLY_EXIT: covers the case where price
-                # barely moved in either direction (no real adverse move yet).
-                # MAE < 15% guard is critical — real losers (MAE > 25%) are
-                # handled by ZOMBIE_EARLY_EXIT; the 15–25% gap falls to regular SL.
-                _dd_snap60 = self._entry_snaps.get(token_id, {}).get(60, 0.0)
+                # ── T+60s: trajectory-based structure_state classification ────
+                # Uses MFE/MAE snapshots at T=10, 30, 60 to classify the trade's
+                # structural trajectory (not a risk score — a trajectory type).
+                #
+                #   structure_state ∈ {RUNNER, NEUTRAL, DEAD_DRIFT}
+                #
+                # RUNNER     = mfe_60 ≥ 5% AND mfe expanding AND no early adverse
+                # DEAD_DRIFT = delayed-decay pattern: flat MFE + gradual MAE
+                #              accumulation + no bounce formation
+                # NEUTRAL    = everything else (includes early-collapse cases
+                #              already handled by ZOMBIE_EARLY_EXIT / SL logic)
+                #
+                # runner_confidence is TRAJECTORY-BASED:
+                #   slope_score × expansion_score × (1 − early_adverse_penalty)
+                # No snapshot-only heuristics.
+                #
+                # DEAD_DRIFT_EXIT fires only when structure_state == DEAD_DRIFT
+                # and MAE < 15% (excludes losers routed via ZOMBIE_EARLY_EXIT).
+                _traj_mfe_map = self._traj_mfe.get(token_id, {})
+                _traj_mae_map = self._traj_mae.get(token_id, {})
                 if (
                     _z_hold >= 60.0
-                    and _dd_snap60 > 0
                     and pos.entry_price > 0
                     and not pos.is_bond
-                    and token_id in self.risk.open_positions
-                    and token_id not in self._exit_in_progress
+                    and "structure_state" not in _open_meta_t
+                    and 10 in _traj_mfe_map and 30 in _traj_mfe_map and 60 in _traj_mfe_map
                 ):
-                    _dd_snap60_pct = (_dd_snap60 - pos.entry_price) / pos.entry_price * 100
-                    _dd_mae_pct = (
-                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
-                        if pos.lowest_price > 0 else 0.0
+                    mfe_10, mfe_30, mfe_60 = (
+                        _traj_mfe_map[10], _traj_mfe_map[30], _traj_mfe_map[60]
                     )
+                    mae_10, mae_30, mae_60 = (
+                        _traj_mae_map[10], _traj_mae_map[30], _traj_mae_map[60]
+                    )
+                    mfe_slope = (mfe_60 - mfe_10) / 50.0     # %/s over 50s window
+                    bounce_pct = (
+                        (pos.mae_bounce_peak - pos.lowest_price) / pos.lowest_price * 100
+                        if pos.lowest_price > 0 and pos.mae_bounce_peak > pos.lowest_price
+                        else 0.0
+                    )
+
+                    is_runner = (
+                        mfe_60 >= 5.0
+                        and mfe_slope > 0.05            # expanding MFE
+                        and mfe_60 > mfe_30             # still growing second half
+                        and mae_10 < 3.0                # no early adverse spike
+                    )
+                    is_dead_drift = (
+                        mfe_60 < 3.0
+                        and mfe_slope <= 0.01           # flat/decaying
+                        and mae_60 > mae_30             # MAE still accumulating
+                        and mae_30 > mae_10             # gradual, not early spike
+                        and bounce_pct < 3.0            # no recovery formed
+                    )
+                    if is_runner:
+                        structure_state = "RUNNER"
+                    elif is_dead_drift:
+                        structure_state = "DEAD_DRIFT"
+                    else:
+                        structure_state = "NEUTRAL"
+
+                    _slope_score = min(1.0, max(0.0, mfe_slope / 0.1))
+                    _expansion_score = 1.0 if (mfe_60 > mfe_30 > mfe_10) else 0.0
+                    _early_adv_pen = min(1.0, max(0.0, mae_10 / 8.0))
+                    runner_conf = round(
+                        max(0.0, (0.6 * _slope_score + 0.4 * _expansion_score))
+                        * (1.0 - _early_adv_pen),
+                        3,
+                    )
+
+                    # Scaling tier — hard lock on DEAD_DRIFT per spec.
+                    # Currently observational; mid-trade add-on buys deferred
+                    # pending n≥20 RUNNER observations.
+                    if structure_state == "DEAD_DRIFT":
+                        scale_tier = "1x"               # hard lock
+                    elif structure_state == "RUNNER" and runner_conf > 0.90:
+                        scale_tier = "2.0x"
+                    elif structure_state == "RUNNER" and runner_conf > 0.75:
+                        scale_tier = "1.5x"
+                    else:
+                        scale_tier = "1x"
+
+                    _open_meta_t["structure_state"] = structure_state
+                    _open_meta_t["runner_conf"] = runner_conf
+                    logger.info(
+                        "STRUCTURE %s/%s | state=%-10s conf=%.3f scale=%s | "
+                        "mfe[10/30/60]=%.1f/%.1f/%.1f%% mae[10/30/60]=%.1f/%.1f/%.1f%% "
+                        "slope=%+.3f%%/s bounce=%.1f%%",
+                        pos.asset, pos.direction.name,
+                        structure_state, runner_conf, scale_tier,
+                        mfe_10, mfe_30, mfe_60, mae_10, mae_30, mae_60,
+                        mfe_slope, bounce_pct,
+                    )
+
+                    # DEAD_DRIFT_EXIT — structure-based trigger
                     if (
-                        abs(_dd_snap60_pct) < 5.0
-                        and _z_mfe_pct < 5.0
-                        and _dd_mae_pct < 15.0
+                        structure_state == "DEAD_DRIFT"
+                        and mae_60 < 15.0
+                        and token_id in self.risk.open_positions
+                        and token_id not in self._exit_in_progress
                     ):
                         _dd_pnl_est = (current_price - pos.entry_price) * pos.remaining_shares
                         logger.info(
-                            "DEAD_DRIFT_EXIT %s/%s | hold=%.0fs snap60=%+.2f%% "
-                            "mfe=%.2f%% mae=%.2f%% PnL≈$%+.3f",
+                            "DEAD_DRIFT_EXIT %s/%s | hold=%.0fs mfe_60=%.2f%% mae_60=%.2f%% "
+                            "slope=%+.3f%%/s bounce=%.2f%% PnL≈$%+.3f",
                             pos.asset, pos.direction.name,
-                            _z_hold, _dd_snap60_pct, _z_mfe_pct, _dd_mae_pct, _dd_pnl_est,
+                            _z_hold, mfe_60, mae_60, mfe_slope, bounce_pct, _dd_pnl_est,
                         )
                         self._exit_in_progress.add(token_id)
                         try:
@@ -3937,6 +4002,8 @@ class KlausBot:
                 self._early_loss_conf_count.pop(token_id, None)
                 self._peak_breach_ts.pop(token_id, None)
                 self._zombie_flag_ts.pop(token_id, None)
+                self._traj_mfe.pop(token_id, None)
+                self._traj_mae.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -4111,6 +4178,8 @@ class KlausBot:
             self._early_loss_conf_count.pop(token_id, None)
             self._peak_breach_ts.pop(token_id, None)
             self._zombie_flag_ts.pop(token_id, None)
+            self._traj_mfe.pop(token_id, None)
+            self._traj_mae.pop(token_id, None)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -4533,6 +4602,8 @@ class KlausBot:
         self._early_loss_conf_count.pop(token_id, None)
         self._peak_breach_ts.pop(token_id, None)
         self._zombie_flag_ts.pop(token_id, None)
+        self._traj_mfe.pop(token_id, None)
+        self._traj_mae.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
