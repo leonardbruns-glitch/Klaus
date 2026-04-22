@@ -134,6 +134,10 @@ class TradeRecord:
     # Signal 4: Cross-exchange divergence at entry
     coinbase_price: float = 0.0   # Coinbase spot price (0 = not available)
     cross_exchange_div_pct: float = 0.0  # (binance-coinbase)/coinbase*100
+    # Bond pre-entry diagnostics (populated for BOND signal_source trades)
+    bond_delta_at_entry: float = 0.0     # bond delta_pct at moment of entry
+    bond_adj_edge_at_entry: float = 0.0  # adjusted edge (raw edge after EV scaling)
+    bond_vel_at_entry: float = 0.0       # |velocity| at entry (0.0 = COLD/not measured)
 
 
 # ---------------------------------------------------------------------------
@@ -444,6 +448,9 @@ class FeedbackEngine:
             max_adverse_pct=round((entry_price - min_price_seen) / entry_price * 100, 2) if entry_price > 0 else 0.0,
             binance_price_at_entry=round(binance_price_at_entry, 2),
             binance_reversal_count_at_exit=binance_reversal_count_at_exit,
+            bond_delta_at_entry=round(float(getattr(signal, "bond_delta_at_entry", 0.0) or 0.0), 4),
+            bond_adj_edge_at_entry=round(float(getattr(signal, "bond_adj_edge_at_entry", 0.0) or 0.0), 4),
+            bond_vel_at_entry=round(float(getattr(signal, "bond_vel_at_entry", 0.0) or 0.0), 4),
         )
 
         self._recent.append(rec)
