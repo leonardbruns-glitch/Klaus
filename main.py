@@ -585,23 +585,26 @@ class KlausBot:
                         and pos.mae_bounce_peak > pos.lowest_price
                         else 0.0
                     )
-                    _pc_chop   = _adv >= 0.35 and _fav < 0.10
-                    _pc_runner = _fav >= 0.20
-                    _protected = _bounce10 >= 0.15 or _fav >= 0.20 or _pc_runner
-                    _trigger   = (
-                        _adv >= 0.35
-                        and _bounce10 <= 0.08
+                    _pc_chop     = _adv >= 0.30 and _fav < 0.10
+                    _pc_trend_do = bond_move <= -0.15 and _fav < 0.05
+                    _pc_runner   = _fav >= 0.20
+                    _protected   = _bounce10 >= 0.15 or _fav >= 0.20 or _pc_runner
+                    _trigger     = (
+                        _adv >= 0.30
+                        and _bounce10 <= 0.10
                         and _fav <= 0.10
-                        and _pc_chop
+                        and (_pc_chop or _pc_trend_do)
                         and not _protected
                     )
                     if _trigger:
                         self._exit_in_progress.add(token_id)
+                        _pc_label = "CHOP" if _pc_chop else "TREND_DO"
                         logger.info(
-                            "BOND_CHOP_FILTER %s/%s | adv=%.1f%% bounce10=%.1f%% "
-                            "fav=%.1f%% held=%.0fs",
-                            pos.asset, pos.direction.name,
-                            _adv * 100, _bounce10 * 100, _fav * 100, _held_s,
+                            "BOND_CHOP_FILTER %s/%s [%s] | adv=%.1f%% bounce10=%.1f%% "
+                            "fav=%.1f%% move=%+.1f%% held=%.0fs",
+                            pos.asset, pos.direction.name, _pc_label,
+                            _adv * 100, _bounce10 * 100, _fav * 100,
+                            bond_move * 100, _held_s,
                         )
                         try:
                             await self._exit_position(token_id, current_price, "BOND_CHOP_FILTER")
