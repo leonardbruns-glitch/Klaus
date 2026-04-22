@@ -2660,8 +2660,33 @@ class KlausBot:
                         and _abs_delta >= 0.07
                     )
 
-                    _skip = not (_mode_a or _mode_b)
-                    _mode_tag = "A-PRE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
+                    # MODE C — ABSORPTION (quiet accumulation, patient entry)
+                    # Third state beyond active/against: vel is flat (or cold),
+                    # delta is neither extreme nor reversing, regime aligns with
+                    # token direction, structural edge present. Captures pre-
+                    # ignition setups that MODE A/B miss because both demand
+                    # active building/ignition signals.
+                    _low_vel_abs      = _vel_cold or _vel_mag_now < 0.005
+                    _non_extreme_abs  = _abs_delta < 0.05
+                    _no_reversal_abs  = _directional_delta >= -0.01
+                    _regime_aligned_abs = (
+                        (_macro_regime == "TREND_UP"   and _token_dir == "up")
+                        or (_macro_regime == "TREND_DOWN" and _token_dir == "down")
+                    )
+                    _mode_c = (
+                        _low_vel_abs
+                        and _non_extreme_abs
+                        and _no_reversal_abs
+                        and _regime_aligned_abs
+                        and _early_adj_edge >= 0.06
+                    )
+
+                    _skip = not (_mode_a or _mode_b or _mode_c)
+                    _mode_tag = (
+                        "A-PRE" if _mode_a else
+                        ("B-IGN" if _mode_b else
+                         ("C-ABS" if _mode_c else "NONE"))
+                    )
                     _skip_reason = (
                         f"EARLY[{_mode_tag}]: delta={_bond_delta:+.3f}% adj={_adjusted_edge:.4f} "
                         f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
@@ -2723,10 +2748,14 @@ class KlausBot:
                     or _vel_dir_pos
                 )
             )
-            if _adjusted_edge < 0.06 and not _early_a_edge_bypass:
+            # MODE C (absorption) is EXEMPT from the low-delta/low-vel "no
+            # directional basis" rule — it's the mode explicitly designed
+            # to enter on quiet structure when regime + edge align.
+            _mode_c_bypass = _dzone == "EARLY-C-ABS"
+            if _adjusted_edge < 0.06 and not (_early_a_edge_bypass or _mode_c_bypass):
                 _skip = True
                 _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.06 edge={_edge:.4f} rw={_regime_weight:.2f}"
-            elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
+            elif _abs_delta < 0.05 and _vel_mag_now < 0.01 and not _mode_c_bypass:
                 _skip = True
                 _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
 
