@@ -1035,17 +1035,68 @@ class KlausBot:
                 # _breakdown_confirmed already applies noise tolerance in low-vol
                 # regimes (drift<-0.005, accel<-0.05 vs. drift<0, accel<0 normal).
                 if token_id not in self._exit_in_progress:
+                    # ── SMOOTH_RUNNER live state (bond-specific) ──────────────
+                    # Decouples BOND_HARD_SL into two regimes:
+                    #   - runner continuation (relaxed)
+                    #   - structural failure (existing envelope + confirmation)
+                    # Runner requires all of:
+                    #   1. bond was winning at T+30s        (_snap30_pct ≥ +2%)
+                    #   2. trade reached real peak          (peak_bm   ≥ +3%)
+                    #   3. no velocity collapse right now   (_vel_aligned_cl > -0.005)
+                    # During runner the envelope SL is replaced by the
+                    # acceleration-breakdown gate (velocity + snap30 reversal);
+                    # catastrophic -85% still fires regardless.
+                    _runner_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
+                    _snap30_pct = (
+                        (_runner_snap30 - pos.entry_price) / pos.entry_price
+                        if pos.entry_price > 0 and _runner_snap30 > 0 else None
+                    )
+                    _peak_bm = self._peak_bond_move.get(token_id, 0.0)
+                    _is_bond_runner = (
+                        _held_s >= 30.0
+                        and _snap30_pct is not None and _snap30_pct >= 0.02
+                        and _peak_bm >= 0.03
+                        and _vel_aligned_cl > -0.005
+                    )
+
                     # Smooth envelope: -(0.05 + 0.002*t) capped at -0.18
                     _sl_env = -(0.05 + min(0.002 * _held_s, 0.13))
                     # CORE-B: 35% tighter — these are exception entries that must
-                    # not wait for deep drawdown before cutting.
-                    if pos.bond_entry_class.startswith("CORE-B"):
+                    # not wait for deep drawdown before cutting. Runner overrides.
+                    if pos.bond_entry_class.startswith("CORE-B") and not _is_bond_runner:
                         _sl_env *= 0.65
+
+                    # Runner acceleration breakdown: velocity turned negative AND
+                    # price has given back ≥10pp from its snap30 level.
+                    _runner_accel_breakdown = (
+                        _is_bond_runner
+                        and _snap30_pct is not None
+                        and bond_move < _snap30_pct - 0.10
+                        and _vel_aligned_cl < -0.01
+                    )
 
                     _exit_label_cl = ""
                     if bond_move <= -0.85:
                         # Catastrophic: regime-independent, always fires
                         _exit_label_cl = "catastrophic/move≤-85%"
+                    elif _is_bond_runner:
+                        # Runner: envelope SL disabled, only acceleration
+                        # breakdown (vel collapse + snap30 reversal) exits.
+                        if _runner_accel_breakdown:
+                            _exit_label_cl = (
+                                f"runner_accel_breakdown/"
+                                f"snap30={_snap30_pct:+.1%}→move={bond_move:+.1%}"
+                                f"/vel={_vel_aligned_cl:+.4f}"
+                            )
+                        elif bond_move <= _sl_env:
+                            logger.info(
+                                "BOND_RUNNER_HOLD %s/%s | move=%+.1f%% env=%.1f%% "
+                                "snap30=%+.1f%% peak=%+.1f%% vel=%+.4f%% — "
+                                "envelope breach held by runner state",
+                                pos.asset, pos.direction.name,
+                                bond_move * 100, _sl_env * 100,
+                                _snap30_pct * 100, _peak_bm * 100, _vel_aligned_cl,
+                            )
                     elif _compressed and bond_move > _sl_env:
                         # NO-DECISION: price within envelope, quiet regime — hold
                         pass
@@ -1059,12 +1110,16 @@ class KlausBot:
                         self._exit_in_progress.add(token_id)
                         logger.warning(
                             "BOND_HARD_SL %s/%s | move=%+.1f%% held=%.0fs [%s] | "
-                            "envelope=%.1f%% vel=%+.4f%% drift=%s accel=%s | entry=%.4f curr=%.4f",
+                            "envelope=%.1f%% vel=%+.4f%% drift=%s accel=%s "
+                            "runner=%s snap30=%s peak=%+.1f%% | entry=%.4f curr=%.4f",
                             pos.asset, pos.direction.name,
                             bond_move * 100, _held_s, _exit_label_cl,
                             _sl_env * 100, _vel_aligned_cl,
                             f"{_pos_drift:+.4f}" if _pos_drift is not None else "—",
                             f"{_pos_accel:+.4f}" if _pos_accel is not None else "—",
+                            _is_bond_runner,
+                            f"{_snap30_pct*100:+.1f}%" if _snap30_pct is not None else "—",
+                            _peak_bm * 100,
                             pos.entry_price, current_price,
                         )
                         try:
