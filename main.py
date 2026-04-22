@@ -217,6 +217,7 @@ class KlausBot:
         self._stall_conf_count: Dict[str, int] = {}
         self._exhaustion_conf_count: Dict[str, int] = {}
         self._early_loss_conf_count: Dict[str, int] = {}
+        self._early_chop_count: Dict[str, int] = {}
         # Peak-stability tracker: timestamp of first scan where bond_move
         # dropped below 80% of peak after peak_ts. Absence = no breach yet.
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
@@ -981,6 +982,45 @@ class KlausBot:
                                 pos.asset, pos.direction.name, current_price,
                             )
 
+
+                # ── EARLY_CHOP live detector (T=5–25s adverse dip exit) ──────
+                # EARLY_CHOP is detectable during the trade:
+                #   adverse ≥ 15% + no prior expansion + velocity not recovering
+                # Fills the gap before _breakdown_confirmed can fire (needs 30s
+                # reference). 2-scan confirmation avoids single-tick wick exits.
+                # Blocked for RUNNER state — adverse dip on a runner is held.
+                if token_id not in self._exit_in_progress:
+                    _ec_cond = (
+                        bond_move <= -0.15          # adverse dip ≥ 15%
+                        and 5.0 <= _held_s <= 25.0  # early phase only
+                        and _peak_bm < 0.05         # never had real expansion
+                        and not _is_bond_runner     # runner holds through dips
+                        and _vel_neg                # velocity not recovering
+                    )
+                    if _ec_cond:
+                        self._early_chop_count[token_id] = (
+                            self._early_chop_count.get(token_id, 0) + 1
+                        )
+                    else:
+                        self._early_chop_count.pop(token_id, None)
+                    if (self._early_chop_count.get(token_id, 0) >= 2
+                            and token_id not in self._exit_in_progress):
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "EARLY_CHOP_EXIT %s/%s | move=%+.1f%% held=%.0fs "
+                            "peak=%+.1f%% vel=%+.4f%% state=%s (2 scans)",
+                            pos.asset, pos.direction.name,
+                            bond_move * 100, _held_s,
+                            _peak_bm * 100, _vel_aligned_cl, _bond_state,
+                        )
+                        try:
+                            await self._exit_position(
+                                token_id, current_price, "EARLY_CHOP_EXIT"
+                            )
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                            self._early_chop_count.pop(token_id, None)
+                        continue
 
                 # ── IMPULSE / EXTREME fast-fail and velocity-decay exits ───────
                 if token_id not in self._exit_in_progress:
@@ -2252,26 +2292,7 @@ class KlausBot:
                 _b_no_hist += 1
 
             # ── Hard entry gates (data-driven, no exceptions) ─────────────────
-            # Gate 1: EARLY_CHOP proxy — cold velocity + weak/wrong-direction delta.
-            #   EARLY_CHOP cohort: n=15, WR=7%, -$26.91.
-            #   Cold vel alone doesn't predict EARLY_CHOP — smooth runners can have
-            #   stale vel data when a fast move precedes the velocity feed update.
-            #   The real discriminator: cold vel AND delta not clearly aligned.
-            #   Allow: cold vel + |delta| ≥ 0.06 in the trade direction (real move).
-            #   Block: cold vel + wrong-direction delta OR delta < 0.06 (no thesis).
-            _delta_dir_aligned = (
-                (_token_dir == "up"   and _bond_delta >= 0.06) or
-                (_token_dir == "down" and _bond_delta <= -0.06)
-            )
-            if _vel_cold and not _delta_dir_aligned:
-                _skip_reason = (
-                    f"EARLY_CHOP_GATE: vel=COLD δ={_bond_delta:+.3f}% "
-                    f"({'wrong dir' if (_token_dir=='up' and _bond_delta<0) or (_token_dir=='down' and _bond_delta>0) else 'weak'}) — blocked"
-                )
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
-                continue
-
-            # Gate 2: TREND_UP + DOWN-YES contradiction.
+            # Gate 1: TREND_UP + DOWN-YES contradiction.
             #   n=6, -$8. Macro trend up, buying YES that resolves on price going down
             #   — structurally self-contradictory. One-line reject.
             if _macro_regime == "TREND_UP" and _token_dir == "down":
@@ -4238,6 +4259,7 @@ class KlausBot:
                 self._stall_conf_count.pop(token_id, None)
                 self._exhaustion_conf_count.pop(token_id, None)
                 self._early_loss_conf_count.pop(token_id, None)
+                self._early_chop_count.pop(token_id, None)
                 self._peak_breach_ts.pop(token_id, None)
                 self._zombie_flag_ts.pop(token_id, None)
                 self._traj_mfe.pop(token_id, None)
@@ -4414,6 +4436,7 @@ class KlausBot:
             self._stall_conf_count.pop(token_id, None)
             self._exhaustion_conf_count.pop(token_id, None)
             self._early_loss_conf_count.pop(token_id, None)
+            self._early_chop_count.pop(token_id, None)
             self._peak_breach_ts.pop(token_id, None)
             self._zombie_flag_ts.pop(token_id, None)
             self._traj_mfe.pop(token_id, None)
