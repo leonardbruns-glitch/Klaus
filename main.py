@@ -2143,7 +2143,7 @@ class KlausBot:
             return
         now = time.time()
         _BOND_MIN_ASK = 0.20   # 2026-04-22 (user directive: min ask 0.51→0.20)
-        _BOND_MAX_ASK = 0.79
+        _BOND_MAX_ASK = 0.69
 
         _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
         logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
