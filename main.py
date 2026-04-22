@@ -648,22 +648,15 @@ class KlausBot:
                     if pos.entry_price > 0 and _runner_snap30 > 0 else None
                 )
                 _peak_bm = self._peak_bond_move.get(token_id, 0.0)
-                if _snap30_pct is not None:
-                    if _snap30_pct >= 0.02 and _peak_bm >= 0.03:
-                        _bond_state = "RUNNER"
-                    elif _snap30_pct < 0.0:
-                        _bond_state = "ZOMBIE"
-                    else:
-                        _bond_state = "TRANSITION"
+                if _snap30_pct is not None and _snap30_pct >= 0.02 and _peak_bm >= 0.03:
+                    _bond_state = "RUNNER"
+                elif _peak_bm >= 0.15:
+                    _bond_state = "RUNNER"    # promote: proven expansion overrides snap30
+                elif _snap30_pct is not None and _snap30_pct < 0.0:
+                    _bond_state = "ZOMBIE"
                 else:
-                    _bond_state = "TRANSITION"   # pre-T30: no data yet
-                # TRANSITION override: once peak_bm ≥ 15%, the trade has proven
-                # expansion even if snap30 was weak. Treat as runner for all exit
-                # gates. ZOMBIE is NOT overridden — "can exit freely" per spec.
-                _is_bond_runner = (
-                    _bond_state == "RUNNER"
-                    or (_bond_state == "TRANSITION" and _peak_bm >= 0.15)
-                )
+                    _bond_state = "TRANSITION"
+                _is_bond_runner = (_bond_state == "RUNNER")
 
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
