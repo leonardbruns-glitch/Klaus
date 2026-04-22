@@ -633,12 +633,14 @@ class KlausBot:
                 # gap is not a confirmed reversal.
                 #
                 # ZOMBIE:     snap30 <  0%           → entry never gained traction
-                # TRANSITION: snap30 0–2% or weak    → undecided, allow structural exits
+                # TRANSITION: snap30 0–2% or weak    → undecided; structural exits
+                #                                       ONLY if peak_bm < 15%
                 # RUNNER:     snap30 ≥ +2% AND peak ≥ +3% → expansion confirmed
                 #
                 # Allowed exits per state:
                 #   ZOMBIE:     EARLY_LOSS, HARD_SL (full), MOMENTUM_FAIL, PROGRESS_EXIT
                 #   TRANSITION: STALL, TRAIL_SL, MOMENTUM_FAIL, EARLY_LOSS, HARD_SL, EXHAUSTION
+                #               (suppressed if peak_bm ≥ 15% — see _is_bond_runner override)
                 #   RUNNER:     TP targets, HARD_SL (accel_breakdown), TIME_EXIT only
                 _runner_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
                 _snap30_pct = (
@@ -655,7 +657,13 @@ class KlausBot:
                         _bond_state = "TRANSITION"
                 else:
                     _bond_state = "TRANSITION"   # pre-T30: no data yet
-                _is_bond_runner = (_bond_state == "RUNNER")
+                # TRANSITION override: once peak_bm ≥ 15%, the trade has proven
+                # expansion even if snap30 was weak. Treat as runner for all exit
+                # gates. ZOMBIE is NOT overridden — "can exit freely" per spec.
+                _is_bond_runner = (
+                    _bond_state == "RUNNER"
+                    or (_bond_state == "TRANSITION" and _peak_bm >= 0.15)
+                )
 
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
