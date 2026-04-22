@@ -2287,7 +2287,7 @@ class KlausBot:
             # CORE/LATE have stronger delta minimums that implicitly cover this).
             _vel_mag_now = 0.0 if _vel_cold else abs(_vel_now)
             # Tightened: delta<0.06 AND vel<0.02 = no structural basis (vs old 0.08/0.01)
-            _low_info = _abs_delta < 0.06 and _vel_mag_now < 0.02
+            _low_info = _abs_delta < 0.03 and _vel_mag_now < 0.01    # softened (user directive)
 
             # ── Layer 1: Macro Regime Engine ──────────────────────────────────
             # Classifies the market as TREND_UP / TREND_DOWN / CHOP using
@@ -2351,7 +2351,7 @@ class KlausBot:
                     or (_token_dir == "down" and _bond_delta < 0 and _smooth_delta < 0)
                 )
             )
-            if _directional_delta < -0.02 and not (_vel_reversing_in or _dir_burst_confirm):
+            if _directional_delta < -0.05 and not (_vel_reversing_in or _dir_burst_confirm):    # softened -0.02→-0.05
                 _skip_reason = (
                     f"DELTA_AGAINST_UNCONFIRMED: dir_delta={_directional_delta:+.3f}% "
                     f"dir={_token_dir} bond_d={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
@@ -2403,7 +2403,7 @@ class KlausBot:
             # Fires only in early window when the velocity IS the signal.
             _is_impulse = (
                 not _vel_cold
-                and abs(_vel_now) > 0.04
+                and abs(_vel_now) > 0.02    # IMPULSE vel threshold softened 0.04→0.02 (user directive)
                 and _elapsed_pct < 0.60
                 and _adjusted_edge > 0.035
             )
@@ -2440,7 +2440,7 @@ class KlausBot:
                     and not _vel_cold
                     and _bond_delta * _vel_now >= 0.0
                     and _abs_delta >= 0.0    # delta floor removed (user directive)
-                    and abs(_vel_now) >= 0.02
+                    and abs(_vel_now) >= 0.01    # CORE-A vel softened 0.02→0.01 (user directive)
                 )
                 _vel_quiet_or_misaligned = (
                     _vel_cold
@@ -2469,12 +2469,12 @@ class KlausBot:
                 )
                 _edge_drifting_up_cb = _has_hist and _edge_drift > 0.005
                 _vel_aligned_cb = (
-                    not _vel_cold and _vel_mag_now >= 0.01 and (
+                    not _vel_cold and _vel_mag_now >= 0.005 and (    # CORE-B vel softened 0.01→0.005
                         (_token_dir == "up"   and _vel_now > 0) or
                         (_token_dir == "down" and _vel_now < 0)
                     )
                 )
-                _vel_nonflat_cb = not _vel_cold and _vel_mag_now >= 0.01
+                _vel_nonflat_cb = not _vel_cold and _vel_mag_now >= 0.005    # softened 0.01→0.005
                 _visible_expansion_cb = (
                     _vel_aligned_cb
                     or _delta_improving_cb
@@ -2486,7 +2486,7 @@ class KlausBot:
                     and not _edge_drifting_up_cb
                 )
                 _core_b_profile = (
-                    _adjusted_edge >= 0.13
+                    _adjusted_edge >= 0.08    # CORE-B edge softened 0.13→0.08 (user directive)
                     and _vel_nonflat_cb
                     and (_delta_dir_aligned_cb or _delta_improving_cb)
                     and _visible_expansion_cb
@@ -2508,7 +2508,7 @@ class KlausBot:
                             _drift_flag                            * 0.20 +
                             _accel_flag                            * 0.15
                         )
-                        _skip = _core_score < 0.55
+                        _skip = _core_score < 0.45    # CORE-A score softened 0.55→0.45 (user directive)
                         _skip_reason = (
                             f"CORE-A score={_core_score:.3f} (edge_s={_edge_score:.3f}×0.40 "
                             f"delta_s={min(1.0,_abs_delta/0.13):.2f}×0.25 "
@@ -2664,7 +2664,7 @@ class KlausBot:
                     _vel_regime_ok_a = _vel_quiet_a or _vel_active_ok_a
                     _mode_a = (
                         _in_trend
-                        and _early_adj_edge >= 0.06
+                        and _early_adj_edge >= 0.04    # EARLY-A edge softened 0.06→0.04 (user directive)
                         and _building_a
                         and not _vel_collapsing_a
                         and not _delta_decaying_a
@@ -2683,7 +2683,7 @@ class KlausBot:
                     _mode_b = (
                         _trend_aligned
                         and _accel_sustained
-                        and _edge_drift  > 0.01
+                        and _edge_drift  > 0.0    # EARLY-B edge_drift softened 0.01→0.0 (user directive)
                         and _early_adj_edge >= 0.04
                         and _abs_delta >= 0.0    # delta floor removed (user directive)
                     )
@@ -2724,10 +2724,10 @@ class KlausBot:
                         f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
                     )
                 else:
-                    # delta lower bound removed (user directive); keep upper + edge + ask gates
+                    # delta lower bound removed; ask cap relaxed 0.75→0.79 (user directive)
                     _skip = (
-                        (_abs_delta > 0.13 or _adjusted_edge < 0.04 or ask > 0.75) or
-                        (_has_hist and _edge_drift < -0.005)
+                        (_abs_delta > 0.13 or _adjusted_edge < 0.04 or ask > 0.79) or
+                        (_has_hist and _edge_drift < -0.01)    # softened -0.005→-0.01
                     )
                     _skip_reason = (
                         f"LATE: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
@@ -2755,9 +2755,9 @@ class KlausBot:
             if _adjusted_edge < 0.04 and not _early_a_edge_bypass:
                 _skip = True
                 _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.04 edge={_edge:.4f} rw={_regime_weight:.2f}"
-            elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
+            elif _abs_delta < 0.02 and _vel_mag_now < 0.005:    # softened 0.05/0.01 → 0.02/0.005
                 _skip = True
-                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
+                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.02 AND vel={_vel_mag_now:.4f}%<0.005 — no directional basis"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
