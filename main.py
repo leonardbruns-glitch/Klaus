@@ -1598,17 +1598,19 @@ class KlausBot:
                         3,
                     )
 
-                    # Scaling tier — hard lock on DEAD_DRIFT per spec.
-                    # Currently observational; mid-trade add-on buys deferred
-                    # pending n≥20 RUNNER observations.
+                    # Scaling tier — hard lock on DEAD_DRIFT, target multiplier
+                    # for RUNNER. Total stake target = base × multiplier; add-on
+                    # capital = (multiplier − 1) × base. One-shot: structure_state
+                    # presence in _open_meta gates re-evaluation.
                     if structure_state == "DEAD_DRIFT":
-                        scale_tier = "1x"               # hard lock
+                        _scale_mult = 1.0               # hard lock
                     elif structure_state == "RUNNER" and runner_conf > 0.90:
-                        scale_tier = "2.0x"
+                        _scale_mult = 2.0
                     elif structure_state == "RUNNER" and runner_conf > 0.75:
-                        scale_tier = "1.5x"
+                        _scale_mult = 1.5
                     else:
-                        scale_tier = "1x"
+                        _scale_mult = 1.0
+                    scale_tier = f"{_scale_mult:.1f}x"
 
                     _open_meta_t["structure_state"] = structure_state
                     _open_meta_t["runner_conf"] = runner_conf
@@ -1621,6 +1623,74 @@ class KlausBot:
                         mfe_10, mfe_30, mfe_60, mae_10, mae_30, mae_60,
                         mfe_slope, bounce_pct,
                     )
+
+                    # ── Mid-trade scale-up execution (RUNNER only) ────────────
+                    # Places an additional market_buy worth (mult − 1) × base
+                    # stake. On fill, risk.add_to_position() merges shares with a
+                    # share-weighted blended entry_price. TP/SL absolute prices
+                    # are kept unchanged — runner thesis assumes price keeps
+                    # moving toward original TP. Fail-soft: any error leaves the
+                    # original position intact and untouched.
+                    if (
+                        _scale_mult > 1.0
+                        and "scaled" not in _open_meta_t
+                        and token_id in self.risk.open_positions
+                        and token_id not in self._exit_in_progress
+                    ):
+                        _add_stake = round(pos.stake * (_scale_mult - 1.0), 2)
+                        _ob_scale = self.feed.get_order_book(token_id)
+                        _ask_scale = (
+                            _ob_scale.asks[0][0] if _ob_scale and _ob_scale.asks else 0.0
+                        )
+                        if _ask_scale > 0 and _add_stake >= 1.0:
+                            _tok_meta = self.feed.tokens.get(token_id)
+                            _neg_risk = getattr(_tok_meta, "neg_risk", False) if _tok_meta else False
+                            _tick_size = getattr(_tok_meta, "tick_size", "0.01") if _tok_meta else "0.01"
+
+                            _open_meta_t["scaled"] = True
+                            logger.info(
+                                "RUNNER_SCALE_ATTEMPT %s/%s | conf=%.3f tier=%s | "
+                                "add_stake=$%.2f @ ask=%.4f | base_stake=$%.2f",
+                                pos.asset, pos.direction.name,
+                                runner_conf, scale_tier,
+                                _add_stake, _ask_scale, pos.stake,
+                            )
+                            try:
+                                _scale_fill = await self.orders.market_buy(
+                                    token_id=token_id,
+                                    intended_price=_ask_scale,
+                                    stake_usd=_add_stake,
+                                    direction=pos.direction,
+                                    neg_risk=_neg_risk,
+                                    tick_size=_tick_size,
+                                )
+                                if (
+                                    _scale_fill is not None
+                                    and getattr(_scale_fill, "status", None) == OrderStatus.FILLED
+                                    and getattr(_scale_fill, "total_size", 0) > 0
+                                    and getattr(_scale_fill, "avg_fill_price", 0) > 0
+                                ):
+                                    self.risk.add_to_position(
+                                        token_id=token_id,
+                                        add_shares=_scale_fill.total_size,
+                                        add_fill_price=_scale_fill.avg_fill_price,
+                                        add_stake=_add_stake,
+                                    )
+                                else:
+                                    logger.warning(
+                                        "RUNNER_SCALE_FAIL %s/%s | status=%s size=%.4f price=%.4f — "
+                                        "position unchanged",
+                                        pos.asset, pos.direction.name,
+                                        getattr(_scale_fill, "status", "?"),
+                                        getattr(_scale_fill, "total_size", 0.0),
+                                        getattr(_scale_fill, "avg_fill_price", 0.0),
+                                    )
+                            except Exception as _scale_exc:
+                                logger.error(
+                                    "RUNNER_SCALE_ERROR %s/%s — %s",
+                                    pos.asset, pos.direction.name, _scale_exc,
+                                    exc_info=True,
+                                )
 
                     # DEAD_DRIFT_EXIT — structure-based trigger
                     if (

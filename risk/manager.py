@@ -775,6 +775,68 @@ class RiskManager:
         self._save_positions()
         return pos
 
+    def add_to_position(
+        self,
+        token_id: str,
+        add_shares: float,
+        add_fill_price: float,
+        add_stake: float,
+    ) -> bool:
+        """
+        Mid-trade scale-up: merge an additional fill into an existing position.
+
+        Updates entry_price to a share-weighted blended average so PnL math
+        remains correct at close (close uses entry_price * remaining_shares
+        and a single fee_rate based on exit price). TP/SL are kept unchanged —
+        they are absolute prices set at the original entry, and the add-on
+        rides them through. highest_price/lowest_price are NOT reset because
+        MFE/MAE diagnostics measure the trade lifecycle, not the add-on.
+
+        Args:
+          token_id        — must already be in self.open_positions
+          add_shares      — shares actually filled by market_buy
+          add_fill_price  — average fill price of the add-on
+          add_stake       — actual capital spent on the add-on (USD)
+
+        Returns True if the merge applied, False if the position is missing
+        or the inputs are non-positive.
+        """
+        pos = self.open_positions.get(token_id)
+        if pos is None or add_shares <= 0 or add_fill_price <= 0:
+            return False
+
+        prev_shares = pos.shares
+        prev_entry = pos.entry_price
+        prev_stake = pos.stake
+
+        # Share-weighted blended entry: (orig_cost + add_cost) / total_shares.
+        # Use price * shares for cost basis (not stake, which includes any
+        # entry slippage we already booked).
+        new_total_shares = prev_shares + add_shares
+        blended_entry = (
+            (prev_entry * prev_shares + add_fill_price * add_shares) / new_total_shares
+            if new_total_shares > 0 else prev_entry
+        )
+
+        pos.entry_price = blended_entry
+        pos.shares = new_total_shares
+        pos.remaining_shares = pos.remaining_shares + add_shares
+        pos.stake = prev_stake + add_stake
+
+        logger.info(
+            "POSITION_SCALED %s/%s | +%.4f @ %.4f (+$%.2f) | "
+            "shares: %.4f → %.4f | entry: %.4f → %.4f | stake: $%.2f → $%.2f | "
+            "TP/SL kept: %.4f / %.4f",
+            pos.asset, pos.direction.name,
+            add_shares, add_fill_price, add_stake,
+            prev_shares, pos.shares,
+            prev_entry, pos.entry_price,
+            prev_stake, pos.stake,
+            pos.tp, pos.sl,
+        )
+        self._save_positions()
+        return True
+
     def record_stage1_sell(self, token_id: str, shares_sold: float, sell_price: float = 0.0) -> None:
         """Called after stage-1 sell. Updates remaining shares and saves actual fill price.
         sell_price: weighted average fill price from cascade_sell — saved for crash recovery.
