@@ -569,6 +569,21 @@ class KlausBot:
                 bond_remaining = max(0.0, pos.window_end_ts - now)
                 bond_move = (current_price - pos.entry_price) / pos.entry_price
 
+                # ── Hard TP: take profit at +10% always (user directive) ─────
+                # Preempts ratchet/runner/trailing — no exceptions.
+                if bond_move >= 0.10 and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_TP_10 %s/%s | move=%+.1f%% entry=%.4f curr=%.4f (hard rule)",
+                        pos.asset, pos.direction.name,
+                        bond_move * 100, pos.entry_price, current_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_TP_10")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── Entry regime classification for this position ─────────────
                 _entry_meta_b  = self._open_meta.get(token_id, {})
                 _entry_sig_b   = _entry_meta_b.get("signal")
