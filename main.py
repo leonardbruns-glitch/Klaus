@@ -567,10 +567,11 @@ class KlausBot:
                         and pos.mae_bounce_peak > pos.lowest_price
                         else 0.0
                     )
+                    _pc_smooth_runner = _fav_sl >= 0.20
                     _sl_protected = (
-                        _fav_sl >= 0.15          # showed real upside
-                        or _bounce10_sl >= 0.12  # bouncing off the low
-                        or _fav_sl >= 0.20       # SMOOTH_RUNNER
+                        _fav_sl >= 0.15                                   # strong upside
+                        or (_bounce10_sl >= 0.12 and _fav_sl >= 0.08)     # real bounce + follow-through
+                        or (_pc_smooth_runner and _fav_sl >= 0.10)        # runner with expansion
                     )
                     if not _sl_protected:
                         self._exit_in_progress.add(token_id)
