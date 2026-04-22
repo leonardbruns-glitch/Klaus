@@ -4523,6 +4523,48 @@ class KlausBot:
                     residual, pos.asset,
                 )
 
+        # ── Exit-price CLOB recovery (WS confirmation dropped) ────────────
+        # cascade_sell can return fills with avg_fill_price=0 when the
+        # WebSocket fill confirmation is dropped (Cloudflare blip / latency).
+        # _calc_exit_price filters those out and falls back to entry_price,
+        # which makes profitable BOND_TP / TP exits log as gross PnL=0
+        # (entry == exit) and recorded a loss equal to fees only — even
+        # though the actual on-chain fills were profitable.
+        # Symptom: "ep=0.5400 xp=0.5400 net=-$0.35" when Polymarket UI
+        # shows 17 shares bought @ 56¢, sold @ 75¢/94¢ for ~+$4.78 gross.
+        # Fix: when we sold shares but every fill came back price=0, query
+        # CLOB trade history and compute the real weighted-avg exit price.
+        _valid_exit_fills = [
+            f for f in all_exit_fills
+            if f.avg_fill_price > 0 and f.total_size > 0
+        ]
+        if not _valid_exit_fills and sold_shares > 0:
+            await asyncio.sleep(4.0)  # CLOB /trades indexing lag
+            try:
+                _clob_sells = await asyncio.to_thread(
+                    self.orders.fetch_recent_token_sells,
+                    token_id,
+                    pos.open_ts,
+                )
+                if _clob_sells:
+                    _rec_sz = sum(s for _, s in _clob_sells)
+                    _rec_val = sum(p * s for p, s in _clob_sells)
+                    if _rec_sz > 0:
+                        _recovered_exit = round(_rec_val / _rec_sz, 6)
+                        logger.info(
+                            "EXIT_PRICE_RECOVERED %s/%s [%s] | fallback=%.4f → "
+                            "CLOB=%.4f (%d fill(s), %.4f shares) — WS dropped",
+                            pos.asset, pos.direction.name, reason,
+                            analytics_exit_price, _recovered_exit,
+                            len(_clob_sells), _rec_sz,
+                        )
+                        analytics_exit_price = _recovered_exit
+            except Exception as _rec_exc:
+                logger.warning(
+                    "Exit price CLOB recovery failed for %s [%s]: %s",
+                    token_id[:8], reason, _rec_exc,
+                )
+
         capital_before = meta.get("capital_before", self.risk.bankroll.capital)
 
         # Sum actual fees from BOTH entry and exit fills (CLOB-reconciled).
