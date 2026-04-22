@@ -106,6 +106,9 @@ class PositionMeta:
     bond_entry_class: str = ""         # e.g. "EARLY-A-PRE/COLD" — drives cascade abort logic
     entry_snap_30s_pct: float = 0.0   # (current_price - entry_price) / entry_price at T+30s
     entry_snap_60s_pct: float = 0.0   # same metric at T+60s
+    cascade_state: str = "UNKNOWN"    # "UNKNOWN" | "RECOVERING" | "CASCADING"
+                                      # Written once at T+60s when both snaps populated;
+                                      # frozen thereafter to prevent non-deterministic re-evaluation.
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -122,6 +125,7 @@ class RiskDecision:
     stake: float
     reason: str
     is_scaled: bool = False
+    bond_ev_multiplier: float = 1.0   # EV-prior multiplier applied — for logging/backtest parity
 
 
 @dataclass
@@ -559,6 +563,7 @@ class RiskManager:
         if len(self.open_positions) >= self.cfg.max_open_positions:
             return RiskDecision(False, 0, f"Max positions reached")
 
+        _bond_ev_mult: float = 1.0   # set in bond branch below; sniper branch leaves at 1.0
         # Sniper bypasses heat check — strategy unvalidated at <20 live trades.
         # Heat check caused T00022 to scale to 8 shares at bad entry → -$1.97 loss.
         # Re-enable after 20+ sniper trades with WR >55%.
@@ -602,23 +607,26 @@ class RiskManager:
                 asset, _qs, _regime_sig or 'unknown', _multiplier, stake,
             )
         else:
-            # Bond trades: scale stake by EV prior derived from 1170-trade dataset.
-            # TREND_UP → 0.0 (hard veto). All other classes scaled proportionally.
-            # Falls back to full current_stake when no entry class supplied.
+            # Bond trades: compute EV-prior stake multiplier.
+            # Multiplier is stored on RiskDecision for caller visibility and
+            # backtest parity — evaluate() returns the scaled stake but exposes
+            # the multiplier so callers can log or override independently.
+            _bond_ev_mult = 1.0
             if bond_entry_class or bond_macro_regime:
-                from analytics.regime_filter import bond_stake_multiplier
-                stake = bond_stake_multiplier(
-                    bond_entry_class, bond_macro_regime, self.bankroll.current_stake,
-                )
+                from analytics.regime_filter import bond_stake_multiplier, EV_PRIOR_VERSION
+                _raw = self.bankroll.current_stake
+                stake = bond_stake_multiplier(bond_entry_class, bond_macro_regime, _raw)
                 if stake == 0.0:
                     return RiskDecision(
                         False, 0,
-                        f"Bond EV veto: {bond_macro_regime} macro — WR=0% EV=-0.99",
+                        f"Bond EV veto ({EV_PRIOR_VERSION}): {bond_macro_regime} macro"
+                        f" — WR=0% EV=-0.99",
                     )
+                _bond_ev_mult = round(stake / _raw, 4) if _raw else 1.0
                 logger.info(
-                    "BOND STAKE %s: class=%s macro=%s → $%.2f (base=$%.2f)",
+                    "BOND STAKE %s: class=%s macro=%s ev_mult=%.2fx → $%.2f [%s]",
                     asset, bond_entry_class or "?", bond_macro_regime or "?",
-                    stake, self.bankroll.current_stake,
+                    _bond_ev_mult, stake, EV_PRIOR_VERSION,
                 )
             else:
                 stake = self.bankroll.current_stake
@@ -673,6 +681,7 @@ class RiskManager:
             stake=stake,
             reason=f"Approved | ${stake} | heat={is_scaled}",
             is_scaled=is_scaled,
+            bond_ev_multiplier=_bond_ev_mult if not is_sniper else 1.0,
         )
 
     # ── Position lifecycle ────────────────────────────────────────────────────
@@ -875,22 +884,41 @@ class RiskManager:
             return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
 
         # ── 2b. Bond cascade abort — Rule B (T+60s trajectory classifier) ──────
-        # P(cascade | Rule B fires) ≈ 0.85. Only fires when both snaps populated.
-        # P(recovery | snap30<-5, winner) = 0.79 — do NOT abort on snap30 alone;
-        # snap60 ≤ snap30 confirms cascade vs wick. See analytics/regime_filter.py.
-        if time_held >= 60 and pos.entry_snap_30s_pct != 0.0:
+        # cascade_state is written once when BOTH snaps are populated and frozen.
+        # Re-evaluation on subsequent ticks is skipped to prevent non-deterministic
+        # exits from snap update lag (field-gated would retrigger on every tick).
+        # P(cascade | Rule B fires) ≈ 0.85; P(recovery | snap30<-5, winner) = 0.79.
+        if pos.cascade_state == "CASCADING":
+            # State already determined — exit immediately without recomputing.
+            return ExitDecision(
+                True,
+                f"BOND_ABORT_CASCADE: {pos.bond_entry_class or '?'} (state=CASCADING)",
+                urgency="immediate",
+            )
+        if (pos.cascade_state == "UNKNOWN"
+                and time_held >= 60
+                and pos.entry_snap_30s_pct != 0.0
+                and pos.entry_snap_60s_pct != 0.0):
+            # Both snaps populated and position age met — classify once and freeze.
             from analytics.regime_filter import cascade_detected
             _abort, _abort_reason = cascade_detected(
                 pos.entry_snap_30s_pct,
-                pos.entry_snap_60s_pct if pos.entry_snap_60s_pct != 0.0 else None,
+                pos.entry_snap_60s_pct,
                 pos.bond_entry_class or None,
             )
+            pos.cascade_state = "CASCADING" if _abort else "RECOVERING"
             if _abort:
                 logger.info(
-                    "CASCADE ABORT %s/%s @ %.4f | held=%.0fs | %s",
-                    pos.asset, pos.direction.name, current_price, time_held, _abort_reason,
+                    "CASCADE ABORT %s/%s @ %.4f | held=%.0fs | snap30=%.1f%% snap60=%.1f%%",
+                    pos.asset, pos.direction.name, current_price, time_held,
+                    pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
                 )
                 return ExitDecision(True, _abort_reason, urgency="immediate")
+            logger.info(
+                "CASCADE RECOVERING %s/%s | snap30=%.1f%% snap60=%.1f%% — hold",
+                pos.asset, pos.direction.name,
+                pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
+            )
 
         # ── 3. Stage-1 profit: time-aware target ────────────────────────────────
         # Windowed markets: target scales with time remaining.

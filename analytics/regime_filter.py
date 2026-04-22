@@ -7,6 +7,9 @@ Derived from 1170-trade dataset analysis (2026-04-22):
   - Recovery probability: P(recovery | snap30 < -5%, winner) = 0.79
   - TREND_UP hard veto: WR=0%, EV=-0.99, n=11
 
+EV_PRIOR is a frozen snapshot — not updated at runtime. If live rolling EV
+diverges materially from these values, bump EV_PRIOR_VERSION and refreeze.
+
 Architecture (3-phase stochastic path model):
   Phase 1: bond_stake_multiplier() — EV-based stake scaling (pre-entry)
   Phase 2: cascade_detected()      — Rule B trajectory classifier (T+60s)
@@ -17,6 +20,11 @@ and updating n/WR figures in comments below.
 """
 
 from __future__ import annotations
+
+# Freeze identifier — bump when EV_PRIOR is updated from a new dataset.
+# Prevents silent drift from self-reinforcing feedback (same system generates
+# labels AND trades used to recompute EV).
+EV_PRIOR_VERSION = "v1_2026_04_freeze"
 
 # ---------------------------------------------------------------------------
 # EV priors by bond_entry_class
