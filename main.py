@@ -991,9 +991,9 @@ class KlausBot:
                 # Blocked for RUNNER state — adverse dip on a runner is held.
                 if token_id not in self._exit_in_progress:
                     _ec_cond = (
-                        bond_move <= -0.15          # adverse dip ≥ 15%
-                        and 5.0 <= _held_s <= 25.0  # early phase only
-                        and _peak_bm < 0.05         # never had real expansion
+                        bond_move <= -0.25          # adverse dip ≥ 25% (was 15% — too tight)
+                        and 10.0 <= _held_s <= 30.0 # give initial settle time (was 5–25s)
+                        and _peak_bm < 0.03         # never had real expansion (was 5% — tighter)
                         and not _is_bond_runner     # runner holds through dips
                         and _vel_neg                # velocity not recovering
                     )
