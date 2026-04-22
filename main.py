@@ -556,18 +556,17 @@ class KlausBot:
                       and current_price > pos.mae_bounce_peak):
                     pos.mae_bounce_peak = current_price
 
-                # ── Rule 1: first-30s catastrophic stop at -20% ───────────────
-                if (_held_s <= 30.0
-                        and bond_move <= -0.20
+                # ── Hard SL: -20% at any point ───────────────────────────────
+                if (bond_move <= -0.20
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        "BOND_EARLY_SL_30 %s/%s | move=%+.1f%% held=%.0fs entry=%.4f curr=%.4f",
+                        "BOND_SL_20 %s/%s | move=%+.1f%% held=%.0fs entry=%.4f curr=%.4f",
                         pos.asset, pos.direction.name,
                         bond_move * 100, _held_s, pos.entry_price, current_price,
                     )
                     try:
-                        await self._exit_position(token_id, current_price, "BOND_EARLY_SL_30")
+                        await self._exit_position(token_id, current_price, "BOND_SL_20")
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
