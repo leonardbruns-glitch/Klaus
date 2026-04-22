@@ -1637,9 +1637,9 @@ class KlausBot:
 
                 if _core_a_profile:
                     # Continuation: existing composite-score logic unchanged.
-                    if _adjusted_edge < 0.05:
+                    if _adjusted_edge < 0.03:
                         _skip = True
-                        _skip_reason = f"CORE-A: adj_edge={_adjusted_edge:.4f} < 0.05 (hard floor)"
+                        _skip_reason = f"CORE-A: adj_edge={_adjusted_edge:.4f} < 0.03 (hard floor)"
                     else:
                         _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
                         _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
@@ -1869,7 +1869,7 @@ class KlausBot:
                 else:
                     # LATE requires confirmation: delta 0.06-0.13 band
                     _skip = (
-                        (_abs_delta < 0.06 or _abs_delta > 0.13 or _adjusted_edge < 0.05 or ask > 0.75) or
+                        (_abs_delta < 0.04 or _abs_delta > 0.13 or _adjusted_edge < 0.03 or ask > 0.75) or
                         (_has_hist and _edge_drift < -0.005)
                     )
                     _skip_reason = (
@@ -1895,9 +1895,9 @@ class KlausBot:
                     or _vel_dir_pos
                 )
             )
-            if _adjusted_edge < 0.05 and not _early_a_edge_bypass:
+            if _adjusted_edge < 0.03 and not _early_a_edge_bypass:
                 _skip = True
-                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.05 edge={_edge:.4f} rw={_regime_weight:.2f}"
+                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.03 edge={_edge:.4f} rw={_regime_weight:.2f}"
             elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
                 _skip = True
                 _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
