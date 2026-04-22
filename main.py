@@ -1544,9 +1544,9 @@ class KlausBot:
                     _skip = True
                     _skip_reason = f"IMPULSE[EDGE_INVALID]: {_edge_valid_detail}"
                 else:
-                    _skip = False   # delta floor removed (user directive)
+                    _skip = _abs_delta < 0.02    # relaxed floor — IMPULSE vel is primary signal
                     _skip_reason = (
-                        f"IMPULSE | "
+                        f"IMPULSE{'[delta<0.02]' if _skip else ''} | "
                         f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% adj_edge={_adjusted_edge:.4f} elap={_elapsed_pct:.2f}"
                     )
                 _dzone = "IMPULSE"
@@ -1564,7 +1564,7 @@ class KlausBot:
                     _in_trend
                     and not _vel_cold
                     and _bond_delta * _vel_now >= 0.0
-                    and _abs_delta >= 0.0    # delta floor removed (user directive)
+                    and _abs_delta >= 0.06    # CORE-A requires confirmation
                     and abs(_vel_now) >= 0.02
                 )
                 _vel_quiet_or_misaligned = (
@@ -1612,6 +1612,7 @@ class KlausBot:
                 )
                 _core_b_profile = (
                     _adjusted_edge >= 0.13
+                    and _abs_delta >= 0.06    # CORE-B requires confirmation
                     and _vel_nonflat_cb
                     and (_delta_dir_aligned_cb or _delta_improving_cb)
                     and _visible_expansion_cb
@@ -1790,6 +1791,7 @@ class KlausBot:
                     _mode_a = (
                         _in_trend
                         and _early_adj_edge >= 0.06
+                        and _abs_delta >= 0.02    # EARLY-A relaxed floor (vel carries signal)
                         and _building_a
                         and not _vel_collapsing_a
                         and not _delta_decaying_a
@@ -1810,7 +1812,7 @@ class KlausBot:
                         and _accel_sustained
                         and _edge_drift  > 0.01
                         and _early_adj_edge >= 0.05
-                        and _abs_delta >= 0.0    # delta lower bound disabled; per_asset floor applies upstream
+                        and _abs_delta >= 0.02    # EARLY-B relaxed floor (accel + vel carry signal)
                     )
 
                     _skip = not (_mode_a or _mode_b)
@@ -1849,9 +1851,9 @@ class KlausBot:
                         f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
                     )
                 else:
-                    # delta lower bound removed (user directive); keep upper + edge + ask gates
+                    # LATE requires confirmation: delta 0.06-0.13 band
                     _skip = (
-                        (_abs_delta > 0.13 or _adjusted_edge < 0.05 or ask > 0.75) or
+                        (_abs_delta < 0.06 or _abs_delta > 0.13 or _adjusted_edge < 0.05 or ask > 0.75) or
                         (_has_hist and _edge_drift < -0.005)
                     )
                     _skip_reason = (
