@@ -627,6 +627,23 @@ class KlausBot:
                 _vel_aligned_cl = (_vel_cl * _dir_sign_cl) if _vel_age_cl < 999.0 else 0.0
                 _vel_neg = _vel_aligned_cl <= 0.0
 
+                # ── SMOOTH_RUNNER live state (bond) — hoisted for all exit gates ─
+                # Computed once here; used by STALL, TRAIL_SL, EARLY_LOSS, HARD_SL.
+                # Cold velocity (age=999) is treated as "not collapsed" — a data gap
+                # is not a confirmed reversal.
+                _runner_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
+                _snap30_pct = (
+                    (_runner_snap30 - pos.entry_price) / pos.entry_price
+                    if pos.entry_price > 0 and _runner_snap30 > 0 else None
+                )
+                _peak_bm = self._peak_bond_move.get(token_id, 0.0)
+                _is_bond_runner = (
+                    (now - pos.open_ts) >= 30.0
+                    and _snap30_pct is not None and _snap30_pct >= 0.02
+                    and _peak_bm >= 0.03
+                    and (_vel_age_cl >= 999.0 or _vel_aligned_cl > -0.005)
+                )
+
                 # ── Position snapshot (30s edge/delta drift for open positions) ─
                 _pos_drift = None   # edge_drift: positive = edge expanding (good)
                 _pos_accel = None   # delta_accel: positive = momentum building
@@ -775,10 +792,18 @@ class KlausBot:
                     _no_movement  = abs(bond_move) < 0.02
                     _range_built  = _vol_range >= 0.02
                     _no_rebound   = _peak_age > 35.0
+                    # Bounce10 positive = price recovering from low; block STALL
+                    _bounce_active = (
+                        pos.lowest_price > 0
+                        and pos.mae_bounce_peak > 0
+                        and (pos.mae_bounce_peak - pos.lowest_price) / pos.lowest_price >= 0.01
+                    )
                     _stall_cond_met = (
                         _no_movement and _range_built
                         and _no_rebound and _breakdown_confirmed
                         and _peak_move < 0.08
+                        and not _is_bond_runner   # runner continuation hold
+                        and not _bounce_active    # recovering from low — hold
                     )
                     if _stall_cond_met:
                         self._stall_conf_count[token_id] = (
@@ -964,12 +989,22 @@ class KlausBot:
                         and _pos_drift is not None and _pos_drift < 0
                         and _pos_accel is not None and _pos_accel < 0
                         and _vel_neg
+                        and not _is_bond_runner   # runner continuation hold
                     )
                     if _el_cond:
                         self._early_loss_conf_count[token_id] = (
                             self._early_loss_conf_count.get(token_id, 0) + 1
                         )
                     else:
+                        if _is_bond_runner and bond_move <= -0.05 and _vel_neg:
+                            logger.info(
+                                "BOND_RUNNER_HOLD_EL %s/%s | move=%+.1f%% snap30=%s "
+                                "peak=%+.1f%% — early-loss held by runner state",
+                                pos.asset, pos.direction.name,
+                                bond_move * 100,
+                                f"{_snap30_pct*100:+.1f}%" if _snap30_pct is not None else "—",
+                                _peak_bm * 100,
+                            )
                         self._early_loss_conf_count.pop(token_id, None)
 
                     if (self._early_loss_conf_count.get(token_id, 0) >= 2
@@ -1035,29 +1070,8 @@ class KlausBot:
                 # _breakdown_confirmed already applies noise tolerance in low-vol
                 # regimes (drift<-0.005, accel<-0.05 vs. drift<0, accel<0 normal).
                 if token_id not in self._exit_in_progress:
-                    # ── SMOOTH_RUNNER live state (bond-specific) ──────────────
-                    # Decouples BOND_HARD_SL into two regimes:
-                    #   - runner continuation (relaxed)
-                    #   - structural failure (existing envelope + confirmation)
-                    # Runner requires all of:
-                    #   1. bond was winning at T+30s        (_snap30_pct ≥ +2%)
-                    #   2. trade reached real peak          (peak_bm   ≥ +3%)
-                    #   3. no velocity collapse right now   (_vel_aligned_cl > -0.005)
-                    # During runner the envelope SL is replaced by the
-                    # acceleration-breakdown gate (velocity + snap30 reversal);
-                    # catastrophic -85% still fires regardless.
-                    _runner_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
-                    _snap30_pct = (
-                        (_runner_snap30 - pos.entry_price) / pos.entry_price
-                        if pos.entry_price > 0 and _runner_snap30 > 0 else None
-                    )
-                    _peak_bm = self._peak_bond_move.get(token_id, 0.0)
-                    _is_bond_runner = (
-                        _held_s >= 30.0
-                        and _snap30_pct is not None and _snap30_pct >= 0.02
-                        and _peak_bm >= 0.03
-                        and _vel_aligned_cl > -0.005
-                    )
+                    # _is_bond_runner, _snap30_pct, _peak_bm are hoisted above
+                    # (computed after velocity, shared by STALL/TRAIL/EARLY_LOSS).
 
                     # Smooth envelope: -(0.05 + 0.002*t) capped at -0.18
                     _sl_env = -(0.05 + min(0.002 * _held_s, 0.13))
@@ -1149,25 +1163,27 @@ class KlausBot:
                 )
 
                 # ── Winner trailing stop (require real trend, not micro-peak) ──
-                # Cuts a winner only when a genuinely big, held peak gives back.
-                # All six must confirm:
-                #   1. peak_move ≥ 12%        — real expansion, not micro-peak
-                #   2. peak_age ≥ 25s         — peak is stale
-                #   3. giveback ≥ 50%         — bond_move < 0.50 × peak
-                #   4. delta_accel < 0        — momentum decaying
-                #   5. vel ≤ 0                — velocity dead
-                #   6. peak was stable ≥ 8s   — held within 80–100% of peak before
-                #                               pulling back (blocks wick-peaks that
-                #                               reversed immediately with no hold)
-                # Structural exit — blocked during compression.
+                # Cuts a winner only when a genuinely big, held peak gives back
+                # WITH confirmed structural deterioration. Short-term flattening
+                # or normal pullbacks during runner continuation must NOT trigger.
+                # Required:
+                #   1. peak_move ≥ 12%         — real expansion, not micro-peak
+                #   2. peak_age ≥ 40s          — peak is stale (sustained, not tick)
+                #   3. giveback ≥ 50%           — bond_move < 0.50 × peak
+                #   4. _breakdown_confirmed     — full structural: drift+accel+vel
+                #                                 (replaces accel-only; requires 30s ref)
+                #   5. peak was stable ≥ 8s     — held within 80–100% of peak before
+                #                                 pulling back (blocks wick-peaks)
+                #   6. not _compressed          — quiet tape near flat
+                #   7. not _is_bond_runner      — runner state: use HARD_SL accel gate
                 if (_peak_move >= 0.12
                         and _held_s >= 25.0
                         and bond_move < _peak_move * 0.50
-                        and _peak_age >= 25.0
-                        and (_pos_accel is None or _pos_accel < 0)
-                        and _vel_neg
+                        and _peak_age >= 40.0
+                        and _breakdown_confirmed
                         and _peak_stable_s >= 8.0
                         and not _compressed
+                        and not _is_bond_runner
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
