@@ -1434,22 +1434,13 @@ class KlausBot:
                             s2_conf, move_pct * 100, s2_reason,
                         )
 
-                # ── 2-stage zombie gate ────────────────────────────────────
-                # Stage 1 (T+30s): flag only, no exit.
-                #   Condition: mfe_at_30s < 3% AND snap30 < +5%.
-                #   This marks the trade as a zombie CANDIDATE. Runners show
-                #   r30 ≥ 5-10% and MFE ≥ 3% by T+30s — the guard separates
-                #   them cleanly (data-driven, not intuition-based).
-                #   Never flags BOND positions (they have their own exit logic).
-                #
-                # Stage 2 (T+50s): confirm and exit as ZOMBIE_EARLY_EXIT.
-                #   All conditions must hold simultaneously:
-                #   - zombie_candidate flag set (Stage 1 fired)
-                #   - MFE still < 5%         — never became a runner
-                #   - MAE > 25%              — sustained adverse move confirmed
-                #   - bounce < 8%            — price didn't recover from adverse
-                #   Runner protection: MFE ≥ 10% clears the flag permanently.
-                #   Velocity is NOT used — not discriminative enough per data.
+                # ── T+30s one-shot block: runner classification + zombie flag ──
+                # Fires once when the 30s price snapshot first becomes available.
+                # Stored in _open_meta so it survives across scan iterations.
+                # Covers three simultaneous assessments:
+                #   (A) runner_confidence [0–1]: how likely this is a SMOOTH_RUNNER
+                #   (B) DEAD_DRIFT_RISK flag: MFE flat + MAE just starting → scale-up blocked
+                #   (C) zombie candidate flag: both MFE and snap30 near zero → Stage 2 eligible
                 _z_hold = now - pos.open_ts
                 _z_snap30 = self._entry_snaps.get(token_id, {}).get(30, 0.0)
                 _z_mfe_pct = (
@@ -1457,16 +1448,48 @@ class KlausBot:
                     if pos.entry_price > 0 and pos.highest_price > pos.entry_price
                     else 0.0
                 )
+                _open_meta_t = self._open_meta.setdefault(token_id, {})
 
-                # Stage 1: flag zombie candidates at T+30s (one-shot, no exit)
                 if (
                     _z_hold >= 30.0
                     and _z_snap30 > 0
                     and pos.entry_price > 0
                     and not pos.is_bond
-                    and token_id not in self._zombie_flag_ts
+                    and "runner_conf" not in _open_meta_t
                 ):
                     _z_snap30_pct = (_z_snap30 - pos.entry_price) / pos.entry_price * 100
+                    _z_mae30_pct = (
+                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
+                        if pos.lowest_price > 0 else 0.0
+                    )
+                    # (A) runner_confidence: snap30 and MFE are positive signals;
+                    #     MAE is a penalty. Thresholds conservative until n≥20 scaled exits.
+                    _snap_score = min(1.0, max(0.0, _z_snap30_pct / 12.0))
+                    _mfe_score  = min(1.0, max(0.0, _z_mfe_pct / 15.0))
+                    _mae_pen    = min(1.0, max(0.0, _z_mae30_pct / 20.0))
+                    _runner_conf = round(
+                        max(0.0, (0.6 * _snap_score + 0.4 * _mfe_score) * (1.0 - _mae_pen)), 3
+                    )
+                    # (B) DEAD_DRIFT_RISK: flat snap, minimal MFE, MAE just building
+                    _dd_risk = (
+                        _z_snap30_pct < 3.0
+                        and _z_mfe_pct < 4.0
+                        and _z_mae30_pct > 3.0
+                    )
+                    _scale_tier = (
+                        "2.0x" if _runner_conf > 0.90
+                        else ("1.5x" if _runner_conf > 0.75 else "1x")
+                    )
+                    _open_meta_t["runner_conf"] = _runner_conf
+                    _open_meta_t["dd_risk"] = _dd_risk
+                    logger.info(
+                        "RUNNER_CONF %s/%s | hold=%.0fs snap30=%+.2f%% mfe=%.2f%% mae=%.2f%% "
+                        "conf=%.3f scale=%s dd_risk=%s",
+                        pos.asset, pos.direction.name,
+                        _z_hold, _z_snap30_pct, _z_mfe_pct, _z_mae30_pct,
+                        _runner_conf, _scale_tier, _dd_risk,
+                    )
+                    # (C) zombie Stage 1 flag (subset: also mfe<3 and snap30<5)
                     if _z_mfe_pct < 3.0 and _z_snap30_pct < 5.0:
                         self._zombie_flag_ts[token_id] = now
                         logger.info(
@@ -1475,7 +1498,7 @@ class KlausBot:
                             _z_hold, _z_snap30_pct, _z_mfe_pct,
                         )
 
-                # Stage 2: confirm + exit at T+50s
+                # ── Zombie Stage 2: confirm + exit at T+50s (MAE > 25%) ────────
                 if (
                     token_id in self._zombie_flag_ts
                     and _z_hold >= 50.0
@@ -1496,8 +1519,7 @@ class KlausBot:
                         if _z_snap30 > 0 else 0.0
                     )
                     if _z_mfe_pct >= 10.0:
-                        # Became a runner after flag — clear flag, never exit
-                        self._zombie_flag_ts.pop(token_id, None)
+                        self._zombie_flag_ts.pop(token_id, None)  # runner — clear flag
                     elif (
                         _z_mfe_pct < 5.0
                         and _z_mae_pct > 25.0
@@ -1515,6 +1537,43 @@ class KlausBot:
                         self._exit_in_progress.add(token_id)
                         try:
                             await self._exit_position(token_id, current_price, "ZOMBIE_EARLY_EXIT")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+
+                # ── DEAD_DRIFT_EXIT: cut flat/stuck trades at T+60s ───────────
+                # Orthogonal to ZOMBIE_EARLY_EXIT: covers the case where price
+                # barely moved in either direction (no real adverse move yet).
+                # MAE < 15% guard is critical — real losers (MAE > 25%) are
+                # handled by ZOMBIE_EARLY_EXIT; the 15–25% gap falls to regular SL.
+                _dd_snap60 = self._entry_snaps.get(token_id, {}).get(60, 0.0)
+                if (
+                    _z_hold >= 60.0
+                    and _dd_snap60 > 0
+                    and pos.entry_price > 0
+                    and not pos.is_bond
+                    and token_id in self.risk.open_positions
+                    and token_id not in self._exit_in_progress
+                ):
+                    _dd_snap60_pct = (_dd_snap60 - pos.entry_price) / pos.entry_price * 100
+                    _dd_mae_pct = (
+                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
+                        if pos.lowest_price > 0 else 0.0
+                    )
+                    if (
+                        abs(_dd_snap60_pct) < 5.0
+                        and _z_mfe_pct < 5.0
+                        and _dd_mae_pct < 15.0
+                    ):
+                        _dd_pnl_est = (current_price - pos.entry_price) * pos.remaining_shares
+                        logger.info(
+                            "DEAD_DRIFT_EXIT %s/%s | hold=%.0fs snap60=%+.2f%% "
+                            "mfe=%.2f%% mae=%.2f%% PnL≈$%+.3f",
+                            pos.asset, pos.direction.name,
+                            _z_hold, _dd_snap60_pct, _z_mfe_pct, _dd_mae_pct, _dd_pnl_est,
+                        )
+                        self._exit_in_progress.add(token_id)
+                        try:
+                            await self._exit_position(token_id, current_price, "DEAD_DRIFT_EXIT")
                         finally:
                             self._exit_in_progress.discard(token_id)
                 continue
