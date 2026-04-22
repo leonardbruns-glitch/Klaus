@@ -2675,7 +2675,7 @@ class KlausBot:
                 _dzone = "LATE"
 
             # Global no-trade zone: two independent rejection criteria.
-            #   (1) adj_edge < 0.10 — edge floor (CORE / LATE / IMPULSE / EARLY-B).
+            #   (1) adj_edge < 0.06 — edge floor (CORE / LATE / IMPULSE / EARLY-B).
             #       EARLY-A is EXEMPT when a build signal is present — pre-ignition
             #       discovery trades on emerging structure BEFORE edge meets the
             #       threshold. Build signal: delta accel toward direction OR
@@ -2691,9 +2691,9 @@ class KlausBot:
                     or _vel_dir_pos
                 )
             )
-            if _adjusted_edge < 0.10 and not _early_a_edge_bypass:
+            if _adjusted_edge < 0.06 and not _early_a_edge_bypass:
                 _skip = True
-                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.10 edge={_edge:.4f} rw={_regime_weight:.2f}"
+                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.06 edge={_edge:.4f} rw={_regime_weight:.2f}"
             elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
                 _skip = True
                 _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
