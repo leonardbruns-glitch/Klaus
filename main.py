@@ -2423,6 +2423,16 @@ class KlausBot:
                 "[BOND] %s | updown=%d in_window=%d ask_skip=%d delta_skip=%d chop=%d no_hist=%d fired=%d",
                 _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_delta_skip, _b_chop, _b_no_hist, _b_fired,
             )
+            # Self-healing: if no updown tokens are tracked at all, the feed lost
+            # them (discovery timeout / Cloudflare blip). Reset the 60s throttle so
+            # the very next poll_order_books triggers an immediate re-discovery
+            # instead of waiting up to 60 more seconds. This avoids the need to
+            # restart the bot after transient network failures.
+            if _b_total == 0 and not getattr(self.feed, "_stub_mode", False):
+                self.feed._last_discovery_ts = 0.0
+                logger.warning(
+                    "[BOND] zero updown tokens tracked — resetting discovery throttle for immediate refresh"
+                )
         except Exception as _sum_exc:
             logger.error("[BOND] summary log failed: %s", _sum_exc)
 

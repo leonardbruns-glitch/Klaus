@@ -1315,12 +1315,14 @@ class PolymarketFeed:
             return
         self._last_discovery_ts = now
 
-        # Purge expired tokens (window_end_ts > 0 and in the past, or within final
-        # no_trade_last_sec — those will never receive a new entry and just add noise).
-        no_trade_guard = CONFIG.execution.no_trade_last_sec
+        # Purge truly-expired tokens only (within 5s of window close or already past).
+        # Previously used no_trade_last_sec=45 here, which was erasing BOND candidates
+        # at exactly 45s remaining — the BOND LATE entry zone boundary. Now we let the
+        # BOND scanner's own remaining-window guard handle eligibility; we only purge
+        # tokens the market has actually closed.
         expired = [
             tid for tid, t in self.tokens.items()
-            if t.window_end_ts > 0 and t.window_end_ts - now < no_trade_guard
+            if t.window_end_ts > 0 and t.window_end_ts - now < 5.0
         ]
         for tid in expired:
             self.tokens.pop(tid, None)
