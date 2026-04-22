@@ -448,27 +448,6 @@ class RiskManager:
         is_sniper: bool = False,
         window_seconds: int = 0,
     ) -> RiskDecision:
-        # ── Ruin floor: emergency stop ────────────────────────────────────────
-        if self.bankroll.capital < self.cfg.ruin_floor:
-            return RiskDecision(
-                False, 0,
-                f"RUIN FLOOR: capital=${self.bankroll.capital:.2f} < ${self.cfg.ruin_floor:.0f} — bot halted",
-            )
-
-        # ── Weekly floor: halt until reviewed ────────────────────────────────
-        if self.bankroll.capital < self.cfg.weekly_floor:
-            return RiskDecision(
-                False, 0,
-                f"WEEKLY FLOOR: capital=${self.bankroll.capital:.2f} < ${self.cfg.weekly_floor:.0f} — full review required",
-            )
-
-        # ── Daily loss halt ───────────────────────────────────────────────────
-        if self.bankroll.is_halted:
-            return RiskDecision(
-                False, 0,
-                f"Daily loss halt: -${self.bankroll.daily_loss:.2f} >= ${self.cfg.max_daily_loss:.0f} limit",
-            )
-
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
         # BOND is exempt — it has its own 15-min volatile gate in the scanner.
