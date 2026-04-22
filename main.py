@@ -2252,11 +2252,22 @@ class KlausBot:
                 _b_no_hist += 1
 
             # ── Hard entry gates (data-driven, no exceptions) ─────────────────
-            # Gate 1: EARLY_CHOP proxy — cold velocity at entry.
-            #   EARLY_CHOP cohort: n=15, WR=7%, -$26.91. Predicting characteristic:
-            #   no directional momentum → adverse dip with no follow-through.
-            if _vel_cold:
-                _skip_reason = "EARLY_CHOP_GATE: vel=COLD — 7% WR cohort, blocked"
+            # Gate 1: EARLY_CHOP proxy — cold velocity + weak/wrong-direction delta.
+            #   EARLY_CHOP cohort: n=15, WR=7%, -$26.91.
+            #   Cold vel alone doesn't predict EARLY_CHOP — smooth runners can have
+            #   stale vel data when a fast move precedes the velocity feed update.
+            #   The real discriminator: cold vel AND delta not clearly aligned.
+            #   Allow: cold vel + |delta| ≥ 0.06 in the trade direction (real move).
+            #   Block: cold vel + wrong-direction delta OR delta < 0.06 (no thesis).
+            _delta_dir_aligned = (
+                (_token_dir == "up"   and _bond_delta >= 0.06) or
+                (_token_dir == "down" and _bond_delta <= -0.06)
+            )
+            if _vel_cold and not _delta_dir_aligned:
+                _skip_reason = (
+                    f"EARLY_CHOP_GATE: vel=COLD δ={_bond_delta:+.3f}% "
+                    f"({'wrong dir' if (_token_dir=='up' and _bond_delta<0) or (_token_dir=='down' and _bond_delta>0) else 'weak'}) — blocked"
+                )
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
                 continue
 
