@@ -500,14 +500,22 @@ class KlausBot:
                 )
 
             # ── Post-entry path snapshots (T+30s, T+60s) ─────────────────────
-            # Captured once per threshold — used by path classifier at close.
-            # Diagnostic only: no entry/exit logic reads these.
+            # Captured once per threshold — used by path classifier at close
+            # and by cascade-abort Rule B at T+60s (bond positions only).
             _held_for_snap = now - pos.open_ts
             _snaps = self._entry_snaps.setdefault(token_id, {})
             if 30 not in _snaps and _held_for_snap >= 30:
                 _snaps[30] = current_price
+                if pos.is_bond and pos.entry_price > 0:
+                    pos.entry_snap_30s_pct = round(
+                        (current_price - pos.entry_price) / pos.entry_price * 100, 2
+                    )
             if 60 not in _snaps and _held_for_snap >= 60:
                 _snaps[60] = current_price
+                if pos.is_bond and pos.entry_price > 0:
+                    pos.entry_snap_60s_pct = round(
+                        (current_price - pos.entry_price) / pos.entry_price * 100, 2
+                    )
 
             # ── Trajectory snapshots (T+10s, T+30s, T+60s) for structure_state ──
             # Captures running MFE/MAE at three checkpoints so slope, monotonic
@@ -1952,8 +1960,10 @@ class KlausBot:
                 asset=token.asset,
                 market_type=token.market_type,
                 cascade_discount=0.0,
-                is_sniper=True,
+                is_sniper=False,
                 window_seconds=getattr(token, "window_seconds", 0),
+                bond_entry_class=getattr(signal, "bond_entry_class", ""),
+                bond_macro_regime=getattr(signal, "bond_macro_regime", ""),
             )
 
             if not decision.approved:

@@ -122,6 +122,10 @@ class PositionMeta:
     bond_macro_regime: str = ""      # Layer-1 regime at entry: TREND_UP / TREND_DOWN / CHOP
     bond_tp1_done: bool = False      # True after +40% partial sell (50% of remaining)
     bond_tp2_done: bool = False      # True after +80% partial sell (25% of remaining)
+    # Cascade-abort inputs (populated by main.py position monitor at T+30s / T+60s)
+    entry_snap_30s_pct: float = 0.0  # (current - entry) / entry at T+30s, 0.0 = not yet captured
+    entry_snap_60s_pct: float = 0.0  # same metric at T+60s
+    cascade_state: str = "UNKNOWN"   # UNKNOWN → RECOVERING | CASCADING (frozen once written)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -138,6 +142,7 @@ class RiskDecision:
     stake: float
     reason: str
     is_scaled: bool = False
+    bond_ev_multiplier: float = 1.0   # EV-prior multiplier applied (bonds only; 1.0 for sniper)
 
 
 @dataclass
@@ -447,6 +452,8 @@ class RiskManager:
         cascade_discount: float = 0.0,
         is_sniper: bool = False,
         window_seconds: int = 0,
+        bond_entry_class: str = "",
+        bond_macro_regime: str = "",
     ) -> RiskDecision:
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
@@ -584,6 +591,7 @@ class RiskManager:
         # Sniper bypasses heat check — strategy unvalidated at <20 live trades.
         # Heat check caused T00022 to scale to 8 shares at bad entry → -$1.97 loss.
         # Re-enable after 20+ sniper trades with WR >55%.
+        _bond_ev_mult: float = 1.0   # set in bond branch below; sniper branch leaves at 1.0
         if is_sniper:
             # Quality Score stake mapping (Kelly-lite tier sizing).
             # Score computed in window_sniper._compute_quality_score() from lag/mom/regime.
@@ -625,7 +633,27 @@ class RiskManager:
                 asset, _qs, _regime_sig or 'unknown', _multiplier, stake,
             )
         else:
-            stake = self.bankroll.current_stake
+            # Bond trades: EV-prior stake scaling (analytics/regime_filter.py).
+            # TREND_UP is a hard veto (WR=0%, EV=-0.99, n=11).
+            # Other classes scaled 0.25x–1.0x by EV_PRIOR; never zeroed because
+            # cascade abort (Rule B) handles marginal entries that go adverse.
+            if getattr(signal, "signal_source", "") == "BOND" and (bond_entry_class or bond_macro_regime):
+                from analytics.regime_filter import bond_stake_multiplier, EV_PRIOR_VERSION
+                _raw = self.bankroll.current_stake
+                stake = bond_stake_multiplier(bond_entry_class, bond_macro_regime, _raw)
+                if stake == 0.0:
+                    return RiskDecision(
+                        False, 0,
+                        f"Bond EV veto ({EV_PRIOR_VERSION}): {bond_macro_regime} macro — WR=0% EV=-0.99",
+                    )
+                _bond_ev_mult = round(stake / _raw, 4) if _raw else 1.0
+                logger.info(
+                    "BOND STAKE %s: class=%s macro=%s ev_mult=%.2fx → $%.2f [%s]",
+                    asset, bond_entry_class or "?", bond_macro_regime or "?",
+                    _bond_ev_mult, stake, EV_PRIOR_VERSION,
+                )
+            else:
+                stake = self.bankroll.current_stake
         # Cap at 50% of capital per position — user instruction 2026-04-15
         max_pct = 0.50
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
@@ -689,6 +717,7 @@ class RiskManager:
             stake=stake,
             reason=f"Approved | ${stake} | heat={is_scaled}",
             is_scaled=is_scaled,
+            bond_ev_multiplier=_bond_ev_mult if not is_sniper else 1.0,
         )
 
     # ── Position lifecycle ────────────────────────────────────────────────────
@@ -998,6 +1027,43 @@ class RiskManager:
                 )
             else:
                 return ExitDecision(True, "EXIT_WINDOW_END", urgency="immediate")
+
+        # ── 2b. Bond cascade abort — Rule B (T+60s trajectory classifier) ──────
+        # cascade_state is written once when BOTH snaps are populated and frozen.
+        # Re-evaluation on subsequent ticks is skipped — prevents non-deterministic
+        # exits from snap update lag (field-gated would retrigger on every tick).
+        # P(cascade | Rule B fires) ≈ 0.85; P(recovery | snap30<-5, winner) = 0.79.
+        if pos.is_bond:
+            time_held = now - pos.open_ts
+            if pos.cascade_state == "CASCADING":
+                return ExitDecision(
+                    True,
+                    f"BOND_ABORT_CASCADE: {pos.bond_entry_class or '?'} (state=CASCADING)",
+                    urgency="immediate",
+                )
+            if (pos.cascade_state == "UNKNOWN"
+                    and time_held >= 60
+                    and pos.entry_snap_30s_pct != 0.0
+                    and pos.entry_snap_60s_pct != 0.0):
+                from analytics.regime_filter import cascade_detected
+                _abort, _abort_reason = cascade_detected(
+                    pos.entry_snap_30s_pct,
+                    pos.entry_snap_60s_pct,
+                    pos.bond_entry_class or None,
+                )
+                pos.cascade_state = "CASCADING" if _abort else "RECOVERING"
+                if _abort:
+                    logger.info(
+                        "CASCADE ABORT %s/%s @ %.4f | held=%.0fs | snap30=%.1f%% snap60=%.1f%%",
+                        pos.asset, pos.direction.name, current_price, time_held,
+                        pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
+                    )
+                    return ExitDecision(True, _abort_reason, urgency="immediate")
+                logger.info(
+                    "CASCADE RECOVERING %s/%s | snap30=%.1f%% snap60=%.1f%% — hold",
+                    pos.asset, pos.direction.name,
+                    pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
+                )
 
         # ── 3. Stage-1 profit: 60% of fair-value gap ────────────────────────────
         # Thesis: we entered because PM hasn't priced in the Binance move.
