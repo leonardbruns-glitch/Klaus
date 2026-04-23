@@ -232,6 +232,12 @@ class KlausBot:
         # Used to compute MFE slope, monotonic expansion, early adverse timing.
         self._traj_mfe: Dict[str, Dict[int, float]] = {}
         self._traj_mae: Dict[str, Dict[int, float]] = {}
+        # Stop-hunt wick confirmation for BOND_SL_20.
+        # When SL fires with zero favorable move and fast hold (≤60s), we arm
+        # a 25s timer rather than selling immediately. If price recovers above
+        # -15% in that window the wick is cancelled; otherwise SL executes.
+        # Pattern confirmed 2026-04-23 (ETH YES EARLY-A-PRE: -29% wick, +81% snap-back in 30s).
+        self._bond_sl_arm_ts: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -582,6 +588,36 @@ class KlausBot:
                         or (_pc_smooth_runner and _fav_sl >= 0.10)        # runner with expansion
                     )
                     if not _sl_protected:
+                        # ── Stop-hunt wick confirmation (2026-04-23) ──────────────────
+                        # Pattern: zero favorable move + wick to -20%+ within 60s →
+                        # manufactured stop-hunt with high probability. Wait 25s before
+                        # executing — if price recovers above -15% the condition clears
+                        # naturally (bond_move > -0.20 → block doesn't fire next scan).
+                        # Confirmed: ETH YES EARLY-A-PRE: -29% wick → +81% snap-back in 30s.
+                        # Does NOT apply if prior favorable move ≥ 5% (real adverse reversal).
+                        _is_zero_fav_fast_wick = _fav_sl < 0.05 and _held_s <= 60
+                        if _is_zero_fav_fast_wick:
+                            _arm_ts = self._bond_sl_arm_ts.get(token_id)
+                            if _arm_ts is None:
+                                self._bond_sl_arm_ts[token_id] = now
+                                logger.info(
+                                    "BOND_SL_20 ARM %s/%s | move=%+.1f%% fav=%.1f%% "
+                                    "held=%.0fs — 25s wick confirmation started",
+                                    pos.asset, pos.direction.name,
+                                    bond_move * 100, _fav_sl * 100, _held_s,
+                                )
+                                continue   # wait for confirmation
+                            elif now - _arm_ts < 25.0:
+                                continue   # still in confirmation window
+                            # 25s elapsed without recovery → confirmed real cascade
+                            logger.info(
+                                "BOND_SL_20 CONFIRMED %s/%s | move=%+.1f%% fav=%.1f%% "
+                                "held=%.0fs arm_age=%.0fs — executing",
+                                pos.asset, pos.direction.name,
+                                bond_move * 100, _fav_sl * 100, _held_s,
+                                now - _arm_ts,
+                            )
+                        self._bond_sl_arm_ts.pop(token_id, None)
                         self._exit_in_progress.add(token_id)
                         logger.info(
                             "BOND_SL_20 %s/%s | move=%+.1f%% fav=%.1f%% "
@@ -595,6 +631,16 @@ class KlausBot:
                         finally:
                             self._exit_in_progress.discard(token_id)
                         continue
+                else:
+                    # Price recovered above -20% threshold — cancel any armed wick timer
+                    if token_id in self._bond_sl_arm_ts:
+                        _arm_ts = self._bond_sl_arm_ts.pop(token_id)
+                        logger.info(
+                            "BOND_SL_20 WICK_CANCELLED %s/%s | move=%+.1f%% recovered "
+                            "within %.0fs of arm — stop-hunt confirmed",
+                            pos.asset, pos.direction.name,
+                            bond_move * 100, now - _arm_ts,
+                        )
 
                 # ── BOND_CHOP_FILTER removed (2026-04-23) ─────────────────────
                 # Cascade detector (Rule B) at T+60s is now the primary early-
@@ -4122,6 +4168,7 @@ class KlausBot:
         self._zombie_flag_ts.pop(token_id, None)
         self._traj_mfe.pop(token_id, None)
         self._traj_mae.pop(token_id, None)
+        self._bond_sl_arm_ts.pop(token_id, None)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
