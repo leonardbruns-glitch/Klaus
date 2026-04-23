@@ -4566,12 +4566,20 @@ class KlausBot:
                         _post_exit_prices.append(window_outcome_price)
                         entered_correctly = window_outcome_price >= 0.80
                         resolution_delay_s = round(time.time() - window_end_ts)
-                    # Max adverse across all post-exit samples (lower price = worse for longs).
-                    # Combined with in-position max_adverse_pct this gives the full-window picture.
+                    # Max adverse AND max favourable across all post-exit samples.
+                    # Max adverse: lower price = worse for longs.
+                    # Max favourable: higher price post-exit = would have been profitable if held.
+                    window_max_fav_from_entry_pct = None
                     if entry_price > 0 and _post_exit_prices:
                         _worst = min(_post_exit_prices)
+                        _best  = max(_post_exit_prices)
                         window_max_adv_from_entry_pct = round(
                             (entry_price - _worst) / entry_price * 100, 2
+                        )
+                        # Best post-exit price expressed as % move from entry price.
+                        # Positive = price recovered above entry (would have been profitable if held).
+                        window_max_fav_from_entry_pct = round(
+                            (_best - entry_price) / entry_price * 100, 2
                         )
                 except Exception as _res_exc:
                     logger.debug("resolution sample failed %s: %s", token_id[:8], _res_exc)
@@ -4584,16 +4592,18 @@ class KlausBot:
                             "entered_correctly": entered_correctly,
                             "resolution_delay_s": resolution_delay_s,
                             "window_max_adv_from_entry_pct": window_max_adv_from_entry_pct,
+                            "window_max_fav_from_entry_pct": window_max_fav_from_entry_pct,
                             "post_exit_n_samples": len(_post_exit_prices),
                         }
                         with open(log_path, "a") as f:
                             f.write(_json.dumps(res_record) + "\n")
                         logger.info(
                             "RESOLUTION %s/%s [%s] | outcome=%.4f entered_correctly=%s "
-                            "window_max_adv=%s%% (n=%d post-exit samples)",
+                            "window_max_adv=%s%% max_fav=%s%% (n=%d post-exit samples)",
                             asset, direction, exit_reason,
                             window_outcome_price, entered_correctly,
-                            window_max_adv_from_entry_pct, len(_post_exit_prices),
+                            window_max_adv_from_entry_pct, window_max_fav_from_entry_pct,
+                            len(_post_exit_prices),
                         )
                     except Exception as _re:
                         logger.debug("resolution log failed: %s", _re)

@@ -476,12 +476,19 @@ if bond_trades:
         _n_incorrect = _n_res - _n_correct
         _correct_pnls   = [t["net_pnl"] for t, r in _res_known if r["entered_correctly"]]
         _incorrect_pnls = [t["net_pnl"] for t, r in _res_known if not r["entered_correctly"]]
+        # Direction labels: for DOWN tokens (outcome_direction="down"), the YES token
+        # resolves to 1.0 when the underlying goes DOWN. entered_correctly=True means
+        # the underlying went in the direction we bet on (DOWN for DOWN tokens, UP for UP).
+        # "Resolved for us" = underlying went our way = token at ~1.0 at window_end+60s.
+        # "Resolved against" = underlying went against our bet = token at ~0.0.
         print(f"\n── WINDOW RESOLUTION (n={_n_res} with resolution data) ─────────────────")
-        print(f"  Resolved in direction:   n={_n_correct:>3}  "
+        print(f"  Key: 'for us' = underlying went in bet direction (token→1.0 at window_end+60s)")
+        print(f"       'against' = underlying went opposite (token→0.0); direction check uses final price")
+        print(f"  Resolved FOR us:   n={_n_correct:>3}  "
               f"({_n_correct/_n_res*100:.0f}%)  "
               f"{'avg='+_fmt_pnl(sum(_correct_pnls)/_n_correct) if _correct_pnls else ''}  "
               f"{'sum='+_fmt_pnl(sum(_correct_pnls)) if _correct_pnls else ''}")
-        print(f"  Resolved against:        n={_n_incorrect:>3}  "
+        print(f"  Resolved AGAINST:  n={_n_incorrect:>3}  "
               f"({_n_incorrect/_n_res*100:.0f}%)  "
               f"{'avg='+_fmt_pnl(sum(_incorrect_pnls)/_n_incorrect) if _incorrect_pnls else ''}  "
               f"{'sum='+_fmt_pnl(sum(_incorrect_pnls)) if _incorrect_pnls else ''}")
@@ -515,8 +522,18 @@ if bond_trades:
                    if _outcome_bucket(t.get("exit_reason"), t.get("net_pnl", 0))
                    in ("HARD_SL", "SL", "EARLY_LOSS", "MOMENTUM_FAIL")]
         if _sl_res:
+            # PRIMARY check: underlying direction at final window resolution
+            #   GOOD_SL = stopped AND underlying ultimately went against our bet (final token ~0.0)
+            #   BAD_SL  = stopped BUT underlying ultimately went our way (final token ~1.0)
             good_sl = [(t, r) for t, r in _sl_res if not r["entered_correctly"]]
             bad_sl  = [(t, r) for t, r in _sl_res if r["entered_correctly"]]
+            # SECONDARY check: did the price ever recover post-exit above entry?
+            # This catches "wick SLs" where token briefly recovered but then resolved against us.
+            # Uses window_max_fav_from_entry_pct — best post-exit price vs entry price.
+            # Positive = price recovered above entry at some point after our SL.
+            _recoverable = [(t, r) for t, r in _sl_res
+                            if (r.get("window_max_fav_from_entry_pct") or 0) > 0
+                            and not r["entered_correctly"]]  # final outcome still against us
             n_sl = len(_sl_res)
             _good_ratio = len(good_sl) / n_sl if n_sl else 0.0
             _verdict = (
@@ -531,7 +548,12 @@ if bond_trades:
             print(f"  BAD_SL  (stopped BUT resolved for us):   n={len(bad_sl):>3}  "
                   f"({(1 - _good_ratio)*100:.0f}%)  "
                   f"sum={_fmt_pnl(sum(t['net_pnl'] for t, _ in bad_sl))}  "
-                  f"← these would have won without the stop")
+                  f"← underlying went our way at window end")
+            if _recoverable:
+                _rec_fav = [r.get("window_max_fav_from_entry_pct", 0) for _, r in _recoverable]
+                print(f"  WICK_SL  (stopped, recovered post-exit, but final resolved against): "
+                      f"n={len(_recoverable)}  avg_best_recovery={sum(_rec_fav)/len(_rec_fav):+.1f}%  "
+                      f"← stop-hunt candidates (price did bounce, just didn't hold)")
             print(f"  Verdict: {_verdict}")
             # Per exit_reason breakdown — which SL flavor is the worst offender?
             _by_reason: dict = defaultdict(lambda: {"good": 0, "bad": 0, "bad_pnl": 0.0})
