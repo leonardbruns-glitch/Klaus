@@ -1809,10 +1809,15 @@ class KlausBot:
                     _delta_excess_penalty = min(0.30, _delta_excess * 2.0)
                     _early_adj_edge = _adjusted_edge * (1.0 - _delta_excess_penalty)
 
-                    # R2: weak-velocity downweight — |vel|<0.01 sole-signal → up to -15%.
+                    # R2: weak-velocity downweight — no INIT vel AND no sustained accel → up to -15%.
+                    # Previously: _vel_dir_pos AND not _accel_pos AND _vel_mag < 0.01
+                    # Bug: the three conditions cancelled — weak directional vel almost always
+                    # co-occurs with positive accel (same move), so not _accel_pos was always False.
+                    # Fix: penalize when INIT threshold not met AND accel not sustained.
                     _weak_vel_penalty = 0.0
-                    if _vel_dir_pos and not _accel_pos and _vel_mag < 0.01:
-                        _weak_vel_penalty = (1.0 - _vel_mag / 0.01) * 0.15
+                    if not _vel_init and not _accel_sustained:
+                        _vel_conf = _vel_mag if not _vel_cold else 0.0
+                        _weak_vel_penalty = min(0.15, max(0.0, (0.01 - _vel_conf) / 0.01 * 0.15))
                         _early_adj_edge *= (1.0 - _weak_vel_penalty)
 
                     _early_adj_edge = round(_early_adj_edge, 4)
