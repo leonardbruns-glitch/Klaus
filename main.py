@@ -4557,6 +4557,12 @@ class KlausBot:
             # Orphaned balance — not in tracked positions. Force-sell immediately.
             if token_id in self._exit_in_progress:
                 continue
+            # Skip tokens with an in-flight entry — limit_buy's orphan-recovery
+            # check waits up to 20s to confirm FAILED orders actually filled.
+            # Without this, the sweep races the recovery and force-sells shares
+            # before open_position() can track them as a normal position.
+            if token_id in self._pending_entries:
+                continue
             token_meta = self.feed.tokens.get(token_id)
             ob = self.feed.get_order_book(token_id)
             sell_price = ob.bids[0][0] if (ob and ob.bids) else 0.50
