@@ -34,14 +34,19 @@ if _since_ts > 0:
               or (t.get("ts_close", 0) or 0) >= _since_ts]
 
 post = {}
+post_res = {}
 if os.path.exists(POST_PATH):
     with open(POST_PATH) as f:
         for l in f:
             if l.strip():
                 r = json.loads(l)
                 tid = r.get("trade_id", "")
-                if tid and r.get("record_type") != "resolution":
-                    post[tid] = r
+                if not tid:
+                    continue
+                if r.get("record_type") == "resolution":
+                    post_res[tid] = r   # window-end resolution record
+                else:
+                    post[tid] = r       # T+30s/60s/120s record
 
 def g(t, k, d=None):
     return t.get(k, d)
@@ -95,8 +100,11 @@ for t in trades:
     e30  = pd(mfn.get("t30s"))
     e60  = pd(mfn.get("t60s"))
     e120 = pd(mfn.get("t120s"))
-    ec_raw = g(t, "entered_correctly")
-    ec2  = pb(pe.get("entered_correctly", ec_raw))
+    _res = post_res.get(g(t, "trade_id", ""), {})
+    ec_raw = _res.get("entered_correctly", g(t, "entered_correctly"))
+    ec2  = pb(ec_raw)
+    wop  = _res.get("window_outcome_price")   # price at window_end+60s
+    wmax_adv = _res.get("window_max_adv_from_entry_pct")  # post-exit max adverse
 
     ep   = g(t, "entry_price", 0) or 0.0
     xp   = g(t, "exit_price", 0) or 0.0
@@ -455,6 +463,71 @@ if bond_trades:
     elif any(float(t.get("max_adverse_pct", 0) or 0) >= 40.0 for t in bond_trades):
         print(f"\n── MAE>40% BOUNCE COHORT ───────────────────────────────────────────────")
         print(f"  (no bounce data yet — will populate after next deploy)")
+
+    # ── Window resolution outcome ─────────────────────────────────────────────
+    # Did the market move in our direction from entry to window close?
+    # Measures the TRUE edge — independent of our exit timing.
+    # Source: post_exit.jsonl resolution records (sampled at window_end + 60s).
+    _res_trades = [(t, post_res.get(t.get("trade_id", ""), {})) for t in bond_trades]
+    _res_known   = [(t, r) for t, r in _res_trades if r.get("entered_correctly") is not None]
+    if _res_known:
+        _n_res = len(_res_known)
+        _n_correct   = sum(1 for _, r in _res_known if r["entered_correctly"])
+        _n_incorrect = _n_res - _n_correct
+        _correct_pnls   = [t["net_pnl"] for t, r in _res_known if r["entered_correctly"]]
+        _incorrect_pnls = [t["net_pnl"] for t, r in _res_known if not r["entered_correctly"]]
+        print(f"\n── WINDOW RESOLUTION (n={_n_res} with resolution data) ─────────────────")
+        print(f"  Resolved in direction:   n={_n_correct:>3}  "
+              f"({_n_correct/_n_res*100:.0f}%)  "
+              f"{'avg='+_fmt_pnl(sum(_correct_pnls)/_n_correct) if _correct_pnls else ''}  "
+              f"{'sum='+_fmt_pnl(sum(_correct_pnls)) if _correct_pnls else ''}")
+        print(f"  Resolved against:        n={_n_incorrect:>3}  "
+              f"({_n_incorrect/_n_res*100:.0f}%)  "
+              f"{'avg='+_fmt_pnl(sum(_incorrect_pnls)/_n_incorrect) if _incorrect_pnls else ''}  "
+              f"{'sum='+_fmt_pnl(sum(_incorrect_pnls)) if _incorrect_pnls else ''}")
+
+        # Exit vs resolution disagreements — these are the interesting cases
+        _wl_but_wrong = [(t, r) for t, r in _res_known
+                         if t["net_pnl"] > 0 and not r["entered_correctly"]]
+        _ll_but_right = [(t, r) for t, r in _res_known
+                         if t["net_pnl"] <= 0 and r["entered_correctly"]]
+        if _wl_but_wrong:
+            print(f"  ⚠ WON trade but market resolved AGAINST: n={len(_wl_but_wrong)} "
+                  f"(sold before resolution flip?)")
+        if _ll_but_right:
+            print(f"  ⚠ LOST trade but market resolved FOR us: n={len(_ll_but_right)} "
+                  f"(premature stop / wick eviction)")
+        if _ll_but_right:
+            pnls_ll = [t["net_pnl"] for t, _ in _ll_but_right]
+            reasons = [t.get("exit_reason", "?") for t, _ in _ll_but_right]
+            print(f"    Reasons: {', '.join(sorted(set(reasons)))}  "
+                  f"total_loss={_fmt_pnl(sum(pnls_ll))}")
+
+        # Window max adverse post-exit (how bad did it get after we left?)
+        _wmax_known = [(t, r) for t, r in _res_known
+                       if r.get("window_max_adv_from_entry_pct") is not None]
+        if _wmax_known:
+            wmax_vals = [r["window_max_adv_from_entry_pct"] for _, r in _wmax_known]
+            winners   = [r["window_max_adv_from_entry_pct"] for t, r in _wmax_known
+                         if t["net_pnl"] > 0]
+            losers    = [r["window_max_adv_from_entry_pct"] for t, r in _wmax_known
+                         if t["net_pnl"] <= 0]
+            print(f"  Max adverse through window_end (n={len(_wmax_known)}):")
+            if winners:
+                print(f"    Winners: avg={sum(winners)/len(winners):+.1f}%  "
+                      f"p50={sorted(winners)[len(winners)//2]:+.1f}%  "
+                      f"p75={sorted(winners)[int(len(winners)*0.75)]:+.1f}%")
+            if losers:
+                print(f"    Losers:  avg={sum(losers)/len(losers):+.1f}%  "
+                      f"p50={sorted(losers)[len(losers)//2]:+.1f}%  "
+                      f"p75={sorted(losers)[int(len(losers)*0.75)]:+.1f}%")
+    else:
+        n_pending = sum(1 for t in bond_trades
+                        if t.get("window_end_ts", 0) and t.get("trade_id")
+                        and t["trade_id"] not in post_res)
+        print(f"\n── WINDOW RESOLUTION ───────────────────────────────────────────────────")
+        print(f"  No resolution data yet. "
+              f"{n_pending} trade(s) pending (resolution sampled at window_end+60s).")
 
     # Winner vs loser distribution
     #

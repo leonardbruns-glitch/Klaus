@@ -4451,6 +4451,11 @@ class KlausBot:
             except Exception:
                 samples[f"t{delay}s"] = None
 
+        # Accumulate all post-exit prices for window_max_adv computation.
+        # Starts from T+30/60/120 samples; extended by continuous sampling until
+        # window_end (added below). Entry_price is used as reference for adverse %.
+        _post_exit_prices: list[float] = [p for p in samples.values() if p]
+
         # ── Write T+30/60/120 record immediately after samples are collected ──────
         # Previous bug: write was deferred until after window_end + 60s wait,
         # meaning for a 15m trade exited at elap=0.07, the write happened ~15 min
@@ -4507,6 +4512,34 @@ class KlausBot:
         except Exception as exc:
             logger.debug("post_exit log failed: %s", exc)
 
+        # ── Continuous sampling from T+120s to window_end ──────────────────────
+        # Fills the gap between our exit and window resolution, giving a real
+        # picture of "where did the market go after we left". Used to compute
+        # window_max_adv_from_entry_pct (worst price vs entry across full window).
+        # Samples every 60s; stops 5s before window_end to avoid racing the
+        # final resolution fetch.
+        if window_end_ts > 0:
+            _now_inner = time.time()
+            if _now_inner < window_end_ts - 5 and window_end_ts - _now_inner <= 900:
+                while True:
+                    _gap = window_end_ts - time.time() - 5
+                    if _gap <= 0:
+                        break
+                    await asyncio.sleep(min(60.0, _gap))
+                    try:
+                        _p_cont = 0.0
+                        _tok_c = self.feed.tokens.get(token_id)
+                        if _tok_c and hasattr(_tok_c, "best_ask") and _tok_c.best_ask > 0:
+                            _p_cont = _tok_c.best_ask
+                        if not _p_cont:
+                            _ob_c = await self.feed.fetch_order_book(token_id)
+                            if _ob_c and _ob_c.asks:
+                                _p_cont = _ob_c.asks[0][0]
+                        if _p_cont:
+                            _post_exit_prices.append(round(_p_cont, 4))
+                    except Exception:
+                        pass
+
         # ── Resolution sample: window_end + 60s (written as separate record) ────
         # Appended to post_exit.jsonl with record_type="resolution" so joins still
         # work — report can left-join and prefer the resolution record if present.
@@ -4520,6 +4553,7 @@ class KlausBot:
                 window_outcome_price = None
                 entered_correctly = None
                 resolution_delay_s = None
+                window_max_adv_from_entry_pct = None
                 try:
                     token = self.feed.tokens.get(token_id)
                     if token and hasattr(token, "best_ask") and token.best_ask > 0:
@@ -4529,8 +4563,16 @@ class KlausBot:
                         if _ob and _ob.asks:
                             window_outcome_price = round(_ob.asks[0][0], 4)
                     if window_outcome_price is not None:
+                        _post_exit_prices.append(window_outcome_price)
                         entered_correctly = window_outcome_price >= 0.80
                         resolution_delay_s = round(time.time() - window_end_ts)
+                    # Max adverse across all post-exit samples (lower price = worse for longs).
+                    # Combined with in-position max_adverse_pct this gives the full-window picture.
+                    if entry_price > 0 and _post_exit_prices:
+                        _worst = min(_post_exit_prices)
+                        window_max_adv_from_entry_pct = round(
+                            (entry_price - _worst) / entry_price * 100, 2
+                        )
                 except Exception as _res_exc:
                     logger.debug("resolution sample failed %s: %s", token_id[:8], _res_exc)
                 if window_outcome_price is not None:
@@ -4541,13 +4583,17 @@ class KlausBot:
                             "window_outcome_price": window_outcome_price,
                             "entered_correctly": entered_correctly,
                             "resolution_delay_s": resolution_delay_s,
+                            "window_max_adv_from_entry_pct": window_max_adv_from_entry_pct,
+                            "post_exit_n_samples": len(_post_exit_prices),
                         }
                         with open(log_path, "a") as f:
                             f.write(_json.dumps(res_record) + "\n")
                         logger.info(
-                            "RESOLUTION %s/%s [%s] | outcome=%.4f entered_correctly=%s",
+                            "RESOLUTION %s/%s [%s] | outcome=%.4f entered_correctly=%s "
+                            "window_max_adv=%s%% (n=%d post-exit samples)",
                             asset, direction, exit_reason,
                             window_outcome_price, entered_correctly,
+                            window_max_adv_from_entry_pct, len(_post_exit_prices),
                         )
                     except Exception as _re:
                         logger.debug("resolution log failed: %s", _re)
