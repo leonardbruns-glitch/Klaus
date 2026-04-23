@@ -661,27 +661,31 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
-                # ── No-progress fast SL: fav=0 at T+12s → immediate exit ────────
-                # If price NEVER moved in our favor (peak_bond_move==0) and we're
-                # at -20%, this is a genuine resolution not a stop-hunt wick.
-                # Stop-hunts always show fav>0 first (wick starts after a run);
-                # fav=0 straight-down moves are market resolutions.
-                # Data (n=10): fav=0 SL trades exited at avg -65% vs -20% threshold
-                # because the 25s confirmation window burned 25s of freefall.
+                # ── No-progress fast SL: fav<1% at -20% → immediate exit ─────────
+                # If price NEVER meaningfully moved in our favor (peak<1%, covering
+                # spread artifacts and delayed ticks) and we're at -20%, this is a
+                # genuine resolution not a stop-hunt wick. Stop-hunts always show
+                # fav>0 first; fav=0 straight-down moves are market resolutions.
+                # Data (n=10): fav=0 SL trades exited at avg -65% vs -20% threshold.
                 # All 10 confirmed non-recoveries (from_exit stayed near -96%).
-                # T+12s: 8/10 fav=0 trades breach -20% by T=12s; fires immediately.
+                #
+                # Two-path trigger (OR — whichever comes first):
+                #   A) held ≥ 12s — catches 8/10 cases (slow-to-moderate declines)
+                #   B) avg_decline ≥ 2%/s — catches fast crashes (e.g. -3.2%/s)
+                #      at breach time without waiting for T+12s
                 _fav_now = self._peak_bond_move.get(token_id, 0.0)
-                if (_held_s >= 12.0
-                        and bond_move <= -0.20
-                        and _fav_now == 0.0
+                _avg_decline_rate = -bond_move / max(_held_s, 1.0)
+                if (bond_move <= -0.20
+                        and _fav_now < 0.01
+                        and (_held_s >= 12.0 or _avg_decline_rate >= 0.02)
                         and token_id not in self._exit_in_progress):
                     self._bond_sl_arm_ts.pop(token_id, None)
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        "BOND_SL_NOPROGRESS %s/%s | move=%+.1f%% held=%.0fs — "
-                        "no favorable movement, immediate exit",
+                        "BOND_SL_NOPROGRESS %s/%s | move=%+.1f%% held=%.0fs "
+                        "vel=%.2f%%/s — no meaningful progress, immediate exit",
                         pos.asset, pos.direction.name,
-                        bond_move * 100, _held_s,
+                        bond_move * 100, _held_s, _avg_decline_rate * 100,
                     )
                     try:
                         await self._exit_position(token_id, current_price, "BOND_SL_NOPROGRESS")
