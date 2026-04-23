@@ -4540,12 +4540,14 @@ class KlausBot:
                     except Exception:
                         pass
 
-        # ── Resolution sample: window_end + 60s (written as separate record) ────
-        # Appended to post_exit.jsonl with record_type="resolution" so joins still
-        # work — report can left-join and prefer the resolution record if present.
+        # ── Resolution sample: window_end - 5s (last safe moment pre-close) ─────
+        # There is no "window_end + 60s" — the market resolves AT window_end and
+        # the token is worthless/final afterwards. Sample 5s before close to
+        # capture the final traded price while the book is still live.
+        # Appended to post_exit.jsonl with record_type="resolution".
         if window_end_ts > 0:
             now_ts = time.time()
-            wait_until = window_end_ts + 60
+            wait_until = window_end_ts - 5
             wait_s = max(0.0, wait_until - now_ts)
             if wait_s <= 900:  # skip if window ended >15 min ago
                 if wait_s > 0:
@@ -4565,6 +4567,8 @@ class KlausBot:
                     if window_outcome_price is not None:
                         _post_exit_prices.append(window_outcome_price)
                         entered_correctly = window_outcome_price >= 0.80
+                        # Negative: seconds *before* window_end that we sampled.
+                        # Target is ~-5s; drift from -5 indicates late delivery.
                         resolution_delay_s = round(time.time() - window_end_ts)
                     # Max adverse AND max favourable across all post-exit samples.
                     # Max adverse: lower price = worse for longs.
