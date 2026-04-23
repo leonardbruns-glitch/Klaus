@@ -503,6 +503,54 @@ if bond_trades:
             print(f"    Reasons: {', '.join(sorted(set(reasons)))}  "
                   f"total_loss={_fmt_pnl(sum(pnls_ll))}")
 
+        # ── SL EFFECTIVENESS DIAGNOSTIC ──────────────────────────────────────
+        # For every SL exit, did the window ultimately resolve FOR or AGAINST us?
+        #   GOOD_SL:  SL triggered AND window resolved against us
+        #             → entry was wrong, SL correctly preserved capital
+        #   BAD_SL:   SL triggered AND window resolved for us
+        #             → premature stop, wick eviction, stop-hunt success
+        #             the entry was right, the stop was wrong
+        # Ratio GOOD/BAD is the diagnostic: >0.70 = SL useful, <0.40 = SL costs more than it saves.
+        _sl_res = [(t, r) for t, r in _res_known
+                   if _outcome_bucket(t.get("exit_reason"), t.get("net_pnl", 0))
+                   in ("HARD_SL", "SL", "EARLY_LOSS", "MOMENTUM_FAIL")]
+        if _sl_res:
+            good_sl = [(t, r) for t, r in _sl_res if not r["entered_correctly"]]
+            bad_sl  = [(t, r) for t, r in _sl_res if r["entered_correctly"]]
+            n_sl = len(_sl_res)
+            _good_ratio = len(good_sl) / n_sl if n_sl else 0.0
+            _verdict = (
+                "SL useful (preserves capital)" if _good_ratio >= 0.70 else
+                "SL marginal — review thresholds" if _good_ratio >= 0.40 else
+                "SL COSTLY — premature stops > saves"
+            )
+            print(f"\n── SL EFFECTIVENESS (n={n_sl} SL exits with resolution) ──────────────")
+            print(f"  GOOD_SL (stopped AND resolved against):  n={len(good_sl):>3}  "
+                  f"({_good_ratio*100:.0f}%)  "
+                  f"sum={_fmt_pnl(sum(t['net_pnl'] for t, _ in good_sl))}")
+            print(f"  BAD_SL  (stopped BUT resolved for us):   n={len(bad_sl):>3}  "
+                  f"({(1 - _good_ratio)*100:.0f}%)  "
+                  f"sum={_fmt_pnl(sum(t['net_pnl'] for t, _ in bad_sl))}  "
+                  f"← these would have won without the stop")
+            print(f"  Verdict: {_verdict}")
+            # Per exit_reason breakdown — which SL flavor is the worst offender?
+            _by_reason: dict = defaultdict(lambda: {"good": 0, "bad": 0, "bad_pnl": 0.0})
+            for t, r in _sl_res:
+                k = t.get("exit_reason", "?")
+                if r["entered_correctly"]:
+                    _by_reason[k]["bad"] += 1
+                    _by_reason[k]["bad_pnl"] += t["net_pnl"]
+                else:
+                    _by_reason[k]["good"] += 1
+            if len(_by_reason) > 1:
+                print(f"  ── by exit_reason ───")
+                for reason in sorted(_by_reason, key=lambda k: -_by_reason[k]["bad"]):
+                    d = _by_reason[reason]
+                    n_r = d["good"] + d["bad"]
+                    ratio = d["good"] / n_r if n_r else 0
+                    print(f"    {reason:<22} n={n_r:>2} good={d['good']:>2} bad={d['bad']:>2} "
+                          f"({ratio*100:>3.0f}% good)  bad_sum={_fmt_pnl(d['bad_pnl'])}")
+
         # Window max adverse post-exit (how bad did it get after we left?)
         _wmax_known = [(t, r) for t, r in _res_known
                        if r.get("window_max_adv_from_entry_pct") is not None]
