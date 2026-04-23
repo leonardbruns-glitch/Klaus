@@ -195,9 +195,12 @@ if bond_trades:
     al    = sum(t["net_pnl"] for t in loss) / len(loss) if loss else 0
     pf_   = (sum(t["net_pnl"] for t in wins)
              / max(0.01, abs(sum(t["net_pnl"] for t in loss)))) if loss else 0
+    _entry_prices = [float(t.get("entry_price", 0) or 0) for t in bond_trades if t.get("entry_price")]
+    _avg_entry = sum(_entry_prices) / len(_entry_prices) if _entry_prices else 0.0
     print(f"\n── OVERVIEW ────────────────────────────────────────────────────────────")
     print(f"  n={len(bond_trades)}  WR={wr:.1f}%  net={_fmt_pnl(total)}  "
           f"avg_win={_fmt_pnl(aw)}  avg_loss={_fmt_pnl(al)}  PF={pf_:.2f}")
+    print(f"  avg_entry_price={_avg_entry:.4f}")
 
     # By exit bucket
     by_b: dict = defaultdict(list)
