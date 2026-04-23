@@ -246,6 +246,26 @@ analytics/shadow_log.py       — counterfactual analysis for blocked signals
 - **Logs**: `journalctl -u klaus -f` or `tail -f /root/Klaus/logs/bot.log`
 - **Development branch**: `claude/find-lag-parameter-rFQ0N`
 
+### Development Workflow — NON-NEGOTIABLE
+All code changes flow through the local repo → remote → VPS. Never edit or
+commit on the VPS; it creates divergent history and silent merge conflicts
+that drop fixes (e.g. the 2026-04-23 incident where a VPS-side merge dropped
+`avg_entry_price` from `feedback.py`, silently breaking orphan-sell logging
+for ~9 hours).
+
+1. Claude edits only in the local repo where the session is running.
+2. Claude commits and pushes to the remote development branch.
+3. User runs `git pull && systemctl restart klaus` on the VPS. That is the
+   only git operation the VPS ever runs.
+4. NEVER `git commit` on the VPS. NEVER `git checkout origin/... -- <file>`
+   on the VPS. NEVER hand-edit files on the VPS.
+5. If the VPS has already diverged, pull its branch state into the local
+   repo (`git fetch`, inspect, cherry-pick / reset as needed), fix locally,
+   push, then `git pull` on VPS. Resolve divergence in the local repo — not
+   on the VPS.
+6. The only VPS-side writes are the bot itself writing to `logs/` (and
+   `logs/bankroll.json` is allowed to drift from git — it's runtime state).
+
 ### Run
 ```bash
 git pull && python3 main.py        # start live (DRY_RUN=false in .env)
