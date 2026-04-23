@@ -661,6 +661,34 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
+                # ── No-progress fast SL: fav=0 at T+20s → immediate exit ────────
+                # If price NEVER moved in our favor (peak_bond_move==0) and we're
+                # at -20%, this is a genuine resolution not a stop-hunt wick.
+                # Stop-hunts always show fav>0 first (wick starts after a run);
+                # fav=0 straight-down moves are market resolutions.
+                # Data (n=10): fav=0 SL trades exited at avg -65% vs -20% threshold
+                # because the 25s confirmation window burned 25s of freefall.
+                # All 10 confirmed non-recoveries (from_exit stayed near -96%).
+                # Fires 10s earlier (T+20s) and with zero confirmation delay.
+                _fav_now = self._peak_bond_move.get(token_id, 0.0)
+                if (_held_s >= 20.0
+                        and bond_move <= -0.20
+                        and _fav_now == 0.0
+                        and token_id not in self._exit_in_progress):
+                    self._bond_sl_arm_ts.pop(token_id, None)
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_SL_NOPROGRESS %s/%s | move=%+.1f%% held=%.0fs — "
+                        "no favorable movement, immediate exit",
+                        pos.asset, pos.direction.name,
+                        bond_move * 100, _held_s,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_SL_NOPROGRESS")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── Hard SL: -20% from T+30s, with shakeout protection ──────────
                 if (_held_s >= 30.0
                         and bond_move <= -0.20
@@ -679,14 +707,12 @@ class KlausBot:
                         or (_pc_smooth_runner and _fav_sl >= 0.10)        # runner with expansion
                     )
                     if not _sl_protected:
-                        # ── Stop-hunt wick confirmation (2026-04-23) ──────────────────
-                        # Pattern: zero favorable move + wick to -20%+ within 60s →
-                        # manufactured stop-hunt with high probability. Wait 25s before
-                        # executing — if price recovers above -15% the condition clears
-                        # naturally (bond_move > -0.20 → block doesn't fire next scan).
-                        # Confirmed: ETH YES EARLY-A-PRE: -29% wick → +81% snap-back in 30s.
-                        # Does NOT apply if prior favorable move ≥ 5% (real adverse reversal).
-                        _is_zero_fav_fast_wick = _fav_sl < 0.05 and _held_s <= 60
+                        # ── Stop-hunt wick confirmation ────────────────────────────────
+                        # Small-fav fast wick (0 < fav < 5%) within first 60s: wait 25s.
+                        # fav=0 is handled above (BOND_SL_NOPROGRESS) — genuine resolutions
+                        # exit immediately and never reach here.
+                        # Confirmed save: ETH YES -29% wick → +81% snap-back in 30s.
+                        _is_zero_fav_fast_wick = 0.0 < _fav_sl < 0.05 and _held_s <= 60
                         if _is_zero_fav_fast_wick:
                             _arm_ts = self._bond_sl_arm_ts.get(token_id)
                             if _arm_ts is None:
