@@ -312,43 +312,84 @@ if bond_trades:
                   f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
 
         # ── pre_score (Layer 1, observation mode) ──────────────────────────
-        # Composite of pre-causal features. Bucketed globally first; once
-        # n≥30 per (regime,zone) we'll repeat with rolling regime+zone buckets.
-        _ps_trades = [t for t in bond_trades if t.get("pre_score_version")]
-        if _ps_trades:
-            print(f"\n── BY PRE_SCORE (n={len(_ps_trades)}, observation mode) ─────────────────")
-            ps_buckets = [(-99, -1.0, "<-1.0  (very weak)"),
-                          (-1.0,  0.0, "-1.0 to 0.0"),
-                          ( 0.0,  1.0, "0.0 to 1.0"),
-                          ( 1.0,  2.0, "1.0 to 2.0"),
-                          ( 2.0,  3.0, "2.0 to 3.0"),
-                          ( 3.0, 99,   ">3.0  (very strong)")]
-            for lo, hi, lbl in ps_buckets:
-                v = [t["net_pnl"] for t in _ps_trades
-                     if lo <= (t.get("pre_score", 0) or 0) < hi]
-                if not v:
-                    continue
-                w = sum(1 for x in v if x > 0)
-                print(f"  {lbl:<22} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
-                      f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+        # Strict integrity gates BEFORE any aggregation:
+        #   1. exclude FAIL validity records (causality leakage)
+        #   2. group by schema_hash — never mix scores from different schemas
+        #
+        # Phase B trigger: PER-BUCKET (regime, zone) monotonic ordering with
+        # n ≥ 50, stable across 2 consecutive recomputes. Global monotonicity
+        # is unreliable because regime mix is non-stationary.
+        _ps_all = [t for t in bond_trades if t.get("pre_score_version")]
+        if _ps_all:
+            n_pass = sum(1 for t in _ps_all if (t.get("pre_score_validity") or "").startswith("PASS"))
+            n_fail = len(_ps_all) - n_pass
+            _hashes: dict = {}
+            for t in _ps_all:
+                h = t.get("pre_score_schema_hash", "?") or "?"
+                _hashes.setdefault(h, []).append(t)
 
-            # Per regime+zone bucket — needed for percentile calibration
-            print(f"\n── PRE_SCORE BY (REGIME, ZONE) — bucket health for percentile gating ──")
-            from collections import defaultdict as _dd
-            ps_groups: dict = _dd(list)
-            for t in _ps_trades:
-                key = (t.get("bond_macro_regime", "?") or "?",
-                       t.get("bond_entry_zone", "?") or "?")
-                ps_groups[key].append(t)
-            for (mr, zn), rows in sorted(ps_groups.items(),
-                                          key=lambda kv: -len(kv[1])):
-                scores = [t.get("pre_score", 0) or 0 for t in rows]
-                pnls   = [t["net_pnl"] for t in rows]
-                w      = sum(1 for x in pnls if x > 0)
-                ready  = "READY" if len(rows) >= 30 else f"need {30 - len(rows)} more"
-                print(f"  ({mr:<11}, {zn:<5}) n={len(rows):>3} WR={w/len(rows)*100:>4.0f}% "
-                      f"score[min/med/max]={min(scores):+.2f}/{sorted(scores)[len(scores)//2]:+.2f}/{max(scores):+.2f} "
-                      f"net={_fmt_pnl(sum(pnls))}  [{ready}]")
+            print(f"\n── PRE_SCORE INTEGRITY ────────────────────────────────────────────────")
+            print(f"  total scored: {len(_ps_all)}  PASS: {n_pass}  FAIL: {n_fail}")
+            for h, rows in sorted(_hashes.items(), key=lambda kv: -len(kv[1])):
+                vers = sorted({(r.get("pre_score_version") or "?") for r in rows})
+                print(f"  schema_hash={h}  n={len(rows)}  versions={','.join(vers)}")
+            if len(_hashes) > 1:
+                print(f"  ⚠ MULTIPLE SCHEMA HASHES — scores NOT comparable across hashes")
+
+            # Aggregate only PASS records, only the dominant schema hash
+            _dom_hash = max(_hashes.items(), key=lambda kv: len(kv[1]))[0] if _hashes else None
+            _ps_trades = [t for t in _ps_all
+                          if (t.get("pre_score_validity") or "").startswith("PASS")
+                          and (t.get("pre_score_schema_hash", "?") or "?") == _dom_hash]
+
+            if _ps_trades:
+                print(f"\n── BY PRE_SCORE (n={len(_ps_trades)}, schema={_dom_hash}, PASS only) ──")
+                ps_buckets = [(-99, -1.0, "<-1.0  (very weak)"),
+                              (-1.0,  0.0, "-1.0 to 0.0"),
+                              ( 0.0,  1.0, "0.0 to 1.0"),
+                              ( 1.0,  2.0, "1.0 to 2.0"),
+                              ( 2.0,  3.0, "2.0 to 3.0"),
+                              ( 3.0, 99,   ">3.0  (very strong)")]
+                for lo, hi, lbl in ps_buckets:
+                    v = [t["net_pnl"] for t in _ps_trades
+                         if lo <= (t.get("pre_score", 0) or 0) < hi]
+                    if not v:
+                        continue
+                    w = sum(1 for x in v if x > 0)
+                    print(f"  {lbl:<22} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                          f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+                print(f"  NOTE: global ordering NOT a Phase B trigger (regime mix is non-stationary)")
+
+                # Per (regime, zone) — Phase B readiness check
+                print(f"\n── PHASE B READINESS — per (REGIME, ZONE) bucket ──────────────────────")
+                print(f"  Trigger: n≥50  AND  top-tercile WR > bottom-tercile WR by ≥5pp")
+                from collections import defaultdict as _dd
+                ps_groups: dict = _dd(list)
+                for t in _ps_trades:
+                    key = (t.get("bond_macro_regime", "?") or "?",
+                           t.get("bond_entry_zone", "?") or "?")
+                    ps_groups[key].append(t)
+                for (mr, zn), rows in sorted(ps_groups.items(),
+                                              key=lambda kv: -len(kv[1])):
+                    scores = [t.get("pre_score", 0) or 0 for t in rows]
+                    rows_sorted = sorted(rows, key=lambda t: t.get("pre_score", 0) or 0)
+                    n = len(rows_sorted)
+                    if n >= 9:
+                        bot = rows_sorted[: n // 3]
+                        top = rows_sorted[-(n // 3):]
+                        wr_bot = sum(1 for t in bot if t["net_pnl"] > 0) / len(bot) * 100
+                        wr_top = sum(1 for t in top if t["net_pnl"] > 0) / len(top) * 100
+                        gap = wr_top - wr_bot
+                        gap_str = f"top_wr={wr_top:>4.0f}% bot_wr={wr_bot:>4.0f}% Δ={gap:+5.1f}pp"
+                    else:
+                        gap, gap_str = 0.0, "(need n≥9 for terciles)"
+                    if n >= 50 and gap >= 5.0:
+                        ready = "✓ PHASE_B_READY"
+                    elif n < 50:
+                        ready = f"need {50 - n} more trades"
+                    else:
+                        ready = f"n=ok but Δ<5pp (gap={gap:+.1f}pp)"
+                    print(f"  ({mr:<11}, {zn:<5}) n={n:>3}  {gap_str}  → {ready}")
 
     # By path class (if any labels exist)
     by_p: dict = defaultdict(list)

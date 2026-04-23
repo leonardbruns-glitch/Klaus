@@ -263,6 +263,8 @@ class SniperSignal:
     # rolling regime+zone percentiles are calibrated (Phase B).
     pre_score: float = 0.0
     pre_score_version: str = ""
+    pre_score_schema_hash: str = ""    # 8-char hash of feature schema — drift detector
+    pre_score_validity: str = ""       # "PASS" or "FAIL:reason1,reason2" — leakage gate
     pre_score_accel:  float = 0.0   # momentum persistence component
     pre_score_daccel: float = 0.0   # directional flow alignment component
     pre_score_edge:   float = 0.0   # edge trajectory (rising/fading) component

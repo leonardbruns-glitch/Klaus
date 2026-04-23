@@ -177,6 +177,8 @@ class TradeRecord:
     # pre_score (Layer 1 — strictly pre-causal, observation mode, no gating)
     pre_score: float = 0.0
     pre_score_version: str = ""
+    pre_score_schema_hash: str = ""
+    pre_score_validity: str = ""
     pre_score_accel:  float = 0.0
     pre_score_daccel: float = 0.0
     pre_score_edge:   float = 0.0
@@ -380,6 +382,8 @@ class FeedbackEngine:
         bond_entry_zone: str = "",
         pre_score: float = 0.0,
         pre_score_version: str = "",
+        pre_score_schema_hash: str = "",
+        pre_score_validity: str = "",
         pre_score_accel: float = 0.0,
         pre_score_daccel: float = 0.0,
         pre_score_edge: float = 0.0,
@@ -557,6 +561,8 @@ class FeedbackEngine:
             bond_entry_zone=bond_entry_zone,
             pre_score=round(pre_score, 4),
             pre_score_version=pre_score_version,
+            pre_score_schema_hash=pre_score_schema_hash,
+            pre_score_validity=pre_score_validity,
             pre_score_accel=round(pre_score_accel, 4),
             pre_score_daccel=round(pre_score_daccel, 4),
             pre_score_edge=round(pre_score_edge, 4),

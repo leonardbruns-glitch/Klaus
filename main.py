@@ -14,6 +14,7 @@ Loop cadence:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import math
 from collections import deque
@@ -24,6 +25,33 @@ import time
 import traceback
 from datetime import datetime, timezone
 from typing import Dict, Optional, Set
+
+# ---------------------------------------------------------------------------
+# pre_score schema (Layer 1, strictly pre-causal entry quality)
+# ---------------------------------------------------------------------------
+# Bump _PRE_SCORE_VERSION whenever the feature set, weights, or thresholds
+# change. The schema hash is computed from the feature tuple below and
+# logged + persisted with every entry. If you change a feature without
+# updating both the version AND the tuple, the hash diverges from the
+# version string — that mismatch is the leakage detector.
+#
+# Each tuple entry: (feature_name:type, version_token).
+# version_token must encode the data window or source so any silent change
+# (e.g. switching from backward to forward window) bumps the hash.
+_PRE_SCORE_VERSION = "v1_2026_04_observation"
+_PRE_SCORE_FEATURE_SCHEMA = (
+    ("accel_sustained:bool", "v1"),
+    ("has_hist:bool",        "v1"),
+    ("delta_accel_30s:f",    "v1:bw30s"),   # bw30s = backward 30s window
+    ("edge_drift_30s:f",     "v1:bw30s"),
+    ("stab_class:str",       "v1:5flags_t0"),
+    ("vel_for_stab:f",       "v1:t0"),
+    ("class_ev:f",           "v1:EV_PRIOR_v1_2026_04_freeze"),
+    ("token_dir_sign:f",     "v1:t0"),
+)
+_PRE_SCORE_SCHEMA_HASH = hashlib.sha256(
+    "|".join(f"{n}@{v}" for n, v in _PRE_SCORE_FEATURE_SCHEMA).encode()
+).hexdigest()[:8]
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
@@ -2103,8 +2131,12 @@ class KlausBot:
             # ── pre_score (Layer 1, strictly pre-causal, OBSERVATION mode) ─────
             # Composite of pre-entry features only — frozen at entry timestamp.
             # No forward-looking data. No gating yet; rolling regime+zone
-            # percentile thresholds activate after Phase A data collection
-            # (need ≥30 trades per regime+zone bucket).
+            # percentile thresholds activate after Phase A data collection.
+            #
+            # Phase B trigger requires PER-BUCKET (not global) criteria:
+            #   - n ≥ 50 in the (regime, zone) bucket
+            #   - top-tercile WR > bottom-tercile WR by ≥5pp WITHIN the bucket
+            #   - stable across 2 consecutive recomputes
             #
             # Components (each ~[-1.5, +1.5]):
             #   accel:  +1.5 sustained / +0.5 has_hist / 0 no hist
@@ -2114,7 +2146,6 @@ class KlausBot:
             #   vel:    +0.5 vel aligned / -0.5 against / 0 cold/flat
             #   class:  EV_PRIOR[bond_entry_class] × 1.0 (frozen prior)
             from analytics.regime_filter import EV_PRIOR as _EV_PRIOR
-            PRE_SCORE_VERSION = "v1_2026_04_observation"
             _token_dir_sign = +1.0 if _token_dir == "up" else -1.0
 
             _pre_accel_score  = 1.5 if _accel_sustained else (0.5 if _has_hist else 0.0)
@@ -2136,26 +2167,49 @@ class KlausBot:
                 3,
             )
 
-            signal.bond_entry_zone   = _bond_zone
-            signal.pre_score         = _pre_score
-            signal.pre_score_version = PRE_SCORE_VERSION
-            signal.pre_score_accel   = _pre_accel_score
-            signal.pre_score_daccel  = _pre_daccel_score
-            signal.pre_score_edge    = _pre_edge_score
-            signal.pre_score_stab    = _pre_stab_score
-            signal.pre_score_vel     = _pre_vel_score
-            signal.pre_score_class   = _pre_class_score
+            # ── Causality validity check (no-leakage assertion) ─────────────
+            # Verifies every backward-looking buffer used for pre_score has
+            # all timestamps ≤ entry_ts. FAIL records are persisted but
+            # excluded from percentile calibration in Phase B.
+            # Tolerance 0.5s for clock noise between scan loop and async ts.
+            _validity_failures: list[str] = []
+            if _snaps:
+                _max_snap_ts = max(s[0] for s in _snaps)
+                if _max_snap_ts > now + 0.5:
+                    _validity_failures.append(f"snap_future:+{_max_snap_ts - now:.2f}s")
+            if _ref30 and _ref30[0] > now + 0.5:
+                _validity_failures.append(f"ref30_future:+{_ref30[0] - now:.2f}s")
+            if _ref15 and _ref15[0] > now + 0.5:
+                _validity_failures.append(f"ref15_future:+{_ref15[0] - now:.2f}s")
+            _pre_score_validity = "PASS" if not _validity_failures else "FAIL:" + ",".join(_validity_failures)
+
+            signal.bond_entry_zone       = _bond_zone
+            signal.pre_score             = _pre_score
+            signal.pre_score_version     = _PRE_SCORE_VERSION
+            signal.pre_score_schema_hash = _PRE_SCORE_SCHEMA_HASH
+            signal.pre_score_validity    = _pre_score_validity
+            signal.pre_score_accel       = _pre_accel_score
+            signal.pre_score_daccel      = _pre_daccel_score
+            signal.pre_score_edge        = _pre_edge_score
+            signal.pre_score_stab        = _pre_stab_score
+            signal.pre_score_vel         = _pre_vel_score
+            signal.pre_score_class       = _pre_class_score
 
             logger.info(
                 "PRE_SCORE %s/%s [%s/%s] | total=%+.2f | "
                 "accel=%+.2f daccel=%+.2f edge=%+.2f stab=%+.2f vel=%+.2f class=%+.2f | "
-                "[%s] OBSERVATION_ONLY",
+                "[%s/%s] %s OBSERVATION_ONLY",
                 token.asset, token.side, _bond_zone, _macro_regime,
                 _pre_score,
                 _pre_accel_score, _pre_daccel_score, _pre_edge_score,
                 _pre_stab_score, _pre_vel_score, _pre_class_score,
-                PRE_SCORE_VERSION,
+                _PRE_SCORE_VERSION, _PRE_SCORE_SCHEMA_HASH, _pre_score_validity,
             )
+            if _pre_score_validity != "PASS":
+                logger.warning(
+                    "PRE_SCORE LEAKAGE %s/%s | %s — record will be EXCLUDED from percentile calibration",
+                    token.asset, token.side, _pre_score_validity,
+                )
 
             # Edge-confidence stake scaling:
             #   edge < 0.05      → 50%  (weak, capped exposure)
@@ -4269,6 +4323,8 @@ class KlausBot:
                     bond_entry_zone=str(getattr(signal, "bond_entry_zone", "") or ""),
                     pre_score=float(getattr(signal, "pre_score", 0.0) or 0.0),
                     pre_score_version=str(getattr(signal, "pre_score_version", "") or ""),
+                    pre_score_schema_hash=str(getattr(signal, "pre_score_schema_hash", "") or ""),
+                    pre_score_validity=str(getattr(signal, "pre_score_validity", "") or ""),
                     pre_score_accel=float(getattr(signal, "pre_score_accel", 0.0) or 0.0),
                     pre_score_daccel=float(getattr(signal, "pre_score_daccel", 0.0) or 0.0),
                     pre_score_edge=float(getattr(signal, "pre_score_edge", 0.0) or 0.0),
