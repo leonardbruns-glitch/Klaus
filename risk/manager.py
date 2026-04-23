@@ -126,6 +126,7 @@ class PositionMeta:
     entry_snap_30s_pct: float = 0.0  # (current - entry) / entry at T+30s, 0.0 = not yet captured
     entry_snap_60s_pct: float = 0.0  # same metric at T+60s
     cascade_state: str = "UNKNOWN"   # UNKNOWN → RECOVERING | CASCADING (frozen once written)
+    scale_in_done: bool = False      # True after smooth-runner scale-in fires (once per trade)
 
     def __post_init__(self) -> None:
         if self.remaining_shares == 0.0:
@@ -312,6 +313,7 @@ class RiskManager:
                     "moon_bag_high": pos.moon_bag_high,
                     "bond_tp1_done": pos.bond_tp1_done,
                     "bond_tp2_done": pos.bond_tp2_done,
+                    "scale_in_done": pos.scale_in_done,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -381,6 +383,7 @@ class RiskManager:
                 pos.lowest_price = float(d.get("lowest_price", pos.entry_price))
                 pos.bond_tp1_done = bool(d.get("bond_tp1_done", False))
                 pos.bond_tp2_done = bool(d.get("bond_tp2_done", False))
+                pos.scale_in_done = bool(d.get("scale_in_done", False))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.

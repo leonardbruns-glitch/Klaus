@@ -598,6 +598,69 @@ class KlausBot:
                       and current_price > pos.mae_bounce_peak):
                     pos.mae_bounce_peak = current_price
 
+                # ── Scale-in: smooth runner at T+20-75s ──────────────────────────
+                # Trigger: fav ≥ 25% (peak gain from entry), adv < 8% (clean run —
+                # no significant wick), drawdown from peak ≤ 20% (still near high).
+                # Stake = original stake (same size). One-shot per trade.
+                if (not pos.scale_in_done
+                        and 20.0 <= _held_s <= 75.0
+                        and pos.entry_price > 0
+                        and pos.highest_price > pos.entry_price
+                        and token_id not in self._exit_in_progress):
+                    _si_fav = (pos.highest_price - pos.entry_price) / pos.entry_price
+                    _si_adv = (
+                        (pos.entry_price - pos.lowest_price) / pos.entry_price
+                        if pos.lowest_price < pos.entry_price else 0.0
+                    )
+                    _si_ddown = (pos.highest_price - current_price) / pos.highest_price
+                    if _si_fav >= 0.25 and _si_adv < 0.08 and _si_ddown <= 0.20:
+                        _si_stake = pos.stake
+                        _tok_si = self.feed.tokens.get(token_id)
+                        _neg_risk_si = getattr(_tok_si, "neg_risk", False) if _tok_si else False
+                        _tick_si = getattr(_tok_si, "tick_size", "0.01") if _tok_si else "0.01"
+                        logger.info(
+                            "SCALE_IN_TRIGGER %s/%s | fav=%.1f%% adv=%.1f%% "
+                            "ddown_from_high=%.1f%% held=%.0fs stake=$%.2f",
+                            pos.asset, pos.direction.name,
+                            _si_fav * 100, _si_adv * 100,
+                            _si_ddown * 100, _held_s, _si_stake,
+                        )
+                        try:
+                            _si_fill = await self.orders.limit_buy(
+                                token_id, current_price, _si_stake,
+                                pos.direction,
+                                neg_risk=_neg_risk_si,
+                                tick_size=_tick_si,
+                            )
+                            if (_si_fill.status == OrderStatus.FILLED
+                                    and _si_fill.total_size > 0):
+                                self.risk.add_to_position(
+                                    token_id=token_id,
+                                    add_shares=_si_fill.total_size,
+                                    add_fill_price=_si_fill.avg_fill_price or current_price,
+                                    add_stake=_si_stake,
+                                )
+                                pos.scale_in_done = True
+                                logger.info(
+                                    "SCALE_IN_FILLED %s/%s | +%.2f shares @ %.4f "
+                                    "blended_entry=%.4f",
+                                    pos.asset, pos.direction.name,
+                                    _si_fill.total_size,
+                                    _si_fill.avg_fill_price or current_price,
+                                    pos.entry_price,
+                                )
+                            else:
+                                logger.warning(
+                                    "SCALE_IN_FAIL %s/%s | status=%s err=%s",
+                                    pos.asset, pos.direction.name,
+                                    _si_fill.status, _si_fill.error,
+                                )
+                        except Exception as _si_exc:
+                            logger.warning(
+                                "SCALE_IN_ERROR %s/%s: %s",
+                                pos.asset, pos.direction.name, _si_exc,
+                            )
+
                 # ── Hard SL: -20% from T+30s, with shakeout protection ──────────
                 if (_held_s >= 30.0
                         and bond_move <= -0.20
