@@ -2017,35 +2017,71 @@ class KlausBot:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
-            # ── Velocity-quality stake modulation ("delay capital, not signal") ──
-            # Three conditions that justify full EV-prior size. If NONE are met,
-            # reduce stake — preserves signal access but limits exposure on entries
-            # that lack directional confirmation (higher EARLY_CHOP probability).
+            # ── Entry stability (BOND_STAB) → stake scaling ────────────────────
+            # Five independent quality flags computed from entry-time primitives.
+            # stab_class now drives stake — not just observability.
             #
-            #   (1) vel_confirmed:  velocity actively in trade direction (INIT class)
-            #   (2) edge_strong:    adj_edge ≥ 0.10 AND edge improving (drift > 0.003)
-            #   (3) accel_confirms: 30s history shows delta accelerating toward direction
+            #   stab_xp_bad:    edge < 60% of remaining upside (poor execution quality)
+            #   stab_slip_bad:  ask−bid spread ≥ 3¢ (wide market, slippage risk)
+            #   stab_delta_bad: directional_delta < −8% (asset moving against token)
+            #   stab_edge_weak: raw edge < 0.08 (thin margin)
+            #   stab_vel_flat:  |vel| < 0.01%/s (no directional velocity signal)
             #
-            # Discount only applies to EARLY and LATE zones (CORE-A needs vel, CORE-B
-            # needs non-flat vel, IMPULSE needs |vel|>0.04 — all bypass COLD vel anyway).
-            _vel_quality_1 = _vel_init   # velocity active and directionally aligned
-            _accel_aligned = _has_hist and (
-                (_token_dir == "up"   and _delta_accel > 0.02) or
-                (_token_dir == "down" and _delta_accel < -0.02)
+            # Fixes vs previous version:
+            #   — stab_delta_bad now uses _directional_delta (not raw _bond_delta),
+            #     so YES-of-DOWN tokens with negative raw delta aren't mis-flagged.
+            #   — stab_vel_flat included in score (was logged only).
+            #   — stab_slip_bad threshold changed ≥ 0.03 (was > 0.03, missed exact 0.03).
+            #   — stab_class multiplied into stake before edge scaling.
+            _best_bid_entry = ob.bids[0][0] if ob and ob.bids else 0.0
+            _slip_e         = round(max(0.0, ask - _best_bid_entry), 4)
+            _xp             = round(_edge / max(0.01, 1.0 - ask), 4)
+            _vel_for_stab   = 0.0 if _vel_cold else _vel_now
+
+            stab_xp_bad    = _xp                < 0.60
+            stab_slip_bad  = _slip_e            >= 0.03   # ≥ not >
+            stab_delta_bad = _directional_delta < -0.08   # directional, not raw
+            stab_edge_weak = _edge              < 0.08
+            stab_vel_flat  = abs(_vel_for_stab) < 0.01    # now scored, not logged only
+
+            stability_score = (
+                int(stab_xp_bad)
+                + int(stab_slip_bad)
+                + int(stab_delta_bad)
+                + int(stab_edge_weak)
+                + int(stab_vel_flat)
             )
-            _vel_quality_2 = _adjusted_edge >= 0.10 and (_edge_drift > 0.003 or _accel_aligned)
-            _vel_quality_3 = _accel_aligned   # snap30 momentum already moving toward direction
-            _vel_quality_ok = _vel_quality_1 or _vel_quality_2 or _vel_quality_3
-            if not _vel_quality_ok and _bond_zone in ("EARLY", "LATE"):
-                _vq_disc = 0.60 if _bond_zone == "EARLY" else 0.75
-                _orig_vq = decision.stake
-                decision.stake = max(1.0, round(_orig_vq * _vq_disc, 2))
+            stab_class = (
+                "FATAL"     if stability_score >= 4 else
+                "HIGH_RISK" if stability_score >= 3 else
+                "NOISY"     if stability_score >= 1 else
+                "CLEAN"
+            )
+            _STAB_MULT = {"CLEAN": 1.00, "NOISY": 0.85, "HIGH_RISK": 0.60, "FATAL": 0.40}
+            _stab_mult = _STAB_MULT[stab_class]
+            if _stab_mult < 1.0:
+                _orig_stab = decision.stake
+                decision.stake = max(1.0, round(_orig_stab * _stab_mult, 2))
                 logger.info(
-                    "BOND VEL-QUALITY DISCOUNT %s/%s [%s]: $%.2f → $%.2f "
-                    "(vel=%s adj_e=%.4f drift=%+.4f accel=%+.4f — no confirmation)",
+                    "BOND_STAB %s/%s [%s] | class=%-9s score=%d → %.0f%% size | "
+                    "xp_bad=%s slip_bad=%s delta_bad=%s edge_weak=%s vel_flat=%s | "
+                    "xp=%.3f slip_e=%.4f edge=%.4f delta=%+.3f%% vel=%+.4f%% | "
+                    "$%.2f → $%.2f",
                     token.asset, token.side, _dzone,
-                    _orig_vq, decision.stake,
-                    _vel_label, _adjusted_edge, _edge_drift, _delta_accel,
+                    stab_class, stability_score, _stab_mult * 100,
+                    stab_xp_bad, stab_slip_bad, stab_delta_bad, stab_edge_weak, stab_vel_flat,
+                    _xp, _slip_e, _edge, _bond_delta, _vel_for_stab,
+                    _orig_stab, decision.stake,
+                )
+            else:
+                logger.info(
+                    "BOND_STAB %s/%s [%s] | class=%-9s score=%d | "
+                    "xp_bad=%s slip_bad=%s delta_bad=%s edge_weak=%s vel_flat=%s | "
+                    "xp=%.3f slip_e=%.4f edge=%.4f delta=%+.3f%% vel=%+.4f%%",
+                    token.asset, token.side, _dzone,
+                    stab_class, stability_score,
+                    stab_xp_bad, stab_slip_bad, stab_delta_bad, stab_edge_weak, stab_vel_flat,
+                    _xp, _slip_e, _edge, _bond_delta, _vel_for_stab,
                 )
 
             # Edge-confidence stake scaling:
@@ -2093,41 +2129,6 @@ class KlausBot:
             #   edge   = _edge               — raw computed edge
             #   delta  = _bond_delta         — underlying window delta (%)
             #   vel    = _vel_now            — underlying velocity (%/s)
-            _best_bid_entry = ob.bids[0][0] if ob and ob.bids else 0.0
-            _slip_e = round(max(0.0, ask - _best_bid_entry), 4)
-            _xp = round(_edge / max(0.01, 1.0 - ask), 4)
-            _vel_for_stab = 0.0 if _vel_cold else _vel_now
-
-            stab_xp_bad    = _xp        < 0.60
-            stab_slip_bad  = _slip_e    > 0.03
-            stab_delta_bad = _bond_delta < -0.08
-            stab_edge_weak = _edge      < 0.08
-            stab_vel_flat  = abs(_vel_for_stab) < 0.01   # optional, logged only
-
-            stability_score = (
-                int(stab_xp_bad)
-                + int(stab_slip_bad)
-                + int(stab_delta_bad)
-                + int(stab_edge_weak)
-            )
-            if stability_score >= 3:
-                stab_class = "FATAL"
-            elif stability_score == 2:
-                stab_class = "HIGH_RISK"
-            elif stability_score == 1:
-                stab_class = "NOISY"
-            else:
-                stab_class = "CLEAN"
-
-            logger.info(
-                "BOND_STAB %s/%s [%s] | class=%-9s score=%d | "
-                "xp_bad=%s slip_bad=%s delta_bad=%s edge_weak=%s vel_flat=%s | "
-                "xp=%.3f slip_e=%.4f edge=%.4f fv=%.4f delta=%+.3f%% vel=%+.4f%%",
-                token.asset, token.side, _dzone,
-                stab_class, stability_score,
-                stab_xp_bad, stab_slip_bad, stab_delta_bad, stab_edge_weak, stab_vel_flat,
-                _xp, _slip_e, _edge, _fair_value, _bond_delta, _vel_for_stab,
-            )
             _b_fired += 1
             asyncio.create_task(
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
