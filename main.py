@@ -661,7 +661,7 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
-                # ── No-progress fast SL: fav=0 at T+20s → immediate exit ────────
+                # ── No-progress fast SL: fav=0 at T+12s → immediate exit ────────
                 # If price NEVER moved in our favor (peak_bond_move==0) and we're
                 # at -20%, this is a genuine resolution not a stop-hunt wick.
                 # Stop-hunts always show fav>0 first (wick starts after a run);
@@ -669,9 +669,9 @@ class KlausBot:
                 # Data (n=10): fav=0 SL trades exited at avg -65% vs -20% threshold
                 # because the 25s confirmation window burned 25s of freefall.
                 # All 10 confirmed non-recoveries (from_exit stayed near -96%).
-                # Fires 10s earlier (T+20s) and with zero confirmation delay.
+                # T+12s: 8/10 fav=0 trades breach -20% by T=12s; fires immediately.
                 _fav_now = self._peak_bond_move.get(token_id, 0.0)
-                if (_held_s >= 20.0
+                if (_held_s >= 12.0
                         and bond_move <= -0.20
                         and _fav_now == 0.0
                         and token_id not in self._exit_in_progress):
