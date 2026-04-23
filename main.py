@@ -1990,6 +1990,12 @@ class KlausBot:
                 bond_delta_at_entry=round(_bond_delta, 4),
                 bond_adj_edge_at_entry=round(_adjusted_edge, 4),
                 bond_vel_at_entry=round(0.0 if _vel_cold else abs(_vel_now), 4),
+                bond_delta_accel_30s=round(_delta_accel, 4),
+                bond_accel_15s=round(_accel_15, 4) if _accel_15 is not None else 0.0,
+                bond_edge_drift_30s=round(_edge_drift, 4),
+                bond_accel_sustained=bool(_accel_sustained),
+                bond_has_hist=bool(_has_hist),
+                bond_smooth_delta_60s=round(_smooth_delta, 4),
             )
 
             tpsl = TPSLLevels(
@@ -4197,6 +4203,12 @@ class KlausBot:
                     bond_stab_delta_bad=bool(getattr(signal, "bond_stab_delta_bad", False)),
                     bond_stab_edge_weak=bool(getattr(signal, "bond_stab_edge_weak", False)),
                     bond_stab_vel_flat=bool(getattr(signal, "bond_stab_vel_flat", False)),
+                    bond_delta_accel_30s=float(getattr(signal, "bond_delta_accel_30s", 0.0) or 0.0),
+                    bond_accel_15s=float(getattr(signal, "bond_accel_15s", 0.0) or 0.0),
+                    bond_edge_drift_30s=float(getattr(signal, "bond_edge_drift_30s", 0.0) or 0.0),
+                    bond_accel_sustained=bool(getattr(signal, "bond_accel_sustained", False)),
+                    bond_has_hist=bool(getattr(signal, "bond_has_hist", False)),
+                    bond_smooth_delta_60s=float(getattr(signal, "bond_smooth_delta_60s", 0.0) or 0.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

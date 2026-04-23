@@ -127,6 +127,11 @@ for t in trades:
     b10  = g(t, "mae_bounce_10s_pct")                  # bounce within 10s of MAE (% of entry)
     stab = (g(t, "bond_stab_class", "") or "")[:9]     # CLEAN / NOISY / HIGH_RISK / FATAL
     sscore = g(t, "bond_stability_score", 0) or 0
+    # Pre-entry trajectory (what the market was doing for the 30s before entry)
+    daccel30 = g(t, "bond_delta_accel_30s")
+    edrift30 = g(t, "bond_edge_drift_30s")
+    aclsust  = g(t, "bond_accel_sustained")
+    has_hist = g(t, "bond_has_hist")
 
     print(
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
@@ -134,6 +139,7 @@ for t in trades:
         f"fv={pf(fv, ',.4f')} edge={pf(edge, '+.3f')} | "
         f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f')} elap={pf(elap, '.2f')} | "
         f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} mac={mac or '—':<9} pc={pc or '—'} stab={(stab or '—'):<9}/{sscore} | "
+        f"pre30: daccel={pf(daccel30, '+.3f')} edrift={pf(edrift30, '+.4f')} sust={'T' if aclsust else 'F' if aclsust is False else '—'} hist={'T' if has_hist else 'F' if has_hist is False else '—'} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
         f"adv={pf(adv, '+.1f', '%')}@{ps(t_adv)} fav={pf(fav, '+.1f', '%')}@{ps(t_fav)} bounce10={pf(b10, '+.1f', '%')} | "
         f"from_exit: +30s={d30} +60s={d60} +120s={d120} | from_entry: +30s={e30} +60s={e60} +120s={e120} ec={ec2} | "
@@ -246,6 +252,64 @@ if bond_trades:
             label = f.replace("bond_stab_", "").replace("_", " ")
             print(f"  {label:<11} n={len(vs):>3}  WR={w/len(vs)*100:>4.0f}%  "
                   f"avg={_fmt_pnl(sum(vs)/len(vs))}  sum={_fmt_pnl(sum(vs))}")
+
+    # ── Pre-entry trajectory analysis ──────────────────────────────────────
+    _traj_trades = [t for t in bond_trades if "bond_delta_accel_30s" in t]
+    if _traj_trades:
+        def _split(pred, label_t, label_f):
+            t_yes = [t["net_pnl"] for t in _traj_trades if pred(t)]
+            t_no  = [t["net_pnl"] for t in _traj_trades if not pred(t)]
+            for lbl, v in ((label_t, t_yes), (label_f, t_no)):
+                if not v:
+                    continue
+                w = sum(1 for x in v if x > 0)
+                print(f"  {lbl:<28} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                      f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+        print(f"\n── BY PRE-ENTRY TRAJECTORY ─────────────────────────────────────────────")
+
+        # Delta acceleration (30s): building vs flat vs decaying toward trade direction
+        # Aligned: for UP tokens, positive daccel is good; for DOWN tokens, negative is good.
+        def _daccel_aligned(t):
+            da = t.get("bond_delta_accel_30s", 0) or 0
+            is_up = "YES" in (t.get("direction") or "")  # proxy — YES-of-UP tokens
+            # Use bond_delta direction: if delta and token agree, accel aligned means
+            # accel in same sign as delta. Approximation: treat sign of macro regime.
+            mac = t.get("bond_macro_regime", "")
+            if mac == "TREND_UP":   return da > 0.01
+            if mac == "TREND_DOWN": return da < -0.01
+            return abs(da) > 0.01
+
+        _split(_daccel_aligned,
+               "daccel aligned (|>0.01|)", "daccel flat/against")
+
+        # Edge drift: rising vs falling vs flat
+        _split(lambda t: (t.get("bond_edge_drift_30s", 0) or 0) > 0.003,
+               "edge rising (drift>0.003)", "edge flat/falling")
+
+        # Sustained acceleration (15s AND 30s both positive)
+        _split(lambda t: bool(t.get("bond_accel_sustained")),
+               "accel_sustained", "not sustained")
+
+        # Has 30s history at entry
+        _split(lambda t: bool(t.get("bond_has_hist")),
+               "has_hist (≥30s)", "no_hist (cold start)")
+
+        # Delta acceleration buckets — magnitude-based
+        print(f"\n── BY DELTA_ACCEL_30s BUCKET ───────────────────────────────────────────")
+        buckets = [(-99, -0.03, "<-0.03 (decaying)"),
+                   (-0.03, -0.01, "-0.03 to -0.01"),
+                   (-0.01, 0.01, "|<0.01| (flat)"),
+                   (0.01, 0.03, "+0.01 to +0.03"),
+                   (0.03, 99, ">+0.03 (building)")]
+        for lo, hi, lbl in buckets:
+            v = [t["net_pnl"] for t in _traj_trades
+                 if lo <= (t.get("bond_delta_accel_30s", 0) or 0) < hi]
+            if not v:
+                continue
+            w = sum(1 for x in v if x > 0)
+            print(f"  {lbl:<22} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
 
     # By path class (if any labels exist)
     by_p: dict = defaultdict(list)

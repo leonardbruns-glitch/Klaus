@@ -248,6 +248,13 @@ class SniperSignal:
     bond_stab_delta_bad: bool = False     # directional delta < −8% (asset against token)
     bond_stab_edge_weak: bool = False     # raw edge < 0.08
     bond_stab_vel_flat: bool = False      # |vel| < 0.01%/s (no directional signal)
+    # Pre-entry trajectory (30s/15s history leading into the entry moment)
+    bond_delta_accel_30s: float = 0.0     # delta change vs 30s ref (signed %)
+    bond_accel_15s: float = 0.0           # delta change vs 15s ref (persistence check)
+    bond_edge_drift_30s: float = 0.0      # edge change vs 30s ref (rising/fading)
+    bond_accel_sustained: bool = False    # 15s + 30s both built positively
+    bond_has_hist: bool = False           # 30s history available at entry
+    bond_smooth_delta_60s: float = 0.0    # 60s smoothed delta (macro regime input)
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):

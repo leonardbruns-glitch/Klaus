@@ -166,6 +166,13 @@ class TradeRecord:
     bond_stab_delta_bad: bool = False
     bond_stab_edge_weak: bool = False
     bond_stab_vel_flat: bool = False
+    # Pre-entry trajectory — what the market was doing for the 30s before entry
+    bond_delta_accel_30s: float = 0.0
+    bond_accel_15s: float = 0.0
+    bond_edge_drift_30s: float = 0.0
+    bond_accel_sustained: bool = False
+    bond_has_hist: bool = False
+    bond_smooth_delta_60s: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +361,12 @@ class FeedbackEngine:
         bond_stab_delta_bad: bool = False,
         bond_stab_edge_weak: bool = False,
         bond_stab_vel_flat: bool = False,
+        bond_delta_accel_30s: float = 0.0,
+        bond_accel_15s: float = 0.0,
+        bond_edge_drift_30s: float = 0.0,
+        bond_accel_sustained: bool = False,
+        bond_has_hist: bool = False,
+        bond_smooth_delta_60s: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -516,6 +529,12 @@ class FeedbackEngine:
             bond_stab_delta_bad=bond_stab_delta_bad,
             bond_stab_edge_weak=bond_stab_edge_weak,
             bond_stab_vel_flat=bond_stab_vel_flat,
+            bond_delta_accel_30s=round(bond_delta_accel_30s, 4),
+            bond_accel_15s=round(bond_accel_15s, 4),
+            bond_edge_drift_30s=round(bond_edge_drift_30s, 4),
+            bond_accel_sustained=bond_accel_sustained,
+            bond_has_hist=bond_has_hist,
+            bond_smooth_delta_60s=round(bond_smooth_delta_60s, 4),
         )
 
         self._recent.append(rec)
