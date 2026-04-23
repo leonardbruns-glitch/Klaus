@@ -4557,15 +4557,19 @@ class KlausBot:
             # Orphaned balance — not in tracked positions. Force-sell immediately.
             if token_id in self._exit_in_progress:
                 continue
+            token_meta = self.feed.tokens.get(token_id)
+            ob = self.feed.get_order_book(token_id)
+            sell_price = ob.bids[0][0] if (ob and ob.bids) else 0.50
+            # Skip dust below CLOB $1 minimum (+50% buffer). Cannot be sold —
+            # retry loop was hammering /trades every 30s forever.
+            if balance * sell_price < 1.50:
+                continue
             logger.warning(
                 "WINDOW-END ORPHAN %s/%s: %.4f shares in CLOB wallet, not tracked — force-selling",
                 asset, side, balance,
             )
             self._exit_in_progress.add(token_id)
             try:
-                token_meta = self.feed.tokens.get(token_id)
-                ob = self.feed.get_order_book(token_id)
-                sell_price = ob.bids[0][0] if (ob and ob.bids) else 0.50
                 orphan_fills = await self.orders.cascade_sell(
                     token_id=token_id,
                     total_shares=balance,
