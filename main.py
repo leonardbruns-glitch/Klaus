@@ -2084,6 +2084,16 @@ class KlausBot:
                     _xp, _slip_e, _edge, _bond_delta, _vel_for_stab,
                 )
 
+            # Persist stab fields on the signal so they flow through to record_trade
+            # at close (signal is stored in _open_meta by reference).
+            signal.bond_stab_class      = stab_class
+            signal.bond_stability_score = stability_score
+            signal.bond_stab_xp_bad     = stab_xp_bad
+            signal.bond_stab_slip_bad   = stab_slip_bad
+            signal.bond_stab_delta_bad  = stab_delta_bad
+            signal.bond_stab_edge_weak  = stab_edge_weak
+            signal.bond_stab_vel_flat   = stab_vel_flat
+
             # Edge-confidence stake scaling:
             #   edge < 0.05      → 50%  (weak, capped exposure)
             #   edge 0.05–0.07   → 75%  (moderate conviction)
@@ -4180,6 +4190,13 @@ class KlausBot:
                     bond_entry_class=pos.bond_entry_class,
                     bond_macro_regime=pos.bond_macro_regime,
                     mae_bounce_10s_pct=_bounce_pct,
+                    bond_stab_class=getattr(signal, "bond_stab_class", ""),
+                    bond_stability_score=int(getattr(signal, "bond_stability_score", 0)),
+                    bond_stab_xp_bad=bool(getattr(signal, "bond_stab_xp_bad", False)),
+                    bond_stab_slip_bad=bool(getattr(signal, "bond_stab_slip_bad", False)),
+                    bond_stab_delta_bad=bool(getattr(signal, "bond_stab_delta_bad", False)),
+                    bond_stab_edge_weak=bool(getattr(signal, "bond_stab_edge_weak", False)),
+                    bond_stab_vel_flat=bool(getattr(signal, "bond_stab_vel_flat", False)),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

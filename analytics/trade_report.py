@@ -125,13 +125,15 @@ for t in trades:
     mac  = (g(t, "bond_macro_regime", "") or "")[:8]   # TREND_UP / TREND_DOWN / CHOP
     pc   = (g(t, "path_class", "") or "")[:12]         # SMOOTH_RUNNER / EARLY_CHOP / DEAD_DRIFT
     b10  = g(t, "mae_bounce_10s_pct")                  # bounce within 10s of MAE (% of entry)
+    stab = (g(t, "bond_stab_class", "") or "")[:9]     # CLEAN / NOISY / HIGH_RISK / FATAL
+    sscore = g(t, "bond_stability_score", 0) or 0
 
     print(
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
         f"ep={ep:.4f} xp={xp:.4f} | "
         f"fv={pf(fv, ',.4f')} edge={pf(edge, '+.3f')} | "
         f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f')} elap={pf(elap, '.2f')} | "
-        f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} mac={mac or '—':<9} pc={pc or '—'} | "
+        f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} mac={mac or '—':<9} pc={pc or '—'} stab={(stab or '—'):<9}/{sscore} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
         f"adv={pf(adv, '+.1f', '%')}@{ps(t_adv)} fav={pf(fav, '+.1f', '%')}@{ps(t_fav)} bounce10={pf(b10, '+.1f', '%')} | "
         f"from_exit: +30s={d30} +60s={d60} +120s={d120} | from_entry: +30s={e30} +60s={e60} +120s={e120} ec={ec2} | "
@@ -216,6 +218,34 @@ if bond_trades:
             w = sum(1 for x in v if x > 0)
             print(f"  {m:<12} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
                   f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+    # By BOND_STAB class (pre-entry quality → stake modulation)
+    by_stab: dict = defaultdict(list)
+    for t in bond_trades:
+        by_stab[t.get("bond_stab_class", "?") or "?"].append(t["net_pnl"])
+    if len(by_stab) > 1 or (len(by_stab) == 1 and "?" not in by_stab):
+        print(f"\n── BY STAB CLASS ───────────────────────────────────────────────────────")
+        _order = {"CLEAN": 0, "NOISY": 1, "HIGH_RISK": 2, "FATAL": 3, "?": 9}
+        for s in sorted(by_stab, key=lambda k: _order.get(k, 9)):
+            v = by_stab[s]
+            w = sum(1 for x in v if x > 0)
+            print(f"  {s:<11} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+    # By individual stab flag (frequency + PnL attribution)
+    _flags = ("bond_stab_xp_bad", "bond_stab_slip_bad", "bond_stab_delta_bad",
+              "bond_stab_edge_weak", "bond_stab_vel_flat")
+    _flag_any = any(any(t.get(f) for f in _flags) for t in bond_trades)
+    if _flag_any:
+        print(f"\n── BY STAB FLAG (trades where flag=True) ───────────────────────────────")
+        for f in _flags:
+            vs = [t["net_pnl"] for t in bond_trades if t.get(f)]
+            if not vs:
+                continue
+            w = sum(1 for x in vs if x > 0)
+            label = f.replace("bond_stab_", "").replace("_", " ")
+            print(f"  {label:<11} n={len(vs):>3}  WR={w/len(vs)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(vs)/len(vs))}  sum={_fmt_pnl(sum(vs))}")
 
     # By path class (if any labels exist)
     by_p: dict = defaultdict(list)

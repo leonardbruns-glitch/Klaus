@@ -158,6 +158,14 @@ class TradeRecord:
     bond_delta_at_entry: float = 0.0       # raw _bond_delta at entry (signed %)
     bond_adj_edge_at_entry: float = 0.0    # _adjusted_edge = edge × regime_weight
     bond_vel_at_entry: float = 0.0         # velocity magnitude at entry (%/s, unsigned)
+    # BOND_STAB entry-quality classification (drives pre-entry stake scaling)
+    bond_stab_class: str = ""              # CLEAN / NOISY / HIGH_RISK / FATAL
+    bond_stability_score: int = 0          # 0–5, count of bad quality flags
+    bond_stab_xp_bad: bool = False
+    bond_stab_slip_bad: bool = False
+    bond_stab_delta_bad: bool = False
+    bond_stab_edge_weak: bool = False
+    bond_stab_vel_flat: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +347,13 @@ class FeedbackEngine:
         bond_entry_class: str = "",
         bond_macro_regime: str = "",
         mae_bounce_10s_pct: float = 0.0,
+        bond_stab_class: str = "",
+        bond_stability_score: int = 0,
+        bond_stab_xp_bad: bool = False,
+        bond_stab_slip_bad: bool = False,
+        bond_stab_delta_bad: bool = False,
+        bond_stab_edge_weak: bool = False,
+        bond_stab_vel_flat: bool = False,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -494,6 +509,13 @@ class FeedbackEngine:
             bond_weak_vel_penalty=round(float(getattr(signal, "bond_weak_vel_penalty", 0.0)), 4),
             bond_macro_regime=bond_macro_regime,
             mae_bounce_10s_pct=round(mae_bounce_10s_pct, 2),
+            bond_stab_class=bond_stab_class,
+            bond_stability_score=bond_stability_score,
+            bond_stab_xp_bad=bond_stab_xp_bad,
+            bond_stab_slip_bad=bond_stab_slip_bad,
+            bond_stab_delta_bad=bond_stab_delta_bad,
+            bond_stab_edge_weak=bond_stab_edge_weak,
+            bond_stab_vel_flat=bond_stab_vel_flat,
         )
 
         self._recent.append(rec)

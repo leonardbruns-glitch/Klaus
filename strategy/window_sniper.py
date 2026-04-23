@@ -240,6 +240,14 @@ class SniperSignal:
     bond_delta_at_entry: float = 0.0      # raw signed bond_delta at entry (%)
     bond_adj_edge_at_entry: float = 0.0   # adjusted edge (edge × regime_weight)
     bond_vel_at_entry: float = 0.0        # velocity magnitude at entry (%/s, unsigned)
+    # BOND_STAB entry-quality classification (set post-signal in _scan_bond_entries)
+    bond_stab_class: str = ""             # "CLEAN" / "NOISY" / "HIGH_RISK" / "FATAL"
+    bond_stability_score: int = 0         # 0–5, count of bad quality flags
+    bond_stab_xp_bad: bool = False        # edge/remaining-upside ratio poor
+    bond_stab_slip_bad: bool = False      # top-of-book spread ≥ 3¢
+    bond_stab_delta_bad: bool = False     # directional delta < −8% (asset against token)
+    bond_stab_edge_weak: bool = False     # raw edge < 0.08
+    bond_stab_vel_flat: bool = False      # |vel| < 0.01%/s (no directional signal)
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
