@@ -202,6 +202,21 @@ if bond_trades:
           f"avg_win={_fmt_pnl(aw)}  avg_loss={_fmt_pnl(al)}  PF={pf_:.2f}")
     print(f"  avg_entry_price={_avg_entry:.4f}")
 
+    # By asset
+    by_asset: dict = defaultdict(list)
+    for t in bond_trades:
+        by_asset[t.get("asset", "?") or "?"].append(t["net_pnl"])
+    print(f"\n── BY ASSET ────────────────────────────────────────────────────────────")
+    for a in sorted(by_asset, key=lambda k: sum(by_asset[k]), reverse=True):
+        v = by_asset[a]
+        w = sum(1 for x in v if x > 0)
+        _eps = [float(t.get("entry_price", 0) or 0) for t in bond_trades
+                if (t.get("asset") or "?") == a and t.get("entry_price")]
+        _avg_ep = sum(_eps) / len(_eps) if _eps else 0.0
+        print(f"  {a:<5} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+              f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}  "
+              f"avg_ep={_avg_ep:.4f}")
+
     # By exit bucket
     by_b: dict = defaultdict(list)
     for t in bond_trades:
