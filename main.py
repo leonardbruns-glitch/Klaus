@@ -596,45 +596,46 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Early-chop filter (T+25–40s) ─────────────────────────────
-                # Exit if position is structurally dead: deep adverse with no
-                # bounce and no favorable build. Explicit protection prevents
-                # killing bouncing or building positions.
-                if 25.0 <= _held_s <= 40.0 and token_id not in self._exit_in_progress:
-                    _adv      = -self._trough_bond_move.get(token_id, 0.0)
-                    _fav      = self._peak_bond_move.get(token_id, 0.0)
-                    _bounce10 = (
-                        (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price
-                        if pos.entry_price > 0 and pos.lowest_price > 0
-                        and pos.mae_bounce_peak > pos.lowest_price
-                        else 0.0
+                # ── BOND_CHOP_FILTER removed (2026-04-23) ─────────────────────
+                # Cascade detector (Rule B) at T+60s is now the primary early-
+                # exit decision layer. CHOP at T+25–40s was firing before snap60
+                # populated, preempting cascade classification and creating a
+                # logic conflict between new probabilistic and old deterministic
+                # exits. Only hard risk exit (BOND_SL_20 at -20%) may fire pre-60s.
+
+                # ── Cascade abort — Rule B (T+60s trajectory classifier) ─────
+                # Classified once when both snaps populated and held ≥60s.
+                # cascade_state frozen on first write so subsequent ticks skip
+                # recomputation (prevents non-deterministic re-evaluation).
+                if (pos.cascade_state == "UNKNOWN"
+                        and _held_s >= 60
+                        and pos.entry_snap_30s_pct != 0.0
+                        and pos.entry_snap_60s_pct != 0.0
+                        and token_id not in self._exit_in_progress):
+                    from analytics.regime_filter import cascade_detected
+                    _abort, _abort_reason = cascade_detected(
+                        pos.entry_snap_30s_pct,
+                        pos.entry_snap_60s_pct,
+                        pos.bond_entry_class or None,
                     )
-                    _pc_chop     = _adv >= 0.30 and _fav < 0.10
-                    _pc_trend_do = bond_move <= -0.15 and _fav < 0.05
-                    _pc_runner   = _fav >= 0.20
-                    _protected   = _bounce10 >= 0.15 or _fav >= 0.20 or _pc_runner
-                    _trigger     = (
-                        _adv >= 0.30
-                        and _bounce10 <= 0.10
-                        and _fav <= 0.10
-                        and (_pc_chop or _pc_trend_do)
-                        and not _protected
-                    )
-                    if _trigger:
+                    pos.cascade_state = "CASCADING" if _abort else "RECOVERING"
+                    if _abort:
                         self._exit_in_progress.add(token_id)
-                        _pc_label = "CHOP" if _pc_chop else "TREND_DO"
                         logger.info(
-                            "BOND_CHOP_FILTER %s/%s [%s] | adv=%.1f%% bounce10=%.1f%% "
-                            "fav=%.1f%% move=%+.1f%% held=%.0fs",
-                            pos.asset, pos.direction.name, _pc_label,
-                            _adv * 100, _bounce10 * 100, _fav * 100,
-                            bond_move * 100, _held_s,
+                            "CASCADE ABORT %s/%s @ %.4f | held=%.0fs | snap30=%+.1f%% snap60=%+.1f%%",
+                            pos.asset, pos.direction.name, current_price, _held_s,
+                            pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
                         )
                         try:
-                            await self._exit_position(token_id, current_price, "BOND_CHOP_FILTER")
+                            await self._exit_position(token_id, current_price, _abort_reason)
                         finally:
                             self._exit_in_progress.discard(token_id)
                         continue
+                    logger.info(
+                        "CASCADE RECOVERING %s/%s | snap30=%+.1f%% snap60=%+.1f%% — hold",
+                        pos.asset, pos.direction.name,
+                        pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
+                    )
 
                 # Time exit: sell at bond_exit_sec before window close
                 if bond_remaining <= pos.bond_exit_sec:
