@@ -595,24 +595,6 @@ def _run_bond_report(bond_trades, label="ALL"):
                     print(f"    {reason:<22} n={n_r:>2} good={d['good']:>2} bad={d['bad']:>2} "
                           f"({ratio*100:>3.0f}% good)  bad_sum={_fmt_pnl(d['bad_pnl'])}")
 
-        # Window max adverse post-exit (how bad did it get after we left?)
-        _wmax_known = [(t, r) for t, r in _res_known
-                       if r.get("window_max_adv_from_entry_pct") is not None]
-        if _wmax_known:
-            wmax_vals = [r["window_max_adv_from_entry_pct"] for _, r in _wmax_known]
-            winners   = [r["window_max_adv_from_entry_pct"] for t, r in _wmax_known
-                         if t["net_pnl"] > 0]
-            losers    = [r["window_max_adv_from_entry_pct"] for t, r in _wmax_known
-                         if t["net_pnl"] <= 0]
-            print(f"  Max adverse through window_end (n={len(_wmax_known)}):")
-            if winners:
-                print(f"    Winners: avg={sum(winners)/len(winners):+.1f}%  "
-                      f"p50={sorted(winners)[len(winners)//2]:+.1f}%  "
-                      f"p75={sorted(winners)[int(len(winners)*0.75)]:+.1f}%")
-            if losers:
-                print(f"    Losers:  avg={sum(losers)/len(losers):+.1f}%  "
-                      f"p50={sorted(losers)[len(losers)//2]:+.1f}%  "
-                      f"p75={sorted(losers)[int(len(losers)*0.75)]:+.1f}%")
     else:
         n_pending = sum(1 for t in bond_trades
                         if t.get("window_end_ts", 0) and t.get("trade_id")
