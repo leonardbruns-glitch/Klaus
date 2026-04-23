@@ -173,6 +173,16 @@ class TradeRecord:
     bond_accel_sustained: bool = False
     bond_has_hist: bool = False
     bond_smooth_delta_60s: float = 0.0
+    bond_entry_zone: str = ""
+    # pre_score (Layer 1 — strictly pre-causal, observation mode, no gating)
+    pre_score: float = 0.0
+    pre_score_version: str = ""
+    pre_score_accel:  float = 0.0
+    pre_score_daccel: float = 0.0
+    pre_score_edge:   float = 0.0
+    pre_score_stab:   float = 0.0
+    pre_score_vel:    float = 0.0
+    pre_score_class:  float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +377,15 @@ class FeedbackEngine:
         bond_accel_sustained: bool = False,
         bond_has_hist: bool = False,
         bond_smooth_delta_60s: float = 0.0,
+        bond_entry_zone: str = "",
+        pre_score: float = 0.0,
+        pre_score_version: str = "",
+        pre_score_accel: float = 0.0,
+        pre_score_daccel: float = 0.0,
+        pre_score_edge: float = 0.0,
+        pre_score_stab: float = 0.0,
+        pre_score_vel: float = 0.0,
+        pre_score_class: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -535,6 +554,15 @@ class FeedbackEngine:
             bond_accel_sustained=bond_accel_sustained,
             bond_has_hist=bond_has_hist,
             bond_smooth_delta_60s=round(bond_smooth_delta_60s, 4),
+            bond_entry_zone=bond_entry_zone,
+            pre_score=round(pre_score, 4),
+            pre_score_version=pre_score_version,
+            pre_score_accel=round(pre_score_accel, 4),
+            pre_score_daccel=round(pre_score_daccel, 4),
+            pre_score_edge=round(pre_score_edge, 4),
+            pre_score_stab=round(pre_score_stab, 4),
+            pre_score_vel=round(pre_score_vel, 4),
+            pre_score_class=round(pre_score_class, 4),
         )
 
         self._recent.append(rec)

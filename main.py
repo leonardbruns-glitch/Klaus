@@ -2100,6 +2100,63 @@ class KlausBot:
             signal.bond_stab_edge_weak  = stab_edge_weak
             signal.bond_stab_vel_flat   = stab_vel_flat
 
+            # ── pre_score (Layer 1, strictly pre-causal, OBSERVATION mode) ─────
+            # Composite of pre-entry features only — frozen at entry timestamp.
+            # No forward-looking data. No gating yet; rolling regime+zone
+            # percentile thresholds activate after Phase A data collection
+            # (need ≥30 trades per regime+zone bucket).
+            #
+            # Components (each ~[-1.5, +1.5]):
+            #   accel:  +1.5 sustained / +0.5 has_hist / 0 no hist
+            #   daccel: signed delta_accel × token_dir, clipped ±1.0 at 0.05%
+            #   edge:   signed edge_drift, clipped ±1.0 at 0.005
+            #   stab:   CLEAN +1.0 / NOISY +0.5 / HIGH_RISK -0.5 / FATAL -1.5
+            #   vel:    +0.5 vel aligned / -0.5 against / 0 cold/flat
+            #   class:  EV_PRIOR[bond_entry_class] × 1.0 (frozen prior)
+            from analytics.regime_filter import EV_PRIOR as _EV_PRIOR
+            PRE_SCORE_VERSION = "v1_2026_04_observation"
+            _token_dir_sign = +1.0 if _token_dir == "up" else -1.0
+
+            _pre_accel_score  = 1.5 if _accel_sustained else (0.5 if _has_hist else 0.0)
+            _signed_accel     = _delta_accel * _token_dir_sign
+            _pre_daccel_score = max(-1.0, min(1.0, _signed_accel / 0.05))
+            _pre_edge_score   = max(-1.0, min(1.0, _edge_drift / 0.005))
+            _STAB_PRE_SCORE   = {"CLEAN": 1.0, "NOISY": 0.5, "HIGH_RISK": -0.5, "FATAL": -1.5}
+            _pre_stab_score   = _STAB_PRE_SCORE.get(stab_class, 0.0)
+            if _vel_cold or abs(_vel_for_stab) < 0.005:
+                _pre_vel_score = 0.0
+            else:
+                _pre_vel_score = 0.5 if (_vel_for_stab * _token_dir_sign) > 0 else -0.5
+            _class_ev = _EV_PRIOR.get(getattr(signal, "bond_entry_class", "?"), -0.24)
+            _pre_class_score = max(-1.0, min(1.0, _class_ev / 1.0))
+
+            _pre_score = round(
+                _pre_accel_score + _pre_daccel_score + _pre_edge_score
+                + _pre_stab_score + _pre_vel_score + _pre_class_score,
+                3,
+            )
+
+            signal.bond_entry_zone   = _bond_zone
+            signal.pre_score         = _pre_score
+            signal.pre_score_version = PRE_SCORE_VERSION
+            signal.pre_score_accel   = _pre_accel_score
+            signal.pre_score_daccel  = _pre_daccel_score
+            signal.pre_score_edge    = _pre_edge_score
+            signal.pre_score_stab    = _pre_stab_score
+            signal.pre_score_vel     = _pre_vel_score
+            signal.pre_score_class   = _pre_class_score
+
+            logger.info(
+                "PRE_SCORE %s/%s [%s/%s] | total=%+.2f | "
+                "accel=%+.2f daccel=%+.2f edge=%+.2f stab=%+.2f vel=%+.2f class=%+.2f | "
+                "[%s] OBSERVATION_ONLY",
+                token.asset, token.side, _bond_zone, _macro_regime,
+                _pre_score,
+                _pre_accel_score, _pre_daccel_score, _pre_edge_score,
+                _pre_stab_score, _pre_vel_score, _pre_class_score,
+                PRE_SCORE_VERSION,
+            )
+
             # Edge-confidence stake scaling:
             #   edge < 0.05      → 50%  (weak, capped exposure)
             #   edge 0.05–0.07   → 75%  (moderate conviction)
@@ -4209,6 +4266,15 @@ class KlausBot:
                     bond_accel_sustained=bool(getattr(signal, "bond_accel_sustained", False)),
                     bond_has_hist=bool(getattr(signal, "bond_has_hist", False)),
                     bond_smooth_delta_60s=float(getattr(signal, "bond_smooth_delta_60s", 0.0) or 0.0),
+                    bond_entry_zone=str(getattr(signal, "bond_entry_zone", "") or ""),
+                    pre_score=float(getattr(signal, "pre_score", 0.0) or 0.0),
+                    pre_score_version=str(getattr(signal, "pre_score_version", "") or ""),
+                    pre_score_accel=float(getattr(signal, "pre_score_accel", 0.0) or 0.0),
+                    pre_score_daccel=float(getattr(signal, "pre_score_daccel", 0.0) or 0.0),
+                    pre_score_edge=float(getattr(signal, "pre_score_edge", 0.0) or 0.0),
+                    pre_score_stab=float(getattr(signal, "pre_score_stab", 0.0) or 0.0),
+                    pre_score_vel=float(getattr(signal, "pre_score_vel", 0.0) or 0.0),
+                    pre_score_class=float(getattr(signal, "pre_score_class", 0.0) or 0.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

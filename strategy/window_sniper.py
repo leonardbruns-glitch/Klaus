@@ -255,6 +255,20 @@ class SniperSignal:
     bond_accel_sustained: bool = False    # 15s + 30s both built positively
     bond_has_hist: bool = False           # 30s history available at entry
     bond_smooth_delta_60s: float = 0.0    # 60s smoothed delta (macro regime input)
+    # Pre-entry zone label (EARLY / CORE / LATE) — needed for regime+zone bucketing
+    bond_entry_zone: str = ""
+    # ── pre_score (Layer 1, strictly causal, observation mode) ─────────────────
+    # Composite score from pre-entry features only. Frozen at entry timestamp.
+    # No forward-looking data. Used for validation; gating disabled until
+    # rolling regime+zone percentiles are calibrated (Phase B).
+    pre_score: float = 0.0
+    pre_score_version: str = ""
+    pre_score_accel:  float = 0.0   # momentum persistence component
+    pre_score_daccel: float = 0.0   # directional flow alignment component
+    pre_score_edge:   float = 0.0   # edge trajectory (rising/fading) component
+    pre_score_stab:   float = 0.0   # STAB quality component
+    pre_score_vel:    float = 0.0   # velocity alignment component
+    pre_score_class:  float = 0.0   # bond_entry_class EV-prior component
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
