@@ -2017,6 +2017,37 @@ class KlausBot:
                 logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
+            # ── Velocity-quality stake modulation ("delay capital, not signal") ──
+            # Three conditions that justify full EV-prior size. If NONE are met,
+            # reduce stake — preserves signal access but limits exposure on entries
+            # that lack directional confirmation (higher EARLY_CHOP probability).
+            #
+            #   (1) vel_confirmed:  velocity actively in trade direction (INIT class)
+            #   (2) edge_strong:    adj_edge ≥ 0.10 AND edge improving (drift > 0.003)
+            #   (3) accel_confirms: 30s history shows delta accelerating toward direction
+            #
+            # Discount only applies to EARLY and LATE zones (CORE-A needs vel, CORE-B
+            # needs non-flat vel, IMPULSE needs |vel|>0.04 — all bypass COLD vel anyway).
+            _vel_quality_1 = _vel_init   # velocity active and directionally aligned
+            _accel_aligned = _has_hist and (
+                (_token_dir == "up"   and _delta_accel > 0.02) or
+                (_token_dir == "down" and _delta_accel < -0.02)
+            )
+            _vel_quality_2 = _adjusted_edge >= 0.10 and (_edge_drift > 0.003 or _accel_aligned)
+            _vel_quality_3 = _accel_aligned   # snap30 momentum already moving toward direction
+            _vel_quality_ok = _vel_quality_1 or _vel_quality_2 or _vel_quality_3
+            if not _vel_quality_ok and _bond_zone in ("EARLY", "LATE"):
+                _vq_disc = 0.60 if _bond_zone == "EARLY" else 0.75
+                _orig_vq = decision.stake
+                decision.stake = max(1.0, round(_orig_vq * _vq_disc, 2))
+                logger.info(
+                    "BOND VEL-QUALITY DISCOUNT %s/%s [%s]: $%.2f → $%.2f "
+                    "(vel=%s adj_e=%.4f drift=%+.4f accel=%+.4f — no confirmation)",
+                    token.asset, token.side, _dzone,
+                    _orig_vq, decision.stake,
+                    _vel_label, _adjusted_edge, _edge_drift, _delta_accel,
+                )
+
             # Edge-confidence stake scaling:
             #   edge < 0.05      → 50%  (weak, capped exposure)
             #   edge 0.05–0.07   → 75%  (moderate conviction)
