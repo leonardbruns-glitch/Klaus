@@ -178,11 +178,14 @@ def _pct(vals, q):
     s = sorted(vals); n = len(s)
     return s[max(0, min(n - 1, int(q * n / 100)))] if n else 0.0
 
-bond_trades = [t for t in trades if t.get("signal_source") == "BOND" or t.get("is_bond")]
+_all_bond_trades = [t for t in trades if t.get("signal_source") == "BOND" or t.get("is_bond")]
 
-if bond_trades:
+
+def _run_bond_report(bond_trades, label="ALL"):
+    if not bond_trades:
+        return
     print("\n" + "=" * 78)
-    print(f"BOND AGGREGATIONS  n={len(bond_trades)}"
+    print(f"BOND AGGREGATIONS [{label}]  n={len(bond_trades)}"
           f"  since={_since_arg or 'all'}")
     print("=" * 78)
 
@@ -202,20 +205,21 @@ if bond_trades:
           f"avg_win={_fmt_pnl(aw)}  avg_loss={_fmt_pnl(al)}  PF={pf_:.2f}")
     print(f"  avg_entry_price={_avg_entry:.4f}")
 
-    # By asset
+    # By asset (only show when multiple assets in the slice)
     by_asset: dict = defaultdict(list)
     for t in bond_trades:
         by_asset[t.get("asset", "?") or "?"].append(t["net_pnl"])
-    print(f"\n── BY ASSET ────────────────────────────────────────────────────────────")
-    for a in sorted(by_asset, key=lambda k: sum(by_asset[k]), reverse=True):
-        v = by_asset[a]
-        w = sum(1 for x in v if x > 0)
-        _eps = [float(t.get("entry_price", 0) or 0) for t in bond_trades
-                if (t.get("asset") or "?") == a and t.get("entry_price")]
-        _avg_ep = sum(_eps) / len(_eps) if _eps else 0.0
-        print(f"  {a:<5} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
-              f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}  "
-              f"avg_ep={_avg_ep:.4f}")
+    if len(by_asset) > 1:
+        print(f"\n── BY ASSET ────────────────────────────────────────────────────────────")
+        for a in sorted(by_asset, key=lambda k: sum(by_asset[k]), reverse=True):
+            v = by_asset[a]
+            w = sum(1 for x in v if x > 0)
+            _eps = [float(t.get("entry_price", 0) or 0) for t in bond_trades
+                    if (t.get("asset") or "?") == a and t.get("entry_price")]
+            _avg_ep = sum(_eps) / len(_eps) if _eps else 0.0
+            print(f"  {a:<5} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}  "
+                  f"avg_ep={_avg_ep:.4f}")
 
     # By exit bucket
     by_b: dict = defaultdict(list)
@@ -736,3 +740,13 @@ if bond_trades:
             _row("bond_vel_at_entry",
                  [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_w],
                  [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_l], ".3f")
+
+
+# ── Run report: ALL first, then per asset ────────────────────────────────────
+_run_bond_report(_all_bond_trades, label="ALL")
+
+_assets_present = sorted({(t.get("asset") or "?") for t in _all_bond_trades})
+if len(_assets_present) > 1:
+    for _a in _assets_present:
+        _sub = [t for t in _all_bond_trades if (t.get("asset") or "?") == _a]
+        _run_bond_report(_sub, label=_a)
