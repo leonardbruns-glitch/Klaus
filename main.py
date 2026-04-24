@@ -256,8 +256,8 @@ class KlausBot:
         self._llm_shadow_positions: Dict[str, dict] = {}
         # Running LLM eval tasks — prevents double-firing while a task is in-flight.
         self._llm_eval_pending: Set[str] = set()
-        # Serialize entry evals — prevents simultaneous bursts that trigger 429s.
-        self._llm_eval_semaphore = asyncio.Semaphore(2)
+        # Serialize entry evals — one at a time prevents 429 bursts.
+        self._llm_eval_semaphore = asyncio.Semaphore(1)
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -3265,6 +3265,7 @@ class KlausBot:
                 highest_price=pos.highest_price,
                 lowest_price=pos.lowest_price,
                 recent_history=self._read_llm_shadow_history(n=15),
+                research_notes=self._read_research_notes(n=5),
             )
             self._llm_exit_decisions[token_id] = result
             self._llm_exit_last_eval[token_id] = time.time()

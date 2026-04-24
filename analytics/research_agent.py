@@ -174,7 +174,7 @@ class ResearchAgent:
         n_published = 0
 
         try:
-            import aiohttp
+            import aiohttp, asyncio as _aio
             async with aiohttp.ClientSession() as sess:
                 for _ in range(15):
                     payload = {
@@ -184,15 +184,23 @@ class ResearchAgent:
                         "tools": tools,
                         "messages": messages,
                     }
-                    async with sess.post(
-                        "https://api.anthropic.com/v1/messages",
-                        headers=headers,
-                        json=payload,
-                        timeout=aiohttp.ClientTimeout(total=30),
-                    ) as resp:
-                        if resp.status != 200:
-                            raise Exception(f"API {resp.status}: {(await resp.text())[:80]}")
-                        data = await resp.json()
+                    # Retry up to 3 times on 429 with backoff
+                    for _attempt in range(3):
+                        async with sess.post(
+                            "https://api.anthropic.com/v1/messages",
+                            headers=headers,
+                            json=payload,
+                            timeout=aiohttp.ClientTimeout(total=30),
+                        ) as resp:
+                            if resp.status == 429:
+                                if _attempt < 2:
+                                    await _aio.sleep(10 * (2 ** _attempt))
+                                    continue
+                                raise Exception(f"API 429 after retries")
+                            if resp.status != 200:
+                                raise Exception(f"API {resp.status}: {(await resp.text())[:80]}")
+                            data = await resp.json()
+                            break
 
                     blocks = data.get("content", [])
                     tool_results = []

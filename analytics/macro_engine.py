@@ -877,10 +877,11 @@ class MacroEngine:
         highest_price: float = 0.0,
         lowest_price: float = 0.0,
         recent_history: list | None = None,
+        research_notes: list | None = None,
     ) -> dict:
         """
         Agentic exit decision via aiohttp tool-use loop.
-        Opus requests whatever data it wants, then calls exit_now or hold.
+        Haiku requests whatever data it wants, then calls exit_now or hold.
         """
         if not self._enabled:
             return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
@@ -925,6 +926,8 @@ class MacroEngine:
         else:
             _catalog["get_history"] = []
 
+        _catalog["get_research_notes"] = research_notes or []
+
         tools = [
             {
                 "name": "get_position",
@@ -939,6 +942,11 @@ class MacroEngine:
             {
                 "name": "get_history",
                 "description": "Your recent closed trades: entry decision, exit reason, hold time, and P&L (newest first). Use this to learn which exit patterns worked.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "get_research_notes",
+                "description": "Recent findings from the autonomous research agent: patterns, timing effects, failure modes, and structural insights.",
                 "input_schema": {"type": "object", "properties": {}, "required": []},
             },
             {
