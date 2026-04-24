@@ -3200,6 +3200,8 @@ class KlausBot:
                 entry_reason=_llm_rec.get("reason", ""),
                 entry_tp_pct=float(_llm_rec.get("shadow_tp_pct", 0.0) or 0.0),
                 entry_sl_pct=float(_llm_rec.get("shadow_sl_pct", 0.0) or 0.0),
+                highest_price=pos.highest_price,
+                lowest_price=pos.lowest_price,
             )
             self._llm_exit_decisions[token_id] = result
             self._llm_exit_last_eval[token_id] = time.time()

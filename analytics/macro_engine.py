@@ -623,209 +623,180 @@ class MacroEngine:
         recent_history: list | None = None,
     ) -> dict:
         """
-        Independent LLM trader with evolving competing hypotheses.
-
-        Receives its own recent decision history so it can update its model
-        of which signals predict outcomes — not just a fresh stateless call.
-        Fires pre-gate on every candidate; also used post-entry for trades.jsonl logging.
-
+        Agentic entry decision. Opus requests whatever data it wants via tools,
+        then calls take or skip. No pre-selected context forced on it.
         Returns {"decision": "TAKE"/"SKIP", "confidence": float, "reason": str,
                  "shadow_tp_pct": float, "shadow_sl_pct": float}.
         """
-        _default = {"decision": "TAKE", "confidence": 0.5, "reason": "LLM disabled"}
+        import json as _json
         if not self._enabled:
-            return _default
+            return {"decision": "TAKE", "confidence": 0.5, "reason": "LLM disabled"}
 
         now_utc = datetime.now(timezone.utc)
-        direction_label = "UP" if "YES" in direction else "DOWN"
-        up_or_down = "above window-open price" if direction_label == "UP" else "below window-open price"
         zone = bond_entry_zone or (bond_entry_class.split("/")[0] if bond_entry_class else "?")
 
-        system_prompt = """\
-You are an autonomous trading intelligence operating in live binary window markets.
+        _catalog: dict = {
+            "market_info": {
+                "time_utc": now_utc.strftime("%H:%M"),
+                "asset": asset,
+                "direction": direction,
+                "token_price": round(entry_price, 4),
+                "window_minutes": window_size_s // 60,
+                "remaining_seconds": round(window_remaining_s),
+                "zone": zone,
+                "entry_class": bond_entry_class,
+            },
+            "signals": {
+                "spot_delta_pct": round(bond_delta_at_entry, 4),
+                "delta_accel_30s": round(bond_delta_accel_30s, 4),
+                "smooth_delta_60s": round(bond_smooth_delta_60s, 4),
+                "edge": round(edge, 4),
+                "edge_drift_30s": round(bond_edge_drift_30s, 4),
+                "vpin": round(vpin, 3),
+            },
+        }
 
-MARKET DEFINITION
-Assets: BTC, ETH, SOL
-Each decision applies to a 5-minute or 15-minute window.
-Outcome: UP = price at window end > start price. DOWN = price at window end < start price.
-Token price = implied win probability (0.50=coinflip, 0.90=90% win). Resolves to 1.0 or 0.0.
-Round-trip taker fees ~3% at price 0.50, ~1.5% at 0.30.
-
-SIGNAL DEFINITIONS
-- Spot delta: % asset moved since window opened (positive=up, negative=down)
-- Delta accel (30s): rate of change of that move (positive=accelerating, negative=fading)
-- Smooth delta (60s avg): momentum over the last minute
-- Edge: fair_value - token_price (positive=market underpriced)
-- Edge drift (30s): whether edge is improving or eroding
-- VPIN: informed order flow toxicity (>0.65 = institutional flow confirmed)
-- Zone: EARLY=first 25% of window, CORE=25-75%, LATE=>75% elapsed
-
-ANTI-STRATEGY CONSTRAINT
-You are NOT allowed to settle into fixed explanations or stable strategies.
-- Do NOT treat any observed pattern as permanent
-- Do NOT assume any rule remains valid across time
-- Do NOT converge early on a single best model
-Every belief must remain temporary.
-
-CORE SYSTEM: COMPETING HYPOTHESES ENGINE
-For every candidate you must maintain multiple live hypotheses, not a single view.
-Maintain at least:
-  H1: current best explanation for why this candidate should resolve UP
-  H2: current best explanation for why it should resolve DOWN
-  H3 (optional): uncertainty / unknown regime hypothesis
-Each hypothesis must be derived from recent observed behavior only — not financial theory defaults.
-
-HYPOTHESIS EVOLUTION RULE (critical)
-After reviewing your history, you must:
-1. Strengthen hypotheses that matched past outcomes, weaken those that failed
-2. Modify structure — you may change what features matter, discard previously useful signals,
-   invent new explanatory variables, merge or split hypotheses
-You are NOT just updating weights. You are evolving explanations.
-
-EXPLORATION REQUIREMENT
-Continuously search for new micro-patterns, asset-specific behavioral differences,
-short-lived but repeatable structures, and anomalies that contradict existing hypotheses.
-If something does NOT fit current hypotheses, it is especially important.
-
-DECISION RULE
-Step 1: Evaluate hypotheses — which best explains current behavior? Which is failing?
-Step 2: Detect mismatch — if no hypothesis fits well, treat as unknown regime
-Step 3: Decide — choose TAKE only if a hypothesis is meaningfully stronger; otherwise SKIP
-
-ANTI-BIAS RULES
-Actively avoid locking into momentum/mean-reversion stories, reusing old explanations
-without revalidation, or forcing interpretation when structure is unclear.
-If you catch yourself repeating an old explanation without new evidence: mark it as
-"suspected prior bias" and downgrade it.
-
-MEMORY RULE
-Rely only on: recent observed behavior in your history, and performance of hypotheses
-in recent windows. Do NOT assume long-term stability or cross-session consistency.
-
-CORE PRINCIPLE
-Your goal is not to find a strategy. Your goal is to continuously evolve competing
-explanations of market behavior and let reality eliminate the wrong ones.
-You are rewarded for discovering new explanations and breaking your own assumptions.
-You are NOT rewarded for consistency of belief.\
-"""
-
-        # Build history context from recent completed trades
-        history_section = ""
         if recent_history:
-            lines = ["YOUR RECENT DECISIONS + OUTCOMES (newest first):"]
-            for i, h in enumerate(recent_history[:15], 1):
-                dec   = h.get("llm_decision", "?")
-                conf  = float(h.get("llm_conf", 0) or 0)
-                asset_ = h.get("asset", "?")
-                dir_  = h.get("direction", "?")
-                zone_ = h.get("zone", "?")
-                delta = float(h.get("bond_delta", 0) or 0)
-                accel = float(h.get("delta_accel", 0) or 0)
-                drift = float(h.get("edge_drift", 0) or 0)
-                vpin_ = float(h.get("vpin", 0) or 0)
-                ep    = float(h.get("entry_price", 0) or 0)
-                outcome = h.get("exit_reason", "")
-                pnl   = float(h.get("shadow_gross_pnl", 0) or 0)
-                mark  = "✓" if pnl > 0 else ("✗" if pnl < 0 else "")
-                if outcome:
-                    lines.append(
-                        f"{i:>2}. {asset_}/{dir_:<4} {zone_:<5} "
-                        f"δ={delta:+.3f}% acl={accel:+.3f} drft={drift:+.3f} "
-                        f"VPIN={vpin_:.2f} entry={ep:.3f} "
-                        f"→ {dec} conf={conf:.2f} "
-                        f"→ {outcome} pnl={pnl:+.2f} {mark}"
-                    )
-                else:
-                    lines.append(
-                        f"{i:>2}. {asset_}/{dir_:<4} {zone_:<5} "
-                        f"δ={delta:+.3f}% acl={accel:+.3f} drft={drift:+.3f} "
-                        f"VPIN={vpin_:.2f} entry={ep:.3f} "
-                        f"→ {dec} conf={conf:.2f} (no outcome yet — SKIP or open)"
-                    )
-            history_section = "\n".join(lines) + "\n\n"
+            rows = []
+            for h in recent_history[:15]:
+                pnl = float(h.get("shadow_gross_pnl", 0) or 0)
+                rows.append({
+                    "asset": h.get("asset", "?"),
+                    "direction": h.get("direction", "?"),
+                    "zone": h.get("zone", "?"),
+                    "decision": h.get("llm_decision", "?"),
+                    "conf": round(float(h.get("llm_conf", 0) or 0), 2),
+                    "exit_reason": h.get("exit_reason", "open"),
+                    "pnl": round(pnl, 2),
+                })
+            _catalog["history"] = rows
         else:
-            history_section = "YOUR RECENT DECISIONS: None yet — this is your first evaluation.\n\n"
+            _catalog["history"] = []
 
-        prompt = (
-            f"{history_section}"
-            f"STEP 1 — HYPOTHESIS EVOLUTION\n"
-            f"Review your history above. Which signals predicted outcomes? Which failed?\n"
-            f"Form H1 (UP thesis), H2 (DOWN thesis), H3 (uncertainty) before deciding.\n\n"
-            f"STEP 2 — EVALUATE THIS CANDIDATE\n"
-            f"Time: {now_utc.strftime('%H:%M')} UTC | "
-            f"Window: {window_size_s//60}min | Remaining: {window_remaining_s:.0f}s\n"
-            f"Asset: {asset} | Direction bet: {direction_label} (underlying {up_or_down})\n"
-            f"Token price: {entry_price:.3f} | Zone: {zone} | Class: {bond_entry_class}\n"
-            f"Spot delta:  {bond_delta_at_entry:+.4f}%\n"
-            f"Delta accel: {bond_delta_accel_30s:+.4f}  (30s rate of change)\n"
-            f"Smooth delta:{bond_smooth_delta_60s:+.4f}%  (60s avg)\n"
-            f"VPIN:        {vpin:.3f}\n"
-            f"Edge:        {edge:.4f}\n"
-            f"Edge drift:  {bond_edge_drift_30s:+.4f}  (30s)\n\n"
-            f"STEP 3 — DECIDE\n"
-            f"Which hypothesis fits? Is there meaningful conviction? TAKE or SKIP?\n"
-            f"Set your own TP% and SL% independent of any existing rules.\n\n"
-            f'Respond ONLY with JSON (no explanation outside JSON):\n'
-            f'{{"decision":"TAKE"or"SKIP","confidence":0.50-0.95,'
-            f'"reason":"max 15 words — what hypothesis supports this","h1":"UP thesis in 8 words",'
-            f'"h2":"DOWN thesis in 8 words","shadow_tp_pct":5-50,"shadow_sl_pct":5-30}}'
+        tools = [
+            {
+                "name": "get_market_info",
+                "description": "Asset, direction, token price, window size, time remaining, zone.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "get_signals",
+                "description": "Spot delta, delta acceleration, smooth delta, edge, edge drift, VPIN.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "get_history",
+                "description": "Your recent TAKE/SKIP decisions and their outcomes (newest first).",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "take",
+                "description": "Enter this trade.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "tp_pct": {"type": "number", "description": "Take-profit % above entry"},
+                        "sl_pct": {"type": "number", "description": "Stop-loss % below entry"},
+                        "confidence": {"type": "number"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["tp_pct", "sl_pct", "confidence", "reason"],
+                },
+            },
+            {
+                "name": "skip",
+                "description": "Pass on this candidate.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "confidence": {"type": "number"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["confidence", "reason"],
+                },
+            },
+        ]
+
+        system_prompt = (
+            "You are an autonomous trading agent operating in live binary window markets. "
+            "Use your tools to get whatever data you need, then call take or skip. "
+            "Set your own TP% and SL% when taking. Be decisive."
         )
+        messages = [{"role": "user", "content": "Evaluate this trade candidate and decide."}]
 
         try:
-            import aiohttp
-            headers = {
-                "x-api-key": self._api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            }
-            payload = {
-                "model": "claude-opus-4-7",
-                "max_tokens": 400,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": prompt}],
-            }
+            import anthropic as _ant
+            _client = _ant.Anthropic(api_key=self._api_key)
 
-            async with aiohttp.ClientSession() as sess:
-                async with sess.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers=headers,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=15),
-                ) as resp:
-                    if resp.status != 200:
-                        return {"decision": "TAKE", "confidence": 0.5, "reason": f"API {resp.status}"}
-                    data = await resp.json()
+            for _ in range(6):
+                resp = _client.messages.create(
+                    model="claude-opus-4-7",
+                    max_tokens=400,
+                    timeout=15,
+                    system=system_prompt,
+                    tools=tools,
+                    messages=messages,
+                )
 
-            raw_text = data["content"][0]["text"].strip()
-            if "```" in raw_text:
-                for part in raw_text.split("```"):
-                    part = part.strip().lstrip("json").strip()
-                    if part.startswith("{"):
-                        raw_text = part
+                tool_results = []
+                terminal = None
+                for block in resp.content:
+                    if not hasattr(block, "type") or block.type != "tool_use":
+                        continue
+                    name = block.name
+                    inp = block.input or {}
+                    if name == "take":
+                        tp = max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0)))
+                        sl = max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0)))
+                        terminal = {
+                            "decision": "TAKE",
+                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                            "reason": str(inp.get("reason", ""))[:80],
+                            "shadow_tp_pct": tp,
+                            "shadow_sl_pct": sl,
+                        }
                         break
+                    elif name == "skip":
+                        terminal = {
+                            "decision": "SKIP",
+                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                            "reason": str(inp.get("reason", ""))[:80],
+                            "shadow_tp_pct": 15.0,
+                            "shadow_sl_pct": 12.0,
+                        }
+                        break
+                    elif name in _catalog:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": _json.dumps(_catalog[name]),
+                        })
 
-            result = json.loads(raw_text)
-            decision = result.get("decision", "TAKE").upper()
-            if decision not in ("TAKE", "SKIP"):
-                decision = "TAKE"
-            confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
-            reason = str(result.get("reason", ""))[:80]
-            shadow_tp = max(3.0, min(50.0, float(result.get("shadow_tp_pct", 15.0) or 15.0)))
-            shadow_sl = max(3.0, min(30.0, float(result.get("shadow_sl_pct", 12.0) or 12.0)))
+                if terminal:
+                    direction_label = "UP" if "YES" in direction else "DOWN"
+                    logger.info(
+                        "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
+                        asset, direction_label, terminal["decision"], terminal["conf"],
+                        entry_price, zone, terminal["shadow_tp_pct"], terminal["shadow_sl_pct"],
+                        terminal["reason"],
+                    )
+                    return terminal
 
-            logger.info(
-                "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
-                asset, direction_label, decision, confidence, entry_price, zone,
-                shadow_tp, shadow_sl, reason,
-            )
-            return {"decision": decision, "conf": confidence, "reason": reason,
-                    "shadow_tp_pct": shadow_tp, "shadow_sl_pct": shadow_sl}
+                if resp.stop_reason == "end_turn" or not tool_results:
+                    break
+
+                messages.append({"role": "assistant", "content": resp.content})
+                messages.append({"role": "user", "content": tool_results})
+
+            return {"decision": "SKIP", "conf": 0.5, "reason": "no terminal decision",
+                    "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
 
         except Exception as exc:
             _is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower()
             _decision = "SKIP" if _is_rate_limit else "TAKE"
             logger.warning("bond_advisor failed (%s) — default %s", exc, _decision)
-            return {"decision": _decision, "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}"}
+            return {"decision": _decision, "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}",
+                    "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
 
     async def bond_exit_advisor(
         self,
@@ -841,13 +812,14 @@ You are NOT rewarded for consistency of belief.\
         entry_reason: str = "",
         entry_tp_pct: float = 0.0,
         entry_sl_pct: float = 0.0,
+        highest_price: float = 0.0,
+        lowest_price: float = 0.0,
     ) -> dict:
         """
-        Adaptive exit decision for an open BOND position. Called every 10s.
-        Opus sees full context and decides EXIT or HOLD — can override its own
-        entry targets at any time based on current market state.
-        Returns {"decision": "EXIT"/"HOLD", "reason": "...", "conf": float}.
+        Agentic exit decision. Opus requests whatever data it wants via tools,
+        then calls exit_now or hold. No pre-selected context forced on it.
         """
+        import json as _json
         if not self._enabled:
             return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
 
@@ -855,61 +827,129 @@ You are NOT rewarded for consistency of belief.\
             import anthropic as _ant
             _client = _ant.Anthropic(api_key=self._api_key)
 
-            system_prompt = """\
-You are an autonomous trading intelligence actively managing an open position in a live binary window market.
-You re-evaluate this trade every 10 seconds and can EXIT at any time.
+            _catalog = {
+                "position": {
+                    "asset": asset,
+                    "direction": direction,
+                    "entry_price": round(entry_price, 4),
+                    "current_price": round(current_price, 4),
+                    "pnl_pct": round(pnl_pct, 2),
+                    "held_seconds": round(held_s),
+                    "remaining_seconds": round(remaining_s),
+                    "peak_price": round(highest_price, 4),
+                    "trough_price": round(lowest_price, 4),
+                    "entry_thesis": entry_reason,
+                    "entry_tp_pct": entry_tp_pct,
+                    "entry_sl_pct": entry_sl_pct,
+                },
+                "market_flow": {
+                    "binance_delta_pct": round(bond_delta, 3),
+                    "vpin": round(vpin, 3),
+                },
+            }
 
-COMPETING HYPOTHESES ENGINE
-Form two hypotheses:
-  H_EXIT: evidence the position should be closed NOW (wrong direction, move exhausted, better to lock gain/cut loss)
-  H_HOLD: evidence the thesis is still valid and more time/price movement is coming
+            tools = [
+                {
+                    "name": "get_position",
+                    "description": "Your open position: asset, direction, entry/current price, P&L, time held, time remaining, peak and trough prices, entry thesis and original targets.",
+                    "input_schema": {"type": "object", "properties": {}, "required": []},
+                },
+                {
+                    "name": "get_market_flow",
+                    "description": "Binance spot delta vs window open and VPIN order-flow toxicity.",
+                    "input_schema": {"type": "object", "properties": {}, "required": []},
+                },
+                {
+                    "name": "exit_now",
+                    "description": "Close the position immediately.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "confidence": {"type": "number"},
+                            "reason": {"type": "string"},
+                        },
+                        "required": ["confidence", "reason"],
+                    },
+                },
+                {
+                    "name": "hold",
+                    "description": "Keep holding. You will be called again in ~10 seconds.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "confidence": {"type": "number"},
+                            "reason": {"type": "string"},
+                        },
+                        "required": ["confidence", "reason"],
+                    },
+                },
+            ]
 
-DECISION RULE
-EXIT if H_EXIT is meaningfully stronger.
-HOLD if H_HOLD is stronger or if genuinely uncertain (premature exits cost more than small drawdowns).
-
-ANTI-BIAS
-Do NOT anchor to your original TP/SL targets — they were estimates, not rules. Override them if market evidence warrants.
-Do NOT exit just because price is below entry.
-Do NOT hold just because you entered (sunk cost is not evidence).
-Do NOT wait passively — you actively manage this position.\
-"""
-
-            direction_label = "UP" if "YES" in direction.upper() else "DOWN"
-            prompt = (
-                f"OPEN POSITION — {asset} | Bet: price goes {direction_label} by window end\n"
-                f"Entry: {entry_price:.4f} | Now: {current_price:.4f} | P&L: {pnl_pct:+.1f}%\n"
-                f"Held: {held_s:.0f}s | Remaining: {remaining_s:.0f}s\n"
-                f"Entry thesis: {entry_reason[:80]}\n"
-                f"Entry targets (your estimates, not rules): TP≈+{entry_tp_pct:.0f}% SL≈-{entry_sl_pct:.0f}%\n\n"
-                f"CURRENT MARKET STATE\n"
-                f"Spot delta (vs window open): {bond_delta:+.3f}%\n"
-                f"VPIN: {vpin:.3f}\n\n"
-                f"Form H_EXIT and H_HOLD. Which is stronger? EXIT or HOLD?\n\n"
-                f'Respond ONLY with JSON: {{"decision":"EXIT"or"HOLD","confidence":0.50-0.95,"reason":"max 12 words"}}'
+            system_prompt = (
+                "You are an autonomous trading agent managing a live binary market position. "
+                "Use your tools to check what you need, then call exit_now or hold. Be decisive."
             )
+            messages = [{"role": "user", "content": "Manage your open position."}]
 
-            resp = _client.messages.create(
-                model="claude-opus-4-7",
-                max_tokens=60,
-                timeout=8,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text.strip()
-            import re as _re, json as _json
-            _m = _re.search(r'\{.*\}', raw, _re.DOTALL)
-            result = _json.loads(_m.group()) if _m else {}
-            decision = str(result.get("decision", "HOLD")).upper()
-            if decision not in ("EXIT", "HOLD"):
-                decision = "HOLD"
-            conf = max(0.5, min(0.95, float(result.get("confidence", 0.7) or 0.7)))
-            reason = str(result.get("reason", ""))[:80]
-            logger.info(
-                "bond_exit_advisor %s/%s → %s conf=%.2f | move=%+.1f%% rem=%.0fs | %s",
-                asset, direction, decision, conf, pnl_pct, remaining_s, reason,
-            )
-            return {"decision": decision, "conf": conf, "reason": reason}
+            for _ in range(5):
+                resp = _client.messages.create(
+                    model="claude-opus-4-7",
+                    max_tokens=300,
+                    timeout=9,
+                    system=system_prompt,
+                    tools=tools,
+                    messages=messages,
+                )
+
+                tool_results = []
+                terminal = None
+                for block in resp.content:
+                    if not hasattr(block, "type") or block.type != "tool_use":
+                        continue
+                    name = block.name
+                    inp = block.input or {}
+                    if name == "exit_now":
+                        terminal = {
+                            "decision": "EXIT",
+                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
+                            "reason": str(inp.get("reason", ""))[:80],
+                        }
+                        break
+                    elif name == "hold":
+                        terminal = {
+                            "decision": "HOLD",
+                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
+                            "reason": str(inp.get("reason", ""))[:80],
+                        }
+                        break
+                    elif name in _catalog:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": _json.dumps(_catalog[name]),
+                        })
+                    elif name == "get_position":
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": _json.dumps(_catalog["position"]),
+                        })
+
+                if terminal:
+                    logger.info(
+                        "bond_exit_advisor %s/%s → %s conf=%.2f rem=%.0fs | %s",
+                        asset, direction, terminal["decision"],
+                        terminal["conf"], remaining_s, terminal["reason"],
+                    )
+                    return terminal
+
+                if resp.stop_reason == "end_turn" or not tool_results:
+                    break
+
+                messages.append({"role": "assistant", "content": resp.content})
+                messages.append({"role": "user", "content": tool_results})
+
+            return {"decision": "HOLD", "conf": 0.5, "reason": "no terminal decision"}
 
         except Exception as exc:
             logger.debug("bond_exit_advisor failed (%s) — HOLD", exc)
