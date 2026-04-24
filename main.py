@@ -1523,7 +1523,7 @@ class KlausBot:
                     self._llm_ind_decisions.get(token_id, {}).get("decision") == "TAKE"
                 )
                 _min_rem = 20 if _has_pending_take else 45
-                if not (_min_rem <= remaining <= 240):
+                if remaining < _min_rem:
                     continue
             else:
                 continue
