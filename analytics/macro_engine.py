@@ -620,16 +620,17 @@ class MacroEngine:
         edge: float,
         window_size_s: int,
         window_remaining_s: float,
+        recent_history: list | None = None,
     ) -> dict:
         """
-        Non-binding LLM shadow advisor for BOND entries.
+        Independent LLM trader with evolving competing hypotheses.
 
-        Fires async after every BOND entry. Decision is logged and stored in
-        trades.jsonl under bond_llm_decision/conf/reason but never blocks a trade.
-        Purpose: accumulate n≥50 to measure LLM WR vs rule-only WR.
+        Receives its own recent decision history so it can update its model
+        of which signals predict outcomes — not just a fresh stateless call.
+        Fires pre-gate on every candidate; also used post-entry for trades.jsonl logging.
 
-        Returns {"decision": "TAKE"/"SKIP", "confidence": float, "reason": str}.
-        Defaults to {"decision": "TAKE", "confidence": 0.5, "reason": "..."} on any failure.
+        Returns {"decision": "TAKE"/"SKIP", "confidence": float, "reason": str,
+                 "shadow_tp_pct": float, "shadow_sl_pct": float}.
         """
         _default = {"decision": "TAKE", "confidence": 0.5, "reason": "LLM disabled"}
         if not self._enabled:
@@ -640,42 +641,134 @@ class MacroEngine:
         up_or_down = "above window-open price" if direction_label == "UP" else "below window-open price"
         zone = bond_entry_zone or (bond_entry_class.split("/")[0] if bond_entry_class else "?")
 
-        system_prompt = (
-            "You are a quantitative trader with one objective: maximize net P&L per trade on "
-            "Polymarket binary window markets. Each trade bets BTC/ETH/SOL ends UP or DOWN vs "
-            "its window-open price at window close. Token resolves to 1.0 (win) or 0.0 (loss). "
-            "Round-trip taker fees are ~3% at token price 0.50, ~1.5% at 0.30. "
-            "Token price = implied win probability (0.50=coinflip, 0.85=85% win). "
-            "Edge = fair_value - token_price: market mispricing given the Binance spot move. "
-            "Spot delta = % underlying moved since window opened. "
-            "Delta accel = rate of change of that move (positive=accelerating, negative=fading). "
-            "Edge drift = rate of change of theoretical edge over 30s (positive=improving, negative=eroding). "
-            "VPIN > 0.65 = institutional informed order flow confirmed. "
-            "Zone: EARLY=first 25% of window, CORE=25-75%, LATE=>75% elapsed. "
-            "Your goal: filter out low-conviction setups and only TAKE trades with genuine positive EV. "
-            "Set your own TP and SL — you are not bound by any existing rules. Find your own edge."
-        )
+        system_prompt = """\
+You are an autonomous trading intelligence operating in live binary window markets.
+
+MARKET DEFINITION
+Assets: BTC, ETH, SOL
+Each decision applies to a 5-minute or 15-minute window.
+Outcome: UP = price at window end > start price. DOWN = price at window end < start price.
+Token price = implied win probability (0.50=coinflip, 0.90=90% win). Resolves to 1.0 or 0.0.
+Round-trip taker fees ~3% at price 0.50, ~1.5% at 0.30.
+
+SIGNAL DEFINITIONS
+- Spot delta: % asset moved since window opened (positive=up, negative=down)
+- Delta accel (30s): rate of change of that move (positive=accelerating, negative=fading)
+- Smooth delta (60s avg): momentum over the last minute
+- Edge: fair_value - token_price (positive=market underpriced)
+- Edge drift (30s): whether edge is improving or eroding
+- VPIN: informed order flow toxicity (>0.65 = institutional flow confirmed)
+- Zone: EARLY=first 25% of window, CORE=25-75%, LATE=>75% elapsed
+
+ANTI-STRATEGY CONSTRAINT
+You are NOT allowed to settle into fixed explanations or stable strategies.
+- Do NOT treat any observed pattern as permanent
+- Do NOT assume any rule remains valid across time
+- Do NOT converge early on a single best model
+Every belief must remain temporary.
+
+CORE SYSTEM: COMPETING HYPOTHESES ENGINE
+For every candidate you must maintain multiple live hypotheses, not a single view.
+Maintain at least:
+  H1: current best explanation for why this candidate should resolve UP
+  H2: current best explanation for why it should resolve DOWN
+  H3 (optional): uncertainty / unknown regime hypothesis
+Each hypothesis must be derived from recent observed behavior only — not financial theory defaults.
+
+HYPOTHESIS EVOLUTION RULE (critical)
+After reviewing your history, you must:
+1. Strengthen hypotheses that matched past outcomes, weaken those that failed
+2. Modify structure — you may change what features matter, discard previously useful signals,
+   invent new explanatory variables, merge or split hypotheses
+You are NOT just updating weights. You are evolving explanations.
+
+EXPLORATION REQUIREMENT
+Continuously search for new micro-patterns, asset-specific behavioral differences,
+short-lived but repeatable structures, and anomalies that contradict existing hypotheses.
+If something does NOT fit current hypotheses, it is especially important.
+
+DECISION RULE
+Step 1: Evaluate hypotheses — which best explains current behavior? Which is failing?
+Step 2: Detect mismatch — if no hypothesis fits well, treat as unknown regime
+Step 3: Decide — choose TAKE only if a hypothesis is meaningfully stronger; otherwise SKIP
+
+ANTI-BIAS RULES
+Actively avoid locking into momentum/mean-reversion stories, reusing old explanations
+without revalidation, or forcing interpretation when structure is unclear.
+If you catch yourself repeating an old explanation without new evidence: mark it as
+"suspected prior bias" and downgrade it.
+
+MEMORY RULE
+Rely only on: recent observed behavior in your history, and performance of hypotheses
+in recent windows. Do NOT assume long-term stability or cross-session consistency.
+
+CORE PRINCIPLE
+Your goal is not to find a strategy. Your goal is to continuously evolve competing
+explanations of market behavior and let reality eliminate the wrong ones.
+You are rewarded for discovering new explanations and breaking your own assumptions.
+You are NOT rewarded for consistency of belief.\
+"""
+
+        # Build history context from recent completed trades
+        history_section = ""
+        if recent_history:
+            lines = ["YOUR RECENT DECISIONS + OUTCOMES (newest first):"]
+            for i, h in enumerate(recent_history[:15], 1):
+                dec   = h.get("llm_decision", "?")
+                conf  = float(h.get("llm_conf", 0) or 0)
+                asset_ = h.get("asset", "?")
+                dir_  = h.get("direction", "?")
+                zone_ = h.get("zone", "?")
+                delta = float(h.get("bond_delta", 0) or 0)
+                accel = float(h.get("delta_accel", 0) or 0)
+                drift = float(h.get("edge_drift", 0) or 0)
+                vpin_ = float(h.get("vpin", 0) or 0)
+                ep    = float(h.get("entry_price", 0) or 0)
+                outcome = h.get("exit_reason", "")
+                pnl   = float(h.get("shadow_gross_pnl", 0) or 0)
+                mark  = "✓" if pnl > 0 else ("✗" if pnl < 0 else "")
+                if outcome:
+                    lines.append(
+                        f"{i:>2}. {asset_}/{dir_:<4} {zone_:<5} "
+                        f"δ={delta:+.3f}% acl={accel:+.3f} drft={drift:+.3f} "
+                        f"VPIN={vpin_:.2f} entry={ep:.3f} "
+                        f"→ {dec} conf={conf:.2f} "
+                        f"→ {outcome} pnl={pnl:+.2f} {mark}"
+                    )
+                else:
+                    lines.append(
+                        f"{i:>2}. {asset_}/{dir_:<4} {zone_:<5} "
+                        f"δ={delta:+.3f}% acl={accel:+.3f} drft={drift:+.3f} "
+                        f"VPIN={vpin_:.2f} entry={ep:.3f} "
+                        f"→ {dec} conf={conf:.2f} (no outcome yet — SKIP or open)"
+                    )
+            history_section = "\n".join(lines) + "\n\n"
+        else:
+            history_section = "YOUR RECENT DECISIONS: None yet — this is your first evaluation.\n\n"
 
         prompt = (
-            f"BOND ENTRY — {now_utc.strftime('%H:%M')} UTC\n"
-            f"Asset: {asset} | Direction: {direction_label} (bet underlying {up_or_down})\n"
-            f"Token price: {entry_price:.3f} | Window: {window_size_s//60}min | "
-            f"Time remaining: {window_remaining_s:.0f}s\n\n"
-            f"SPOT SIGNAL\n"
-            f"Delta from window open: {bond_delta_at_entry:+.4f}%\n"
-            f"Delta acceleration (30s): {bond_delta_accel_30s:+.4f}\n"
-            f"Smooth delta (60s avg): {bond_smooth_delta_60s:+.4f}%\n\n"
-            f"ENTRY TIMING\n"
-            f"Zone: {zone} | Class: {bond_entry_class}\n\n"
-            f"ORDER FLOW + EDGE\n"
-            f"VPIN: {vpin:.3f}\n"
-            f"Edge (fair_value - ask): {edge:.4f}\n"
-            f"Edge drift (30s): {bond_edge_drift_30s:+.4f}\n\n"
-            f'Respond ONLY with JSON: {{"decision":"TAKE"or"SKIP","confidence":0.50-0.95,'
-            f'"reason":"max 12 words",'
-            f'"shadow_tp_pct":5-50,"shadow_sl_pct":5-30}}\n'
-            f'shadow_tp_pct = % gain at which you would sell (your take-profit target).\n'
-            f'shadow_sl_pct = % loss at which you would cut (your stop-loss). Always provide both.'
+            f"{history_section}"
+            f"STEP 1 — HYPOTHESIS EVOLUTION\n"
+            f"Review your history above. Which signals predicted outcomes? Which failed?\n"
+            f"Form H1 (UP thesis), H2 (DOWN thesis), H3 (uncertainty) before deciding.\n\n"
+            f"STEP 2 — EVALUATE THIS CANDIDATE\n"
+            f"Time: {now_utc.strftime('%H:%M')} UTC | "
+            f"Window: {window_size_s//60}min | Remaining: {window_remaining_s:.0f}s\n"
+            f"Asset: {asset} | Direction bet: {direction_label} (underlying {up_or_down})\n"
+            f"Token price: {entry_price:.3f} | Zone: {zone} | Class: {bond_entry_class}\n"
+            f"Spot delta:  {bond_delta_at_entry:+.4f}%\n"
+            f"Delta accel: {bond_delta_accel_30s:+.4f}  (30s rate of change)\n"
+            f"Smooth delta:{bond_smooth_delta_60s:+.4f}%  (60s avg)\n"
+            f"VPIN:        {vpin:.3f}\n"
+            f"Edge:        {edge:.4f}\n"
+            f"Edge drift:  {bond_edge_drift_30s:+.4f}  (30s)\n\n"
+            f"STEP 3 — DECIDE\n"
+            f"Which hypothesis fits? Is there meaningful conviction? TAKE or SKIP?\n"
+            f"Set your own TP% and SL% independent of any existing rules.\n\n"
+            f'Respond ONLY with JSON (no explanation outside JSON):\n'
+            f'{{"decision":"TAKE"or"SKIP","confidence":0.50-0.95,'
+            f'"reason":"max 15 words — what hypothesis supports this","h1":"UP thesis in 8 words",'
+            f'"h2":"DOWN thesis in 8 words","shadow_tp_pct":5-50,"shadow_sl_pct":5-30}}'
         )
 
         try:
@@ -687,7 +780,7 @@ class MacroEngine:
             }
             payload = {
                 "model": "claude-opus-4-7",
-                "max_tokens": 120,
+                "max_tokens": 400,
                 "system": system_prompt,
                 "messages": [{"role": "user", "content": prompt}],
             }

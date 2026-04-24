@@ -252,6 +252,12 @@ class KlausBot:
         # LLM independent trader: open shadow positions keyed by token_id.
         # Populated pre-gate by _bond_llm_independent_eval; exited in _check_open_positions.
         self._llm_shadow_positions: Dict[str, dict] = {}
+        # Running LLM eval tasks — prevents double-firing while a task is in-flight.
+        self._llm_eval_pending: Set[str] = set()
+        # Completed LLM decisions awaiting next scan for real entry.
+        # TAKE: consumed (popped) when real trade fires.
+        # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
+        self._llm_ind_decisions: Dict[str, dict] = {}
         # Peak-stability tracker: timestamp of first scan where bond_move
         # dropped below 80% of peak after peak_ts. Absence = no breach yet.
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
@@ -1525,6 +1531,10 @@ class KlausBot:
         _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
         logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
 
+        # Clean up stale LLM decisions for tokens that have left the feed
+        for _tid in [t for t in list(self._llm_ind_decisions) if t not in self.feed.tokens]:
+            del self._llm_ind_decisions[_tid]
+
         for token_id, token in list(self.feed.tokens.items()):
           try:
             if token.market_type != "updown":
@@ -1697,11 +1707,11 @@ class KlausBot:
                 _b_no_hist += 1
 
             # ── LLM independent trader: pre-gate evaluation ───────────────────
-            # Fires on EVERY candidate before our rules run. The LLM sees raw
-            # signals, makes its own TAKE/SKIP + TP/SL decision, and tracks its
-            # own shadow P&L in logs/llm_shadow.jsonl. Fully independent of our
-            # gate logic — it can approve what we block and block what we approve.
-            if self.macro_engine._enabled and token_id not in self._llm_shadow_positions:
+            # Fires on EVERY candidate that has no pending or completed decision yet.
+            # Result stored in _llm_ind_decisions; next scan cycle enters real trade.
+            if (self.macro_engine._enabled
+                    and token_id not in self._llm_ind_decisions
+                    and token_id not in self._llm_eval_pending):
                 asyncio.create_task(
                     self._bond_llm_independent_eval(
                         token_id=token_id,
@@ -1726,499 +1736,48 @@ class KlausBot:
                     name=f"llm_ind_{token.asset}_{token_id[:8]}",
                 )
 
-            # ── Hard entry gates (data-driven, no exceptions) ─────────────────
-            # Gate 1: TREND_UP + DOWN-YES contradiction.
-            #   n=6, -$8. Macro trend up, buying YES that resolves on price going down
-            #   — structurally self-contradictory. One-line reject.
-            if _macro_regime == "TREND_UP" and _token_dir == "down":
-                _skip_reason = "TREND_UP/DOWN-YES: macro up, token resolves down — contradictory"
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
+            # ── LLM is the sole BOND entry decision maker ─────────────────────
+            # Rule gates are halted. LLM evaluates every candidate pre-gate and
+            # decides TAKE/SKIP with its own TP/SL. Real trades only on TAKE.
+            _llm_dec = self._llm_ind_decisions.pop(token_id, None)
+            if _llm_dec is None:
+                continue  # LLM still evaluating (task in flight); check next scan
+
+            if _llm_dec.get("decision") != "TAKE":
+                logger.debug(
+                    "LLM_SKIP %s/%s conf=%.2f rem=%.0fs | %s",
+                    token.asset, token.side,
+                    _llm_dec.get("conf", 0.0), remaining,
+                    _llm_dec.get("reason", ""),
+                )
+                # Re-store SKIP so fire condition won't re-trigger for this window
+                self._llm_ind_decisions[token_id] = _llm_dec
                 continue
 
-            # Gate 2: universal directional-delta coherence.
-            # Block when asset is moving AGAINST token direction (>0.02%)
-            # UNLESS there's directional confirmation — either velocity now
-            # reversing into our direction (live reversal signal) or a
-            # sustained burst where delta and smoothed trend agree toward us.
-            # Closes the LATE-zone loophole (LATE uses abs(delta) only) and
-            # enforces coherence universally instead of per-mode.
+            _llm_tp_pct = float(_llm_dec.get("shadow_tp_pct", 15.0) or 15.0)
+            _llm_sl_pct = float(_llm_dec.get("shadow_sl_pct", 12.0) or 12.0)
+            _llm_conf   = _llm_dec.get("conf", 0.5)
+            _llm_reason = _llm_dec.get("reason", "")
+            logger.info(
+                "LLM_TAKE %s/%s | conf=%.2f TP=+%.0f%% SL=-%.0f%% rem=%.0fs | %s",
+                token.asset, token.side,
+                _llm_conf, _llm_tp_pct, _llm_sl_pct, remaining, _llm_reason,
+            )
+
+            # Pre-populate trade record fields from the pre-gate LLM decision
+            self._bond_llm_decisions[token_id] = {
+                "decision": "TAKE",
+                "conf": _llm_conf,
+                "reason": _llm_reason,
+                "shadow_tp_pct": _llm_tp_pct,
+                "shadow_sl_pct": _llm_sl_pct,
+            }
+
+            # Variables required by stab section and signal construction below
             _directional_delta = _bond_delta if _token_dir == "up" else -_bond_delta
-            _vel_reversing_in = (
-                not _vel_cold
-                and abs(_vel_now) >= 0.005
-                and (
-                    (_token_dir == "up"   and _vel_now > 0)
-                    or (_token_dir == "down" and _vel_now < 0)
-                )
-            )
-            _dir_burst_confirm = (
-                _abs_delta >= 0.04
-                and (
-                    (_token_dir == "up"   and _bond_delta > 0 and _smooth_delta > 0)
-                    or (_token_dir == "down" and _bond_delta < 0 and _smooth_delta < 0)
-                )
-            )
-            if _directional_delta < -0.02 and not (_vel_reversing_in or _dir_burst_confirm):
-                _skip_reason = (
-                    f"DELTA_AGAINST_UNCONFIRMED: dir_delta={_directional_delta:+.3f}% "
-                    f"dir={_token_dir} bond_d={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
-                    f"vel_rev={_vel_reversing_in} burst={_dir_burst_confirm}"
-                )
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
-                continue
-
-            # Gate 3: SOL daccel in (-0.03, -0.01) — momentum fading.
-            # n=15 WR=20% sum=-$9.36. Delta is decelerating at a moderate rate:
-            # still negative directional drift but losing speed. Worse than
-            # outright decay (<-0.03) because it looks like a trend but stalls.
-            # Only applies when history exists (no _ref30 means daccel=0.0).
-            if (token.asset == "SOL"
-                    and _has_hist
-                    and -0.03 < _delta_accel < -0.01):
-                _skip_reason = (
-                    f"SOL_DACCEL_FADE: daccel={_delta_accel:+.4f} in (-0.03,-0.01) "
-                    f"— n=15 WR=20% -$9.36"
-                )
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
-                continue
-
-            # Gate 4: BTC edge rising (drift>0.003) — unstable opportunity.
-            # n=21 WR=29% sum=-$9.92 vs edge flat/falling WR=57% +$6.12.
-            # Rising edge means the mispricing is still building — BTC hasn't
-            # stabilised. Counterintuitively, waiting for edge to peak then
-            # flatten outperforms chasing a still-rising edge on BTC.
-            # ETH/SOL do NOT show this pattern (SOL edge rising WR=52%).
-            if (token.asset == "BTC"
-                    and _has_hist
-                    and _edge_drift > 0.003):
-                _skip_reason = (
-                    f"BTC_EDGE_RISING: drift={_edge_drift:+.4f}>0.003 "
-                    f"— n=21 WR=29% -$9.92 (flat/falling WR=57%)"
-                )
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
-                continue
-
-            # CHOP is NOT hard-skipped — CORE-B (compression/reversion) can still
-            # fire in CHOP with a strong edge. IMPULSE / EARLY / LATE / CORE-A
-            # all require _in_trend and skip otherwise.
-            # ─────────────────────────────────────────────────────────────────
-
-            # ── Shared EDGE_VALID precondition (applies to EARLY/CORE-B/IMPULSE)
-            # Microstructure consistency check: edge must pass before any mode
-            # that trusts it. Not a new mode — a precondition so EARLY, CORE-B,
-            # and IMPULSE share one "truth standard" for edge acceptance.
-            #
-            #   (1) delta_coherent    — bond_delta is not pointing strongly
-            #       OPPOSITE the token direction. Token UP with delta≤-0.05%
-            #       (or Token DOWN with delta≥+0.05%) = asset moving the wrong
-            #       way; edge is illusory.
-            #   (2) vel_coherent      — if velocity is sampled at all, its
-            #       magnitude must clear the microstructure noise band
-            #       (|vel|≥0.003%). vel_cold passes (no vel data is OK); vel
-            #       inside the noise band is worse than none.
-            #   (3) not coherence_spike — a large single-bar bond_delta that
-            #       disagrees in sign with the 60s-smoothed delta is one tick
-            #       spike, not a regime. Reject when |delta|≥0.06% AND
-            #       bond_delta × smooth_delta < 0.
-            _delta_coherent = not (
-                (_token_dir == "up"   and _bond_delta <= -0.05) or
-                (_token_dir == "down" and _bond_delta >=  0.05)
-            )
-            _vel_coherent = _vel_cold or abs(_vel_now) >= 0.003
-            _coherence_spike = (
-                _abs_delta >= 0.06
-                and (_bond_delta * _smooth_delta) < 0.0
-            )
-            _edge_valid = _delta_coherent and _vel_coherent and not _coherence_spike
-            _edge_valid_detail = (
-                f"delta_coh={_delta_coherent} vel_coh={_vel_coherent} "
-                f"spike={_coherence_spike} bond_d={_bond_delta:+.3f}% "
-                f"smooth_d={_smooth_delta:+.3f}% vel={_vel_now:+.4f}%"
-            )
-            # ─────────────────────────────────────────────────────────────────
-
-            # IMPULSE regime: velocity spike overrides accel/drift requirements.
-            # Fires only in early window when the velocity IS the signal.
-            _is_impulse = (
-                not _vel_cold
-                and abs(_vel_now) > 0.04
-                and _elapsed_pct < 0.60
-                and _adjusted_edge > 0.035
-            )
-
-            if _is_impulse:
-                if not _in_trend:
-                    _skip = True
-                    _skip_reason = (
-                        f"IMPULSE[CHOP]: trend required | "
-                        f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
-                    )
-                elif not _edge_valid:
-                    _skip = True
-                    _skip_reason = f"IMPULSE[EDGE_INVALID]: {_edge_valid_detail}"
-                else:
-                    _skip = _abs_delta < 0.02    # relaxed floor — IMPULSE vel is primary signal
-                    _skip_reason = (
-                        f"IMPULSE{'[delta<0.02]' if _skip else ''} | "
-                        f"delta={_abs_delta:.3f}% vel={_vel_now:+.4f}% adj_edge={_adjusted_edge:.4f} elap={_elapsed_pct:.2f}"
-                    )
-                _dzone = "IMPULSE"
-            elif _bond_zone == "CORE":
-                # CORE splits into two behavioral modes — not a single filter.
-                #
-                #   CORE-A (CONTINUATION) — ride aligned trends with velocity confirmation.
-                #     requires: _in_trend AND aligned vel AND aligned+strong delta
-                #     runs existing composite-score gate on edge/delta/drift/accel.
-                #
-                #   CORE-B (COMPRESSION / MEAN-REVERSION) — exploit mispricing when macro
-                #     is quiet (weak delta, quiet/misaligned vel), edge must carry the trade.
-                #     fires in both TREND and CHOP; edge alone qualifies.
-                _core_a_profile = (
-                    _in_trend
-                    and not _vel_cold
-                    and _bond_delta * _vel_now >= 0.0
-                    and _abs_delta >= 0.06    # CORE-A requires confirmation
-                    and abs(_vel_now) >= 0.02
-                )
-                _vel_quiet_or_misaligned = (
-                    _vel_cold
-                    or abs(_vel_now) < 0.015
-                    or _bond_delta * _vel_now < 0.0
-                )
-                # CORE-B: EXPANSION-CONFIRMATION ONLY — validates an ongoing move,
-                # never predicts one from compression. Compression or stagnation is
-                # invalid regardless of edge/fv. Must show active directional expansion
-                # already in progress.
-                # Hard requirements:
-                #   (1) edge ≥ 0.13 — high-conviction mispricing
-                #   (2) delta direction-aligned OR actively improving toward direction
-                #       (no persistent negative drift in trade direction)
-                #   (3) non-flat velocity — vel_mag ≥ 0.01 (quiet/neutral excluded)
-                #   (4) visible expansion — at least one of: aligned vel, improving
-                #       delta (accel toward direction), positive edge drift
-                #   (5) not stagnant — vel < 0.01 with no accel/drift → reject
-                _delta_dir_aligned_cb = (
-                    (_token_dir == "up"   and _bond_delta >  0.0) or
-                    (_token_dir == "down" and _bond_delta <  0.0)
-                )
-                _delta_improving_cb = _has_hist and (
-                    (_token_dir == "up"   and _delta_accel > 0.0) or
-                    (_token_dir == "down" and _delta_accel < 0.0)
-                )
-                _edge_drifting_up_cb = _has_hist and _edge_drift > 0.005
-                _vel_aligned_cb = (
-                    not _vel_cold and _vel_mag_now >= 0.01 and (
-                        (_token_dir == "up"   and _vel_now > 0) or
-                        (_token_dir == "down" and _vel_now < 0)
-                    )
-                )
-                _vel_nonflat_cb = not _vel_cold and _vel_mag_now >= 0.01
-                _visible_expansion_cb = (
-                    _vel_aligned_cb
-                    or _delta_improving_cb
-                    or _edge_drifting_up_cb
-                )
-                _stagnant_cb = (
-                    _vel_mag_now < 0.01
-                    and not _delta_improving_cb
-                    and not _edge_drifting_up_cb
-                )
-                _core_b_profile = (
-                    _adjusted_edge >= 0.13
-                    and _abs_delta >= 0.06    # CORE-B requires confirmation
-                    and _vel_nonflat_cb
-                    and (_delta_dir_aligned_cb or _delta_improving_cb)
-                    and _visible_expansion_cb
-                    and not _stagnant_cb
-                )
-
-                if _core_a_profile:
-                    # Continuation: existing composite-score logic unchanged.
-                    if _adjusted_edge < 0.03:
-                        _skip = True
-                        _skip_reason = f"CORE-A: adj_edge={_adjusted_edge:.4f} < 0.03 (hard floor)"
-                    else:
-                        _drift_flag = 1.0 if (_has_hist and _edge_drift >= 0) or not _has_hist else 0.0
-                        _accel_flag = 1.0 if (_has_hist and _delta_accel >= 0) or not _has_hist else 0.0
-                        _edge_score = math.log(1.0 + _adjusted_edge / 0.03)
-                        _core_score = (
-                            _edge_score                             * 0.40 +
-                            min(1.0, _abs_delta / 0.13)            * 0.25 +
-                            _drift_flag                            * 0.20 +
-                            _accel_flag                            * 0.15
-                        )
-                        _skip = _core_score < 0.55
-                        _skip_reason = (
-                            f"CORE-A score={_core_score:.3f} (edge_s={_edge_score:.3f}×0.40 "
-                            f"delta_s={min(1.0,_abs_delta/0.13):.2f}×0.25 "
-                            f"drift={_drift_flag:.0f}×0.20 accel={_accel_flag:.0f}×0.15) | "
-                            f"adj_edge={_adjusted_edge:.4f} edge={_edge:.4f} delta={_abs_delta:.3f}%"
-                        )
-                    _dzone = "CORE-A-CONT"
-                elif _core_b_profile:
-                    # Expansion-confirmation: validates an ongoing move.
-                    # EDGE_VALID still required — microstructure coherence check.
-                    if not _edge_valid:
-                        _skip = True
-                        _skip_reason = f"CORE-B[EDGE_INVALID]: {_edge_valid_detail}"
-                    else:
-                        _skip = False
-                        _skip_reason = (
-                            f"CORE-B[EXP] pass: adj_edge={_adjusted_edge:.4f} "
-                            f"delta={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
-                            f"dir_aln={_delta_dir_aligned_cb} dir_imp={_delta_improving_cb} "
-                            f"vel_aln={_vel_aligned_cb} drift={_edge_drift:+.4f} "
-                            f"regime={_macro_regime}"
-                        )
-                    _dzone = "CORE-B-EXP"
-                else:
-                    _skip = True
-                    _skip_reason = (
-                        f"CORE[AMBIGUOUS]: neither continuation nor expansion-confirm profile | "
-                        f"delta={_bond_delta:+.3f}% vel={_vel_now:+.4f}% "
-                        f"adj_edge={_adjusted_edge:.4f} regime={_macro_regime} "
-                        f"(A needs trend+aligned+|d|≥0.08+|v|≥0.02; "
-                        f"B needs adj_edge≥0.13 + dir-aligned/improving delta + |v|≥0.01 + expansion)"
-                    )
-                    _dzone = "CORE"
-            elif _bond_zone == "EARLY":
-                # Layer-1 gate: EARLY only fires in TREND regimes.
-                if not _in_trend:
-                    _skip = True
-                    _skip_reason = (
-                        f"EARLY[CHOP]: trend required | "
-                        f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
-                    )
-                    _dzone = "EARLY"
-                # Low-information pre-gate: both |delta| < 0.06 AND |vel| < 0.02
-                # means neither signal provides structural basis — regime noise only.
-                elif _low_info:
-                    _skip = True
-                    _skip_reason = (
-                        f"EARLY[LOW_INFO]: delta={_abs_delta:.3f}%<0.06 AND "
-                        f"vel={_vel_mag_now:.4f}%<0.02 — no structure"
-                    )
-                    _dzone = "EARLY"
-                elif not _edge_valid:
-                    # Shared EDGE_VALID precondition — edge must pass microstructure
-                    # coherence check before EARLY trusts it (Mode A or Mode B).
-                    _skip = True
-                    _skip_reason = f"EARLY[EDGE_INVALID]: {_edge_valid_detail}"
-                    _dzone = "EARLY"
-                else:
-                    # Two explicit entry modes — no cross-mode OR bypass logic.
-                    # Each mode is a self-contained AND-chain; delta/regime_weight are
-                    # risk modifiers (already applied to adj_edge), not routing signals.
-                    _vel_dir_pos = (
-                        not _vel_cold and (
-                            (_token_dir == "up"   and _vel_now > 0) or
-                            (_token_dir == "down" and _vel_now < 0)
-                        )
-                    )
-                    _vel_mag = abs(_vel_now)
-                    _accel_pos = _has_hist and _delta_accel > 0
-
-                    # R1: delta excess penalty — proportional soft penalty when |delta|>0.05.
-                    _delta_excess = max(0.0, abs(_bond_delta) - 0.05)
-                    _delta_excess_penalty = min(0.30, _delta_excess * 2.0)
-                    _early_adj_edge = _adjusted_edge * (1.0 - _delta_excess_penalty)
-
-                    # R2: weak-velocity downweight — no INIT vel AND no sustained accel → up to -15%.
-                    # Previously: _vel_dir_pos AND not _accel_pos AND _vel_mag < 0.01
-                    # Bug: the three conditions cancelled — weak directional vel almost always
-                    # co-occurs with positive accel (same move), so not _accel_pos was always False.
-                    # Fix: penalize when INIT threshold not met AND accel not sustained.
-                    _weak_vel_penalty = 0.0
-                    if not _vel_init and not _accel_sustained:
-                        _vel_conf = _vel_mag if not _vel_cold else 0.0
-                        _weak_vel_penalty = min(0.15, max(0.0, (0.01 - _vel_conf) / 0.01 * 0.15))
-                        _early_adj_edge *= (1.0 - _weak_vel_penalty)
-
-                    _early_adj_edge = round(_early_adj_edge, 4)
-
-                    # MODE A — PRE-IGNITION DISCOVERY (formation phase, 150–240s).
-                    # Identifies setups BEFORE expansion begins, not after.
-                    # Allows weak/neutral delta IF structure is stable AND building.
-                    # Hard rejects: strongly negative delta decay, collapsing vel,
-                    # late compression (flat vel + weak delta + no build).
-                    _delta_accel_aligned_a = _has_hist and (
-                        (_token_dir == "up"   and _delta_accel >  0.0) or
-                        (_token_dir == "down" and _delta_accel <  0.0)
-                    )
-                    _edge_drift_up_a = _has_hist and _edge_drift > 0.005
-                    # Building: at least one sign of acceleration toward direction.
-                    _building_a = (
-                        _delta_accel_aligned_a
-                        or _accel_sustained
-                        or _edge_drift_up_a
-                        or _vel_dir_pos
-                    )
-                    # Collapsing vel: meaningful magnitude against direction.
-                    _vel_collapsing_a = (
-                        not _vel_cold and _vel_mag_now >= 0.02 and (
-                            (_token_dir == "up"   and _vel_now < 0) or
-                            (_token_dir == "down" and _vel_now > 0)
-                        )
-                    )
-                    # Delta decaying: persistent accel AGAINST direction.
-                    _delta_decaying_a = _has_hist and (
-                        (_token_dir == "up"   and _delta_accel < -0.02) or
-                        (_token_dir == "down" and _delta_accel >  0.02)
-                    )
-                    # Late compression: flat vel + weak delta + no build signals.
-                    # Belongs to CORE-B (expansion-confirm) or should be skipped.
-                    _late_compression_a = (
-                        _vel_mag_now < 0.005
-                        and _abs_delta < 0.04
-                        and not _accel_sustained
-                        and not _edge_drift_up_a
-                    )
-                    # Stagnation filter — all three must hold simultaneously.
-                    # Rejects "statistically valid but structurally dead" setups.
-                    # Does NOT fire if ANY build signal exists (even weak).
-                    # (1) delta adverse AND not improving toward zero/reversal
-                    _delta_adverse_a = (
-                        (_token_dir == "up"   and _bond_delta < 0) or
-                        (_token_dir == "down" and _bond_delta > 0)
-                    )
-                    _delta_not_improving_a = not _has_hist or (
-                        (_token_dir == "up"   and _delta_accel <= 0.0) or
-                        (_token_dir == "down" and _delta_accel >= 0.0)
-                    )
-                    # (2) velocity near-flat (|vel| ≤ 0.01)
-                    # (3) no build signal — uses _building_a (any signal breaks stagnation)
-                    _stagnant_a = (
-                        _delta_adverse_a
-                        and _delta_not_improving_a
-                        and _vel_mag_now <= 0.01
-                        and not _building_a
-                    )
-                    # Observability-only: would-be soft velocity regime gate.
-                    # NOT enforced on _mode_a — computed so we can log when an
-                    # active-vel entry (|vel| ≥ 0.015) lacks confirming structure.
-                    # Compare 24–48h against baseline before deciding whether to
-                    # promote this to a real gate.
-                    _VEL_QUIET_A = 0.015
-                    _vel_quiet_a = _vel_mag_now < _VEL_QUIET_A
-                    _vel_active_ok_a = (
-                        _delta_accel_aligned_a
-                        and _edge_drift_up_a
-                        and not _stagnant_a
-                    )
-                    _vel_regime_ok_a = _vel_quiet_a or _vel_active_ok_a
-                    _mode_a = (
-                        _in_trend
-                        and _early_adj_edge >= 0.06
-                        and _abs_delta >= 0.02    # EARLY-A relaxed floor (vel carries signal)
-                        and _building_a
-                        and not _vel_collapsing_a
-                        and not _delta_decaying_a
-                        and not _late_compression_a
-                        and not _stagnant_a
-                    )
-
-                    # MODE B — IGNITION-DRIVEN
-                    # Requires: trend alignment (delta * vel same sign, not vel_cold),
-                    #           sustained accel (both 15s and 30s reference positive),
-                    #           edge floor, and minimum delta.
-                    _trend_aligned = (
-                        not _vel_cold
-                        and _bond_delta * _vel_now >= 0.0
-                    )
-                    _mode_b = (
-                        _trend_aligned
-                        and _accel_sustained
-                        and _edge_drift  > 0.01
-                        and _early_adj_edge >= 0.05
-                        and _abs_delta >= 0.02    # EARLY-B relaxed floor (accel + vel carry signal)
-                    )
-
-                    _skip = not (_mode_a or _mode_b)
-                    _mode_tag = "A-PRE" if _mode_a else ("B-IGN" if _mode_b else "NONE")
-                    _skip_reason = (
-                        f"EARLY[{_mode_tag}]: delta={_bond_delta:+.3f}% adj={_adjusted_edge:.4f} "
-                        f"ej={_early_adj_edge:.4f} rw={_regime_weight:.2f} "
-                        f"vel={_vel_now:+.4f}% trend_aln={_trend_aligned} "
-                        f"accel30={_delta_accel:+.4f}% accel15={_accel_15!r} "
-                        f"drift={_edge_drift:+.4f} sustain={_accel_sustained} "
-                        f"build={_building_a} coll={_vel_collapsing_a} "
-                        f"decay={_delta_decaying_a} latecmp={_late_compression_a} "
-                        f"stagnant={_stagnant_a} velreg={_vel_regime_ok_a} "
-                        f"(quiet={_vel_quiet_a} actok={_vel_active_ok_a}) "
-                        f"A={_mode_a} B={_mode_b}"
-                    )
-                    _dzone = f"EARLY-{_mode_tag}" if not _skip else "EARLY"
-                    # Observability: Mode A passed BUT soft vel-regime gate
-                    # would have blocked it. Grep "EARLY_A_VELREG_WOULDBLOCK"
-                    # to correlate these entries with outcomes.
-                    if _mode_a and not _vel_regime_ok_a:
-                        logger.info(
-                            "EARLY_A_VELREG_WOULDBLOCK %s/%s | vel=%+.4f%% "
-                            "(|vel|≥%.3f) delta=%+.3f%% adj=%.4f ej=%.4f "
-                            "d_accel_aln=%s edge_drift_up=%s stagnant=%s "
-                            "— entry PROCEEDING, outcome flagged",
-                            token.asset, token.side, _vel_now, _VEL_QUIET_A,
-                            _bond_delta, _adjusted_edge, _early_adj_edge,
-                            _delta_accel_aligned_a, _edge_drift_up_a, _stagnant_a,
-                        )
-            else:  # LATE (45–90s)
-                if not _in_trend:
-                    _skip = True
-                    _skip_reason = (
-                        f"LATE[CHOP]: trend required | "
-                        f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
-                    )
-                elif _has_hist and _delta_accel < 0.0:
-                    # Move is fading — adverse selection risk in final window segment.
-                    # Positive or flat daccel = move still has legs; negative = entering on exhaust.
-                    _skip = True
-                    _skip_reason = (
-                        f"LATE[FADE]: daccel={_delta_accel:+.4f}<0 — move decelerating at entry, "
-                        f"high adverse-selection risk in late window"
-                    )
-                else:
-                    # LATE requires stronger edge (0.05 vs 0.03 global floor) — late entries
-                    # have structurally worse WR and less time to recover; edge must compensate.
-                    _skip = (
-                        (_abs_delta < 0.04 or _abs_delta > 0.13 or _adjusted_edge < 0.05 or ask > 0.75) or
-                        (_has_hist and _edge_drift < -0.005)
-                    )
-                    _skip_reason = (
-                        f"LATE: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
-                        f"ask={ask:.4f} drift={_edge_drift:+.4f} daccel={_delta_accel:+.4f}"
-                    )
-                _dzone = "LATE"
-
-            # Global no-trade zone: two independent rejection criteria.
-            #   (1) adj_edge < 0.06 — edge floor (CORE / LATE / IMPULSE / EARLY-B).
-            #       EARLY-A is EXEMPT when a build signal is present — pre-ignition
-            #       discovery trades on emerging structure BEFORE edge meets the
-            #       threshold. Build signal: delta accel toward direction OR
-            #       edge drift rising OR aligned velocity.
-            #   (2) |delta| < 0.05 AND vel ≈ 0 — no directional basis at all.
-            #       Applies universally (including EARLY-A); without any structural
-            #       basis there's nothing to build on.
-            _early_a_edge_bypass = (
-                _dzone == "EARLY-A-PRE"
-                and (
-                    _delta_accel_aligned_a
-                    or _edge_drift_up_a
-                    or _vel_dir_pos
-                )
-            )
-            if _adjusted_edge < 0.03 and not _early_a_edge_bypass:
-                _skip = True
-                _skip_reason = f"NO_TRADE: adj_edge={_adjusted_edge:.4f} < 0.03 edge={_edge:.4f} rw={_regime_weight:.2f}"
-            elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
-                _skip = True
-                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
-            elif _abs_delta > 0.085:
-                _skip = True
-                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%>0.085 — lag window exhausted, adverse selection risk"
-
-            if _skip:
-                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
-                continue
+            _dzone = _bond_zone
+            _delta_excess_penalty = 0.0
+            _weak_vel_penalty = 0.0
 
             # Build a minimal SniperSignal — reuses the existing entry machinery
             _wlabel = f"{token.window_seconds // 60}m"
@@ -2258,11 +1817,11 @@ class KlausBot:
             )
 
             tpsl = TPSLLevels(
-                take_profit=min(0.99, round(ask + (1.0 - ask) * 0.90, 4)),
-                stop_loss=max(0.01, round(ask * 0.80, 4)),
-                tp_pct=round((1.0 - ask) / ask * 90, 1),
-                sl_pct=20.0,
-                risk_reward=1.5,
+                take_profit=min(0.99, round(ask * (1.0 + _llm_tp_pct / 100.0), 4)),
+                stop_loss=max(0.01, round(ask * (1.0 - _llm_sl_pct / 100.0), 4)),
+                tp_pct=_llm_tp_pct,
+                sl_pct=_llm_sl_pct,
+                risk_reward=round(_llm_tp_pct / max(0.01, _llm_sl_pct), 2),
             )
 
             decision = self.risk.evaluate(
@@ -3517,14 +3076,6 @@ class KlausBot:
                 name=f"bond_timer_{asset}_{token_id[:8]}",
             )
 
-        # BOND: non-binding LLM shadow advisor — fire async, never blocks entry.
-        # Result stored in _bond_llm_decisions[token_id] and logged to trades.jsonl.
-        if getattr(signal, "is_bond", False):
-            asyncio.create_task(
-                self._bond_llm_advisor(token_id, signal, pos, fill.avg_fill_price),
-                name=f"bond_llm_{asset}_{token_id[:8]}",
-            )
-
     # ── LLM independent trader ───────────────────────────────────────────────
 
     def _write_llm_shadow(self, record: dict) -> None:
@@ -3564,29 +3115,35 @@ class KlausBot:
         Fully independent LLM trader. Called pre-gate on every BOND candidate.
 
         The LLM sees raw signals only — no rule thresholds, no gate names.
-        It decides TAKE/SKIP with its own TP% and SL%, opens a virtual shadow
-        position if TAKE, and exits it in _check_open_positions based on its
-        own rules. Results logged to logs/llm_shadow.jsonl.
-
-        This is the LLM operating as an independent participant in the same
-        market, not as a second-opinion layer on our approved trades.
+        It decides TAKE/SKIP with its own TP% and SL%. Decision is stored in
+        _llm_ind_decisions[token_id]; next scan cycle picks it up and enters a
+        real trade (TAKE) or continues silently (SKIP).
+        Results also logged to logs/llm_shadow.jsonl for analysis.
         """
+        self._llm_eval_pending.add(token_id)
         now = time.time()
-        result = await self.macro_engine.bond_advisor(
-            asset=asset,
-            direction="BUY_YES" if direction == "YES" else "BUY_NO",
-            entry_price=entry_price,
-            bond_entry_class=entry_class_hint,
-            bond_entry_zone=zone,
-            bond_delta_at_entry=bond_delta,
-            bond_delta_accel_30s=delta_accel,
-            bond_edge_drift_30s=edge_drift,
-            bond_smooth_delta_60s=smooth_delta,
-            vpin=vpin,
-            edge=edge,
-            window_size_s=window_size_s,
-            window_remaining_s=remaining_s,
-        )
+        try:
+            result = await self.macro_engine.bond_advisor(
+                asset=asset,
+                direction="BUY_YES" if direction == "YES" else "BUY_NO",
+                entry_price=entry_price,
+                bond_entry_class=entry_class_hint,
+                bond_entry_zone=zone,
+                bond_delta_at_entry=bond_delta,
+                bond_delta_accel_30s=delta_accel,
+                bond_edge_drift_30s=edge_drift,
+                bond_smooth_delta_60s=smooth_delta,
+                vpin=vpin,
+                edge=edge,
+                window_size_s=window_size_s,
+                window_remaining_s=remaining_s,
+            )
+        finally:
+            self._llm_eval_pending.discard(token_id)
+
+        # Store decision for next scan cycle to consume
+        result["ts"] = now
+        self._llm_ind_decisions[token_id] = result
 
         self._write_llm_shadow({
             "record_type": "llm_entry",
@@ -3617,37 +3174,17 @@ class KlausBot:
             "llm_sl_pct": result.get("shadow_sl_pct", 0.0),
         })
 
-        if result["decision"] == "TAKE":
-            elapsed_on_call = time.time() - now
-            new_remaining = remaining_s - elapsed_on_call
-            if new_remaining > 30:
-                self._llm_shadow_positions[token_id] = {
-                    "asset": asset,
-                    "direction": direction,
-                    "entry_price": entry_price,
-                    "entry_ts": time.time(),
-                    "tp_pct": result.get("shadow_tp_pct", 15.0),
-                    "sl_pct": result.get("shadow_sl_pct", 12.0),
-                    "conf": result.get("conf", 0.5),
-                    "reason": result.get("reason", ""),
-                    "window_end_ts": window_end_ts,
-                    "stake": self.risk.bankroll.current_stake,
-                    "zone": zone,
-                }
-                logger.info(
-                    "LLM_IND OPEN %s/%s | entry=%.3f TP=+%.0f%% SL=-%.0f%% "
-                    "conf=%.2f rem=%.0fs | %s",
-                    asset, direction, entry_price,
-                    result.get("shadow_tp_pct", 15.0),
-                    result.get("shadow_sl_pct", 12.0),
-                    result.get("conf", 0.5), new_remaining,
-                    result.get("reason", ""),
-                )
-            else:
-                logger.info(
-                    "LLM_IND %s/%s TAKE but window closed during call (rem=%.0fs)",
-                    asset, direction, new_remaining,
-                )
+        elapsed = time.time() - now
+        logger.info(
+            "LLM_EVAL %s/%s → %s conf=%.2f TP=+%.0f%% SL=-%.0f%% "
+            "call=%.1fs rem≈%.0fs | %s",
+            asset, direction, result["decision"],
+            result.get("conf", 0.5),
+            result.get("shadow_tp_pct", 0.0),
+            result.get("shadow_sl_pct", 0.0),
+            elapsed, remaining_s - elapsed,
+            result.get("reason", ""),
+        )
 
     # ── BOND LLM shadow advisor ───────────────────────────────────────────────
 
