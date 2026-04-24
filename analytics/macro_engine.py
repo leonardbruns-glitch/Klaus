@@ -825,10 +825,8 @@ class MacroEngine:
                     "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
 
         except Exception as exc:
-            _is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower()
-            _decision = "SKIP" if _is_rate_limit else "TAKE"
-            logger.warning("bond_advisor failed (%s) — default %s", exc, _decision)
-            return {"decision": _decision, "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}",
+            logger.warning("bond_advisor failed (%s) — default SKIP", exc)
+            return {"decision": "SKIP", "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}",
                     "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
 
     async def bond_exit_advisor(
