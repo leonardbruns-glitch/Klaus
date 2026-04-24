@@ -3202,6 +3202,7 @@ class KlausBot:
                 entry_sl_pct=float(_llm_rec.get("shadow_sl_pct", 0.0) or 0.0),
                 highest_price=pos.highest_price,
                 lowest_price=pos.lowest_price,
+                recent_history=self._read_llm_shadow_history(n=15),
             )
             self._llm_exit_decisions[token_id] = result
             self._llm_exit_last_eval[token_id] = time.time()

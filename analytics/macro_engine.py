@@ -839,6 +839,7 @@ class MacroEngine:
         entry_sl_pct: float = 0.0,
         highest_price: float = 0.0,
         lowest_price: float = 0.0,
+        recent_history: list | None = None,
     ) -> dict:
         """
         Agentic exit decision via aiohttp tool-use loop.
@@ -869,6 +870,24 @@ class MacroEngine:
             },
         }
 
+        if recent_history:
+            rows = []
+            for h in recent_history[:15]:
+                pnl = float(h.get("shadow_gross_pnl", 0) or 0)
+                rows.append({
+                    "asset": h.get("asset", "?"),
+                    "direction": h.get("direction", "?"),
+                    "zone": h.get("zone", "?"),
+                    "entry_decision": h.get("llm_decision", "?"),
+                    "exit_reason": h.get("exit_reason", "open"),
+                    "held_seconds": h.get("hold_seconds", 0),
+                    "pnl": round(pnl, 2),
+                    "entry_thesis": (h.get("llm_reason", "") or "")[:60],
+                })
+            _catalog["get_history"] = rows
+        else:
+            _catalog["get_history"] = []
+
         tools = [
             {
                 "name": "get_position",
@@ -878,6 +897,11 @@ class MacroEngine:
             {
                 "name": "get_market_flow",
                 "description": "Binance spot delta vs window open and VPIN order-flow toxicity.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "get_history",
+                "description": "Your recent closed trades: entry decision, exit reason, hold time, and P&L (newest first). Use this to learn which exit patterns worked.",
                 "input_schema": {"type": "object", "properties": {}, "required": []},
             },
             {
