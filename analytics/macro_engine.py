@@ -37,6 +37,8 @@ logger = logging.getLogger("macro_engine")
 
 class _RateLimitError(Exception):
     """Raised on HTTP 429 — caller should retry, not store a SKIP decision."""
+    def __init__(self, retry_after: float = 15.0):
+        self.retry_after = retry_after
 
 
 # ── Trigger thresholds by session ─────────────────────────────────────────────
@@ -794,7 +796,7 @@ class MacroEngine:
                         timeout=aiohttp.ClientTimeout(total=15),
                     ) as resp:
                         if resp.status == 429:
-                            raise _RateLimitError()
+                            raise _RateLimitError(float(resp.headers.get("retry-after", 15)))
                         if resp.status != 200:
                             body = await resp.text()
                             raise Exception(f"API {resp.status}: {body[:60]}")
@@ -1045,7 +1047,7 @@ class MacroEngine:
                         timeout=aiohttp.ClientTimeout(total=10),
                     ) as resp:
                         if resp.status == 429:
-                            raise _RateLimitError()
+                            raise _RateLimitError(float(resp.headers.get("retry-after", 15)))
                         if resp.status != 200:
                             body = await resp.text()
                             raise Exception(f"API {resp.status}: {body[:60]}")
