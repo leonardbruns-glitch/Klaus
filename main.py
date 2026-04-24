@@ -1675,7 +1675,8 @@ class KlausBot:
             # Result stored in _llm_ind_decisions; next scan cycle enters real trade.
             if (self.macro_engine._enabled
                     and token_id not in self._llm_ind_decisions
-                    and token_id not in self._llm_eval_pending):
+                    and token_id not in self._llm_eval_pending
+                    and time.time() >= self._llm_rate_limit_until):
                 asyncio.create_task(
                     self._bond_llm_independent_eval(
                         token_id=token_id,
