@@ -833,7 +833,13 @@ class MacroEngine:
                         )
                         return terminal
 
-                    if data.get("stop_reason") == "end_turn" or not tool_results:
+                    # LLM output text without calling a terminal tool — nudge it to decide
+                    if data.get("stop_reason") == "end_turn":
+                        messages.append({"role": "assistant", "content": content_blocks})
+                        messages.append({"role": "user", "content": "Call take() or skip() now."})
+                        continue
+
+                    if not tool_results:
                         break
 
                     messages.append({"role": "assistant", "content": content_blocks})

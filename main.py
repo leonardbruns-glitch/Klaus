@@ -3213,12 +3213,10 @@ class KlausBot:
 
         elapsed = time.time() - now
         logger.info(
-            "LLM_EVAL %s/%s → %s conf=%.2f TP=+%.0f%% SL=-%.0f%% "
-            "call=%.1fs rem≈%.0fs | %s",
+            "LLM_EVAL %s/%s → %s conf=%.2f edge=%s call=%.1fs rem≈%.0fs | %s",
             asset, direction, result["decision"],
             result.get("conf", 0.5),
-            result.get("shadow_tp_pct", 0.0),
-            result.get("shadow_sl_pct", 0.0),
+            result.get("edge_type", "?"),
             elapsed, remaining_s - elapsed,
             result.get("reason", ""),
         )
