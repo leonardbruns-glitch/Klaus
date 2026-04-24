@@ -684,13 +684,17 @@ class MacroEngine:
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "direction":  {"type": "string", "description": "UP or DOWN"},
-                        "confidence": {"type": "number", "description": "0–1 expected value conviction"},
-                        "tp_pct":     {"type": "number", "description": "Take-profit % above entry price"},
-                        "sl_pct":     {"type": "number", "description": "Stop-loss % below entry price"},
-                        "reason":     {"type": "string", "description": "Why this side is mispriced"},
+                        "direction":            {"type": "string", "description": "UP or DOWN"},
+                        "confidence":           {"type": "number", "description": "0–1 expected value conviction"},
+                        "tp_pct":               {"type": "number", "description": "Take-profit % above entry price"},
+                        "sl_pct":               {"type": "number", "description": "Stop-loss % below entry price"},
+                        "position_type":        {"type": "string", "description": "scalp | momentum | contrarian | binary_expiry"},
+                        "expected_duration_sec":{"type": "number", "description": "Expected hold time in seconds (30–3600)"},
+                        "edge_type":            {"type": "string", "description": "reversion | continuation | terminal_event"},
+                        "reason":               {"type": "string", "description": "Why this side is mispriced"},
                     },
-                    "required": ["direction", "confidence", "tp_pct", "sl_pct", "reason"],
+                    "required": ["direction", "confidence", "tp_pct", "sl_pct",
+                                 "position_type", "expected_duration_sec", "edge_type", "reason"],
                 },
             },
             {
@@ -786,11 +790,14 @@ class MacroEngine:
 
                         if name == "take":
                             terminal = {
-                                "decision":      "TAKE",
-                                "conf":          max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
-                                "reason":        str(inp.get("reason", ""))[:80],
-                                "shadow_tp_pct": max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0))),
-                                "shadow_sl_pct": max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0))),
+                                "decision":            "TAKE",
+                                "conf":                max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                                "reason":              str(inp.get("reason", ""))[:80],
+                                "shadow_tp_pct":       max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0))),
+                                "shadow_sl_pct":       max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0))),
+                                "position_type":       str(inp.get("position_type", "momentum")),
+                                "expected_duration_sec": max(30.0, min(3600.0, float(inp.get("expected_duration_sec", 180) or 180))),
+                                "edge_type":           str(inp.get("edge_type", "continuation")),
                             }
                             break
                         elif name == "skip":
@@ -863,6 +870,9 @@ class MacroEngine:
         entry_reason: str = "",
         entry_tp_pct: float = 0.0,
         entry_sl_pct: float = 0.0,
+        position_type: str = "momentum",
+        expected_duration_sec: float = 180.0,
+        edge_type: str = "continuation",
         highest_price: float = 0.0,
         lowest_price: float = 0.0,
         recent_history: list | None = None,
@@ -875,9 +885,8 @@ class MacroEngine:
         if not self._enabled:
             return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
 
-        # Catalog keys match tool names exactly
         _catalog = {
-            "get_position": {
+            "position": {
                 "asset": asset,
                 "direction": direction,
                 "entry_price": round(entry_price, 4),
@@ -887,35 +896,18 @@ class MacroEngine:
                 "remaining_seconds": round(remaining_s),
                 "peak_price": round(highest_price, 4),
                 "trough_price": round(lowest_price, 4),
-                "entry_thesis": entry_reason,
-                "entry_tp_pct": entry_tp_pct,
-                "entry_sl_pct": entry_sl_pct,
-            },
-            "get_market_flow": {
                 "binance_delta_pct": round(bond_delta, 3),
-                "vpin": round(vpin, 3),
+            },
+            "thesis": {
+                "position_type": position_type,
+                "edge_type": edge_type,
+                "expected_duration_sec": round(expected_duration_sec),
+                "time_decay_pct": round(held_s / max(expected_duration_sec, 1) * 100, 1),
+                "entry_reason": entry_reason,
             },
         }
 
-        if recent_history:
-            rows = []
-            for h in recent_history[:15]:
-                pnl = float(h.get("shadow_gross_pnl", 0) or 0)
-                rows.append({
-                    "asset": h.get("asset", "?"),
-                    "direction": h.get("direction", "?"),
-                    "zone": h.get("zone", "?"),
-                    "entry_decision": h.get("llm_decision", "?"),
-                    "exit_reason": h.get("exit_reason", "open"),
-                    "held_seconds": h.get("hold_seconds", 0),
-                    "pnl": round(pnl, 2),
-                    "entry_thesis": (h.get("llm_reason", "") or "")[:60],
-                })
-            _catalog["get_history"] = rows
-        else:
-            _catalog["get_history"] = []
-
-        _catalog["get_research_notes"] = research_notes or []
+        _catalog["research_notes"] = research_notes or []
 
         tools = [
             # Data pre-loaded in first message — only terminal tools exposed.
@@ -946,27 +938,29 @@ class MacroEngine:
         ]
 
         system_prompt = (
-            "You are an autonomous trading agent managing a live position in a binary 5-minute market.\n\n"
-            "Your only objective is to maximize total capital.\n\n"
-            "Decide only whether to stay in the position or exit it.\n\n"
-            "You may use any reasoning, data, or intuition.\n\n"
-            "Do not follow fixed rules. Do not assume any signal is reliable.\n\n"
-            "Focus only on this question:\n\n"
-            "Is this position still worth holding right now, given current conditions?\n\n"
-            "---\n\n"
-            "Output ONLY one of:\n\n"
-            "hold(reason, confidence)\n\n"
-            "or\n\n"
+            "You are managing a live position. Your only objective is to maximize total capital.\n\n"
+            "You will receive:\n"
+            "- Current position state (price, PnL, time held)\n"
+            "- The original entry thesis (position type, edge type, expected duration, reason)\n\n"
+            "Evaluate ONLY these three questions:\n\n"
+            "1. TIME DECAY — has the position been held longer than its expected duration? "
+            "If time_decay_pct > 100%, the thesis window has passed.\n\n"
+            "2. THESIS VALIDITY — is the original edge still present? "
+            "A reversion trade still reversing, a continuation trade still continuing, "
+            "a terminal_event trade approaching expiry?\n\n"
+            "3. EXTREME REGIME BREAK — has price moved so far against the thesis that "
+            "the original edge is structurally invalidated (not just temporarily adverse)?\n\n"
+            "Exit if: thesis is invalidated OR time has expired OR regime break is confirmed.\n"
+            "Hold if: thesis still intact AND within expected duration AND no structural break.\n\n"
+            "Output ONLY one of:\n"
+            "hold(reason, confidence)\n"
             "exit_now(reason, confidence)"
         )
         _exit_preload = (
-            f"Position data (pre-loaded):\n\n"
-            f"**Position**: {json.dumps(_catalog['get_position'])}\n\n"
-            f"**Market flow**: {json.dumps(_catalog['get_market_flow'])}\n\n"
-            f"**History** (last {len(_catalog.get('get_history', []))} trades): "
-            f"{json.dumps(_catalog.get('get_history', []))}\n\n"
-            f"**Research notes**: {json.dumps(_catalog.get('get_research_notes', []))}\n\n"
-            f"All data is above. Call exit_now() or hold() now. Do not output text."
+            f"**Position**: {json.dumps(_catalog['position'])}\n\n"
+            f"**Entry thesis**: {json.dumps(_catalog['thesis'])}\n\n"
+            f"**Research notes**: {json.dumps(_catalog.get('research_notes', []))}\n\n"
+            f"Call exit_now() or hold() now. Do not output text."
         )
         messages: list = [{"role": "user", "content": _exit_preload}]
         headers = {

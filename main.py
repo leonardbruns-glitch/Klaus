@@ -1737,6 +1737,9 @@ class KlausBot:
                 "reason": _llm_reason,
                 "shadow_tp_pct": _llm_tp_pct,
                 "shadow_sl_pct": _llm_sl_pct,
+                "position_type": _llm_dec.get("position_type", "momentum"),
+                "expected_duration_sec": float(_llm_dec.get("expected_duration_sec", 180) or 180),
+                "edge_type": _llm_dec.get("edge_type", "continuation"),
             }
 
             # Variables required by stab section and signal construction below
@@ -3274,6 +3277,9 @@ class KlausBot:
                 entry_reason=_llm_rec.get("reason", ""),
                 entry_tp_pct=float(_llm_rec.get("shadow_tp_pct", 0.0) or 0.0),
                 entry_sl_pct=float(_llm_rec.get("shadow_sl_pct", 0.0) or 0.0),
+                position_type=_llm_rec.get("position_type", "momentum"),
+                expected_duration_sec=float(_llm_rec.get("expected_duration_sec", 180) or 180),
+                edge_type=_llm_rec.get("edge_type", "continuation"),
                 highest_price=pos.highest_price,
                 lowest_price=pos.lowest_price,
                 recent_history=self._read_llm_shadow_history(n=15),
