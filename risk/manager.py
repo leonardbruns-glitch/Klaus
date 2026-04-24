@@ -536,8 +536,8 @@ class RiskManager:
                 _updown_max = 0.90
                 _updown_min = 0.03
             elif _is_bond:
-                _updown_max = 0.79   # bond cap: aligned with scanner _BOND_MAX_ASK
-                _updown_min = 0.20   # LLM mode: scanner allows down to 0.20
+                _updown_max = 0.99   # LLM decides — no price cap
+                _updown_min = 0.01   # LLM decides — no price floor
             else:
                 _updown_max = 0.65   # BOND owns 0.66–0.82; sniper stays below to avoid overlap
                 _updown_min = 0.05

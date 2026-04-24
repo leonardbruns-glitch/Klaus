@@ -1445,9 +1445,6 @@ class KlausBot:
             logger.debug("[BOND] disabled — skipping")
             return
         now = time.time()
-        _BOND_MIN_ASK = 0.20   # 2026-04-22 (user directive: min ask 0.51→0.20)
-        _BOND_MAX_ASK = 0.69
-
         _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
         logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
 
@@ -1496,12 +1493,7 @@ class KlausBot:
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            if ask is None or ask < _BOND_MIN_ASK or ask > _BOND_MAX_ASK:
-                logger.info("BOND SKIP %s/%s: ask=%s out of range [%.2f–%.2f]",
-                            token.asset, token.side,
-                            f"{ask:.4f}" if ask is not None else "None",
-                            _BOND_MIN_ASK, _BOND_MAX_ASK)
-                _b_ask_skip += 1
+            if ask is None:
                 continue
 
             cid = getattr(token, "condition_id", "") or ""
