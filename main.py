@@ -684,14 +684,14 @@ class KlausBot:
                             )
 
                 # ── LLM adaptive exit: re-evaluates every 10s (5s when <60s left) ──
-                # Opus sees current price, P&L, time left, and its original targets
-                # and decides EXIT or HOLD. TP/SL from entry are context, not rules.
+                # Disabled for TERMINAL entries (pure rule-based, exit at window end).
                 _poll_interval = 5.0 if bond_remaining < 60.0 else 10.0
                 _last_eval = self._llm_exit_last_eval.get(token_id, 0.0)
                 _due_for_eval = (
                     self.macro_engine._enabled
                     and token_id not in self._llm_exit_pending
                     and (now - _last_eval) >= _poll_interval
+                    and getattr(pos, "bond_entry_class", "") != "TERMINAL"
                 )
                 if _due_for_eval:
                     _ext_pos = self._last_ext_signals.get(pos.asset)
@@ -1489,12 +1489,8 @@ class KlausBot:
             logger.debug("[BOND] disabled — skipping")
             return
         now = time.time()
-        _b_total = _b_in_window = _b_ask_skip = _b_delta_skip = _b_chop = _b_fired = _b_no_hist = 0
+        _b_total = _b_in_window = _b_ask_skip = _b_fired = 0
         logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
-
-        # Clean up stale LLM decisions for tokens that have left the feed
-        for _tid in [t for t in list(self._llm_ind_decisions) if t not in self.feed.tokens]:
-            del self._llm_ind_decisions[_tid]
 
         for token_id, token in list(self.feed.tokens.items()):
           try:
@@ -1512,24 +1508,11 @@ class KlausBot:
 
             is_15m = getattr(token, "window_seconds", 0) >= 900
             is_5m  = 250 <= getattr(token, "window_seconds", 0) < 900
+            if not (is_5m or is_15m):
+                continue
 
             remaining = token.window_end_ts - now
-
-            if is_15m:
-                exit_sec = 30
-            elif is_5m:
-                exit_sec = 20
-                # Fast-path: if LLM already decided TAKE for this token, allow entry
-                # down to 20s remaining (BOND_DEADLINE fires at T-15s as safety net).
-                # Prevents Opus latency from killing LATE-zone entries that arrive
-                # back just after the 45s gate would normally fire.
-                _has_pending_take = (
-                    self._llm_ind_decisions.get(token_id, {}).get("decision") == "TAKE"
-                )
-                _min_rem = 20 if _has_pending_take else 45
-                if remaining < _min_rem:
-                    continue
-            else:
+            if remaining > 60 or remaining <= 5:
                 continue
             _b_in_window += 1
 
@@ -1537,260 +1520,43 @@ class KlausBot:
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            if ask is None:
+            if ask is None or not (0.80 <= ask <= 0.95):
+                _b_ask_skip += 1
                 continue
 
             cid = getattr(token, "condition_id", "") or ""
+            _token_dir  = getattr(token, "outcome_direction", "up")
+            _elapsed_pct = 1.0 - remaining / max(1, token.window_seconds)
+            _wlabel      = f"{token.window_seconds // 60}m"
 
-            # Compute real window delta from cached ext signals.
-            # If delta is unavailable we have no directional information — skip rather than
-            # enter blind (delta=0 default gives fair_value=0.5, which is always negative
-            # edge vs ask≥0.70 and caused the -0.301 edge entries like trade #78).
-            _ext = getattr(self, "_last_ext_signals", {}).get(token.asset)
-            _bond_delta = 0.0
-            _delta_available = False
-            if _ext and _ext.spot_price:
-                _ref = (_ext.spot_window_open_15m if is_15m else _ext.spot_window_open_5m) or 0.0
-                if _ref > 0:
-                    _bond_delta = (_ext.spot_price - _ref) / _ref * 100
-                    _delta_available = True
-                else:
-                    logger.info("BOND SKIP %s/%s: delta unavailable (ext exists but window_open ref=0)",
-                                token.asset, token.side)
-            else:
-                logger.info("BOND SKIP %s/%s: delta unavailable (no ext signals cached, ext=%s)",
-                            token.asset, token.side,
-                            "None" if _ext is None else "no spot_price")
-            if not _delta_available:
-                _b_delta_skip += 1
-                continue
-            _elapsed_pct = 1.0 - remaining / token.window_seconds
-            if _elapsed_pct > 0.92:
-                continue
-            _bond_zone = "EARLY" if remaining > 150 else ("LATE" if remaining < 90 else "CORE")
-            _token_dir = getattr(token, "outcome_direction", "up")
-
-            _fair_value = 1.0 / (1.0 + math.exp(-8.0 * abs(_bond_delta) * min(4.0, 1.0 / max(0.05, 1.0 - _elapsed_pct) ** 0.5)))
-            _edge = round(_fair_value - ask, 4)
-            _asset_direction = 1 if _bond_delta >= 0 else -1
-
-            # Regime weight: delta magnitude scales edge (no directional bias).
-            # Capped at 0.5 so extreme delta can't fully zero-out valid edge.
-            #   k=2.0  → delta=0.25% = 50% weight (cap)
-            #   aligned and conflicting delta treated symmetrically
-            _regime_weight = max(0.5, 1.0 - 2.0 * abs(_bond_delta))
-            _adjusted_edge = round(_edge * _regime_weight, 4)
-
-            # ── Velocity classification ───────────────────────────────────────
-            # Must happen before band gates (band conditions depend on vel class).
-            _VEL_BOND_THRESHOLD = 0.010
-            _vel_now, _vel_age = self.feed.get_velocity_5s(token.asset)
-            _vel_cold = (_vel_age >= 999.0)
-            # INIT = measured velocity actively moving in trade direction.
-            # Distinguishes fresh momentum entries from exhaustion/cold entries.
-            _vel_init = (
-                not _vel_cold and (
-                    (_token_dir == "up"   and _vel_now >=  _VEL_BOND_THRESHOLD) or
-                    (_token_dir == "down" and _vel_now <= -_VEL_BOND_THRESHOLD)
-                )
-            )
-            _vel_label = (
-                "INIT" if _vel_init
-                else ("COLD" if _vel_cold else "CONT/EXH")
-            )
-
-            # ── 30s acceleration / drift snapshot ────────────────────────────
-            _snaps = self._bond_snapshots.setdefault(token_id, deque())
-            _snaps.append((now, _bond_delta, _edge))
-            while _snaps and now - _snaps[0][0] > 60.0:
-                _snaps.popleft()
-            # 30s reference (25–35s window) — primary accel / drift signal
-            _ref30 = next(
-                (s for s in _snaps if 25.0 <= now - s[0] <= 35.0),
-                None,
-            )
-            # 15s reference (12–18s window) — persistence check for ignition
-            _ref15 = next(
-                (s for s in _snaps if 12.0 <= now - s[0] <= 18.0),
-                None,
-            )
-            _delta_accel = (_bond_delta - _ref30[1]) if _ref30 else 0.0
-            _edge_drift  = (_edge      - _ref30[2]) if _ref30 else 0.0
-            _has_hist    = _ref30 is not None
-            # accel_sustained: both 15s and 30s reference confirm positive acceleration.
-            # Filters single-bar "flash ignition" that reverses immediately.
-            _accel_15    = (_bond_delta - _ref15[1]) if _ref15 else None
-            _accel_sustained = (
-                _ref15 is not None
-                and _accel_15 > 0.01     # 15s window: delta still building
-                and _delta_accel > 0.02  # 30s window: cumulative build confirmed
-            )
-
-            # ── Regime classification + entry filters ────────────────────────
-            _abs_delta = abs(_bond_delta)
-            _EDGE_DRIFT_CORE = 0.002
-            # EARLY-zone instrumentation defaults — overridden inside EARLY branch
-            _delta_excess_penalty = 0.0
-            _weak_vel_penalty = 0.0
-
-            # Low-information regime: neither delta nor velocity provides structure.
-            # Applied as a pre-gate on EARLY only (IMPULSE already requires vel>0.04,
-            # CORE/LATE have stronger delta minimums that implicitly cover this).
-            _vel_mag_now = 0.0 if _vel_cold else abs(_vel_now)
-            # Tightened: delta<0.06 AND vel<0.02 = no structural basis (vs old 0.08/0.01)
-            _low_info = _abs_delta < 0.06 and _vel_mag_now < 0.02
-
-            # ── Layer 1: Macro Regime Engine ──────────────────────────────────
-            # Classifies the market as TREND_UP / TREND_DOWN / CHOP using
-            # smoothed signals only (60s avg delta + current vel). This layer
-            # decides if the market is TRADABLE AT ALL, independent of entry logic.
-            # Hard rule: CHOP → skip ALL modes (CORE / EARLY / IMPULSE / LATE).
-            _snap_deltas = [s[1] for s in _snaps]
-            _smooth_delta = (sum(_snap_deltas) / len(_snap_deltas)) if _snap_deltas else _bond_delta
-            if _vel_cold:
-                # No velocity: regime from smoothed delta strength alone
-                if _smooth_delta >= 0.06:
-                    _macro_regime = "TREND_UP"
-                elif _smooth_delta <= -0.06:
-                    _macro_regime = "TREND_DOWN"
-                else:
-                    _macro_regime = "CHOP"
-            else:
-                _regime_aligned = (_smooth_delta * _vel_now) >= 0.0
-                _trend_ok = (
-                    abs(_smooth_delta) >= 0.06
-                    and abs(_vel_now) >= 0.008
-                    and _regime_aligned
-                )
-                _macro_regime = ("TREND_UP" if _smooth_delta > 0 else "TREND_DOWN") if _trend_ok else "CHOP"
-
-            _in_trend = _macro_regime in ("TREND_UP", "TREND_DOWN")
-            if not _in_trend:
-                _b_chop += 1
-            if not _has_hist:
-                _b_no_hist += 1
-
-            # ── LLM independent trader: pre-gate evaluation ───────────────────
-            # Fires on EVERY candidate that has no pending or completed decision yet.
-            # Result stored in _llm_ind_decisions; next scan cycle enters real trade.
-            if (self.macro_engine._enabled
-                    and token_id not in self._llm_ind_decisions
-                    and token_id not in self._llm_eval_pending
-                    and time.time() >= self._llm_rate_limit_until):
-                self._llm_eval_pending.add(token_id)  # mark before task starts
-                asyncio.create_task(
-                    self._bond_llm_independent_eval(
-                        token_id=token_id,
-                        asset=token.asset,
-                        direction=token.side,
-                        entry_price=ask,
-                        zone=_bond_zone,
-                        entry_class_hint=f"{_bond_zone}/{_vel_label}",
-                        bond_delta=_bond_delta,
-                        delta_accel=_delta_accel,
-                        edge_drift=_edge_drift,
-                        smooth_delta=_smooth_delta,
-                        vpin=float(getattr(_ext, "vpin_score", 0.0) or 0.0),
-                        edge=_edge,
-                        adjusted_edge=_adjusted_edge,
-                        macro_regime=_macro_regime,
-                        has_hist=_has_hist,
-                        window_end_ts=token.window_end_ts,
-                        window_size_s=token.window_seconds,
-                        remaining_s=remaining,
-                    ),
-                    name=f"llm_ind_{token.asset}_{token_id[:8]}",
-                )
-
-            # ── LLM is the sole BOND entry decision maker ─────────────────────
-            # Rule gates are halted. LLM evaluates every candidate pre-gate and
-            # decides TAKE/SKIP with its own TP/SL. Real trades only on TAKE.
-            _llm_dec = self._llm_ind_decisions.pop(token_id, None)
-            if _llm_dec is None:
-                continue  # LLM still evaluating (task in flight); check next scan
-
-            if _llm_dec.get("decision") != "TAKE":
-                logger.debug(
-                    "LLM_SKIP %s/%s conf=%.2f rem=%.0fs | %s",
-                    token.asset, token.side,
-                    _llm_dec.get("conf", 0.0), remaining,
-                    _llm_dec.get("reason", ""),
-                )
-                # Re-store SKIP so fire condition won't re-trigger for this window
-                self._llm_ind_decisions[token_id] = _llm_dec
-                continue
-
-            _llm_tp_pct = float(_llm_dec.get("shadow_tp_pct", 15.0) or 15.0)
-            _llm_sl_pct = float(_llm_dec.get("shadow_sl_pct", 12.0) or 12.0)
-            _llm_conf   = _llm_dec.get("conf", 0.5)
-            _llm_reason = _llm_dec.get("reason", "")
-            logger.info(
-                "LLM_TAKE %s/%s | conf=%.2f edge=%s rem=%.0fs | %s",
-                token.asset, token.side,
-                _llm_conf, _llm_dec.get("edge_type", "?"), remaining, _llm_reason,
-            )
-
-            # Pre-populate trade record fields from the pre-gate LLM decision
-            self._bond_llm_decisions[token_id] = {
-                "decision": "TAKE",
-                "conf": _llm_conf,
-                "reason": _llm_reason,
-                "shadow_tp_pct": _llm_tp_pct,
-                "shadow_sl_pct": _llm_sl_pct,
-                "position_type": _llm_dec.get("position_type", "momentum"),
-                "expected_duration_sec": float(_llm_dec.get("expected_duration_sec", 180) or 180),
-                "edge_type": _llm_dec.get("edge_type", "continuation"),
-            }
-
-            # Variables required by stab section and signal construction below
-            _directional_delta = _bond_delta if _token_dir == "up" else -_bond_delta
-            _dzone = _bond_zone
-            _delta_excess_penalty = 0.0
-            _weak_vel_penalty = 0.0
-
-            # Build a minimal SniperSignal — reuses the existing entry machinery
-            _wlabel = f"{token.window_seconds // 60}m"
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
-                asset_direction=_asset_direction,
-                delta_pct=round(_bond_delta, 4),
-                fair_value=round(_fair_value, 4),
+                asset_direction=1,
+                delta_pct=0.0,
+                fair_value=1.0,
                 token_ask=ask,
-                edge=_edge,
+                edge=round(1.0 - ask, 4),
                 entry_price=ask,
                 confidence=ask,
-                composite=ask,
+                composite=round(1.0 - ask, 4),
                 direction=Direction.BUY_YES,
                 fee_zone=FeeZone.EXTREME,
                 elapsed_pct=_elapsed_pct,
-                reason=f"BOND_{_wlabel}[{_dzone}/{_vel_label}] ask={ask:.3f} δ={_bond_delta:+.3f}% fv={_fair_value:.3f} rem={remaining:.0f}s exit@{exit_sec}s",
-                quality_score=3,
+                reason=f"TERMINAL_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s",
                 signal_source="BOND",
                 is_bond=True,
-                bond_exit_sec=exit_sec,
+                bond_exit_sec=5,
                 bond_outcome_direction=_token_dir,
-                bond_entry_class=f"{_dzone}/{_vel_label}",
-                bond_delta_penalty=round(_delta_excess_penalty, 4),
-                bond_weak_vel_penalty=round(_weak_vel_penalty, 4),
-                bond_macro_regime=_macro_regime,
-                bond_delta_at_entry=round(_bond_delta, 4),
-                bond_adj_edge_at_entry=round(_adjusted_edge, 4),
-                bond_vel_at_entry=round(0.0 if _vel_cold else abs(_vel_now), 4),
-                bond_delta_accel_30s=round(_delta_accel, 4),
-                bond_accel_15s=round(_accel_15, 4) if _accel_15 is not None else 0.0,
-                bond_edge_drift_30s=round(_edge_drift, 4),
-                bond_accel_sustained=bool(_accel_sustained),
-                bond_has_hist=bool(_has_hist),
-                bond_smooth_delta_60s=round(_smooth_delta, 4),
+                bond_entry_class="TERMINAL",
             )
 
             tpsl = TPSLLevels(
-                take_profit=min(0.99, round(ask * (1.0 + _llm_tp_pct / 100.0), 4)),
-                stop_loss=max(0.01, round(ask * (1.0 - _llm_sl_pct / 100.0), 4)),
-                tp_pct=_llm_tp_pct,
-                sl_pct=_llm_sl_pct,
-                risk_reward=round(_llm_tp_pct / max(0.01, _llm_sl_pct), 2),
+                take_profit=min(0.99, round(ask + 0.04, 4)),
+                stop_loss=max(0.01, round(ask - 0.10, 4)),
+                tp_pct=round((min(0.99, ask + 0.04) - ask) / ask * 100, 1),
+                sl_pct=round(0.10 / ask * 100, 1),
+                risk_reward=round(0.04 / 0.10, 2),
             )
 
             decision = self.risk.evaluate(
@@ -1802,201 +1568,17 @@ class KlausBot:
                 cascade_discount=0.0,
                 is_sniper=False,
                 window_seconds=getattr(token, "window_seconds", 0),
-                bond_entry_class=getattr(signal, "bond_entry_class", ""),
-                bond_macro_regime=getattr(signal, "bond_macro_regime", ""),
+                bond_entry_class="TERMINAL",
+                bond_macro_regime="TERMINAL",
             )
 
             if not decision.approved:
-                logger.info("BOND REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
+                logger.info("TERMINAL REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
-            # ── Entry stability (BOND_STAB) → stake scaling ────────────────────
-            # Five independent quality flags computed from entry-time primitives.
-            # stab_class now drives stake — not just observability.
-            #
-            #   stab_xp_bad:    edge < 60% of remaining upside (poor execution quality)
-            #   stab_slip_bad:  ask−bid spread ≥ 3¢ (wide market, slippage risk)
-            #   stab_delta_bad: directional_delta < −8% (asset moving against token)
-            #   stab_edge_weak: raw edge < 0.08 (thin margin)
-            #   stab_vel_flat:  |vel| < 0.01%/s (no directional velocity signal)
-            #
-            # Fixes vs previous version:
-            #   — stab_delta_bad now uses _directional_delta (not raw _bond_delta),
-            #     so YES-of-DOWN tokens with negative raw delta aren't mis-flagged.
-            #   — stab_vel_flat included in score (was logged only).
-            #   — stab_slip_bad threshold changed ≥ 0.03 (was > 0.03, missed exact 0.03).
-            #   — stab_class multiplied into stake before edge scaling.
-            _best_bid_entry = ob.bids[0][0] if ob and ob.bids else 0.0
-            _slip_e         = round(max(0.0, ask - _best_bid_entry), 4)
-            _xp             = round(_edge / max(0.01, 1.0 - ask), 4)
-            _vel_for_stab   = 0.0 if _vel_cold else _vel_now
-
-            stab_xp_bad    = _xp                < 0.60
-            stab_slip_bad  = _slip_e            >= 0.03   # ≥ not >
-            stab_delta_bad = _directional_delta < -0.08   # directional, not raw
-            stab_edge_weak = _edge              < 0.08
-            stab_vel_flat  = abs(_vel_for_stab) < 0.01    # now scored, not logged only
-
-            stability_score = (
-                int(stab_xp_bad)
-                + int(stab_slip_bad)
-                + int(stab_delta_bad)
-                + int(stab_edge_weak)
-                + int(stab_vel_flat)
-            )
-            stab_class = (
-                "FATAL"     if stability_score >= 4 else
-                "HIGH_RISK" if stability_score >= 3 else
-                "NOISY"     if stability_score >= 1 else
-                "CLEAN"
-            )
-            _STAB_MULT = {"CLEAN": 1.00, "NOISY": 0.85, "HIGH_RISK": 0.60, "FATAL": 0.40}
-            _stab_mult = _STAB_MULT[stab_class]
-            if _stab_mult < 1.0:
-                _orig_stab = decision.stake
-                decision.stake = max(1.0, round(_orig_stab * _stab_mult, 2))
-                logger.info(
-                    "BOND_STAB %s/%s [%s] | class=%-9s score=%d → %.0f%% size | "
-                    "xp_bad=%s slip_bad=%s delta_bad=%s edge_weak=%s vel_flat=%s | "
-                    "xp=%.3f slip_e=%.4f edge=%.4f delta=%+.3f%% vel=%+.4f%% | "
-                    "$%.2f → $%.2f",
-                    token.asset, token.side, _dzone,
-                    stab_class, stability_score, _stab_mult * 100,
-                    stab_xp_bad, stab_slip_bad, stab_delta_bad, stab_edge_weak, stab_vel_flat,
-                    _xp, _slip_e, _edge, _bond_delta, _vel_for_stab,
-                    _orig_stab, decision.stake,
-                )
-            else:
-                logger.info(
-                    "BOND_STAB %s/%s [%s] | class=%-9s score=%d | "
-                    "xp_bad=%s slip_bad=%s delta_bad=%s edge_weak=%s vel_flat=%s | "
-                    "xp=%.3f slip_e=%.4f edge=%.4f delta=%+.3f%% vel=%+.4f%%",
-                    token.asset, token.side, _dzone,
-                    stab_class, stability_score,
-                    stab_xp_bad, stab_slip_bad, stab_delta_bad, stab_edge_weak, stab_vel_flat,
-                    _xp, _slip_e, _edge, _bond_delta, _vel_for_stab,
-                )
-
-            # Persist stab fields on the signal so they flow through to record_trade
-            # at close (signal is stored in _open_meta by reference).
-            signal.bond_stab_class      = stab_class
-            signal.bond_stability_score = stability_score
-            signal.bond_stab_xp_bad     = stab_xp_bad
-            signal.bond_stab_slip_bad   = stab_slip_bad
-            signal.bond_stab_delta_bad  = stab_delta_bad
-            signal.bond_stab_edge_weak  = stab_edge_weak
-            signal.bond_stab_vel_flat   = stab_vel_flat
-
-            # ── pre_score (Layer 1, strictly pre-causal, OBSERVATION mode) ─────
-            # Composite of pre-entry features only — frozen at entry timestamp.
-            # No forward-looking data. No gating yet; rolling regime+zone
-            # percentile thresholds activate after Phase A data collection.
-            #
-            # Phase B trigger requires PER-BUCKET (not global) criteria:
-            #   - n ≥ 50 in the (regime, zone) bucket
-            #   - top-tercile WR > bottom-tercile WR by ≥5pp WITHIN the bucket
-            #   - stable across 2 consecutive recomputes
-            #
-            # Components (each ~[-1.5, +1.5]):
-            #   accel:  +1.5 sustained / +0.5 has_hist / 0 no hist
-            #   daccel: signed delta_accel × token_dir, clipped ±1.0 at 0.05%
-            #   edge:   signed edge_drift, clipped ±1.0 at 0.005
-            #   stab:   CLEAN +1.0 / NOISY +0.5 / HIGH_RISK -0.5 / FATAL -1.5
-            #   vel:    +0.5 vel aligned / -0.5 against / 0 cold/flat
-            #   class:  EV_PRIOR[bond_entry_class] × 1.0 (frozen prior)
-            from analytics.regime_filter import EV_PRIOR as _EV_PRIOR
-            _token_dir_sign = +1.0 if _token_dir == "up" else -1.0
-
-            _pre_accel_score  = 1.5 if _accel_sustained else (0.5 if _has_hist else 0.0)
-            _signed_accel     = _delta_accel * _token_dir_sign
-            _pre_daccel_score = max(-1.0, min(1.0, _signed_accel / 0.05))
-            _pre_edge_score   = max(-1.0, min(1.0, _edge_drift / 0.005))
-            _STAB_PRE_SCORE   = {"CLEAN": 1.0, "NOISY": 0.5, "HIGH_RISK": -0.5, "FATAL": -1.5}
-            _pre_stab_score   = _STAB_PRE_SCORE.get(stab_class, 0.0)
-            if _vel_cold or abs(_vel_for_stab) < 0.005:
-                _pre_vel_score = 0.0
-            else:
-                _pre_vel_score = 0.5 if (_vel_for_stab * _token_dir_sign) > 0 else -0.5
-            _class_ev = _EV_PRIOR.get(getattr(signal, "bond_entry_class", "?"), -0.24)
-            _pre_class_score = max(-1.0, min(1.0, _class_ev / 1.0))
-
-            _pre_score = round(
-                _pre_accel_score + _pre_daccel_score + _pre_edge_score
-                + _pre_stab_score + _pre_vel_score + _pre_class_score,
-                3,
-            )
-
-            # ── Causality validity check (no-leakage assertion) ─────────────
-            # Verifies every backward-looking buffer used for pre_score has
-            # all timestamps ≤ entry_ts. FAIL records are persisted but
-            # excluded from percentile calibration in Phase B.
-            # Tolerance 0.5s for clock noise between scan loop and async ts.
-            _validity_failures: list[str] = []
-            if _snaps:
-                _max_snap_ts = max(s[0] for s in _snaps)
-                if _max_snap_ts > now + 0.5:
-                    _validity_failures.append(f"snap_future:+{_max_snap_ts - now:.2f}s")
-            if _ref30 and _ref30[0] > now + 0.5:
-                _validity_failures.append(f"ref30_future:+{_ref30[0] - now:.2f}s")
-            if _ref15 and _ref15[0] > now + 0.5:
-                _validity_failures.append(f"ref15_future:+{_ref15[0] - now:.2f}s")
-            _pre_score_validity = "PASS" if not _validity_failures else "FAIL:" + ",".join(_validity_failures)
-
-            signal.bond_entry_zone       = _bond_zone
-            signal.pre_score             = _pre_score
-            signal.pre_score_version     = _PRE_SCORE_VERSION
-            signal.pre_score_schema_hash = _PRE_SCORE_SCHEMA_HASH
-            signal.pre_score_validity    = _pre_score_validity
-            signal.pre_score_accel       = _pre_accel_score
-            signal.pre_score_daccel      = _pre_daccel_score
-            signal.pre_score_edge        = _pre_edge_score
-            signal.pre_score_stab        = _pre_stab_score
-            signal.pre_score_vel         = _pre_vel_score
-            signal.pre_score_class       = _pre_class_score
-
             logger.info(
-                "PRE_SCORE %s/%s [%s/%s] | total=%+.2f | "
-                "accel=%+.2f daccel=%+.2f edge=%+.2f stab=%+.2f vel=%+.2f class=%+.2f | "
-                "[%s/%s] %s OBSERVATION_ONLY",
-                token.asset, token.side, _bond_zone, _macro_regime,
-                _pre_score,
-                _pre_accel_score, _pre_daccel_score, _pre_edge_score,
-                _pre_stab_score, _pre_vel_score, _pre_class_score,
-                _PRE_SCORE_VERSION, _PRE_SCORE_SCHEMA_HASH, _pre_score_validity,
-            )
-            if _pre_score_validity != "PASS":
-                logger.warning(
-                    "PRE_SCORE LEAKAGE %s/%s | %s — record will be EXCLUDED from percentile calibration",
-                    token.asset, token.side, _pre_score_validity,
-                )
-
-            # Edge-confidence stake scaling:
-            #   edge < 0.05      → 50%  (weak, capped exposure)
-            #   edge 0.05–0.07   → 75%  (moderate conviction)
-            #   edge 0.07–0.10   → 100% (full size)
-            #   edge ≥ 0.10      → 65%  (EXTREME cap — volatile, risk-adjusted)
-            if _edge >= 0.10:
-                _edge_mult, _edge_label = 0.65, "EXTREME"
-            elif _edge < 0.05:
-                _edge_mult, _edge_label = 0.50, "WEAK"
-            elif _edge < 0.07:
-                _edge_mult, _edge_label = 0.75, "MODERATE"
-            else:
-                _edge_mult, _edge_label = 1.00, "FULL"
-            if _edge_mult != 1.00:
-                _orig_stake = decision.stake
-                decision.stake = max(1.0, round(_orig_stake * _edge_mult, 2))
-                logger.info(
-                    "BOND %s EDGE stake %s: $%.2f → $%.2f (edge=%.4f × %.2f)",
-                    _edge_label, token.asset, _orig_stake, decision.stake, _edge, _edge_mult,
-                )
-
-            logger.info(
-                "BOND ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs exit@%ds | stake=$%.2f | odir=%s δ=%+.3f%% | %s",
-                token.asset, token.side, _wlabel,
-                ask, remaining, exit_sec, decision.stake,
-                _token_dir, _bond_delta,
-                signal.reason,
+                "TERMINAL ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs | stake=$%.2f",
+                token.asset, token.side, _wlabel, ask, remaining, decision.stake,
             )
 
             # ── Entry stability classification (observability only) ────────────
@@ -2005,16 +1587,6 @@ class KlausBot:
             # regardless of stab_class.
             #
             # Goal: causal attribution. Which instability dimension correlates
-            # with hard losses vs recoverable churn vs winning tail? Do NOISY
-            # entries still produce TP_95 / extended winners?
-            #
-            # Signals use only entry-time primitives:
-            #   xp     = edge / (1 - ask)   — execution quality: edge captured
-            #                                 as fraction of remaining upside
-            #   slip_e = best_ask - best_bid — top-of-book spread on the token
-            #   edge   = _edge               — raw computed edge
-            #   delta  = _bond_delta         — underlying window delta (%)
-            #   vel    = _vel_now            — underlying velocity (%/s)
             _b_fired += 1
             asyncio.create_task(
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
@@ -2028,10 +1600,10 @@ class KlausBot:
             )
 
         try:
-            _bond_status = "BOND FIRED" if _b_fired else "BOND WAITING"
+            _bond_status = "TERMINAL FIRED" if _b_fired else "TERMINAL WAITING"
             logger.info(
-                "[BOND] %s | updown=%d in_window=%d ask_skip=%d delta_skip=%d chop=%d no_hist=%d fired=%d",
-                _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_delta_skip, _b_chop, _b_no_hist, _b_fired,
+                "[BOND] %s | updown=%d in_window=%d ask_skip=%d fired=%d",
+                _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_fired,
             )
             # Self-healing: if no updown tokens are tracked at all, the feed lost
             # them (discovery timeout / Cloudflare blip). Reset the 60s throttle so
