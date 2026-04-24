@@ -322,7 +322,7 @@ class OrderManager:
         # 3s+5s confirmed insufficient — SOL fills appearing after 5s repeatedly.
         # asyncio.sleep is non-blocking so other coroutines run during waits.
         _cumulative = 0.0
-        for _wait_s in (3.0, 2.0, 5.0, 10.0):  # checks at 3s, 5s, 10s, 20s total
+        for _wait_s in (1.0, 2.0, 3.0):  # checks at 1s, 3s, 6s total — fast fail for terminal entries
             await asyncio.sleep(_wait_s)
             _cumulative += _wait_s
             _orphan_balance = self.fetch_token_balance(token_id)

@@ -1312,7 +1312,7 @@ class PolymarketFeed:
         if self._stub_mode or not self._session:
             return
         now = time.time()
-        if now - self._last_discovery_ts < 20:
+        if now - self._last_discovery_ts < 5:
             return
         self._last_discovery_ts = now
 
