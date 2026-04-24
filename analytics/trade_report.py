@@ -790,6 +790,82 @@ def _run_bond_report(bond_trades, label="ALL"):
                  [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_w],
                  [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_l], ".3f")
 
+    # ── LLM shadow advisor performance ───────────────────────────────────────
+    _llm_trades = [t for t in bond_trades if t.get("bond_llm_decision") in ("TAKE", "SKIP")]
+    if _llm_trades:
+        print(f"\n── LLM SHADOW ADVISOR (n={len(_llm_trades)} decisions) ─────────────────────")
+
+        _llm_take = [t for t in _llm_trades if t.get("bond_llm_decision") == "TAKE"]
+        _llm_skip = [t for t in _llm_trades if t.get("bond_llm_decision") == "SKIP"]
+
+        # TAKE: show both actual rule P&L and LLM shadow P&L (LLM's own TP/SL)
+        if _llm_take:
+            _t_actual = [float(t.get("net_pnl", 0) or 0) for t in _llm_take]
+            _t_shadow = [float(t.get("bond_llm_shadow_pnl", 0) or 0) for t in _llm_take]
+            _t_shadow_w = sum(1 for p in _t_shadow if p > 0)
+            _t_actual_w = sum(1 for p in _t_actual if p > 0)
+            _avg_conf_t = sum(float(t.get("bond_llm_conf", 0) or 0) for t in _llm_take) / len(_llm_take)
+            _has_shadow = any(float(t.get("bond_llm_tp_pct", 0) or 0) > 0 for t in _llm_take)
+            print(f"  TAKE   n={len(_llm_take):>3}  conf={_avg_conf_t:.2f}")
+            print(f"    rule  WR={_t_actual_w/len(_llm_take)*100:>4.0f}%  "
+                  f"net={_fmt_pnl(sum(_t_actual))}  "
+                  f"avg_w={_fmt_pnl(sum(p for p in _t_actual if p>0)/max(_t_actual_w,1))}  "
+                  f"avg_l={_fmt_pnl(sum(p for p in _t_actual if p<=0)/max(len(_llm_take)-_t_actual_w,1))}")
+            if _has_shadow:
+                print(f"    llm   WR={_t_shadow_w/len(_llm_take)*100:>4.0f}%  "
+                      f"gross={_fmt_pnl(sum(_t_shadow))}  "
+                      f"avg_w={_fmt_pnl(sum(p for p in _t_shadow if p>0)/max(_t_shadow_w,1))}  "
+                      f"avg_l={_fmt_pnl(sum(p for p in _t_shadow if p<=0)/max(len(_llm_take)-_t_shadow_w,1))}"
+                      f"  ← LLM's own TP/SL exit rules")
+
+        # SKIP: show actual P&L on trades LLM would have avoided
+        if _llm_skip:
+            _s_actual = [float(t.get("net_pnl", 0) or 0) for t in _llm_skip]
+            _s_w = sum(1 for p in _s_actual if p > 0)
+            _avg_conf_s = sum(float(t.get("bond_llm_conf", 0) or 0) for t in _llm_skip) / len(_llm_skip)
+            print(f"  SKIP   n={len(_llm_skip):>3}  conf={_avg_conf_s:.2f}  "
+                  f"(rule traded, LLM would not)")
+            print(f"    actual WR={_s_w/len(_llm_skip)*100:>4.0f}%  "
+                  f"net={_fmt_pnl(sum(_s_actual))}  "
+                  f"{'✓ correctly avoided losses' if sum(_s_actual) < 0 else '✗ skipped winners'}")
+
+        # Head-to-head comparison
+        _rule_pnl   = sum(float(t.get("net_pnl", 0) or 0) for t in _llm_trades)
+        _llm_actual = sum(float(t.get("net_pnl", 0) or 0) for t in _llm_take)
+        _llm_shadow = sum(float(t.get("bond_llm_shadow_pnl", 0) or 0) for t in _llm_take)
+        _has_shadow_any = any(float(t.get("bond_llm_tp_pct", 0) or 0) > 0 for t in _llm_take)
+        print(f"  ─────────────────────────────────────────────────────────────────────")
+        print(f"  Rule  net P&L (all {len(_llm_trades)} trades):           {_fmt_pnl(_rule_pnl)}")
+        print(f"  LLM   actual P&L (TAKE trades, rule exits):  {_fmt_pnl(_llm_actual)}")
+        if _has_shadow_any:
+            print(f"  LLM   shadow P&L (TAKE trades, LLM exits):  {_fmt_pnl(_llm_shadow)}  "
+                  f"← gross, LLM's TP/SL")
+        if len(_llm_trades) >= 10:
+            print(f"  LLM entry edge vs rule: {_fmt_pnl(_llm_actual - _rule_pnl)} "
+                  f"({'LLM better' if _llm_actual > _rule_pnl else 'rule better'})")
+
+        # Recent decisions with shadow vs actual comparison
+        _recent_llm = sorted(_llm_trades, key=lambda t: t.get("ts_close", 0))[-10:]
+        if _recent_llm:
+            print(f"  ─ recent decisions ──────────────────────────────────────────────────")
+            print(f"  {'':2} {'DEC':<4} {'conf':>4}  {'act':>7}  {'shd':>7}  {'TP%':>4} {'SL%':>4}  reason")
+            for t in _recent_llm:
+                dec   = t.get("bond_llm_decision", "?")
+                conf  = float(t.get("bond_llm_conf", 0) or 0)
+                act   = float(t.get("net_pnl", 0) or 0)
+                shd   = float(t.get("bond_llm_shadow_pnl", 0) or 0)
+                tp    = float(t.get("bond_llm_tp_pct", 0) or 0)
+                sl    = float(t.get("bond_llm_sl_pct", 0) or 0)
+                reason = (t.get("bond_llm_reason", "") or "")[:40]
+                # ✓ = LLM was right (TAKE+win or SKIP+loss), ✗ = wrong
+                match = "✓" if (dec == "TAKE" and act > 0) or (dec == "SKIP" and act <= 0) else "✗"
+                shd_str = _fmt_pnl(shd) if dec == "TAKE" and tp > 0 else "     —"
+                print(f"  {match} {dec:<4} {conf:.2f}  {_fmt_pnl(act):>7}  {shd_str:>7}  "
+                      f"{tp:>4.0f}% {sl:>4.0f}%  {reason}")
+    elif bond_trades:
+        print(f"\n── LLM SHADOW ADVISOR ───────────────────────────────────────────────────")
+        print(f"  No decisions yet — will populate after next deploy")
+
 
 # ── Run report: ALL first, then per asset ────────────────────────────────────
 _run_bond_report(_all_bond_trades, label="ALL")

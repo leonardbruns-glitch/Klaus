@@ -669,7 +669,10 @@ class MacroEngine:
             f"Edge (fair_value - ask): {edge:.4f}\n"
             f"Edge drift (30s): {bond_edge_drift_30s:+.4f}\n\n"
             f'Respond ONLY with JSON: {{"decision":"TAKE"or"SKIP","confidence":0.50-0.95,'
-            f'"reason":"max 12 words"}}'
+            f'"reason":"max 12 words",'
+            f'"shadow_tp_pct":5-50,"shadow_sl_pct":5-30}}\n'
+            f'shadow_tp_pct = % gain at which you would sell (your take-profit target).\n'
+            f'shadow_sl_pct = % loss at which you would cut (your stop-loss). Always provide both.'
         )
 
         try:
@@ -711,12 +714,16 @@ class MacroEngine:
                 decision = "TAKE"
             confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
             reason = str(result.get("reason", ""))[:80]
+            shadow_tp = max(3.0, min(50.0, float(result.get("shadow_tp_pct", 15.0) or 15.0)))
+            shadow_sl = max(3.0, min(30.0, float(result.get("shadow_sl_pct", 12.0) or 12.0)))
 
             logger.info(
-                "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s | %s",
-                asset, direction_label, decision, confidence, entry_price, zone, reason,
+                "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
+                asset, direction_label, decision, confidence, entry_price, zone,
+                shadow_tp, shadow_sl, reason,
             )
-            return {"decision": decision, "conf": confidence, "reason": reason}
+            return {"decision": decision, "conf": confidence, "reason": reason,
+                    "shadow_tp_pct": shadow_tp, "shadow_sl_pct": shadow_sl}
 
         except Exception as exc:
             logger.debug("bond_advisor failed (%s) — default TAKE", exc)

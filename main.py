@@ -4511,6 +4511,8 @@ class KlausBot:
                     bond_llm_decision=_bond_llm.get("decision", ""),
                     bond_llm_conf=float(_bond_llm.get("conf", 0.0)),
                     bond_llm_reason=_bond_llm.get("reason", ""),
+                    bond_llm_tp_pct=float(_bond_llm.get("shadow_tp_pct", 0.0)),
+                    bond_llm_sl_pct=float(_bond_llm.get("shadow_sl_pct", 0.0)),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

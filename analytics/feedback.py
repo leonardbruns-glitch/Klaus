@@ -186,9 +186,12 @@ class TradeRecord:
     pre_score_vel:    float = 0.0
     pre_score_class:  float = 0.0
     # Non-binding LLM bond advisor shadow decision (observation only — never blocks trade)
-    bond_llm_decision: str = ""   # "TAKE" or "SKIP"
-    bond_llm_conf: float = 0.0    # 0.50–0.95
-    bond_llm_reason: str = ""     # max 12-word explanation
+    bond_llm_decision: str = ""    # "TAKE" or "SKIP"
+    bond_llm_conf: float = 0.0     # 0.50–0.95
+    bond_llm_reason: str = ""      # max 12-word explanation
+    bond_llm_tp_pct: float = 0.0   # LLM's shadow take-profit % target
+    bond_llm_sl_pct: float = 0.0   # LLM's shadow stop-loss % limit
+    bond_llm_shadow_pnl: float = 0.0  # shadow gross P&L: what LLM would have made
 
 
 # ---------------------------------------------------------------------------
@@ -397,6 +400,8 @@ class FeedbackEngine:
         bond_llm_decision: str = "",
         bond_llm_conf: float = 0.0,
         bond_llm_reason: str = "",
+        bond_llm_tp_pct: float = 0.0,
+        bond_llm_sl_pct: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -460,6 +465,28 @@ class FeedbackEngine:
         slippage_entry = entry_fill.slippage if entry_fill else 0.0
         exit_slippages = [r.slippage for r in exit_fills if r.slippage is not None]
         slippage_exit = statistics.mean(exit_slippages) if exit_slippages else 0.0
+
+        # LLM shadow P&L: apply LLM's TP/SL rules to the actual price path we observed.
+        # Uses max_price_seen / min_price_seen and their timestamps to determine which
+        # exit condition would have triggered first. Gross only (no fee model).
+        bond_llm_shadow_pnl = 0.0
+        if bond_llm_decision == "TAKE" and bond_llm_tp_pct > 0 and entry_price > 0 and shares > 0:
+            _shadow_tp_price = entry_price * (1.0 + bond_llm_tp_pct / 100.0)
+            _shadow_sl_price = entry_price * (1.0 - bond_llm_sl_pct / 100.0) if bond_llm_sl_pct > 0 else 0.0
+            _hit_tp = max_price_seen > 0 and max_price_seen >= _shadow_tp_price
+            _hit_sl = _shadow_sl_price > 0 and min_price_seen > 0 and min_price_seen <= _shadow_sl_price
+            if _hit_tp and _hit_sl:
+                _t_tp = (highest_price_ts - ts_open) if highest_price_ts > ts_open else 9999.0
+                _t_sl = (lowest_price_ts  - ts_open) if lowest_price_ts  > ts_open else 9999.0
+                _shadow_exit = _shadow_tp_price if _t_tp <= _t_sl else _shadow_sl_price
+            elif _hit_tp:
+                _shadow_exit = _shadow_tp_price
+            elif _hit_sl:
+                _shadow_exit = _shadow_sl_price
+            else:
+                _shadow_exit = exit_price  # neither triggered — LLM held to actual exit
+            bond_llm_shadow_pnl = (_shadow_exit - entry_price) * shares
+        # SKIP decision → LLM didn't trade → shadow P&L stays 0.0
 
         # Extract signal fields — handle both SniperSignal and SignalBreakdown
         is_sniper = signal_source in ("SNIPER", "BOND", "CONTRARIAN")
@@ -579,6 +606,9 @@ class FeedbackEngine:
             bond_llm_decision=bond_llm_decision,
             bond_llm_conf=round(bond_llm_conf, 2),
             bond_llm_reason=bond_llm_reason,
+            bond_llm_tp_pct=round(bond_llm_tp_pct, 1),
+            bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
+            bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
         )
 
         self._recent.append(rec)
