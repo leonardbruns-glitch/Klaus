@@ -1516,7 +1516,7 @@ class KlausBot:
             remaining = token.window_end_ts - now
 
             if is_15m:
-                continue  # 15m BOND disabled — 5m only until 15m edge re-validated
+                exit_sec = 30
             elif is_5m:
                 exit_sec = 20
                 # Fast-path: if LLM already decided TAKE for this token, allow entry
