@@ -114,6 +114,7 @@ class ResearchAgent:
         ]
 
         system_prompt = (
+            "This is where you keep maximum freedom—but enforce truth discipline.\n\n"
             "You are an autonomous trading research agent responsible for improving long-term "
             "profitability of a binary market trading system.\n\n"
             "You have full freedom to explore:\n"

@@ -955,6 +955,7 @@ class MacroEngine:
         ]
 
         system_prompt = (
+            "Exit agents fail when they \"think like traders.\" So we remove creativity almost entirely.\n\n"
             "You are an autonomous position monitoring agent in a live binary market.\n\n"
             "Your objective is to determine whether the original trade hypothesis is still "
             "valid or has been invalidated.\n\n"
@@ -972,7 +973,7 @@ class MacroEngine:
             "- Exit ONLY if the original hypothesis is invalidated or risk regime has clearly changed.\n"
             "- Otherwise hold.\n"
             "- Do not react to short-term noise unless structural break is detected.\n"
-            "- Do not 'take profit early' unless thesis is broken."
+            "- Do not \"take profit early\" unless thesis is broken."
         )
         messages: list = [{"role": "user", "content": "Manage your open position."}]
         headers = {
