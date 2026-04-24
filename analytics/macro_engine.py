@@ -34,6 +34,11 @@ from typing import Optional
 
 logger = logging.getLogger("macro_engine")
 
+
+class _RateLimitError(Exception):
+    """Raised on HTTP 429 — caller should retry, not store a SKIP decision."""
+
+
 # ── Trigger thresholds by session ─────────────────────────────────────────────
 # High-volume session hours UTC: London open, NYSE open/macro, Asia open
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
@@ -775,6 +780,8 @@ class MacroEngine:
                         json=payload,
                         timeout=aiohttp.ClientTimeout(total=15),
                     ) as resp:
+                        if resp.status == 429:
+                            raise _RateLimitError()
                         if resp.status != 200:
                             body = await resp.text()
                             raise Exception(f"API {resp.status}: {body[:60]}")
@@ -1005,6 +1012,8 @@ class MacroEngine:
                         json=payload,
                         timeout=aiohttp.ClientTimeout(total=10),
                     ) as resp:
+                        if resp.status == 429:
+                            raise _RateLimitError()
                         if resp.status != 200:
                             body = await resp.text()
                             raise Exception(f"API {resp.status}: {body[:60]}")

@@ -60,7 +60,7 @@ from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _ses
 from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
-from analytics.macro_engine import MacroEngine
+from analytics.macro_engine import MacroEngine, _RateLimitError
 from analytics.research_agent import ResearchAgent
 from execution.order_manager import OrderManager, OrderResult, OrderStatus
 from analytics.feedback import FeedbackEngine
@@ -256,6 +256,8 @@ class KlausBot:
         self._llm_shadow_positions: Dict[str, dict] = {}
         # Running LLM eval tasks — prevents double-firing while a task is in-flight.
         self._llm_eval_pending: Set[str] = set()
+        # Serialize entry evals — prevents simultaneous bursts that trigger 429s.
+        self._llm_eval_semaphore = asyncio.Semaphore(2)
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -3158,23 +3160,27 @@ class KlausBot:
         recent_history = self._read_llm_shadow_history(n=15)
         research_notes = self._read_research_notes(n=10)
         try:
-            result = await self.macro_engine.bond_advisor(
-                asset=asset,
-                direction="BUY_YES" if direction == "YES" else "BUY_NO",
-                entry_price=entry_price,
-                bond_entry_class=entry_class_hint,
-                bond_entry_zone=zone,
-                bond_delta_at_entry=bond_delta,
-                bond_delta_accel_30s=delta_accel,
-                bond_edge_drift_30s=edge_drift,
-                bond_smooth_delta_60s=smooth_delta,
-                vpin=vpin,
-                edge=edge,
-                window_size_s=window_size_s,
-                window_remaining_s=remaining_s,
-                recent_history=recent_history,
-                research_notes=research_notes,
-            )
+            async with self._llm_eval_semaphore:
+                result = await self.macro_engine.bond_advisor(
+                    asset=asset,
+                    direction="BUY_YES" if direction == "YES" else "BUY_NO",
+                    entry_price=entry_price,
+                    bond_entry_class=entry_class_hint,
+                    bond_entry_zone=zone,
+                    bond_delta_at_entry=bond_delta,
+                    bond_delta_accel_30s=delta_accel,
+                    bond_edge_drift_30s=edge_drift,
+                    bond_smooth_delta_60s=smooth_delta,
+                    vpin=vpin,
+                    edge=edge,
+                    window_size_s=window_size_s,
+                    window_remaining_s=remaining_s,
+                    recent_history=recent_history,
+                    research_notes=research_notes,
+                )
+        except _RateLimitError:
+            logger.warning("LLM_EVAL 429 %s/%s — will retry next scan", asset, direction)
+            return  # don't store decision; token retries on next scan cycle
         finally:
             self._llm_eval_pending.discard(token_id)
 
