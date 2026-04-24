@@ -605,6 +605,123 @@ class MacroEngine:
             logger.debug("EXIT ADVICE failed (%s) — defaulting HOLD", exc)
             return ("HOLD", None, 0.5, f"failed ({type(exc).__name__}) — HOLD")
 
+    async def bond_advisor(
+        self,
+        asset: str,
+        direction: str,
+        entry_price: float,
+        bond_entry_class: str,
+        bond_entry_zone: str,
+        bond_delta_at_entry: float,
+        bond_delta_accel_30s: float,
+        bond_edge_drift_30s: float,
+        bond_smooth_delta_60s: float,
+        vpin: float,
+        edge: float,
+        window_size_s: int,
+        window_remaining_s: float,
+    ) -> dict:
+        """
+        Non-binding LLM shadow advisor for BOND entries.
+
+        Fires async after every BOND entry. Decision is logged and stored in
+        trades.jsonl under bond_llm_decision/conf/reason but never blocks a trade.
+        Purpose: accumulate n≥50 to measure LLM WR vs rule-only WR.
+
+        Returns {"decision": "TAKE"/"SKIP", "confidence": float, "reason": str}.
+        Defaults to {"decision": "TAKE", "confidence": 0.5, "reason": "..."} on any failure.
+        """
+        _default = {"decision": "TAKE", "confidence": 0.5, "reason": "LLM disabled"}
+        if not self._enabled:
+            return _default
+
+        now_utc = datetime.now(timezone.utc)
+        direction_label = "UP" if "YES" in direction else "DOWN"
+        up_or_down = "above window-open price" if direction_label == "UP" else "below window-open price"
+        zone = bond_entry_zone or (bond_entry_class.split("/")[0] if bond_entry_class else "?")
+
+        system_prompt = (
+            "You are a quantitative trader evaluating Polymarket binary window market trades. "
+            "Each trade bets BTC/ETH/SOL ends UP or DOWN vs its window-open price at window close. "
+            "Token price = implied win probability (0.50=coinflip, 0.85=85% win). "
+            "Edge = fair_value - token_price: how much the market underprices this outcome. "
+            "Spot delta = % underlying moved since window opened. "
+            "Delta accel = rate of change of that move (positive=accelerating, negative=fading). "
+            "Edge drift = rate of change of theoretical edge over 30s (positive=improving, negative=eroding). "
+            "VPIN > 0.65 = institutional informed order flow. "
+            "Zone: EARLY=first 25% of window, CORE=25-75%, LATE=>75% elapsed. "
+            "Decide TAKE or SKIP. Be creative — look for non-obvious signal interactions."
+        )
+
+        prompt = (
+            f"BOND ENTRY — {now_utc.strftime('%H:%M')} UTC\n"
+            f"Asset: {asset} | Direction: {direction_label} (bet underlying {up_or_down})\n"
+            f"Token price: {entry_price:.3f} | Window: {window_size_s//60}min | "
+            f"Time remaining: {window_remaining_s:.0f}s\n\n"
+            f"SPOT SIGNAL\n"
+            f"Delta from window open: {bond_delta_at_entry:+.4f}%\n"
+            f"Delta acceleration (30s): {bond_delta_accel_30s:+.4f}\n"
+            f"Smooth delta (60s avg): {bond_smooth_delta_60s:+.4f}%\n\n"
+            f"ENTRY TIMING\n"
+            f"Zone: {zone} | Class: {bond_entry_class}\n\n"
+            f"ORDER FLOW + EDGE\n"
+            f"VPIN: {vpin:.3f}\n"
+            f"Edge (fair_value - ask): {edge:.4f}\n"
+            f"Edge drift (30s): {bond_edge_drift_30s:+.4f}\n\n"
+            f'Respond ONLY with JSON: {{"decision":"TAKE"or"SKIP","confidence":0.50-0.95,'
+            f'"reason":"max 12 words"}}'
+        )
+
+        try:
+            import aiohttp
+            headers = {
+                "x-api-key": self._api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            }
+            payload = {
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 80,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+
+            async with aiohttp.ClientSession() as sess:
+                async with sess.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as resp:
+                    if resp.status != 200:
+                        return {"decision": "TAKE", "confidence": 0.5, "reason": f"API {resp.status}"}
+                    data = await resp.json()
+
+            raw_text = data["content"][0]["text"].strip()
+            if "```" in raw_text:
+                for part in raw_text.split("```"):
+                    part = part.strip().lstrip("json").strip()
+                    if part.startswith("{"):
+                        raw_text = part
+                        break
+
+            result = json.loads(raw_text)
+            decision = result.get("decision", "TAKE").upper()
+            if decision not in ("TAKE", "SKIP"):
+                decision = "TAKE"
+            confidence = max(0.5, min(0.95, float(result.get("confidence", 0.6))))
+            reason = str(result.get("reason", ""))[:80]
+
+            logger.info(
+                "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s | %s",
+                asset, direction_label, decision, confidence, entry_price, zone, reason,
+            )
+            return {"decision": decision, "conf": confidence, "reason": reason}
+
+        except Exception as exc:
+            logger.debug("bond_advisor failed (%s) — default TAKE", exc)
+            return {"decision": "TAKE", "confidence": 0.5, "reason": f"failed: {type(exc).__name__}"}
+
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _query_claude(

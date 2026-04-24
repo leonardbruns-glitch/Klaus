@@ -185,6 +185,10 @@ class TradeRecord:
     pre_score_stab:   float = 0.0
     pre_score_vel:    float = 0.0
     pre_score_class:  float = 0.0
+    # Non-binding LLM bond advisor shadow decision (observation only — never blocks trade)
+    bond_llm_decision: str = ""   # "TAKE" or "SKIP"
+    bond_llm_conf: float = 0.0    # 0.50–0.95
+    bond_llm_reason: str = ""     # max 12-word explanation
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +394,9 @@ class FeedbackEngine:
         pre_score_stab: float = 0.0,
         pre_score_vel: float = 0.0,
         pre_score_class: float = 0.0,
+        bond_llm_decision: str = "",
+        bond_llm_conf: float = 0.0,
+        bond_llm_reason: str = "",
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -569,6 +576,9 @@ class FeedbackEngine:
             pre_score_stab=round(pre_score_stab, 4),
             pre_score_vel=round(pre_score_vel, 4),
             pre_score_class=round(pre_score_class, 4),
+            bond_llm_decision=bond_llm_decision,
+            bond_llm_conf=round(bond_llm_conf, 2),
+            bond_llm_reason=bond_llm_reason,
         )
 
         self._recent.append(rec)

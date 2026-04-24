@@ -246,6 +246,9 @@ class KlausBot:
         self._exhaustion_conf_count: Dict[str, int] = {}
         self._early_loss_conf_count: Dict[str, int] = {}
         self._early_chop_count: Dict[str, int] = {}
+        # Non-binding LLM bond advisor: token_id → {decision, conf, reason}
+        # Populated async after BOND entry; consumed and cleared at record_trade time.
+        self._bond_llm_decisions: Dict[str, dict] = {}
         # Peak-stability tracker: timestamp of first scan where bond_move
         # dropped below 80% of peak after peak_ts. Absence = no breach yet.
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
@@ -3419,6 +3422,46 @@ class KlausBot:
                 name=f"bond_timer_{asset}_{token_id[:8]}",
             )
 
+        # BOND: non-binding LLM shadow advisor — fire async, never blocks entry.
+        # Result stored in _bond_llm_decisions[token_id] and logged to trades.jsonl.
+        if getattr(signal, "is_bond", False):
+            asyncio.create_task(
+                self._bond_llm_advisor(token_id, signal, pos, fill.avg_fill_price),
+                name=f"bond_llm_{asset}_{token_id[:8]}",
+            )
+
+    # ── BOND LLM shadow advisor ───────────────────────────────────────────────
+
+    async def _bond_llm_advisor(
+        self, token_id: str, signal, pos, entry_price: float
+    ) -> None:
+        """
+        Non-blocking LLM shadow advisor for BOND entries. Fires after position opens,
+        stores decision in _bond_llm_decisions[token_id] for logging at close.
+        Never cancels or modifies the trade — pure observation and data collection.
+        """
+        window_remaining_s = max(0.0, pos.window_end_ts - time.time()) if pos.window_end_ts > 0 else 0.0
+        try:
+            result = await self.macro_engine.bond_advisor(
+                asset=pos.asset,
+                direction=pos.direction.name,
+                entry_price=entry_price,
+                bond_entry_class=getattr(signal, "bond_entry_class", ""),
+                bond_entry_zone=getattr(signal, "bond_entry_zone", ""),
+                bond_delta_at_entry=float(getattr(signal, "bond_delta_at_entry", 0.0) or 0.0),
+                bond_delta_accel_30s=float(getattr(signal, "bond_delta_accel_30s", 0.0) or 0.0),
+                bond_edge_drift_30s=float(getattr(signal, "bond_edge_drift_30s", 0.0) or 0.0),
+                bond_smooth_delta_60s=float(getattr(signal, "bond_smooth_delta_60s", 0.0) or 0.0),
+                vpin=float(getattr(signal, "vpin", 0.0) or 0.0),
+                edge=float(getattr(signal, "edge", 0.0) or 0.0),
+                window_size_s=int(pos.window_seconds or 900),
+                window_remaining_s=window_remaining_s,
+            )
+            self._bond_llm_decisions[token_id] = result
+        except Exception as exc:
+            logger.debug("_bond_llm_advisor task error (%s)", exc)
+            self._bond_llm_decisions[token_id] = {"decision": "", "conf": 0.0, "reason": "task error"}
+
     # ── BOND precise timer ────────────────────────────────────────────────────
 
     async def _bond_precise_timer(
@@ -4393,6 +4436,7 @@ class KlausBot:
                     and pos.lowest_price > 0 and pos.mae_bounce_peak > pos.lowest_price):
                 _bounce_pct = (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price * 100
 
+            _bond_llm = self._bond_llm_decisions.pop(token_id, {})
             try:
                 self.analytics.record_trade(
                     token_id=token_id,
@@ -4464,6 +4508,9 @@ class KlausBot:
                     pre_score_stab=float(getattr(signal, "pre_score_stab", 0.0) or 0.0),
                     pre_score_vel=float(getattr(signal, "pre_score_vel", 0.0) or 0.0),
                     pre_score_class=float(getattr(signal, "pre_score_class", 0.0) or 0.0),
+                    bond_llm_decision=_bond_llm.get("decision", ""),
+                    bond_llm_conf=float(_bond_llm.get("conf", 0.0)),
+                    bond_llm_reason=_bond_llm.get("reason", ""),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
