@@ -827,6 +827,94 @@ You are NOT rewarded for consistency of belief.\
             logger.warning("bond_advisor failed (%s) — default %s", exc, _decision)
             return {"decision": _decision, "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}"}
 
+    async def bond_exit_advisor(
+        self,
+        asset: str,
+        direction: str,
+        entry_price: float,
+        current_price: float,
+        pnl_pct: float,
+        held_s: float,
+        remaining_s: float,
+        bond_delta: float = 0.0,
+        vpin: float = 0.0,
+        entry_reason: str = "",
+        entry_tp_pct: float = 0.0,
+        entry_sl_pct: float = 0.0,
+    ) -> dict:
+        """
+        Adaptive exit decision for an open BOND position. Called every 10s.
+        Opus sees full context and decides EXIT or HOLD — can override its own
+        entry targets at any time based on current market state.
+        Returns {"decision": "EXIT"/"HOLD", "reason": "...", "conf": float}.
+        """
+        if not self._enabled:
+            return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
+
+        try:
+            import anthropic as _ant
+            _client = _ant.Anthropic(api_key=self._api_key)
+
+            system_prompt = """\
+You are an autonomous trading intelligence actively managing an open position in a live binary window market.
+You re-evaluate this trade every 10 seconds and can EXIT at any time.
+
+COMPETING HYPOTHESES ENGINE
+Form two hypotheses:
+  H_EXIT: evidence the position should be closed NOW (wrong direction, move exhausted, better to lock gain/cut loss)
+  H_HOLD: evidence the thesis is still valid and more time/price movement is coming
+
+DECISION RULE
+EXIT if H_EXIT is meaningfully stronger.
+HOLD if H_HOLD is stronger or if genuinely uncertain (premature exits cost more than small drawdowns).
+
+ANTI-BIAS
+Do NOT anchor to your original TP/SL targets — they were estimates, not rules. Override them if market evidence warrants.
+Do NOT exit just because price is below entry.
+Do NOT hold just because you entered (sunk cost is not evidence).
+Do NOT wait passively — you actively manage this position.\
+"""
+
+            direction_label = "UP" if "YES" in direction.upper() else "DOWN"
+            prompt = (
+                f"OPEN POSITION — {asset} | Bet: price goes {direction_label} by window end\n"
+                f"Entry: {entry_price:.4f} | Now: {current_price:.4f} | P&L: {pnl_pct:+.1f}%\n"
+                f"Held: {held_s:.0f}s | Remaining: {remaining_s:.0f}s\n"
+                f"Entry thesis: {entry_reason[:80]}\n"
+                f"Entry targets (your estimates, not rules): TP≈+{entry_tp_pct:.0f}% SL≈-{entry_sl_pct:.0f}%\n\n"
+                f"CURRENT MARKET STATE\n"
+                f"Spot delta (vs window open): {bond_delta:+.3f}%\n"
+                f"VPIN: {vpin:.3f}\n\n"
+                f"Form H_EXIT and H_HOLD. Which is stronger? EXIT or HOLD?\n\n"
+                f'Respond ONLY with JSON: {{"decision":"EXIT"or"HOLD","confidence":0.50-0.95,"reason":"max 12 words"}}'
+            )
+
+            resp = _client.messages.create(
+                model="claude-opus-4-7",
+                max_tokens=60,
+                timeout=8,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
+            import re as _re, json as _json
+            _m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+            result = _json.loads(_m.group()) if _m else {}
+            decision = str(result.get("decision", "HOLD")).upper()
+            if decision not in ("EXIT", "HOLD"):
+                decision = "HOLD"
+            conf = max(0.5, min(0.95, float(result.get("confidence", 0.7) or 0.7)))
+            reason = str(result.get("reason", ""))[:80]
+            logger.info(
+                "bond_exit_advisor %s/%s → %s conf=%.2f | move=%+.1f%% rem=%.0fs | %s",
+                asset, direction, decision, conf, pnl_pct, remaining_s, reason,
+            )
+            return {"decision": decision, "conf": conf, "reason": reason}
+
+        except Exception as exc:
+            logger.debug("bond_exit_advisor failed (%s) — HOLD", exc)
+            return {"decision": "HOLD", "conf": 0.5, "reason": f"API error: {type(exc).__name__}"}
+
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _query_claude(
