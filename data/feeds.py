@@ -960,13 +960,14 @@ class PolymarketFeed:
         try:
             async with self._session.get(
                 clob_url,
-                params={"active": "true", "accepting_orders": "true", "limit": "500"},
+                params={"active": "true", "limit": "500"},
                 timeout=_disc_timeout,
             ) as resp:
                 if resp.status == 200:
                     clob_batch = _extract_list(await resp.json())
                     markets.extend(clob_batch)
-                    logger.info("CLOB /markets: %d markets fetched", len(clob_batch))
+                    _updown_in_batch = sum(1 for m in clob_batch if "updown" in (m.get("slug") or m.get("market_slug") or "").lower())
+                    logger.info("CLOB /markets: %d markets fetched (%d updown)", len(clob_batch), _updown_in_batch)
                 else:
                     logger.warning("CLOB /markets returned HTTP %d", resp.status)
         except Exception as exc:
