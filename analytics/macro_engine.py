@@ -769,7 +769,7 @@ class MacroEngine:
             f"{json.dumps(_catalog.get('get_history', []))}\n\n"
             f"**Research notes** (last {len(_catalog.get('get_research_notes', []))} findings): "
             f"{json.dumps(_catalog.get('get_research_notes', []))}\n\n"
-            f"Evaluate this trade candidate and decide."
+            f"All data is above. Call take() or skip() now. Do not output text."
         )
         messages: list = [{"role": "user", "content": _preload}]
         headers = {
@@ -858,7 +858,7 @@ class MacroEngine:
                     # LLM output text without calling a terminal tool — nudge it to decide
                     if data.get("stop_reason") == "end_turn":
                         messages.append({"role": "assistant", "content": content_blocks})
-                        messages.append({"role": "user", "content": "Call take() or skip() now."})
+                        messages.append({"role": "user", "content": "Do NOT output text. Call take() or skip() tool now."})
                         continue
 
                     if not tool_results:
@@ -1020,7 +1020,7 @@ class MacroEngine:
             f"**History** (last {len(_catalog.get('get_history', []))} trades): "
             f"{json.dumps(_catalog.get('get_history', []))}\n\n"
             f"**Research notes**: {json.dumps(_catalog.get('get_research_notes', []))}\n\n"
-            f"Manage your open position."
+            f"All data is above. Call exit_now() or hold() now. Do not output text."
         )
         messages: list = [{"role": "user", "content": _exit_preload}]
         headers = {

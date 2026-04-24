@@ -165,7 +165,7 @@ class ResearchAgent:
             "Stop when no further fundamentally different ideas come to mind."
         )
 
-        messages: list = [{"role": "user", "content": "Run your research cycle."}]
+        messages: list = [{"role": "user", "content": "Run your research cycle. Use publish() for each finding. Do not output analysis as text — call the tool."}]
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": "2023-06-01",
