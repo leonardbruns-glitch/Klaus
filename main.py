@@ -680,7 +680,7 @@ class KlausBot:
                 # ── LLM active exit: poll every 30s, urgent every 15s ────────────
                 # LLM decides EXIT or HOLD. No hardcoded TP/SL/time exits except
                 # two absolute safety nets (catastrophic loss, last-second).
-                _poll_interval = 15.0 if remaining_s < 60.0 else 30.0
+                _poll_interval = 15.0 if bond_remaining < 60.0 else 30.0
                 _last_eval = self._llm_exit_last_eval.get(token_id, 0.0)
                 _due_for_eval = (
                     self.macro_engine._enabled
@@ -703,7 +703,7 @@ class KlausBot:
                             bond_delta=_pos_delta,
                             delta_accel=_pos_accel,
                             vpin=float(getattr(_ext_pos, 'vpin_score', 0.0) or 0.0) if _ext_pos else 0.0,
-                            remaining_s=remaining_s,
+                            remaining_s=bond_remaining,
                         ),
                         name=f'llm_exit_{pos.asset}_{token_id[:8]}',
                     )
@@ -717,7 +717,7 @@ class KlausBot:
                             'LLM_EXIT %s/%s conf=%.2f | move=%+.1f%% held=%.0fs rem=%.0fs | %s',
                             pos.asset, pos.direction.name,
                             _exit_dec.get('conf', 0.0), bond_move * 100,
-                            _held_s, remaining_s, _exit_dec.get('reason', ''),
+                            _held_s, bond_remaining, _exit_dec.get('reason', ''),
                         )
                         try:
                             await self._exit_position(token_id, current_price, 'LLM_EXIT')
@@ -744,11 +744,11 @@ class KlausBot:
 
                 # ── Safety net 2: T-15s absolute deadline ────────────────────────
                 # Window closes in 15s — must exit now regardless of LLM decision.
-                if remaining_s <= 15.0 and token_id not in self._exit_in_progress:
+                if bond_remaining <= 15.0 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'BOND_DEADLINE %s/%s | remaining=%.0fs — last-chance exit',
-                        pos.asset, pos.direction.name, remaining_s,
+                        pos.asset, pos.direction.name, bond_remaining,
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'BOND_DEADLINE')
