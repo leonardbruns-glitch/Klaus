@@ -3078,6 +3078,55 @@ class KlausBot:
 
     # ── LLM independent trader ───────────────────────────────────────────────
 
+    def _read_llm_shadow_history(self, n: int = 15) -> list:
+        """
+        Read the last n completed (entry + exit joined) LLM decisions from
+        logs/llm_shadow.jsonl for history injection into bond_advisor calls.
+
+        Returns a list of dicts (newest first), each containing the entry
+        fields merged with exit outcome fields (exit_reason, shadow_gross_pnl).
+        Open positions (no exit yet) are included as partial records so the LLM
+        can see its most recent choices even if outcomes aren't known yet.
+        """
+        import json as _json
+        import os as _os
+        _path = _os.path.join(
+            _os.path.dirname(self.analytics.cfg.trade_log), "llm_shadow.jsonl"
+        )
+        if not _os.path.exists(_path):
+            return []
+        try:
+            entries: dict = {}
+            exits: dict = {}
+            with open(_path) as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    if not _line:
+                        continue
+                    try:
+                        _r = _json.loads(_line)
+                    except _json.JSONDecodeError:
+                        continue
+                    _tid = _r.get("token_id", "")
+                    if _r.get("record_type") == "llm_entry":
+                        entries[_tid] = _r
+                    elif _r.get("record_type") == "llm_exit":
+                        exits[_tid] = _r
+
+            merged = []
+            for _tid, _e in entries.items():
+                if _tid in exits:
+                    merged.append({**_e, **exits[_tid]})
+                else:
+                    merged.append(_e)
+
+            # Newest first, cap at n
+            merged.sort(key=lambda x: x.get("ts", 0), reverse=True)
+            return merged[:n]
+        except Exception as _exc:
+            logger.debug("_read_llm_shadow_history failed: %s", _exc)
+            return []
+
     def _write_llm_shadow(self, record: dict) -> None:
         import json as _json
         import os as _os
@@ -3122,6 +3171,7 @@ class KlausBot:
         """
         self._llm_eval_pending.add(token_id)
         now = time.time()
+        recent_history = self._read_llm_shadow_history(n=15)
         try:
             result = await self.macro_engine.bond_advisor(
                 asset=asset,
@@ -3137,6 +3187,7 @@ class KlausBot:
                 edge=edge,
                 window_size_s=window_size_s,
                 window_remaining_s=remaining_s,
+                recent_history=recent_history,
             )
         finally:
             self._llm_eval_pending.discard(token_id)
