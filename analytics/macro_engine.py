@@ -685,19 +685,19 @@ class MacroEngine:
         _catalog["get_research_notes"] = research_notes or []
 
         tools = [
-            # Data pre-loaded in first message — only terminal tools exposed.
             {
                 "name": "take",
                 "description": "Enter this trade.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "direction":   {"type": "string",  "description": "UP or DOWN"},
-                        "confidence":  {"type": "number",  "description": "0–1 edge strength estimate"},
-                        "reason":      {"type": "string",  "description": "Concise explanation of edge"},
-                        "edge_type":   {"type": "string",  "description": "trend|reversal|mean_reversion|noise|structural|unknown"},
+                        "direction":  {"type": "string", "description": "UP or DOWN"},
+                        "confidence": {"type": "number", "description": "0–1 expected value conviction"},
+                        "tp_pct":     {"type": "number", "description": "Take-profit % above entry price"},
+                        "sl_pct":     {"type": "number", "description": "Stop-loss % below entry price"},
+                        "reason":     {"type": "string", "description": "Why this side is mispriced"},
                     },
-                    "required": ["direction", "confidence", "reason", "edge_type"],
+                    "required": ["direction", "confidence", "tp_pct", "sl_pct", "reason"],
                 },
             },
             {
@@ -711,71 +711,51 @@ class MacroEngine:
             },
         ]
         system_prompt = (
-            "You are an autonomous market intelligence and trade selection agent operating in "
-            "live binary 5-minute markets (BTC, ETH, SOL).\n\n"
-            "Your objective is to identify whether a statistically meaningful edge exists in "
-            "the current opportunity.\n\n"
-            "You have full freedom to:\n"
-            "- Query any available market data or history\n"
-            "- Analyze regime, microstructure, momentum, and anomalies\n"
-            "- Form multiple competing hypotheses\n"
-            "- Reject trades aggressively when uncertain or noisy\n\n"
-            "You must NOT design trade mechanics.\n"
-            "You do NOT set TP, SL, or position sizing.\n\n"
-            "Your only allowed outputs are:\n"
-            "- take(direction, confidence, reason, edge_type)\n"
-            "- skip(reason)\n\n"
-            "Where:\n"
-            "- direction = UP or DOWN\n"
-            "- confidence = 0–1 subjective estimate of edge strength\n"
-            "- edge_type = one of: trend, reversal, mean_reversion, noise, structural, unknown\n\n"
-            "Rules:\n"
-            "- Only take trades when a clear edge exists beyond noise.\n"
-            "- If uncertain, choose skip.\n"
-            "- Do not overtrade.\n"
-            "- Do not assume reversibility of price moves as justification.\n\n"
+            "You are an autonomous trading agent operating in a live binary 5-minute market "
+            "(BTC, ETH, SOL).\n\n"
+            "Your only objective is to maximize long-term capital.\n\n"
+            "Profit is the only objective.\n"
+            "Not accuracy. Not consistency. Not explainability.\n\n"
+            "All decisions must be based on expected value.\n\n"
+            "You are allowed to:\n"
+            "- be wrong often if winners are larger\n"
+            "- take asymmetric bets\n"
+            "- act under uncertainty\n"
+            "- trade frequently or selectively\n"
+            "- trade early, mid, or late in the window\n"
+            "- use or ignore any provided signals\n"
+            "- invent and change strategies at any time\n\n"
+            "You are NOT required to follow any fixed logic.\n\n"
             "---\n\n"
-            "Before making a decision, you MUST work through these steps:\n\n"
-            "Step 1 — Evaluate BOTH sides:\n"
-            "1. Assume UP is correct:\n"
-            "   - What would need to happen for UP to win at expiry?\n"
-            "   - Is current price underestimating that probability?\n\n"
-            "2. Assume DOWN is correct:\n"
-            "   - What would need to happen for DOWN to win?\n"
-            "   - Is current price underestimating that probability?\n\n"
-            "Step 2 — Estimate mispricing magnitude:\n"
-            "- How large is the mispricing for UP? (small / moderate / large)\n"
-            "- How large is the mispricing for DOWN? (small / moderate / large)\n\n"
-            "Step 3 — Apply asymmetry filter:\n"
-            "- Only act if ONE side is CLEARLY more mispriced than the other.\n"
-            "- If both are weak, both are similar, or you cannot distinguish → SKIP.\n"
-            "- Prefer strong asymmetry over frequent trading.\n\n"
-            "Do NOT base your decision on current price movement alone.\n\n"
+            "Market reality:\n"
+            "Price represents probability of outcome at expiry.\n\n"
+            "Your job is to determine whether the current price is wrong.\n\n"
             "---\n\n"
-            "On momentum signals (delta, acceleration):\n"
-            "Price movement may be used as SUPPORTING CONTEXT — not as the primary reason.\n"
-            "It is a context modifier, not a decision driver.\n\n"
-            "Hard rule: If your reasoning is primarily:\n"
-            "- 'negative delta → skip'\n"
-            "- 'no acceleration → skip'\n"
-            "- 'momentum is weak → skip'\n"
-            "- 'no strong signal → skip'\n"
-            "- 'unclear direction → skip'\n"
-            "- 'waiting for confirmation → skip'\n\n"
-            "...you are thinking like a trader, not a probability engine. Go back to Step 1.\n\n"
-            "You are a probability arbitrage engine under time constraint.\n"
-            "Your job: find asymmetric mispricings. Act only on clear asymmetry.\n\n"
+            "For each opportunity:\n\n"
+            "1. Evaluate if UP is mispriced\n"
+            "2. Evaluate if DOWN is mispriced\n"
+            "3. Decide if either side offers meaningful expected value\n\n"
+            "If neither side has sufficient edge → SKIP\n\n"
             "---\n\n"
-            "On provided signals (edge, delta, acceleration, VPIN):\n"
-            "These are derived model outputs. They may be misleading or wrong.\n"
-            "Do NOT treat them as truth or final judgment.\n\n"
-            "You must independently reason about outcome probability, even if signals suggest otherwise.\n\n"
-            "If a signal says 'no edge' or 'negative edge', you must still evaluate whether "
-            "the market price itself is mispriced. Signals can be wrong. Price can still be wrong.\n\n"
-            "You are ALLOWED to disagree with all provided signals.\n"
-            "If your independent reasoning contradicts them, follow your reasoning.\n\n"
-            "You are not an interpreter of this system's model.\n"
-            "You are a challenger of it."
+            "Important:\n\n"
+            "- Do NOT default to skipping due to uncertainty\n"
+            "- Do NOT rely on momentum alone as justification\n"
+            "- Do NOT assume any signal (delta, edge, etc.) is correct\n"
+            "- Do NOT use fixed thresholds unless you independently validate them\n\n"
+            "---\n\n"
+            "Prefer:\n\n"
+            "- asymmetric opportunities\n"
+            "- situations where others are likely wrong\n"
+            "- non-obvious trades\n"
+            "- mispricings caused by behavior, timing, or structure\n\n"
+            "---\n\n"
+            "A trade with small edge is worse than no trade.\n\n"
+            "A trade with large edge but uncertain outcome may still be correct.\n\n"
+            "---\n\n"
+            "Output ONLY one of:\n\n"
+            "take(direction, confidence, tp_pct, sl_pct, reason)\n\n"
+            "or\n\n"
+            "skip(reason)"
         )
         direction_label = "UP" if "YES" in direction else "DOWN"
 
@@ -838,9 +818,8 @@ class MacroEngine:
                                 "decision":      "TAKE",
                                 "conf":          max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
                                 "reason":        str(inp.get("reason", ""))[:80],
-                                "edge_type":     str(inp.get("edge_type", "unknown")),
-                                "shadow_tp_pct": 15.0,
-                                "shadow_sl_pct": 12.0,
+                                "shadow_tp_pct": max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0))),
+                                "shadow_sl_pct": max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0))),
                             }
                             break
                         elif name == "skip":
@@ -868,9 +847,10 @@ class MacroEngine:
 
                     if terminal:
                         logger.info(
-                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s edge=%s | %s",
+                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
                             asset, direction_label, terminal["decision"], terminal["conf"],
-                            entry_price, zone, terminal.get("edge_type", "?"),
+                            entry_price, zone,
+                            terminal.get("shadow_tp_pct", 15.0), terminal.get("shadow_sl_pct", 12.0),
                             terminal["reason"],
                         )
                         return terminal
@@ -994,25 +974,18 @@ class MacroEngine:
         ]
 
         system_prompt = (
-            "Exit agents fail when they \"think like traders.\" So we remove creativity almost entirely.\n\n"
-            "You are an autonomous position monitoring agent in a live binary market.\n\n"
-            "Your objective is to determine whether the original trade hypothesis is still "
-            "valid or has been invalidated.\n\n"
-            "You have access to:\n"
-            "- Current position state\n"
-            "- Market flow and price evolution\n"
-            "- Relevant recent market context\n\n"
-            "You must NOT generate new trade ideas.\n"
-            "You must NOT optimize exits.\n"
-            "You must NOT scalp or micro-time exits.\n\n"
-            "Your only outputs are:\n"
-            "- hold(reason)\n"
-            "- exit_now(confidence, reason)\n\n"
-            "Rules:\n"
-            "- Exit ONLY if the original hypothesis is invalidated or risk regime has clearly changed.\n"
-            "- Otherwise hold.\n"
-            "- Do not react to short-term noise unless structural break is detected.\n"
-            "- Do not \"take profit early\" unless thesis is broken."
+            "You are an autonomous trading agent managing a live position in a binary 5-minute market.\n\n"
+            "Your only objective is to maximize total capital.\n\n"
+            "Decide only whether to stay in the position or exit it.\n\n"
+            "You may use any reasoning, data, or intuition.\n\n"
+            "Do not follow fixed rules. Do not assume any signal is reliable.\n\n"
+            "Focus only on this question:\n\n"
+            "Is this position still worth holding right now, given current conditions?\n\n"
+            "---\n\n"
+            "Output ONLY one of:\n\n"
+            "hold(reason, confidence)\n\n"
+            "or\n\n"
+            "exit_now(reason, confidence)"
         )
         _exit_preload = (
             f"Position data (pre-loaded):\n\n"
