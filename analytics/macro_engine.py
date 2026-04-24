@@ -685,26 +685,7 @@ class MacroEngine:
         _catalog["get_research_notes"] = research_notes or []
 
         tools = [
-            {
-                "name": "get_market_info",
-                "description": "Asset, direction, token price, window size, time remaining, zone.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
-            {
-                "name": "get_signals",
-                "description": "Spot delta, delta acceleration, smooth delta, edge, edge drift, VPIN.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
-            {
-                "name": "get_history",
-                "description": "Your recent TAKE/SKIP decisions and their outcomes (newest first).",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
-            {
-                "name": "get_research_notes",
-                "description": "Recent findings from the autonomous research agent: patterns, anomalies, market structure insights, and actionable suggestions.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
+            # Data pre-loaded in first message — only terminal tools exposed.
             {
                 "name": "take",
                 "description": "Enter this trade.",
@@ -724,14 +705,11 @@ class MacroEngine:
                 "description": "Pass on this candidate.",
                 "input_schema": {
                     "type": "object",
-                    "properties": {
-                        "reason": {"type": "string"},
-                    },
+                    "properties": {"reason": {"type": "string"}},
                     "required": ["reason"],
                 },
             },
         ]
-
         system_prompt = (
             "You are an autonomous market intelligence and trade selection agent operating in "
             "live binary 5-minute markets (BTC, ETH, SOL).\n\n"
@@ -946,26 +924,7 @@ class MacroEngine:
         _catalog["get_research_notes"] = research_notes or []
 
         tools = [
-            {
-                "name": "get_position",
-                "description": "Your open position: asset, direction, entry/current price, P&L, time held, time remaining, peak and trough prices, entry thesis and original targets.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
-            {
-                "name": "get_market_flow",
-                "description": "Binance spot delta vs window open and VPIN order-flow toxicity.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
-            {
-                "name": "get_history",
-                "description": "Your recent closed trades: entry decision, exit reason, hold time, and P&L (newest first). Use this to learn which exit patterns worked.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
-            {
-                "name": "get_research_notes",
-                "description": "Recent findings from the autonomous research agent: patterns, timing effects, failure modes, and structural insights.",
-                "input_schema": {"type": "object", "properties": {}, "required": []},
-            },
+            # Data pre-loaded in first message — only terminal tools exposed.
             {
                 "name": "exit_now",
                 "description": "Close the position immediately.",
