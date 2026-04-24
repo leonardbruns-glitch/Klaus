@@ -621,6 +621,7 @@ class MacroEngine:
         window_size_s: int,
         window_remaining_s: float,
         recent_history: list | None = None,
+        research_notes: list | None = None,
     ) -> dict:
         """
         Agentic entry decision. Opus requests whatever data it wants via tools,
@@ -674,6 +675,8 @@ class MacroEngine:
         else:
             _catalog["get_history"] = []
 
+        _catalog["get_research_notes"] = research_notes or []
+
         tools = [
             {
                 "name": "get_market_info",
@@ -688,6 +691,11 @@ class MacroEngine:
             {
                 "name": "get_history",
                 "description": "Your recent TAKE/SKIP decisions and their outcomes (newest first).",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "get_research_notes",
+                "description": "Recent findings from the autonomous research agent: patterns, anomalies, market structure insights, and actionable suggestions.",
                 "input_schema": {"type": "object", "properties": {}, "required": []},
             },
             {

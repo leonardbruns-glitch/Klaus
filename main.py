@@ -61,6 +61,7 @@ from analytics.shadow_log import log_shadow_result
 from risk.manager import RiskManager, ExitStage
 from analytics.lag_observations import log_lag_observation
 from analytics.macro_engine import MacroEngine
+from analytics.research_agent import ResearchAgent
 from execution.order_manager import OrderManager, OrderResult, OrderStatus
 from analytics.feedback import FeedbackEngine
 from analytics.research import ResearchEngine
@@ -179,6 +180,7 @@ class KlausBot:
         self.analytics = FeedbackEngine()
         self.research = ResearchEngine(self.feed, self.scorer)
         self.macro_engine = MacroEngine()
+        self.research_agent = ResearchAgent(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
         self.sniper = WindowSniper()
         self._running = False
         self._last_report_ts = 0.0
@@ -1412,6 +1414,11 @@ class KlausBot:
                         _bond_exc, exc_info=True,
                     )
                 await self._scan_reversal_candidates()
+                if self.research_agent.due():
+                    asyncio.create_task(
+                        self.research_agent.run(self.feed.tokens),
+                        name="research_agent_cycle",
+                    )
             except Exception as exc:
                 _consecutive_errors += 1
                 tb = traceback.format_exc()
@@ -3047,6 +3054,30 @@ class KlausBot:
             logger.debug("_read_llm_shadow_history failed: %s", _exc)
             return []
 
+    def _read_research_notes(self, n: int = 10) -> list:
+        """Return the n most recent research findings for injection into bond_advisor."""
+        import json as _json, os as _os
+        _path = _os.path.join(
+            _os.path.dirname(self.analytics.cfg.trade_log), "research_notes.jsonl"
+        )
+        if not _os.path.exists(_path):
+            return []
+        try:
+            rows = []
+            with open(_path) as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    if _line:
+                        try:
+                            rows.append(_json.loads(_line))
+                        except Exception:
+                            pass
+            rows.sort(key=lambda r: r.get("ts", 0), reverse=True)
+            return rows[:n]
+        except Exception as _exc:
+            logger.debug("_read_research_notes failed: %s", _exc)
+            return []
+
     def _write_llm_shadow(self, record: dict) -> None:
         import json as _json
         import os as _os
@@ -3092,6 +3123,7 @@ class KlausBot:
         self._llm_eval_pending.add(token_id)
         now = time.time()
         recent_history = self._read_llm_shadow_history(n=15)
+        research_notes = self._read_research_notes(n=10)
         try:
             result = await self.macro_engine.bond_advisor(
                 asset=asset,
@@ -3108,6 +3140,7 @@ class KlausBot:
                 window_size_s=window_size_s,
                 window_remaining_s=remaining_s,
                 recent_history=recent_history,
+                research_notes=research_notes,
             )
         finally:
             self._llm_eval_pending.discard(token_id)
