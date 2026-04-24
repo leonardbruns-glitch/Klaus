@@ -763,7 +763,7 @@ class MacroEngine:
             async with aiohttp.ClientSession() as sess:
                 for _ in range(6):
                     payload = {
-                        "model": "claude-opus-4-7",
+                        "model": "claude-sonnet-4-6",
                         "max_tokens": 400,
                         "system": system_prompt,
                         "tools": tools,
