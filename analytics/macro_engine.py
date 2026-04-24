@@ -827,6 +827,102 @@ You are NOT rewarded for consistency of belief.\
             logger.warning("bond_advisor failed (%s) — default %s", exc, _decision)
             return {"decision": _decision, "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}"}
 
+    async def bond_exit_advisor(
+        self,
+        asset: str,
+        direction: str,
+        entry_price: float,
+        current_price: float,
+        pnl_pct: float,
+        held_s: float,
+        remaining_s: float,
+        bond_delta: float = 0.0,
+        delta_accel: float = 0.0,
+        vpin: float = 0.0,
+        entry_reason: str = "",
+        entry_tp_pct: float = 0.0,
+        entry_sl_pct: float = 0.0,
+    ) -> dict:
+        """
+        Active exit decision for an open BOND position. Called every 30s.
+        Returns {"decision": "EXIT"/"HOLD", "reason": "...", "conf": float}.
+        """
+        if not self._enabled:
+            return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
+
+        _default = {"decision": "HOLD", "confidence": 0.5, "reason": "LLM disabled"}
+        try:
+            import anthropic as _ant
+            _client = _ant.Anthropic(api_key=self._api_key)
+
+            system_prompt = """\
+You are an autonomous trading intelligence managing an open position in a live binary window market.
+The position was opened because a hypothesis suggested an edge. You must now decide: EXIT or HOLD.
+
+ANTI-STRATEGY CONSTRAINT
+Do NOT apply fixed rules. Do NOT use the entry reason as a permanent truth.
+Every belief about why this position was entered must be re-evaluated against current evidence.
+
+COMPETING HYPOTHESES ENGINE
+Form two hypotheses:
+  H_EXIT: why the position should be closed NOW (evidence the trade is wrong or exhausted)
+  H_HOLD: why the position should remain open (evidence the thesis is still valid)
+
+DECISION RULE
+EXIT if H_EXIT is meaningfully stronger — clear evidence of wrong direction, exhausted move, or better to lock in.
+HOLD if H_HOLD is stronger — thesis intact, price temporarily weak, or more time needed.
+If genuinely uncertain: HOLD (premature exit loses more than a small drawdown).
+
+ANTI-BIAS
+Do NOT exit just because price is below entry (mean-reversion exists).
+Do NOT hold just because you entered (sunk cost is not evidence).
+Do NOT anchor to the original TP/SL targets — they were estimates, not truth.\
+"""
+
+            direction_label = "UP" if "YES" in direction.upper() else "DOWN"
+            prompt = (
+                f"OPEN POSITION\n"
+                f"Asset: {asset} | Bet: price goes {direction_label} by window end\n"
+                f"Entry: {entry_price:.3f} | Now: {current_price:.3f} | "
+                f"Move: {pnl_pct:+.1f}%\n"
+                f"Held: {held_s:.0f}s | Remaining: {remaining_s:.0f}s\n"
+                f"Entry reason: {entry_reason[:60]}\n"
+                f"Entry targets were: TP≈+{entry_tp_pct:.0f}% SL≈-{entry_sl_pct:.0f}% (guidance only, not rules)\n\n"
+                f"CURRENT MARKET STATE\n"
+                f"Spot delta (vs window open): {bond_delta:+.3f}%\n"
+                f"Delta accel (30s): {delta_accel:+.3f}\n"
+                f"VPIN: {vpin:.3f}\n\n"
+                f"Form H_EXIT and H_HOLD. Which is stronger?\n\n"
+                f'Respond ONLY with JSON: {{"decision":"EXIT"or"HOLD","confidence":0.50-0.95,"reason":"max 15 words"}}'
+            )
+
+            resp = _client.messages.create(
+                model="claude-opus-4-7",
+                max_tokens=80,
+                timeout=10,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = resp.content[0].text.strip()
+            import re as _re, json as _json
+            _m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+            result = _json.loads(_m.group()) if _m else {}
+            decision = str(result.get("decision", "HOLD")).upper()
+            if decision not in ("EXIT", "HOLD"):
+                decision = "HOLD"
+            conf = max(0.5, min(0.95, float(result.get("confidence", 0.7) or 0.7)))
+            reason = str(result.get("reason", ""))[:80]
+            logger.info(
+                "bond_exit_advisor %s/%s → %s conf=%.2f | %s",
+                asset, direction, decision, conf, reason,
+            )
+            return {"decision": decision, "conf": conf, "reason": reason}
+
+        except Exception as exc:
+            _is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower()
+            logger.debug("bond_exit_advisor failed (%s) — default HOLD", exc)
+            return {"decision": "HOLD", "conf": 0.5, "reason": f"API error: {type(exc).__name__}"}
+
     # ── Internal ──────────────────────────────────────────────────────────────
 
     async def _query_claude(

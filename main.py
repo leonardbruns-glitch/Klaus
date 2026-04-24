@@ -258,6 +258,10 @@ class KlausBot:
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
         self._llm_ind_decisions: Dict[str, dict] = {}
+        # Active exit polling for open BOND positions.
+        self._llm_exit_decisions: Dict[str, dict] = {}   # token_id → {decision, conf, reason}
+        self._llm_exit_pending: Set[str] = set()          # tasks currently in flight
+        self._llm_exit_last_eval: Dict[str, float] = {}   # token_id → last eval timestamp
         # Peak-stability tracker: timestamp of first scan where bond_move
         # dropped below 80% of peak after peak_ts. Absence = no breach yet.
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
@@ -673,235 +677,88 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
-                # ── LLM TP exit: price hit the LLM's own take-profit target ────────
-                if (pos.tp > 0
-                        and current_price >= pos.tp
-                        and token_id not in self._exit_in_progress):
-                    self._exit_in_progress.add(token_id)
-                    logger.info(
-                        "BOND_TP_LLM %s/%s | price=%.3f ≥ tp=%.3f move=%+.1f%% held=%.0fs",
-                        pos.asset, pos.direction.name,
-                        current_price, pos.tp, bond_move * 100, _held_s,
-                    )
-                    try:
-                        await self._exit_position(token_id, current_price, "BOND_TP_LLM")
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
-
-                # ── LLM SL exit: price hit the LLM's own stop-loss ───────────────
-                # Uses the LLM's chosen SL price (e.g. entry * 0.88 for -12% SL).
-                # Includes same shakeout protection as BOND_SL_20 to avoid wick exits.
-                # BOND_SL_NOPROGRESS and BOND_SL_20 remain as backstops at -20%.
-                if (pos.sl > 0
-                        and current_price <= pos.sl
-                        and pos.sl < pos.entry_price   # sanity: SL is below entry
-                        and token_id not in self._exit_in_progress):
-                    _fav_sl_llm  = self._peak_bond_move.get(token_id, 0.0)
-                    _bounce10_llm = (
-                        (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price
-                        if pos.entry_price > 0 and pos.lowest_price > 0
-                        and pos.mae_bounce_peak > pos.lowest_price
-                        else 0.0
-                    )
-                    _sl_pct_llm = (pos.entry_price - pos.sl) / pos.entry_price  # e.g. 0.12 for -12%
-                    # Shakeout protection: don't exit if trade had strong favorable move
-                    # (likely a manufactured wick rather than genuine resolution)
-                    _sl_protected_llm = _fav_sl_llm >= max(0.10, _sl_pct_llm * 1.5)
-                    if not _sl_protected_llm:
-                        _arm_ts_llm = self._bond_sl_arm_ts.get(token_id)
-                        _is_fast_wick_llm = 0.0 < _fav_sl_llm < 0.05 and _held_s <= 60
-                        if _is_fast_wick_llm:
-                            if _arm_ts_llm is None:
-                                self._bond_sl_arm_ts[token_id] = now
-                                logger.info(
-                                    "BOND_SL_LLM ARM %s/%s | price=%.3f sl=%.3f "
-                                    "move=%+.1f%% fav=%.1f%% — 25s wick confirmation",
-                                    pos.asset, pos.direction.name,
-                                    current_price, pos.sl,
-                                    bond_move * 100, _fav_sl_llm * 100,
-                                )
-                                continue
-                            elif now - _arm_ts_llm < 25.0:
-                                continue
-                        self._bond_sl_arm_ts.pop(token_id, None)
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            "BOND_SL_LLM %s/%s | price=%.3f sl=%.3f "
-                            "move=%+.1f%% fav=%.1f%% held=%.0fs",
-                            pos.asset, pos.direction.name,
-                            current_price, pos.sl,
-                            bond_move * 100, _fav_sl_llm * 100, _held_s,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, "BOND_SL_LLM")
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
-
-                # ── No-progress fast SL: fav==0.0 exactly at -20% → immediate exit ─
-                # Only fires when peak_bond_move is exactly 0.0 — the price NEVER
-                # ticked above entry price in any scan. Even a 0.001% uptick means
-                # the trade had some genuine price support; those go through the
-                # standard shakeout-protected path to avoid premature stops.
-                # Live data (n=5): fav<0.01 had 40% good rate vs 100% for BOND_SL_20.
-                # 3 bad stops = underlying resolved FOR us after we exited. Cause:
-                # fav<0.01 caught micro-progress trades (0.003–0.009%) that recovered.
-                # Back to strict zero: only unmistakable straight-down resolutions.
-                #
-                # Two-path trigger (OR — whichever comes first):
-                #   A) held ≥ 12s — catches 8/10 confirmed-resolution cases
-                #   B) avg_decline ≥ 2%/s — catches fast crashes immediately at breach
-                _fav_now = self._peak_bond_move.get(token_id, 0.0)
-                _avg_decline_rate = -bond_move / max(_held_s, 1.0)
-                if (bond_move <= -0.20
-                        and _fav_now == 0.0
-                        and (_held_s >= 12.0 or _avg_decline_rate >= 0.02)
-                        and token_id not in self._exit_in_progress):
-                    self._bond_sl_arm_ts.pop(token_id, None)
-                    self._exit_in_progress.add(token_id)
-                    logger.info(
-                        "BOND_SL_NOPROGRESS %s/%s | move=%+.1f%% held=%.0fs "
-                        "vel=%.2f%%/s — zero favorable movement, immediate exit",
-                        pos.asset, pos.direction.name,
-                        bond_move * 100, _held_s, _avg_decline_rate * 100,
-                    )
-                    try:
-                        await self._exit_position(token_id, current_price, "BOND_SL_NOPROGRESS")
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
-
-                # ── Hard SL: -20% from T+30s, with shakeout protection ──────────
-                if (_held_s >= 30.0
-                        and bond_move <= -0.20
-                        and token_id not in self._exit_in_progress):
-                    _fav_sl      = self._peak_bond_move.get(token_id, 0.0)
-                    _bounce10_sl = (
-                        (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price
-                        if pos.entry_price > 0 and pos.lowest_price > 0
-                        and pos.mae_bounce_peak > pos.lowest_price
-                        else 0.0
-                    )
-                    _pc_smooth_runner = _fav_sl >= 0.20
-                    _sl_protected = (
-                        _fav_sl >= 0.15                                   # strong upside
-                        or (_bounce10_sl >= 0.12 and _fav_sl >= 0.08)     # real bounce + follow-through
-                        or (_pc_smooth_runner and _fav_sl >= 0.10)        # runner with expansion
-                    )
-                    if not _sl_protected:
-                        # ── Stop-hunt wick confirmation ────────────────────────────────
-                        # Small-fav fast wick (0 < fav < 5%) within first 60s: wait 25s.
-                        # fav=0 is handled above (BOND_SL_NOPROGRESS) — genuine resolutions
-                        # exit immediately and never reach here.
-                        # Confirmed save: ETH YES -29% wick → +81% snap-back in 30s.
-                        _is_zero_fav_fast_wick = 0.0 < _fav_sl < 0.05 and _held_s <= 60
-                        if _is_zero_fav_fast_wick:
-                            _arm_ts = self._bond_sl_arm_ts.get(token_id)
-                            if _arm_ts is None:
-                                self._bond_sl_arm_ts[token_id] = now
-                                logger.info(
-                                    "BOND_SL_20 ARM %s/%s | move=%+.1f%% fav=%.1f%% "
-                                    "held=%.0fs — 25s wick confirmation started",
-                                    pos.asset, pos.direction.name,
-                                    bond_move * 100, _fav_sl * 100, _held_s,
-                                )
-                                continue   # wait for confirmation
-                            elif now - _arm_ts < 25.0:
-                                continue   # still in confirmation window
-                            # 25s elapsed without recovery → confirmed real cascade
-                            logger.info(
-                                "BOND_SL_20 CONFIRMED %s/%s | move=%+.1f%% fav=%.1f%% "
-                                "held=%.0fs arm_age=%.0fs — executing",
-                                pos.asset, pos.direction.name,
-                                bond_move * 100, _fav_sl * 100, _held_s,
-                                now - _arm_ts,
-                            )
-                        self._bond_sl_arm_ts.pop(token_id, None)
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            "BOND_SL_20 %s/%s | move=%+.1f%% fav=%.1f%% "
-                            "bounce10=%.1f%% held=%.0fs",
-                            pos.asset, pos.direction.name,
-                            bond_move * 100, _fav_sl * 100,
-                            _bounce10_sl * 100, _held_s,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, "BOND_SL_20")
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
-                else:
-                    # Price recovered above -20% threshold — cancel any armed wick timer
-                    if token_id in self._bond_sl_arm_ts:
-                        _arm_ts = self._bond_sl_arm_ts.pop(token_id)
-                        logger.info(
-                            "BOND_SL_20 WICK_CANCELLED %s/%s | move=%+.1f%% recovered "
-                            "within %.0fs of arm — stop-hunt confirmed",
-                            pos.asset, pos.direction.name,
-                            bond_move * 100, now - _arm_ts,
-                        )
-
-                # ── BOND_CHOP_FILTER removed (2026-04-23) ─────────────────────
-                # Cascade detector (Rule B) at T+60s is now the primary early-
-                # exit decision layer. CHOP at T+25–40s was firing before snap60
-                # populated, preempting cascade classification and creating a
-                # logic conflict between new probabilistic and old deterministic
-                # exits. Only hard risk exit (BOND_SL_20 at -20%) may fire pre-60s.
-
-                # ── Cascade abort — Rule B (T+60s trajectory classifier) ─────
-                # Classified once when both snaps populated and held ≥60s.
-                # cascade_state frozen on first write so subsequent ticks skip
-                # recomputation (prevents non-deterministic re-evaluation).
-                if (pos.cascade_state == "UNKNOWN"
-                        and _held_s >= 60
-                        and pos.entry_snap_30s_pct != 0.0
-                        and pos.entry_snap_60s_pct != 0.0
-                        and token_id not in self._exit_in_progress):
-                    from analytics.regime_filter import cascade_detected
-                    _abort, _abort_reason = cascade_detected(
-                        pos.entry_snap_30s_pct,
-                        pos.entry_snap_60s_pct,
-                        pos.bond_entry_class or None,
-                    )
-                    pos.cascade_state = "CASCADING" if _abort else "RECOVERING"
-                    if _abort:
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            "CASCADE ABORT %s/%s @ %.4f | held=%.0fs | snap30=%+.1f%% snap60=%+.1f%%",
-                            pos.asset, pos.direction.name, current_price, _held_s,
-                            pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, _abort_reason)
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
-                    logger.info(
-                        "CASCADE RECOVERING %s/%s | snap30=%+.1f%% snap60=%+.1f%% — hold",
-                        pos.asset, pos.direction.name,
-                        pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
+                # ── LLM active exit: poll every 30s, urgent every 15s ────────────
+                # LLM decides EXIT or HOLD. No hardcoded TP/SL/time exits except
+                # two absolute safety nets (catastrophic loss, last-second).
+                _poll_interval = 15.0 if remaining_s < 60.0 else 30.0
+                _last_eval = self._llm_exit_last_eval.get(token_id, 0.0)
+                _due_for_eval = (
+                    self.macro_engine._enabled
+                    and token_id not in self._llm_exit_pending
+                    and (now - _last_eval) >= _poll_interval
+                )
+                if _due_for_eval:
+                    _ext_pos = self._last_ext_signals.get(pos.asset)
+                    _pos_delta = 0.0
+                    _pos_accel = 0.0
+                    if _ext_pos and _ext_pos.spot_price:
+                        _ref5 = _ext_pos.spot_window_open_5m or 0.0
+                        if _ref5 > 0:
+                            _pos_delta = (_ext_pos.spot_price - _ref5) / _ref5 * 100
+                    asyncio.create_task(
+                        self._bond_llm_exit_eval(
+                            token_id=token_id,
+                            pos=pos,
+                            current_price=current_price,
+                            bond_delta=_pos_delta,
+                            delta_accel=_pos_accel,
+                            vpin=float(getattr(_ext_pos, 'vpin_score', 0.0) or 0.0) if _ext_pos else 0.0,
+                            remaining_s=remaining_s,
+                        ),
+                        name=f'llm_exit_{pos.asset}_{token_id[:8]}',
                     )
 
-                # Time exit: sell at bond_exit_sec before window close
-                if bond_remaining <= pos.bond_exit_sec:
+                # Check for pending EXIT decision
+                _exit_dec = self._llm_exit_decisions.pop(token_id, None)
+                if _exit_dec and _exit_dec.get('decision') == 'EXIT':
                     if token_id not in self._exit_in_progress:
                         self._exit_in_progress.add(token_id)
                         logger.info(
-                            "BOND_TIME_EXIT %s/%s | remaining=%.0fs ≤ exit_at=%ds | "
-                            "entry=%.4f curr=%.4f move=%+.1f%%",
-                            pos.asset, pos.direction.name, bond_remaining,
-                            pos.bond_exit_sec, pos.entry_price, current_price,
-                            bond_move * 100,
+                            'LLM_EXIT %s/%s conf=%.2f | move=%+.1f%% held=%.0fs rem=%.0fs | %s',
+                            pos.asset, pos.direction.name,
+                            _exit_dec.get('conf', 0.0), bond_move * 100,
+                            _held_s, remaining_s, _exit_dec.get('reason', ''),
                         )
                         try:
-                            await self._exit_position(token_id, current_price, "BOND_TIME_EXIT")
+                            await self._exit_position(token_id, current_price, 'LLM_EXIT')
                         finally:
                             self._exit_in_progress.discard(token_id)
                     continue
 
-                # Still inside holding period — skip normal TP/SL
+                # ── Safety net 1: catastrophic (-70%) with zero recovery ──────────
+                # Position is effectively worthless — LLM can't recover from here.
+                if (bond_move <= -0.70
+                        and self._peak_bond_move.get(token_id, 0.0) == 0.0
+                        and _held_s >= 10.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — position worthless, force exit',
+                        pos.asset, pos.direction.name, bond_move * 100,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'BOND_CATASTROPHIC')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── Safety net 2: T-15s absolute deadline ────────────────────────
+                # Window closes in 15s — must exit now regardless of LLM decision.
+                if remaining_s <= 15.0 and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'BOND_DEADLINE %s/%s | remaining=%.0fs — last-chance exit',
+                        pos.asset, pos.direction.name, remaining_s,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'BOND_DEADLINE')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # Still holding — LLM said HOLD or no decision yet
                 continue
+
 
             _pos_ext = self._last_ext_signals.get(pos.asset)
             _binance_spot = self.feed._spot_price.get(pos.asset.upper(), 0.0)
@@ -3302,6 +3159,58 @@ class KlausBot:
             elapsed, remaining_s - elapsed,
             result.get("reason", ""),
         )
+
+    # ── BOND LLM active exit poller ──────────────────────────────────────────
+
+    async def _bond_llm_exit_eval(
+        self,
+        token_id: str,
+        pos,
+        current_price: float,
+        bond_delta: float,
+        delta_accel: float,
+        vpin: float,
+        remaining_s: float,
+    ) -> None:
+        """
+        Ask Opus: EXIT or HOLD on this open position?
+        Result stored in _llm_exit_decisions[token_id]; consumed next scan.
+        """
+        self._llm_exit_pending.add(token_id)
+        try:
+            _held = time.time() - pos.open_ts
+            _pnl_pct = ((current_price - pos.entry_price) / pos.entry_price * 100
+                        if pos.entry_price > 0 else 0.0)
+            _entry_reason = ""
+            _entry_tp = 0.0
+            _entry_sl = 0.0
+            _llm_rec = self._bond_llm_decisions.get(token_id, {})
+            if _llm_rec:
+                _entry_reason = _llm_rec.get("reason", "")
+                _entry_tp = float(_llm_rec.get("shadow_tp_pct", 0.0) or 0.0)
+                _entry_sl = float(_llm_rec.get("shadow_sl_pct", 0.0) or 0.0)
+
+            result = await self.macro_engine.bond_exit_advisor(
+                asset=pos.asset,
+                direction=pos.direction.name,
+                entry_price=pos.entry_price,
+                current_price=current_price,
+                pnl_pct=_pnl_pct,
+                held_s=_held,
+                remaining_s=remaining_s,
+                bond_delta=bond_delta,
+                delta_accel=delta_accel,
+                vpin=vpin,
+                entry_reason=_entry_reason,
+                entry_tp_pct=_entry_tp,
+                entry_sl_pct=_entry_sl,
+            )
+            self._llm_exit_decisions[token_id] = result
+            self._llm_exit_last_eval[token_id] = time.time()
+        except Exception as _exc:
+            logger.debug("_bond_llm_exit_eval error (%s)", _exc)
+        finally:
+            self._llm_exit_pending.discard(token_id)
 
     # ── BOND LLM shadow advisor ───────────────────────────────────────────────
 
