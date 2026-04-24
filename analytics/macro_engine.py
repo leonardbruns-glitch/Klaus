@@ -635,8 +635,9 @@ class MacroEngine:
         now_utc = datetime.now(timezone.utc)
         zone = bond_entry_zone or (bond_entry_class.split("/")[0] if bond_entry_class else "?")
 
+        # Catalog keys match tool names exactly so lookups work
         _catalog: dict = {
-            "market_info": {
+            "get_market_info": {
                 "time_utc": now_utc.strftime("%H:%M"),
                 "asset": asset,
                 "direction": direction,
@@ -646,7 +647,7 @@ class MacroEngine:
                 "zone": zone,
                 "entry_class": bond_entry_class,
             },
-            "signals": {
+            "get_signals": {
                 "spot_delta_pct": round(bond_delta_at_entry, 4),
                 "delta_accel_30s": round(bond_delta_accel_30s, 4),
                 "smooth_delta_60s": round(bond_smooth_delta_60s, 4),
@@ -669,9 +670,9 @@ class MacroEngine:
                     "exit_reason": h.get("exit_reason", "open"),
                     "pnl": round(pnl, 2),
                 })
-            _catalog["history"] = rows
+            _catalog["get_history"] = rows
         else:
-            _catalog["history"] = []
+            _catalog["get_history"] = []
 
         tools = [
             {
@@ -722,71 +723,95 @@ class MacroEngine:
             "Use your tools to get whatever data you need, then call take or skip. "
             "Set your own TP% and SL% when taking. Be decisive."
         )
-        messages = [{"role": "user", "content": "Evaluate this trade candidate and decide."}]
+        messages: list = [{"role": "user", "content": "Evaluate this trade candidate and decide."}]
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        direction_label = "UP" if "YES" in direction else "DOWN"
 
         try:
-            import anthropic as _ant
-            _client = _ant.Anthropic(api_key=self._api_key)
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                for _ in range(6):
+                    payload = {
+                        "model": "claude-opus-4-7",
+                        "max_tokens": 400,
+                        "system": system_prompt,
+                        "tools": tools,
+                        "messages": messages,
+                    }
+                    async with sess.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers=headers,
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=15),
+                    ) as resp:
+                        if resp.status != 200:
+                            body = await resp.text()
+                            raise Exception(f"API {resp.status}: {body[:60]}")
+                        data = await resp.json()
 
-            for _ in range(6):
-                resp = _client.messages.create(
-                    model="claude-opus-4-7",
-                    max_tokens=400,
-                    timeout=15,
-                    system=system_prompt,
-                    tools=tools,
-                    messages=messages,
-                )
+                    content_blocks = data.get("content", [])
+                    tool_results = []
+                    terminal = None
 
-                tool_results = []
-                terminal = None
-                for block in resp.content:
-                    if not hasattr(block, "type") or block.type != "tool_use":
-                        continue
-                    name = block.name
-                    inp = block.input or {}
-                    if name == "take":
-                        tp = max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0)))
-                        sl = max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0)))
-                        terminal = {
-                            "decision": "TAKE",
-                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
-                            "reason": str(inp.get("reason", ""))[:80],
-                            "shadow_tp_pct": tp,
-                            "shadow_sl_pct": sl,
-                        }
+                    for block in content_blocks:
+                        if block.get("type") != "tool_use":
+                            continue
+                        name = block["name"]
+                        inp = block.get("input", {})
+                        bid = block["id"]
+
+                        if name == "take":
+                            tp = max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0)))
+                            sl = max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0)))
+                            terminal = {
+                                "decision": "TAKE",
+                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                                "reason": str(inp.get("reason", ""))[:80],
+                                "shadow_tp_pct": tp,
+                                "shadow_sl_pct": sl,
+                            }
+                            break
+                        elif name == "skip":
+                            terminal = {
+                                "decision": "SKIP",
+                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                                "reason": str(inp.get("reason", ""))[:80],
+                                "shadow_tp_pct": 15.0,
+                                "shadow_sl_pct": 12.0,
+                            }
+                            break
+                        elif name in _catalog:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": json.dumps(_catalog[name]),
+                            })
+                        else:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": f"Unknown tool: {name}",
+                                "is_error": True,
+                            })
+
+                    if terminal:
+                        logger.info(
+                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
+                            asset, direction_label, terminal["decision"], terminal["conf"],
+                            entry_price, zone, terminal["shadow_tp_pct"], terminal["shadow_sl_pct"],
+                            terminal["reason"],
+                        )
+                        return terminal
+
+                    if data.get("stop_reason") == "end_turn" or not tool_results:
                         break
-                    elif name == "skip":
-                        terminal = {
-                            "decision": "SKIP",
-                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
-                            "reason": str(inp.get("reason", ""))[:80],
-                            "shadow_tp_pct": 15.0,
-                            "shadow_sl_pct": 12.0,
-                        }
-                        break
-                    elif name in _catalog:
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": _json.dumps(_catalog[name]),
-                        })
 
-                if terminal:
-                    direction_label = "UP" if "YES" in direction else "DOWN"
-                    logger.info(
-                        "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
-                        asset, direction_label, terminal["decision"], terminal["conf"],
-                        entry_price, zone, terminal["shadow_tp_pct"], terminal["shadow_sl_pct"],
-                        terminal["reason"],
-                    )
-                    return terminal
-
-                if resp.stop_reason == "end_turn" or not tool_results:
-                    break
-
-                messages.append({"role": "assistant", "content": resp.content})
-                messages.append({"role": "user", "content": tool_results})
+                    messages.append({"role": "assistant", "content": content_blocks})
+                    messages.append({"role": "user", "content": tool_results})
 
             return {"decision": "SKIP", "conf": 0.5, "reason": "no terminal decision",
                     "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
@@ -816,138 +841,156 @@ class MacroEngine:
         lowest_price: float = 0.0,
     ) -> dict:
         """
-        Agentic exit decision. Opus requests whatever data it wants via tools,
-        then calls exit_now or hold. No pre-selected context forced on it.
+        Agentic exit decision via aiohttp tool-use loop.
+        Opus requests whatever data it wants, then calls exit_now or hold.
         """
-        import json as _json
         if not self._enabled:
             return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
 
+        # Catalog keys match tool names exactly
+        _catalog = {
+            "get_position": {
+                "asset": asset,
+                "direction": direction,
+                "entry_price": round(entry_price, 4),
+                "current_price": round(current_price, 4),
+                "pnl_pct": round(pnl_pct, 2),
+                "held_seconds": round(held_s),
+                "remaining_seconds": round(remaining_s),
+                "peak_price": round(highest_price, 4),
+                "trough_price": round(lowest_price, 4),
+                "entry_thesis": entry_reason,
+                "entry_tp_pct": entry_tp_pct,
+                "entry_sl_pct": entry_sl_pct,
+            },
+            "get_market_flow": {
+                "binance_delta_pct": round(bond_delta, 3),
+                "vpin": round(vpin, 3),
+            },
+        }
+
+        tools = [
+            {
+                "name": "get_position",
+                "description": "Your open position: asset, direction, entry/current price, P&L, time held, time remaining, peak and trough prices, entry thesis and original targets.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "get_market_flow",
+                "description": "Binance spot delta vs window open and VPIN order-flow toxicity.",
+                "input_schema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "exit_now",
+                "description": "Close the position immediately.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "confidence": {"type": "number"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["confidence", "reason"],
+                },
+            },
+            {
+                "name": "hold",
+                "description": "Keep holding. You will be called again in ~10 seconds.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "confidence": {"type": "number"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["confidence", "reason"],
+                },
+            },
+        ]
+
+        system_prompt = (
+            "You are an autonomous trading agent managing a live binary market position. "
+            "Use your tools to check what you need, then call exit_now or hold. Be decisive."
+        )
+        messages: list = [{"role": "user", "content": "Manage your open position."}]
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
         try:
-            import anthropic as _ant
-            _client = _ant.Anthropic(api_key=self._api_key)
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                for _ in range(5):
+                    payload = {
+                        "model": "claude-opus-4-7",
+                        "max_tokens": 300,
+                        "system": system_prompt,
+                        "tools": tools,
+                        "messages": messages,
+                    }
+                    async with sess.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers=headers,
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as resp:
+                        if resp.status != 200:
+                            body = await resp.text()
+                            raise Exception(f"API {resp.status}: {body[:60]}")
+                        data = await resp.json()
 
-            _catalog = {
-                "position": {
-                    "asset": asset,
-                    "direction": direction,
-                    "entry_price": round(entry_price, 4),
-                    "current_price": round(current_price, 4),
-                    "pnl_pct": round(pnl_pct, 2),
-                    "held_seconds": round(held_s),
-                    "remaining_seconds": round(remaining_s),
-                    "peak_price": round(highest_price, 4),
-                    "trough_price": round(lowest_price, 4),
-                    "entry_thesis": entry_reason,
-                    "entry_tp_pct": entry_tp_pct,
-                    "entry_sl_pct": entry_sl_pct,
-                },
-                "market_flow": {
-                    "binance_delta_pct": round(bond_delta, 3),
-                    "vpin": round(vpin, 3),
-                },
-            }
+                    content_blocks = data.get("content", [])
+                    tool_results = []
+                    terminal = None
 
-            tools = [
-                {
-                    "name": "get_position",
-                    "description": "Your open position: asset, direction, entry/current price, P&L, time held, time remaining, peak and trough prices, entry thesis and original targets.",
-                    "input_schema": {"type": "object", "properties": {}, "required": []},
-                },
-                {
-                    "name": "get_market_flow",
-                    "description": "Binance spot delta vs window open and VPIN order-flow toxicity.",
-                    "input_schema": {"type": "object", "properties": {}, "required": []},
-                },
-                {
-                    "name": "exit_now",
-                    "description": "Close the position immediately.",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {
-                            "confidence": {"type": "number"},
-                            "reason": {"type": "string"},
-                        },
-                        "required": ["confidence", "reason"],
-                    },
-                },
-                {
-                    "name": "hold",
-                    "description": "Keep holding. You will be called again in ~10 seconds.",
-                    "input_schema": {
-                        "type": "object",
-                        "properties": {
-                            "confidence": {"type": "number"},
-                            "reason": {"type": "string"},
-                        },
-                        "required": ["confidence", "reason"],
-                    },
-                },
-            ]
+                    for block in content_blocks:
+                        if block.get("type") != "tool_use":
+                            continue
+                        name = block["name"]
+                        inp = block.get("input", {})
+                        bid = block["id"]
 
-            system_prompt = (
-                "You are an autonomous trading agent managing a live binary market position. "
-                "Use your tools to check what you need, then call exit_now or hold. Be decisive."
-            )
-            messages = [{"role": "user", "content": "Manage your open position."}]
+                        if name == "exit_now":
+                            terminal = {
+                                "decision": "EXIT",
+                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
+                                "reason": str(inp.get("reason", ""))[:80],
+                            }
+                            break
+                        elif name == "hold":
+                            terminal = {
+                                "decision": "HOLD",
+                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
+                                "reason": str(inp.get("reason", ""))[:80],
+                            }
+                            break
+                        elif name in _catalog:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": json.dumps(_catalog[name]),
+                            })
+                        else:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": f"Unknown tool: {name}",
+                                "is_error": True,
+                            })
 
-            for _ in range(5):
-                resp = _client.messages.create(
-                    model="claude-opus-4-7",
-                    max_tokens=300,
-                    timeout=9,
-                    system=system_prompt,
-                    tools=tools,
-                    messages=messages,
-                )
+                    if terminal:
+                        logger.info(
+                            "bond_exit_advisor %s/%s → %s conf=%.2f rem=%.0fs | %s",
+                            asset, direction, terminal["decision"],
+                            terminal["conf"], remaining_s, terminal["reason"],
+                        )
+                        return terminal
 
-                tool_results = []
-                terminal = None
-                for block in resp.content:
-                    if not hasattr(block, "type") or block.type != "tool_use":
-                        continue
-                    name = block.name
-                    inp = block.input or {}
-                    if name == "exit_now":
-                        terminal = {
-                            "decision": "EXIT",
-                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
-                            "reason": str(inp.get("reason", ""))[:80],
-                        }
+                    if data.get("stop_reason") == "end_turn" or not tool_results:
                         break
-                    elif name == "hold":
-                        terminal = {
-                            "decision": "HOLD",
-                            "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
-                            "reason": str(inp.get("reason", ""))[:80],
-                        }
-                        break
-                    elif name in _catalog:
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": _json.dumps(_catalog[name]),
-                        })
-                    elif name == "get_position":
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": _json.dumps(_catalog["position"]),
-                        })
 
-                if terminal:
-                    logger.info(
-                        "bond_exit_advisor %s/%s → %s conf=%.2f rem=%.0fs | %s",
-                        asset, direction, terminal["decision"],
-                        terminal["conf"], remaining_s, terminal["reason"],
-                    )
-                    return terminal
-
-                if resp.stop_reason == "end_turn" or not tool_results:
-                    break
-
-                messages.append({"role": "assistant", "content": resp.content})
-                messages.append({"role": "user", "content": tool_results})
+                    messages.append({"role": "assistant", "content": content_blocks})
+                    messages.append({"role": "user", "content": tool_results})
 
             return {"decision": "HOLD", "conf": 0.5, "reason": "no terminal decision"}
 
