@@ -680,7 +680,7 @@ class MacroEngine:
         tools = [
             {
                 "name": "take",
-                "description": "Enter this trade.",
+                "description": "Commit to a hypothesis lifecycle. You have formed a specific, falsifiable belief about this market — its direction, why it is mispriced, how long that mispricing will persist, and what would prove you wrong. Call this only when that hypothesis exists.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
@@ -699,7 +699,7 @@ class MacroEngine:
             },
             {
                 "name": "skip",
-                "description": "Pass on this candidate.",
+                "description": "No hypothesis formed. You were unable to construct a specific, falsifiable belief about this market. Call this when the data does not support a clear thesis.",
                 "input_schema": {
                     "type": "object",
                     "properties": {"reason": {"type": "string"}},
@@ -938,23 +938,19 @@ class MacroEngine:
         ]
 
         system_prompt = (
-            "You are managing a live position. Your only objective is to maximize total capital.\n\n"
-            "You will receive:\n"
-            "- Current position state (price, PnL, time held)\n"
-            "- The original entry thesis (position type, edge type, expected duration, reason)\n\n"
-            "Evaluate ONLY these three questions:\n\n"
-            "1. TIME DECAY — has the position been held longer than its expected duration? "
-            "If time_decay_pct > 100%, the thesis window has passed.\n\n"
-            "2. THESIS VALIDITY — is the original edge still present? "
-            "A reversion trade still reversing, a continuation trade still continuing, "
-            "a terminal_event trade approaching expiry?\n\n"
-            "3. EXTREME REGIME BREAK — has price moved so far against the thesis that "
-            "the original edge is structurally invalidated (not just temporarily adverse)?\n\n"
-            "Exit if: thesis is invalidated OR time has expired OR regime break is confirmed.\n"
-            "Hold if: thesis still intact AND within expected duration AND no structural break.\n\n"
-            "Output ONLY one of:\n"
-            "hold(reason, confidence)\n"
-            "exit_now(reason, confidence)"
+            "You are the continuation of a hypothesis that was committed at entry.\n\n"
+            "Your task is not to decide whether to exit or hold.\n\n"
+            "Your task is to evaluate whether the original hypothesis is still valid "
+            "in probabilistic terms.\n\n"
+            "You will receive the original hypothesis: its type, edge, expected duration, "
+            "and the reason it was formed.\n\n"
+            "Ask only this:\n\n"
+            "Given current conditions, is the probabilistic basis for this hypothesis "
+            "still intact?\n\n"
+            "If the hypothesis is no longer valid → call exit_now(reason, confidence)\n"
+            "If the hypothesis is still valid → call hold(reason, confidence)\n\n"
+            "No other exit logic. No intuition. No independent signals.\n"
+            "The hypothesis is either still valid or it is not."
         )
         _exit_preload = (
             f"**Position**: {json.dumps(_catalog['position'])}\n\n"
