@@ -661,29 +661,30 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
-                # ── No-progress fast SL: fav<1% at -20% → immediate exit ─────────
-                # If price NEVER meaningfully moved in our favor (peak<1%, covering
-                # spread artifacts and delayed ticks) and we're at -20%, this is a
-                # genuine resolution not a stop-hunt wick. Stop-hunts always show
-                # fav>0 first; fav=0 straight-down moves are market resolutions.
-                # Data (n=10): fav=0 SL trades exited at avg -65% vs -20% threshold.
-                # All 10 confirmed non-recoveries (from_exit stayed near -96%).
+                # ── No-progress fast SL: fav==0.0 exactly at -20% → immediate exit ─
+                # Only fires when peak_bond_move is exactly 0.0 — the price NEVER
+                # ticked above entry price in any scan. Even a 0.001% uptick means
+                # the trade had some genuine price support; those go through the
+                # standard shakeout-protected path to avoid premature stops.
+                # Live data (n=5): fav<0.01 had 40% good rate vs 100% for BOND_SL_20.
+                # 3 bad stops = underlying resolved FOR us after we exited. Cause:
+                # fav<0.01 caught micro-progress trades (0.003–0.009%) that recovered.
+                # Back to strict zero: only unmistakable straight-down resolutions.
                 #
                 # Two-path trigger (OR — whichever comes first):
-                #   A) held ≥ 12s — catches 8/10 cases (slow-to-moderate declines)
-                #   B) avg_decline ≥ 2%/s — catches fast crashes (e.g. -3.2%/s)
-                #      at breach time without waiting for T+12s
+                #   A) held ≥ 12s — catches 8/10 confirmed-resolution cases
+                #   B) avg_decline ≥ 2%/s — catches fast crashes immediately at breach
                 _fav_now = self._peak_bond_move.get(token_id, 0.0)
                 _avg_decline_rate = -bond_move / max(_held_s, 1.0)
                 if (bond_move <= -0.20
-                        and _fav_now < 0.01
+                        and _fav_now == 0.0
                         and (_held_s >= 12.0 or _avg_decline_rate >= 0.02)
                         and token_id not in self._exit_in_progress):
                     self._bond_sl_arm_ts.pop(token_id, None)
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         "BOND_SL_NOPROGRESS %s/%s | move=%+.1f%% held=%.0fs "
-                        "vel=%.2f%%/s — no meaningful progress, immediate exit",
+                        "vel=%.2f%%/s — zero favorable movement, immediate exit",
                         pos.asset, pos.direction.name,
                         bond_move * 100, _held_s, _avg_decline_rate * 100,
                     )
@@ -2082,6 +2083,9 @@ class KlausBot:
             elif _abs_delta < 0.05 and _vel_mag_now < 0.01:
                 _skip = True
                 _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%<0.05 AND vel={_vel_mag_now:.4f}%<0.01 — no directional basis"
+            elif _abs_delta > 0.085:
+                _skip = True
+                _skip_reason = f"NO_TRADE: |delta|={_abs_delta:.3f}%>0.085 — lag window exhausted, adverse selection risk"
 
             if _skip:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, _dzone, _skip_reason)
