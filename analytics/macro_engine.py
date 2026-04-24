@@ -755,13 +755,26 @@ class MacroEngine:
             "- Do not overtrade.\n"
             "- Do not assume reversibility of price moves as justification."
         )
-        messages: list = [{"role": "user", "content": "Evaluate this trade candidate and decide."}]
+        direction_label = "UP" if "YES" in direction else "DOWN"
+
+        # Pre-load all data into first message — LLM decides in 1 round, not 4-6.
+        # Tools still available for follow-up questions if needed.
+        _preload = (
+            f"Market data (pre-loaded):\n\n"
+            f"**Market info**: {json.dumps(_catalog['get_market_info'])}\n\n"
+            f"**Signals**: {json.dumps(_catalog['get_signals'])}\n\n"
+            f"**History** (last {len(_catalog.get('get_history', []))} trades): "
+            f"{json.dumps(_catalog.get('get_history', []))}\n\n"
+            f"**Research notes** (last {len(_catalog.get('get_research_notes', []))} findings): "
+            f"{json.dumps(_catalog.get('get_research_notes', []))}\n\n"
+            f"Evaluate this trade candidate and decide."
+        )
+        messages: list = [{"role": "user", "content": _preload}]
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
-        direction_label = "UP" if "YES" in direction else "DOWN"
 
         try:
             import aiohttp
@@ -998,7 +1011,16 @@ class MacroEngine:
             "- Do not react to short-term noise unless structural break is detected.\n"
             "- Do not \"take profit early\" unless thesis is broken."
         )
-        messages: list = [{"role": "user", "content": "Manage your open position."}]
+        _exit_preload = (
+            f"Position data (pre-loaded):\n\n"
+            f"**Position**: {json.dumps(_catalog['get_position'])}\n\n"
+            f"**Market flow**: {json.dumps(_catalog['get_market_flow'])}\n\n"
+            f"**History** (last {len(_catalog.get('get_history', []))} trades): "
+            f"{json.dumps(_catalog.get('get_history', []))}\n\n"
+            f"**Research notes**: {json.dumps(_catalog.get('get_research_notes', []))}\n\n"
+            f"Manage your open position."
+        )
+        messages: list = [{"role": "user", "content": _exit_preload}]
         headers = {
             "x-api-key": self._api_key,
             "anthropic-version": "2023-06-01",
