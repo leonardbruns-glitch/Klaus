@@ -258,10 +258,6 @@ class KlausBot:
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
         self._llm_ind_decisions: Dict[str, dict] = {}
-        # Active exit polling for open BOND positions.
-        self._llm_exit_decisions: Dict[str, dict] = {}   # token_id → {decision, conf, reason}
-        self._llm_exit_pending: Set[str] = set()          # tasks currently in flight
-        self._llm_exit_last_eval: Dict[str, float] = {}   # token_id → last eval timestamp
         # Peak-stability tracker: timestamp of first scan where bond_move
         # dropped below 80% of peak after peak_ts. Absence = no breach yet.
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
@@ -677,52 +673,37 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
-                # ── LLM active exit: poll every 30s, urgent every 15s ────────────
-                # LLM decides EXIT or HOLD. No hardcoded TP/SL/time exits except
-                # two absolute safety nets (catastrophic loss, last-second).
-                _poll_interval = 15.0 if bond_remaining < 60.0 else 30.0
-                _last_eval = self._llm_exit_last_eval.get(token_id, 0.0)
-                _due_for_eval = (
-                    self.macro_engine._enabled
-                    and token_id not in self._llm_exit_pending
-                    and (now - _last_eval) >= _poll_interval
-                )
-                if _due_for_eval:
-                    _ext_pos = self._last_ext_signals.get(pos.asset)
-                    _pos_delta = 0.0
-                    _pos_accel = 0.0
-                    if _ext_pos and _ext_pos.spot_price:
-                        _ref5 = _ext_pos.spot_window_open_5m or 0.0
-                        if _ref5 > 0:
-                            _pos_delta = (_ext_pos.spot_price - _ref5) / _ref5 * 100
-                    asyncio.create_task(
-                        self._bond_llm_exit_eval(
-                            token_id=token_id,
-                            pos=pos,
-                            current_price=current_price,
-                            bond_delta=_pos_delta,
-                            delta_accel=_pos_accel,
-                            vpin=float(getattr(_ext_pos, 'vpin_score', 0.0) or 0.0) if _ext_pos else 0.0,
-                            remaining_s=bond_remaining,
-                        ),
-                        name=f'llm_exit_{pos.asset}_{token_id[:8]}',
+                # ── LLM TP/SL: prices set by Opus at entry, executed mechanically ──
+                # Opus decided TP and SL price levels when it said TAKE. Execute
+                # them here — no re-querying, no API calls during hold.
+                if (pos.tp > 0 and current_price >= pos.tp
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'LLM_TP %s/%s | curr=%.4f >= tp=%.4f (+%.1f%%) held=%.0fs rem=%.0fs',
+                        pos.asset, pos.direction.name, current_price, pos.tp,
+                        (pos.tp - pos.entry_price) / pos.entry_price * 100,
+                        _held_s, bond_remaining,
                     )
+                    try:
+                        await self._exit_position(token_id, current_price, 'LLM_TP')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
 
-                # Check for pending EXIT decision
-                _exit_dec = self._llm_exit_decisions.pop(token_id, None)
-                if _exit_dec and _exit_dec.get('decision') == 'EXIT':
-                    if token_id not in self._exit_in_progress:
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            'LLM_EXIT %s/%s conf=%.2f | move=%+.1f%% held=%.0fs rem=%.0fs | %s',
-                            pos.asset, pos.direction.name,
-                            _exit_dec.get('conf', 0.0), bond_move * 100,
-                            _held_s, bond_remaining, _exit_dec.get('reason', ''),
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, 'LLM_EXIT')
-                        finally:
-                            self._exit_in_progress.discard(token_id)
+                if (pos.sl > 0 and current_price <= pos.sl
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'LLM_SL %s/%s | curr=%.4f <= sl=%.4f (-%.1f%%) held=%.0fs rem=%.0fs',
+                        pos.asset, pos.direction.name, current_price, pos.sl,
+                        (pos.entry_price - pos.sl) / pos.entry_price * 100,
+                        _held_s, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'LLM_SL')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
                     continue
 
                 # ── Safety net 1: catastrophic (-70%) with zero recovery ──────────
@@ -756,7 +737,7 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # Still holding — LLM said HOLD or no decision yet
+                # Still holding — waiting for price to reach LLM's TP or SL
                 continue
 
 
@@ -3167,58 +3148,6 @@ class KlausBot:
             elapsed, remaining_s - elapsed,
             result.get("reason", ""),
         )
-
-    # ── BOND LLM active exit poller ──────────────────────────────────────────
-
-    async def _bond_llm_exit_eval(
-        self,
-        token_id: str,
-        pos,
-        current_price: float,
-        bond_delta: float,
-        delta_accel: float,
-        vpin: float,
-        remaining_s: float,
-    ) -> None:
-        """
-        Ask Opus: EXIT or HOLD on this open position?
-        Result stored in _llm_exit_decisions[token_id]; consumed next scan.
-        """
-        self._llm_exit_pending.add(token_id)
-        try:
-            _held = time.time() - pos.open_ts
-            _pnl_pct = ((current_price - pos.entry_price) / pos.entry_price * 100
-                        if pos.entry_price > 0 else 0.0)
-            _entry_reason = ""
-            _entry_tp = 0.0
-            _entry_sl = 0.0
-            _llm_rec = self._bond_llm_decisions.get(token_id, {})
-            if _llm_rec:
-                _entry_reason = _llm_rec.get("reason", "")
-                _entry_tp = float(_llm_rec.get("shadow_tp_pct", 0.0) or 0.0)
-                _entry_sl = float(_llm_rec.get("shadow_sl_pct", 0.0) or 0.0)
-
-            result = await self.macro_engine.bond_exit_advisor(
-                asset=pos.asset,
-                direction=pos.direction.name,
-                entry_price=pos.entry_price,
-                current_price=current_price,
-                pnl_pct=_pnl_pct,
-                held_s=_held,
-                remaining_s=remaining_s,
-                bond_delta=bond_delta,
-                delta_accel=delta_accel,
-                vpin=vpin,
-                entry_reason=_entry_reason,
-                entry_tp_pct=_entry_tp,
-                entry_sl_pct=_entry_sl,
-            )
-            self._llm_exit_decisions[token_id] = result
-            self._llm_exit_last_eval[token_id] = time.time()
-        except Exception as _exc:
-            logger.debug("_bond_llm_exit_eval error (%s)", _exc)
-        finally:
-            self._llm_exit_pending.discard(token_id)
 
     # ── BOND LLM shadow advisor ───────────────────────────────────────────────
 
