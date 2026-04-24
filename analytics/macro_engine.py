@@ -641,16 +641,19 @@ class MacroEngine:
         zone = bond_entry_zone or (bond_entry_class.split("/")[0] if bond_entry_class else "?")
 
         system_prompt = (
-            "You are a quantitative trader evaluating Polymarket binary window market trades. "
-            "Each trade bets BTC/ETH/SOL ends UP or DOWN vs its window-open price at window close. "
+            "You are a quantitative trader with one objective: maximize net P&L per trade on "
+            "Polymarket binary window markets. Each trade bets BTC/ETH/SOL ends UP or DOWN vs "
+            "its window-open price at window close. Token resolves to 1.0 (win) or 0.0 (loss). "
+            "Round-trip taker fees are ~3% at token price 0.50, ~1.5% at 0.30. "
             "Token price = implied win probability (0.50=coinflip, 0.85=85% win). "
-            "Edge = fair_value - token_price: how much the market underprices this outcome. "
+            "Edge = fair_value - token_price: market mispricing given the Binance spot move. "
             "Spot delta = % underlying moved since window opened. "
             "Delta accel = rate of change of that move (positive=accelerating, negative=fading). "
             "Edge drift = rate of change of theoretical edge over 30s (positive=improving, negative=eroding). "
-            "VPIN > 0.65 = institutional informed order flow. "
+            "VPIN > 0.65 = institutional informed order flow confirmed. "
             "Zone: EARLY=first 25% of window, CORE=25-75%, LATE=>75% elapsed. "
-            "Decide TAKE or SKIP. Be creative — look for non-obvious signal interactions."
+            "Your goal: filter out low-conviction setups and only TAKE trades with genuine positive EV. "
+            "Set your own TP and SL — you are not bound by any existing rules. Find your own edge."
         )
 
         prompt = (
@@ -683,8 +686,8 @@ class MacroEngine:
                 "content-type": "application/json",
             }
             payload = {
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 80,
+                "model": "claude-opus-4-7",
+                "max_tokens": 120,
                 "system": system_prompt,
                 "messages": [{"role": "user", "content": prompt}],
             }
@@ -694,7 +697,7 @@ class MacroEngine:
                     "https://api.anthropic.com/v1/messages",
                     headers=headers,
                     json=payload,
-                    timeout=aiohttp.ClientTimeout(total=8),
+                    timeout=aiohttp.ClientTimeout(total=15),
                 ) as resp:
                     if resp.status != 200:
                         return {"decision": "TAKE", "confidence": 0.5, "reason": f"API {resp.status}"}
