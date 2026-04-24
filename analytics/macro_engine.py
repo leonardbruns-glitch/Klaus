@@ -662,6 +662,13 @@ class MacroEngine:
                 "edge": round(edge, 4),
                 "edge_drift_30s": round(bond_edge_drift_30s, 4),
                 "vpin": round(vpin, 3),
+                "regime": (
+                    "COMPRESSION"
+                    if abs(entry_price - 0.5) < 0.06
+                    and abs(bond_delta_at_entry) < 0.05
+                    and abs(bond_delta_accel_30s) < 0.03
+                    else "TRENDING"
+                ),
             },
         }
 
@@ -761,10 +768,18 @@ class MacroEngine:
 
         # Pre-load all data into first message — LLM decides in 1 round, not 4-6.
         # Tools still available for follow-up questions if needed.
+        _signals = _catalog['get_signals']
+        _regime_note = (
+            "\n**REGIME: COMPRESSION** — price near 0.5, delta flat, acceleration near zero.\n"
+            "Consider: (1) breakout probability, (2) mean reversion probability, "
+            "(3) late-window distortion risk.\n"
+            if _signals.get("regime") == "COMPRESSION" else ""
+        )
         _preload = (
             f"Market data (pre-loaded):\n\n"
             f"**Market info**: {json.dumps(_catalog['get_market_info'])}\n\n"
-            f"**Signals**: {json.dumps(_catalog['get_signals'])}\n\n"
+            f"**Signals**: {json.dumps(_signals)}\n"
+            f"{_regime_note}\n"
             f"**History** (last {len(_catalog.get('get_history', []))} trades): "
             f"{json.dumps(_catalog.get('get_history', []))}\n\n"
             f"**Research notes** (last {len(_catalog.get('get_research_notes', []))} findings): "
