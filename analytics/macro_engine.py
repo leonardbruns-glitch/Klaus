@@ -704,12 +704,12 @@ class MacroEngine:
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "tp_pct": {"type": "number", "description": "Take-profit % above entry"},
-                        "sl_pct": {"type": "number", "description": "Stop-loss % below entry"},
-                        "confidence": {"type": "number"},
-                        "reason": {"type": "string"},
+                        "direction":   {"type": "string",  "description": "UP or DOWN"},
+                        "confidence":  {"type": "number",  "description": "0–1 edge strength estimate"},
+                        "reason":      {"type": "string",  "description": "Concise explanation of edge"},
+                        "edge_type":   {"type": "string",  "description": "trend|reversal|mean_reversion|noise|structural|unknown"},
                     },
-                    "required": ["tp_pct", "sl_pct", "confidence", "reason"],
+                    "required": ["direction", "confidence", "reason", "edge_type"],
                 },
             },
             {
@@ -718,18 +718,37 @@ class MacroEngine:
                 "input_schema": {
                     "type": "object",
                     "properties": {
-                        "confidence": {"type": "number"},
                         "reason": {"type": "string"},
                     },
-                    "required": ["confidence", "reason"],
+                    "required": ["reason"],
                 },
             },
         ]
 
         system_prompt = (
-            "You are an autonomous trading agent operating in live binary window markets. "
-            "Use your tools to get whatever data you need, then call take or skip. "
-            "Set your own TP% and SL% when taking. Be decisive."
+            "You are an autonomous market intelligence and trade selection agent operating in "
+            "live binary 5-minute markets (BTC, ETH, SOL).\n\n"
+            "Your objective is to identify whether a statistically meaningful edge exists in "
+            "the current opportunity.\n\n"
+            "You have full freedom to:\n"
+            "- Query any available market data or history\n"
+            "- Analyze regime, microstructure, momentum, and anomalies\n"
+            "- Form multiple competing hypotheses\n"
+            "- Reject trades aggressively when uncertain or noisy\n\n"
+            "You must NOT design trade mechanics.\n"
+            "You do NOT set TP, SL, or position sizing.\n\n"
+            "Your only allowed outputs are:\n"
+            "- take(direction, confidence, reason, edge_type)\n"
+            "- skip(reason)\n\n"
+            "Where:\n"
+            "- direction = UP or DOWN\n"
+            "- confidence = 0–1 subjective estimate of edge strength\n"
+            "- edge_type = one of: trend, reversal, mean_reversion, noise, structural, unknown\n\n"
+            "Rules:\n"
+            "- Only take trades when a clear edge exists beyond noise.\n"
+            "- If uncertain, choose skip.\n"
+            "- Do not overtrade.\n"
+            "- Do not assume reversibility of price moves as justification."
         )
         messages: list = [{"role": "user", "content": "Evaluate this trade candidate and decide."}]
         headers = {
@@ -773,21 +792,20 @@ class MacroEngine:
                         bid = block["id"]
 
                         if name == "take":
-                            tp = max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0)))
-                            sl = max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0)))
                             terminal = {
-                                "decision": "TAKE",
-                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
-                                "reason": str(inp.get("reason", ""))[:80],
-                                "shadow_tp_pct": tp,
-                                "shadow_sl_pct": sl,
+                                "decision":      "TAKE",
+                                "conf":          max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                                "reason":        str(inp.get("reason", ""))[:80],
+                                "edge_type":     str(inp.get("edge_type", "unknown")),
+                                "shadow_tp_pct": 15.0,
+                                "shadow_sl_pct": 12.0,
                             }
                             break
                         elif name == "skip":
                             terminal = {
-                                "decision": "SKIP",
-                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
-                                "reason": str(inp.get("reason", ""))[:80],
+                                "decision":      "SKIP",
+                                "conf":          0.5,
+                                "reason":        str(inp.get("reason", ""))[:80],
                                 "shadow_tp_pct": 15.0,
                                 "shadow_sl_pct": 12.0,
                             }
@@ -808,9 +826,9 @@ class MacroEngine:
 
                     if terminal:
                         logger.info(
-                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
+                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s edge=%s | %s",
                             asset, direction_label, terminal["decision"], terminal["conf"],
-                            entry_price, zone, terminal["shadow_tp_pct"], terminal["shadow_sl_pct"],
+                            entry_price, zone, terminal.get("edge_type", "?"),
                             terminal["reason"],
                         )
                         return terminal
@@ -937,8 +955,24 @@ class MacroEngine:
         ]
 
         system_prompt = (
-            "You are an autonomous trading agent managing a live binary market position. "
-            "Use your tools to check what you need, then call exit_now or hold. Be decisive."
+            "You are an autonomous position monitoring agent in a live binary market.\n\n"
+            "Your objective is to determine whether the original trade hypothesis is still "
+            "valid or has been invalidated.\n\n"
+            "You have access to:\n"
+            "- Current position state\n"
+            "- Market flow and price evolution\n"
+            "- Relevant recent market context\n\n"
+            "You must NOT generate new trade ideas.\n"
+            "You must NOT optimize exits.\n"
+            "You must NOT scalp or micro-time exits.\n\n"
+            "Your only outputs are:\n"
+            "- hold(reason)\n"
+            "- exit_now(confidence, reason)\n\n"
+            "Rules:\n"
+            "- Exit ONLY if the original hypothesis is invalidated or risk regime has clearly changed.\n"
+            "- Otherwise hold.\n"
+            "- Do not react to short-term noise unless structural break is detected.\n"
+            "- Do not 'take profit early' unless thesis is broken."
         )
         messages: list = [{"role": "user", "content": "Manage your open position."}]
         headers = {

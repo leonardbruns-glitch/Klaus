@@ -724,6 +724,39 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                     continue
 
+                # ── Mechanical fallback: honour LLM's own entry targets when API down ─
+                # Fires when API key absent OR no successful exit eval in last 30s.
+                # Uses the TP/SL absolute prices the LLM set at entry — not new rules.
+                _last_good_eval = self._llm_exit_last_eval.get(token_id, 0.0)
+                _api_dead = (
+                    not self.macro_engine._enabled
+                    or (_held_s > 30.0 and (now - _last_good_eval) > 30.0)
+                )
+                if (_api_dead
+                        and token_id not in self._exit_in_progress
+                        and _held_s >= 5.0):
+                    _mech_reason: str | None = None
+                    if pos.tp > 0 and current_price >= pos.tp:
+                        _mech_reason = f'price {current_price:.4f} >= tp {pos.tp:.4f}'
+                        _mech_label = 'LLM_TP_FALLBACK'
+                    elif pos.sl > 0 and current_price <= pos.sl:
+                        _mech_reason = f'price {current_price:.4f} <= sl {pos.sl:.4f}'
+                        _mech_label = 'LLM_SL_FALLBACK'
+                    else:
+                        _mech_reason = None
+                    if _mech_reason:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            '%s %s/%s | %s | move=%+.1f%% rem=%.0fs',
+                            _mech_label, pos.asset, pos.direction.name,
+                            _mech_reason, bond_move * 100, bond_remaining,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, _mech_label)
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 # ── Safety net 1: catastrophic (-70%) with zero recovery ──────────
                 # Position is effectively worthless — LLM can't recover from here.
                 if (bond_move <= -0.70
@@ -1686,9 +1719,9 @@ class KlausBot:
             _llm_conf   = _llm_dec.get("conf", 0.5)
             _llm_reason = _llm_dec.get("reason", "")
             logger.info(
-                "LLM_TAKE %s/%s | conf=%.2f TP=+%.0f%% SL=-%.0f%% rem=%.0fs | %s",
+                "LLM_TAKE %s/%s | conf=%.2f edge=%s rem=%.0fs | %s",
                 token.asset, token.side,
-                _llm_conf, _llm_tp_pct, _llm_sl_pct, remaining, _llm_reason,
+                _llm_conf, _llm_dec.get("edge_type", "?"), remaining, _llm_reason,
             )
 
             # Pre-populate trade record fields from the pre-gate LLM decision
