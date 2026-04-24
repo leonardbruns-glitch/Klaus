@@ -176,10 +176,10 @@ class ResearchAgent:
         try:
             import aiohttp, asyncio as _aio
             async with aiohttp.ClientSession() as sess:
-                for _ in range(15):
+                for _ in range(8):
                     payload = {
                         "model": "claude-sonnet-4-6",
-                        "max_tokens": 1200,
+                        "max_tokens": 800,
                         "system": system_prompt,
                         "tools": tools,
                         "messages": messages,
