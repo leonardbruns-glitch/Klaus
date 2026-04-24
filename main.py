@@ -3170,6 +3170,7 @@ class KlausBot:
             async with self._llm_eval_semaphore:
                 if time.time() < self._llm_rate_limit_until:
                     return  # cooldown set while waiting for semaphore
+                await asyncio.sleep(2.0)  # proactive gap — prevents 429 bursts
                 result = await self.macro_engine.bond_advisor(
                     asset=asset,
                     direction="BUY_YES" if direction == "YES" else "BUY_NO",
@@ -3188,8 +3189,8 @@ class KlausBot:
                     research_notes=research_notes,
                 )
         except _RateLimitError:
-            self._llm_rate_limit_until = time.time() + 30.0
-            logger.warning("LLM_EVAL 429 %s/%s — cooldown 30s", asset, direction)
+            self._llm_rate_limit_until = time.time() + 5.0
+            logger.warning("LLM_EVAL 429 %s/%s — cooldown 5s", asset, direction)
             return  # don't store decision; token retries after cooldown
         finally:
             self._llm_eval_pending.discard(token_id)
