@@ -1480,8 +1480,16 @@ class KlausBot:
             if is_15m:
                 continue  # 15m BOND disabled — 5m only until 15m edge re-validated
             elif is_5m:
-                exit_sec = 20  # T-20s: earlier exit improves fill availability at window close
-                if not (45 <= remaining <= 240):  # EARLY 150–240s; CORE 90–150s; LATE 45–90s
+                exit_sec = 20
+                # Fast-path: if LLM already decided TAKE for this token, allow entry
+                # down to 20s remaining (BOND_DEADLINE fires at T-15s as safety net).
+                # Prevents Opus latency from killing LATE-zone entries that arrive
+                # back just after the 45s gate would normally fire.
+                _has_pending_take = (
+                    self._llm_ind_decisions.get(token_id, {}).get("decision") == "TAKE"
+                )
+                _min_rem = 20 if _has_pending_take else 45
+                if not (_min_rem <= remaining <= 240):
                     continue
             else:
                 continue
