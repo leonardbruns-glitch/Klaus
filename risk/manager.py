@@ -458,10 +458,12 @@ class RiskManager:
         bond_entry_class: str = "",
         bond_macro_regime: str = "",
     ) -> RiskDecision:
+        _is_bond = getattr(signal, "signal_source", "") == "BOND"
+
         # ── Trading hours gate (data-driven: 14:00 UTC is the only edge window) ──
         # Skip in dry_run mode so the simulation can be tested at any hour.
         # BOND is exempt — it has its own 15-min volatile gate in the scanner.
-        if not CONFIG.dry_run and getattr(signal, "signal_source", "") != "BOND":
+        if not CONFIG.dry_run and not _is_bond:
             current_hour = datetime.datetime.utcnow().hour
             blocked = getattr(self.edge_cfg, "blocked_hours_utc", [])
             if blocked and current_hour in blocked:
@@ -480,22 +482,22 @@ class RiskManager:
         if time.time() - self._last_close_ts < self.cfg.post_close_cooldown:
             return RiskDecision(False, 0, "Post-close cooldown active")
 
-        # Window expiry gate: don't enter if < no_trade_last_sec remaining
-        if window_end_ts > 0:
+        # Window expiry gate: don't enter if < no_trade_last_sec remaining.
+        # BOND exempt: scanner already enforces 45s minimum remaining.
+        if not _is_bond and window_end_ts > 0:
             remaining = window_end_ts - time.time()
             if remaining < self.exec_cfg.no_trade_last_sec:
                 return RiskDecision(False, 0, f"Window closing in {remaining:.0f}s")
 
-        # Condition dedup — blocks same market window (condition_id) from re-entry
-        if condition_id and condition_id in self._traded_conditions:
+        # Condition dedup — blocks same market window (condition_id) from re-entry.
+        # BOND exempt: LLM may want to re-enter the same window if conditions changed.
+        if not _is_bond and condition_id and condition_id in self._traded_conditions:
             return RiskDecision(False, 0, f"Already traded condition {condition_id[:8]}")
 
         # Token-level re-entry guard: also block by token_id for 120s.
-        # Catches cases where condition_id is empty/None (gate above silently skips).
-        # Observed: T60 exited PROFIT_2_EXT, same token_id re-entered 2min later (T62)
-        # as T62 with ob_depth=757 → partial fill 0.0349 shares + double-fill orphans.
+        # BOND exempt: LLM decides its own re-entry timing.
         _recently_closed = getattr(self, "_recently_closed_tokens", {})
-        if token_id in _recently_closed:
+        if not _is_bond and token_id in _recently_closed:
             if time.time() - _recently_closed[token_id] < 120:
                 return RiskDecision(False, 0, f"Token {token_id[:8]} closed <120s ago — no re-entry")
             else:
@@ -636,25 +638,10 @@ class RiskManager:
                 asset, _qs, _regime_sig or 'unknown', _multiplier, stake,
             )
         else:
-            # Bond trades: EV-prior stake scaling (analytics/regime_filter.py).
-            # TREND_UP is a hard veto (WR=0%, EV=-0.99, n=11).
-            # Other classes scaled 0.25x–1.0x by EV_PRIOR; never zeroed because
-            # cascade abort (Rule B) handles marginal entries that go adverse.
-            if getattr(signal, "signal_source", "") == "BOND" and (bond_entry_class or bond_macro_regime):
-                from analytics.regime_filter import bond_stake_multiplier, EV_PRIOR_VERSION
-                _raw = self.bankroll.current_stake
-                stake = bond_stake_multiplier(bond_entry_class, bond_macro_regime, _raw)
-                if stake == 0.0:
-                    return RiskDecision(
-                        False, 0,
-                        f"Bond EV veto ({EV_PRIOR_VERSION}): {bond_macro_regime} macro — WR=0% EV=-0.99",
-                    )
-                _bond_ev_mult = round(stake / _raw, 4) if _raw else 1.0
-                logger.info(
-                    "BOND STAKE %s: class=%s macro=%s ev_mult=%.2fx → $%.2f [%s]",
-                    asset, bond_entry_class or "?", bond_macro_regime or "?",
-                    _bond_ev_mult, stake, EV_PRIOR_VERSION,
-                )
+            # Bond trades: LLM decides freely — use base stake, no EV veto.
+            # (EV_PRIOR was calibrated on rule-gated trades; LLM operates differently.)
+            if _is_bond:
+                stake = self.bankroll.current_stake
             else:
                 stake = self.bankroll.current_stake
         # LATE zone: half stake — structurally worse WR, less time to recover,
@@ -673,15 +660,16 @@ class RiskManager:
         if getattr(signal, "signal_source", "") == "BOND":
             stake = min(stake, 30.0)
 
-        # RR gate — relaxed for Up/Down markets (symmetric coin-flip, RR ~1.0 is normal)
-        min_rr = 0.9 if market_type == "updown" else 1.5
-        if tpsl.risk_reward < min_rr:
-            logger.info(
-                "RISK BLOCK %s/%s | RR=%.2f < %.1f (tp=%.4f sl=%.4f ask=%.4f)",
-                signal.asset, signal.side, tpsl.risk_reward, min_rr,
-                tpsl.take_profit, tpsl.stop_loss, signal.entry_price,
-            )
-            return RiskDecision(False, 0, f"RR {tpsl.risk_reward:.2f} < {min_rr}")
+        # RR gate — BOND exempt: LLM sets its own TP/SL and is responsible for RR.
+        if not _is_bond:
+            min_rr = 0.9 if market_type == "updown" else 1.5
+            if tpsl.risk_reward < min_rr:
+                logger.info(
+                    "RISK BLOCK %s/%s | RR=%.2f < %.1f (tp=%.4f sl=%.4f ask=%.4f)",
+                    signal.asset, signal.side, tpsl.risk_reward, min_rr,
+                    tpsl.take_profit, tpsl.stop_loss, signal.entry_price,
+                )
+                return RiskDecision(False, 0, f"RR {tpsl.risk_reward:.2f} < {min_rr}")
 
         # Fat-middle confidence gate
         from strategy.momentum import FeeZone

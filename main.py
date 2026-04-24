@@ -673,6 +673,72 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _si_exc,
                             )
 
+                # ── LLM TP exit: price hit the LLM's own take-profit target ────────
+                if (pos.tp > 0
+                        and current_price >= pos.tp
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_TP_LLM %s/%s | price=%.3f ≥ tp=%.3f move=%+.1f%% held=%.0fs",
+                        pos.asset, pos.direction.name,
+                        current_price, pos.tp, bond_move * 100, _held_s,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_TP_LLM")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── LLM SL exit: price hit the LLM's own stop-loss ───────────────
+                # Uses the LLM's chosen SL price (e.g. entry * 0.88 for -12% SL).
+                # Includes same shakeout protection as BOND_SL_20 to avoid wick exits.
+                # BOND_SL_NOPROGRESS and BOND_SL_20 remain as backstops at -20%.
+                if (pos.sl > 0
+                        and current_price <= pos.sl
+                        and pos.sl < pos.entry_price   # sanity: SL is below entry
+                        and token_id not in self._exit_in_progress):
+                    _fav_sl_llm  = self._peak_bond_move.get(token_id, 0.0)
+                    _bounce10_llm = (
+                        (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price
+                        if pos.entry_price > 0 and pos.lowest_price > 0
+                        and pos.mae_bounce_peak > pos.lowest_price
+                        else 0.0
+                    )
+                    _sl_pct_llm = (pos.entry_price - pos.sl) / pos.entry_price  # e.g. 0.12 for -12%
+                    # Shakeout protection: don't exit if trade had strong favorable move
+                    # (likely a manufactured wick rather than genuine resolution)
+                    _sl_protected_llm = _fav_sl_llm >= max(0.10, _sl_pct_llm * 1.5)
+                    if not _sl_protected_llm:
+                        _arm_ts_llm = self._bond_sl_arm_ts.get(token_id)
+                        _is_fast_wick_llm = 0.0 < _fav_sl_llm < 0.05 and _held_s <= 60
+                        if _is_fast_wick_llm:
+                            if _arm_ts_llm is None:
+                                self._bond_sl_arm_ts[token_id] = now
+                                logger.info(
+                                    "BOND_SL_LLM ARM %s/%s | price=%.3f sl=%.3f "
+                                    "move=%+.1f%% fav=%.1f%% — 25s wick confirmation",
+                                    pos.asset, pos.direction.name,
+                                    current_price, pos.sl,
+                                    bond_move * 100, _fav_sl_llm * 100,
+                                )
+                                continue
+                            elif now - _arm_ts_llm < 25.0:
+                                continue
+                        self._bond_sl_arm_ts.pop(token_id, None)
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_SL_LLM %s/%s | price=%.3f sl=%.3f "
+                            "move=%+.1f%% fav=%.1f%% held=%.0fs",
+                            pos.asset, pos.direction.name,
+                            current_price, pos.sl,
+                            bond_move * 100, _fav_sl_llm * 100, _held_s,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_SL_LLM")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 # ── No-progress fast SL: fav==0.0 exactly at -20% → immediate exit ─
                 # Only fires when peak_bond_move is exactly 0.0 — the price NEVER
                 # ticked above entry price in any scan. Even a 0.001% uptick means
