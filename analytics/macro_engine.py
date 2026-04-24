@@ -822,8 +822,10 @@ You are NOT rewarded for consistency of belief.\
                     "shadow_tp_pct": shadow_tp, "shadow_sl_pct": shadow_sl}
 
         except Exception as exc:
-            logger.debug("bond_advisor failed (%s) — default TAKE", exc)
-            return {"decision": "TAKE", "confidence": 0.5, "reason": f"failed: {type(exc).__name__}"}
+            _is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower()
+            _decision = "SKIP" if _is_rate_limit else "TAKE"
+            logger.warning("bond_advisor failed (%s) — default %s", exc, _decision)
+            return {"decision": _decision, "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}"}
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
