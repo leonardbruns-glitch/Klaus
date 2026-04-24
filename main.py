@@ -2082,15 +2082,24 @@ class KlausBot:
                         f"LATE[CHOP]: trend required | "
                         f"smooth_d={_smooth_delta:+.3f} vel={_vel_now:+.4f}%"
                     )
+                elif _has_hist and _delta_accel < 0.0:
+                    # Move is fading — adverse selection risk in final window segment.
+                    # Positive or flat daccel = move still has legs; negative = entering on exhaust.
+                    _skip = True
+                    _skip_reason = (
+                        f"LATE[FADE]: daccel={_delta_accel:+.4f}<0 — move decelerating at entry, "
+                        f"high adverse-selection risk in late window"
+                    )
                 else:
-                    # LATE requires confirmation: delta 0.06-0.13 band
+                    # LATE requires stronger edge (0.05 vs 0.03 global floor) — late entries
+                    # have structurally worse WR and less time to recover; edge must compensate.
                     _skip = (
-                        (_abs_delta < 0.04 or _abs_delta > 0.13 or _adjusted_edge < 0.03 or ask > 0.75) or
+                        (_abs_delta < 0.04 or _abs_delta > 0.13 or _adjusted_edge < 0.05 or ask > 0.75) or
                         (_has_hist and _edge_drift < -0.005)
                     )
                     _skip_reason = (
                         f"LATE: delta={_abs_delta:.3f}% adj_edge={_adjusted_edge:.4f} rw={_regime_weight:.2f} "
-                        f"ask={ask:.4f} drift={_edge_drift:+.4f}"
+                        f"ask={ask:.4f} drift={_edge_drift:+.4f} daccel={_delta_accel:+.4f}"
                     )
                 _dzone = "LATE"
 

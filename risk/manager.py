@@ -657,6 +657,14 @@ class RiskManager:
                 )
             else:
                 stake = self.bankroll.current_stake
+        # LATE zone: half stake — structurally worse WR, less time to recover,
+        # stronger adverse-selection risk entering near window close.
+        if getattr(signal, "signal_source", "") == "BOND" and "LATE" in (bond_entry_class or ""):
+            stake = round(stake * 0.50, 2)
+            logger.info(
+                "BOND LATE stake halved → $%.2f (class=%s)", stake, bond_entry_class
+            )
+
         # Cap at 50% of capital per position — user instruction 2026-04-15
         max_pct = 0.50
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
