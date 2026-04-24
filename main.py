@@ -1677,6 +1677,7 @@ class KlausBot:
                     and token_id not in self._llm_ind_decisions
                     and token_id not in self._llm_eval_pending
                     and time.time() >= self._llm_rate_limit_until):
+                self._llm_eval_pending.add(token_id)  # mark before task starts
                 asyncio.create_task(
                     self._bond_llm_independent_eval(
                         token_id=token_id,
