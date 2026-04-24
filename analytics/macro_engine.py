@@ -641,34 +641,21 @@ class MacroEngine:
             return {"decision": "TAKE", "confidence": 0.5, "reason": "LLM disabled"}
 
         now_utc = datetime.now(timezone.utc)
-        zone = bond_entry_zone or (bond_entry_class.split("/")[0] if bond_entry_class else "?")
+        outcome_label = (
+            "YES (token resolves to 1.0 if asset closes UP at expiry)"
+            if "YES" in direction
+            else "NO (token resolves to 1.0 if asset closes DOWN at expiry)"
+        )
 
-        # Catalog keys match tool names exactly so lookups work
         _catalog: dict = {
-            "get_market_info": {
+            "raw_market_data": {
                 "time_utc": now_utc.strftime("%H:%M"),
                 "asset": asset,
-                "direction": direction,
+                "outcome": outcome_label,
                 "token_price": round(entry_price, 4),
                 "window_minutes": window_size_s // 60,
-                "remaining_seconds": round(window_remaining_s),
-                "zone": zone,
-                "entry_class": bond_entry_class,
-            },
-            "get_signals": {
-                "spot_delta_pct": round(bond_delta_at_entry, 4),
-                "delta_accel_30s": round(bond_delta_accel_30s, 4),
-                "smooth_delta_60s": round(bond_smooth_delta_60s, 4),
-                "edge": round(edge, 4),
-                "edge_drift_30s": round(bond_edge_drift_30s, 4),
-                "vpin": round(vpin, 3),
-                "regime": (
-                    "COMPRESSION"
-                    if abs(entry_price - 0.5) < 0.06
-                    and abs(bond_delta_at_entry) < 0.05
-                    and abs(bond_delta_accel_30s) < 0.03
-                    else "TRENDING"
-                ),
+                "window_remaining_seconds": round(window_remaining_s),
+                "binance_spot_change_60s_pct": round(bond_smooth_delta_60s, 4),
             },
         }
 
@@ -678,18 +665,17 @@ class MacroEngine:
                 pnl = float(h.get("shadow_gross_pnl", 0) or 0)
                 rows.append({
                     "asset": h.get("asset", "?"),
-                    "direction": h.get("direction", "?"),
-                    "zone": h.get("zone", "?"),
-                    "decision": h.get("llm_decision", "?"),
-                    "conf": round(float(h.get("llm_conf", 0) or 0), 2),
+                    "outcome": h.get("direction", "?"),
+                    "entry_price": round(float(h.get("entry_price", 0) or 0), 4),
+                    "exit_price": round(float(h.get("exit_price", 0) or 0), 4),
                     "exit_reason": h.get("exit_reason", "open"),
                     "pnl": round(pnl, 2),
                 })
-            _catalog["get_history"] = rows
+            _catalog["price_history"] = rows
         else:
-            _catalog["get_history"] = []
+            _catalog["price_history"] = []
 
-        _catalog["get_research_notes"] = research_notes or []
+        _catalog["research_notes"] = research_notes or []
 
         tools = [
             {
@@ -718,73 +704,43 @@ class MacroEngine:
             },
         ]
         system_prompt = (
-            "You are an autonomous trading agent operating in a live binary 5-minute market "
-            "(BTC, ETH, SOL).\n\n"
-            "Your only objective is to maximize long-term capital.\n\n"
-            "Profit is the only objective.\n"
-            "Not accuracy. Not consistency. Not explainability.\n\n"
-            "All decisions must be based on expected value.\n\n"
+            "You are no longer allowed to receive pre-interpreted trading signals "
+            "(such as \"edge\", \"zone\", \"delta acceleration\", or \"overpriced/underpriced\" labels).\n\n"
+            "Those are considered system opinions and are removed.\n\n"
+            "You will now receive ONLY raw market data:\n\n"
+            "- current price\n"
+            "- recent price history (time series)\n"
+            "- timestamp\n"
+            "- asset (BTC/ETH/SOL)\n"
+            "- outcome mapping (UP/DOWN only)\n\n"
+            "Your task is to independently infer:\n"
+            "- whether the market is mispriced\n"
+            "- whether a directional opportunity exists\n"
+            "- whether timing matters (early vs late window behavior)\n\n"
+            "You must not assume:\n"
+            "- that neutrality means no opportunity\n"
+            "- that momentum or lack of momentum is meaningful without analysis\n"
+            "- that the system's prior classification is correct\n\n"
             "You are allowed to:\n"
-            "- be wrong often if winners are larger\n"
-            "- take asymmetric bets\n"
-            "- act under uncertainty\n"
-            "- trade frequently or selectively\n"
-            "- trade early, mid, or late in the window\n"
-            "- use or ignore any provided signals\n"
-            "- invent and change strategies at any time\n\n"
-            "You are NOT required to follow any fixed logic.\n\n"
-            "---\n\n"
-            "Market reality:\n"
-            "Price represents probability of outcome at expiry.\n\n"
-            "Your job is to determine whether the current price is wrong.\n\n"
-            "---\n\n"
-            "For each opportunity:\n\n"
-            "1. Evaluate if UP is mispriced\n"
-            "2. Evaluate if DOWN is mispriced\n"
-            "3. Decide if either side offers meaningful expected value\n\n"
-            "If neither side has sufficient edge → SKIP\n\n"
-            "---\n\n"
-            "Important:\n\n"
-            "- Do NOT default to skipping due to uncertainty\n"
-            "- Do NOT rely on momentum alone as justification\n"
-            "- Do NOT assume any signal (delta, edge, etc.) is correct\n"
-            "- Do NOT use fixed thresholds unless you independently validate them\n\n"
-            "---\n\n"
-            "Prefer:\n\n"
-            "- asymmetric opportunities\n"
-            "- situations where others are likely wrong\n"
-            "- non-obvious trades\n"
-            "- mispricings caused by behavior, timing, or structure\n\n"
-            "---\n\n"
-            "A trade with small edge is worse than no trade.\n\n"
-            "A trade with large edge but uncertain outcome may still be correct.\n\n"
-            "---\n\n"
-            "Output ONLY one of:\n\n"
-            "take(direction, confidence, tp_pct, sl_pct, reason)\n\n"
-            "or\n\n"
+            "- invent your own structure for interpreting the market\n"
+            "- detect regimes, patterns, and inefficiencies\n"
+            "- disagree with implicit system assumptions\n"
+            "- trade aggressively or conservatively depending on your own inference\n\n"
+            "The system will NOT provide \"edge\", \"signals\", or \"recommendations\".\n\n"
+            "You are responsible for constructing your own view of the market.\n\n"
+            "Output:\n"
+            "take(direction, confidence, tp_pct, sl_pct, reason)\n"
+            "or\n"
             "skip(reason)"
         )
-        direction_label = "UP" if "YES" in direction else "DOWN"
 
-        # Pre-load all data into first message — LLM decides in 1 round, not 4-6.
-        # Tools still available for follow-up questions if needed.
-        _signals = _catalog['get_signals']
-        _regime_note = (
-            "\n**REGIME: COMPRESSION** — price near 0.5, delta flat, acceleration near zero.\n"
-            "Consider: (1) breakout probability, (2) mean reversion probability, "
-            "(3) late-window distortion risk.\n"
-            if _signals.get("regime") == "COMPRESSION" else ""
-        )
         _preload = (
-            f"Market data (pre-loaded):\n\n"
-            f"**Market info**: {json.dumps(_catalog['get_market_info'])}\n\n"
-            f"**Signals**: {json.dumps(_signals)}\n"
-            f"{_regime_note}\n"
-            f"**History** (last {len(_catalog.get('get_history', []))} trades): "
-            f"{json.dumps(_catalog.get('get_history', []))}\n\n"
-            f"**Research notes** (last {len(_catalog.get('get_research_notes', []))} findings): "
-            f"{json.dumps(_catalog.get('get_research_notes', []))}\n\n"
-            f"All data is above. Call take() or skip() now. Do not output text."
+            f"**Raw market data**: {json.dumps(_catalog['raw_market_data'])}\n\n"
+            f"**Price history** (last {len(_catalog['price_history'])} trades): "
+            f"{json.dumps(_catalog['price_history'])}\n\n"
+            f"**Research notes** ({len(_catalog['research_notes'])} findings): "
+            f"{json.dumps(_catalog['research_notes'])}\n\n"
+            f"Call take() or skip() now. Do not output text."
         )
         messages: list = [{"role": "user", "content": _preload}]
         headers = {
@@ -861,10 +817,11 @@ class MacroEngine:
                             })
 
                     if terminal:
+                        _dir = "UP" if "YES" in direction else "DOWN"
                         logger.info(
-                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f zone=%s TP=+%.0f%% SL=-%.0f%% | %s",
-                            asset, direction_label, terminal["decision"], terminal["conf"],
-                            entry_price, zone,
+                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f TP=+%.0f%% SL=-%.0f%% | %s",
+                            asset, _dir, terminal["decision"], terminal["conf"],
+                            entry_price,
                             terminal.get("shadow_tp_pct", 15.0), terminal.get("shadow_sl_pct", 12.0),
                             terminal["reason"],
                         )
