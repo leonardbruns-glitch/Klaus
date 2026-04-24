@@ -855,6 +855,8 @@ class MacroEngine:
             return {"decision": "SKIP", "conf": 0.5, "reason": "no terminal decision",
                     "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
 
+        except _RateLimitError:
+            raise
         except Exception as exc:
             logger.warning("bond_advisor failed (%s) — default SKIP", exc)
             return {"decision": "SKIP", "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}",
