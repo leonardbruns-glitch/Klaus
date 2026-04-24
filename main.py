@@ -1678,6 +1678,37 @@ class KlausBot:
                 logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
                 continue
 
+            # Gate 3: SOL daccel in (-0.03, -0.01) — momentum fading.
+            # n=15 WR=20% sum=-$9.36. Delta is decelerating at a moderate rate:
+            # still negative directional drift but losing speed. Worse than
+            # outright decay (<-0.03) because it looks like a trend but stalls.
+            # Only applies when history exists (no _ref30 means daccel=0.0).
+            if (token.asset == "SOL"
+                    and _has_hist
+                    and -0.03 < _delta_accel < -0.01):
+                _skip_reason = (
+                    f"SOL_DACCEL_FADE: daccel={_delta_accel:+.4f} in (-0.03,-0.01) "
+                    f"— n=15 WR=20% -$9.36"
+                )
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
+                continue
+
+            # Gate 4: BTC edge rising (drift>0.003) — unstable opportunity.
+            # n=21 WR=29% sum=-$9.92 vs edge flat/falling WR=57% +$6.12.
+            # Rising edge means the mispricing is still building — BTC hasn't
+            # stabilised. Counterintuitively, waiting for edge to peak then
+            # flatten outperforms chasing a still-rising edge on BTC.
+            # ETH/SOL do NOT show this pattern (SOL edge rising WR=52%).
+            if (token.asset == "BTC"
+                    and _has_hist
+                    and _edge_drift > 0.003):
+                _skip_reason = (
+                    f"BTC_EDGE_RISING: drift={_edge_drift:+.4f}>0.003 "
+                    f"— n=21 WR=29% -$9.92 (flat/falling WR=57%)"
+                )
+                logger.info("BOND SKIP %s/%s [%s]: %s", token.asset, token.side, "—", _skip_reason)
+                continue
+
             # CHOP is NOT hard-skipped — CORE-B (compression/reversion) can still
             # fire in CHOP with a strong edge. IMPULSE / EARLY / LATE / CORE-A
             # all require _in_trend and skip otherwise.
