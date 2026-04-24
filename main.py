@@ -249,6 +249,9 @@ class KlausBot:
         # Non-binding LLM bond advisor: token_id → {decision, conf, reason}
         # Populated async after BOND entry; consumed and cleared at record_trade time.
         self._bond_llm_decisions: Dict[str, dict] = {}
+        # LLM independent trader: open shadow positions keyed by token_id.
+        # Populated pre-gate by _bond_llm_independent_eval; exited in _check_open_positions.
+        self._llm_shadow_positions: Dict[str, dict] = {}
         # Peak-stability tracker: timestamp of first scan where bond_move
         # dropped below 80% of peak after peak_ts. Absence = no breach yet.
         # Used by TRAIL_SL to distinguish a held peak (stable consolidation)
@@ -1257,6 +1260,59 @@ class KlausBot:
                 finally:
                     self._exit_in_progress.discard(token_id)
 
+        # ── LLM independent trader: shadow position monitoring ────────────────
+        # Check every open LLM shadow position against current OB price.
+        # Exits on TP hit, SL hit, or window close — exactly like a real position.
+        _now_ts = time.time()
+        for _sid, _spos in list(self._llm_shadow_positions.items()):
+            _sob = self.feed.get_order_book(_sid)
+            _sbid = _sob.bids[0][0] if (_sob and _sob.bids) else 0.0
+            if _sbid <= 0:
+                continue
+            _stp  = _spos["entry_price"] * (1.0 + _spos["tp_pct"] / 100.0)
+            _ssl  = _spos["entry_price"] * (1.0 - _spos["sl_pct"] / 100.0)
+            _srem = _spos["window_end_ts"] - _now_ts
+
+            _sexit_reason = None
+            _sexit_price  = _sbid
+            if _sbid >= _stp:
+                _sexit_reason = "LLM_TP"
+                _sexit_price  = _stp
+            elif _sbid <= _ssl:
+                _sexit_reason = "LLM_SL"
+                _sexit_price  = _ssl
+            elif _srem <= 30:
+                _sexit_reason = "LLM_TIME"
+
+            if _sexit_reason:
+                del self._llm_shadow_positions[_sid]
+                _sshares  = _spos["stake"] / _spos["entry_price"] if _spos["entry_price"] > 0 else 0
+                _spnl     = round((_sexit_price - _spos["entry_price"]) * _sshares, 4)
+                _shold    = round(_now_ts - _spos["entry_ts"], 1)
+                logger.info(
+                    "LLM_IND EXIT %s/%s %s | entry=%.3f exit=%.3f pnl=%+.3f hold=%.0fs",
+                    _spos["asset"], _spos["direction"], _sexit_reason,
+                    _spos["entry_price"], _sexit_price, _spnl, _shold,
+                )
+                self._write_llm_shadow({
+                    "record_type": "llm_exit",
+                    "ts": _now_ts,
+                    "token_id": _sid,
+                    "asset": _spos["asset"],
+                    "direction": _spos["direction"],
+                    "exit_reason": _sexit_reason,
+                    "entry_price": _spos["entry_price"],
+                    "exit_price": round(_sexit_price, 4),
+                    "hold_seconds": _shold,
+                    "shadow_gross_pnl": _spnl,
+                    "stake": _spos["stake"],
+                    "tp_pct": _spos["tp_pct"],
+                    "sl_pct": _spos["sl_pct"],
+                    "zone": _spos.get("zone", ""),
+                    "llm_conf": _spos["conf"],
+                    "llm_reason": _spos.get("reason", ""),
+                })
+
     # ── 5-second signal loop: scan for new entries ────────────────────────────
 
     async def _on_delta_spike(self, asset: str, delta_pct: float, spot_price: float) -> None:
@@ -1639,6 +1695,36 @@ class KlausBot:
                 _b_chop += 1
             if not _has_hist:
                 _b_no_hist += 1
+
+            # ── LLM independent trader: pre-gate evaluation ───────────────────
+            # Fires on EVERY candidate before our rules run. The LLM sees raw
+            # signals, makes its own TAKE/SKIP + TP/SL decision, and tracks its
+            # own shadow P&L in logs/llm_shadow.jsonl. Fully independent of our
+            # gate logic — it can approve what we block and block what we approve.
+            if self.macro_engine._enabled and token_id not in self._llm_shadow_positions:
+                asyncio.create_task(
+                    self._bond_llm_independent_eval(
+                        token_id=token_id,
+                        asset=token.asset,
+                        direction=token.side,
+                        entry_price=ask,
+                        zone=_bond_zone,
+                        entry_class_hint=f"{_bond_zone}/{_vel_label}",
+                        bond_delta=_bond_delta,
+                        delta_accel=_delta_accel,
+                        edge_drift=_edge_drift,
+                        smooth_delta=_smooth_delta,
+                        vpin=float(getattr(_ext, "vpin_score", 0.0) or 0.0),
+                        edge=_edge,
+                        adjusted_edge=_adjusted_edge,
+                        macro_regime=_macro_regime,
+                        has_hist=_has_hist,
+                        window_end_ts=token.window_end_ts,
+                        window_size_s=token.window_seconds,
+                        remaining_s=remaining,
+                    ),
+                    name=f"llm_ind_{token.asset}_{token_id[:8]}",
+                )
 
             # ── Hard entry gates (data-driven, no exceptions) ─────────────────
             # Gate 1: TREND_UP + DOWN-YES contradiction.
@@ -3438,6 +3524,130 @@ class KlausBot:
                 self._bond_llm_advisor(token_id, signal, pos, fill.avg_fill_price),
                 name=f"bond_llm_{asset}_{token_id[:8]}",
             )
+
+    # ── LLM independent trader ───────────────────────────────────────────────
+
+    def _write_llm_shadow(self, record: dict) -> None:
+        import json as _json
+        import os as _os
+        _path = _os.path.join(
+            _os.path.dirname(self.analytics.cfg.trade_log), "llm_shadow.jsonl"
+        )
+        try:
+            with open(_path, "a") as _f:
+                _f.write(_json.dumps(record) + "\n")
+        except Exception as _exc:
+            logger.debug("_write_llm_shadow failed: %s", _exc)
+
+    async def _bond_llm_independent_eval(
+        self,
+        token_id: str,
+        asset: str,
+        direction: str,
+        entry_price: float,
+        zone: str,
+        entry_class_hint: str,
+        bond_delta: float,
+        delta_accel: float,
+        edge_drift: float,
+        smooth_delta: float,
+        vpin: float,
+        edge: float,
+        adjusted_edge: float,
+        macro_regime: str,
+        has_hist: bool,
+        window_end_ts: float,
+        window_size_s: int,
+        remaining_s: float,
+    ) -> None:
+        """
+        Fully independent LLM trader. Called pre-gate on every BOND candidate.
+
+        The LLM sees raw signals only — no rule thresholds, no gate names.
+        It decides TAKE/SKIP with its own TP% and SL%, opens a virtual shadow
+        position if TAKE, and exits it in _check_open_positions based on its
+        own rules. Results logged to logs/llm_shadow.jsonl.
+
+        This is the LLM operating as an independent participant in the same
+        market, not as a second-opinion layer on our approved trades.
+        """
+        now = time.time()
+        result = await self.macro_engine.bond_advisor(
+            asset=asset,
+            direction="BUY_YES" if direction == "YES" else "BUY_NO",
+            entry_price=entry_price,
+            bond_entry_class=entry_class_hint,
+            bond_entry_zone=zone,
+            bond_delta_at_entry=bond_delta,
+            bond_delta_accel_30s=delta_accel,
+            bond_edge_drift_30s=edge_drift,
+            bond_smooth_delta_60s=smooth_delta,
+            vpin=vpin,
+            edge=edge,
+            window_size_s=window_size_s,
+            window_remaining_s=remaining_s,
+        )
+
+        self._write_llm_shadow({
+            "record_type": "llm_entry",
+            "ts": now,
+            "token_id": token_id,
+            "asset": asset,
+            "direction": direction,
+            "entry_price": entry_price,
+            "zone": zone,
+            "entry_class": entry_class_hint,
+            "bond_delta": round(bond_delta, 4),
+            "delta_accel": round(delta_accel, 4),
+            "edge_drift": round(edge_drift, 4),
+            "smooth_delta": round(smooth_delta, 4),
+            "vpin": round(vpin, 3),
+            "edge": round(edge, 4),
+            "adjusted_edge": round(adjusted_edge, 4),
+            "macro_regime": macro_regime,
+            "has_hist": has_hist,
+            "window_end_ts": window_end_ts,
+            "window_size_s": window_size_s,
+            "remaining_s": round(remaining_s, 0),
+            "stake_assumed": self.risk.bankroll.current_stake,
+            "llm_decision": result["decision"],
+            "llm_conf": result.get("conf", 0.5),
+            "llm_reason": result.get("reason", ""),
+            "llm_tp_pct": result.get("shadow_tp_pct", 0.0),
+            "llm_sl_pct": result.get("shadow_sl_pct", 0.0),
+        })
+
+        if result["decision"] == "TAKE":
+            elapsed_on_call = time.time() - now
+            new_remaining = remaining_s - elapsed_on_call
+            if new_remaining > 30:
+                self._llm_shadow_positions[token_id] = {
+                    "asset": asset,
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "entry_ts": time.time(),
+                    "tp_pct": result.get("shadow_tp_pct", 15.0),
+                    "sl_pct": result.get("shadow_sl_pct", 12.0),
+                    "conf": result.get("conf", 0.5),
+                    "reason": result.get("reason", ""),
+                    "window_end_ts": window_end_ts,
+                    "stake": self.risk.bankroll.current_stake,
+                    "zone": zone,
+                }
+                logger.info(
+                    "LLM_IND OPEN %s/%s | entry=%.3f TP=+%.0f%% SL=-%.0f%% "
+                    "conf=%.2f rem=%.0fs | %s",
+                    asset, direction, entry_price,
+                    result.get("shadow_tp_pct", 15.0),
+                    result.get("shadow_sl_pct", 12.0),
+                    result.get("conf", 0.5), new_remaining,
+                    result.get("reason", ""),
+                )
+            else:
+                logger.info(
+                    "LLM_IND %s/%s TAKE but window closed during call (rem=%.0fs)",
+                    asset, direction, new_remaining,
+                )
 
     # ── BOND LLM shadow advisor ───────────────────────────────────────────────
 
