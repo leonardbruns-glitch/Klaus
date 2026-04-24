@@ -341,6 +341,73 @@ def _run_bond_report(bond_trades, label="ALL"):
             print(f"  {lbl:<22} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
                   f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
 
+        # ── Zone × Signal cross-tab ─────────────────────────────────────────
+        # For each zone (EARLY/CORE/LATE), show which delta_abs bucket,
+        # edge_drift direction, and daccel bucket actually work.
+        _zt = [t for t in _traj_trades if t.get("bond_entry_class")]
+        if _zt:
+            print(f"\n── BY ZONE × SIGNAL ────────────────────────────────────────────────────")
+
+            def _zone_of(t):
+                bec = (t.get("bond_entry_class") or "").split("/")[0]
+                if "EARLY" in bec:   return "EARLY"
+                if "CORE"  in bec:   return "CORE"
+                if "LATE"  in bec:   return "LATE"
+                if "IMPULSE" in bec: return "IMPULSE"
+                return None
+
+            def _delta_abs_bucket(t):
+                d = abs(float(t.get("bond_delta_at_entry") or 0))
+                if d < 0.03:   return "<0.03%"
+                if d < 0.05:   return "0.03-0.05%"
+                if d < 0.07:   return "0.05-0.07%"
+                if d < 0.085:  return "0.07-0.085%"
+                return "≥0.085%"
+
+            def _daccel_bucket(t):
+                da = float(t.get("bond_delta_accel_30s") or 0)
+                if da < -0.03:       return "decay<-0.03"
+                if da < -0.01:       return "-0.03→-0.01"
+                if da < 0.01:        return "flat"
+                if da < 0.03:        return "+0.01→+0.03"
+                return "build>+0.03"
+
+            def _drift_bucket(t):
+                ed = float(t.get("bond_edge_drift_30s") or 0)
+                if ed > 0.003:  return "rising>0.003"
+                if ed < -0.003: return "falling<-0.003"
+                return "flat"
+
+            for zone in ("EARLY", "CORE", "LATE", "IMPULSE"):
+                zts = [t for t in _zt if _zone_of(t) == zone]
+                if len(zts) < 3:
+                    continue
+                print(f"\n  [{zone}] n={len(zts)}")
+
+                # delta_abs bucket
+                print(f"    delta_abs:")
+                for lbl in ("<0.03%", "0.03-0.05%", "0.05-0.07%", "0.07-0.085%", "≥0.085%"):
+                    v = [t["net_pnl"] for t in zts if _delta_abs_bucket(t) == lbl]
+                    if not v: continue
+                    w = sum(1 for x in v if x > 0)
+                    print(f"      {lbl:<13} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  sum={_fmt_pnl(sum(v))}")
+
+                # edge drift direction
+                print(f"    edge_drift:")
+                for lbl in ("rising>0.003", "flat", "falling<-0.003"):
+                    v = [t["net_pnl"] for t in zts if _drift_bucket(t) == lbl]
+                    if not v: continue
+                    w = sum(1 for x in v if x > 0)
+                    print(f"      {lbl:<17} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  sum={_fmt_pnl(sum(v))}")
+
+                # daccel bucket
+                print(f"    daccel:")
+                for lbl in ("decay<-0.03", "-0.03→-0.01", "flat", "+0.01→+0.03", "build>+0.03"):
+                    v = [t["net_pnl"] for t in zts if _daccel_bucket(t) == lbl]
+                    if not v: continue
+                    w = sum(1 for x in v if x > 0)
+                    print(f"      {lbl:<14} n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  sum={_fmt_pnl(sum(v))}")
+
         # ── pre_score (Layer 1, observation mode) ──────────────────────────
         # Strict integrity gates BEFORE any aggregation:
         #   1. exclude FAIL validity records (causality leakage)
