@@ -258,6 +258,8 @@ class KlausBot:
         self._llm_eval_pending: Set[str] = set()
         # Serialize entry evals — one at a time prevents 429 bursts.
         self._llm_eval_semaphore = asyncio.Semaphore(1)
+        # Global cooldown after 429 — all entry evals blocked until this timestamp.
+        self._llm_rate_limit_until = 0.0
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -3159,8 +3161,15 @@ class KlausBot:
         now = time.time()
         recent_history = self._read_llm_shadow_history(n=15)
         research_notes = self._read_research_notes(n=10)
+        # Skip immediately if we're in a rate-limit cooldown
+        if time.time() < self._llm_rate_limit_until:
+            self._llm_eval_pending.discard(token_id)
+            return
+
         try:
             async with self._llm_eval_semaphore:
+                if time.time() < self._llm_rate_limit_until:
+                    return  # cooldown set while waiting for semaphore
                 result = await self.macro_engine.bond_advisor(
                     asset=asset,
                     direction="BUY_YES" if direction == "YES" else "BUY_NO",
@@ -3179,8 +3188,9 @@ class KlausBot:
                     research_notes=research_notes,
                 )
         except _RateLimitError:
-            logger.warning("LLM_EVAL 429 %s/%s — will retry next scan", asset, direction)
-            return  # don't store decision; token retries on next scan cycle
+            self._llm_rate_limit_until = time.time() + 30.0
+            logger.warning("LLM_EVAL 429 %s/%s — cooldown 30s", asset, direction)
+            return  # don't store decision; token retries after cooldown
         finally:
             self._llm_eval_pending.discard(token_id)
 
