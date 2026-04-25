@@ -4347,12 +4347,30 @@ class KlausBot:
                 window_max_adv_from_entry_pct = None
                 try:
                     token = self.feed.tokens.get(token_id)
+                    _ob = None
                     if token and hasattr(token, "best_ask") and token.best_ask > 0:
                         window_outcome_price = round(token.best_ask, 4)
                     else:
                         _ob = await self.feed.fetch_order_book(token_id)
                         if _ob and _ob.asks:
                             window_outcome_price = round(_ob.asks[0][0], 4)
+                    # Winning tokens near $1.00 have thin/empty ask side at T-5s
+                    # (no sellers remain). Fall back to best_bid to detect winners:
+                    # bid >= 0.80 also means token is heading to $1.00.
+                    if window_outcome_price is None or window_outcome_price < 0.80:
+                        _best_bid = None
+                        if token and hasattr(token, "bids") and getattr(token, "bids", None):
+                            try:
+                                _best_bid = token.bids[0][0]
+                            except Exception:
+                                pass
+                        if _best_bid is None:
+                            if _ob is None:
+                                _ob = await self.feed.fetch_order_book(token_id)
+                            if _ob and _ob.bids:
+                                _best_bid = _ob.bids[0][0]
+                        if _best_bid is not None and _best_bid >= 0.80:
+                            window_outcome_price = round(_best_bid, 4)
                     if window_outcome_price is not None:
                         _post_exit_prices.append(window_outcome_price)
                         entered_correctly = window_outcome_price >= 0.80
