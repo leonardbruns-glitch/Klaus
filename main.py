@@ -1579,6 +1579,10 @@ class KlausBot:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
             if ask is None or not (0.75 <= ask <= 0.88):
+                logger.info(
+                    "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
+                    token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
+                )
                 _b_ask_skip += 1
                 continue  # cap at 0.88: ep=0.89-0.92 worst bucket (-$15.31), ep=0.95+ WR=56%
 
