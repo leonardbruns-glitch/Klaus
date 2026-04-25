@@ -93,10 +93,27 @@ path_map: dict = {}  # key=(asset,direction) → path_class (overwritten, keep l
 recovered: list = []
 counter = 90000
 
+# For fast skip: allow 60s before since to catch any ENTRY lines just before
+_skip_before = max(0.0, since_ts - 60.0) if since_ts else 0.0
+
 with open(LOG_PATH) as f:
     for raw in f:
         line = raw.strip()
+        if not line:
+            continue
+
+        # Fast pre-filter: if --since is set, skip lines clearly before that time.
+        # _parse_line_ts is slow for every line, so only call it when the line
+        # contains one of our keywords.
+        if ("TERMINAL ENTRY" not in line
+                and "EXIT " not in line
+                and "PATH_CLASS" not in line):
+            continue
+
         ts = _parse_line_ts(line)
+        # Skip lines before the since window (allow 60s buffer for open positions)
+        if _skip_before and ts > 0 and ts < _skip_before:
+            continue
 
         m = RE_ENTRY.search(line)
         if m:
