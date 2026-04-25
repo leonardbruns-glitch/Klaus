@@ -1529,6 +1529,35 @@ class KlausBot:
             _elapsed_pct = 1.0 - remaining / max(1, token.window_seconds)
             _wlabel      = f"{token.window_seconds // 60}m"
 
+            # ── TERMINAL observation metrics (data collection only) ──────────
+            _asset_up = token.asset.upper()
+            # VPIN
+            _vpin_t = self.feed.vpin_trackers.get(_asset_up)
+            _term_vpin = round(_vpin_t.vpin, 4) if (_vpin_t and getattr(_vpin_t, "_trade_count", 0) > 50) else 0.0
+            # Spot price deltas from price_history deque
+            _spot_now = self.feed._spot_price.get(_asset_up, 0.0)
+            _hist_q   = self.feed._price_history.get(_asset_up)
+            def _hist_delta(hist, secs):
+                if not hist or not _spot_now:
+                    return 0.0
+                cutoff = now - secs
+                ref = None
+                for ts, p in hist:
+                    if ts <= cutoff:
+                        ref = p
+                return round((_spot_now - ref) / ref * 100, 4) if ref and ref > 0 else 0.0
+            _term_d30 = _hist_delta(_hist_q, 30)
+            _term_d60 = _hist_delta(_hist_q, 60)
+            _open_5m  = self.feed._spot_open_5m.get(_asset_up, 0.0)
+            _term_d5m = round((_spot_now - _open_5m) / _open_5m * 100, 4) if _open_5m > 0 and _spot_now > 0 else 0.0
+            # Order book metrics
+            _best_bid  = ob.bids[0][0] if ob.bids else 0.0
+            _term_sprd = round((ask - _best_bid) / ask * 100, 4) if _best_bid > 0 else 0.0
+            _term_aqty = round(ob.asks[0][1], 2) if ob.asks else 0.0
+            _a3 = sum(q for _, q in ob.asks[:3])
+            _b3 = sum(q for _, q in ob.bids[:3])
+            _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
+
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
@@ -1550,6 +1579,15 @@ class KlausBot:
                 bond_outcome_direction=_token_dir,
                 bond_entry_class="TERMINAL",
             )
+            # Attach TERMINAL observations to signal for downstream logging
+            signal.term_vpin          = _term_vpin
+            signal.term_spot_delta_30s = _term_d30
+            signal.term_spot_delta_60s = _term_d60
+            signal.term_spot_delta_5m  = _term_d5m
+            signal.term_ask_spread_pct = _term_sprd
+            signal.term_ask_qty        = _term_aqty
+            signal.term_ob_imbalance   = _term_imb
+            signal.term_remaining_s    = round(remaining, 1)
 
             tpsl = TPSLLevels(
                 take_profit=0.0,
@@ -3947,6 +3985,14 @@ class KlausBot:
                     bond_llm_reason=_bond_llm.get("reason", ""),
                     bond_llm_tp_pct=float(_bond_llm.get("shadow_tp_pct", 0.0)),
                     bond_llm_sl_pct=float(_bond_llm.get("shadow_sl_pct", 0.0)),
+                    term_vpin=float(getattr(signal, "term_vpin", 0.0) or 0.0),
+                    term_spot_delta_30s=float(getattr(signal, "term_spot_delta_30s", 0.0) or 0.0),
+                    term_spot_delta_60s=float(getattr(signal, "term_spot_delta_60s", 0.0) or 0.0),
+                    term_spot_delta_5m=float(getattr(signal, "term_spot_delta_5m", 0.0) or 0.0),
+                    term_ask_spread_pct=float(getattr(signal, "term_ask_spread_pct", 0.0) or 0.0),
+                    term_ask_qty=float(getattr(signal, "term_ask_qty", 0.0) or 0.0),
+                    term_ob_imbalance=float(getattr(signal, "term_ob_imbalance", 0.0) or 0.0),
+                    term_remaining_s=float(getattr(signal, "term_remaining_s", 0.0) or 0.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

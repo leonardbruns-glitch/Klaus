@@ -798,6 +798,203 @@ def _run_bond_report(bond_trades, label="ALL"):
                  [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_w],
                  [float(t.get("bond_vel_at_entry", 0) or 0) for t in new_l], ".3f")
 
+    # ── BY HOUR UTC ───────────────────────────────────────────────────────────
+    by_hr: dict = defaultdict(list)
+    for t in bond_trades:
+        h = t.get("hour_utc")
+        if h is not None:
+            by_hr[int(h)].append(t["net_pnl"])
+    if by_hr:
+        print(f"\n── BY HOUR UTC ─────────────────────────────────────────────────────────")
+        for h in sorted(by_hr):
+            v = by_hr[h]
+            w = sum(1 for x in v if x > 0)
+            bar_val = sum(v)
+            bar = ("+" if bar_val >= 0 else "-") * min(20, max(1, int(abs(bar_val) * 4)))
+            print(f"  {h:02d}h  n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}  {bar}")
+
+    # ── BY ENTRY PRICE BUCKET ─────────────────────────────────────────────────
+    _ep_buckets = [(0.80, 0.83, "0.80-0.83"), (0.83, 0.86, "0.83-0.86"),
+                   (0.86, 0.89, "0.86-0.89"), (0.89, 0.92, "0.89-0.92"),
+                   (0.92, 0.95, "0.92-0.95"), (0.95, 1.01, "0.95-1.00")]
+    by_ep: dict = defaultdict(list)
+    for t in bond_trades:
+        ep = float(t.get("entry_price", 0) or 0)
+        for lo, hi, lbl in _ep_buckets:
+            if lo <= ep < hi:
+                by_ep[lbl].append(t["net_pnl"])
+                break
+    if by_ep:
+        print(f"\n── BY ENTRY PRICE BUCKET ───────────────────────────────────────────────")
+        for _, _, lbl in _ep_buckets:
+            v = by_ep.get(lbl, [])
+            if not v:
+                continue
+            w = sum(1 for x in v if x > 0)
+            print(f"  ep={lbl}  n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+    # ── BY WINDOW SIZE ────────────────────────────────────────────────────────
+    by_ws: dict = defaultdict(list)
+    for t in bond_trades:
+        ws = int(t.get("window_size_s", 0) or 0)
+        by_ws[f"{ws//60}m" if ws else "?m"].append(t["net_pnl"])
+    if len(by_ws) > 1:
+        print(f"\n── BY WINDOW SIZE ──────────────────────────────────────────────────────")
+        for lbl in sorted(by_ws):
+            v = by_ws[lbl]
+            w = sum(1 for x in v if x > 0)
+            print(f"  {lbl:<4}  n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+    # ── BY DIRECTION (YES/NO bet) ─────────────────────────────────────────────
+    by_dir: dict = defaultdict(list)
+    for t in bond_trades:
+        dr = t.get("direction", "") or ""
+        by_dir["NO" if "NO" in dr else "YES"].append(t["net_pnl"])
+    if len(by_dir) > 1:
+        print(f"\n── BY DIRECTION ────────────────────────────────────────────────────────")
+        for lbl in sorted(by_dir):
+            v = by_dir[lbl]
+            w = sum(1 for x in v if x > 0)
+            print(f"  {lbl}  n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+                  f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+    # ── DETAILED EXIT REASON ──────────────────────────────────────────────────
+    by_reason: dict = defaultdict(list)
+    for t in bond_trades:
+        r = (t.get("exit_reason") or "?")
+        by_reason[r].append(t["net_pnl"])
+    print(f"\n── DETAILED EXIT REASON ────────────────────────────────────────────────")
+    for r in sorted(by_reason, key=lambda k: sum(by_reason[k]), reverse=True):
+        v = by_reason[r]
+        w = sum(1 for x in v if x > 0)
+        print(f"  {r:<40}  n={len(v):>3}  WR={w/len(v)*100:>4.0f}%  "
+              f"avg={_fmt_pnl(sum(v)/len(v))}  sum={_fmt_pnl(sum(v))}")
+
+    # ── TIME_EXIT ANALYSIS ────────────────────────────────────────────────────
+    _time_exits = [t for t in bond_trades if "TIME_EXIT" in (t.get("exit_reason") or "")]
+    if _time_exits:
+        print(f"\n── TIME_EXIT ANALYSIS (n={len(_time_exits)}) ─────────────────────────────────")
+        print(f"  NOTE: TIME_EXIT fires before BOND_DEADLINE — likely an intermediate exit rule")
+        te_wins = [t for t in _time_exits if (t.get("net_pnl", 0) or 0) > 0]
+        te_loss = [t for t in _time_exits if (t.get("net_pnl", 0) or 0) <= 0]
+        print(f"  wins n={len(te_wins):>3}  sum={_fmt_pnl(sum(t['net_pnl'] for t in te_wins))}")
+        print(f"  loss n={len(te_loss):>3}  sum={_fmt_pnl(sum(t['net_pnl'] for t in te_loss))}")
+        te_by_a: dict = defaultdict(list)
+        for t in _time_exits:
+            te_by_a[t.get("asset", "?")].append(t["net_pnl"])
+        for a in sorted(te_by_a):
+            v = te_by_a[a]
+            w2 = sum(1 for x in v if x > 0)
+            _ep_te = [float(t.get("entry_price", 0) or 0) for t in _time_exits if t.get("asset") == a]
+            _xp_te = [float(t.get("exit_price", 0) or 0) for t in _time_exits if t.get("asset") == a and (t.get("exit_price") or 0) > 0]
+            avg_ep = sum(_ep_te)/len(_ep_te) if _ep_te else 0
+            avg_xp = sum(_xp_te)/len(_xp_te) if _xp_te else 0
+            print(f"    {a}  n={len(v)}  WR={w2/len(v)*100:.0f}%  "
+                  f"avg_ep={avg_ep:.4f}  avg_xp={avg_xp:.4f}  sum={_fmt_pnl(sum(v))}")
+        _hold_te = [float(t.get("hold_seconds", 0) or 0) for t in _time_exits]
+        if _hold_te:
+            print(f"  hold: avg={sum(_hold_te)/len(_hold_te):.0f}s  "
+                  f"min={min(_hold_te):.0f}s  max={max(_hold_te):.0f}s")
+        _reasons_te = sorted(set(t.get("exit_reason", "?") for t in _time_exits))
+        print(f"  reasons: {', '.join(_reasons_te)}")
+
+    # ── ASSET × HOUR HEATMAP ──────────────────────────────────────────────────
+    _ax_trades = [t for t in bond_trades if t.get("hour_utc") is not None]
+    if _ax_trades and len({t.get("asset") for t in _ax_trades}) > 1:
+        _assets = sorted({t.get("asset", "?") for t in _ax_trades})
+        _hours  = sorted({int(t["hour_utc"]) for t in _ax_trades})
+        print(f"\n── ASSET × HOUR HEATMAP (WR / n) ───────────────────────────────────────")
+        hdr = f"  {'hr':>4}" + "".join(f"  {a:<10}" for a in _assets)
+        print(hdr)
+        for h in _hours:
+            row = f"  {h:02d}h "
+            for a in _assets:
+                v = [t["net_pnl"] for t in _ax_trades
+                     if int(t["hour_utc"]) == h and t.get("asset") == a]
+                if not v:
+                    row += f"  {'—':<10}"
+                else:
+                    wr_h = sum(1 for x in v if x > 0) / len(v) * 100
+                    row += f"  {wr_h:>3.0f}%/n{len(v):<4}"
+            print(row)
+
+    # ── TERMINAL ENTRY OBSERVATIONS ──────────────────────────────────────────
+    _term_obs = [t for t in bond_trades if float(t.get("term_remaining_s", 0) or 0) > 0]
+    if _term_obs:
+        print(f"\n── TERMINAL ENTRY OBSERVATIONS (n={len(_term_obs)}) ──────────────────────────")
+
+        def _term_bucket(label, key, buckets, wins_all, loss_all):
+            vals_w = [float(t.get(key, 0) or 0) for t in wins_all if float(t.get(key, 0) or 0) != 0]
+            vals_l = [float(t.get(key, 0) or 0) for t in loss_all if float(t.get(key, 0) or 0) != 0]
+            if not vals_w and not vals_l:
+                return
+            print(f"  {label}")
+            for lo, hi, lbl in buckets:
+                v_all = [t for t in _term_obs if lo <= float(t.get(key, 0) or 0) < hi]
+                if not v_all:
+                    continue
+                pnls = [t["net_pnl"] for t in v_all]
+                ww = sum(1 for x in pnls if x > 0)
+                print(f"    {lbl:<20}  n={len(v_all):>3}  WR={ww/len(v_all)*100:>4.0f}%  "
+                      f"avg={_fmt_pnl(sum(pnls)/len(pnls))}  sum={_fmt_pnl(sum(pnls))}")
+
+        _tw = [t for t in _term_obs if (t.get("net_pnl", 0) or 0) > 0]
+        _tl = [t for t in _term_obs if (t.get("net_pnl", 0) or 0) <= 0]
+
+        # Seconds remaining at entry
+        _term_bucket("remaining_s at entry:", "term_remaining_s",
+            [(5,15,"5-15s"), (15,25,"15-25s"), (25,35,"25-35s"), (35,45,"35-45s"), (45,60,"45-60s")],
+            _tw, _tl)
+
+        # VPIN
+        _term_bucket("VPIN at entry (0=no data):", "term_vpin",
+            [(0,0.001,"0 (no tracker)"), (0.001,0.55,"<0.55 neutral"),
+             (0.55,0.65,"0.55-0.65 elevated"), (0.65,1.0,">=0.65 toxic")],
+            _tw, _tl)
+
+        # Binance spot 30s delta
+        _term_bucket("Binance spot delta 30s:", "term_spot_delta_30s",
+            [(-99,-0.10,"<-0.10% falling"), (-0.10,-0.03,"-0.10 to -0.03"),
+             (-0.03,0.03,"-0.03 to +0.03 flat"), (0.03,0.10,"+0.03 to +0.10"),
+             (0.10,99,">+0.10% rising")],
+            _tw, _tl)
+
+        # Binance spot 60s delta
+        _term_bucket("Binance spot delta 60s:", "term_spot_delta_60s",
+            [(-99,-0.15,"<-0.15% falling"), (-0.15,-0.05,"-0.15 to -0.05"),
+             (-0.05,0.05,"-0.05 to +0.05 flat"), (0.05,0.15,"+0.05 to +0.15"),
+             (0.15,99,">+0.15% rising")],
+            _tw, _tl)
+
+        # Binance 5m window delta
+        _term_bucket("Binance delta from 5m open:", "term_spot_delta_5m",
+            [(-99,-0.20,"<-0.20%"), (-0.20,-0.10,"-0.20 to -0.10"),
+             (-0.10,0.10,"-0.10 to +0.10 flat"), (0.10,0.20,"+0.10 to +0.20"),
+             (0.20,99,">+0.20%")],
+            _tw, _tl)
+
+        # Spread
+        _term_bucket("Ask spread %:", "term_ask_spread_pct",
+            [(0,0.001,"0 (no bid)"), (0.001,1.0,"<1%"),
+             (1.0,3.0,"1-3%"), (3.0,5.0,"3-5%"), (5.0,99,">5%")],
+            _tw, _tl)
+
+        # Ask quantity (depth at best ask)
+        _term_bucket("Ask qty at entry:", "term_ask_qty",
+            [(0,0.001,"0 (no data)"), (0.001,50,"<50"), (50,150,"50-150"),
+             (150,300,"150-300"), (300,99999,">300")],
+            _tw, _tl)
+
+        # OB imbalance
+        _term_bucket("OB imbalance (top3 bid vs ask):", "term_ob_imbalance",
+            [(-1.0,-0.3,"<-0.30 ask dom"), (-0.3,-0.1,"-0.30 to -0.10"),
+             (-0.1,0.1,"-0.10 to +0.10 balanced"),
+             (0.1,0.3,"+0.10 to +0.30"), (0.3,1.01,">+0.30 bid dom")],
+            _tw, _tl)
+
     # ── LLM shadow advisor performance ───────────────────────────────────────
     _llm_trades = [t for t in bond_trades if t.get("bond_llm_decision") in ("TAKE", "SKIP")]
     if _llm_trades:

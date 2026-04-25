@@ -192,6 +192,15 @@ class TradeRecord:
     bond_llm_tp_pct: float = 0.0   # LLM's shadow take-profit % target
     bond_llm_sl_pct: float = 0.0   # LLM's shadow stop-loss % limit
     bond_llm_shadow_pnl: float = 0.0  # shadow gross P&L: what LLM would have made
+    # ── TERMINAL entry observations (data collection only, no gating) ──────────
+    term_vpin: float = 0.0           # VPIN at entry from Binance aggTrade
+    term_spot_delta_30s: float = 0.0 # Binance spot % change in last 30s
+    term_spot_delta_60s: float = 0.0 # Binance spot % change in last 60s
+    term_spot_delta_5m: float = 0.0  # Binance spot % change from 5m window open
+    term_ask_spread_pct: float = 0.0 # (ask - bid) / ask * 100 at entry
+    term_ask_qty: float = 0.0        # shares at best ask at entry
+    term_ob_imbalance: float = 0.0   # (top3_bid - top3_ask) / total; +1=buy pressure
+    term_remaining_s: float = 0.0    # seconds to window end at signal time
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +411,14 @@ class FeedbackEngine:
         bond_llm_reason: str = "",
         bond_llm_tp_pct: float = 0.0,
         bond_llm_sl_pct: float = 0.0,
+        term_vpin: float = 0.0,
+        term_spot_delta_30s: float = 0.0,
+        term_spot_delta_60s: float = 0.0,
+        term_spot_delta_5m: float = 0.0,
+        term_ask_spread_pct: float = 0.0,
+        term_ask_qty: float = 0.0,
+        term_ob_imbalance: float = 0.0,
+        term_remaining_s: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -607,6 +624,14 @@ class FeedbackEngine:
             bond_llm_conf=round(bond_llm_conf, 2),
             bond_llm_reason=bond_llm_reason,
             bond_llm_tp_pct=round(bond_llm_tp_pct, 1),
+            term_vpin=round(term_vpin, 4),
+            term_spot_delta_30s=round(term_spot_delta_30s, 4),
+            term_spot_delta_60s=round(term_spot_delta_60s, 4),
+            term_spot_delta_5m=round(term_spot_delta_5m, 4),
+            term_ask_spread_pct=round(term_ask_spread_pct, 4),
+            term_ask_qty=round(term_ask_qty, 2),
+            term_ob_imbalance=round(term_ob_imbalance, 4),
+            term_remaining_s=round(term_remaining_s, 1),
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
         )

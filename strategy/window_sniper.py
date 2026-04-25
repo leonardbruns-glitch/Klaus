@@ -271,6 +271,15 @@ class SniperSignal:
     pre_score_stab:   float = 0.0   # STAB quality component
     pre_score_vel:    float = 0.0   # velocity alignment component
     pre_score_class:  float = 0.0   # bond_entry_class EV-prior component
+    # ── TERMINAL entry observations (data collection, no gating) ──────────────
+    term_vpin: float = 0.0           # Binance aggTrade VPIN at entry (0.5=neutral, >0.65=toxic)
+    term_spot_delta_30s: float = 0.0 # Binance spot % change in 30s before entry (signed)
+    term_spot_delta_60s: float = 0.0 # Binance spot % change in 60s before entry (signed)
+    term_spot_delta_5m: float = 0.0  # Binance spot % change from 5m window open to entry
+    term_ask_spread_pct: float = 0.0 # (best_ask - best_bid) / best_ask * 100
+    term_ask_qty: float = 0.0        # shares available at best ask (order book depth)
+    term_ob_imbalance: float = 0.0   # (top3_bid_qty - top3_ask_qty) / total; +1=buy pressure
+    term_remaining_s: float = 0.0    # seconds until window end at signal time
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
