@@ -263,6 +263,8 @@ class KlausBot:
         # Per-window TERMINAL dedup: set of (asset, window_end_ts_rounded) already traded.
         # Prevents re-entry into the same asset after TP/exit within the same window.
         self._terminal_traded_windows: set = set()
+        # Tokens where TERMINAL TP level has been touched — TP price becomes trail floor.
+        self._terminal_tp_touched: set = set()
         # Per-token ask price history for pre-entry trajectory: {token_id: deque[(ts, ask)]}
         # Updated every bond scan; used to compute term_token_delta_30s / _60s at entry.
         self._token_ask_history: Dict[str, deque] = {}
@@ -742,11 +744,39 @@ class KlausBot:
                     not self.macro_engine._enabled
                     or (_held_s > 30.0 and (now - _last_good_eval) > 30.0)
                 )
+                # TERMINAL trail stop: once TP price is touched, it becomes the exit floor.
+                # Fires regardless of _api_dead — always active once TP is touched.
+                _is_terminal_pos = getattr(pos, "bond_entry_class", "") == "TERMINAL"
+                if (_is_terminal_pos
+                        and token_id not in self._exit_in_progress
+                        and _held_s >= 5.0):
+                    if pos.tp > 0 and current_price >= pos.tp:
+                        if token_id not in self._terminal_tp_touched:
+                            self._terminal_tp_touched.add(token_id)
+                            logger.info(
+                                'TERMINAL TP TOUCH %s/%s | price=%.4f tp_floor=%.4f rem=%.0fs'
+                                ' — holding, trail floor locked',
+                                pos.asset, pos.direction.name,
+                                current_price, pos.tp, bond_remaining,
+                            )
+                    elif token_id in self._terminal_tp_touched and current_price < pos.tp:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            'BOND_TRAIL_TP %s/%s | price=%.4f fell below floor=%.4f rem=%.0fs',
+                            pos.asset, pos.direction.name,
+                            current_price, pos.tp, bond_remaining,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, 'BOND_TRAIL_TP')
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 if (_api_dead
                         and token_id not in self._exit_in_progress
                         and _held_s >= 5.0):
                     _mech_reason: str | None = None
-                    if pos.tp > 0 and current_price >= pos.tp:
+                    if pos.tp > 0 and current_price >= pos.tp and not _is_terminal_pos:
                         _mech_reason = f'price {current_price:.4f} >= tp {pos.tp:.4f}'
                         _mech_label = 'LLM_TP_FALLBACK'
                     elif pos.sl > 0 and current_price <= pos.sl:
@@ -3379,6 +3409,7 @@ class KlausBot:
                 self._zombie_flag_ts.pop(token_id, None)
                 self._traj_mfe.pop(token_id, None)
                 self._traj_mae.pop(token_id, None)
+                self._terminal_tp_touched.discard(token_id)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -3556,6 +3587,7 @@ class KlausBot:
             self._zombie_flag_ts.pop(token_id, None)
             self._traj_mfe.pop(token_id, None)
             self._traj_mae.pop(token_id, None)
+            self._terminal_tp_touched.discard(token_id)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
                 if _signal is None:
@@ -4063,6 +4095,7 @@ class KlausBot:
         self._traj_mfe.pop(token_id, None)
         self._traj_mae.pop(token_id, None)
         self._bond_sl_arm_ts.pop(token_id, None)
+        self._terminal_tp_touched.discard(token_id)
         bankroll = self.risk.bankroll.summary()
         logger.info(
             "EXIT %s %s | reason=%s | PnL=$%.3f | capital=$%.2f | streak=%d",
