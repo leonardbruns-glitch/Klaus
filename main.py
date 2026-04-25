@@ -4071,8 +4071,6 @@ class KlausBot:
                     llm_rec_conf=meta.get("llm_rec_conf", 0.0),
                     max_price_seen=_highest_price,
                     min_price_seen=_lowest_price,
-                    max_favourable_pct=round(_max_fav, 2),
-                    max_adverse_pct=round(_max_adv, 2),
                     highest_price_ts=pos.highest_price_ts,
                     lowest_price_ts=pos.lowest_price_ts,
                     binance_price_at_entry=pos.binance_price_at_entry,
