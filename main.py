@@ -260,6 +260,9 @@ class KlausBot:
         self._llm_eval_semaphore = asyncio.Semaphore(1)
         # Global cooldown after 429 — all entry evals blocked until this timestamp.
         self._llm_rate_limit_until = 0.0
+        # Per-window TERMINAL dedup: set of (asset, window_end_ts_rounded) already traded.
+        # Prevents re-entry into the same asset after TP/exit within the same window.
+        self._terminal_traded_windows: set = set()
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -1491,6 +1494,10 @@ class KlausBot:
         now = time.time()
         _utc_hour = time.gmtime(now).tm_hour
         _b_total = _b_in_window = _b_ask_skip = _b_fired = 0
+        # Purge expired window keys (window ended > 120s ago)
+        self._terminal_traded_windows = {
+            (a, wt) for a, wt in self._terminal_traded_windows if wt > now - 120
+        }
         logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
 
         for token_id, token in list(self.feed.tokens.items()):
@@ -1509,6 +1516,10 @@ class KlausBot:
 
             if _utc_hour in (6, 18):
                 continue  # 06h WR=59% (n=32, -$8.24); 18h WR=58% (n=38, -$6.41)
+
+            _wkey = (token.asset, round(token.window_end_ts))
+            if _wkey in self._terminal_traded_windows:
+                continue  # already traded this asset in this window
 
             is_5m = 250 <= getattr(token, "window_seconds", 0) < 900
             if not is_5m:
@@ -1631,6 +1642,7 @@ class KlausBot:
             #
             # Goal: causal attribution. Which instability dimension correlates
             _b_fired += 1
+            self._terminal_traded_windows.add(_wkey)  # lock this asset×window — no re-entry
             asyncio.create_task(
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
                 name=f"bond_{token.asset}_{token.side}",
