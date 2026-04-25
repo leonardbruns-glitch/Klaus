@@ -1544,7 +1544,7 @@ class KlausBot:
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            if ask is None or not (0.80 <= ask <= 0.88):
+            if ask is None or not (0.75 <= ask <= 0.88):
                 _b_ask_skip += 1
                 continue  # cap at 0.88: ep=0.89-0.92 worst bucket (-$15.31), ep=0.95+ WR=56%
 
@@ -1615,7 +1615,7 @@ class KlausBot:
                 reason=f"TERMINAL_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s",
                 signal_source="BOND",
                 is_bond=True,
-                bond_exit_sec=5,
+                bond_exit_sec=1,
                 bond_outcome_direction=_token_dir,
                 bond_entry_class="TERMINAL",
             )
