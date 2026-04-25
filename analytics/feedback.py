@@ -201,6 +201,8 @@ class TradeRecord:
     term_ask_qty: float = 0.0        # shares at best ask at entry
     term_ob_imbalance: float = 0.0   # (top3_bid - top3_ask) / total; +1=buy pressure
     term_remaining_s: float = 0.0    # seconds to window end at signal time
+    term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising)
+    term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +421,8 @@ class FeedbackEngine:
         term_ask_qty: float = 0.0,
         term_ob_imbalance: float = 0.0,
         term_remaining_s: float = 0.0,
+        term_token_delta_30s: float = 0.0,
+        term_token_delta_60s: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -632,6 +636,8 @@ class FeedbackEngine:
             term_ask_qty=round(term_ask_qty, 2),
             term_ob_imbalance=round(term_ob_imbalance, 4),
             term_remaining_s=round(term_remaining_s, 1),
+            term_token_delta_30s=round(term_token_delta_30s, 4),
+            term_token_delta_60s=round(term_token_delta_60s, 4),
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
         )

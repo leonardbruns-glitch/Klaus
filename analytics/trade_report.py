@@ -995,6 +995,18 @@ def _run_bond_report(bond_trades, label="ALL"):
              (0.1,0.3,"+0.10 to +0.30"), (0.3,1.01,">+0.30 bid dom")],
             _tw, _tl)
 
+        # Token price trajectory before entry
+        _term_bucket("Token ask delta 30s (+ = rising into entry):", "term_token_delta_30s",
+            [(-99,-0.5,"falling  (<-0.5%)"), (-0.5,0.0,"flat-neg (-0.5 to 0%)"),
+             (0.0,0.0001,"flat     (=0%)"),
+             (0.0001,0.5,"flat-pos (0 to +0.5%)"), (0.5,99,"rising   (>+0.5%)")],
+            _tw, _tl)
+        _term_bucket("Token ask delta 60s (+ = rising into entry):", "term_token_delta_60s",
+            [(-99,-1.0,"falling  (<-1%)"), (-1.0,0.0,"flat-neg (-1 to 0%)"),
+             (0.0,0.0001,"flat     (=0%)"),
+             (0.0001,1.0,"flat-pos (0 to +1%)"), (1.0,99,"rising   (>+1%)")],
+            _tw, _tl)
+
     # ── LLM shadow advisor performance ───────────────────────────────────────
     _llm_trades = [t for t in bond_trades if t.get("bond_llm_decision") in ("TAKE", "SKIP")]
     if _llm_trades:

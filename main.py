@@ -263,6 +263,9 @@ class KlausBot:
         # Per-window TERMINAL dedup: set of (asset, window_end_ts_rounded) already traded.
         # Prevents re-entry into the same asset after TP/exit within the same window.
         self._terminal_traded_windows: set = set()
+        # Per-token ask price history for pre-entry trajectory: {token_id: deque[(ts, ask)]}
+        # Updated every bond scan; used to compute term_token_delta_30s / _60s at entry.
+        self._token_ask_history: Dict[str, deque] = {}
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -1506,6 +1509,13 @@ class KlausBot:
                 continue
             if token.window_end_ts <= 0:
                 continue
+            # Record ask price history for pre-entry trajectory (all updown tokens, every scan)
+            _ob_hist = self.feed.get_order_book(token_id)
+            if _ob_hist and _ob_hist.asks:
+                _ask_now = _ob_hist.asks[0][0]
+                if token_id not in self._token_ask_history:
+                    self._token_ask_history[token_id] = deque(maxlen=120)
+                self._token_ask_history[token_id].append((now, _ask_now))
             if token_id in self.risk.open_positions:
                 continue
             if token.asset in self.risk._pending_assets:
@@ -1574,6 +1584,20 @@ class KlausBot:
             if abs(_term_imb) < 0.10:
                 continue  # balanced OB: WR=44% (n=9, -$12.68); non-directional = bad TERMINAL entry
 
+            # Token ask price trajectory: was the token rising or falling before entry?
+            def _token_delta(hist, secs):
+                if not hist or not ask:
+                    return 0.0
+                cutoff = now - secs
+                ref = None
+                for ts, p in hist:
+                    if ts <= cutoff:
+                        ref = p
+                return round((ask - ref) / ref * 100, 4) if ref and ref > 0 else 0.0
+            _tok_hist = self._token_ask_history.get(token_id)
+            _term_tok_d30 = _token_delta(_tok_hist, 30)
+            _term_tok_d60 = _token_delta(_tok_hist, 60)
+
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
@@ -1602,8 +1626,10 @@ class KlausBot:
             signal.term_spot_delta_5m  = _term_d5m
             signal.term_ask_spread_pct = _term_sprd
             signal.term_ask_qty        = _term_aqty
-            signal.term_ob_imbalance   = _term_imb
-            signal.term_remaining_s    = round(remaining, 1)
+            signal.term_ob_imbalance     = _term_imb
+            signal.term_remaining_s      = round(remaining, 1)
+            signal.term_token_delta_30s  = _term_tok_d30
+            signal.term_token_delta_60s  = _term_tok_d60
 
             tpsl = TPSLLevels(
                 take_profit=min(0.99, round(ask + 0.04, 4)),
@@ -4010,6 +4036,8 @@ class KlausBot:
                     term_ask_qty=float(getattr(signal, "term_ask_qty", 0.0) or 0.0),
                     term_ob_imbalance=float(getattr(signal, "term_ob_imbalance", 0.0) or 0.0),
                     term_remaining_s=float(getattr(signal, "term_remaining_s", 0.0) or 0.0),
+                    term_token_delta_30s=float(getattr(signal, "term_token_delta_30s", 0.0) or 0.0),
+                    term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

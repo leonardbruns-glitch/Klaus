@@ -280,6 +280,8 @@ class SniperSignal:
     term_ask_qty: float = 0.0        # shares available at best ask (order book depth)
     term_ob_imbalance: float = 0.0   # (top3_bid_qty - top3_ask_qty) / total; +1=buy pressure
     term_remaining_s: float = 0.0    # seconds until window end at signal time
+    term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising toward 1.0)
+    term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising toward 1.0)
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
