@@ -135,7 +135,9 @@ for t in trades:
     fv   = g(t, "sniper_fair_value")
     edge = g(t, "sniper_edge")
     lag  = g(t, "sniper_lag_remaining")
-    delt = g(t, "sniper_delta_pct")
+    _is_bond = src == "BON"
+    delt = g(t, "term_spot_delta_30s") if _is_bond else g(t, "sniper_delta_pct")
+    _tok_d30 = g(t, "term_token_delta_30s") if _is_bond else None
     elap = g(t, "sniper_elapsed_pct")
     qs   = g(t, "quality_score", "—")
     vpin = g(t, "sniper_vpin")
@@ -169,7 +171,7 @@ for t in trades:
         f"{win}{hc} {dt} {asset:<3} {dr_s} {wl} {src} | "
         f"ep={ep:.4f} xp={xp:.4f} | "
         f"fv={pf(fv, ',.4f')} edge={pf(edge, '+.3f')} | "
-        f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f')} elap={pf(elap, '.2f')} | "
+        f"lag={pf(lag, '.2f')} delta={pf(delt, '+.3f', '%' if _is_bond else '')} tok_d={pf(_tok_d30, '+.3f', '%')} elap={pf(elap, '.2f')} | "
         f"qs={qs} vpin={pf(vpin, '.2f')} regime={reg:<11} zone={bec or '—':<12} mac={mac or '—':<9} pc={pc or '—'} stab={(stab or '—'):<9}/{sscore} | "
         f"pre30: daccel={pf(daccel30, '+.3f')} edrift={pf(edrift30, '+.4f')} sust={'T' if aclsust else 'F' if aclsust is False else '—'} hist={'T' if has_hist else 'F' if has_hist is False else '—'} | "
         f"hr={hr:02d} hold={hold:.0f}s | "
