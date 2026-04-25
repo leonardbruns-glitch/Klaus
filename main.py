@@ -1511,8 +1511,8 @@ class KlausBot:
                 continue  # 15m disabled: WR=56% vs 5m WR=69%; BTC 15m WR=44%
 
             remaining = token.window_end_ts - now
-            if remaining > 90 or remaining <= 5:
-                continue  # enter with 5-90s remaining
+            if remaining > 90 or remaining <= 15:
+                continue  # enter with 15-90s remaining
             _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
