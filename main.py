@@ -1552,11 +1552,11 @@ class KlausBot:
             )
 
             tpsl = TPSLLevels(
-                take_profit=min(0.99, round(ask + 0.04, 4)),
-                stop_loss=max(0.01, round(ask - 0.10, 4)),
-                tp_pct=round((min(0.99, ask + 0.04) - ask) / ask * 100, 1),
-                sl_pct=round(0.10 / ask * 100, 1),
-                risk_reward=round(0.04 / 0.10, 2),
+                take_profit=0.0,
+                stop_loss=0.0,
+                tp_pct=0.0,
+                sl_pct=0.0,
+                risk_reward=0.0,
             )
 
             decision = self.risk.evaluate(

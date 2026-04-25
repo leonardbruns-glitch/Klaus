@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Trade report — run from anywhere: python3 /root/Klaus/analytics/trade_report.py
 
-Optional filter: --since "YYYY-MM-DD HH:MM"  (UTC)  [default: no filter]
+Optional flags:
+  --since "YYYY-MM-DD HH:MM"  (UTC)  filter to trades opened/closed after this time
+  --terminal                          filter to TERMINAL entry class only
 """
 import json, datetime, os, sys
 from collections import defaultdict
@@ -11,9 +13,10 @@ _ROOT       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRADES_PATH = os.path.join(_ROOT, "logs", "trades.jsonl")
 POST_PATH   = os.path.join(_ROOT, "logs", "post_exit.jsonl")
 
-# ── --since filter ────────────────────────────────────────────────────────────
+# ── CLI flags ─────────────────────────────────────────────────────────────────
 _since_ts = 0.0
 _since_arg = None
+_terminal_only = False
 for i, a in enumerate(sys.argv[1:]):
     if a == "--since" and i + 1 < len(sys.argv) - 1:
         _since_arg = sys.argv[i + 2]
@@ -24,6 +27,8 @@ for i, a in enumerate(sys.argv[1:]):
         except ValueError:
             print(f"[warn] bad --since '{_since_arg}', ignoring", file=sys.stderr)
             _since_ts = 0.0
+    if a == "--terminal":
+        _terminal_only = True
 
 with open(TRADES_PATH) as f:
     trades = [json.loads(l) for l in f if l.strip()]
@@ -32,6 +37,9 @@ if _since_ts > 0:
     trades = [t for t in trades
               if (t.get("ts_open", 0) or 0) >= _since_ts
               or (t.get("ts_close", 0) or 0) >= _since_ts]
+
+if _terminal_only:
+    trades = [t for t in trades if (t.get("bond_entry_class") or "") == "TERMINAL"]
 
 post = {}
 post_res = {}
