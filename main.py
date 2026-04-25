@@ -1489,6 +1489,7 @@ class KlausBot:
             logger.debug("[BOND] disabled — skipping")
             return
         now = time.time()
+        _utc_hour = time.gmtime(now).tm_hour
         _b_total = _b_in_window = _b_ask_skip = _b_fired = 0
         logger.debug("[BOND] scan entered — %d tokens tracked", len(self.feed.tokens))
 
@@ -1506,13 +1507,16 @@ class KlausBot:
                 continue
             _b_total += 1
 
+            if _utc_hour in (6, 18):
+                continue  # 06h WR=59% (n=32, -$8.24); 18h WR=58% (n=38, -$6.41)
+
             is_5m = 250 <= getattr(token, "window_seconds", 0) < 900
             if not is_5m:
                 continue  # 15m disabled: WR=56% vs 5m WR=69%; BTC 15m WR=44%
 
             remaining = token.window_end_ts - now
-            if remaining > 90 or remaining <= 15:
-                continue  # enter with 15-90s remaining
+            if remaining > 90 or remaining <= 25:
+                continue  # enter with 25-90s remaining; 15-25s WR=20% (n=5)
             _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
@@ -1556,6 +1560,8 @@ class KlausBot:
             _a3 = sum(q for _, q in ob.asks[:3])
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
+            if abs(_term_imb) < 0.10:
+                continue  # balanced OB: WR=44% (n=9, -$12.68); non-directional = bad TERMINAL entry
 
             signal = SniperSignal(
                 asset=token.asset,
