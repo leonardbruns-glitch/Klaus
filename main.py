@@ -1671,9 +1671,9 @@ class KlausBot:
 
             tpsl = TPSLLevels(
                 take_profit=min(0.99, round(ask + 0.04, 4)),
-                stop_loss=0.0,
+                stop_loss=round(ask * 0.85, 4),
                 tp_pct=round(0.04 / ask * 100, 1),
-                sl_pct=0.0,
+                sl_pct=15.0,
                 risk_reward=0.0,
             )
 
