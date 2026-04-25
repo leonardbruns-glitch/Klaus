@@ -3,17 +3,24 @@
 Reconstruct trades.jsonl from bot.log for the period when log_trade() was
 silently failing (TypeError from invalid kwargs).
 
+Parses actual bot.log line types:
+  - "TERMINAL ENTRY SOL/YES [5m] | ask=0.8700 rem=44s | stake=$4.35"
+  - "EXIT SOL BUY_YES | reason=BOND_TRAIL_TP | PnL=$+0.205 | capital=$15.41 | streak=1"
+  - "PATH_CLASS SOL/BUY_YES [SMOOTH_RUNNER] | conf=3 | ..."
+
+Correlates ENTRY→EXIT pairs by asset+side within the same 5m window,
+reconstructs minimal trade records and writes to logs/trades_recovered.jsonl.
+
 Usage:
     python3 analytics/reconstruct_trades.py [--dry-run] [--since "2026-04-25 11:44"]
 
-Writes recovered records to logs/trades_recovered.jsonl (never touches trades.jsonl
-directly). After reviewing, manually append:
+After reviewing:
     cat logs/trades_recovered.jsonl >> logs/trades.jsonl
 """
 
 import re, json, sys, os, datetime, time
 
-DRY_RUN  = "--dry-run" in sys.argv
+DRY_RUN   = "--dry-run" in sys.argv
 SINCE_ARG = None
 for i, a in enumerate(sys.argv):
     if a == "--since" and i + 1 < len(sys.argv):
@@ -37,8 +44,19 @@ if os.path.exists(TRD_PATH):
                     pass
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+def _parse_line_ts(prefix: str) -> float:
+    """Parse the log timestamp prefix '2026-04-25 11:44:32' → unix ts."""
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        m = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?)', prefix)
+        if m:
+            try:
+                return datetime.datetime.strptime(m.group(1), fmt) \
+                    .replace(tzinfo=datetime.timezone.utc).timestamp()
+            except ValueError:
+                continue
+    return 0.0
+
 def _f(s):
-    """Parse float or return 0.0 for — / None / empty."""
     if not s or s in ("—", "?", "None", ""):
         return 0.0
     try:
@@ -46,47 +64,6 @@ def _f(s):
     except Exception:
         return 0.0
 
-def _pct(s):
-    """Parse a value like '+91.6%@55s' → (91.6, 55)."""
-    if not s or s in ("—", "?"):
-        return 0.0, 0.0
-    m = re.match(r'([+-]?\d+\.?\d*)%(?:@(\d+)s)?', s)
-    if m:
-        return float(m.group(1)), float(m.group(2) or 0)
-    return 0.0, 0.0
-
-def _ts(date_str, time_str):
-    """Convert '04-25' + '11:44' → unix timestamp (year 2026)."""
-    try:
-        month, day = date_str.split("-")
-        hour, minute = time_str.split(":")
-        dt = datetime.datetime(2026, int(month), int(day),
-                               int(hour), int(minute), 0,
-                               tzinfo=datetime.timezone.utc)
-        return dt.timestamp()
-    except Exception:
-        return 0.0
-
-# ── trade line regex ─────────────────────────────────────────────────────────
-# Matches lines like:
-# W 04-25 11:44 SOL YES 5m BON | ep=0.8898 xp=0.9108 | ...
-TRADE_RE = re.compile(
-    r'([WL])\s+(\d{2}-\d{2})\s+(\d{2}:\d{2})\s+'
-    r'(\w+)\s+(YES|NO)\s+(\d+m)\s+(\w+)\s+\|'
-    r'.*?ep=([0-9.]+).*?xp=([0-9.]+)'
-)
-
-# Field extractors (applied to the full line)
-def _get(line, key):
-    m = re.search(rf'{re.escape(key)}=([^\s|]+)', line)
-    return m.group(1) if m else "—"
-
-def _get_snap(line, label):
-    """Extract from_entry +30s=-98.8% style."""
-    m = re.search(rf'\+30s=([+-]?[\d.]+)%', line[line.find(label):] if label in line else "")
-    return float(m.group(1)) if m else 0.0
-
-# ── parse ────────────────────────────────────────────────────────────────────
 since_ts = 0.0
 if SINCE_ARG:
     try:
@@ -95,115 +72,137 @@ if SINCE_ARG:
     except Exception:
         pass
 
-recovered = []
-counter   = 90000  # start trade IDs high to avoid collision
+# ── regexes ──────────────────────────────────────────────────────────────────
+# TERMINAL ENTRY SOL/YES [5m] | ask=0.8700 rem=44s | stake=$4.35
+RE_ENTRY = re.compile(
+    r'TERMINAL ENTRY (\w+)/(YES|NO) \[(\d+m)\] \| ask=([0-9.]+) rem=([0-9.]+)s \| stake=\$([0-9.]+)'
+)
+# EXIT SOL BUY_YES | reason=BOND_TRAIL_TP | PnL=$+0.205 | capital=$15.41 | streak=1
+RE_EXIT = re.compile(
+    r'EXIT (\w+) (BUY_YES|BUY_NO) \| reason=(\S+) \| PnL=\$([+-]?[0-9.]+) \| capital=\$([0-9.]+)'
+)
+# PATH_CLASS SOL/BUY_YES [SMOOTH_RUNNER] | conf=3 | ...
+RE_PATH = re.compile(
+    r'PATH_CLASS (\w+)/(BUY_YES|BUY_NO) \[([A-Z_]+)\] \| conf=(\d+)'
+)
+
+# ── parse log ────────────────────────────────────────────────────────────────
+# Pending entries: (asset, side) → list of entry dicts (multiple positions possible)
+pending: dict = {}   # key=(asset,side) → [entry_dict, ...]
+path_map: dict = {}  # key=(asset,direction) → path_class (overwritten, keep last)
+recovered: list = []
+counter = 90000
 
 with open(LOG_PATH) as f:
     for raw in f:
         line = raw.strip()
-        # strip logger prefix if present
-        m_prefix = re.search(r'\]\s+([WL]\s+\d{2}-\d{2}\s+\d{2}:\d{2}\s+\w+)', line)
-        if m_prefix:
-            line = line[m_prefix.start(1):]
+        ts = _parse_line_ts(line)
 
-        m = TRADE_RE.search(line)
-        if not m:
+        m = RE_ENTRY.search(line)
+        if m:
+            asset, side, wlabel, ask_s, rem_s, stake_s = m.groups()
+            ask = float(ask_s)
+            rem = float(rem_s)
+            stake = float(stake_s)
+            key = (asset, side)
+            pending.setdefault(key, []).append({
+                "ts_open": ts,
+                "asset": asset,
+                "side": side,
+                "wlabel": wlabel,
+                "ask": ask,
+                "rem": rem,
+                "stake": stake,
+            })
             continue
 
-        wl, date_s, time_s, asset, side, window, src = (
-            m.group(1), m.group(2), m.group(3),
-            m.group(4), m.group(5), m.group(6), m.group(7),
-        )
-        ep = float(m.group(8))
-        xp = float(m.group(9))
-
-        ts_open  = _ts(date_s, time_s)
-        if ts_open == 0.0:
+        m = RE_PATH.search(line)
+        if m:
+            asset, direction, pc, conf = m.groups()
+            path_map[(asset, direction)] = pc
             continue
-        if since_ts and ts_open < since_ts:
-            continue
-        if round(ts_open, 0) in existing_ts:
-            continue  # already in trades.jsonl
 
-        hold_s   = _f(_get(line, "hold").replace("s",""))
-        ts_close = ts_open + hold_s
+        m = RE_EXIT.search(line)
+        if m:
+            asset, direction, reason, pnl_s, cap_s = m.groups()
+            side = "YES" if direction == "BUY_YES" else "NO"
+            key = (asset, side)
+            entries = pending.get(key, [])
+            if not entries:
+                continue  # no matching open TERMINAL entry
 
-        stake   = _f(_get(line, "stake"))
-        fee     = _f(_get(line, "fee"))
-        gross   = _f(_get(line, "gross").replace("$",""))
-        net     = _f(_get(line, "net"))
-        cap_after = _f(_get(line, "cap"))
+            # Pop the oldest matching entry (FIFO)
+            entry = entries.pop(0)
+            if not entries:
+                pending.pop(key, None)
 
-        # shares = stake / ep
-        shares = round(stake / ep, 4) if ep > 0 else 0.0
+            net_pnl = float(pnl_s)
+            cap_after = float(cap_s)
+            ep = entry["ask"]
+            ts_open = entry["ts_open"]
+            stake = entry["stake"]
 
-        adv_s   = _get(line, "adv")
-        fav_s   = _get(line, "fav")
-        adv_pct, t_adv = _pct(adv_s)
-        fav_pct, t_fav = _pct(fav_s)
-        bounce  = _f(_get(line, "bounce10").replace("%",""))
+            if ts_open == 0.0:
+                continue
+            if since_ts and ts_open < since_ts:
+                continue
+            if round(ts_open, 0) in existing_ts:
+                continue
 
-        # from_entry snaps
-        fe_section = line[line.find("from_entry:"):] if "from_entry:" in line else ""
-        snap30 = 0.0; snap60 = 0.0
-        m30 = re.search(r'\+30s=([+-]?[\d.]+)%', fe_section)
-        m60 = re.search(r'\+60s=([+-]?[\d.]+)%', fe_section)
-        if m30: snap30 = float(m30.group(1))
-        if m60: snap60 = float(m60.group(1))
+            shares = round(stake / ep, 4) if ep > 0 else 0.0
+            # Estimate fee: gross - net. We don't have gross directly.
+            # Estimate exit_price from net_pnl: net ≈ gross - fee ≈ (xp-ep)*shares - fee
+            # Use a rough 2% round-trip fee on stake as fallback
+            fee_est = round(stake * 0.02, 4)
+            gross_est = round(net_pnl + fee_est, 4)
+            xp_est = round(ep + gross_est / shares, 4) if shares > 0 else ep
 
-        exit_reason = line.split("|")[-1].strip().split()[-1] if "|" in line else ""
-        hr_utc  = int(time_s.split(":")[0])
-        pc      = _get(line, "pc")
-        zone    = _get(line, "zone")
-        slip_e  = _f(_get(line, "slip_e"))
-        vel     = _f(_get(line, "vel").replace("%",""))
-        cwin    = int(_f(_get(line, "cwin")))
+            pc = path_map.get((asset, direction), "")
+            hold_s = round(ts - ts_open, 1) if ts > ts_open else 0.0
 
-        # max_price and min_price from ep + pcts
-        max_price = round(ep * (1 + fav_pct / 100), 4) if fav_pct else ep
-        min_price = round(ep * (1 - adv_pct / 100), 4) if adv_pct else ep
-
-        counter += 1
-        record = {
-            "trade_id":          f"REC{counter:05d}_{asset}_{int(ts_open)}",
-            "token_id":          f"recovered_{asset}_{side}_{int(ts_open)}",
-            "asset":             asset,
-            "direction":         f"BUY_{side}",
-            "market_type":       "updown",
-            "signal_source":     "BOND",
-            "ts_open":           round(ts_open, 3),
-            "ts_close":          round(ts_close, 3),
-            "entry_price":       ep,
-            "exit_price":        xp,
-            "stake":             stake,
-            "shares":            shares,
-            "gross_pnl":         gross,
-            "fee_paid":          fee,
-            "net_pnl":           net,
-            "slippage_entry":    slip_e,
-            "slippage_exit":     0.0,
-            "exit_reason":       exit_reason,
-            "hold_seconds":      hold_s,
-            "hour_utc":          hr_utc,
-            "max_price_seen":    max_price,
-            "min_price_seen":    min_price,
-            "max_favourable_pct": round(fav_pct, 2),
-            "max_adverse_pct":   round(adv_pct, 2),
-            "t_fav_s":           t_fav,
-            "t_adv_s":           t_adv,
-            "mae_bounce_10s_pct": bounce,
-            "entry_snap_30s_pct": snap30,
-            "entry_snap_60s_pct": snap60,
-            "path_class":        pc if pc != "—" else "",
-            "bond_entry_class":  zone if zone != "—" else "",
-            "window_size_s":     int(window.replace("m","")) * 60,
-            "capital_after":     cap_after,
-            "capital_before":    round(cap_after - net, 2),
-            "is_live":           True,
-            "consecutive_wins_at_entry": cwin,
-            "_recovered":        True,
-        }
-        recovered.append(record)
+            counter += 1
+            record = {
+                "trade_id":          f"REC{counter:05d}_{asset}_{int(ts_open)}",
+                "token_id":          f"recovered_{asset}_{side}_{int(ts_open)}",
+                "asset":             asset,
+                "direction":         direction,
+                "market_type":       "updown",
+                "signal_source":     "BOND",
+                "ts_open":           round(ts_open, 3),
+                "ts_close":          round(ts, 3),
+                "entry_price":       ep,
+                "exit_price":        xp_est,
+                "stake":             stake,
+                "shares":            shares,
+                "gross_pnl":         gross_est,
+                "fee_paid":          fee_est,
+                "net_pnl":           net_pnl,
+                "slippage_entry":    0.04,
+                "slippage_exit":     0.0,
+                "exit_reason":       reason,
+                "hold_seconds":      hold_s,
+                "hour_utc":          int(datetime.datetime.utcfromtimestamp(ts_open).hour),
+                "max_price_seen":    0.0,
+                "min_price_seen":    0.0,
+                "max_favourable_pct": 0.0,
+                "max_adverse_pct":   0.0,
+                "t_fav_s":           0.0,
+                "t_adv_s":           0.0,
+                "mae_bounce_10s_pct": 0.0,
+                "entry_snap_30s_pct": 0.0,
+                "entry_snap_60s_pct": 0.0,
+                "path_class":        pc,
+                "bond_entry_class":  "TERMINAL",
+                "bond_macro_regime": "TERMINAL",
+                "window_size_s":     int(entry["wlabel"].replace("m","")) * 60,
+                "capital_after":     cap_after,
+                "capital_before":    round(cap_after - net_pnl, 2),
+                "is_live":           True,
+                "consecutive_wins_at_entry": 0,
+                "_recovered":        True,
+                "_exit_price_estimated": True,
+            }
+            recovered.append(record)
 
 # ── output ───────────────────────────────────────────────────────────────────
 print(f"Found {len(recovered)} recoverable trades "
@@ -222,9 +221,15 @@ for a, pnls in sorted(by_asset.items()):
     w = sum(1 for p in pnls if p > 0)
     print(f"  {a}: n={len(pnls)} WR={w/len(pnls)*100:.0f}% sum=${sum(pnls):+.2f}")
 
+if pending:
+    print(f"\n[warn] {sum(len(v) for v in pending.values())} TERMINAL ENTRY lines had no matching EXIT:")
+    for (asset, side), entries in pending.items():
+        print(f"  {asset}/{side}: {len(entries)} unmatched")
+
 if not DRY_RUN and recovered:
     with open(OUT_PATH, "w") as f:
         for r in recovered:
             f.write(json.dumps(r) + "\n")
     print(f"\nWritten to {OUT_PATH}")
+    print("NOTE: exit_price and fees are ESTIMATED (fee ~2% round-trip of stake).")
     print(f"Review, then run:  cat {OUT_PATH} >> {TRD_PATH}")
