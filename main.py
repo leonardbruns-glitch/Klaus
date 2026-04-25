@@ -1711,6 +1711,13 @@ class KlausBot:
                 self._enter_position(token_id, token.asset, signal, tpsl, decision),
                 name=f"bond_{token.asset}_{token.side}",
             )
+            asyncio.create_task(
+                self._record_terminal_final_price(
+                    token_id, token.asset, token.side,
+                    token.window_end_ts, ask,
+                ),
+                name=f"wfp_{token.asset}_{token.side}",
+            )
           except Exception as _bond_tok_exc:
             logger.error(
                 "BOND SCAN ERROR %s/%s — skipping token: %s",
@@ -3014,6 +3021,44 @@ class KlausBot:
         except Exception as exc:
             logger.debug("_bond_llm_advisor task error (%s)", exc)
             self._bond_llm_decisions[token_id] = {"decision": "", "conf": 0.0, "reason": "task error"}
+
+    # ── TERMINAL window-final-price snapshot ─────────────────────────────────
+
+    async def _record_terminal_final_price(
+        self,
+        token_id: str,
+        asset: str,
+        side: str,
+        window_end_ts: float,
+        entry_ask: float,
+    ) -> None:
+        """Sleep until T-1s, capture token ask, write to logs/window_final_prices.jsonl."""
+        delay = window_end_ts - 1.0 - time.time()
+        if delay > 0.05:
+            await asyncio.sleep(delay)
+        ob = self.feed.get_order_book(token_id)
+        final_price: Optional[float] = ob.asks[0][0] if (ob and ob.asks) else None
+        if final_price is None:
+            hist = self._token_ask_history.get(token_id)
+            if hist:
+                final_price = hist[-1][1]
+        if final_price is None:
+            logger.debug("wfp: no price for %s/%s at T-1s", asset, side)
+            return
+        record = {
+            "token_id": token_id,
+            "asset": asset,
+            "side": side,
+            "window_end_ts": round(window_end_ts, 3),
+            "entry_ask": entry_ask,
+            "final_price": round(final_price, 4),
+            "recorded_at": round(time.time(), 3),
+        }
+        try:
+            with open("logs/window_final_prices.jsonl", "a") as _wfp_f:
+                _wfp_f.write(json.dumps(record) + "\n")
+        except Exception as _wfp_exc:
+            logger.warning("wfp log failed: %s", _wfp_exc)
 
     # ── BOND precise timer ────────────────────────────────────────────────────
 

@@ -12,6 +12,7 @@ from collections import defaultdict
 _ROOT       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRADES_PATH = os.path.join(_ROOT, "logs", "trades.jsonl")
 POST_PATH   = os.path.join(_ROOT, "logs", "post_exit.jsonl")
+WFP_PATH    = os.path.join(_ROOT, "logs", "window_final_prices.jsonl")
 
 # ── CLI flags ─────────────────────────────────────────────────────────────────
 _since_ts = 0.0
@@ -55,6 +56,21 @@ if os.path.exists(POST_PATH):
                     post_res[tid] = r   # window-end resolution record
                 else:
                     post[tid] = r       # T+30s/60s/120s record
+
+# Window-final-price snapshots: token ask at T-1s (keyed by token_id)
+# Multiple entries possible per token_id — keep the latest by window_end_ts
+_wfp: dict = {}  # token_id → {entry_ask, final_price, window_end_ts}
+if os.path.exists(WFP_PATH):
+    with open(WFP_PATH) as f:
+        for l in f:
+            if l.strip():
+                r = json.loads(l)
+                tid = r.get("token_id", "")
+                if not tid:
+                    continue
+                prev = _wfp.get(tid)
+                if prev is None or r.get("window_end_ts", 0) > prev.get("window_end_ts", 0):
+                    _wfp[tid] = r
 
 def g(t, k, d=None):
     return t.get(k, d)
@@ -1006,6 +1022,50 @@ def _run_bond_report(bond_trades, label="ALL"):
              (0.0,0.0001,"flat     (=0%)"),
              (0.0001,1.0,"flat-pos (0 to +1%)"), (1.0,99,"rising   (>+1%)")],
             _tw, _tl)
+
+        # ── Window final price: exit vs T-1s counterfactual ──────────────────
+        _wfp_matched = [
+            (t, _wfp[t.get("token_id", "")]) for t in _term_obs
+            if t.get("token_id", "") in _wfp
+        ]
+        if _wfp_matched:
+            print(f"\n── WINDOW FINAL PRICE vs EXIT PRICE (T-1s counterfactual, n={len(_wfp_matched)}) ─────")
+            print(f"  {'asset/side':<14} {'entry':>7} {'exit':>7} {'T-1s':>7} {'held_vs_end':>12}  exit_reason")
+            _sold_early = _sold_late = _sold_right = _saved_count = 0
+            _held_gains = []
+            _held_losses = []
+            for t, wfp in _wfp_matched:
+                ep   = float(t.get("entry_price", 0) or 0)
+                xp   = float(t.get("exit_price", 0) or 0)
+                fp   = float(wfp.get("final_price", 0) or 0)
+                pnl  = float(t.get("net_pnl", 0) or 0)
+                xr   = t.get("exit_reason", "")
+                shrs = float(t.get("shares", 0) or 1)
+                if ep <= 0 or xp <= 0 or fp <= 0:
+                    continue
+                # counterfactual: what net_pnl if held to T-1s
+                cf_gross = (fp - ep) * shrs
+                cf_net   = cf_gross - float(t.get("fee_paid", 0) or 0)
+                diff     = cf_net - pnl  # >0 = we left money; <0 = trail SL saved us
+                lbl = t.get("asset","?") + "/" + t.get("direction","?").replace("BUY_","")
+                if fp > xp + 0.005:
+                    _sold_early += 1
+                    _held_gains.append(diff)
+                elif fp < xp - 0.005:
+                    _sold_late += 1
+                    _held_losses.append(diff)
+                    if pnl > 0 and cf_net <= 0:
+                        _saved_count += 1
+                else:
+                    _sold_right += 1
+                sign = f"+${diff:.2f}" if diff >= 0 else f"-${abs(diff):.2f}"
+                print(f"  {lbl:<14} {ep:>7.4f} {xp:>7.4f} {fp:>7.4f} {sign:>12}  {xr}")
+            n_wfp = len(_wfp_matched)
+            print(f"\n  sold before peak (T-1s higher): {_sold_early}/{n_wfp}  avg left=${sum(_held_gains)/max(1,len(_held_gains)):+.2f}")
+            print(f"  sold at/near peak:               {_sold_right}/{n_wfp}")
+            print(f"  trail SL caught drop (T-1s lower): {_sold_late}/{n_wfp}  avg saved=${-sum(_held_losses)/max(1,len(_held_losses)):+.2f}")
+            if _saved_count:
+                print(f"  trail SL converted loss→win:     {_saved_count}")
 
     # ── LLM shadow advisor performance ───────────────────────────────────────
     _llm_trades = [t for t in bond_trades if t.get("bond_llm_decision") in ("TAKE", "SKIP")]
