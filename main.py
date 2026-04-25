@@ -1506,23 +1506,22 @@ class KlausBot:
                 continue
             _b_total += 1
 
-            is_15m = getattr(token, "window_seconds", 0) >= 900
-            is_5m  = 250 <= getattr(token, "window_seconds", 0) < 900
-            if not (is_5m or is_15m):
-                continue
+            is_5m = 250 <= getattr(token, "window_seconds", 0) < 900
+            if not is_5m:
+                continue  # 15m disabled: WR=56% vs 5m WR=69%; BTC 15m WR=44%
 
             remaining = token.window_end_ts - now
-            if remaining > 60 or remaining <= 5:
-                continue
+            if remaining > 60 or remaining <= 20:
+                continue  # require 20-60s remaining; <20s entries have WR=48% (TIME_EXIT cohort)
             _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            if ask is None or not (0.80 <= ask <= 0.95):
+            if ask is None or not (0.80 <= ask <= 0.88):
                 _b_ask_skip += 1
-                continue
+                continue  # cap at 0.88: ep=0.89-0.92 worst bucket (-$15.31), ep=0.95+ WR=56%
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
@@ -1590,9 +1589,9 @@ class KlausBot:
             signal.term_remaining_s    = round(remaining, 1)
 
             tpsl = TPSLLevels(
-                take_profit=0.0,
+                take_profit=min(0.99, round(ask + 0.04, 4)),
                 stop_loss=0.0,
-                tp_pct=0.0,
+                tp_pct=round(0.04 / ask * 100, 1),
                 sl_pct=0.0,
                 risk_reward=0.0,
             )
