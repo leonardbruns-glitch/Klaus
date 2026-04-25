@@ -744,33 +744,9 @@ class KlausBot:
                     not self.macro_engine._enabled
                     or (_held_s > 30.0 and (now - _last_good_eval) > 30.0)
                 )
-                # TERMINAL trail stop: once TP price is touched, it becomes the exit floor.
-                # Fires regardless of _api_dead — always active once TP is touched.
+                # TERMINAL trail stop: disabled (BOND_TRAIL_TP n=16 WR=69% sum=-$1.55)
+                # Positions now hold to LLM_TP_FALLBACK or BOND_DEADLINE.
                 _is_terminal_pos = getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                if (_is_terminal_pos
-                        and token_id not in self._exit_in_progress
-                        and _held_s >= 5.0):
-                    if pos.tp > 0 and current_price >= pos.tp:
-                        if token_id not in self._terminal_tp_touched:
-                            self._terminal_tp_touched.add(token_id)
-                            logger.info(
-                                'TERMINAL TP TOUCH %s/%s | price=%.4f tp_floor=%.4f rem=%.0fs'
-                                ' — holding, trail floor locked',
-                                pos.asset, pos.direction.name,
-                                current_price, pos.tp, bond_remaining,
-                            )
-                    elif token_id in self._terminal_tp_touched and current_price < pos.tp:
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            'BOND_TRAIL_TP %s/%s | price=%.4f fell below floor=%.4f rem=%.0fs',
-                            pos.asset, pos.direction.name,
-                            current_price, pos.tp, bond_remaining,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, 'BOND_TRAIL_TP')
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
 
                 if (_api_dead
                         and token_id not in self._exit_in_progress
