@@ -4018,6 +4018,7 @@ class KlausBot:
             _r30 = (_s30 - _ep) / _ep * 100 if _ep > 0 and _s30 > 0 else None
             _r60 = (_s60 - _ep) / _ep * 100 if _ep > 0 and _s60 > 0 else None
             _max_adv = ((_ep - _lowest_price) / _ep * 100) if _ep > 0 and _lowest_price > 0 else 0.0
+            _max_fav = ((_highest_price - _ep) / _ep * 100) if _ep > 0 and _highest_price > 0 else 0.0
             _hold_s = time.time() - meta.get("ts_open", pos.open_ts)
             _path_class, _path_conf, _path_reason = _classify_path(
                 r30=_r30, r60=_r60, max_adv_pct=_max_adv, hold_s=_hold_s,
@@ -4070,6 +4071,8 @@ class KlausBot:
                     llm_rec_conf=meta.get("llm_rec_conf", 0.0),
                     max_price_seen=_highest_price,
                     min_price_seen=_lowest_price,
+                    max_favourable_pct=round(_max_fav, 2),
+                    max_adverse_pct=round(_max_adv, 2),
                     highest_price_ts=pos.highest_price_ts,
                     lowest_price_ts=pos.lowest_price_ts,
                     binance_price_at_entry=pos.binance_price_at_entry,
