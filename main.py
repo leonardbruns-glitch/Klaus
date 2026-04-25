@@ -1558,8 +1558,8 @@ class KlausBot:
                 continue
             _b_total += 1
 
-            if _utc_hour in (6, 18):
-                continue  # 06h WR=59% (n=32, -$8.24); 18h WR=58% (n=38, -$6.41)
+            if _utc_hour in (6, 18, 21):
+                continue  # 06h WR=59% (n=32, -$8.24); 18h WR=58% (n=38, -$6.41); 21h WR=33% (n=9, -$9.19)
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:
