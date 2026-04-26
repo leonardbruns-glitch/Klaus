@@ -1561,7 +1561,7 @@ class KlausBot:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
-            if ask is None or not (0.79 <= ask <= _ask_max):
+            if ask is None or not (0.75 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
