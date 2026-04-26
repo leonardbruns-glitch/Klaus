@@ -1532,8 +1532,8 @@ class KlausBot:
             _b_total += 1
 
             _BLOCKED_HOURS: dict = {
-                "BTC": {2, 6, 10, 13, 14, 16, 18, 21},  # 13h WR=44%, 14h WR=29%, 16h WR=44%
-                "ETH": {6, 10, 13, 16, 18, 21},          # 13h WR=38%, 16h WR=43%
+                "BTC": {2, 6, 10, 18, 21},  # BTC 02h WR=33% n=9; validated n≥20 per bucket
+                "ETH": {6, 10, 18, 21},
                 "SOL": {6, 10, 18, 21},
             }
             if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 10, 18, 21}):
@@ -1557,13 +1557,13 @@ class KlausBot:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
-            if ask is None or not (0.84 <= ask <= _ask_max):
+            if ask is None or not (0.79 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min raised 0.75→0.84: ep=0.84-0.88 WR=83% (n=201 today); ep<0.84 all negative
+                continue  # min 0.79; ep=0.89-0.92 worst bucket capped at 0.88
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
