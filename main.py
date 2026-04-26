@@ -1631,9 +1631,6 @@ class KlausBot:
                     if _hts <= _cutoff30:
                         _tok_has_hist = True
                         break
-            if not _tok_has_hist:
-                continue  # no_hist cold-start: WR=45% n=11 sum=-$21.09 today
-
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
