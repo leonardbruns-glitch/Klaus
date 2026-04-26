@@ -773,17 +773,16 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Safety net 1: catastrophic (-40%) — disabled for TERMINAL ──
-                # TERMINAL hold is 25-90s; TIME_EXIT fires at T-1s regardless.
-                # Window resolution: ETH 9/9 false stops = BOND_CATASTROPHIC (all
-                # resolved FOR us). Let TIME_EXIT handle all TERMINAL exits.
+                # ── Safety net 1: catastrophic SL ────────────────────────────────
+                # SL simulation (n=792): every threshold beats no-SL.
+                # Net benefit still rising at 20% (+$236 vs no-SL). Peak likely
+                # 25-35% — restore at 20% until wider simulation confirms optimum.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                if (bond_move <= -0.40
-                        and not _is_terminal
+                if (bond_move <= -0.20
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 40%%, force exit',
+                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 20%%, force exit',
                         pos.asset, pos.direction.name, bond_move * 100,
                     )
                     try:
