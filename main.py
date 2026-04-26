@@ -1534,8 +1534,13 @@ class KlausBot:
                 continue
             _b_total += 1
 
-            if _utc_hour in (6, 18, 21):
-                continue  # 06h WR=59% (n=32, -$8.24); 18h WR=58% (n=38, -$6.41); 21h WR=33% (n=9, -$9.19)
+            _BLOCKED_HOURS: dict = {
+                "BTC": {6, 18, 21, 2},   # BTC 02h WR=33% n=9; 06/18/21h global
+                "ETH": {6, 18, 21},
+                "SOL": {6, 18, 21},
+            }
+            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 18, 21}):
+                continue  # 06h WR=59% (n=32,-$8.24); 18h WR=58% (n=38,-$6.41); 21h WR=33% (n=9,-$9.19)
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:
@@ -1554,13 +1559,14 @@ class KlausBot:
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            if ask is None or not (0.75 <= ask <= 0.88):
+            _ask_max = 0.82 if token.asset == "ETH" else 0.88  # ETH ep=0.83-0.86 n=13 sum=-$9.63
+            if ask is None or not (0.75 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # cap at 0.88: ep=0.89-0.92 worst bucket (-$15.31), ep=0.95+ WR=56%
+                continue  # cap at 0.88 (0.82 ETH): ep=0.89-0.92 worst bucket (-$15.31), ep=0.95+ WR=56%
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
