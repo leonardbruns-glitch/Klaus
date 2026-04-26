@@ -865,6 +865,64 @@ class FeedbackEngine:
                     "net_pnl": round(sum(t.net_pnl for t in no_trades), 3)},
         }
 
+        # ── Direction breakdown (ALL trades — BUY_YES vs BUY_NO) ──────────────
+        # ob_imbalance is always on the YES token axis.
+        # For BUY_YES: positive ob_imb = bid pressure on our token = favorable → keep sign.
+        # For BUY_NO:  positive ob_imb = bid pressure on YES = sell pressure on NO = unfavorable → invert.
+        # "dir-adjusted" imbalance: positive always means favorable for the position held.
+        def _dir_stats_detail(bucket: list, is_buy_yes: bool) -> dict:
+            if not bucket:
+                return {"n": 0, "wr": 0.0, "net_pnl": 0.0,
+                        "avg_ob_imb_all": 0.0, "avg_ob_imb_wins": 0.0, "avg_ob_imb_losses": 0.0,
+                        "avg_tok_d30": 0.0, "avg_tok_d30_wins": 0.0, "avg_tok_d30_losses": 0.0,
+                        "avg_ask_qty": 0.0, "avg_ask_spread_pct": 0.0}
+            wins_b  = [t for t in bucket if t.net_pnl > 0]
+            losses_b = [t for t in bucket if t.net_pnl <= 0]
+            # only use records where TERMINAL fields were populated
+            has_term = [t for t in bucket  if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
+            wins_t   = [t for t in wins_b  if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
+            losses_t = [t for t in losses_b if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
+            sign = 1.0 if is_buy_yes else -1.0
+            return {
+                "n": len(bucket),
+                "wr": round(len(wins_b) / len(bucket), 3),
+                "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
+                "avg_ob_imb_all":    round(_avg([t.term_ob_imbalance * sign for t in has_term]), 4),
+                "avg_ob_imb_wins":   round(_avg([t.term_ob_imbalance * sign for t in wins_t]), 4),
+                "avg_ob_imb_losses": round(_avg([t.term_ob_imbalance * sign for t in losses_t]), 4),
+                "avg_tok_d30":       round(_avg([t.term_token_delta_30s * sign for t in has_term]), 4),
+                "avg_tok_d30_wins":  round(_avg([t.term_token_delta_30s * sign for t in wins_t]), 4),
+                "avg_tok_d30_losses":round(_avg([t.term_token_delta_30s * sign for t in losses_t]), 4),
+                "avg_ask_qty":       round(_avg([t.term_ask_qty for t in has_term]), 2),
+                "avg_ask_spread_pct":round(_avg([t.term_ask_spread_pct for t in has_term]), 3),
+            }
+
+        buy_yes_all = [t for t in trades if t.direction == "BUY_YES"]
+        buy_no_all  = [t for t in trades if t.direction == "BUY_NO"]
+        by_direction = {
+            "BUY_YES": _dir_stats_detail(buy_yes_all, is_buy_yes=True),
+            "BUY_NO":  _dir_stats_detail(buy_no_all,  is_buy_yes=False),
+        }
+
+        # Per-asset × direction breakdown
+        by_asset_dir: Dict[str, dict] = {}
+        for t in trades:
+            key = f"{t.asset}_{t.direction}"
+            bucket = by_asset_dir.setdefault(key, {"trades": [], "asset": t.asset, "direction": t.direction})
+            bucket["trades"].append(t)
+        asset_dir_stats: Dict[str, dict] = {}
+        for key, info in by_asset_dir.items():
+            bkt = info["trades"]
+            is_yes = info["direction"] == "BUY_YES"
+            wins_a = [t for t in bkt if t.net_pnl > 0]
+            asset_dir_stats[key] = {
+                "asset": info["asset"],
+                "direction": info["direction"],
+                "n": len(bkt),
+                "wr": round(len(wins_a) / len(bkt), 3),
+                "net_pnl": round(sum(t.net_pnl for t in bkt), 3),
+            }
+
         # ── Exit reason breakdown ─────────────────────────────────────────────
         exit_reasons: Dict[str, list] = {}
         for t in trades:
@@ -956,6 +1014,8 @@ class FeedbackEngine:
             "prearm_stats": prearm_stats,
             "side_stats": side_stats,
             "by_exit_reason": by_exit_reason,
+            "by_direction": by_direction,
+            "asset_dir_stats": asset_dir_stats,
             # Kelly Criterion validation data — analytics only, no stake changes yet
             "lag_tier_stats": lag_tier_stats,
             "delta_tier_stats": delta_tier_stats,
@@ -1201,6 +1261,47 @@ class FeedbackEngine:
             lines += ["", "BY SIDE (sniper trades)"]
             lines.append(f"  YES: n={yes_s.get('n',0):3d}  WR={yes_s.get('wr',0):.1%}  PnL=${yes_s.get('net_pnl',0):.3f}  (asset moved UP)")
             lines.append(f"  NO:  n={no_s.get('n',0):3d}  WR={no_s.get('wr',0):.1%}  PnL=${no_s.get('net_pnl',0):.3f}  (asset moved DOWN)")
+
+        # ── Direction breakdown (BUY_YES vs BUY_NO, all trades) ──────────────
+        bd = metrics.get("by_direction", {})
+        yes_d = bd.get("BUY_YES", {})
+        no_d  = bd.get("BUY_NO",  {})
+        if yes_d.get("n", 0) + no_d.get("n", 0) > 0:
+            lines += ["", "BY DIRECTION (all trades — ob_imb/tok_d30 adjusted: +value = favorable for that side)"]
+            for dname, ds in [("BUY_YES", yes_d), ("BUY_NO", no_d)]:
+                if ds.get("n", 0) == 0:
+                    continue
+                label = "bet UP  " if dname == "BUY_YES" else "bet DOWN"
+                lines.append(
+                    f"  {dname} ({label}): n={ds['n']:3d}  WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
+                )
+                if ds.get("avg_ask_qty", 0) > 0 or ds.get("avg_ob_imb_all", 0) != 0:
+                    lines.append(
+                        f"    ob_imb(adj): all={ds.get('avg_ob_imb_all',0):+.3f}  "
+                        f"wins={ds.get('avg_ob_imb_wins',0):+.3f}  "
+                        f"losses={ds.get('avg_ob_imb_losses',0):+.3f}"
+                    )
+                    lines.append(
+                        f"    tok_d30(adj): all={ds.get('avg_tok_d30',0):+.4f}%  "
+                        f"wins={ds.get('avg_tok_d30_wins',0):+.4f}%  "
+                        f"losses={ds.get('avg_tok_d30_losses',0):+.4f}%"
+                    )
+                    lines.append(
+                        f"    ask_qty={ds.get('avg_ask_qty',0):.1f}sh  "
+                        f"spread={ds.get('avg_ask_spread_pct',0):.2f}%"
+                    )
+            lines.append("  (ob_imb for BUY_NO is sign-inverted: positive = bid pressure on NO token = favorable)")
+
+        # ── Per-asset × direction breakdown ────────────────────────────────────
+        ads = metrics.get("asset_dir_stats", {})
+        if ads:
+            lines += ["", "BY ASSET × DIRECTION"]
+            for key in sorted(ads.keys()):
+                ds = ads[key]
+                lines.append(
+                    f"  {ds['asset']:3s} {ds['direction']:7s}: n={ds['n']:3d}  "
+                    f"WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
+                )
 
         # ── VPIN signal impact ────────────────────────────────────────────────
         vi = metrics.get("vpin_impact", {})

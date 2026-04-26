@@ -656,9 +656,9 @@ class RiskManager:
         max_pct = 0.50
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
-        # BOND stake cap: $1.50 per user instruction 2026-04-26
+        # BOND stake cap: $4.00 per user instruction 2026-04-26
         if getattr(signal, "signal_source", "") == "BOND":
-            stake = min(stake, 1.50)
+            stake = min(stake, 4.00)
 
         # RR gate — BOND exempt: LLM sets its own TP/SL and is responsible for RR.
         if not _is_bond:
