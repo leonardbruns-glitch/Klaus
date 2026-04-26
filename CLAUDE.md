@@ -25,6 +25,14 @@ Capital: $100. Objective: compound it systematically using Polymarket binary mar
 
 ---
 
+## CODING DISCIPLINE
+1. **Think before coding** — state the goal and root cause before touching any file.
+2. **Simplicity first** — the simplest change that achieves the goal is the right change.
+3. **Surgical edits only** — change the minimum lines necessary. No cleanup, no refactoring, no extras.
+4. **Goal-driven targets** — define what success looks like (metric, threshold, behaviour) before starting. If the target isn't clear, ask.
+
+---
+
 ## ANTI-SYCOPHANCY RULES
 These exist because AI agents systematically rationalize errors rather than correct them.
 
