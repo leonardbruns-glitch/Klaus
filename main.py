@@ -776,8 +776,6 @@ class KlausBot:
                 # ── Safety net 1: catastrophic (-70%) with zero recovery ──────────
                 # Position is effectively worthless — LLM can't recover from here.
                 if (bond_move <= -0.70
-                        and self._peak_bond_move.get(token_id, 0.0) == 0.0
-                        and _held_s >= 10.0
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
