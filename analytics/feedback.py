@@ -149,6 +149,7 @@ class TradeRecord:
     path_reason: str = ""
     entry_snap_30s_pct: float = 0.0   # token return vs entry at T+30s (0 if not captured)
     entry_snap_60s_pct: float = 0.0   # token return vs entry at T+60s (0 if not captured)
+    bond_outcome_direction: str = ""  # "up" or "down" — which asset direction makes YES resolve 1
     bond_entry_class: str = ""        # BOND zone/velocity at entry e.g. "CORE/hot", "IMPULSE/hot"
     # EARLY-zone adj_edge modifier instrumentation (evaluation phase — analytics only)
     bond_delta_penalty: float = 0.0        # 0.0–0.30, proportional |delta|>0.05 soft penalty applied
@@ -387,6 +388,7 @@ class FeedbackEngine:
         entry_snap_30s_pct: float = 0.0,
         entry_snap_60s_pct: float = 0.0,
         bond_entry_class: str = "",
+        bond_outcome_direction: str = "",
         bond_macro_regime: str = "",
         mae_bounce_10s_pct: float = 0.0,
         bond_stab_class: str = "",
@@ -605,6 +607,7 @@ class FeedbackEngine:
             entry_snap_30s_pct=round(entry_snap_30s_pct, 2),
             entry_snap_60s_pct=round(entry_snap_60s_pct, 2),
             bond_entry_class=bond_entry_class,
+            bond_outcome_direction=bond_outcome_direction,
             bond_delta_penalty=round(float(getattr(signal, "bond_delta_penalty", 0.0)), 4),
             bond_weak_vel_penalty=round(float(getattr(signal, "bond_weak_vel_penalty", 0.0)), 4),
             bond_macro_regime=bond_macro_regime,
@@ -865,59 +868,67 @@ class FeedbackEngine:
                     "net_pnl": round(sum(t.net_pnl for t in no_trades), 3)},
         }
 
-        # ── Direction breakdown (ALL trades — BUY_YES vs BUY_NO) ──────────────
-        # ob_imbalance is always on the YES token axis.
-        # For BUY_YES: positive ob_imb = bid pressure on our token = favorable → keep sign.
-        # For BUY_NO:  positive ob_imb = bid pressure on YES = sell pressure on NO = unfavorable → invert.
-        # "dir-adjusted" imbalance: positive always means favorable for the position held.
-        def _dir_stats_detail(bucket: list, is_buy_yes: bool) -> dict:
+        # ── Direction breakdown (YES_UP vs YES_DOWN, all trades) ─────────────
+        # All TERMINAL trades buy YES tokens. The distinction is the market:
+        # YES_UP  ("up"):   YES resolves 1 if asset price goes UP (above threshold)
+        # YES_DOWN ("down"): YES resolves 1 if asset price goes DOWN (below threshold)
+        # Both buy YES tokens at 0.70-0.88 and win by reaching 1.0 — same token mechanics,
+        # different underlying bet. ob_imbalance and tok_d30 are identical for both
+        # (positive = bid pressure on our YES token = favorable regardless of market direction).
+        # spot_delta_30s differs: for YES_UP wins want positive, for YES_DOWN wins want negative.
+        def _dir_stats_detail(bucket: list) -> dict:
             if not bucket:
                 return {"n": 0, "wr": 0.0, "net_pnl": 0.0,
                         "avg_ob_imb_all": 0.0, "avg_ob_imb_wins": 0.0, "avg_ob_imb_losses": 0.0,
                         "avg_tok_d30": 0.0, "avg_tok_d30_wins": 0.0, "avg_tok_d30_losses": 0.0,
+                        "avg_spot_d30": 0.0, "avg_spot_d30_wins": 0.0, "avg_spot_d30_losses": 0.0,
                         "avg_ask_qty": 0.0, "avg_ask_spread_pct": 0.0}
-            wins_b  = [t for t in bucket if t.net_pnl > 0]
+            wins_b   = [t for t in bucket if t.net_pnl > 0]
             losses_b = [t for t in bucket if t.net_pnl <= 0]
-            # only use records where TERMINAL fields were populated
             has_term = [t for t in bucket  if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
             wins_t   = [t for t in wins_b  if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
             losses_t = [t for t in losses_b if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
-            sign = 1.0 if is_buy_yes else -1.0
+            has_spot = [t for t in bucket  if t.term_spot_delta_30s != 0]
+            wins_s   = [t for t in wins_b  if t.term_spot_delta_30s != 0]
+            losses_s = [t for t in losses_b if t.term_spot_delta_30s != 0]
             return {
                 "n": len(bucket),
                 "wr": round(len(wins_b) / len(bucket), 3),
                 "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
-                "avg_ob_imb_all":    round(_avg([t.term_ob_imbalance * sign for t in has_term]), 4),
-                "avg_ob_imb_wins":   round(_avg([t.term_ob_imbalance * sign for t in wins_t]), 4),
-                "avg_ob_imb_losses": round(_avg([t.term_ob_imbalance * sign for t in losses_t]), 4),
-                "avg_tok_d30":       round(_avg([t.term_token_delta_30s * sign for t in has_term]), 4),
-                "avg_tok_d30_wins":  round(_avg([t.term_token_delta_30s * sign for t in wins_t]), 4),
-                "avg_tok_d30_losses":round(_avg([t.term_token_delta_30s * sign for t in losses_t]), 4),
-                "avg_ask_qty":       round(_avg([t.term_ask_qty for t in has_term]), 2),
-                "avg_ask_spread_pct":round(_avg([t.term_ask_spread_pct for t in has_term]), 3),
+                "avg_ob_imb_all":     round(_avg([t.term_ob_imbalance for t in has_term]), 4),
+                "avg_ob_imb_wins":    round(_avg([t.term_ob_imbalance for t in wins_t]),   4),
+                "avg_ob_imb_losses":  round(_avg([t.term_ob_imbalance for t in losses_t]), 4),
+                "avg_tok_d30":        round(_avg([t.term_token_delta_30s for t in has_term]), 4),
+                "avg_tok_d30_wins":   round(_avg([t.term_token_delta_30s for t in wins_t]),   4),
+                "avg_tok_d30_losses": round(_avg([t.term_token_delta_30s for t in losses_t]), 4),
+                "avg_spot_d30":       round(_avg([t.term_spot_delta_30s for t in has_spot]), 4),
+                "avg_spot_d30_wins":  round(_avg([t.term_spot_delta_30s for t in wins_s]),   4),
+                "avg_spot_d30_losses":round(_avg([t.term_spot_delta_30s for t in losses_s]), 4),
+                "avg_ask_qty":        round(_avg([t.term_ask_qty for t in has_term]), 2),
+                "avg_ask_spread_pct": round(_avg([t.term_ask_spread_pct for t in has_term]), 3),
             }
 
-        buy_yes_all = [t for t in trades if t.direction == "BUY_YES"]
-        buy_no_all  = [t for t in trades if t.direction == "BUY_NO"]
+        yes_up_trades   = [t for t in trades if getattr(t, "bond_outcome_direction", "") == "up"]
+        yes_down_trades = [t for t in trades if getattr(t, "bond_outcome_direction", "") == "down"]
         by_direction = {
-            "BUY_YES": _dir_stats_detail(buy_yes_all, is_buy_yes=True),
-            "BUY_NO":  _dir_stats_detail(buy_no_all,  is_buy_yes=False),
+            "YES_UP":   _dir_stats_detail(yes_up_trades),
+            "YES_DOWN": _dir_stats_detail(yes_down_trades),
         }
 
-        # Per-asset × direction breakdown
+        # Per-asset × outcome-direction breakdown
         by_asset_dir: Dict[str, dict] = {}
         for t in trades:
-            key = f"{t.asset}_{t.direction}"
-            bucket = by_asset_dir.setdefault(key, {"trades": [], "asset": t.asset, "direction": t.direction})
+            odir = getattr(t, "bond_outcome_direction", "") or t.direction
+            key = f"{t.asset}_{odir}"
+            bucket = by_asset_dir.setdefault(key, {"trades": [], "asset": t.asset, "odir": odir})
             bucket["trades"].append(t)
         asset_dir_stats: Dict[str, dict] = {}
         for key, info in by_asset_dir.items():
             bkt = info["trades"]
-            is_yes = info["direction"] == "BUY_YES"
             wins_a = [t for t in bkt if t.net_pnl > 0]
             asset_dir_stats[key] = {
                 "asset": info["asset"],
-                "direction": info["direction"],
+                "direction": info["odir"],
                 "n": len(bkt),
                 "wr": round(len(wins_a) / len(bkt), 3),
                 "net_pnl": round(sum(t.net_pnl for t in bkt), 3),
@@ -1262,44 +1273,49 @@ class FeedbackEngine:
             lines.append(f"  YES: n={yes_s.get('n',0):3d}  WR={yes_s.get('wr',0):.1%}  PnL=${yes_s.get('net_pnl',0):.3f}  (asset moved UP)")
             lines.append(f"  NO:  n={no_s.get('n',0):3d}  WR={no_s.get('wr',0):.1%}  PnL=${no_s.get('net_pnl',0):.3f}  (asset moved DOWN)")
 
-        # ── Direction breakdown (BUY_YES vs BUY_NO, all trades) ──────────────
+        # ── YES_UP vs YES_DOWN direction breakdown ────────────────────────────
         bd = metrics.get("by_direction", {})
-        yes_d = bd.get("BUY_YES", {})
-        no_d  = bd.get("BUY_NO",  {})
-        if yes_d.get("n", 0) + no_d.get("n", 0) > 0:
-            lines += ["", "BY DIRECTION (all trades — ob_imb/tok_d30 adjusted: +value = favorable for that side)"]
-            for dname, ds in [("BUY_YES", yes_d), ("BUY_NO", no_d)]:
+        up_d   = bd.get("YES_UP",   {})
+        down_d = bd.get("YES_DOWN", {})
+        if up_d.get("n", 0) + down_d.get("n", 0) > 0:
+            lines += ["", "BY DIRECTION (YES_UP = above-threshold market / YES_DOWN = below-threshold)"]
+            lines.append("  Both buy YES tokens; both win by reaching 1.0 — market direction differs.")
+            for dname, ds in [("YES_UP", up_d), ("YES_DOWN", down_d)]:
                 if ds.get("n", 0) == 0:
                     continue
-                label = "bet UP  " if dname == "BUY_YES" else "bet DOWN"
                 lines.append(
-                    f"  {dname} ({label}): n={ds['n']:3d}  WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
+                    f"  {dname}: n={ds['n']:3d}  WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
                 )
                 if ds.get("avg_ask_qty", 0) > 0 or ds.get("avg_ob_imb_all", 0) != 0:
                     lines.append(
-                        f"    ob_imb(adj): all={ds.get('avg_ob_imb_all',0):+.3f}  "
+                        f"    ob_imb: all={ds.get('avg_ob_imb_all',0):+.3f}  "
                         f"wins={ds.get('avg_ob_imb_wins',0):+.3f}  "
                         f"losses={ds.get('avg_ob_imb_losses',0):+.3f}"
                     )
                     lines.append(
-                        f"    tok_d30(adj): all={ds.get('avg_tok_d30',0):+.4f}%  "
+                        f"    tok_d30: all={ds.get('avg_tok_d30',0):+.4f}%  "
                         f"wins={ds.get('avg_tok_d30_wins',0):+.4f}%  "
                         f"losses={ds.get('avg_tok_d30_losses',0):+.4f}%"
+                    )
+                    lines.append(
+                        f"    spot_d30: all={ds.get('avg_spot_d30',0):+.4f}%  "
+                        f"wins={ds.get('avg_spot_d30_wins',0):+.4f}%  "
+                        f"losses={ds.get('avg_spot_d30_losses',0):+.4f}%"
+                        f"  (YES_UP: positive=favorable; YES_DOWN: negative=favorable)"
                     )
                     lines.append(
                         f"    ask_qty={ds.get('avg_ask_qty',0):.1f}sh  "
                         f"spread={ds.get('avg_ask_spread_pct',0):.2f}%"
                     )
-            lines.append("  (ob_imb for BUY_NO is sign-inverted: positive = bid pressure on NO token = favorable)")
 
-        # ── Per-asset × direction breakdown ────────────────────────────────────
+        # ── Per-asset × outcome-direction breakdown ────────────────────────────
         ads = metrics.get("asset_dir_stats", {})
         if ads:
             lines += ["", "BY ASSET × DIRECTION"]
             for key in sorted(ads.keys()):
                 ds = ads[key]
                 lines.append(
-                    f"  {ds['asset']:3s} {ds['direction']:7s}: n={ds['n']:3d}  "
+                    f"  {ds['asset']:3s} {ds['direction']:8s}: n={ds['n']:3d}  "
                     f"WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
                 )
 

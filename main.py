@@ -4137,6 +4137,7 @@ class KlausBot:
                     entry_snap_30s_pct=_r30 if _r30 is not None else 0.0,
                     entry_snap_60s_pct=_r60 if _r60 is not None else 0.0,
                     bond_entry_class=pos.bond_entry_class,
+                    bond_outcome_direction=getattr(signal, "bond_outcome_direction", "") or getattr(pos, "bond_outcome_direction", ""),
                     bond_macro_regime=pos.bond_macro_regime,
                     mae_bounce_10s_pct=_bounce_pct,
                     bond_stab_class=getattr(signal, "bond_stab_class", ""),
