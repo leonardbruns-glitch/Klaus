@@ -775,11 +775,11 @@ class KlausBot:
 
                 # ── Safety net 1: catastrophic (-70%) with zero recovery ──────────
                 # Position is effectively worthless — LLM can't recover from here.
-                if (bond_move <= -0.70
+                if (bond_move <= -0.25
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — position worthless, force exit',
+                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 25%%, force exit',
                         pos.asset, pos.direction.name, bond_move * 100,
                     )
                     try:
@@ -1616,6 +1616,19 @@ class KlausBot:
             _term_tok_d30 = _token_delta(_tok_hist, 30)
             _term_tok_d60 = _token_delta(_tok_hist, 60)
 
+            # Trajectory fields for report analysis (bond_delta_accel_30s etc.)
+            # Map token ask velocity → bond_delta_accel_30s (fraction: +0.05 = token up 5% in 30s)
+            _tok_accel = round(_term_tok_d30 / 100.0, 4)
+            _tok_drift  = round(_term_tok_d30 / 100.0, 4)
+            _tok_sust   = bool(_term_tok_d30 > 0.5 and _term_tok_d60 > 0.5)
+            _tok_has_hist = False
+            if _tok_hist:
+                _cutoff30 = now - 30.0
+                for _hts, _ in _tok_hist:
+                    if _hts <= _cutoff30:
+                        _tok_has_hist = True
+                        break
+
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
@@ -1648,6 +1661,11 @@ class KlausBot:
             signal.term_remaining_s      = round(remaining, 1)
             signal.term_token_delta_30s  = _term_tok_d30
             signal.term_token_delta_60s  = _term_tok_d60
+            # Trajectory fields (populate bond_ fields so report sections work)
+            signal.bond_delta_accel_30s  = _tok_accel
+            signal.bond_edge_drift_30s   = _tok_drift
+            signal.bond_accel_sustained  = _tok_sust
+            signal.bond_has_hist         = _tok_has_hist
 
             tpsl = TPSLLevels(
                 take_profit=min(0.99, round(ask + 0.04, 4)),
@@ -4104,6 +4122,10 @@ class KlausBot:
                     term_remaining_s=float(getattr(signal, "term_remaining_s", 0.0) or 0.0),
                     term_token_delta_30s=float(getattr(signal, "term_token_delta_30s", 0.0) or 0.0),
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
+                    traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
+                    traj_mae_10s=float(self._traj_mae.get(token_id, {}).get(10, 0.0)),
+                    traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
+                    traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

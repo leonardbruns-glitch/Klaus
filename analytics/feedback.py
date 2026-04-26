@@ -203,6 +203,11 @@ class TradeRecord:
     term_remaining_s: float = 0.0    # seconds to window end at signal time
     term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising)
     term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
+    # During-hold trajectory snapshots (MFE/MAE at T+10s and T+30s after entry)
+    traj_mfe_10s: float = 0.0   # max favourable % at T+10s
+    traj_mae_10s: float = 0.0   # max adverse % at T+10s
+    traj_mfe_30s: float = 0.0   # max favourable % at T+30s
+    traj_mae_30s: float = 0.0   # max adverse % at T+30s
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +428,10 @@ class FeedbackEngine:
         term_remaining_s: float = 0.0,
         term_token_delta_30s: float = 0.0,
         term_token_delta_60s: float = 0.0,
+        traj_mfe_10s: float = 0.0,
+        traj_mae_10s: float = 0.0,
+        traj_mfe_30s: float = 0.0,
+        traj_mae_30s: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -638,6 +647,10 @@ class FeedbackEngine:
             term_remaining_s=round(term_remaining_s, 1),
             term_token_delta_30s=round(term_token_delta_30s, 4),
             term_token_delta_60s=round(term_token_delta_60s, 4),
+            traj_mfe_10s=round(traj_mfe_10s, 2),
+            traj_mae_10s=round(traj_mae_10s, 2),
+            traj_mfe_30s=round(traj_mfe_30s, 2),
+            traj_mae_30s=round(traj_mae_30s, 2),
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
         )
