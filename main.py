@@ -774,15 +774,15 @@ class KlausBot:
                         continue
 
                 # ── Safety net 1: catastrophic SL ────────────────────────────────
-                # SL simulation (n=792): every threshold beats no-SL.
-                # Net benefit still rising at 20% (+$236 vs no-SL). Peak likely
-                # 25-35% — restore at 20% until wider simulation confirms optimum.
+                # SL simulation Apr25+ (n=397): peak at 15% (+$61.41 vs no-SL).
+                # Cuts 18.3% of winners ($38 lost), catches 84.3% of losers ($99 saved).
+                # ETH peak 15% (+$22), SOL peak 15% (+$30), BTC peak 20% (+$11).
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                if (bond_move <= -0.20
+                if (bond_move <= -0.15
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 20%%, force exit',
+                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 15%%, force exit',
                         pos.asset, pos.direction.name, bond_move * 100,
                     )
                     try:
