@@ -774,16 +774,16 @@ class KlausBot:
                         continue
 
                 # ── Safety net 1: catastrophic SL ────────────────────────────────
-                # SL simulation Apr25+ (n=397): peak at 15% (+$61.41 vs no-SL).
-                # Cuts 18.3% of winners ($38 lost), catches 84.3% of losers ($99 saved).
-                # ETH peak 15% (+$22), SOL peak 15% (+$30), BTC peak 20% (+$11).
+                # SL simulation Apr25+ (n=397): ETH peak 15% (+$22), SOL peak 15% (+$30), BTC peak 20% (+$11).
+                # BTC raised to 20%: simulation-backed + Apr26 false-stop rate 36% (lowest of 3 assets).
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                if (bond_move <= -0.15
+                _sl_threshold = -0.20 if pos.asset == "BTC" else -0.15
+                if (bond_move <= _sl_threshold
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 15%%, force exit',
-                        pos.asset, pos.direction.name, bond_move * 100,
+                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down %.0f%%, force exit',
+                        pos.asset, pos.direction.name, bond_move * 100, abs(_sl_threshold) * 100,
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'BOND_CATASTROPHIC')
@@ -1601,8 +1601,8 @@ class KlausBot:
             _a3 = sum(q for _, q in ob.asks[:3])
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
-            if abs(_term_imb) < 0.10:
-                continue  # balanced OB: WR=44% (n=9, -$12.68); non-directional = bad TERMINAL entry
+            if _term_imb < 0.10:
+                continue  # buyers must dominate YES token OB: balanced(n=9 WR=44%) AND seller-dominated OBs skipped
 
             # Token ask price trajectory: was the token rising or falling before entry?
             def _token_delta(hist, secs):
@@ -1647,7 +1647,7 @@ class KlausBot:
                 reason=f"TERMINAL_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s",
                 signal_source="BOND",
                 is_bond=True,
-                bond_exit_sec=1,
+                bond_exit_sec=2,
                 bond_outcome_direction=_token_dir,
                 bond_entry_class="TERMINAL",
             )
