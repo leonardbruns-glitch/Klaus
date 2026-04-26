@@ -755,7 +755,7 @@ class KlausBot:
                     if pos.tp > 0 and current_price >= pos.tp and not _is_terminal_pos:
                         _mech_reason = f'price {current_price:.4f} >= tp {pos.tp:.4f}'
                         _mech_label = 'LLM_TP_FALLBACK'
-                    elif pos.sl > 0 and current_price <= pos.sl:
+                    elif pos.sl > 0 and current_price <= pos.sl and not _is_terminal_pos:
                         _mech_reason = f'price {current_price:.4f} <= sl {pos.sl:.4f}'
                         _mech_label = 'LLM_SL_FALLBACK'
                     else:
