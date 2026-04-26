@@ -773,12 +773,12 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Safety net 1: catastrophic (-25%) ────────────────────────
-                if (bond_move <= -0.25
+                # ── Safety net 1: catastrophic (-40%) ────────────────────────
+                if (bond_move <= -0.40
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 25%%, force exit',
+                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down 40%%, force exit',
                         pos.asset, pos.direction.name, bond_move * 100,
                     )
                     try:
@@ -1532,8 +1532,8 @@ class KlausBot:
             _b_total += 1
 
             _BLOCKED_HOURS: dict = {
-                "BTC": {6, 10, 18, 21, 2},   # BTC 02h WR=33% n=9; 10h WR=44-50%
-                "ETH": {6, 10, 18, 21},       # 10h WR=55% n=53 combined; 06/18/21 global
+                "BTC": {2, 6, 10, 13, 14, 16, 18, 21},  # 13h WR=44%, 14h WR=29%, 16h WR=44%
+                "ETH": {6, 10, 13, 16, 18, 21},          # 13h WR=38%, 16h WR=43%
                 "SOL": {6, 10, 18, 21},
             }
             if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 10, 18, 21}):
@@ -1556,14 +1556,14 @@ class KlausBot:
             if ob is None:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
-            _ask_max = 0.82 if token.asset == "ETH" else 0.88  # ETH ep=0.83-0.86 n=13 sum=-$9.63
-            if ask is None or not (0.75 <= ask <= _ask_max):
+            _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
+            if ask is None or not (0.84 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # cap at 0.88 (0.82 ETH): ep=0.89-0.92 worst bucket (-$15.31), ep=0.95+ WR=56%
+                continue  # min raised 0.75→0.84: ep=0.84-0.88 WR=83% (n=201 today); ep<0.84 all negative
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
@@ -1627,6 +1627,8 @@ class KlausBot:
                     if _hts <= _cutoff30:
                         _tok_has_hist = True
                         break
+            if not _tok_has_hist:
+                continue  # no_hist cold-start: WR=45% n=11 sum=-$21.09 today
 
             signal = SniperSignal(
                 asset=token.asset,
