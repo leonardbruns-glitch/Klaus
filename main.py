@@ -776,6 +776,7 @@ class KlausBot:
                 # ── Safety net 1: catastrophic (-70%) with zero recovery ──────────
                 # Position is effectively worthless — LLM can't recover from here.
                 if (bond_move <= -0.25
+                        and not _is_terminal_pos
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -1533,12 +1534,12 @@ class KlausBot:
             _b_total += 1
 
             _BLOCKED_HOURS: dict = {
-                "BTC": {6, 18, 21, 2},   # BTC 02h WR=33% n=9; 06/18/21h global
-                "ETH": {6, 18, 21},
-                "SOL": {6, 18, 21},
+                "BTC": {6, 10, 18, 21, 2},   # BTC 02h WR=33% n=9; 10h WR=44-50%
+                "ETH": {6, 10, 18, 21},       # 10h WR=55% n=53 combined; 06/18/21 global
+                "SOL": {6, 10, 18, 21},
             }
-            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 18, 21}):
-                continue  # 06h WR=59% (n=32,-$8.24); 18h WR=58% (n=38,-$6.41); 21h WR=33% (n=9,-$9.19)
+            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 10, 18, 21}):
+                continue  # 06h WR=59% (n=32,-$8.24); 10h WR=55% (n=53,-$10.54); 18h WR=58%; 21h WR=33%
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:
