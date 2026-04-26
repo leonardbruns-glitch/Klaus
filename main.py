@@ -773,8 +773,13 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Safety net 1: catastrophic (-40%) ────────────────────────
+                # ── Safety net 1: catastrophic (-40%) — disabled for TERMINAL ──
+                # TERMINAL hold is 25-90s; TIME_EXIT fires at T-1s regardless.
+                # Window resolution: ETH 9/9 false stops = BOND_CATASTROPHIC (all
+                # resolved FOR us). Let TIME_EXIT handle all TERMINAL exits.
+                _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
                 if (bond_move <= -0.40
+                        and not _is_terminal
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -791,7 +796,6 @@ class KlausBot:
                 # TERMINAL positions: precise timer fires at T-1s — don't cut early.
                 # Fallback at T-3s in case the asyncio task is cancelled/delayed.
                 # All other bond positions: T-15s (original safety net).
-                _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
                 _deadline_s = 3.0 if _is_terminal else 15.0
                 if bond_remaining <= _deadline_s and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
