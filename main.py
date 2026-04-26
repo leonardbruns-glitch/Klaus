@@ -3721,6 +3721,61 @@ class KlausBot:
         # Calling close_position on 0 fills ghosts the position: bot records a loss
         # while shares remain on Polymarket (T00011: 4.9 ETH shares left to resolve).
         if sold_shares <= 0 and not stage1_done:
+            # Exception: if the bond window has already expired, CLOB will never
+            # accept another sell — retrying is pointless. Resolve the position now
+            # using OB bid to determine if token went to $1 (win) or $0 (loss).
+            _now_g1 = time.time()
+            if pos.window_end_ts > 0 and _now_g1 > pos.window_end_ts + 5.0:
+                _g1_ob   = self.feed.get_order_book(token_id)
+                _g1_bid  = _g1_ob.bids[0][0] if (_g1_ob and _g1_ob.bids) else 0.0
+                _g1_ask  = _g1_ob.asks[0][0] if (_g1_ob and _g1_ob.asks) else 0.0
+                _g1_price = _g1_bid if _g1_bid >= 0.80 else (0.0 if _g1_bid < 0.05 else live_price)
+                logger.warning(
+                    "BOND_EXPIRED_UNSOLD %s/%s — window expired %.0fs ago, 0 fills. "
+                    "OB bid=%.4f ask=%.4f → closing at %.4f",
+                    pos.asset, pos.direction.name, _now_g1 - pos.window_end_ts,
+                    _g1_bid, _g1_ask, _g1_price,
+                )
+                _g1_pnl  = self.risk.close_position(token_id, _g1_price, "BOND_EXPIRED_UNSOLD")
+                _g1_meta = self._open_meta.pop(token_id, {})
+                for _d in (self._pos_log_ts, self._dir_rev_count, self._entry_snaps,
+                           self._sl_below_count, self._peak_bond_move, self._trough_bond_move,
+                           self._peak_ts, self._stall_conf_count, self._exhaustion_conf_count,
+                           self._early_loss_conf_count, self._early_chop_count,
+                           self._peak_breach_ts, self._zombie_flag_ts,
+                           self._traj_mfe, self._traj_mae):
+                    _d.pop(token_id, None)
+                self._stall_checked.discard(token_id)
+                self._terminal_tp_touched.discard(token_id)
+                if _g1_pnl is not None:
+                    _g1_signal = _g1_meta.get("signal") or SignalBreakdown(
+                        direction=pos.direction, entry_price=pos.entry_price,
+                        composite=0.0, confidence=0.0, breakout_score=0.0,
+                        trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                        fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                        reason="bond_expired_unsold",
+                    )
+                    try:
+                        self.analytics.record_trade(
+                            token_id=token_id, asset=pos.asset, direction=pos.direction,
+                            entry_price=pos.entry_price, exit_price=_g1_price,
+                            stake=pos.stake, shares=pos.shares,
+                            entry_fill=_g1_meta.get("entry_fill"), exit_fills=[],
+                            exit_reason="BOND_EXPIRED_UNSOLD", signal=_g1_signal,
+                            ts_open=_g1_meta.get("ts_open", pos.open_ts), ts_close=_now_g1,
+                            capital_before=self.risk.bankroll.capital - _g1_pnl,
+                            heat_check_active=_g1_meta.get("heat_check", False),
+                            consecutive_wins=_g1_meta.get("consecutive_wins", 0),
+                            net_pnl_actual=_g1_pnl,
+                            market_type=getattr(token_meta, "market_type", "unknown"),
+                            is_live=not CONFIG.dry_run,
+                            signal_source=_g1_meta.get("signal_source", "BOND"),
+                            window_size_s=_g1_meta.get("window_size_s") or pos.window_seconds or 0,
+                            bond_entry_class=pos.bond_entry_class,
+                        )
+                    except Exception as _g1e:
+                        logger.error("record_trade BOND_EXPIRED_UNSOLD failed: %s", _g1e)
+                return
             if token_id in self.risk.open_positions:
                 self.risk.open_positions[token_id].hard_exit_triggered = False
             logger.warning(
