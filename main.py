@@ -3157,8 +3157,9 @@ class KlausBot:
             "recorded_at": round(time.time(), 3),
         }
         try:
+            import json as _json_wfp
             with open("logs/window_final_prices.jsonl", "a") as _wfp_f:
-                _wfp_f.write(json.dumps(record) + "\n")
+                _wfp_f.write(_json_wfp.dumps(record) + "\n")
         except Exception as _wfp_exc:
             logger.warning("wfp log failed: %s", _wfp_exc)
 
@@ -4286,6 +4287,8 @@ class KlausBot:
                     term_tok_tick_count_5s=int(getattr(signal, "term_tok_tick_count_5s", 0) or 0),
                     term_token_delta_30s=float(getattr(signal, "term_token_delta_30s", 0.0) or 0.0),
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
+                    term_binance_1m_pct=getattr(signal, "term_binance_1m_pct", None),
+                    term_binance_5m_pct=getattr(signal, "term_binance_5m_pct", None),
                     traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
                     traj_mae_10s=float(self._traj_mae.get(token_id, {}).get(10, 0.0)),
                     traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),

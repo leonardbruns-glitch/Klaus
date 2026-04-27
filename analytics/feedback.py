@@ -201,9 +201,15 @@ class TradeRecord:
     term_ask_spread_pct: float = 0.0 # (ask - bid) / ask * 100 at entry
     term_ask_qty: float = 0.0        # shares at best ask at entry
     term_ob_imbalance: float = 0.0   # (top3_bid - top3_ask) / total; +1=buy pressure
+    term_ob_depth: float = 0.0       # total size of top-3 bids + asks at entry
     term_remaining_s: float = 0.0    # seconds to window end at signal time
+    term_token_delta_3s: float = 0.0   # token ask % change vs 3s ago
+    term_token_delta_5s: float = 0.0   # token ask % change vs 5s ago
+    term_tok_tick_count_5s: int = 0    # number of OB ticks in last 5s
     term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising)
     term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
+    term_binance_1m_pct: Optional[float] = None  # kline-based 1m Binance momentum at entry
+    term_binance_5m_pct: Optional[float] = None  # kline-based 5m Binance momentum at entry
     # During-hold trajectory snapshots (MFE/MAE at T+10s and T+30s after entry)
     traj_mfe_10s: float = 0.0   # max favourable % at T+10s
     traj_mae_10s: float = 0.0   # max adverse % at T+10s
@@ -427,9 +433,15 @@ class FeedbackEngine:
         term_ask_spread_pct: float = 0.0,
         term_ask_qty: float = 0.0,
         term_ob_imbalance: float = 0.0,
+        term_ob_depth: float = 0.0,
         term_remaining_s: float = 0.0,
+        term_token_delta_3s: float = 0.0,
+        term_token_delta_5s: float = 0.0,
+        term_tok_tick_count_5s: int = 0,
         term_token_delta_30s: float = 0.0,
         term_token_delta_60s: float = 0.0,
+        term_binance_1m_pct: Optional[float] = None,
+        term_binance_5m_pct: Optional[float] = None,
         traj_mfe_10s: float = 0.0,
         traj_mae_10s: float = 0.0,
         traj_mfe_30s: float = 0.0,
@@ -647,9 +659,15 @@ class FeedbackEngine:
             term_ask_spread_pct=round(term_ask_spread_pct, 4),
             term_ask_qty=round(term_ask_qty, 2),
             term_ob_imbalance=round(term_ob_imbalance, 4),
+            term_ob_depth=round(term_ob_depth, 2),
             term_remaining_s=round(term_remaining_s, 1),
+            term_token_delta_3s=round(term_token_delta_3s, 4),
+            term_token_delta_5s=round(term_token_delta_5s, 4),
+            term_tok_tick_count_5s=int(term_tok_tick_count_5s),
             term_token_delta_30s=round(term_token_delta_30s, 4),
             term_token_delta_60s=round(term_token_delta_60s, 4),
+            term_binance_1m_pct=round(term_binance_1m_pct, 4) if term_binance_1m_pct is not None else None,
+            term_binance_5m_pct=round(term_binance_5m_pct, 4) if term_binance_5m_pct is not None else None,
             traj_mfe_10s=round(traj_mfe_10s, 2),
             traj_mae_10s=round(traj_mae_10s, 2),
             traj_mfe_30s=round(traj_mfe_30s, 2),
