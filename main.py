@@ -774,10 +774,10 @@ class KlausBot:
                         continue
 
                 # ── Safety net 1: catastrophic SL ────────────────────────────────
-                # SL simulation Apr25+ (n=397): ETH peak 15% (+$22), SOL peak 15% (+$30), BTC peak 20% (+$11).
-                # BTC raised to 20%: simulation-backed + Apr26 false-stop rate 36% (lowest of 3 assets).
+                # SL simulation Apr25+ (n=517): peak NET at 15% (+$89.01) vs 20% (+$80.36); $8.65 edge at 15%.
+                # BTC reverted to -15%: aggregate sim dominant; n=41 BTC stops at -20% no longer justify exception.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                _sl_threshold = -0.20 if pos.asset == "BTC" else -0.15
+                _sl_threshold = -0.15
                 if (bond_move <= _sl_threshold
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
@@ -1560,13 +1560,13 @@ class KlausBot:
                 continue
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
-            if ask is None or not (0.75 <= ask <= _ask_max):
+            if ask is None or not (0.80 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min 0.79; ep=0.89-0.92 worst bucket capped at 0.88
+                continue  # min 0.80: ep=0.74-0.78 WR=28-38% sum=-$47.89 (n=83); capped at 0.88
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
