@@ -303,6 +303,8 @@ class KlausBot:
         # If still below -15% after 8s: genuine failure, exit immediately.
         # Hard bypass when bond_remaining < 15s (no time to wait).
         self._catas_breach_ts: Dict[str, float] = {}
+        # Wick event metadata: keyed by token_id, stores breach context for recovery-time logging.
+        self._catas_breach_info: Dict[str, dict] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -792,14 +794,31 @@ class KlausBot:
                     _hard_bypass = bond_remaining < 15.0
                     if _hard_bypass or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
                         # Confirmed genuine failure (8s elapsed) or deadline forcing exit
+                        _elapsed = now - _breach_ts if _breach_ts > 0 else 0.0
+                        _info = self._catas_breach_info.pop(token_id, {})
                         self._catas_breach_ts.pop(token_id, None)
                         self._exit_in_progress.add(token_id)
                         logger.info(
-                            'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — confirmed %.0fs, force exit',
-                            pos.asset, pos.direction.name, bond_move * 100,
-                            now - _breach_ts if _breach_ts > 0 else 0,
+                            'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — confirmed %.1fs, force exit',
+                            pos.asset, pos.direction.name, bond_move * 100, _elapsed,
                         )
                         try:
+                            with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
+                                _wf.write(json.dumps({
+                                    "event_type": "WICK_CONFIRM",
+                                    "ts": now,
+                                    "asset": pos.asset,
+                                    "direction": pos.direction.name,
+                                    "entry_price": pos.entry_price,
+                                    "breach_price": _info.get("breach_price", current_price),
+                                    "breach_move_pct": round(_info.get("breach_move_pct", bond_move * 100), 3),
+                                    "exit_price": current_price,
+                                    "exit_move_pct": round(bond_move * 100, 3),
+                                    "min_price_during_wick": _info.get("min_price", current_price),
+                                    "elapsed_timer_s": round(_elapsed, 2),
+                                    "bond_remaining_at_breach_s": round(_info.get("bond_remaining", bond_remaining), 1),
+                                    "was_bypass": _hard_bypass,
+                                }) + "\n")
                             await self._exit_position(token_id, current_price, 'BOND_CATASTROPHIC')
                         finally:
                             self._exit_in_progress.discard(token_id)
@@ -808,17 +827,56 @@ class KlausBot:
                         # First breach or still within wick window — start/continue timer
                         if _breach_ts == 0.0:
                             self._catas_breach_ts[token_id] = now
+                            self._catas_breach_info[token_id] = {
+                                "breach_price": current_price,
+                                "breach_move_pct": round(bond_move * 100, 3),
+                                "min_price": current_price,
+                                "bond_remaining": bond_remaining,
+                            }
                             logger.info(
-                                'BOND_CATASTROPHIC_ARM %s/%s | move=%+.1f%% — arming wick timer (%.0fs)',
-                                pos.asset, pos.direction.name, bond_move * 100, _wick_wait,
+                                'BOND_CATASTROPHIC_ARM %s/%s | move=%+.1f%% rem=%.0fs — arming wick timer (%.0fs)',
+                                pos.asset, pos.direction.name, bond_move * 100, bond_remaining, _wick_wait,
                             )
+                            with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
+                                _wf.write(json.dumps({
+                                    "event_type": "WICK_ARM",
+                                    "ts": now,
+                                    "asset": pos.asset,
+                                    "direction": pos.direction.name,
+                                    "entry_price": pos.entry_price,
+                                    "breach_price": current_price,
+                                    "breach_move_pct": round(bond_move * 100, 3),
+                                    "bond_remaining_at_breach_s": round(bond_remaining, 1),
+                                }) + "\n")
+                        else:
+                            # Still in timer window — track deepest drop
+                            _info = self._catas_breach_info.get(token_id)
+                            if _info and current_price < _info.get("min_price", current_price):
+                                _info["min_price"] = current_price
                 elif bond_move > -0.12 and token_id in self._catas_breach_ts:
                     # Price recovered above -12%: flash crash confirmed, cancel timer
+                    _breach_ts_cancel = self._catas_breach_ts.pop(token_id, now)
+                    _info = self._catas_breach_info.pop(token_id, {})
+                    _recovery_s = round(now - _breach_ts_cancel, 2)
                     logger.info(
-                        'BOND_CATASTROPHIC_CANCEL %s/%s | move=%+.1f%% recovered — wick cleared',
-                        pos.asset, pos.direction.name, bond_move * 100,
+                        'BOND_CATASTROPHIC_CANCEL %s/%s | move=%+.1f%% recovered in %.1fs — wick cleared',
+                        pos.asset, pos.direction.name, bond_move * 100, _recovery_s,
                     )
-                    self._catas_breach_ts.pop(token_id, None)
+                    with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
+                        _wf.write(json.dumps({
+                            "event_type": "WICK_CANCEL",
+                            "ts": now,
+                            "asset": pos.asset,
+                            "direction": pos.direction.name,
+                            "entry_price": pos.entry_price,
+                            "breach_price": _info.get("breach_price", pos.entry_price * (1 + _info.get("breach_move_pct", -15) / 100)),
+                            "breach_move_pct": _info.get("breach_move_pct", None),
+                            "min_price_during_wick": _info.get("min_price", None),
+                            "recovery_price": current_price,
+                            "recovery_move_pct": round(bond_move * 100, 3),
+                            "recovery_time_s": _recovery_s,
+                            "bond_remaining_at_breach_s": round(_info.get("bond_remaining", bond_remaining), 1),
+                        }) + "\n")
 
                 # ── Safety net 2: absolute deadline ──────────────────────────────
                 # TERMINAL positions: precise timer fires at T-1s — don't cut early.
