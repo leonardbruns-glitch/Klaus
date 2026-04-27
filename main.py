@@ -296,6 +296,13 @@ class KlausBot:
         # -15% in that window the wick is cancelled; otherwise SL executes.
         # Pattern confirmed 2026-04-23 (ETH YES EARLY-A-PRE: -29% wick, +81% snap-back in 30s).
         self._bond_sl_arm_ts: Dict[str, float] = {}
+        # Wick confirmation for BOND_CATASTROPHIC (-15% SL).
+        # Data: 34% of BOND_CATASTROPHIC exits are flash crashes — token drops -15%+
+        # then recovers to entry within 30s while spot barely moves (+0.002%).
+        # Fix: wait 8s before exiting. If price recovers above -12%: cancel and hold.
+        # If still below -15% after 8s: genuine failure, exit immediately.
+        # Hard bypass when bond_remaining < 15s (no time to wait).
+        self._catas_breach_ts: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -773,23 +780,45 @@ class KlausBot:
                             self._exit_in_progress.discard(token_id)
                         continue
 
-                # ── Safety net 1: catastrophic SL ────────────────────────────────
-                # SL simulation Apr25+ (n=517): peak NET at 15% (+$89.01) vs 20% (+$80.36); $8.65 edge at 15%.
-                # BTC reverted to -15%: aggregate sim dominant; n=41 BTC stops at -20% no longer justify exception.
+                # ── Safety net 1: catastrophic SL with wick confirmation ─────────
+                # 34% of BOND_CATASTROPHIC exits are flash crashes: token recovers
+                # to entry within 30s, spot barely moves (+0.002%). Wait 8s before
+                # exiting to filter these false stops. Hard bypass at bond_remaining<15s.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
                 _sl_threshold = -0.15
-                if (bond_move <= _sl_threshold
-                        and token_id not in self._exit_in_progress):
-                    self._exit_in_progress.add(token_id)
+                if bond_move <= _sl_threshold and token_id not in self._exit_in_progress:
+                    _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
+                    _wick_wait = 8.0
+                    _hard_bypass = bond_remaining < 15.0
+                    if _hard_bypass or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
+                        # Confirmed genuine failure (8s elapsed) or deadline forcing exit
+                        self._catas_breach_ts.pop(token_id, None)
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — confirmed %.0fs, force exit',
+                            pos.asset, pos.direction.name, bond_move * 100,
+                            now - _breach_ts if _breach_ts > 0 else 0,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, 'BOND_CATASTROPHIC')
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+                    else:
+                        # First breach or still within wick window — start/continue timer
+                        if _breach_ts == 0.0:
+                            self._catas_breach_ts[token_id] = now
+                            logger.info(
+                                'BOND_CATASTROPHIC_ARM %s/%s | move=%+.1f%% — arming wick timer (%.0fs)',
+                                pos.asset, pos.direction.name, bond_move * 100, _wick_wait,
+                            )
+                elif bond_move > -0.12 and token_id in self._catas_breach_ts:
+                    # Price recovered above -12%: flash crash confirmed, cancel timer
                     logger.info(
-                        'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — down %.0f%%, force exit',
-                        pos.asset, pos.direction.name, bond_move * 100, abs(_sl_threshold) * 100,
+                        'BOND_CATASTROPHIC_CANCEL %s/%s | move=%+.1f%% recovered — wick cleared',
+                        pos.asset, pos.direction.name, bond_move * 100,
                     )
-                    try:
-                        await self._exit_position(token_id, current_price, 'BOND_CATASTROPHIC')
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
+                    self._catas_breach_ts.pop(token_id, None)
 
                 # ── Safety net 2: absolute deadline ──────────────────────────────
                 # TERMINAL positions: precise timer fires at T-1s — don't cut early.
@@ -4224,6 +4253,7 @@ class KlausBot:
         self._traj_mfe.pop(token_id, None)
         self._traj_mae.pop(token_id, None)
         self._bond_sl_arm_ts.pop(token_id, None)
+        self._catas_breach_ts.pop(token_id, None)
         self._terminal_tp_touched.discard(token_id)
         bankroll = self.risk.bankroll.summary()
         logger.info(
