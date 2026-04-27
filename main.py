@@ -1535,11 +1535,11 @@ class KlausBot:
             _b_total += 1
 
             _BLOCKED_HOURS: dict = {
-                "BTC": {2, 6, 10, 18},
-                "ETH": {6, 10, 18},
-                "SOL": {6, 10, 18},
+                "BTC": {2, 6, 10, 18, 21},
+                "ETH": {6, 10, 18, 21},
+                "SOL": {6, 10, 18, 21},
             }
-            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 10, 18}):
+            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 10, 18, 21}):
                 continue  # 06h WR=59% (n=32,-$8.24); 10h WR=55% (n=53,-$10.54); 18h WR=58%; 21h WR=33%
 
             _wkey = (token.asset, round(token.window_end_ts))
