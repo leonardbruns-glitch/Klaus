@@ -1558,6 +1558,8 @@ class KlausBot:
             ob = self.feed.get_order_book(token_id)
             if ob is None:
                 continue
+            if time.time() - ob.ts > 3.0:
+                continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
             if ask is None or not (0.80 <= ask <= _ask_max):
