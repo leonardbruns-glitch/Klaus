@@ -1567,12 +1567,14 @@ class KlausBot:
             # H06 PF=0.23(n=52) H07 PF=0.36(n=33) H08 PF=0.52(n=53) H10 PF=0.55(n=48)
             # H12 PF=0.65(n=37) H13 PF=0.42(n=57) H15 PF=0.50(n=50) H19 PF=0.66(n=67)
             # H21 PF=0.48(n=79) — H02 already blocked for BTC, H18 for BTC
+            # H08 unblocked 2026-04-27: n=15 WR=80% Net=+$3.82 in 0.84-0.88 range; 0 BC exits
+            # H19 unblocked 2026-04-27: n=12 WR=67% Net=+$5.06; both BC exits resolved YES (wicks)
             _BLOCKED_HOURS: dict = {
-                "BTC": {2, 6, 7, 8, 10, 12, 13, 15, 18, 19, 21},
-                "ETH": {6, 7, 8, 10, 12, 13, 15, 18, 19, 21},
-                "SOL": {6, 7, 8, 10, 12, 13, 15, 18, 19, 21},
+                "BTC": {2, 6, 7, 10, 12, 13, 15, 18, 21},
+                "ETH": {6, 7, 10, 12, 13, 15, 18, 21},
+                "SOL": {6, 7, 10, 12, 13, 15, 18, 21},
             }
-            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 7, 8, 10, 12, 13, 15, 18, 19, 21}):
+            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 7, 10, 12, 13, 15, 18, 21}):
                 continue
 
             _wkey = (token.asset, round(token.window_end_ts))
