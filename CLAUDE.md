@@ -42,14 +42,13 @@ Run before any analysis or code change:
 
 ---
 
-## CURRENT PARAMETERS (updated 2026-04-26, n=397 Apr25+)
+## CURRENT PARAMETERS (updated 2026-04-27, n=1160 terminal era Apr24+)
 | Parameter | Value | Evidence |
 |---|---|---|
-| Strategy | TERMINAL only | 5m windows, ask 0.75–0.88, 25–90s remaining |
-| BOND_CATASTROPHIC SL | -15% | SL sim peak +$63.44 net vs no-SL; 54% of losers resolve YES but EV of holding = -$1.36/trade due to payoff asymmetry |
-| Ask range | 0.75–0.88 (all assets) | ETH cap 0.82 removed — avg_ep was stuck at 0.79 |
-| Blocked hours BTC | {2,6,10,18,21} | Validated n≥20 per bucket |
-| Blocked hours ETH/SOL | {6,10,18,21} | Validated n≥20 per bucket |
+| Strategy | TERMINAL only | 5m windows, ask 0.84–0.88, 25–90s remaining |
+| BOND_CATASTROPHIC SL | -15% | Executes at avg -27% due to slippage; 97% of triggering positions resolve NO |
+| Ask range | 0.84–0.88 (all assets) | Raised 0.80→0.84: 0.80-0.84 PF=0.70 Net=-$29.65 (n=163); only 0.84-0.87 is profitable PF=1.02 |
+| Blocked hours ALL assets | {2,6,7,8,10,12,13,15,18,19,21} | Validated n≥20 per bucket, PF<0.70; H07 PF=0.36, H08 PF=0.52, H12 PF=0.65, H13 PF=0.42, H15 PF=0.50, H19 PF=0.66 added |
 | BOND stake cap | $4.00 | User instruction 2026-04-26 |
 | OB imbalance gate | \|imb\| ≥ 0.10 | Balanced OB WR=44% (n=9) |
 | Windows | 5m only | 15m disabled |

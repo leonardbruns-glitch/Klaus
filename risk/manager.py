@@ -314,6 +314,11 @@ class RiskManager:
                     "bond_tp1_done": pos.bond_tp1_done,
                     "bond_tp2_done": pos.bond_tp2_done,
                     "scale_in_done": pos.scale_in_done,
+                    "is_bond": pos.is_bond,
+                    "bond_entry_class": pos.bond_entry_class,
+                    "bond_exit_sec": pos.bond_exit_sec,
+                    "bond_outcome_direction": pos.bond_outcome_direction,
+                    "bond_macro_regime": pos.bond_macro_regime,
                 }
             _atomic_json_write(POSITIONS_FILE, data)
         except Exception as exc:
@@ -384,6 +389,11 @@ class RiskManager:
                 pos.bond_tp1_done = bool(d.get("bond_tp1_done", False))
                 pos.bond_tp2_done = bool(d.get("bond_tp2_done", False))
                 pos.scale_in_done = bool(d.get("scale_in_done", False))
+                pos.is_bond = bool(d.get("is_bond", False))
+                pos.bond_entry_class = str(d.get("bond_entry_class", ""))
+                pos.bond_exit_sec = int(d.get("bond_exit_sec", 0))
+                pos.bond_outcome_direction = str(d.get("bond_outcome_direction", "down"))
+                pos.bond_macro_regime = str(d.get("bond_macro_regime", ""))
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.

@@ -1534,13 +1534,17 @@ class KlausBot:
                 continue
             _b_total += 1
 
+            # Blocked hours validated at n>=20 PF<0.70 in terminal era (Apr24+):
+            # H06 PF=0.23(n=52) H07 PF=0.36(n=33) H08 PF=0.52(n=53) H10 PF=0.55(n=48)
+            # H12 PF=0.65(n=37) H13 PF=0.42(n=57) H15 PF=0.50(n=50) H19 PF=0.66(n=67)
+            # H21 PF=0.48(n=79) — H02 already blocked for BTC, H18 for BTC
             _BLOCKED_HOURS: dict = {
-                "BTC": {2, 6, 10, 18, 21},
-                "ETH": {6, 10, 18, 21},
-                "SOL": {6, 10, 18, 21},
+                "BTC": {2, 6, 7, 8, 10, 12, 13, 15, 18, 19, 21},
+                "ETH": {6, 7, 8, 10, 12, 13, 15, 18, 19, 21},
+                "SOL": {6, 7, 8, 10, 12, 13, 15, 18, 19, 21},
             }
-            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 10, 18, 21}):
-                continue  # 06h WR=59% (n=32,-$8.24); 10h WR=55% (n=53,-$10.54); 18h WR=58%; 21h WR=33%
+            if _utc_hour in _BLOCKED_HOURS.get(token.asset, {6, 7, 8, 10, 12, 13, 15, 18, 19, 21}):
+                continue
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:
@@ -1562,13 +1566,13 @@ class KlausBot:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
-            if ask is None or not (0.80 <= ask <= _ask_max):
+            if ask is None or not (0.84 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min 0.80: ep=0.74-0.78 WR=28-38% sum=-$47.89 (n=83); capped at 0.88
+                continue  # min 0.84: 0.80-0.84 PF=0.70 Net=-$29.65 (n=163); 0.84-0.87 is only profitable bucket PF=1.02
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
