@@ -1637,8 +1637,8 @@ class KlausBot:
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
-            if _term_imb < 0.10:
-                continue  # buyers must dominate YES token OB: balanced(n=9 WR=44%) AND seller-dominated OBs skipped
+            if _term_imb < 0.20:
+                continue  # imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67 (n=300)
 
             # Token ask price trajectory: was the token rising or falling before entry?
             def _token_delta(hist, secs):
