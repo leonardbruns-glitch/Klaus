@@ -1013,6 +1013,13 @@ def _run_bond_report(bond_trades, label="ALL"):
              (0.1,0.3,"+0.10 to +0.30"), (0.3,1.01,">+0.30 bid dom")],
             _tw, _tl)
 
+        # OB total depth (top3 bid + top3 ask shares) — hollow book detection
+        _term_bucket("OB total depth top3 (shares):", "term_ob_depth",
+            [(0,0.001,"0 (no data)"), (0.001,50,"<50 hollow"),
+             (50,150,"50-150 thin"), (150,500,"150-500 normal"),
+             (500,99999,">500 deep")],
+            _tw, _tl)
+
         # Token price trajectory before entry
         _term_bucket("Token ask delta 30s (+ = rising into entry):", "term_token_delta_30s",
             [(-99,-0.5,"falling  (<-0.5%)"), (-0.5,0.0,"flat-neg (-0.5 to 0%)"),
