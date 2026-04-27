@@ -1618,9 +1618,11 @@ class KlausBot:
                         ref = p
                 return round((ask - ref) / ref * 100, 4) if ref and ref > 0 else 0.0
             _tok_hist = self._token_ask_history.get(token_id)
-            _term_tok_d3  = _token_delta(_tok_hist, 3)
-            _term_tok_d30 = _token_delta(_tok_hist, 30)
-            _term_tok_d60 = _token_delta(_tok_hist, 60)
+            _term_tok_d3   = _token_delta(_tok_hist, 3)
+            _term_tok_d5   = _token_delta(_tok_hist, 5)
+            _term_tok_d30  = _token_delta(_tok_hist, 30)
+            _term_tok_d60  = _token_delta(_tok_hist, 60)
+            _term_tok_tick5 = sum(1 for ts, _ in (_tok_hist or []) if ts >= now - 5.0)
 
             # Trajectory fields for report analysis (bond_delta_accel_30s etc.)
             # Map token ask velocity → bond_delta_accel_30s (fraction: +0.05 = token up 5% in 30s)
@@ -1668,8 +1670,10 @@ class KlausBot:
             signal.term_ob_depth         = _term_ob_depth
             signal.term_remaining_s      = round(remaining, 1)
             signal.term_token_delta_3s   = _term_tok_d3
+            signal.term_token_delta_5s   = _term_tok_d5
             signal.term_token_delta_30s  = _term_tok_d30
             signal.term_token_delta_60s  = _term_tok_d60
+            signal.term_tok_tick_count_5s = _term_tok_tick5
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
@@ -4187,6 +4191,8 @@ class KlausBot:
                     term_ob_depth=float(getattr(signal, "term_ob_depth", 0.0) or 0.0),
                     term_remaining_s=float(getattr(signal, "term_remaining_s", 0.0) or 0.0),
                     term_token_delta_3s=float(getattr(signal, "term_token_delta_3s", 0.0) or 0.0),
+                    term_token_delta_5s=float(getattr(signal, "term_token_delta_5s", 0.0) or 0.0),
+                    term_tok_tick_count_5s=int(getattr(signal, "term_tok_tick_count_5s", 0) or 0),
                     term_token_delta_30s=float(getattr(signal, "term_token_delta_30s", 0.0) or 0.0),
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
                     traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
