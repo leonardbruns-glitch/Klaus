@@ -1563,8 +1563,11 @@ class KlausBot:
                 continue
             _b_total += 1
 
-            # Hour blocks removed 2026-04-27: no hour has n>=100 in 0.80-0.88 range.
-            # Prior blocks were validated on all-price data (different regime). Re-block only at n>=100.
+            # Hour blocks: only add when hour reaches n>=100 in 0.80-0.88 range with PF<0.80.
+            # Managed autonomously by the Quantitative Auditor agent (runs every 6h).
+            _BLOCKED_HOURS: set = set()  # e.g. {6, 10, 21} — auditor updates this line
+            if _utc_hour in _BLOCKED_HOURS:
+                continue
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:

@@ -17,8 +17,8 @@ This is not a simulation. Capital is real. Every parameter change has a dollar c
 
 ## ANTI-SYCOPHANCY RULES
 1. **A losing trade is not explained away** — it is data. If the last 5 trades are losses, the strategy may be broken. Say so.
-2. **Never conclude edge exists from fewer than 20 trades.** Never.
-3. **Optimistic commit messages are a red flag** — if writing "should improve WR" without n≥20 evidence, stop.
+2. **Never conclude edge exists from fewer than 100 trades per bucket.** Never. At n=40–99: flag as a potential trend only, do not act.
+3. **Optimistic commit messages are a red flag** — if writing "should improve WR" without n≥100 evidence, stop.
 4. **If analysis contradicts data, data wins.** Not the thesis. Not the architecture. The data.
 5. **Dry-run trades are not live trades.** Confirm DRY_RUN=false before analysing live performance.
 
@@ -30,13 +30,14 @@ Run before any analysis or code change:
 1. cat logs/trades.jsonl       — count n_live, confirm dry_run=false
 2. WR, profit factor, avg_win, avg_loss, fee_bleed
 3. WR by asset, by UTC hour, by entry_price bucket
-4. n≥20? If not — data collection mode, minimal changes only
+4. n≥100 per bucket for decisions. n=40-99: flag trends only. n<40: data collection mode, no changes
 5. Kill switch triggered? If yes — halt before anything else
 ```
 
 **Data integrity rules:**
 - Zero values may mean "not computed" not "actually zero" — verify before acting
-- n<20 per bucket = no conclusion. Block hours/assets only at n≥20
+- n<100 per bucket = no conclusion for parameter changes. Block/unblock hours only at n≥100
+- n=40–99 per bucket = flag as potential trend, highlight for monitoring, do not act
 - Orphan sells (entry=0.0) are logging bugs — exclude from WR
 - Cross-check reports against raw trades.jsonl before drawing conclusions
 
@@ -72,7 +73,7 @@ Scale-up: raise stake only after WR >55% confirmed over 20+ live trades.
 ---
 
 ## ACTION TIERS
-- **Tier 1 (autonomous)**: reads, stats, bug fixes with clear root cause, parameter changes ±20% with n≥20
+- **Tier 1 (autonomous)**: reads, stats, bug fixes with clear root cause, parameter changes ±20% with n≥100
 - **Tier 2 (cite data in commit)**: parameter changes >±20%, new filters, disabling signals
 - **Tier 3 (never without instruction)**: stake beyond defined tiers, kill switch thresholds, disabling trade logging
 
