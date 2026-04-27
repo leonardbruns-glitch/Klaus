@@ -1662,6 +1662,10 @@ class KlausBot:
 
             # ── TERMINAL observation metrics (data collection only) ──────────
             _asset_up = token.asset.upper()
+            # Kline-based Binance momentum (same source as ext_signals in main scan loop)
+            _term_ext = self._last_ext_signals.get(token.asset)
+            _term_binance_1m = _term_ext.spot_momentum_1m if _term_ext else None
+            _term_binance_5m = _term_ext.spot_momentum_5m if _term_ext else None
             # VPIN
             _vpin_t = self.feed.vpin_trackers.get(_asset_up)
             _term_vpin = round(_vpin_t.vpin, 4) if (_vpin_t and getattr(_vpin_t, "_trade_count", 0) > 50) else 0.0
@@ -1746,6 +1750,8 @@ class KlausBot:
             )
             # Attach TERMINAL observations to signal for downstream logging
             signal.term_vpin          = _term_vpin
+            signal.term_binance_1m_pct = _term_binance_1m
+            signal.term_binance_5m_pct = _term_binance_5m
             signal.term_spot_delta_30s = _term_d30
             signal.term_spot_delta_60s = _term_d60
             signal.term_spot_delta_5m  = _term_d5m
