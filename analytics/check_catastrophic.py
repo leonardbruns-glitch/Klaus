@@ -13,7 +13,7 @@ with open(LOG) as f:
     for line in f:
         try:
             t = json.loads(line)
-            if t.get("entry_ts", 0) >= CUTOFF:
+            if t.get("ts_open", t.get("entry_ts", 0)) >= CUTOFF:
                 trades.append(t)
         except Exception:
             pass
