@@ -1618,6 +1618,7 @@ class KlausBot:
                         ref = p
                 return round((ask - ref) / ref * 100, 4) if ref and ref > 0 else 0.0
             _tok_hist = self._token_ask_history.get(token_id)
+            _term_tok_d3  = _token_delta(_tok_hist, 3)
             _term_tok_d30 = _token_delta(_tok_hist, 30)
             _term_tok_d60 = _token_delta(_tok_hist, 60)
 
@@ -1666,6 +1667,7 @@ class KlausBot:
             signal.term_ob_imbalance     = _term_imb
             signal.term_ob_depth         = _term_ob_depth
             signal.term_remaining_s      = round(remaining, 1)
+            signal.term_token_delta_3s   = _term_tok_d3
             signal.term_token_delta_30s  = _term_tok_d30
             signal.term_token_delta_60s  = _term_tok_d60
             # Trajectory fields (populate bond_ fields so report sections work)
@@ -4184,6 +4186,7 @@ class KlausBot:
                     term_ob_imbalance=float(getattr(signal, "term_ob_imbalance", 0.0) or 0.0),
                     term_ob_depth=float(getattr(signal, "term_ob_depth", 0.0) or 0.0),
                     term_remaining_s=float(getattr(signal, "term_remaining_s", 0.0) or 0.0),
+                    term_token_delta_3s=float(getattr(signal, "term_token_delta_3s", 0.0) or 0.0),
                     term_token_delta_30s=float(getattr(signal, "term_token_delta_30s", 0.0) or 0.0),
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
                     traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),

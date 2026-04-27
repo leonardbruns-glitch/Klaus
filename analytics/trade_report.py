@@ -1020,7 +1020,12 @@ def _run_bond_report(bond_trades, label="ALL"):
              (500,99999,">500 deep")],
             _tw, _tl)
 
-        # Token price trajectory before entry
+        # Token price trajectory before entry — 3s micro-delta (velocity fade detection)
+        _term_bucket("Token ask delta 3s (micro-velocity at entry):", "term_token_delta_3s",
+            [(-99,-1.0,"< -1% fading hard"), (-1.0,-0.001,"-1% to 0% stalling"),
+             (-0.001,0.001,"flat (=0%, no data)"),
+             (0.001,1.0,"0 to +1% drifting"), (1.0,99,"> +1% still moving")],
+            _tw, _tl)
         _term_bucket("Token ask delta 30s (+ = rising into entry):", "term_token_delta_30s",
             [(-99,-0.5,"falling  (<-0.5%)"), (-0.5,0.0,"flat-neg (-0.5 to 0%)"),
              (0.0,0.0001,"flat     (=0%)"),
