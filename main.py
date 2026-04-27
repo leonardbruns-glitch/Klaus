@@ -755,7 +755,7 @@ class KlausBot:
                     if pos.tp > 0 and current_price >= pos.tp and not _is_terminal_pos:
                         _mech_reason = f'price {current_price:.4f} >= tp {pos.tp:.4f}'
                         _mech_label = 'LLM_TP_FALLBACK'
-                    elif pos.sl > 0 and current_price <= pos.sl and not _is_terminal_pos:
+                    elif pos.sl > 0 and current_price <= pos.sl and not _is_terminal_pos and not pos.is_bond:
                         _mech_reason = f'price {current_price:.4f} <= sl {pos.sl:.4f}'
                         _mech_label = 'LLM_SL_FALLBACK'
                     else:
@@ -1630,6 +1630,8 @@ class KlausBot:
                     if _hts <= _cutoff30:
                         _tok_has_hist = True
                         break
+            if not _tok_has_hist:
+                continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
