@@ -50,7 +50,8 @@ Run before any analysis or code change:
 | Ask range | 0.84–0.88 (all assets) | Raised 0.80→0.84: 0.80-0.84 PF=0.70 Net=-$29.65 (n=163); only 0.84-0.87 is profitable PF=1.02 |
 | Blocked hours ALL assets | {2,6,7,8,10,12,13,15,18,19,21} | Validated n≥20 per bucket, PF<0.70; H07 PF=0.36, H08 PF=0.52, H12 PF=0.65, H13 PF=0.42, H15 PF=0.50, H19 PF=0.66 added |
 | BOND stake cap | $4.00 | User instruction 2026-04-26 |
-| OB imbalance gate | \|imb\| ≥ 0.10 | Balanced OB WR=44% (n=9) |
+| OB imbalance gate | imb ≥ 0.20 | imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67; 66 marginal-imbalance trades lost $22.51 |
+| BOND_CATASTROPHIC wick | 8s confirmation | 34% of BC exits are flash crashes (token recovers in 30s); cancel if price returns above -12% within 8s; bypass at <15s remaining |
 | Windows | 5m only | 15m disabled |
 | Exit primary | BOND_TIME_EXIT T-1s | asyncio precise timer |
 | Exit fallback | BOND_DEADLINE T-3s | scan loop safety net |
