@@ -47,7 +47,7 @@ Run before any analysis or code change:
 |---|---|---|
 | Strategy | TERMINAL only | 5m windows, ask 0.84–0.88, 25–90s remaining |
 | BOND_CATASTROPHIC SL | -15% | Executes at avg -27% due to slippage; 97% of triggering positions resolve NO |
-| Ask range | 0.84–0.88 (all assets) | Raised 0.80→0.84: 0.80-0.84 PF=0.70 Net=-$29.65 (n=163); only 0.84-0.87 is profitable PF=1.02 |
+| Ask range | 0.80–0.88 (all assets) | Lowered 0.84→0.80 2026-04-27: 0.82-0.84 PF=1.03 (n=114); 0.80-0.82 raw PF=0.87 (n=115) wick-adj PF=1.24; wick filter expected to carry 0.80-0.82 |
 | Blocked hours ALL assets | {2,6,7,10,12,13,15,18,21} (BTC also +2,18) | H08 unblocked 2026-04-27: n=15 WR=80% Net=+$3.82 (0.84-0.88 era); H19 unblocked: n=12 WR=67% Net=+$5.06, both BC exits were wicks |
 | BOND stake cap | $4.00 | User instruction 2026-04-26 |
 | OB imbalance gate | imb ≥ 0.20 | imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67; 66 marginal-imbalance trades lost $22.51 |
