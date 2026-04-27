@@ -6,12 +6,15 @@ import json, os, collections
 from datetime import datetime, timezone
 
 LOG = os.path.join(os.path.dirname(__file__), "../logs/trades.jsonl")
+CUTOFF = datetime(2026, 4, 25, 8, 0, 0, tzinfo=timezone.utc).timestamp()
 
 trades = []
 with open(LOG) as f:
     for line in f:
         try:
-            trades.append(json.loads(line))
+            t = json.loads(line)
+            if t.get("entry_ts", 0) >= CUTOFF:
+                trades.append(t)
         except Exception:
             pass
 
