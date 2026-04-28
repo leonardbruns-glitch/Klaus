@@ -1,11 +1,13 @@
-# Quantitative Audit — 2026-04-27 18:42 UTC
+# Quantitative Audit — 2026-04-28 00:10 UTC
 
 ## Data Collection Status
 **FAILED — VPS UNREACHABLE**
 
-SSH connection to `root@85.137.174.86:22` timed out after 10s. No trade data could be retrieved.
+SSH connection to `root@85.137.174.86:22` timed out (15s timeout, two attempts).
+No `trades.jsonl` or `post_exit.jsonl` could be retrieved.
 
-Local state (`logs/bankroll.json`): `total_trades=0`, `capital=109.66`. This is the local dev environment — no trades have run here.
+Local state (`logs/bankroll.json`): `total_trades=0`, `capital=109.66`.
+This is the local dev repo — no trades have executed here.
 
 ---
 
@@ -31,11 +33,11 @@ No data available — VPS unreachable, local logs empty.
 | all | 0 | — | — | collecting data |
 
 ## Flags
-INSUFFICIENT_DATA — VPS SSH timeout. No trades.jsonl retrieved. Cannot compute any metrics.
+INSUFFICIENT_DATA — VPS SSH timeout on both attempts. No trades.jsonl retrieved.
 
 Minimum thresholds not met:
-- 6h ask/imbalance analysis requires n>=20 per bucket (have: 0)
-- Hour block analysis requires n>=100 per hour (have: 0)
+- 6h ask/imbalance patch requires n>=20 per bucket (have: 0)
+- Hour block decisions require n>=100 per hour (have: 0)
 
 ## SYSTEM_PATCH
 ```json
@@ -49,9 +51,11 @@ Minimum thresholds not met:
 }
 ```
 
-**No parameter changes applied.** All values remain at current defaults. Reason: zero trade data — no evidence base for any modification.
+**No parameter changes applied.** All values remain at current defaults.
+Reason: zero trade data — no evidence base for any modification.
 
 ## Action Required
-1. Verify VPS health: `ping 85.137.174.86` / check provider console.
-2. Once VPS is reachable, re-run audit: data volume may now meet n>=20 threshold.
-3. Check if `/root/Klaus/logs/trades.jsonl` exists on VPS (bot may not have traded yet).
+1. Verify VPS health: check provider console for `85.137.174.86`.
+2. Confirm bot process is running: `systemctl status klaus` (once SSH is restored).
+3. Once VPS is reachable, re-run audit to analyse accumulated trade data.
+4. If VPS has been down for >6h, the audit window will need extending to capture meaningful n.
