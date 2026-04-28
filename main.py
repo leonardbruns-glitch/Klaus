@@ -1685,6 +1685,13 @@ class KlausBot:
             _term_d60 = _hist_delta(_hist_q, 60)
             _open_5m  = self.feed._spot_open_5m.get(_asset_up, 0.0)
             _term_d5m = round((_spot_now - _open_5m) / _open_5m * 100, 4) if _open_5m > 0 and _spot_now > 0 else 0.0
+            # Fallback: ext_signals fetch failed → use direct kline-cache deltas
+            # _term_d5m (open→now of current 5m bar) ≈ spot_momentum_5m (prev-bar→now)
+            # _term_d60 (60s price-history delta) ≈ spot_momentum_1m
+            if _term_binance_5m is None and _term_d5m != 0.0:
+                _term_binance_5m = _term_d5m
+            if _term_binance_1m is None and _term_d60 != 0.0:
+                _term_binance_1m = _term_d60
             # Order book metrics
             _best_bid  = ob.bids[0][0] if ob.bids else 0.0
             _term_sprd = round((ask - _best_bid) / ask * 100, 4) if _best_bid > 0 else 0.0
@@ -1744,6 +1751,8 @@ class KlausBot:
                         break
             if not _tok_has_hist:
                 continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
+            if 0 < _term_tok_d30 < 10:
+                continue  # flat token drift: PF=0.74 Net=-$24.11 (n=139) vs <0 PF=1.63 / ≥10% PF=1.22+
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
