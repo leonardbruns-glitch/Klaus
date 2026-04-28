@@ -1751,8 +1751,6 @@ class KlausBot:
                         break
             if not _tok_has_hist:
                 continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
-            if 0 < _term_tok_d30 < 10:
-                continue  # flat token drift: PF=0.74 Net=-$24.11 (n=139) vs <0 PF=1.63 / ≥10% PF=1.22+
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
