@@ -269,6 +269,10 @@ class KlausBot:
         # Per-token ask price history for pre-entry trajectory: {token_id: deque[(ts, ask)]}
         # Updated every bond scan; used to compute term_token_delta_30s / _60s at entry.
         self._token_ask_history: Dict[str, deque] = {}
+        # Window-anchored pre-entry snap references: ask captured at fixed remaining thresholds.
+        # Keys: token_id → {150: ask, 120: ask, 90: ask}
+        # 150s = 60s before window opens, 120s = 30s before, 90s = at window open.
+        self._term_pre_snap_refs: Dict[str, Dict[int, float]] = {}
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -1623,8 +1627,15 @@ class KlausBot:
             if _ob_hist and _ob_hist.asks:
                 _ask_now = _ob_hist.asks[0][0]
                 if token_id not in self._token_ask_history:
-                    self._token_ask_history[token_id] = deque(maxlen=120)
+                    self._token_ask_history[token_id] = deque(maxlen=200)
                 self._token_ask_history[token_id].append((now, _ask_now))
+                # Window-anchored pre-entry snap references: capture ask at fixed
+                # remaining thresholds (150s, 120s, 90s) once per threshold per window.
+                _remaining_now = token.window_end_ts - now
+                _snap_refs = self._term_pre_snap_refs.setdefault(token_id, {})
+                for _thresh in (150, 120, 90):
+                    if _thresh not in _snap_refs and _remaining_now <= _thresh:
+                        _snap_refs[_thresh] = _ask_now
             if token_id in self.risk.open_positions:
                 continue
             if token.asset in self.risk._pending_assets:
@@ -1633,9 +1644,10 @@ class KlausBot:
                 continue
             _b_total += 1
 
-            # Hour blocks: only add when hour reaches n>=100 in 0.80-0.88 range with PF<0.80.
-            # Managed autonomously by the Quantitative Auditor agent (runs every 6h).
-            _BLOCKED_HOURS: set = {2, 5, 21}  # 02h n=24 PF=0.37, 05h n=55 PF=0.54, 21h n=81 PF=0.54
+            # Hour blocks: H02/H05 confirmed at PF=0.19/0.21 across full terminal era.
+            # H21 UNBLOCKED: all-BOND PF=0.54 was contaminated by out-of-range entries;
+            # H21 within 0.80-0.88 target range: n=46 WR=65% PF=1.19 Net=+$4.00 (positive).
+            _BLOCKED_HOURS: set = {2, 5}  # 02h PF=0.19 Net=-$12.74 | 05h PF=0.21 Net=-$12.48
             if _utc_hour in _BLOCKED_HOURS:
                 continue
 
@@ -1715,22 +1727,8 @@ class KlausBot:
             if _term_imb < 0.20:
                 continue  # imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67 (n=300)
 
-            # Binance momentum gate — UP window only.
-            # UP YES + both-rising (1m>0 AND 5m>0): n=43 WR=51% E=+$0.41 vs other regimes WR=75-87%.
-            # Root cause: when spot has already trended UP for 4+ min, the YES token at 0.84
-            # is correctly- or over-priced; snap-back risk outweighs remaining edge.
-            # DOWN window: no filter needed — "with-trend" (5m-) still wins 87% because
-            # Binance rising (5m+) prices DOWN tokens below 0.80 before they reach our ask floor.
-            # n=43 UP, 0 DOWN in bad regime. Applied 2026-04-28.
-            if (_token_dir == "up"
-                    and _term_binance_1m is not None and _term_binance_5m is not None
-                    and _term_binance_1m > 0 and _term_binance_5m > 0):
-                logger.info(
-                    "TERMINAL SKIP %s/up both-rising: 1m=%.3f%% 5m=%.3f%%",
-                    token.asset, _term_binance_1m * 100, _term_binance_5m * 100,
-                )
-                _b_mom_skip += 1
-                continue
+            # Binance momentum (both-rising) gate removed: n=43, below n=100 threshold.
+            # Data is still logged (term_binance_1m_pct, term_binance_5m_pct) for accumulation.
 
             # Token ask price trajectory: was the token rising or falling before entry?
             def _token_delta(hist, secs):
@@ -1796,12 +1794,8 @@ class KlausBot:
                         break
             if not _tok_has_hist:
                 continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
-            if abs(_tok_drift) < 0.02:
-                logger.info(
-                    "TERMINAL SKIP %s/%s — flat drift %.4f (|drift|<0.02, PF=0.39 n=56)",
-                    token.asset, token.side, _tok_drift,
-                )
-                continue
+            # Flat drift gate removed: n=56, below n=100 threshold; derived from TREND
+            # strategy data, not validated on TERMINAL entries specifically.
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
@@ -1843,6 +1837,16 @@ class KlausBot:
             signal.term_tok_tick_count_30s = _term_tok_tick_count_30s
             signal.term_ask_stale_s        = _term_ask_stale_s
             signal.term_tok_decel_ratio    = _term_tok_decel_ratio
+            # Window-anchored pre-entry snaps: % change from fixed remaining thresholds to now.
+            # pre_snap_60s: ask at remaining=150s → now (60s before window to entry)
+            # pre_snap_30s: ask at remaining=120s → now (30s before window to entry)
+            # pre_snap_open: ask at remaining=90s  → now (window-open to entry)
+            _snap_refs = self._term_pre_snap_refs.get(token_id, {})
+            def _anchored_snap(ref_ask):
+                return round((ask - ref_ask) / ref_ask * 100, 4) if ref_ask and ref_ask > 0 else 0.0
+            signal.term_pre_snap_60s  = _anchored_snap(_snap_refs.get(150, 0.0))
+            signal.term_pre_snap_30s  = _anchored_snap(_snap_refs.get(120, 0.0))
+            signal.term_pre_snap_open = _anchored_snap(_snap_refs.get(90, 0.0))
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
@@ -3669,6 +3673,7 @@ class KlausBot:
                 self._pos_log_ts.pop(token_id, None)
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
+                self._term_pre_snap_refs.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
                 self._peak_bond_move.pop(token_id, None)
@@ -4052,6 +4057,7 @@ class KlausBot:
                 self._pos_log_ts.pop(token_id, None)
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
+                self._term_pre_snap_refs.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
                 self._peak_bond_move.pop(token_id, None)
@@ -4420,6 +4426,9 @@ class KlausBot:
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
                     term_binance_1m_pct=getattr(signal, "term_binance_1m_pct", None),
                     term_binance_5m_pct=getattr(signal, "term_binance_5m_pct", None),
+                    term_pre_snap_60s=float(getattr(signal, "term_pre_snap_60s", 0.0) or 0.0),
+                    term_pre_snap_30s=float(getattr(signal, "term_pre_snap_30s", 0.0) or 0.0),
+                    term_pre_snap_open=float(getattr(signal, "term_pre_snap_open", 0.0) or 0.0),
                     traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
                     traj_mae_10s=float(self._traj_mae.get(token_id, {}).get(10, 0.0)),
                     traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
@@ -4433,6 +4442,7 @@ class KlausBot:
         self._pos_log_ts.pop(token_id, None)
         self._dir_rev_count.pop(token_id, None)
         self._entry_snaps.pop(token_id, None)
+        self._term_pre_snap_refs.pop(token_id, None)
         self._sl_below_count.pop(token_id, None)
         self._stall_checked.discard(token_id)
         self._peak_bond_move.pop(token_id, None)

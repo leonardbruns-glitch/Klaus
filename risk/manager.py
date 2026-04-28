@@ -1049,25 +1049,7 @@ class RiskManager:
         if pos.is_bond:
             time_held = now - pos.open_ts
 
-            # ── 2b-i. TERMINAL snap30 abort (T+30s hard floor) ───────────────
-            # If snap30 < -20% and still UNKNOWN, the wick filter held through BC
-            # but price hasn't recovered — genuine NO resolution. Exit immediately.
-            # n=66 WR=15% PnL=-$103.56 (terminal era Apr24+; n<100, user-directed).
-            if (pos.cascade_state == "UNKNOWN"
-                    and getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                    and pos.entry_snap_30s_pct != 0.0
-                    and pos.entry_snap_30s_pct < -20.0):
-                pos.cascade_state = "CASCADING"
-                logger.info(
-                    "TERMINAL_SNAP30_ABORT %s/%s @ %.4f | snap30=%.1f%%",
-                    pos.asset, pos.direction.name, current_price,
-                    pos.entry_snap_30s_pct,
-                )
-                return ExitDecision(
-                    True,
-                    f"TERMINAL_SNAP30_ABORT snap30={pos.entry_snap_30s_pct:.1f}%",
-                    urgency="immediate",
-                )
+            # snap30 abort removed: n=66, below n=100 threshold. Accumulating data.
 
             if pos.cascade_state == "CASCADING":
                 return ExitDecision(
