@@ -1635,7 +1635,7 @@ class KlausBot:
 
             # Hour blocks: only add when hour reaches n>=100 in 0.80-0.88 range with PF<0.80.
             # Managed autonomously by the Quantitative Auditor agent (runs every 6h).
-            _BLOCKED_HOURS: set = set()  # e.g. {6, 10, 21} — auditor updates this line
+            _BLOCKED_HOURS: set = {2, 5, 21}  # 02h n=24 PF=0.37, 05h n=55 PF=0.54, 21h n=81 PF=0.54
             if _utc_hour in _BLOCKED_HOURS:
                 continue
 
