@@ -797,15 +797,22 @@ class KlausBot:
                 # exiting to filter these false stops. Hard bypass at bond_remaining<15s.
                 # 8s→10s: 9 of 13 missed recoveries fell at 8.2–9.6s (scan-loop timing
                 # artifacts, not genuine slow wicks). 10s catches 49/53 vs 40/53 at 8s.
+                # Hold-time wick window: analysis (Apr26+28, n=126) shows BC exits at
+                # hold>35s are 70-90% false positives (EV +$0.70-$1.01/trade vs exit).
+                # Fast crashes (<15s) are 68% genuine — keep 10s there.
+                # Hypothesis confirmed at n<100; monitor bc_hold_bucket in wick_events.jsonl.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
                 _sl_threshold = -0.15
                 if bond_move <= _sl_threshold and token_id not in self._exit_in_progress:
                     _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
-                    _wick_wait = 10.0
+                    _hold_s_at_breach = now - getattr(pos, "open_ts", now)
+                    _bc_hold_bucket = "late" if _hold_s_at_breach > 35.0 else ("fast" if _hold_s_at_breach < 15.0 else "mid")
+                    # late wick window: 70-90% FP at hold>35s (n=46, hypothesis)
+                    _wick_wait = 18.0 if _bc_hold_bucket == "late" else 10.0
                     _hard_bypass = bond_remaining < 15.0
                     _already_cancelled = self._catas_cancel_count.get(token_id, 0) >= 1
                     if _hard_bypass or _already_cancelled or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
-                        # Confirmed genuine failure (10s elapsed) or deadline/re-breach forcing exit
+                        # Confirmed genuine failure (wick_wait elapsed) or deadline/re-breach forcing exit
                         _elapsed = now - _breach_ts if _breach_ts > 0 else 0.0
                         _exit_reason_tag = 'bypass' if _hard_bypass else ('re-breach' if _already_cancelled else f'confirmed {_elapsed:.1f}s')
                         _info = self._catas_breach_info.pop(token_id, {})
@@ -832,6 +839,10 @@ class KlausBot:
                                     "elapsed_timer_s": round(_elapsed, 2),
                                     "bond_remaining_at_breach_s": round(_info.get("bond_remaining", bond_remaining), 1),
                                     "was_bypass": _hard_bypass,
+                                    "hold_s_at_breach": round(_hold_s_at_breach, 1),
+                                    "bc_hold_bucket": _bc_hold_bucket,
+                                    "wick_window_s": _wick_wait,
+                                    "exit_reason_tag": _exit_reason_tag,
                                 }) + "\n")
                             await self._exit_position(token_id, current_price, 'BOND_CATASTROPHIC')
                         finally:
@@ -846,6 +857,8 @@ class KlausBot:
                                 "breach_move_pct": round(bond_move * 100, 3),
                                 "min_price": current_price,
                                 "bond_remaining": bond_remaining,
+                                "hold_s_at_breach": round(_hold_s_at_breach, 1),
+                                "bc_hold_bucket": _bc_hold_bucket,
                             }
                             logger.info(
                                 'BOND_CATASTROPHIC_ARM %s/%s | move=%+.1f%% rem=%.0fs — arming wick timer (%.0fs)',
@@ -861,6 +874,9 @@ class KlausBot:
                                     "breach_price": current_price,
                                     "breach_move_pct": round(bond_move * 100, 3),
                                     "bond_remaining_at_breach_s": round(bond_remaining, 1),
+                                    "hold_s_at_breach": round(_hold_s_at_breach, 1),
+                                    "bc_hold_bucket": _bc_hold_bucket,
+                                    "wick_window_s": _wick_wait,
                                 }) + "\n")
                         else:
                             # Still in timer window — track deepest drop
@@ -878,6 +894,8 @@ class KlausBot:
                         'BOND_CATASTROPHIC_CANCEL %s/%s | move=%+.1f%% recovered in %.1fs — wick cleared',
                         pos.asset, pos.direction.name, bond_move * 100, _recovery_s,
                     )
+                    _hold_s_cancel = now - getattr(pos, "open_ts", now)
+                    _bc_hold_bucket_cancel = "late" if _hold_s_cancel > 35.0 else ("fast" if _hold_s_cancel < 15.0 else "mid")
                     with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
                         _wf.write(json.dumps({
                             "event_type": "WICK_CANCEL",
@@ -892,6 +910,8 @@ class KlausBot:
                             "recovery_move_pct": round(bond_move * 100, 3),
                             "recovery_time_s": _recovery_s,
                             "bond_remaining_at_breach_s": round(_info.get("bond_remaining", bond_remaining), 1),
+                            "hold_s_at_breach": round(_info.get("hold_s_at_breach", _hold_s_cancel), 1),
+                            "bc_hold_bucket": _info.get("bc_hold_bucket", _bc_hold_bucket_cancel),
                         }) + "\n")
 
                 # ── Safety net 2: absolute deadline ──────────────────────────────
