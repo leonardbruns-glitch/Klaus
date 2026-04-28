@@ -566,6 +566,7 @@ class PolymarketFeed:
             asks = sorted(_parse_levels(asks_raw))
 
             if bids or asks:
+                _prev_ob = self.order_books.get(asset_id)
                 ob = OrderBook(
                     ts=time.time(), token_id=asset_id,
                     asset=token.asset, side=token.side,
@@ -573,7 +574,8 @@ class PolymarketFeed:
                 )
                 self.order_books[asset_id] = ob
                 self._ws_ob_ts[asset_id] = time.time()
-                self._record_token_bid_move(asset_id, bids[0][0] if bids else 0.0)
+                _bid_for_move = bids[0][0] if bids else (_prev_ob.bids[0][0] if _prev_ob and _prev_ob.bids else 0.0)
+                self._record_token_bid_move(asset_id, _bid_for_move)
                 if self._on_bbo_update is not None and bids:
                     _t = asyncio.create_task(self._on_bbo_update(asset_id, bids[0][0]))
                     _t.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
