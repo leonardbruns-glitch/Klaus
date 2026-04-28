@@ -1696,6 +1696,22 @@ class KlausBot:
             if _term_imb < 0.20:
                 continue  # imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67 (n=300)
 
+            # Binance momentum gate — UP window only.
+            # UP YES + both-rising (1m>0 AND 5m>0): n=43 WR=51% E=+$0.41 vs other regimes WR=75-87%.
+            # Root cause: when spot has already trended UP for 4+ min, the YES token at 0.84
+            # is correctly- or over-priced; snap-back risk outweighs remaining edge.
+            # DOWN window: no filter needed — "with-trend" (5m-) still wins 87% because
+            # Binance rising (5m+) prices DOWN tokens below 0.80 before they reach our ask floor.
+            # n=43 UP, 0 DOWN in bad regime. Applied 2026-04-28.
+            if (_token_dir == "up"
+                    and _term_binance_1m is not None and _term_binance_5m is not None
+                    and _term_binance_1m > 0 and _term_binance_5m > 0):
+                logger.info(
+                    "TERMINAL SKIP %s/up both-rising: 1m=%.3f%% 5m=%.3f%%",
+                    token.asset, _term_binance_1m * 100, _term_binance_5m * 100,
+                )
+                continue
+
             # Token ask price trajectory: was the token rising or falling before entry?
             def _token_delta(hist, secs):
                 if not hist or not ask:
