@@ -314,6 +314,10 @@ class KlausBot:
         # Cancel count: incremented each time wick timer is cancelled for a position.
         # Second breach skips the 10s timer — sawtooth oscillation is not a wick.
         self._catas_cancel_count: Dict[str, int] = {}
+        # post_bc_reversal_rate tracker: set at first ARM, persists through cancels.
+        # Records whether price recovers above entry after a BC breach.
+        # Cleared at position exit — not at cancel — so it captures the full trajectory.
+        self._bc_arm_tracker: Dict[str, dict] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -860,6 +864,19 @@ class KlausBot:
                                 "hold_s_at_breach": round(_hold_s_at_breach, 1),
                                 "bc_hold_bucket": _bc_hold_bucket,
                             }
+                            # First ARM only — track whether price ever recovers above entry
+                            if token_id not in self._bc_arm_tracker:
+                                self._bc_arm_tracker[token_id] = {
+                                    "arm_ts": now,
+                                    "entry_price": pos.entry_price,
+                                    "breach_price": current_price,
+                                    "breach_move_pct": round(bond_move * 100, 3),
+                                    "bc_hold_bucket": _bc_hold_bucket,
+                                    "hold_s_at_breach": round(_hold_s_at_breach, 1),
+                                    "bond_remaining_at_breach_s": round(bond_remaining, 1),
+                                    "asset": pos.asset,
+                                    "reversed": False,
+                                }
                             logger.info(
                                 'BOND_CATASTROPHIC_ARM %s/%s | move=%+.1f%% rem=%.0fs — arming wick timer (%.0fs)',
                                 pos.asset, pos.direction.name, bond_move * 100, bond_remaining, _wick_wait,
@@ -912,6 +929,30 @@ class KlausBot:
                             "bond_remaining_at_breach_s": round(_info.get("bond_remaining", bond_remaining), 1),
                             "hold_s_at_breach": round(_info.get("hold_s_at_breach", _hold_s_cancel), 1),
                             "bc_hold_bucket": _info.get("bc_hold_bucket", _bc_hold_bucket_cancel),
+                        }) + "\n")
+
+                # ── post_bc_reversal_rate check ───────────────────────────────────
+                # Tracks whether price recovers above entry after a BC breach.
+                # Survives wick cancels — measures the full-recovery rate, not just
+                # the -12% wick threshold. Cleared at position exit (not here).
+                _arm = self._bc_arm_tracker.get(token_id)
+                if _arm and not _arm["reversed"] and current_price >= _arm["entry_price"]:
+                    _arm["reversed"] = True
+                    _elapsed_to_rev = round(now - _arm["arm_ts"], 1)
+                    with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
+                        _wf.write(json.dumps({
+                            "event_type": "WICK_REVERSAL",
+                            "ts": now,
+                            "asset": _arm["asset"],
+                            "direction": pos.direction.name,
+                            "entry_price": _arm["entry_price"],
+                            "breach_price": _arm["breach_price"],
+                            "breach_move_pct": _arm["breach_move_pct"],
+                            "reversal_price": current_price,
+                            "elapsed_to_reversal_s": _elapsed_to_rev,
+                            "bc_hold_bucket": _arm["bc_hold_bucket"],
+                            "hold_s_at_breach": _arm["hold_s_at_breach"],
+                            "bond_remaining_at_breach_s": _arm["bond_remaining_at_breach_s"],
                         }) + "\n")
 
                 # ── Safety net 2: absolute deadline ──────────────────────────────
@@ -4479,6 +4520,24 @@ class KlausBot:
         self._bond_sl_arm_ts.pop(token_id, None)
         self._catas_breach_ts.pop(token_id, None)
         self._catas_cancel_count.pop(token_id, None)
+        # Log outcome for BC-armed positions that never fully reversed
+        _arm_exit = self._bc_arm_tracker.pop(token_id, None)
+        if _arm_exit:
+            with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
+                _wf.write(json.dumps({
+                    "event_type": "WICK_ARM_CLOSED",
+                    "ts": time.time(),
+                    "asset": _arm_exit["asset"],
+                    "exit_reason": reason,
+                    "entry_price": _arm_exit["entry_price"],
+                    "breach_price": _arm_exit["breach_price"],
+                    "breach_move_pct": _arm_exit["breach_move_pct"],
+                    "reversed": _arm_exit["reversed"],
+                    "elapsed_total_s": round(time.time() - _arm_exit["arm_ts"], 1),
+                    "bc_hold_bucket": _arm_exit["bc_hold_bucket"],
+                    "hold_s_at_breach": _arm_exit["hold_s_at_breach"],
+                    "bond_remaining_at_breach_s": _arm_exit["bond_remaining_at_breach_s"],
+                }) + "\n")
         self._terminal_tp_touched.discard(token_id)
         bankroll = self.risk.bankroll.summary()
         logger.info(

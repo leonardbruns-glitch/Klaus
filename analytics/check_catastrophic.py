@@ -155,33 +155,73 @@ if os.path.exists(WICK_LOG):
             except Exception:
                 pass
 
-    confirms  = [e for e in wick_events if e.get("event_type") == "WICK_CONFIRM" and e.get("bc_hold_bucket")]
-    cancels   = [e for e in wick_events if e.get("event_type") == "WICK_CANCEL"  and e.get("bc_hold_bucket")]
-    arms      = [e for e in wick_events if e.get("event_type") == "WICK_ARM"     and e.get("bc_hold_bucket")]
+    arms      = [e for e in wick_events if e.get("event_type") == "WICK_ARM"      and e.get("bc_hold_bucket")]
+    cancels   = [e for e in wick_events if e.get("event_type") == "WICK_CANCEL"   and e.get("bc_hold_bucket")]
+    confirms  = [e for e in wick_events if e.get("event_type") == "WICK_CONFIRM"  and e.get("bc_hold_bucket")]
+    reversals = [e for e in wick_events if e.get("event_type") == "WICK_REVERSAL" and e.get("bc_hold_bucket")]
+    closeds   = [e for e in wick_events if e.get("event_type") == "WICK_ARM_CLOSED"]
 
-    print(f"\n=== WICK HOLD-BUCKET TRACKING (n_arm={len(arms)}, n_confirm={len(confirms)}, n_cancel={len(cancels)}) ===")
-    print("  cancel_rate = fraction of ARM events that were cancelled (wick resolved itself)")
-    print("  NOTE: bc_hold_bucket field only present on events logged after 2026-04-28 deploy\n")
+    print(f"\n=== POST_BC_REVERSAL_RATE (n_arm={len(arms)}, n_closed={len(closeds)}, n_reversal={len(reversals)}) ===")
+    print("  reversal_rate = % of BC-ARM trades where price recovered above entry")
+    print("  cancel_rate   = % where wick filter fired (price recovered to -12%)")
+    print("  NOTE: only events after 2026-04-28 deploy carry bc_hold_bucket\n")
 
     for bucket in ["fast", "mid", "late"]:
-        a = [e for e in arms     if e.get("bc_hold_bucket") == bucket]
-        c = [e for e in confirms if e.get("bc_hold_bucket") == bucket]
-        k = [e for e in cancels  if e.get("bc_hold_bucket") == bucket]
-        n_a = len(a)
+        a  = [e for e in arms      if e.get("bc_hold_bucket") == bucket]
+        k  = [e for e in cancels   if e.get("bc_hold_bucket") == bucket]
+        c  = [e for e in confirms  if e.get("bc_hold_bucket") == bucket]
+        rv = [e for e in reversals if e.get("bc_hold_bucket") == bucket]
+        cl = [e for e in closeds   if e.get("bc_hold_bucket") == bucket]
+
+        n_a  = len(a)
+        n_cl = len(cl)    # closed positions that had an ARM (complete outcomes)
+
         if n_a == 0:
             print(f"  [{bucket:4s}]: no events yet")
             continue
-        cancel_rate = len(k) / n_a * 100
-        confirm_rate = len(c) / n_a * 100
+
         wick_windows = [e.get("wick_window_s") for e in a if e.get("wick_window_s")]
         ww = wick_windows[0] if wick_windows else "?"
-        print(f"  [{bucket:4s}] window={ww}s  arms={n_a:3d}  cancels={len(k):3d} ({cancel_rate:.0f}%)  confirms={len(c):3d} ({confirm_rate:.0f}%)")
-        # Recovery depth on cancels
-        rec = [e.get("recovery_move_pct") for e in k if e.get("recovery_move_pct") is not None]
-        if rec:
-            print(f"         cancel recovery_move_pct: min={min(rec):.1f}%  mean={sum(rec)/len(rec):.1f}%  max={max(rec):.1f}%")
 
-    print("\n  Target: late-bucket cancel_rate should be higher than fast-bucket cancel_rate.")
-    print("  Validate at n>=100 per bucket before adjusting thresholds.")
+        # Reversal rate from WICK_ARM_CLOSED records (most reliable — full position lifecycle)
+        if n_cl > 0:
+            cl_reversed = [e for e in cl if e.get("reversed")]
+            rev_rate = len(cl_reversed) / n_cl * 100
+            rev_str = f"  reversal_rate={rev_rate:.0f}% ({len(cl_reversed)}/{n_cl} closed)"
+        else:
+            rev_rate = len(rv) / n_a * 100
+            rev_str = f"  reversal_rate={rev_rate:.0f}% ({len(rv)}/{n_a} arms, incomplete)"
+
+        cancel_rate  = len(k) / n_a * 100 if n_a else 0
+        confirm_rate = len(c) / n_a * 100 if n_a else 0
+
+        print(f"  [{bucket:4s}] window={ww}s  arms={n_a:3d}  cancel={cancel_rate:.0f}%  confirm={confirm_rate:.0f}%{rev_str}")
+
+        # Time-to-reversal distribution
+        if rv:
+            t_rev = sorted(e.get("elapsed_to_reversal_s", 0) for e in rv)
+            p50 = t_rev[len(t_rev) // 2]
+            p90 = t_rev[int(len(t_rev) * 0.9)]
+            print(f"         time_to_reversal: p50={p50:.0f}s  p90={p90:.0f}s  max={max(t_rev):.0f}s")
+
+        # Reversal rate by time window (X seconds after breach)
+        if cl and len(cl) >= 5:
+            print(f"         reversal_by_window (of {n_cl} closed):", end="")
+            for window_s in [10, 20, 30, 60]:
+                # count reversals where elapsed_to_reversal_s <= window_s
+                rev_in_window = sum(
+                    1 for e in cl
+                    if e.get("reversed") and
+                    any(r.get("elapsed_to_reversal_s", 999) <= window_s
+                        for r in reversals
+                        if r.get("bc_hold_bucket") == bucket)
+                )
+                # simpler: use reversal events directly
+                rv_w = [r for r in rv if r.get("elapsed_to_reversal_s", 999) <= window_s]
+                print(f"  <{window_s}s:{len(rv_w)}/{len(cl)}", end="")
+            print()
+
+    print("\n  Hypothesis: late reversal_rate >> fast reversal_rate.")
+    print("  Validate at n>=100 closed per bucket before changing thresholds.")
 else:
     print("\n  (wick_events.jsonl not found — run from /root/Klaus)")
