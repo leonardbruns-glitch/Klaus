@@ -3716,7 +3716,9 @@ class KlausBot:
                 # Check if the token resolved worthless (wrong direction).
                 # A best bid < $0.02 with no sell fills = token expired at $0,
                 # not an external sell. Record the real loss instead of entry_price.
-                _ob_chk = self.feed.get_order_book(token_id)
+                # Must use a fresh fetch here — cached OB still shows pre-close bid
+                # (e.g. 0.85) after ORDERBOOK_NOT_FOUND, bypassing the < 0.02 check.
+                _ob_chk = await self.feed.fetch_order_book(token_id)
                 _best_bid_chk = _ob_chk.bids[0][0] if (_ob_chk and _ob_chk.bids) else 0.0
                 if _best_bid_chk < 0.02:
                     _raw_exit = 0.0
