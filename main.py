@@ -1796,6 +1796,12 @@ class KlausBot:
                         break
             if not _tok_has_hist:
                 continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
+            if abs(_tok_drift) < 0.02:
+                logger.info(
+                    "TERMINAL SKIP %s/%s — flat drift %.4f (|drift|<0.02, PF=0.39 n=56)",
+                    token.asset, token.side, _tok_drift,
+                )
+                continue
             signal = SniperSignal(
                 asset=token.asset,
                 side=token.side,
