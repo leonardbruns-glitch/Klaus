@@ -1593,7 +1593,7 @@ class KlausBot:
             return
         now = time.time()
         _utc_hour = time.gmtime(now).tm_hour
-        _b_total = _b_in_window = _b_ask_skip = _b_fired = 0
+        _b_total = _b_in_window = _b_ask_skip = _b_fired = _b_mom_skip = 0
         # Purge expired window keys (window ended > 120s ago)
         self._terminal_traded_windows = {
             (a, wt) for a, wt in self._terminal_traded_windows if wt > now - 120
@@ -1710,6 +1710,7 @@ class KlausBot:
                     "TERMINAL SKIP %s/up both-rising: 1m=%.3f%% 5m=%.3f%%",
                     token.asset, _term_binance_1m * 100, _term_binance_5m * 100,
                 )
+                _b_mom_skip += 1
                 continue
 
             # Token ask price trajectory: was the token rising or falling before entry?
@@ -1846,8 +1847,8 @@ class KlausBot:
         try:
             _bond_status = "TERMINAL FIRED" if _b_fired else "TERMINAL WAITING"
             logger.info(
-                "[BOND] %s | updown=%d in_window=%d ask_skip=%d fired=%d",
-                _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_fired,
+                "[BOND] %s | updown=%d in_window=%d ask_skip=%d mom_skip=%d fired=%d",
+                _bond_status, _b_total, _b_in_window, _b_ask_skip, _b_mom_skip, _b_fired,
             )
             # Self-healing: if no updown tokens are tracked at all, the feed lost
             # them (discovery timeout / Cloudflare blip). Reset the 60s throttle so
