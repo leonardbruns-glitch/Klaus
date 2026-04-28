@@ -1749,6 +1749,39 @@ class KlausBot:
             _term_tok_d60  = _token_delta(_tok_hist, 60)
             _term_tok_tick5 = sum(1 for ts, _ in (_tok_hist or []) if ts >= now - 5.0)
 
+            # Tick count 30s: distinct ask price changes in last 30s (wider window than 5s)
+            _term_tok_tick_count_30s = 0
+            if _tok_hist:
+                _hist30 = [(ts, p) for ts, p in _tok_hist if ts >= now - 30.0]
+                if len(_hist30) >= 2:
+                    _prev_p = _hist30[0][1]
+                    for _, _cp in _hist30[1:]:
+                        if abs(_cp - _prev_p) > 0.001:
+                            _term_tok_tick_count_30s += 1
+                            _prev_p = _cp
+
+            # Ask staleness: seconds since ask last changed in scan-loop history.
+            # move_age_s from WS is 999 for 97% of trades (WS ticks too sparse).
+            # This uses the ~2s scan-loop samples which are always populated.
+            _term_ask_stale_s = 999.0
+            if _tok_hist and ask is not None:
+                _hist_list = list(_tok_hist)
+                for _hts, _hp in reversed(_hist_list):
+                    if abs(_hp - ask) > 0.005:
+                        _term_ask_stale_s = round(now - _hts, 1)
+                        break
+                else:
+                    if _hist_list:
+                        _term_ask_stale_s = round(now - _hist_list[0][0], 1)
+
+            # Deceleration ratio: d5s / d30s. Near 0 = momentum stalled at entry.
+            # Valid only when |d30| >= 0.5% (otherwise ratio is noise).
+            _term_tok_decel_ratio = 0.0
+            if abs(_term_tok_d30) >= 0.5:
+                _term_tok_decel_ratio = round(
+                    max(-3.0, min(3.0, _term_tok_d5 / _term_tok_d30)), 4
+                )
+
             # Trajectory fields for report analysis (bond_delta_accel_30s etc.)
             # Map token ask velocity → bond_delta_accel_30s (fraction: +0.05 = token up 5% in 30s)
             _tok_accel = round(_term_tok_d30 / 100.0, 4)
@@ -1800,7 +1833,10 @@ class KlausBot:
             signal.term_token_delta_5s   = _term_tok_d5
             signal.term_token_delta_30s  = _term_tok_d30
             signal.term_token_delta_60s  = _term_tok_d60
-            signal.term_tok_tick_count_5s = _term_tok_tick5
+            signal.term_tok_tick_count_5s  = _term_tok_tick5
+            signal.term_tok_tick_count_30s = _term_tok_tick_count_30s
+            signal.term_ask_stale_s        = _term_ask_stale_s
+            signal.term_tok_decel_ratio    = _term_tok_decel_ratio
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
@@ -2863,7 +2899,21 @@ class KlausBot:
 
         signal_to_fill_ms = (time.time() - ts_open) * 1000.0
         _vel_5s, _ = self.feed.get_velocity_5s(asset)
-        _token_move_age = self.feed.get_token_move_age(token_id)
+        # Prefer scan-loop ask history for move_age (WS ticks too sparse → 999 for 97% of trades).
+        _tok_hist_ep = self._token_ask_history.get(token_id)
+        _entry_ask = getattr(signal, "entry_price", None) or getattr(signal, "token_ask", None)
+        if _tok_hist_ep and _entry_ask:
+            _hist_ep = list(_tok_hist_ep)
+            _token_move_age = 999.0
+            for _hts, _hp in reversed(_hist_ep):
+                if abs(_hp - _entry_ask) > 0.005:
+                    _token_move_age = round(time.time() - _hts, 1)
+                    break
+            else:
+                if _hist_ep:
+                    _token_move_age = round(time.time() - _hist_ep[0][0], 1)
+        else:
+            _token_move_age = self.feed.get_token_move_age(token_id)
 
         self._open_meta[token_id] = {
             "signal": signal,
@@ -4357,6 +4407,9 @@ class KlausBot:
                     term_token_delta_3s=float(getattr(signal, "term_token_delta_3s", 0.0) or 0.0),
                     term_token_delta_5s=float(getattr(signal, "term_token_delta_5s", 0.0) or 0.0),
                     term_tok_tick_count_5s=int(getattr(signal, "term_tok_tick_count_5s", 0) or 0),
+                    term_tok_tick_count_30s=int(getattr(signal, "term_tok_tick_count_30s", 0) or 0),
+                    term_ask_stale_s=float(getattr(signal, "term_ask_stale_s", 999.0) or 999.0),
+                    term_tok_decel_ratio=float(getattr(signal, "term_tok_decel_ratio", 0.0) or 0.0),
                     term_token_delta_30s=float(getattr(signal, "term_token_delta_30s", 0.0) or 0.0),
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
                     term_binance_1m_pct=getattr(signal, "term_binance_1m_pct", None),

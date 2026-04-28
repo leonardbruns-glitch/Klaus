@@ -206,6 +206,9 @@ class TradeRecord:
     term_token_delta_3s: float = 0.0   # token ask % change vs 3s ago
     term_token_delta_5s: float = 0.0   # token ask % change vs 5s ago
     term_tok_tick_count_5s: int = 0    # number of OB ticks in last 5s
+    term_tok_tick_count_30s: int = 0   # distinct ask price changes in last 30s
+    term_ask_stale_s: float = 999.0    # seconds since ask last changed (scan-loop)
+    term_tok_decel_ratio: float = 0.0  # d5s/d30s; near 0 = momentum stalled at entry
     term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising)
     term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
     term_binance_1m_pct: Optional[float] = None  # kline-based 1m Binance momentum at entry
@@ -439,6 +442,9 @@ class FeedbackEngine:
         term_token_delta_3s: float = 0.0,
         term_token_delta_5s: float = 0.0,
         term_tok_tick_count_5s: int = 0,
+        term_tok_tick_count_30s: int = 0,
+        term_ask_stale_s: float = 999.0,
+        term_tok_decel_ratio: float = 0.0,
         term_token_delta_30s: float = 0.0,
         term_token_delta_60s: float = 0.0,
         term_binance_1m_pct: Optional[float] = None,
@@ -666,6 +672,9 @@ class FeedbackEngine:
             term_token_delta_3s=round(term_token_delta_3s, 4),
             term_token_delta_5s=round(term_token_delta_5s, 4),
             term_tok_tick_count_5s=int(term_tok_tick_count_5s),
+            term_tok_tick_count_30s=int(term_tok_tick_count_30s),
+            term_ask_stale_s=round(term_ask_stale_s, 1),
+            term_tok_decel_ratio=round(term_tok_decel_ratio, 4),
             term_token_delta_30s=round(term_token_delta_30s, 4),
             term_token_delta_60s=round(term_token_delta_60s, 4),
             term_binance_1m_pct=round(term_binance_1m_pct, 4) if term_binance_1m_pct is not None else None,
