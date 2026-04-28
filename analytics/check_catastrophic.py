@@ -143,3 +143,45 @@ for b in sorted(ep_b):
     print(f"    ep={b:.2f}-{b+0.02:.2f}  n={len(bucket):3d}  WR={wins/len(bucket)*100:5.1f}%  sum=${pnl:+.2f}")
 
 print()
+
+# ── Hold-bucket analysis (requires wick_events.jsonl) ────────────────────────
+WICK_LOG = os.path.join(os.path.dirname(__file__), "../logs/wick_events.jsonl")
+if os.path.exists(WICK_LOG):
+    wick_events = []
+    with open(WICK_LOG) as wf:
+        for line in wf:
+            try:
+                wick_events.append(json.loads(line))
+            except Exception:
+                pass
+
+    confirms  = [e for e in wick_events if e.get("event_type") == "WICK_CONFIRM" and e.get("bc_hold_bucket")]
+    cancels   = [e for e in wick_events if e.get("event_type") == "WICK_CANCEL"  and e.get("bc_hold_bucket")]
+    arms      = [e for e in wick_events if e.get("event_type") == "WICK_ARM"     and e.get("bc_hold_bucket")]
+
+    print(f"\n=== WICK HOLD-BUCKET TRACKING (n_arm={len(arms)}, n_confirm={len(confirms)}, n_cancel={len(cancels)}) ===")
+    print("  cancel_rate = fraction of ARM events that were cancelled (wick resolved itself)")
+    print("  NOTE: bc_hold_bucket field only present on events logged after 2026-04-28 deploy\n")
+
+    for bucket in ["fast", "mid", "late"]:
+        a = [e for e in arms     if e.get("bc_hold_bucket") == bucket]
+        c = [e for e in confirms if e.get("bc_hold_bucket") == bucket]
+        k = [e for e in cancels  if e.get("bc_hold_bucket") == bucket]
+        n_a = len(a)
+        if n_a == 0:
+            print(f"  [{bucket:4s}]: no events yet")
+            continue
+        cancel_rate = len(k) / n_a * 100
+        confirm_rate = len(c) / n_a * 100
+        wick_windows = [e.get("wick_window_s") for e in a if e.get("wick_window_s")]
+        ww = wick_windows[0] if wick_windows else "?"
+        print(f"  [{bucket:4s}] window={ww}s  arms={n_a:3d}  cancels={len(k):3d} ({cancel_rate:.0f}%)  confirms={len(c):3d} ({confirm_rate:.0f}%)")
+        # Recovery depth on cancels
+        rec = [e.get("recovery_move_pct") for e in k if e.get("recovery_move_pct") is not None]
+        if rec:
+            print(f"         cancel recovery_move_pct: min={min(rec):.1f}%  mean={sum(rec)/len(rec):.1f}%  max={max(rec):.1f}%")
+
+    print("\n  Target: late-bucket cancel_rate should be higher than fast-bucket cancel_rate.")
+    print("  Validate at n>=100 per bucket before adjusting thresholds.")
+else:
+    print("\n  (wick_events.jsonl not found — run from /root/Klaus)")
