@@ -2697,6 +2697,11 @@ class KlausBot:
             self._pending_entries.discard(token_id)
             self._pending_asset_entries.discard(asset)
             return
+        if ob_depth_at_entry < 50:
+            logger.warning("OB_DEPTH_GATE %s: ob_depth=%.1f < 50 (45%% NO-resolution rate), skipping", asset, ob_depth_at_entry)
+            self._pending_entries.discard(token_id)
+            self._pending_asset_entries.discard(asset)
+            return
 
         token_meta = self.feed.tokens.get(token_id)
         self._buy_tried += 1
@@ -2857,7 +2862,8 @@ class KlausBot:
             asyncio.create_task(self._deferred_balance_sync(token_id, asset))
 
         signal_to_fill_ms = (time.time() - ts_open) * 1000.0
-        _vel_5s, _move_age = self.feed.get_velocity_5s(asset)
+        _vel_5s, _ = self.feed.get_velocity_5s(asset)
+        _token_move_age = self.feed.get_token_move_age(token_id)
 
         self._open_meta[token_id] = {
             "signal": signal,
@@ -2876,7 +2882,7 @@ class KlausBot:
             "llm_rec": llm_rec,
             "llm_rec_conf": llm_rec_conf,
             "velocity_5s_pct": _vel_5s,
-            "move_age_s": _move_age,
+            "move_age_s": _token_move_age,
         }
 
         # BOND: launch a dedicated timer task so TIME_EXIT fires at exactly

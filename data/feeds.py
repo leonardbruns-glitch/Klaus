@@ -294,6 +294,8 @@ class PolymarketFeed:
         self.funding_rates: Dict[str, float] = {}       # asset → annualised funding rate
         self._ws_tasks: List[asyncio.Task] = []
         self._ws_ob_ts: Dict[str, float] = {}           # token_id → last WS OB update ts
+        self._token_last_move_ts: Dict[str, float] = {}  # token_id → ts of last bid tick change
+        self._token_last_bid: Dict[str, float] = {}      # token_id → last known bid price
         # Queue for sending new token subscriptions to the running CLOB WS.
         # refresh_markets() puts new token_id lists here; _run_clob_ws() drains it.
         self._clob_ws_sub_queue: asyncio.Queue = asyncio.Queue()
@@ -571,6 +573,7 @@ class PolymarketFeed:
                 )
                 self.order_books[asset_id] = ob
                 self._ws_ob_ts[asset_id] = time.time()
+                self._record_token_bid_move(asset_id, bids[0][0] if bids else 0.0)
                 if self._on_bbo_update is not None and bids:
                     _t = asyncio.create_task(self._on_bbo_update(asset_id, bids[0][0]))
                     _t.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
@@ -1284,6 +1287,7 @@ class PolymarketFeed:
         )
         self.order_books[token_id] = ob
         self._last_ob_ts[token_id] = ob.ts
+        self._record_token_bid_move(token_id, bids[0][0] if bids else 0.0)
         # Also update _ws_ob_ts so poll_order_books doesn't re-poll this token for
         # another 1.5s. Without this, every 0.2s scan cycle re-polls ALL tokens
         # (since _ws_ob_ts is only set by WS events), causing 500+ req/s → CF blocks.
@@ -1755,6 +1759,22 @@ class PolymarketFeed:
         return signal
 
     # ── Convenience accessors ─────────────────────────────────────────────────
+
+    def _record_token_bid_move(self, token_id: str, bid: float) -> None:
+        """Record timestamp of last meaningful bid change (≥$0.01 absolute)."""
+        if bid <= 0:
+            return
+        prev = self._token_last_bid.get(token_id, -1.0)
+        if abs(bid - prev) >= 0.01:
+            self._token_last_move_ts[token_id] = time.time()
+            self._token_last_bid[token_id] = bid
+
+    def get_token_move_age(self, token_id: str) -> float:
+        """Seconds since the token's bid last changed by ≥$0.01. Returns 999.0 if never seen."""
+        ts = self._token_last_move_ts.get(token_id)
+        if ts is None:
+            return 999.0
+        return round(time.time() - ts, 1)
 
     def get_velocity_5s(self, asset: str) -> tuple:
         """
