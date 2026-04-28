@@ -305,6 +305,9 @@ class KlausBot:
         self._catas_breach_ts: Dict[str, float] = {}
         # Wick event metadata: keyed by token_id, stores breach context for recovery-time logging.
         self._catas_breach_info: Dict[str, dict] = {}
+        # Cancel count: incremented each time wick timer is cancelled for a position.
+        # Second breach skips the 10s timer — sawtooth oscillation is not a wick.
+        self._catas_cancel_count: Dict[str, int] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -794,15 +797,18 @@ class KlausBot:
                     _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
                     _wick_wait = 10.0
                     _hard_bypass = bond_remaining < 15.0
-                    if _hard_bypass or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
-                        # Confirmed genuine failure (10s elapsed) or deadline forcing exit
+                    _already_cancelled = self._catas_cancel_count.get(token_id, 0) >= 1
+                    if _hard_bypass or _already_cancelled or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
+                        # Confirmed genuine failure (10s elapsed) or deadline/re-breach forcing exit
                         _elapsed = now - _breach_ts if _breach_ts > 0 else 0.0
+                        _exit_reason_tag = 'bypass' if _hard_bypass else ('re-breach' if _already_cancelled else f'confirmed {_elapsed:.1f}s')
                         _info = self._catas_breach_info.pop(token_id, {})
                         self._catas_breach_ts.pop(token_id, None)
+                        self._catas_cancel_count.pop(token_id, None)
                         self._exit_in_progress.add(token_id)
                         logger.info(
-                            'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — confirmed %.1fs, force exit',
-                            pos.asset, pos.direction.name, bond_move * 100, _elapsed,
+                            'BOND_CATASTROPHIC %s/%s | move=%+.1f%% — %s, force exit',
+                            pos.asset, pos.direction.name, bond_move * 100, _exit_reason_tag,
                         )
                         try:
                             with open(os.path.join("logs", "wick_events.jsonl"), "a") as _wf:
@@ -856,9 +862,11 @@ class KlausBot:
                             if _info and current_price < _info.get("min_price", current_price):
                                 _info["min_price"] = current_price
                 elif bond_move > -0.12 and token_id in self._catas_breach_ts:
-                    # Price recovered above -12%: flash crash confirmed, cancel timer
+                    # Price recovered above -12%: flash crash confirmed, cancel timer.
+                    # Track cancel count — second breach skips the timer entirely.
                     _breach_ts_cancel = self._catas_breach_ts.pop(token_id, now)
                     _info = self._catas_breach_info.pop(token_id, {})
+                    self._catas_cancel_count[token_id] = self._catas_cancel_count.get(token_id, 0) + 1
                     _recovery_s = round(now - _breach_ts_cancel, 2)
                     logger.info(
                         'BOND_CATASTROPHIC_CANCEL %s/%s | move=%+.1f%% recovered in %.1fs — wick cleared',
@@ -4344,6 +4352,7 @@ class KlausBot:
         self._traj_mae.pop(token_id, None)
         self._bond_sl_arm_ts.pop(token_id, None)
         self._catas_breach_ts.pop(token_id, None)
+        self._catas_cancel_count.pop(token_id, None)
         self._terminal_tp_touched.discard(token_id)
         bankroll = self.risk.bankroll.summary()
         logger.info(
