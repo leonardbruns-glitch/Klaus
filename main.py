@@ -3592,9 +3592,12 @@ class KlausBot:
                 return
 
         # Externally sold guard: balance < 0.01 shares = sold manually outside the bot.
-        # Close the position at current price so PnL tracking stays accurate.
+        # Also catches ORDERBOOK_NOT_FOUND (market resolved before our sell executed) —
+        # without this, Guard 1 retries for 5–15s then records nothing, causing silent
+        # capital loss that only surfaces at the hourly USDC reconcile.
         ext_sold_detected = any(
             "EXTERNALLY_SOLD" in (getattr(r, "error", "") or "")
+            or "ORDERBOOK_NOT_FOUND" in (getattr(r, "error", "") or "")
             for r in exit_fills
         )
         if ext_sold_detected:
@@ -4714,7 +4717,7 @@ class KlausBot:
         """Keep CLOB session alive; prevents silent GTC order cancellation."""
         _hb_failures = 0
         _last_reconcile_ts = 0.0
-        _RECONCILE_INTERVAL = 3600  # reconcile bankroll vs actual USDC every hour
+        _RECONCILE_INTERVAL = 300   # reconcile bankroll vs actual USDC every 5 min
         _RECONCILE_DRIFT_WARN = 0.50  # warn if internal vs actual diverges > $0.50
         _RECONCILE_DRIFT_CORRECT = 2.00  # auto-correct if divergence > $2.00
         _last_full_orphan_scan_ts = 0.0
