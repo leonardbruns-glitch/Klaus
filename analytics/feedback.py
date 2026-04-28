@@ -215,6 +215,7 @@ class TradeRecord:
     traj_mae_10s: float = 0.0   # max adverse % at T+10s
     traj_mfe_30s: float = 0.0   # max favourable % at T+30s
     traj_mae_30s: float = 0.0   # max adverse % at T+30s
+    price_at_t10s: Optional[float] = None  # token bid at exactly T-10s before window close
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +447,7 @@ class FeedbackEngine:
         traj_mae_10s: float = 0.0,
         traj_mfe_30s: float = 0.0,
         traj_mae_30s: float = 0.0,
+        price_at_t10s: Optional[float] = None,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -672,6 +674,7 @@ class FeedbackEngine:
             traj_mae_10s=round(traj_mae_10s, 2),
             traj_mfe_30s=round(traj_mfe_30s, 2),
             traj_mae_30s=round(traj_mae_30s, 2),
+            price_at_t10s=round(price_at_t10s, 4) if price_at_t10s is not None else None,
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
         )

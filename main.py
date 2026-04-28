@@ -290,6 +290,7 @@ class KlausBot:
         # Used to compute MFE slope, monotonic expansion, early adverse timing.
         self._traj_mfe: Dict[str, Dict[int, float]] = {}
         self._traj_mae: Dict[str, Dict[int, float]] = {}
+        self._price_at_t10s: Dict[str, float] = {}
         # Stop-hunt wick confirmation for BOND_SL_20.
         # When SL fires with zero favorable move and fast hold (≤60s), we arm
         # a 25s timer rather than selling immediately. If price recovers above
@@ -3213,6 +3214,23 @@ class KlausBot:
         fires first when both are eligible.
         """
         target_ts = window_end_ts - exit_sec
+
+        # T-10s snapshot: capture bid price 10s before window close for post-analysis.
+        # Stored in _price_at_t10s and written to the trade record at close.
+        t10s_ts = window_end_ts - 10.0
+        wait_to_t10s = t10s_ts - time.time()
+        if wait_to_t10s > 0:
+            await asyncio.sleep(wait_to_t10s)
+        if token_id in self.risk.open_positions:
+            _ob_t10 = self.feed.get_order_book(token_id)
+            _pos_t10 = self.risk.open_positions.get(token_id)
+            _snap = (
+                _ob_t10.bids[0][0] if (_ob_t10 and _ob_t10.bids)
+                else (_pos_t10.entry_price if _pos_t10 else None)
+            )
+            if _snap is not None:
+                self._price_at_t10s[token_id] = _snap
+
         wait_s = target_ts - time.time()
         if wait_s > 0:
             await asyncio.sleep(wait_s)
@@ -3595,6 +3613,7 @@ class KlausBot:
                 self._zombie_flag_ts.pop(token_id, None)
                 self._traj_mfe.pop(token_id, None)
                 self._traj_mae.pop(token_id, None)
+                self._price_at_t10s.pop(token_id, None)
                 self._terminal_tp_touched.discard(token_id)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
@@ -3776,6 +3795,7 @@ class KlausBot:
             self._zombie_flag_ts.pop(token_id, None)
             self._traj_mfe.pop(token_id, None)
             self._traj_mae.pop(token_id, None)
+            self._price_at_t10s.pop(token_id, None)
             self._terminal_tp_touched.discard(token_id)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
@@ -4330,6 +4350,7 @@ class KlausBot:
                     traj_mae_10s=float(self._traj_mae.get(token_id, {}).get(10, 0.0)),
                     traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
                     traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
+                    price_at_t10s=self._price_at_t10s.get(token_id),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
@@ -4350,6 +4371,7 @@ class KlausBot:
         self._zombie_flag_ts.pop(token_id, None)
         self._traj_mfe.pop(token_id, None)
         self._traj_mae.pop(token_id, None)
+        self._price_at_t10s.pop(token_id, None)
         self._bond_sl_arm_ts.pop(token_id, None)
         self._catas_breach_ts.pop(token_id, None)
         self._catas_cancel_count.pop(token_id, None)
