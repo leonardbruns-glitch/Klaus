@@ -1,10 +1,15 @@
-# Quantitative Audit — 2026-04-28 00:10 UTC
+# Quantitative Audit — 2026-04-28 04:44 UTC
 
 ## Data Collection Status
 **FAILED — VPS UNREACHABLE**
 
-SSH connection to `root@85.137.174.86:22` timed out (15s timeout, two attempts).
-No `trades.jsonl` or `post_exit.jsonl` could be retrieved.
+SSH connection to `root@85.137.174.86:22` blocked at network layer (EAGAIN — not timeout).
+This sandbox has no outbound TCP to arbitrary IPs; confirmed by socket-level probe (`connect()` → EAGAIN).
+`trades.jsonl` and `post_exit.jsonl` could not be retrieved.
+
+Prior attempts:
+- 2026-04-28 00:10 UTC — TCP timeout (15s)
+- 2026-04-28 04:44 UTC — TCP blocked (EAGAIN)
 
 Local state (`logs/bankroll.json`): `total_trades=0`, `capital=109.66`.
 This is the local dev repo — no trades have executed here.
@@ -33,7 +38,7 @@ No data available — VPS unreachable, local logs empty.
 | all | 0 | — | — | collecting data |
 
 ## Flags
-INSUFFICIENT_DATA — VPS SSH timeout on both attempts. No trades.jsonl retrieved.
+INSUFFICIENT_DATA — VPS unreachable from sandbox (TCP blocked). No trades.jsonl retrieved.
 
 Minimum thresholds not met:
 - 6h ask/imbalance patch requires n>=20 per bucket (have: 0)
@@ -54,8 +59,23 @@ Minimum thresholds not met:
 **No parameter changes applied.** All values remain at current defaults.
 Reason: zero trade data — no evidence base for any modification.
 
+## Current Parameters (confirmed from main.py)
+| Parameter | Value | Source |
+|---|---|---|
+| min_ask | 0.80 | main.py:1650 |
+| max_ask | 0.88 | main.py:1649 |
+| min_imbalance | 0.20 | main.py:1696 |
+| blocked_hours | set() | main.py:1626 |
+
 ## Action Required
-1. Verify VPS health: check provider console for `85.137.174.86`.
-2. Confirm bot process is running: `systemctl status klaus` (once SSH is restored).
-3. Once VPS is reachable, re-run audit to analyse accumulated trade data.
-4. If VPS has been down for >6h, the audit window will need extending to capture meaningful n.
+This audit must be run from a machine with SSH access to `85.137.174.86`. Steps:
+```bash
+# From a machine with network access to VPS:
+chmod 600 .agent_ssh_key
+ssh -i .agent_ssh_key root@85.137.174.86 "tail -n 3000 /root/Klaus/logs/trades.jsonl" > /tmp/trades.jsonl
+ssh -i .agent_ssh_key root@85.137.174.86 "tail -n 2000 /root/Klaus/logs/post_exit.jsonl" > /tmp/post_exit.jsonl
+```
+Then re-run the audit analysis with the retrieved files.
+
+If VPS has been unreachable for >6h, verify provider console for `85.137.174.86`
+and confirm the bot process: `systemctl status klaus`.
