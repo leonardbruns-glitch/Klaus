@@ -25,13 +25,13 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
 
 try:
-    from py_clob_client.client import ClobClient
-    from py_clob_client.clob_types import (
+    from py_clob_client_v2.client import ClobClient
+    from py_clob_client_v2.clob_types import (
         MarketOrderArgs, OrderType, OrderArgs,
         BalanceAllowanceParams, AssetType,
         PartialCreateOrderOptions,
     )
-    from py_clob_client.order_builder.constants import BUY as CLOB_BUY, SELL as CLOB_SELL
+    from py_clob_client_v2.order_builder.constants import BUY as CLOB_BUY, SELL as CLOB_SELL
     CLOB_CLIENT_AVAILABLE = True
 except ImportError:
     CLOB_CLIENT_AVAILABLE = False
@@ -44,7 +44,7 @@ except ImportError:
 # Requires: pip install curl_cffi
 # Docs: https://github.com/lexiforest/curl_cffi
 try:
-    import py_clob_client.http_helpers.helpers as _clob_helpers
+    import py_clob_client_v2.http_helpers.helpers as _clob_helpers
     from curl_cffi.requests import Session as _CffiSession
 
     class _ChromeTransport:
@@ -155,13 +155,13 @@ def _build_clob_client() -> Optional[Any]:
         # curl_cffi response is subtly incompatible with py_clob_client's httpx-based
         # PolyApiException, so we restore the stock httpx client during auth only.
         import httpx as _httpx
-        import py_clob_client.http_helpers.helpers as _h
+        import py_clob_client_v2.http_helpers.helpers as _h
 
         _orig_client = _h._http_client
         _h._http_client = _httpx.Client(http2=False, timeout=15.0)  # HTTP/1.1 for auth — HTTP/2 hangs on Python 3.14
         try:
             client = ClobClient(**kwargs)
-            api_creds = client.create_or_derive_api_creds()
+            api_creds = client.create_or_derive_api_key()
         finally:
             _h._http_client = _orig_client  # restore curl_cffi for order posting
 
@@ -238,11 +238,7 @@ class OrderManager:
             except Exception:
                 pass
             try:
-                # Fee-rate cache: keyed by (condition_id, token_id) in py_clob_client.
-                # Calling get_fee_rate_per_order() populates the cache used by create_order().
-                cid = getattr(token_meta, "condition_id", "")
-                if cid:
-                    self._client.get_fee_rate_per_order(cid, token_id)
+                self._client.get_fee_rate_bps(token_id)
             except Exception:
                 pass
         logger.info("prewarm_token_caches: populated neg_risk + fee_rate for %d tokens", len(tokens))
@@ -616,7 +612,7 @@ class OrderManager:
                                     token_id[:12], attempt + 1,
                                 )
                                 try:
-                                    from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+                                    from py_clob_client_v2.clob_types import BalanceAllowanceParams, AssetType
                                     self._client.update_balance_allowance(
                                         BalanceAllowanceParams(
                                             asset_type=AssetType.COLLATERAL,
@@ -680,7 +676,7 @@ class OrderManager:
                         token_id[:12], attempt + 1, sell_price,
                     )
                     try:
-                        from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+                        from py_clob_client_v2.clob_types import BalanceAllowanceParams, AssetType
                         self._client.update_balance_allowance(
                             BalanceAllowanceParams(
                                 asset_type=AssetType.COLLATERAL,
@@ -1664,7 +1660,7 @@ class OrderManager:
         if self._client is None or not order_id:
             return None
         try:
-            from py_clob_client.clob_types import TradeParams
+            from py_clob_client_v2.clob_types import TradeParams
             trades = self._client.get_trades(TradeParams(id=order_id))
             if not trades:
                 return None
