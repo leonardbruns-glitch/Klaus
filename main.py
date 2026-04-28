@@ -2691,6 +2691,12 @@ class KlausBot:
             _ask_depth = sum(qty for _, qty in (_ob_entry.asks[:5] if _ob_entry.asks else []))
             ob_depth_at_entry = _bid_depth + _ask_depth
 
+        if ob_depth_at_entry == 0.0:
+            logger.warning("OB_DEPTH_GATE %s: no cached order book at entry, skipping", asset)
+            self._pending_entries.discard(token_id)
+            self._pending_asset_entries.discard(asset)
+            return
+
         token_meta = self.feed.tokens.get(token_id)
         self._buy_tried += 1
         fill = await self.orders.market_buy(
