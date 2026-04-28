@@ -213,6 +213,9 @@ class TradeRecord:
     term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
     term_binance_1m_pct: Optional[float] = None  # kline-based 1m Binance momentum at entry
     term_binance_5m_pct: Optional[float] = None  # kline-based 5m Binance momentum at entry
+    term_pre_snap_60s: float = 0.0   # token ask % change from 60s-before-window-close anchor
+    term_pre_snap_30s: float = 0.0   # token ask % change from 30s-before-window-close anchor
+    term_pre_snap_open: float = 0.0  # token ask % change from window-open anchor
     # During-hold trajectory snapshots (MFE/MAE at T+10s and T+30s after entry)
     traj_mfe_10s: float = 0.0   # max favourable % at T+10s
     traj_mae_10s: float = 0.0   # max adverse % at T+10s
@@ -449,6 +452,9 @@ class FeedbackEngine:
         term_token_delta_60s: float = 0.0,
         term_binance_1m_pct: Optional[float] = None,
         term_binance_5m_pct: Optional[float] = None,
+        term_pre_snap_60s: float = 0.0,
+        term_pre_snap_30s: float = 0.0,
+        term_pre_snap_open: float = 0.0,
         traj_mfe_10s: float = 0.0,
         traj_mae_10s: float = 0.0,
         traj_mfe_30s: float = 0.0,
@@ -679,6 +685,9 @@ class FeedbackEngine:
             term_token_delta_60s=round(term_token_delta_60s, 4),
             term_binance_1m_pct=round(term_binance_1m_pct, 4) if term_binance_1m_pct is not None else None,
             term_binance_5m_pct=round(term_binance_5m_pct, 4) if term_binance_5m_pct is not None else None,
+            term_pre_snap_60s=round(term_pre_snap_60s, 4),
+            term_pre_snap_30s=round(term_pre_snap_30s, 4),
+            term_pre_snap_open=round(term_pre_snap_open, 4),
             traj_mfe_10s=round(traj_mfe_10s, 2),
             traj_mae_10s=round(traj_mae_10s, 2),
             traj_mfe_30s=round(traj_mfe_30s, 2),
