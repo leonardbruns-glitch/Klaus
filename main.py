@@ -784,16 +784,18 @@ class KlausBot:
 
                 # ── Safety net 1: catastrophic SL with wick confirmation ─────────
                 # 34% of BOND_CATASTROPHIC exits are flash crashes: token recovers
-                # to entry within 30s, spot barely moves (+0.002%). Wait 8s before
+                # to entry within 30s, spot barely moves (+0.002%). Wait 10s before
                 # exiting to filter these false stops. Hard bypass at bond_remaining<15s.
+                # 8s→10s: 9 of 13 missed recoveries fell at 8.2–9.6s (scan-loop timing
+                # artifacts, not genuine slow wicks). 10s catches 49/53 vs 40/53 at 8s.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
                 _sl_threshold = -0.15
                 if bond_move <= _sl_threshold and token_id not in self._exit_in_progress:
                     _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
-                    _wick_wait = 8.0
+                    _wick_wait = 10.0
                     _hard_bypass = bond_remaining < 15.0
                     if _hard_bypass or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
-                        # Confirmed genuine failure (8s elapsed) or deadline forcing exit
+                        # Confirmed genuine failure (10s elapsed) or deadline forcing exit
                         _elapsed = now - _breach_ts if _breach_ts > 0 else 0.0
                         _info = self._catas_breach_info.pop(token_id, {})
                         self._catas_breach_ts.pop(token_id, None)
