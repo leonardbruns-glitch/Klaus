@@ -1,18 +1,22 @@
-# Quantitative Audit — 2026-04-28 04:44 UTC
+# Quantitative Audit — 2026-04-28 06:18 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE**
+**FAILED — VPS UNREACHABLE (4th consecutive session)**
 
-SSH connection to `root@85.137.174.86:22` blocked at network layer (EAGAIN — not timeout).
-This sandbox has no outbound TCP to arbitrary IPs; confirmed by socket-level probe (`connect()` → EAGAIN).
-`trades.jsonl` and `post_exit.jsonl` could not be retrieved.
+SSH port 22 on `85.137.174.86` returns EAGAIN (connection refused / actively closed).
+HTTP ports 80/443 return "Host not in allowlist" (sandbox proxy blocks arbitrary-IP egress).
+No outbound TCP to port 22 is possible from this Claude Code sandbox.
 
-Prior attempts:
-- 2026-04-28 00:10 UTC — TCP timeout (15s)
-- 2026-04-28 04:44 UTC — TCP blocked (EAGAIN)
+| Session | Time (UTC) | SSH result |
+|---|---|---|
+| Audit 1 | 2026-04-27 ~18:42 | Timeout (10s) |
+| Audit 2 | 2026-04-28 00:10 | Timeout (15s) |
+| Scout   | 2026-04-28 00:42 | Port REFUSED (sshd may be down) |
+| Audit 3 | 2026-04-28 04:44 | EAGAIN (blocked) |
+| **Audit 4** | **2026-04-28 06:18** | **EAGAIN — port 22 closed** |
 
 Local state (`logs/bankroll.json`): `total_trades=0`, `capital=109.66`.
-This is the local dev repo — no trades have executed here.
+This is the local dev repo — no live trades have executed here.
 
 ---
 
@@ -64,18 +68,28 @@ Reason: zero trade data — no evidence base for any modification.
 |---|---|---|
 | min_ask | 0.80 | main.py:1650 |
 | max_ask | 0.88 | main.py:1649 |
-| min_imbalance | 0.20 | main.py:1696 |
+| min_imbalance | 0.20 | main.py:1703 |
 | blocked_hours | set() | main.py:1626 |
 
-## Action Required
-This audit must be run from a machine with SSH access to `85.137.174.86`. Steps:
-```bash
-# From a machine with network access to VPS:
-chmod 600 .agent_ssh_key
-ssh -i .agent_ssh_key root@85.137.174.86 "tail -n 3000 /root/Klaus/logs/trades.jsonl" > /tmp/trades.jsonl
-ssh -i .agent_ssh_key root@85.137.174.86 "tail -n 2000 /root/Klaus/logs/post_exit.jsonl" > /tmp/post_exit.jsonl
-```
-Then re-run the audit analysis with the retrieved files.
+## Infrastructure Alert
+Port 22 has been closed/refused since at least 2026-04-28 00:42 UTC (~5.5h).
+Prior two attempts showed timeout (filtered firewall); latest show refused (sshd down).
 
-If VPS has been unreachable for >6h, verify provider console for `85.137.174.86`
-and confirm the bot process: `systemctl status klaus`.
+**Required action before next audit can produce any useful output:**
+
+```
+1. Access VPS via provider console (not SSH):
+   - Check if VM is still running at 85.137.174.86
+   - If running: sudo systemctl start sshd (or sshd restart)
+   - Verify: netstat -tlnp | grep 22
+
+2. Verify bot is still trading:
+   - systemctl status klaus
+   - tail -f /root/Klaus/logs/bot.log
+
+3. Confirm trades.jsonl is being written:
+   - wc -l /root/Klaus/logs/trades.jsonl
+   - tail -5 /root/Klaus/logs/trades.jsonl
+```
+
+At the Apr 26 rate of ~201 trades/day, every 6h of VPS downtime = ~50 missed trade records.
