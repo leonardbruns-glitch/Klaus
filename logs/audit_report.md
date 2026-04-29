@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-04-29 06:16 UTC
+# Quantitative Audit — 2026-04-29 12:17 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (8th consecutive session)**
+**FAILED — VPS UNREACHABLE (10th consecutive session)**
 
 SSH binary not installed in sandbox. TCP port 22 to 85.137.174.86 returns EAGAIN
 (filtered by proxy). HTTP proxy blocks raw-IP egress ("Host not in allowlist").
@@ -17,14 +17,15 @@ No `trades.jsonl` retrieved. No `post_exit.jsonl` retrieved.
 | Audit 5 | 2026-04-28 12:08 | ssh binary not found; HTTP blocked |
 | Scout 2 | 2026-04-28 12:32 | Same; partial data from git commits |
 | Audit 7 | 2026-04-29 00:37 | paramiko installed; TCP EAGAIN; HTTP blocked |
-| **Audit 8** | **2026-04-29 06:16** | **paramiko TCP EAGAIN; ports 80+443 "Host not in allowlist"** |
+| Audit 8 | 2026-04-29 06:16 | paramiko TCP EAGAIN; ports 80+443 "Host not in allowlist" |
+| Scout 9 | 2026-04-29 12:11 | Same; commit-embedded analysis only |
+| **Audit 10** | **2026-04-29 12:17** | **ssh binary not found; HTTP proxy blocked** |
 
 ---
 
 ## Partial Data — Bankroll Snapshot (git-committed)
 
-`logs/bankroll.json` was pushed to this branch at commit `431a762` with
-`saved_ts=1777438751` → **2026-04-29 04:59:11 UTC** (live VPS data, ~77 min old).
+`logs/bankroll.json` last pushed at commit `431a762` → **2026-04-29 04:59:11 UTC** (~7h old as of this report).
 
 | Field | Value |
 |---|---|
@@ -34,8 +35,7 @@ No `trades.jsonl` retrieved. No `post_exit.jsonl` retrieved.
 | total_pnl | +$99.30 |
 | consecutive_wins | 0 |
 
-**Today (April 29) so far:** $15.95 → $34.28 = **+$18.33 (+115%)** in first ~5h.
-This is consistent with a strong trading day, but may include carry-in from prior session.
+No newer bankroll snapshot committed since `431a762`.
 
 ---
 
@@ -56,29 +56,26 @@ No data available.
 avg_slippage_entry=N/A
 
 ## Hour Analysis (all-time, 0.80–0.88)
-No raw trades.jsonl — using commit-embedded data where available.
+No raw trades.jsonl — using commit-embedded data from prior sessions.
 
 | H | n | WR | PF | status |
 |---|---|----|----|--------|
 | 02 | 24 | 50% | 0.19 | **BLOCKED** (commit `95a05da`) |
 | 03 | 10 | 14% | — | **BLOCKED** (commit `0686d29`, n<100 user override) |
 | 05 | 55 | 58% | 0.21 | **BLOCKED** (commit `95a05da`) |
-| 21 | 46 | 65% | 1.19 | active (corrected in `0ddb49e`, H21 WR=65% PF=1.19) |
+| 21 | 46 | 65% | 1.19 | active (unblocked `0ddb49e`) |
 | all other | — | — | — | collecting data |
 
-Notes:
-- H02 (n=24) and H05 (n=55): below n≥100 block threshold — user override applied.
-- H03 (n=10): well below n≥100 — user override applied. Data is suggestive but thin.
-- H21 was incorrectly blocked (`95a05da`), then unblocked after correction (`0ddb49e`).
-- No hour has n≥100 with PF<0.80 by audit rules — no new blocks warranted from audit data.
-- No blocked hour has n≥100 with PF≥0.90 — no unblocks warranted from audit data.
+No hour has n>=100 with PF<0.80 → no new blocks warranted by audit rules.
+No blocked hour has n>=100 with PF>=0.90 → no unblocks warranted by audit rules.
 
-## Changes Since Last Audit (00:37 UTC → 06:16 UTC, Apr 29)
+## Changes Since Last Audit (06:16 UTC → 12:17 UTC, Apr 29)
 
 | Commit | Change | Audit Verdict |
 |---|---|---|
-| `0686d29` | Block H03: WR=14.3%, Net=-$6.77 (n=10) | User override of n<100 rule — acknowledged |
-| `9240e07` | SNAP shadow gate logging (observability only) | No execution effect — no action |
+| `9d974e2` | BC depth_ratio discriminator (n=70): depth<0.60→exit, >0.77→wick=20s; bypass 15s→10s | Hypothesis mode, sub-bucket n<100, monitor |
+| `d3ac233` | BC wick 10s→15s for fast/mid; SNAP gate requires both snap_60<0 AND snap_30<0 | SNAP shadow-only (n=6), too early to activate |
+| `947306c` | `term_spot_delta_5s` added to logging; scout report | Schema addition, no execution effect |
 
 ## Flags
 INSUFFICIENT_DATA — VPS unreachable from sandbox (TCP/SSH blocked, HTTP proxy blocks IP egress).
@@ -88,11 +85,11 @@ n<100 per blocked hour (threshold: n>=100 per hour for audit-driven block/unbloc
 ## Current Parameters (confirmed from main.py)
 | Parameter | Value | Source |
 |---|---|---|
-| min_ask | 0.80 | main.py:1735 |
-| max_ask | 0.88 | main.py:1734 |
-| min_imbalance | 0.20 | main.py:1788 |
-| blocked_hours | {2, 3, 5} | main.py:1711 |
-| stop_loss | -0.15 | main.py:1919 (`ask * 0.85`) |
+| min_ask | 0.80 | main.py:1750 |
+| max_ask | 0.88 | main.py:1749 |
+| min_imbalance | 0.20 | main.py:1804 |
+| blocked_hours | {2, 3, 5} | main.py:1723 |
+| stop_loss | -0.15 | main.py:1936 (`ask * 0.85`) |
 | stake | 4.00 | CONFIG |
 
 ## SYSTEM_PATCH
@@ -113,11 +110,11 @@ All thresholds (n>=20 for 6h ask/imbalance, n>=100 per hour for blocks) unmet.
 
 ---
 
-## Infrastructure Alert — Persistent (8 sessions)
+## Infrastructure Alert — Persistent (10 sessions)
 
 The sandbox has no SSH binary and its HTTP proxy blocks arbitrary-IP egress.
 This is a hard constraint — the audit cannot retrieve live logs without a data path change.
-**~1,400+ trade records** estimated lost to history since first failure (~7 days ago).
+**~1,800+ trade records** estimated lost to analysis since first failure (~2 days ago).
 
 ### Remediation Options (ranked by effort)
 
@@ -136,13 +133,7 @@ Audit agent reads `logs/live_trades_recent.jsonl` from repo — no SSH needed.
 VPS nginx reverse-proxy on a registered domain (not raw IP). Proxy may allow domain names.
 
 **Option C — Console access (verify sshd state):**
-Access VPS via provider web console:
-```bash
-systemctl status sshd
-tail -20 /root/Klaus/logs/trades.jsonl
-```
-Confirm sshd is running and restart if not.
+Access VPS via provider web console, verify sshd running, check port/firewall config.
 
 **Option D — Alternative port for SFTP/SCP:**
-If sshd can be moved to a non-standard port (e.g. 2222), test TCP reachability
-(`port 2222: code=11` indicates same EAGAIN/filtered — likely blocked at all ports).
+If sshd moved to non-standard port (e.g. 2222), test TCP reachability first.
