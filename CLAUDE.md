@@ -7,6 +7,11 @@ This is not a simulation. Capital is real. Every parameter change has a dollar c
 
 ---
 
+## SESSION START PROTOCOL
+**MANDATORY:** Read `state_log.md` and internally summarize the last 10 entries before any analysis or code change. Never rely on prior session memory without verifying against the log. Append every session-altering decision (filter added/removed, threshold changed, rule changed, interpretation changed) with: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`. Only log meaningful state changes, not commentary.
+
+---
+
 ## CODING DISCIPLINE
 1. **Think before coding** — state the goal and root cause before touching any file.
 2. **Simplicity first** — the simplest change that achieves the goal is the right change.
