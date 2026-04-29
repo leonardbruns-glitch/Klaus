@@ -1708,7 +1708,7 @@ class KlausBot:
             # Hour blocks: H02/H05 confirmed at PF=0.19/0.21 across full terminal era.
             # H21 UNBLOCKED: all-BOND PF=0.54 was contaminated by out-of-range entries;
             # H21 within 0.80-0.88 target range: n=46 WR=65% PF=1.19 Net=+$4.00 (positive).
-            _BLOCKED_HOURS: set = {2, 5}  # 02h PF=0.19 Net=-$12.74 | 05h PF=0.21 Net=-$12.48
+            _BLOCKED_HOURS: set = {2, 5, 3}  # 02h PF=0.19 Net=-$12.74 | 05h PF=0.21 Net=-$12.48 | 03h WR=14.3% Net=-$6.77 (n=10, Apr24+Apr29, current strategy)
             if _utc_hour in _BLOCKED_HOURS:
                 continue
 
