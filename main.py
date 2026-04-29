@@ -1955,10 +1955,37 @@ class KlausBot:
             # snap60<0: WR=32.5% (n=65); snap60<-20%: WR=25% (n=32). Both applied.
             # 0.0 means reference not captured — skip gate to avoid false blocks.
             _snap60_val = signal.term_pre_snap_60s
+            _snap30_val = signal.term_pre_snap_30s
             if _snap60_val != 0.0 and _snap60_val < 0.0:
                 logger.info(
                     "[BOND] snap60_skip %s/%s | snap60=%.1f%% — token falling pre-entry",
                     token.asset, token.side, _snap60_val,
+                )
+                continue
+
+            # snap60 < 5%: near-zero pre-entry momentum → 50% WR (n=8, Apr29 5h)
+            if _snap60_val < 5.0:
+                logger.info(
+                    "[BOND] snap60_low %s/%s | snap60=%.1f%% snap30=%.1f%% — no momentum",
+                    token.asset, token.side, _snap60_val, _snap30_val,
+                )
+                continue
+
+            # snap30 > 300%: blow-off spike — token already pumped 3x, reversal risk
+            # 0 false positives in 5h dataset (n=1 catch); highest win s30=235%
+            if _snap30_val > 300.0:
+                logger.info(
+                    "[BOND] snap30_blowoff %s/%s | snap30=%.1f%% — overextended",
+                    token.asset, token.side, _snap30_val,
+                )
+                continue
+
+            # snap60 > 150% AND fresh move (<3s): entered at top of a rapid spike
+            # 5h: 2 reversals caught, 1 win blocked (14:39 ETH); net +$2.20
+            if _snap60_val > 150.0 and _term_ask_stale_s < 3.0:
+                logger.info(
+                    "[BOND] snap60_spike %s/%s | snap60=%.1f%% mage=%.1fs — spike+fresh",
+                    token.asset, token.side, _snap60_val, _term_ask_stale_s,
                 )
                 continue
 
