@@ -811,9 +811,19 @@ class KlausBot:
                     _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
                     _hold_s_at_breach = now - getattr(pos, "open_ts", now)
                     _bc_hold_bucket = "late" if _hold_s_at_breach > 35.0 else ("fast" if _hold_s_at_breach < 15.0 else "mid")
-                    # late wick window: 70-90% FP at hold>35s (n=46, hypothesis)
-                    _wick_wait = 18.0 if _bc_hold_bucket == "late" else 15.0
-                    _hard_bypass = bond_remaining < 15.0
+                    # Depth-aware wick: min_price>0.65→88%FP extend, min_price<0.50→52%FP exit fast (n=70 matched)
+                    if _breach_ts > 0:
+                        _known_min = self._catas_breach_info.get(token_id, {}).get('min_price', current_price)
+                        _depth_ratio = _known_min / pos.entry_price if pos.entry_price > 0 else 1.0
+                        if _depth_ratio < 0.60:    # crash >-40%: likely genuine, exit immediately
+                            _wick_wait = 0.0
+                        elif _depth_ratio > 0.77:  # shallow <-23%: 88% FP, extend wick
+                            _wick_wait = 20.0
+                        else:
+                            _wick_wait = 15.0
+                    else:
+                        _wick_wait = 15.0          # first breach tick, no depth data yet
+                    _hard_bypass = bond_remaining < 10.0   # raised from 15s: bypass was 79% FP (n=29)
                     _already_cancelled = self._catas_cancel_count.get(token_id, 0) >= 1
                     if _hard_bypass or _already_cancelled or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
                         # Confirmed genuine failure (wick_wait elapsed) or deadline/re-breach forcing exit
