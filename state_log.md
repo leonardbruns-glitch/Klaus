@@ -32,3 +32,5 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-29 13:33 UTC | INFRA / ALL | window outcome capture fixed: concurrent _capture_resolution() task fires at T+5s post-window; exit_reason now recorded in resolution records | old code ran at T+120s; TIME_EXIT token gone by then; only 6 time-exit resolution records existed historically
 
 ## 2026-04-29 13:52 UTC | HOURS / SOL | blocked SOL H06 (06:00–06:29 UTC) | WR=29% (n=17); $1.50 reduced stake not feasible (CLOB 5-share min ≈$4.00 at ask 0.80); block is equivalent risk reduction
+
+## 2026-04-29 14:XX UTC | EXIT / ALL | TIME_EXIT moved T-2s→T-4s (bond_exit_sec 2→4) | TIME_EXIT WR 74–90% vs DEADLINE WR 88–97% across all assets Apr28+; DEADLINE at T-3s was firing before T-2s timer, making it primary exit; T-4s makes TIME_EXIT primary and avoids snap events; DEADLINE remains safety net at T-3s
