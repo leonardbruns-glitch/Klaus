@@ -1992,6 +1992,17 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # SOL spread > 3%: wide spread = market-maker uncertainty; dir_acc drops below 80%
+            # spread 1-2% bucket: WR=73%, net=+$9.18, dir_acc=92% (n=26 Apr28-29)
+            # spread >3%: net=-$12.17 drag; snap+spread≤3 is only profitable SOL combo
+            if token.asset == "SOL" and (_term_sprd or 0.0) > 3.0:
+                logger.info(
+                    "[BOND] sol_spread %s/%s | spread=%.1f%% — wide spread skip",
+                    token.asset, token.side, _term_sprd or 0.0,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
