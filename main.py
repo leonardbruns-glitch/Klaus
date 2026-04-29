@@ -1781,6 +1781,7 @@ class KlausBot:
                     if ts <= cutoff:
                         ref = p
                 return round((_spot_now - ref) / ref * 100, 4) if ref and ref > 0 else 0.0
+            _term_d5s = _hist_delta(_hist_q, 5)
             _term_d30 = _hist_delta(_hist_q, 30)
             _term_d60 = _hist_delta(_hist_q, 60)
             _open_5m  = self.feed._spot_open_5m.get(_asset_up, 0.0)
@@ -1897,6 +1898,7 @@ class KlausBot:
             signal.term_vpin          = _term_vpin
             signal.term_binance_1m_pct = _term_binance_1m
             signal.term_binance_5m_pct = _term_binance_5m
+            signal.term_spot_delta_5s  = _term_d5s
             signal.term_spot_delta_30s = _term_d30
             signal.term_spot_delta_60s = _term_d60
             signal.term_spot_delta_5m  = _term_d5m
@@ -4503,6 +4505,7 @@ class KlausBot:
                     bond_llm_tp_pct=float(_bond_llm.get("shadow_tp_pct", 0.0)),
                     bond_llm_sl_pct=float(_bond_llm.get("shadow_sl_pct", 0.0)),
                     term_vpin=float(getattr(signal, "term_vpin", 0.0) or 0.0),
+                    term_spot_delta_5s=float(getattr(signal, "term_spot_delta_5s", 0.0) or 0.0),
                     term_spot_delta_30s=float(getattr(signal, "term_spot_delta_30s", 0.0) or 0.0),
                     term_spot_delta_60s=float(getattr(signal, "term_spot_delta_60s", 0.0) or 0.0),
                     term_spot_delta_5m=float(getattr(signal, "term_spot_delta_5m", 0.0) or 0.0),

@@ -197,6 +197,7 @@ class TradeRecord:
     term_vpin: float = 0.0           # VPIN at entry from Binance aggTrade
     term_spot_delta_30s: float = 0.0 # Binance spot % change in last 30s
     term_spot_delta_60s: float = 0.0 # Binance spot % change in last 60s
+    term_spot_delta_5s: float = 0.0  # Binance spot % change vs 5s ago (lead-lag signal)
     term_spot_delta_5m: float = 0.0  # Binance spot % change from 5m window open
     term_ask_spread_pct: float = 0.0 # (ask - bid) / ask * 100 at entry
     term_ask_qty: float = 0.0        # shares at best ask at entry
@@ -434,6 +435,7 @@ class FeedbackEngine:
         bond_llm_tp_pct: float = 0.0,
         bond_llm_sl_pct: float = 0.0,
         term_vpin: float = 0.0,
+        term_spot_delta_5s: float = 0.0,
         term_spot_delta_30s: float = 0.0,
         term_spot_delta_60s: float = 0.0,
         term_spot_delta_5m: float = 0.0,
@@ -667,6 +669,7 @@ class FeedbackEngine:
             bond_llm_reason=bond_llm_reason,
             bond_llm_tp_pct=round(bond_llm_tp_pct, 1),
             term_vpin=round(term_vpin, 4),
+            term_spot_delta_5s=round(term_spot_delta_5s, 4),
             term_spot_delta_30s=round(term_spot_delta_30s, 4),
             term_spot_delta_60s=round(term_spot_delta_60s, 4),
             term_spot_delta_5m=round(term_spot_delta_5m, 4),
