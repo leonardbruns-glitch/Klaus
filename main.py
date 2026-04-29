@@ -1946,6 +1946,11 @@ class KlausBot:
             signal.term_pre_snap_30s  = _anchored_snap(_snap_refs.get(120, 0.0))
             signal.term_pre_snap_open = _anchored_snap(_snap_refs.get(90, 0.0))
 
+            # Ask-history gate: no scan-loop history = entered blind, stale data
+            # would pass snap60 as 0.0 (neutral). Block to avoid T02684/T02685 repeat.
+            if _term_ask_stale_s >= 999.0:
+                continue
+
             # entry_snap_60s gate: token falling before entry = genuine weakness
             # snap60<0: WR=32.5% (n=65); snap60<-20%: WR=25% (n=32). Both applied.
             # 0.0 means reference not captured — skip gate to avoid false blocks.
