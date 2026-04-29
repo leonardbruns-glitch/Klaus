@@ -1,10 +1,11 @@
-# Quantitative Audit — 2026-04-28 12:08 UTC
+# Quantitative Audit — 2026-04-29 00:37 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (5th consecutive session)**
+**FAILED — VPS UNREACHABLE (7th consecutive session)**
 
-SSH binary not installed in this sandbox. HTTP egress to 85.137.174.86 returns "Host not in allowlist"
-(sandbox proxy blocks arbitrary-IP egress). No outbound TCP to the VPS is possible.
+SSH binary not installed in sandbox. TCP port 22 to 85.137.174.86 times out (proxy
+blocks direct-IP egress). HTTP via curl to :80 returns `host_not_allowed`. No outbound
+TCP to the VPS is possible from this environment.
 
 | Session | Time (UTC) | SSH result |
 |---|---|---|
@@ -13,10 +14,12 @@ SSH binary not installed in this sandbox. HTTP egress to 85.137.174.86 returns "
 | Scout   | 2026-04-28 00:42 | Port REFUSED (sshd may be down) |
 | Audit 3 | 2026-04-28 04:44 | EAGAIN — port 22 closed |
 | Audit 4 | 2026-04-28 06:18 | EAGAIN — port 22 closed |
-| **Audit 5** | **2026-04-28 12:08** | **ssh not found; HTTP blocked by proxy** |
+| Audit 5 | 2026-04-28 12:08 | ssh not found; HTTP blocked |
+| Scout 2 | 2026-04-28 12:32 | Same; partial data from git commits |
+| **Audit 7** | **2026-04-29 00:37** | **nc timeout; HTTP host_not_allowed** |
 
-Local state (`logs/bankroll.json`): `total_trades=0`, `capital=109.66`.
-This is the local dev repo — no live trades have executed here.
+Local state (`logs/bankroll.json`): `total_trades=0`, `capital=109.66` (local dev repo only).
+No live `trades.jsonl` retrieved.
 
 ---
 
@@ -26,7 +29,7 @@ n_trades=0 | WR=N/A | E=N/A | Kelly=N/A
 0.84-0.88: n=0 WR=N/A E=N/A
 
 ## Loss Signatures
-None in window — no data available.
+None in window — no data retrievable.
 
 ## OB Imbalance
 No data available.
@@ -42,11 +45,20 @@ No data available — VPS unreachable, local logs empty.
 | all | 0 | — | — | collecting data |
 
 ## Flags
-INSUFFICIENT_DATA — VPS unreachable from sandbox (TCP/SSH blocked by proxy). No trades.jsonl retrieved.
+INSUFFICIENT_DATA — VPS unreachable from sandbox (TCP/SSH blocked by proxy).
+n=0 in 6h window (threshold: n>=20 for ask/imbalance changes).
+n=0 per hour (threshold: n>=100 per hour for block/unblock decisions).
 
-Minimum thresholds not met:
-- 6h ask/imbalance patch requires n>=20 per bucket (have: 0)
-- Hour block decisions require n>=100 per hour (have: 0)
+## Current Parameters (confirmed from main.py code inspection)
+| Parameter | Value | Source |
+|---|---|---|
+| min_ask | 0.80 | main.py:1735 |
+| max_ask | 0.88 | main.py:1734 |
+| min_imbalance | 0.20 | main.py:1788 |
+| blocked_hours | {2, 5} | main.py:1711 |
+
+Note: CLAUDE.md states `blocked_hours=[]` but main.py shows `{2, 5}` — code is authoritative.
+Hours 2 and 5 were blocked in commit `95a05da` (user override, n<100 at time of block).
 
 ## SYSTEM_PATCH
 ```json
@@ -56,60 +68,47 @@ Minimum thresholds not met:
   "min_imbalance": 0.20,
   "stake": 4.00,
   "stop_loss": -0.15,
-  "blocked_hours": []
+  "blocked_hours": [2, 5]
 }
 ```
 
-**No parameter changes applied.** All values remain at current defaults.
-Reason: zero trade data — no evidence base for any modification.
+**No parameter changes applied.** All values remain at current code state.
+Reason: zero trade data retrieved — no evidence base for any modification.
+All thresholds (n>=20 for 6h ask/imbalance, n>=100 per hour for blocks) unmet.
 
-## Current Parameters (confirmed from main.py)
-| Parameter | Value | Source |
-|---|---|---|
-| min_ask | 0.80 | main.py:1661 |
-| max_ask | 0.88 | main.py:1660 |
-| min_imbalance | 0.20 | main.py:1714 |
-| blocked_hours | set() | main.py:1637 |
+---
 
-## Infrastructure Alert — Action Required
+## Infrastructure Alert — Persistent (7 sessions)
 
-The sandbox running this audit agent has **no SSH binary** and its HTTP proxy blocks
-direct-IP egress. This is a hard constraint — the audit cannot retrieve live logs
-without an alternative data path.
+The sandbox has no SSH binary and its HTTP proxy blocks arbitrary-IP egress.
+This is a hard constraint — the audit cannot retrieve live logs without a data path change.
 
-**Two viable remediation paths:**
+**Viable remediation paths (unchanged from prior reports):**
 
-### Option A — Expose logs via HTTPS (recommended)
-On the VPS, install a minimal read-only log server accessible via a domain name
-(which sandbox proxy may allow):
+### Option A — Push logs to GitHub (lowest friction)
+Add a cron job on the VPS to commit recent trade logs to this repo every 30 minutes:
 ```bash
-# Example using Python's built-in server (read-only, bind to localhost + nginx proxy)
-python3 -m http.server 8080 --directory /root/Klaus/logs
-# Then expose via nginx with a domain name + TLS
+# /etc/cron.d/push-logs
+*/30 * * * * root cd /root/Klaus && \
+  tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl && \
+  git add logs/live_trades_recent.jsonl && \
+  git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)" && \
+  git push origin claude/find-lag-parameter-rFQ0N
 ```
-The audit agent can then `curl https://your-domain.com/trades.jsonl`.
+The audit agent reads `logs/live_trades_recent.jsonl` directly from the repo.
 
-### Option B — Push logs to GitHub
-Add a cron job on the VPS to push recent trade logs to the repository:
-```bash
-# /etc/cron.d/push-logs (runs every 30min)
-*/30 * * * * root cd /root/Klaus && tail -5000 logs/trades.jsonl > /tmp/recent_trades.jsonl && git -C /path/to/log-repo add . && git commit -m "log update" && git push
-```
-The audit agent can then read the committed log file from this repo.
+### Option B — Expose logs via domain + HTTPS
+VPS nginx reverse-proxy on a registered domain (not raw IP) — sandbox proxy may pass it.
 
-### Option C — Direct console access
-Access VPS via provider web console and verify/restart sshd:
+### Option C — Console access to verify VPS state
+Access via provider web console. Check:
 ```bash
 systemctl status sshd
-systemctl start sshd
-netstat -tlnp | grep 22
-```
-Then recheck that the bot is running:
-```bash
 systemctl status klaus
 tail -20 /root/Klaus/logs/trades.jsonl
 ```
+Confirm sshd is running on port 22 and restart if needed.
 
-At the Apr 26 rate of ~201 trades/day, this audit gap represents ~1,000+ missed trade
-records since first failure (~5 days ago). This data cannot be recovered for historical
-analysis — only forward collection is possible.
+At the prior rate of ~201 trades/day, approximately **1,200+ trade records** have been
+generated since first audit failure (~6 days ago). This data cannot be recovered for
+historical analysis — only forward collection is possible once connectivity is restored.
