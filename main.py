@@ -1969,6 +1969,7 @@ class KlausBot:
                     "[BOND] snap60_low %s/%s | snap60=%.1f%% snap30=%.1f%% — no momentum",
                     token.asset, token.side, _snap60_val, _snap30_val,
                 )
+                _b_mom_skip += 1
                 continue
 
             # snap30 > 300%: blow-off spike — token already pumped 3x, reversal risk
@@ -1978,6 +1979,7 @@ class KlausBot:
                     "[BOND] snap30_blowoff %s/%s | snap30=%.1f%% — overextended",
                     token.asset, token.side, _snap30_val,
                 )
+                _b_mom_skip += 1
                 continue
 
             # snap60 > 150% AND fresh move (<3s): entered at top of a rapid spike
@@ -1987,6 +1989,7 @@ class KlausBot:
                     "[BOND] snap60_spike %s/%s | snap60=%.1f%% mage=%.1fs — spike+fresh",
                     token.asset, token.side, _snap60_val, _term_ask_stale_s,
                 )
+                _b_mom_skip += 1
                 continue
 
             # Trajectory fields (populate bond_ fields so report sections work)
