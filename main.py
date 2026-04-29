@@ -4661,8 +4661,8 @@ class KlausBot:
         async def _capture_resolution() -> None:
             if not window_end_ts:
                 return
-            _wait = max(0.0, window_end_ts - 5.0 - time.time())
-            if _wait > 900:
+            _wait = max(0.0, window_end_ts + 5.0 - time.time())
+            if _wait > 910:
                 return  # window too far out, skip
             if _wait > 0:
                 await asyncio.sleep(_wait)
