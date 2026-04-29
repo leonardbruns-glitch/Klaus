@@ -965,12 +965,12 @@ class KlausBot:
                             "bond_remaining_at_breach_s": _arm["bond_remaining_at_breach_s"],
                         }) + "\n")
 
-                # ── PROFIT_TARGET: exit early if bid reaches 0.99 (min 0.98 fill) ──
-                # Sell immediately when token is near full resolution value.
-                # cascade_sell starts at 0.99×bid (≥0.9801); PROFIT in reason
+                # ── PROFIT_TARGET: exit early at entry×1.12 (+12% of entry price) ──
+                # Relative TP: converts 13 big losses to wins vs fixed 0.99 threshold.
+                # cascade_sell starts at 0.99×bid; PROFIT in reason
                 # → allow_stepdown=False, so if bid has moved below our limit the
                 # order rests and Guard 1 returns without closing — no bad fill.
-                if current_price >= 0.99 and token_id not in self._exit_in_progress:
+                if current_price >= pos.entry_price * 1.12 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — early exit',
@@ -1963,8 +1963,8 @@ class KlausBot:
                 )
                 continue
 
-            # snap60 < 5%: near-zero pre-entry momentum → 50% WR (n=8, Apr29 5h)
-            if _snap60_val < 5.0:
+            # snap60 < 12%: weak pre-entry momentum → 55% WR (n=22, Apr28-29 2d sim)
+            if _snap60_val < 12.0:
                 logger.info(
                     "[BOND] snap60_low %s/%s | snap60=%.1f%% snap30=%.1f%% — no momentum",
                     token.asset, token.side, _snap60_val, _snap30_val,

@@ -46,3 +46,9 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-29 16:XX UTC | ENTRY / ALL | Ask-history gate added: skip if term_ask_stale_s ≥ 999.0 | T02684 (-$1.52) and T02685 (-$4.27) entered with no scan-loop history; snap60/snap30 defaulted to 0.0 (neutral), bypassing both gates; gate blocks blind entries directly
 
 ## 2026-04-29 18:XX UTC | ENTRY / ALL | 3 snap gates added: snap60<5% skip; snap30>300% skip; snap60>150%+mage<3s skip | 5h analysis (n=54 active): snap60 0-5% bucket WR=50% net=-$4.32; snap30>300% caught SOL blow-off (0 FP, highest win s30=235%); snap60>150%+fresh caught 2 reversals (1 FP: 14:39 ETH +$0.60); combined WR 68.5%→76.2% net +$6.52; n<100 per bucket — user-authorised Tier 2
+
+## 2026-04-29 19:XX UTC | ENTRY / ALL | snap60 gate raised 5%→12% | 2-day sim (n=255 Apr28-29): snap60 5-12% bucket WR=55% net negative; raising threshold drops these borderline entries; user-authorised Tier 2
+
+## 2026-04-29 19:XX UTC | EXIT / ALL | PROFIT_TARGET changed fixed 0.99→relative entry×1.12 | 2-day sim: +12% TP converts 13 big losses to wins (+$21.60) vs capping 78 winners earlier (-$18.39); net +$7.26 vs actual exits; avg max_fav of losers=8.4% (not used — too early), winners avg=16.6%; 12% is sweet spot
+
+## 2026-04-29 19:XX UTC | RISK / ALL | BOND stake cap raised $4→$10 | user instruction; capital $32.45 (below $50 ruin floor but user-overridden); 3-asset worst-case = -$30 on one bad window
