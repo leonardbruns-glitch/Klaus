@@ -34,3 +34,15 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-29 13:52 UTC | HOURS / SOL | blocked SOL H06 (06:00–06:29 UTC) | WR=29% (n=17); $1.50 reduced stake not feasible (CLOB 5-share min ≈$4.00 at ask 0.80); block is equivalent risk reduction
 
 ## 2026-04-29 14:XX UTC | EXIT / ALL | TIME_EXIT moved T-2s→T-4s (bond_exit_sec 2→4) | TIME_EXIT WR 74–90% vs DEADLINE WR 88–97% across all assets Apr28+; DEADLINE at T-3s was firing before T-2s timer, making it primary exit; T-4s makes TIME_EXIT primary and avoids snap events; DEADLINE remains safety net at T-3s
+
+## 2026-04-29 14:XX UTC | INFRA / ALL | Fix cancel AttributeError: cancel→cancel_orders (py_clob_client_v2); SELL cancel-race REST-first recovery | py_clob_client_v2 removed cancel(), renamed to cancel_orders([id]); every resting SELL was hitting cancel-race path; secondary bug: pop_fill_for_token returned stale BUY fill → exit_price=entry_price (observed T02669_BTC: logged exit=0.81, actual PM=0.46, real loss ~$1.79 vs logged -$0.04)
+
+## 2026-04-29 15:XX UTC | EXIT / ALL | BC disable fixed: _sl_threshold -1.0→-2.0 | -1.0 fired at bond_move=-1.0 (price→0.000); T02682_ETH flash-crashed to 0 at T-4.6s, bypass fired, exited at 0.010, resolved YES at 0.99 — $4.90 FP loss; -2.0 is unreachable (max loss=-1.0), BC truly disabled including bypass path
+
+## 2026-04-29 16:XX UTC | EXIT / ALL | PROFIT_TARGET early exit added: sell when bid ≥ 0.99, min 0.98 execution guaranteed | cascade_sell starts at 0.99×bid=0.9801; PROFIT_REASONS→allow_stepdown=False so if bid has moved below limit the order rests and Guard 1 returns clean (no sub-0.98 fill); fires before BOND_DEADLINE/TIME_EXIT
+
+## 2026-04-29 16:XX UTC | KILL_SWITCH / ALL | Ruin floor override: user instructed no halt at capital=$45.91 (<$50 floor) | explicit user decision; bot continues running
+
+## 2026-04-29 16:XX UTC | ENTRY / ALL | Ask-history gate added: skip if term_ask_stale_s ≥ 999.0 | T02684 (-$1.52) and T02685 (-$4.27) entered with no scan-loop history; snap60/snap30 defaulted to 0.0 (neutral), bypassing both gates; gate blocks blind entries directly
+
+## 2026-04-29 18:XX UTC | ENTRY / ALL | 3 snap gates added: snap60<5% skip; snap30>300% skip; snap60>150%+mage<3s skip | 5h analysis (n=54 active): snap60 0-5% bucket WR=50% net=-$4.32; snap30>300% caught SOL blow-off (0 FP, highest win s30=235%); snap60>150%+fresh caught 2 reversals (1 FP: 14:39 ETH +$0.60); combined WR 68.5%→76.2% net +$6.52; n<100 per bucket — user-authorised Tier 2
