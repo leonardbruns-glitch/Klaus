@@ -51,6 +51,8 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-04-29 19:XX UTC | ENTRY / ALL | snap60 spike gate stale threshold 3s→5s | T02722 BTC (-$2.43): snap60=171% stale=4.1s slipped through 3s gate; same pumped+stale pattern gate targets; n=1 trigger
 
+## 2026-04-29 19:XX UTC | ENTRY / SOL | SOL spread≤3% gate added | spread 1-2% bucket WR=73% net=+$9.18 dir_acc=92% (n=26); spread>3% net=-$12.17 drag; snap+spread≤3 only profitable SOL combo: n=22 WR=64% net=+$2.47 sim=+$2.27; user-authorised Tier 2
+
 ## 2026-04-29 19:XX UTC | EXIT / ALL | PROFIT_TARGET changed fixed 0.99→relative entry×1.12 | 2-day sim: +12% TP converts 13 big losses to wins (+$21.60) vs capping 78 winners earlier (-$18.39); net +$7.26 vs actual exits; avg max_fav of losers=8.4% (not used — too early), winners avg=16.6%; 12% is sweet spot
 
 ## 2026-04-29 19:XX UTC | RISK / ALL | BOND stake cap raised $4→$10 | user instruction; capital $32.45 (below $50 ruin floor but user-overridden); 3-asset worst-case = -$30 on one bad window
