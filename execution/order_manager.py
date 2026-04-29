@@ -1029,7 +1029,7 @@ class OrderManager:
                         else:
                             cancel_race_fill = False
                             try:
-                                self._client.cancel(order_id)
+                                self._client.cancel_orders([order_id])
                                 logger.info("Cancelled unfilled resting BUY %s", order_id[:12])
                             except Exception as _cancel_err:
                                 # Cancel can fail when the order filled in the <1ms window
@@ -1098,7 +1098,7 @@ class OrderManager:
                         )
                         if order_id:
                             try:
-                                self._client.cancel(order_id)
+                                self._client.cancel_orders([order_id])
                             except Exception:
                                 pass
                         partial_fill = Fill(
@@ -1141,7 +1141,7 @@ class OrderManager:
                     # Still no fill — cancel and let cascade retry.
                     if order_id:
                         try:
-                            self._client.cancel(order_id)
+                            self._client.cancel_orders([order_id])
                             logger.info("Cancelled resting GTC SELL %s", order_id[:12])
                             # ── Post-cancel fill recovery ──────────────────────────────
                             # Polymarket cancel is IDEMPOTENT: cancelling an already-filled
@@ -1204,6 +1204,29 @@ class OrderManager:
                                 "SELL cancel-race %s (%s) — recovering fill",
                                 order_id[:12], _cancel_err,
                             )
+                            # REST is authoritative — check this order_id directly.
+                            # pop_fill_for_token searches by token_id and can find stale
+                            # BUY fills from earlier trades, giving exit_price = entry_price.
+                            try:
+                                await asyncio.sleep(0.3)
+                                _oi = self._client.get_order(order_id)
+                                if _oi.get("status") == "matched":
+                                    _mk = _to_float(_oi.get("makingAmount", "0"))
+                                    _tk = _to_float(_oi.get("takingAmount", "0"))
+                                    # SELL: makingAmount=tokens given, takingAmount=USDC received
+                                    _sz = _mk if _mk > 0 else _tk
+                                    _pr = _tk / _sz if _sz > 0 else price
+                                    partial_fill = Fill(
+                                        order_id=order_id, token_id=token_id,
+                                        side=OrderSide.SELL, price=_pr, size=_sz, fee=0.0,
+                                    )
+                                    return OrderResult(
+                                        status=OrderStatus.FILLED, fills=[partial_fill],
+                                        avg_fill_price=_pr, total_size=_sz,
+                                    )
+                            except Exception:
+                                pass
+                            # WS buffer fallback (only if REST unavailable)
                             if self._fill_tracker and self._fill_tracker.is_connected:
                                 _race = self._fill_tracker.pop_fill_for_token(token_id)
                                 if _race is not None:
@@ -1218,25 +1241,6 @@ class OrderManager:
                                         status=OrderStatus.FILLED, fills=[partial_fill],
                                         avg_fill_price=r_pr, total_size=r_sz,
                                     )
-                            # Last resort: poll order status
-                            try:
-                                await asyncio.sleep(0.3)
-                                _oi = self._client.get_order(order_id)
-                                if _oi.get("status") == "matched":
-                                    _mk = _to_float(_oi.get("makingAmount", "0"))
-                                    _tk = _to_float(_oi.get("takingAmount", "0"))
-                                    _sz = _mk if _mk > 0 else _tk
-                                    _pr = _tk / _sz if _sz > 0 else price
-                                    partial_fill = Fill(
-                                        order_id=order_id, token_id=token_id,
-                                        side=OrderSide.SELL, price=_pr, size=_sz, fee=0.0,
-                                    )
-                                    return OrderResult(
-                                        status=OrderStatus.FILLED, fills=[partial_fill],
-                                        avg_fill_price=_pr, total_size=_sz,
-                                    )
-                            except Exception:
-                                pass
                     return OrderResult(status=OrderStatus.FAILED, error="SELL resting on book (live)")
 
             if status != "matched" or taking_f <= 0:
@@ -1335,7 +1339,7 @@ class OrderManager:
             for _stale_id in _attempted_order_ids:
                 if _stale_id and _stale_id != _winning_id:
                     try:
-                        self._client.cancel(_stale_id)
+                        self._client.cancel_orders([_stale_id])
                         logger.warning(
                             "CF_STALE_CANCEL: cancelled resting order %s "
                             "(previous attempt for token %s — double-fill prevention)",
@@ -1711,7 +1715,7 @@ class OrderManager:
         if self._client is None:
             return False
         try:
-            self._client.cancel(order_id)
+            self._client.cancel_orders([order_id])
             return True
         except Exception as exc:
             logger.error("Cancel failed for %s: %s", order_id, exc)
