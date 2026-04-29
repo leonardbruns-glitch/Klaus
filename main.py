@@ -4655,6 +4655,65 @@ class KlausBot:
                 (_b_exit - binance_price_at_entry) / binance_price_at_entry * 100, 4
             )
 
+        # Resolution task: fires at window_end-5s regardless of when T+30/60/120 loop ends.
+        # TIME_EXIT/DEADLINE exit 1-3s before end — by the time the old block ran (T+120s),
+        # the token was gone. This concurrent task captures outcome while the token is live.
+        async def _capture_resolution() -> None:
+            if not window_end_ts:
+                return
+            _wait = max(0.0, window_end_ts - 5.0 - time.time())
+            if _wait > 900:
+                return  # window too far out, skip
+            if _wait > 0:
+                await asyncio.sleep(_wait)
+            try:
+                _wop: float | None = None
+                _tok = self.feed.tokens.get(token_id)
+                if _tok and getattr(_tok, "best_ask", 0) > 0:
+                    _wop = round(_tok.best_ask, 4)
+                if not _wop:
+                    _ob = await self.feed.fetch_order_book(token_id)
+                    if _ob and _ob.asks:
+                        _wop = round(_ob.asks[0][0], 4)
+                # YES tokens near $1 have empty ask side — fall back to bid
+                if _wop is None or _wop < 0.80:
+                    _tok2 = self.feed.tokens.get(token_id)
+                    _bid = None
+                    if _tok2 and getattr(_tok2, "bids", None):
+                        try:
+                            _bid = _tok2.bids[0][0]
+                        except Exception:
+                            pass
+                    if _bid is None:
+                        _ob2 = await self.feed.fetch_order_book(token_id)
+                        if _ob2 and _ob2.bids:
+                            _bid = _ob2.bids[0][0]
+                    if _bid and _bid >= 0.80:
+                        _wop = round(_bid, 4)
+                if _wop is not None:
+                    _res_rec = {
+                        "trade_id": trade_id,
+                        "record_type": "resolution",
+                        "window_outcome_price": _wop,
+                        "entered_correctly": _wop >= 0.80,
+                        "resolution_delay_s": round(time.time() - window_end_ts),
+                        "exit_reason": exit_reason,
+                    }
+                    with open(log_path, "a") as _rf:
+                        _rf.write(_json.dumps(_res_rec) + "\n")
+                    logger.info(
+                        "RESOLUTION %s/%s [%s] | outcome=%.4f correct=%s delay=%ds",
+                        asset, direction, exit_reason, _wop, _wop >= 0.80,
+                        round(time.time() - window_end_ts),
+                    )
+                else:
+                    logger.debug("RESOLUTION %s [%s] | no price at window_end-5s", trade_id[:12], exit_reason)
+            except Exception as _re:
+                logger.debug("resolution capture failed %s: %s", trade_id[:12], _re)
+
+        if window_end_ts > 0:
+            asyncio.create_task(_capture_resolution())
+
         elapsed = 0
         for delay in (30, 60, 120):
             await asyncio.sleep(delay - elapsed)
@@ -4771,95 +4830,8 @@ class KlausBot:
                     except Exception:
                         pass
 
-        # ── Resolution sample: window_end - 5s (last safe moment pre-close) ─────
-        # There is no "window_end + 60s" — the market resolves AT window_end and
-        # the token is worthless/final afterwards. Sample 5s before close to
-        # capture the final traded price while the book is still live.
-        # Appended to post_exit.jsonl with record_type="resolution".
-        if window_end_ts > 0:
-            now_ts = time.time()
-            wait_until = window_end_ts - 5
-            wait_s = max(0.0, wait_until - now_ts)
-            if wait_s <= 900:  # skip if window ended >15 min ago
-                if wait_s > 0:
-                    await asyncio.sleep(wait_s)
-                window_outcome_price = None
-                entered_correctly = None
-                resolution_delay_s = None
-                window_max_adv_from_entry_pct = None
-                try:
-                    token = self.feed.tokens.get(token_id)
-                    _ob = None
-                    if token and hasattr(token, "best_ask") and token.best_ask > 0:
-                        window_outcome_price = round(token.best_ask, 4)
-                    else:
-                        _ob = await self.feed.fetch_order_book(token_id)
-                        if _ob and _ob.asks:
-                            window_outcome_price = round(_ob.asks[0][0], 4)
-                    # Winning tokens near $1.00 have thin/empty ask side at T-5s
-                    # (no sellers remain). Fall back to best_bid to detect winners:
-                    # bid >= 0.80 also means token is heading to $1.00.
-                    if window_outcome_price is None or window_outcome_price < 0.80:
-                        _best_bid = None
-                        if token and hasattr(token, "bids") and getattr(token, "bids", None):
-                            try:
-                                _best_bid = token.bids[0][0]
-                            except Exception:
-                                pass
-                        if _best_bid is None:
-                            if _ob is None:
-                                _ob = await self.feed.fetch_order_book(token_id)
-                            if _ob and _ob.bids:
-                                _best_bid = _ob.bids[0][0]
-                        if _best_bid is not None and _best_bid >= 0.80:
-                            window_outcome_price = round(_best_bid, 4)
-                    if window_outcome_price is not None:
-                        _post_exit_prices.append(window_outcome_price)
-                        entered_correctly = window_outcome_price >= 0.80
-                        # Negative: seconds *before* window_end that we sampled.
-                        # Target is ~-5s; drift from -5 indicates late delivery.
-                        resolution_delay_s = round(time.time() - window_end_ts)
-                    # Max adverse AND max favourable across all post-exit samples.
-                    # Max adverse: lower price = worse for longs.
-                    # Max favourable: higher price post-exit = would have been profitable if held.
-                    window_max_fav_from_entry_pct = None
-                    if entry_price > 0 and _post_exit_prices:
-                        _worst = min(_post_exit_prices)
-                        _best  = max(_post_exit_prices)
-                        window_max_adv_from_entry_pct = round(
-                            (entry_price - _worst) / entry_price * 100, 2
-                        )
-                        # Best post-exit price expressed as % move from entry price.
-                        # Positive = price recovered above entry (would have been profitable if held).
-                        window_max_fav_from_entry_pct = round(
-                            (_best - entry_price) / entry_price * 100, 2
-                        )
-                except Exception as _res_exc:
-                    logger.debug("resolution sample failed %s: %s", token_id[:8], _res_exc)
-                if window_outcome_price is not None:
-                    try:
-                        res_record = {
-                            "trade_id": trade_id,
-                            "record_type": "resolution",
-                            "window_outcome_price": window_outcome_price,
-                            "entered_correctly": entered_correctly,
-                            "resolution_delay_s": resolution_delay_s,
-                            "window_max_adv_from_entry_pct": window_max_adv_from_entry_pct,
-                            "window_max_fav_from_entry_pct": window_max_fav_from_entry_pct,
-                            "post_exit_n_samples": len(_post_exit_prices),
-                        }
-                        with open(log_path, "a") as f:
-                            f.write(_json.dumps(res_record) + "\n")
-                        logger.info(
-                            "RESOLUTION %s/%s [%s] | outcome=%.4f entered_correctly=%s "
-                            "window_max_adv=%s%% max_fav=%s%% (n=%d post-exit samples)",
-                            asset, direction, exit_reason,
-                            window_outcome_price, entered_correctly,
-                            window_max_adv_from_entry_pct, window_max_fav_from_entry_pct,
-                            len(_post_exit_prices),
-                        )
-                    except Exception as _re:
-                        logger.debug("resolution log failed: %s", _re)
+        # Resolution is now captured by the concurrent _capture_resolution() task
+        # fired at the start of this function — no duplicate block needed here.
 
     # ── Pending resolution replay (restart recovery) ─────────────────────────
 
