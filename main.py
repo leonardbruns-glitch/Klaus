@@ -965,6 +965,23 @@ class KlausBot:
                             "bond_remaining_at_breach_s": _arm["bond_remaining_at_breach_s"],
                         }) + "\n")
 
+                # ── PROFIT_TARGET: exit early if bid reaches 0.99 (min 0.98 fill) ──
+                # Sell immediately when token is near full resolution value.
+                # cascade_sell starts at 0.99×bid (≥0.9801); PROFIT in reason
+                # → allow_stepdown=False, so if bid has moved below our limit the
+                # order rests and Guard 1 returns without closing — no bad fill.
+                if current_price >= 0.99 and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — early exit',
+                        pos.asset, pos.direction.name, current_price, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'PROFIT_TARGET')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── Safety net 2: absolute deadline ──────────────────────────────
                 # TERMINAL positions: precise timer fires at T-1s — don't cut early.
                 # Fallback at T-3s in case the asyncio task is cancelled/delayed.
