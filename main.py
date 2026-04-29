@@ -806,7 +806,7 @@ class KlausBot:
                 # Fast crashes (<15s) are 68% genuine — keep 10s there.
                 # Hypothesis confirmed at n<100; monitor bc_hold_bucket in wick_events.jsonl.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                _sl_threshold = -0.15
+                _sl_threshold = -1.0  # BC disabled 2026-04-29: 85% FP (n=127), net -$95 vs +$62 counterfactual; time-exit WR=91%
                 if bond_move <= _sl_threshold and token_id not in self._exit_in_progress:
                     _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
                     _hold_s_at_breach = now - getattr(pos, "open_ts", now)
