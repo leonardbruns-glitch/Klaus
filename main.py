@@ -1726,6 +1726,9 @@ class KlausBot:
             # Block 06:30–07:30 UTC: user-flagged high-volatility window (2026-04-29)
             if (_utc_hour == 6 and _utc_min >= 30) or (_utc_hour == 7 and _utc_min < 30):
                 continue
+            # SOL H06 (06:00–06:29): WR=29% (n=17) — $1.50 stake below CLOB 5-share min; block instead
+            if token.asset == "SOL" and _utc_hour == 6:
+                continue
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:
