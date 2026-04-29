@@ -1925,6 +1925,18 @@ class KlausBot:
             signal.term_pre_snap_60s  = _anchored_snap(_snap_refs.get(150, 0.0))
             signal.term_pre_snap_30s  = _anchored_snap(_snap_refs.get(120, 0.0))
             signal.term_pre_snap_open = _anchored_snap(_snap_refs.get(90, 0.0))
+
+            # entry_snap_60s gate: token falling before entry = genuine weakness
+            # snap60<0: WR=32.5% (n=65); snap60<-20%: WR=25% (n=32). Both applied.
+            # 0.0 means reference not captured — skip gate to avoid false blocks.
+            _snap60_val = signal.term_pre_snap_60s
+            if _snap60_val != 0.0 and _snap60_val < 0.0:
+                logger.info(
+                    "[BOND] snap60_skip %s/%s | snap60=%.1f%% — token falling pre-entry",
+                    token.asset, token.side, _snap60_val,
+                )
+                continue
+
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
