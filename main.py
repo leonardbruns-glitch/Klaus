@@ -812,7 +812,7 @@ class KlausBot:
                     _hold_s_at_breach = now - getattr(pos, "open_ts", now)
                     _bc_hold_bucket = "late" if _hold_s_at_breach > 35.0 else ("fast" if _hold_s_at_breach < 15.0 else "mid")
                     # late wick window: 70-90% FP at hold>35s (n=46, hypothesis)
-                    _wick_wait = 18.0 if _bc_hold_bucket == "late" else 10.0
+                    _wick_wait = 18.0 if _bc_hold_bucket == "late" else 15.0
                     _hard_bypass = bond_remaining < 15.0
                     _already_cancelled = self._catas_cancel_count.get(token_id, 0) >= 1
                     if _hard_bypass or _already_cancelled or (_breach_ts > 0 and (now - _breach_ts) >= _wick_wait):
@@ -1669,7 +1669,9 @@ class KlausBot:
             logger.debug("[BOND] disabled — skipping")
             return
         now = time.time()
-        _utc_hour = time.gmtime(now).tm_hour
+        _utc_t    = time.gmtime(now)
+        _utc_hour = _utc_t.tm_hour
+        _utc_min  = _utc_t.tm_min
         _b_total = _b_in_window = _b_ask_skip = _b_fired = _b_mom_skip = 0
         # Purge expired window keys (window ended > 120s ago)
         self._terminal_traded_windows = {
@@ -1710,6 +1712,9 @@ class KlausBot:
             # H21 within 0.80-0.88 target range: n=46 WR=65% PF=1.19 Net=+$4.00 (positive).
             _BLOCKED_HOURS: set = {2, 5, 3}  # 02h PF=0.19 Net=-$12.74 | 05h PF=0.21 Net=-$12.48 | 03h WR=14.3% Net=-$6.77 (n=10, Apr24+Apr29, current strategy)
             if _utc_hour in _BLOCKED_HOURS:
+                continue
+            # Block 06:30–07:30 UTC: user-flagged high-volatility window (2026-04-29)
+            if (_utc_hour == 6 and _utc_min >= 30) or (_utc_hour == 7 and _utc_min < 30):
                 continue
 
             _wkey = (token.asset, round(token.window_end_ts))
@@ -1958,7 +1963,7 @@ class KlausBot:
                         "snap_30s": _snap_30,
                         "entry_ask": ask,
                         "remaining_s": round(remaining, 1),
-                        "would_block": _snap_60 < 0.0,
+                        "would_block": _snap_60 < 0.0 and _snap_30 < 0.0,
                     }) + "\n")
             except Exception:
                 pass
