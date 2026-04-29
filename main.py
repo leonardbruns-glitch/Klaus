@@ -1982,9 +1982,9 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap60 > 150% AND fresh move (<3s): entered at top of a rapid spike
-            # 5h: 2 reversals caught, 1 win blocked (14:39 ETH); net +$2.20
-            if _snap60_val > 150.0 and _term_ask_stale_s < 3.0:
+            # snap60 > 150% AND fresh/stale move (<5s): entered at top of a rapid spike
+            # 5h: 2 reversals caught, 1 win blocked (14:39 ETH); net +$2.20; BTC T02722 slipped at 4.1s
+            if _snap60_val > 150.0 and _term_ask_stale_s < 5.0:
                 logger.info(
                     "[BOND] snap60_spike %s/%s | snap60=%.1f%% mage=%.1fs — spike+fresh",
                     token.asset, token.side, _snap60_val, _term_ask_stale_s,
