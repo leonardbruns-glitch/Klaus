@@ -1944,6 +1944,25 @@ class KlausBot:
                 token.asset, token.side, _wlabel, ask, remaining, decision.stake,
             )
 
+            # ── SNAP shadow gate (observability only — no execution effect) ────
+            _snap_60 = float(getattr(signal, "term_pre_snap_60s", 0.0) or 0.0)
+            _snap_30 = float(getattr(signal, "term_pre_snap_30s", 0.0) or 0.0)
+            try:
+                import json as _json
+                with open("logs/snap_shadow.jsonl", "a") as _sf:
+                    _sf.write(_json.dumps({
+                        "ts": now,
+                        "asset": token.asset,
+                        "token_id": token_id,
+                        "snap_60s": _snap_60,
+                        "snap_30s": _snap_30,
+                        "entry_ask": ask,
+                        "remaining_s": round(remaining, 1),
+                        "would_block": _snap_60 < 0.0,
+                    }) + "\n")
+            except Exception:
+                pass
+
             # ── Entry stability classification (observability only) ────────────
             # Decomposable instability labels — one signal per dimension, no
             # composite black boxes. DOES NOT affect execution: entries proceed
