@@ -64,3 +64,5 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-30 08:XX UTC | ENTRY / ALL | Ask range widened 0.80–0.88 → 0.70–0.92 | user instruction; TP entry×1.12 cap 0.99 unchanged (0.70×1.12=0.784 reachable); new buckets live, no prior evidence
 
 ## 2026-04-30 07:XX UTC | EXIT / ALL | Loss-exit window T-10s→T-5s: poll 0.5s, exit if bid < entry_price | unconditional T-10 was -$29.09 vs T-4s (n=235 Apr28-30): winners lost -$34.94, losers saved +$17.42; conditional version preserves winner upside while catching crashes for losing positions; T-4s remains unconditional fallback
+
+## 2026-04-30 08:XX UTC | EXIT / ALL | PAE added: exit if bid ≥5% below entry for 20 continuous seconds | BC disabled; t_adv>20s trades WR=29% net=-$805 (n=623); tokens stuck below entry 20s+ resolve against us 70%+ of the time; clock resets on recovery above -5%; bypasses inside T-10s window (existing conditional exit handles that)
