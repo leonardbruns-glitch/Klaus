@@ -2029,6 +2029,17 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # snap30 < 0 AND depth < 200: thin book + falling price = adverse combo
+            # Apr30 today: 4 losses blocked (-$19.28) vs 5 wins blocked (+$6.32) = +$12.96 net
+            # Terminal era n=21 PF=0.48 (flag-only, user-authorised Tier 2)
+            if _snap30_val != 0.0 and _snap30_val < 0.0 and 0 < _term_ob_depth < 200:
+                logger.info(
+                    "[BOND] thin_snap30 %s/%s | snap30=%.1f%% depth=%.0f — thin+falling skip",
+                    token.asset, token.side, _snap30_val, _term_ob_depth,
+                )
+                _b_mom_skip += 1
+                continue
+
             # snap60 > 150% AND fresh/stale move (<5s): entered at top of a rapid spike
             # 5h: 2 reversals caught, 1 win blocked (14:39 ETH); net +$2.20; BTC T02722 slipped at 4.1s
             if _snap60_val > 150.0 and _term_ask_stale_s < 5.0:
@@ -4398,7 +4409,7 @@ class KlausBot:
             )
             return
 
-        stage2_fallback = self._calc_exit_price(exit_fills, pos.entry_price)
+        stage2_fallback = self._calc_exit_price(exit_fills, live_price)
 
         # Weighted avg exit price across ALL tranches (stage-1 95% + stage-2 5%).
         analytics_exit_price = self._calc_exit_price(all_exit_fills, stage2_fallback)
