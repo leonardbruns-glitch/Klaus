@@ -1766,14 +1766,14 @@ class KlausBot:
             if time.time() - ob.ts > 3.0:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
-            _ask_max = 0.88  # ep=0.89-0.92 worst bucket; ETH cap removed (avg_ep=0.7941 was stuck)
-            if ask is None or not (0.80 <= ask <= _ask_max):
+            _ask_max = 0.92  # extended from 0.88 2026-04-30
+            if ask is None or not (0.70 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min 0.80: 0.80-0.82 raw PF=0.87 (n=115) wick-adj PF=1.24; 0.82-0.84 PF=1.03 (n=114); wick filter expected to carry 0.80-0.82
+                continue  # min 0.70: extended from 0.80 2026-04-30
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
