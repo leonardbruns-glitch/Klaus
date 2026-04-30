@@ -318,6 +318,8 @@ class KlausBot:
         # Records whether price recovers above entry after a BC breach.
         # Cleared at position exit — not at cancel — so it captures the full trajectory.
         self._bc_arm_tracker: Dict[str, dict] = {}
+        # PAE: Persistent Adverse Exit — tracks how long bid has been ≥5% below entry.
+        self._pae_below_since: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -964,6 +966,37 @@ class KlausBot:
                             "hold_s_at_breach": _arm["hold_s_at_breach"],
                             "bond_remaining_at_breach_s": _arm["bond_remaining_at_breach_s"],
                         }) + "\n")
+
+                # ── PAE: Persistent Adverse Exit ─────────────────────────────────
+                # Exit if bid ≥5% below entry for 20 continuous seconds.
+                # Data: t_adv>20s trades WR=29%, net=-$805 (n=623); tokens that stay
+                # down after 20s resolve against us 70%+ of the time with no BC SL.
+                # Clock resets whenever bid recovers above -5% threshold.
+                # Bypass inside T-10s (handled by conditional loss-exit window).
+                _pae_depth = -bond_move  # positive = how far below entry
+                if bond_remaining > 10.0 and token_id not in self._exit_in_progress:
+                    if _pae_depth >= 0.05:
+                        if token_id not in self._pae_below_since:
+                            self._pae_below_since[token_id] = now
+                        elif now - self._pae_below_since[token_id] >= 20.0:
+                            _held_below = now - self._pae_below_since[token_id]
+                            logger.info(
+                                "BOND_PAE %s: %.0fs below entry | bid=%.4f ep=%.4f"
+                                " (%.1f%% adv) rem=%.0fs",
+                                pos.asset, _held_below, current_price,
+                                pos.entry_price, _pae_depth * 100, bond_remaining,
+                            )
+                            self._exit_in_progress.add(token_id)
+                            self._pae_below_since.pop(token_id, None)
+                            try:
+                                await self._exit_position(
+                                    token_id, current_price, "BOND_PAE"
+                                )
+                            finally:
+                                self._exit_in_progress.discard(token_id)
+                            continue
+                    else:
+                        self._pae_below_since.pop(token_id, None)
 
                 # ── PROFIT_TARGET: exit early at entry×1.12 (+12% of entry price) ──
                 # Relative TP: converts 13 big losses to wins vs fixed 0.99 threshold.
@@ -4668,6 +4701,7 @@ class KlausBot:
         self._bond_sl_arm_ts.pop(token_id, None)
         self._catas_breach_ts.pop(token_id, None)
         self._catas_cancel_count.pop(token_id, None)
+        self._pae_below_since.pop(token_id, None)
         # Log outcome for BC-armed positions that never fully reversed
         _arm_exit = self._bc_arm_tracker.pop(token_id, None)
         if _arm_exit:
