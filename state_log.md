@@ -66,3 +66,9 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-30 07:XX UTC | EXIT / ALL | Loss-exit window T-10s→T-5s: poll 0.5s, exit if bid < entry_price | unconditional T-10 was -$29.09 vs T-4s (n=235 Apr28-30): winners lost -$34.94, losers saved +$17.42; conditional version preserves winner upside while catching crashes for losing positions; T-4s remains unconditional fallback
 
 ## 2026-04-30 08:XX UTC | EXIT / ALL | PAE added: exit if bid ≥5% below entry for 20 continuous seconds | BC disabled; t_adv>20s trades WR=29% net=-$805 (n=623); tokens stuck below entry 20s+ resolve against us 70%+ of the time; clock resets on recovery above -5%; bypasses inside T-10s window (existing conditional exit handles that)
+
+## 2026-04-30 ~14:XX UTC | ENTRY GATE / ALL | Stale ask threshold tightened 999s → 4s | 3-day sample: stale>=4s net=-$35.07 (n=72 blocked); dominant losers T02829 (-$9.94, stale=5.3s) and T02814 (-$7.22, stale=6.8s) in 4–7s zone; 7-10s WR=100% is n=12 (noise); 3-4s bucket (WR=92.3%) preserved
+
+## 2026-04-30 ~14:XX UTC | DATA / ALL | XP tracking fixed: _capture_resolution() now patches trades.jsonl with wop/entered_correctly on resolution; 860 historical trades backfilled from post_exit.jsonl
+
+## 2026-04-30 ~14:XX UTC | DATA / BTC | T02829 corrected: PAE fill at 0.83 was ghost order during spike, position never closed; wop=0.01, net_pnl corrected -$0.10→-$9.94, capital_after 53.52→43.68
