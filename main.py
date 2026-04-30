@@ -970,7 +970,7 @@ class KlausBot:
                 # cascade_sell starts at 0.99×bid; PROFIT in reason
                 # → allow_stepdown=False, so if bid has moved below our limit the
                 # order rests and Guard 1 returns without closing — no bad fill.
-                if current_price >= pos.entry_price * 1.12 and token_id not in self._exit_in_progress:
+                if current_price >= min(pos.entry_price * 1.12, 0.99) and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — early exit',
