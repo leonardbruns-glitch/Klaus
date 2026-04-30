@@ -3473,14 +3473,16 @@ class KlausBot:
         """
         target_ts = window_end_ts - exit_sec
 
-        # Conditional loss-exit window: T-10s and T-5s checkpoints.
-        # If bid < entry_price at either checkpoint, bail early (crash protection).
-        # Winners (bid >= entry) pass through to unconditional TIME_EXIT at T-4s.
-        for _chk_offset in (10.0, 5.0):
-            _chk_ts = window_end_ts - _chk_offset
-            _wait = _chk_ts - time.time()
-            if _wait > 0:
-                await asyncio.sleep(_wait)
+        # Conditional loss-exit window T-10s→T-5s: poll every 0.5s.
+        # Exit immediately if bid < entry_price at any point in this window.
+        # Winners (bid >= entry throughout) fall through to T-4s TIME_EXIT.
+        _t10_ts = window_end_ts - 10.0
+        _wait_to_t10 = _t10_ts - time.time()
+        if _wait_to_t10 > 0:
+            await asyncio.sleep(_wait_to_t10)
+        _t5_ts = window_end_ts - 5.0
+        _first_t10_snap = True
+        while time.time() < _t5_ts:
             _pos_chk = self.risk.open_positions.get(token_id)
             if _pos_chk is None or not getattr(_pos_chk, "is_bond", False):
                 return
@@ -3491,14 +3493,15 @@ class KlausBot:
                 _ob_chk.bids[0][0] if (_ob_chk and _ob_chk.bids)
                 else _pos_chk.entry_price
             )
-            if _chk_offset == 10.0:
+            if _first_t10_snap:
                 self._price_at_t10s[token_id] = _bid_chk
+                _first_t10_snap = False
             _ep = getattr(_pos_chk, "entry_price", 1.0)
             if _bid_chk < _ep:
                 actual_remaining = max(0.0, window_end_ts - time.time())
                 logger.info(
-                    "BOND_TIMER %s: T-%.0f conditional exit | remaining=%.1fs bid=%.4f ep=%.4f",
-                    _pos_chk.asset, _chk_offset, actual_remaining, _bid_chk, _ep,
+                    "BOND_TIMER %s: loss-window exit | remaining=%.1fs bid=%.4f ep=%.4f",
+                    _pos_chk.asset, actual_remaining, _bid_chk, _ep,
                 )
                 self._exit_in_progress.add(token_id)
                 try:
@@ -3506,6 +3509,7 @@ class KlausBot:
                 finally:
                     self._exit_in_progress.discard(token_id)
                 return
+            await asyncio.sleep(0.5)
 
         # T-4s unconditional TIME_EXIT
         wait_s = target_ts - time.time()
