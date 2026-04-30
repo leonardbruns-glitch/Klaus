@@ -510,11 +510,12 @@ class FeedbackEngine:
         if fee_paid < 0:
             import logging as _log
             _log.getLogger("feedback").warning(
-                "fee_paid=%.4f < 0 for trade %s — net_pnl_actual likely wrong. "
-                "Clamping to 0 to prevent analytics corruption.",
+                "fee_paid=%.4f < 0 for trade %s — net_pnl_actual wrong (EXTERNALLY_SOLD/partial). "
+                "Recomputing net_pnl from gross_pnl with fee=0.",
                 fee_paid, trade_id,
             )
             fee_paid = 0.0
+            net_pnl = gross_pnl
 
         # capital_after is always capital_before + net_pnl. Using the live bankroll
         # snapshot was wrong: if two positions close in the same cycle, the snapshot
