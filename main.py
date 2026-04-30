@@ -1992,9 +1992,10 @@ class KlausBot:
             signal.term_pre_snap_30s  = _anchored_snap(_snap_refs.get(120, 0.0))
             signal.term_pre_snap_open = _anchored_snap(_snap_refs.get(90, 0.0))
 
-            # Ask-history gate: no scan-loop history = entered blind, stale data
-            # would pass snap60 as 0.0 (neutral). Block to avoid T02684/T02685 repeat.
-            if _term_ask_stale_s >= 999.0:
+            # Ask-history gate: stale ask = ghost order / thin market.
+            # stale>=4s: WR drops, dominant losers (T02829 -$9.94, T02814 -$7.22) in 4–7s zone.
+            # Blocked net=-$35.07 across 72 trades (3-day sample). 7-10s WR=100% is n=12 noise.
+            if _term_ask_stale_s >= 4.0:
                 continue
 
             # entry_snap_60s gate: token falling before entry = genuine weakness
