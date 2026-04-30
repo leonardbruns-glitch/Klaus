@@ -319,7 +319,9 @@ class KlausBot:
         # Cleared at position exit — not at cancel — so it captures the full trajectory.
         self._bc_arm_tracker: Dict[str, dict] = {}
         # PAE: Persistent Adverse Exit — tracks how long bid has been ≥5% below entry.
+        # _pae_above_since: when bid recovered above -5%; timer only resets after 5s sustained recovery.
         self._pae_below_since: Dict[str, float] = {}
+        self._pae_above_since: Dict[str, float] = {}
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -971,11 +973,14 @@ class KlausBot:
                 # Exit if bid ≥5% below entry for 20 continuous seconds.
                 # Data: t_adv>20s trades WR=29%, net=-$805 (n=623); tokens that stay
                 # down after 20s resolve against us 70%+ of the time with no BC SL.
-                # Clock resets whenever bid recovers above -5% threshold.
+                # Timer only resets if bid recovers above -5% for ≥5s (sustained
+                # recovery). Brief pops above threshold don't wipe the clock.
                 # Bypass inside T-10s (handled by conditional loss-exit window).
                 _pae_depth = -bond_move  # positive = how far below entry
                 if bond_remaining > 10.0 and token_id not in self._exit_in_progress:
                     if _pae_depth >= 0.05:
+                        # Below threshold — start or continue below-timer; clear above-timer
+                        self._pae_above_since.pop(token_id, None)
                         if token_id not in self._pae_below_since:
                             self._pae_below_since[token_id] = now
                         elif now - self._pae_below_since[token_id] >= 20.0:
@@ -996,7 +1001,15 @@ class KlausBot:
                                 self._exit_in_progress.discard(token_id)
                             continue
                     else:
-                        self._pae_below_since.pop(token_id, None)
+                        # Above threshold — only reset below-timer after 5s sustained recovery
+                        if token_id in self._pae_below_since:
+                            if token_id not in self._pae_above_since:
+                                self._pae_above_since[token_id] = now
+                            elif now - self._pae_above_since[token_id] >= 5.0:
+                                self._pae_below_since.pop(token_id, None)
+                                self._pae_above_since.pop(token_id, None)
+                        else:
+                            self._pae_above_since.pop(token_id, None)
 
                 # ── PROFIT_TARGET: exit early at entry×1.12 (+12% of entry price) ──
                 # Relative TP: converts 13 big losses to wins vs fixed 0.99 threshold.
@@ -4702,6 +4715,7 @@ class KlausBot:
         self._catas_breach_ts.pop(token_id, None)
         self._catas_cancel_count.pop(token_id, None)
         self._pae_below_since.pop(token_id, None)
+        self._pae_above_since.pop(token_id, None)
         # Log outcome for BC-armed positions that never fully reversed
         _arm_exit = self._bc_arm_tracker.pop(token_id, None)
         if _arm_exit:
