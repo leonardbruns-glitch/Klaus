@@ -869,7 +869,7 @@ class OrderManager:
                     # despite the error response. If the WS buffered a fill for this
                     # token, skip the retry — a second order would create double-fill orphans.
                     if self._fill_tracker and self._fill_tracker.is_connected:
-                        _early = self._fill_tracker.pop_fill_for_token(token_id)
+                        _early = self._fill_tracker.pop_fill_for_token(token_id, side="BUY")
                         if _early is not None:
                             logger.warning(
                                 "Retry cancelled — attempt %d already filled token %s",
@@ -1149,7 +1149,7 @@ class OrderManager:
                             # below never fires for fills that completed just before cancel.
                             # Check fill_tracker buffer AND REST to avoid logging ep=xp.
                             if self._fill_tracker and self._fill_tracker.is_connected:
-                                _post_cancel = self._fill_tracker.pop_fill_for_token(token_id)
+                                _post_cancel = self._fill_tracker.pop_fill_for_token(token_id, side="SELL")
                                 if _post_cancel is not None:
                                     _pc_sz   = _post_cancel.get("size", 0)
                                     _pc_cost = _post_cancel.get("cost") or (_pc_sz * price)
@@ -1228,7 +1228,7 @@ class OrderManager:
                                 pass
                             # WS buffer fallback (only if REST unavailable)
                             if self._fill_tracker and self._fill_tracker.is_connected:
-                                _race = self._fill_tracker.pop_fill_for_token(token_id)
+                                _race = self._fill_tracker.pop_fill_for_token(token_id, side="SELL")
                                 if _race is not None:
                                     r_sz   = _race.get("size", 0)
                                     r_cost = _race.get("cost") or (r_sz * price)
