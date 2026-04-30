@@ -5190,6 +5190,15 @@ class KlausBot:
                             )
                             self.risk.bankroll.capital = actual_usdc
                             self.risk.bankroll._save()
+                            self.analytics._write_jsonl(CONFIG.analytics.trade_log, {
+                                "record_type": "CAPITAL_CORRECTION",
+                                "ts": time.time(),
+                                "source": "BANKROLL_AUTO_CORRECT",
+                                "capital_before": internal,
+                                "capital_after": actual_usdc,
+                                "correction_delta": round(drift, 4),
+                                "is_live": not CONFIG.dry_run,
+                            })
                         else:
                             logger.debug(
                                 "Bankroll reconcile OK: internal=$%.2f actual=$%.2f drift=%+.2f",
@@ -5344,23 +5353,38 @@ class KlausBot:
                         avg_entry_price=_orphan_entry_price,
                     )
                     # Reconcile bankroll from actual CLOB USDC balance — ground truth.
-                    # Avoids drift from double-counting or missed entry deductions.
-                    if not CONFIG.dry_run:
+                    # Guard: skip if other positions are open (raw USDC excludes locked capital).
+                    if not CONFIG.dry_run and not self.risk.open_positions:
                         await asyncio.sleep(2.0)
                         try:
                             _real_bal = await asyncio.to_thread(self.orders.fetch_usdc_balance)
                             if _real_bal is not None:
                                 _old_cap = self.risk.bankroll.capital
+                                _delta   = round(_real_bal - _old_cap, 4)
                                 self.risk.bankroll.capital = round(_real_bal, 4)
                                 self.risk.bankroll._save()
                                 logger.warning(
                                     "Post-orphan bankroll reconciled: $%.2f → $%.2f (delta=%+.2f)",
-                                    _old_cap, _real_bal, _real_bal - _old_cap,
+                                    _old_cap, _real_bal, _delta,
                                 )
+                                self.analytics._write_jsonl(CONFIG.analytics.trade_log, {
+                                    "record_type": "CAPITAL_CORRECTION",
+                                    "ts": time.time(),
+                                    "source": "POST_ORPHAN_RECONCILE",
+                                    "capital_before": _old_cap,
+                                    "capital_after": round(_real_bal, 4),
+                                    "correction_delta": _delta,
+                                    "is_live": True,
+                                })
                             else:
                                 logger.warning("Post-orphan USDC balance fetch returned None")
                         except Exception as _re:
                             logger.warning("Post-orphan bankroll reconcile failed: %s", _re)
+                    elif not CONFIG.dry_run and self.risk.open_positions:
+                        logger.info(
+                            "Post-orphan reconcile skipped: %d position(s) still open",
+                            len(self.risk.open_positions),
+                        )
                 else:
                     logger.warning(
                         "ORPHAN SELL FAILED %s/%s: %.4f shares unsold",
