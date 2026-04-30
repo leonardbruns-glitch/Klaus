@@ -3473,7 +3473,8 @@ class KlausBot:
         """
         target_ts = window_end_ts - exit_sec
 
-        # T-10s: capture price snapshot for analytics only (no exit)
+        # T-10s: conditional exit — only if bid < entry_price (currently losing)
+        # Winners (bid >= entry) are left to walk to TP/T-4s; losers bailed early.
         t10s_ts = window_end_ts - 10.0
         wait_to_t10s = t10s_ts - time.time()
         if wait_to_t10s > 0:
@@ -3486,6 +3487,23 @@ class KlausBot:
                 else _pos_t10.entry_price
             )
             self._price_at_t10s[token_id] = _snap
+            _ep = getattr(_pos_t10, "entry_price", 1.0)
+            if (
+                token_id not in self._exit_in_progress
+                and getattr(_pos_t10, "is_bond", False)
+                and _snap < _ep
+            ):
+                actual_remaining = max(0.0, window_end_ts - time.time())
+                logger.info(
+                    "BOND_TIMER %s: T-10 conditional exit | remaining=%.1fs bid=%.4f ep=%.4f",
+                    _pos_t10.asset, actual_remaining, _snap, _ep,
+                )
+                self._exit_in_progress.add(token_id)
+                try:
+                    await self._exit_position(token_id, _snap, "BOND_TIME_EXIT")
+                finally:
+                    self._exit_in_progress.discard(token_id)
+                return
 
         # T-4s exit
         wait_s = target_ts - time.time()
