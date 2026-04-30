@@ -3473,10 +3473,7 @@ class KlausBot:
         """
         target_ts = window_end_ts - exit_sec
 
-        # T-10s hard exit: if TP has not fired by T-10s, exit now.
-        # Late crashes (ETH -4.37: 0.99→0.02 in 3s; BTC -5.07: 0.74→0.29 in 5s)
-        # happen in the final 5-10s. T-4s exit is too late. T-10s is the new primary.
-        # T-4s path below remains as fallback for cases where T-10 is skipped.
+        # T-10s: capture price snapshot for analytics only (no exit)
         t10s_ts = window_end_ts - 10.0
         wait_to_t10s = t10s_ts - time.time()
         if wait_to_t10s > 0:
@@ -3489,20 +3486,8 @@ class KlausBot:
                 else _pos_t10.entry_price
             )
             self._price_at_t10s[token_id] = _snap
-            if token_id not in self._exit_in_progress and getattr(_pos_t10, "is_bond", False):
-                actual_remaining = max(0.0, window_end_ts - time.time())
-                logger.info(
-                    "BOND_TIMER %s: T-10 hard exit | remaining=%.1fs bid=%.4f",
-                    _pos_t10.asset, actual_remaining, _snap,
-                )
-                self._exit_in_progress.add(token_id)
-                try:
-                    await self._exit_position(token_id, _snap, "BOND_TIME_EXIT")
-                finally:
-                    self._exit_in_progress.discard(token_id)
-                return
 
-        # Fallback: T-4s exit (position already closed by TP, or T-10 was skipped)
+        # T-4s exit
         wait_s = target_ts - time.time()
         if wait_s > 0:
             await asyncio.sleep(wait_s)
