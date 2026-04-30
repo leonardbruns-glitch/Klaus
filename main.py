@@ -3473,39 +3473,41 @@ class KlausBot:
         """
         target_ts = window_end_ts - exit_sec
 
-        # T-10s: conditional exit — only if bid < entry_price (currently losing)
-        # Winners (bid >= entry) are left to walk to TP/T-4s; losers bailed early.
-        t10s_ts = window_end_ts - 10.0
-        wait_to_t10s = t10s_ts - time.time()
-        if wait_to_t10s > 0:
-            await asyncio.sleep(wait_to_t10s)
-        _pos_t10 = self.risk.open_positions.get(token_id)
-        if _pos_t10 is not None:
-            _ob_t10 = self.feed.get_order_book(token_id)
-            _snap = (
-                _ob_t10.bids[0][0] if (_ob_t10 and _ob_t10.bids)
-                else _pos_t10.entry_price
+        # Conditional loss-exit window: T-10s and T-5s checkpoints.
+        # If bid < entry_price at either checkpoint, bail early (crash protection).
+        # Winners (bid >= entry) pass through to unconditional TIME_EXIT at T-4s.
+        for _chk_offset in (10.0, 5.0):
+            _chk_ts = window_end_ts - _chk_offset
+            _wait = _chk_ts - time.time()
+            if _wait > 0:
+                await asyncio.sleep(_wait)
+            _pos_chk = self.risk.open_positions.get(token_id)
+            if _pos_chk is None or not getattr(_pos_chk, "is_bond", False):
+                return
+            if token_id in self._exit_in_progress:
+                return
+            _ob_chk = self.feed.get_order_book(token_id)
+            _bid_chk = (
+                _ob_chk.bids[0][0] if (_ob_chk and _ob_chk.bids)
+                else _pos_chk.entry_price
             )
-            self._price_at_t10s[token_id] = _snap
-            _ep = getattr(_pos_t10, "entry_price", 1.0)
-            if (
-                token_id not in self._exit_in_progress
-                and getattr(_pos_t10, "is_bond", False)
-                and _snap < _ep
-            ):
+            if _chk_offset == 10.0:
+                self._price_at_t10s[token_id] = _bid_chk
+            _ep = getattr(_pos_chk, "entry_price", 1.0)
+            if _bid_chk < _ep:
                 actual_remaining = max(0.0, window_end_ts - time.time())
                 logger.info(
-                    "BOND_TIMER %s: T-10 conditional exit | remaining=%.1fs bid=%.4f ep=%.4f",
-                    _pos_t10.asset, actual_remaining, _snap, _ep,
+                    "BOND_TIMER %s: T-%.0f conditional exit | remaining=%.1fs bid=%.4f ep=%.4f",
+                    _pos_chk.asset, _chk_offset, actual_remaining, _bid_chk, _ep,
                 )
                 self._exit_in_progress.add(token_id)
                 try:
-                    await self._exit_position(token_id, _snap, "BOND_TIME_EXIT")
+                    await self._exit_position(token_id, _bid_chk, "BOND_TIME_EXIT")
                 finally:
                     self._exit_in_progress.discard(token_id)
                 return
 
-        # T-4s exit
+        # T-4s unconditional TIME_EXIT
         wait_s = target_ts - time.time()
         if wait_s > 0:
             await asyncio.sleep(wait_s)
