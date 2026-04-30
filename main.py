@@ -3473,22 +3473,36 @@ class KlausBot:
         """
         target_ts = window_end_ts - exit_sec
 
-        # T-10s snapshot: capture bid price 10s before window close for post-analysis.
-        # Stored in _price_at_t10s and written to the trade record at close.
+        # T-10s hard exit: if TP has not fired by T-10s, exit now.
+        # Late crashes (ETH -4.37: 0.99→0.02 in 3s; BTC -5.07: 0.74→0.29 in 5s)
+        # happen in the final 5-10s. T-4s exit is too late. T-10s is the new primary.
+        # T-4s path below remains as fallback for cases where T-10 is skipped.
         t10s_ts = window_end_ts - 10.0
         wait_to_t10s = t10s_ts - time.time()
         if wait_to_t10s > 0:
             await asyncio.sleep(wait_to_t10s)
-        if token_id in self.risk.open_positions:
+        _pos_t10 = self.risk.open_positions.get(token_id)
+        if _pos_t10 is not None:
             _ob_t10 = self.feed.get_order_book(token_id)
-            _pos_t10 = self.risk.open_positions.get(token_id)
             _snap = (
                 _ob_t10.bids[0][0] if (_ob_t10 and _ob_t10.bids)
-                else (_pos_t10.entry_price if _pos_t10 else None)
+                else _pos_t10.entry_price
             )
-            if _snap is not None:
-                self._price_at_t10s[token_id] = _snap
+            self._price_at_t10s[token_id] = _snap
+            if token_id not in self._exit_in_progress and getattr(_pos_t10, "is_bond", False):
+                actual_remaining = max(0.0, window_end_ts - time.time())
+                logger.info(
+                    "BOND_TIMER %s: T-10 hard exit | remaining=%.1fs bid=%.4f",
+                    _pos_t10.asset, actual_remaining, _snap,
+                )
+                self._exit_in_progress.add(token_id)
+                try:
+                    await self._exit_position(token_id, _snap, "BOND_TIME_EXIT")
+                finally:
+                    self._exit_in_progress.discard(token_id)
+                return
 
+        # Fallback: T-4s exit (position already closed by TP, or T-10 was skipped)
         wait_s = target_ts - time.time()
         if wait_s > 0:
             await asyncio.sleep(wait_s)
