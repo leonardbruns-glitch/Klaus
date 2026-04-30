@@ -58,3 +58,5 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-29 19:XX UTC | RISK / ALL | BOND stake cap raised $4→$10 | user instruction; capital $32.45 (below $50 ruin floor but user-overridden); 3-asset worst-case = -$30 on one bad window
 
 ## 2026-04-30 05:02 UTC | EXIT / ALL | PROFIT_TARGET cap added: min(entry×1.12, 0.99) | entry×1.12 exceeds 1.0 for fills above ep~0.884 (slippage entries); T02757_ETH held 30s at bid=0.99 without TP firing, hit flash crash at T-4s (-$4.37); cap ensures TP is always reachable
+
+## 2026-04-30 06:XX UTC | ENTRY / ALL | d5s>20% gate added: skip if token rose >20% in 5s before entry | n=65 Apr28+: WR=51% PF=0.70 net=-$11.4; rest WR=66% PF=1.11; micro blow-off pattern; user-authorised Tier 2

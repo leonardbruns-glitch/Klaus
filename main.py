@@ -1992,6 +1992,16 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # d5s > 20%: micro blow-off — token spiked >20% in 5s before entry, reversal risk
+            # n=65 Apr28+: WR=51% PF=0.70 net=-$11.4; rest WR=66% PF=1.11 net=+$18.7; user-authorised Tier 2
+            if _term_tok_d5 > 20.0:
+                logger.info(
+                    "[BOND] d5s_blowoff %s/%s | d5s=%.1f%% — micro blow-off skip",
+                    token.asset, token.side, _term_tok_d5,
+                )
+                _b_mom_skip += 1
+                continue
+
             # SOL spread > 3%: wide spread = market-maker uncertainty; dir_acc drops below 80%
             # spread 1-2% bucket: WR=73%, net=+$9.18, dir_acc=92% (n=26 Apr28-29)
             # spread >3%: net=-$12.17 drag; snap+spread≤3 is only profitable SOL combo
