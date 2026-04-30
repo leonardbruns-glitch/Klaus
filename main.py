@@ -1992,11 +1992,11 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # d5s > 20%: micro blow-off — token spiked >20% in 5s before entry, reversal risk
-            # n=65 Apr28+: WR=51% PF=0.70 net=-$11.4; rest WR=66% PF=1.11 net=+$18.7; user-authorised Tier 2
-            if _term_tok_d5 > 20.0:
+            # d5s > 25%: micro blow-off — token spiked >25% in 5s before entry, reversal risk
+            # n=49 Apr28+: WR=43% PF=0.47 net=-$18.4; rest WR=66% PF=1.15 net=+$25.7; user-authorised Tier 2
+            if _term_tok_d5 > 25.0:
                 logger.info(
-                    "[BOND] d5s_blowoff %s/%s | d5s=%.1f%% — micro blow-off skip",
+                    "[BOND] d5s_blowoff %s/%s | d5s=%.1f%% — micro blow-off skip (>25%%)",
                     token.asset, token.side, _term_tok_d5,
                 )
                 _b_mom_skip += 1
