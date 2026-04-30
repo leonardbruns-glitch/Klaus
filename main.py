@@ -4838,16 +4838,38 @@ class KlausBot:
                     if _bid and _bid >= 0.80:
                         _wop = round(_bid, 4)
                 if _wop is not None:
+                    _entered_correctly = _wop >= 0.80
                     _res_rec = {
                         "trade_id": trade_id,
                         "record_type": "resolution",
                         "window_outcome_price": _wop,
-                        "entered_correctly": _wop >= 0.80,
+                        "entered_correctly": _entered_correctly,
                         "resolution_delay_s": round(time.time() - window_end_ts),
                         "exit_reason": exit_reason,
                     }
                     with open(log_path, "a") as _rf:
                         _rf.write(_json.dumps(_res_rec) + "\n")
+                    # Patch trades.jsonl so wop and entered_correctly are queryable
+                    # without joining post_exit — rewrite matching line in place.
+                    _trades_path = os.path.join("logs", "trades.jsonl")
+                    try:
+                        _lines = []
+                        with open(_trades_path) as _tf:
+                            for _tl in _tf:
+                                try:
+                                    _tr = _json.loads(_tl.strip())
+                                    if _tr.get("trade_id") == trade_id:
+                                        _tr["window_outcome_price"] = _wop
+                                        _tr["entered_correctly"] = _entered_correctly
+                                        _lines.append(_json.dumps(_tr) + "\n")
+                                    else:
+                                        _lines.append(_tl)
+                                except Exception:
+                                    _lines.append(_tl)
+                        with open(_trades_path, "w") as _tf:
+                            _tf.writelines(_lines)
+                    except Exception as _pe:
+                        logger.debug("trades.jsonl resolution patch failed: %s", _pe)
                     logger.info(
                         "RESOLUTION %s/%s [%s] | outcome=%.4f correct=%s delay=%ds",
                         asset, direction, exit_reason, _wop, _wop >= 0.80,
