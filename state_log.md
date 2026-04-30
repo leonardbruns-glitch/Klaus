@@ -56,3 +56,5 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-29 19:XX UTC | EXIT / ALL | PROFIT_TARGET changed fixed 0.99→relative entry×1.12 | 2-day sim: +12% TP converts 13 big losses to wins (+$21.60) vs capping 78 winners earlier (-$18.39); net +$7.26 vs actual exits; avg max_fav of losers=8.4% (not used — too early), winners avg=16.6%; 12% is sweet spot
 
 ## 2026-04-29 19:XX UTC | RISK / ALL | BOND stake cap raised $4→$10 | user instruction; capital $32.45 (below $50 ruin floor but user-overridden); 3-asset worst-case = -$30 on one bad window
+
+## 2026-04-30 05:02 UTC | EXIT / ALL | PROFIT_TARGET cap added: min(entry×1.12, 0.99) | entry×1.12 exceeds 1.0 for fills above ep~0.884 (slippage entries); T02757_ETH held 30s at bid=0.99 without TP firing, hit flash crash at T-4s (-$4.37); cap ensures TP is always reachable
