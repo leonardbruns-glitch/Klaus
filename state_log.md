@@ -61,4 +61,4 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-04-30 06:XX UTC | ENTRY / ALL | d5s>25% gate added: skip if token rose >25% in 5s before entry | n=49 Apr28+: WR=43% PF=0.47 net=-$18.4; rest WR=66% PF=1.15 net=+$25.7; micro blow-off pattern; user-authorised Tier 2
 
-## 2026-04-30 07:XX UTC | EXIT / ALL | T-10 hard exit: exit at T-10s if TP has not fired | ETH -4.37 (0.99→0.02 in 3s), BTC -5.07 (0.74→0.29 in 5s) — late crashes after T-10s are primary loss driver; T-4s remains as fallback
+## 2026-04-30 07:XX UTC | EXIT / ALL | Loss-exit window T-10s→T-5s: poll 0.5s, exit if bid < entry_price | unconditional T-10 was -$29.09 vs T-4s (n=235 Apr28-30): winners lost -$34.94, losers saved +$17.42; conditional version preserves winner upside while catching crashes for losing positions; T-4s remains unconditional fallback
