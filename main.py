@@ -273,6 +273,9 @@ class KlausBot:
         # Keys: token_id → {150: ask, 120: ask, 90: ask}
         # 150s = 60s before window opens, 120s = 30s before, 90s = at window open.
         self._term_pre_snap_refs: Dict[str, Dict[int, float]] = {}
+        # RSI and size-weighted ask VWAP captured once at remaining≤90s (entry zone opens).
+        # Frozen pre-entry so they can serve as future gate candidates.
+        self._term_pre_entry_obs: Dict[str, dict] = {}
         # Completed LLM decisions awaiting next scan for real entry.
         # TAKE: consumed (popped) when real trade fires.
         # SKIP: kept in dict until token leaves feed (prevents re-eval in same window).
@@ -1772,6 +1775,26 @@ class KlausBot:
                 for _thresh in (150, 120, 90):
                     if _thresh not in _snap_refs and _remaining_now <= _thresh:
                         _snap_refs[_thresh] = _ask_now
+                # Pre-entry RSI + VWAP: frozen once at remaining≤90s (entry zone opens)
+                _pre_obs = self._term_pre_entry_obs.setdefault(token_id, {})
+                if "rsi" not in _pre_obs and _remaining_now <= 90:
+                    _hist_rsi = self._token_ask_history.get(token_id)
+                    _pre_rsi = 0.0
+                    if _hist_rsi and len(_hist_rsi) >= 2:
+                        _rp = [p for _, p in _hist_rsi]
+                        _rc = [_rp[i+1] - _rp[i] for i in range(len(_rp)-1)]
+                        _rg = [max(c, 0.0) for c in _rc]
+                        _rl = [abs(min(c, 0.0)) for c in _rc]
+                        _rag = sum(_rg) / len(_rg)
+                        _ral = sum(_rl) / len(_rl)
+                        _pre_rsi = round(100.0 - 100.0 / (1.0 + _rag / _ral), 2) if _ral > 0 else 100.0
+                    _pre_vwap = 0.0
+                    if _ob_hist and _ob_hist.asks:
+                        _vt = sum(sz for _, sz in _ob_hist.asks)
+                        if _vt > 0:
+                            _pre_vwap = round(sum(px * sz for px, sz in _ob_hist.asks) / _vt, 4)
+                    _pre_obs["rsi"] = _pre_rsi
+                    _pre_obs["vwap"] = _pre_vwap
             if token_id in self.risk.open_positions:
                 continue
             if token.asset in self.risk._pending_assets:
@@ -1944,23 +1967,10 @@ class KlausBot:
             if not _tok_has_hist:
                 continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
 
-            # RSI from scan-loop ask price history (observation only, no gating)
-            _term_rsi = 0.0
-            if _tok_hist and len(_tok_hist) >= 2:
-                _rsi_prices = [p for _, p in _tok_hist]
-                _rsi_changes = [_rsi_prices[i+1] - _rsi_prices[i] for i in range(len(_rsi_prices)-1)]
-                _rsi_gains = [max(c, 0.0) for c in _rsi_changes]
-                _rsi_losses = [abs(min(c, 0.0)) for c in _rsi_changes]
-                _rsi_avg_gain = sum(_rsi_gains) / len(_rsi_gains)
-                _rsi_avg_loss = sum(_rsi_losses) / len(_rsi_losses)
-                _term_rsi = round(100.0 - 100.0 / (1.0 + _rsi_avg_gain / _rsi_avg_loss), 2) if _rsi_avg_loss > 0 else 100.0
-
-            # OB-level size-weighted ask VWAP (observation only — no trade volume available)
-            _term_ask_vwap = 0.0
-            if ob.asks:
-                _vwap_total = sum(sz for _, sz in ob.asks)
-                if _vwap_total > 0:
-                    _term_ask_vwap = round(sum(px * sz for px, sz in ob.asks) / _vwap_total, 4)
+            # RSI and ask VWAP: read from pre-entry snapshot frozen at remaining=90s
+            _pre_obs = self._term_pre_entry_obs.get(token_id, {})
+            _term_rsi = _pre_obs.get("rsi", 0.0)
+            _term_ask_vwap = _pre_obs.get("vwap", 0.0)
 
             # Flat drift gate removed: n=56, below n=100 threshold; derived from TREND
             # strategy data, not validated on TERMINAL entries specifically.
@@ -3967,6 +3977,7 @@ class KlausBot:
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
                 self._term_pre_snap_refs.pop(token_id, None)
+                self._term_pre_entry_obs.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
                 self._peak_bond_move.pop(token_id, None)
@@ -4351,6 +4362,7 @@ class KlausBot:
                 self._dir_rev_count.pop(token_id, None)
                 self._entry_snaps.pop(token_id, None)
                 self._term_pre_snap_refs.pop(token_id, None)
+                self._term_pre_entry_obs.pop(token_id, None)
                 self._sl_below_count.pop(token_id, None)
                 self._stall_checked.discard(token_id)
                 self._peak_bond_move.pop(token_id, None)
@@ -4739,6 +4751,7 @@ class KlausBot:
         self._dir_rev_count.pop(token_id, None)
         self._entry_snaps.pop(token_id, None)
         self._term_pre_snap_refs.pop(token_id, None)
+        self._term_pre_entry_obs.pop(token_id, None)
         self._sl_below_count.pop(token_id, None)
         self._stall_checked.discard(token_id)
         self._peak_bond_move.pop(token_id, None)
