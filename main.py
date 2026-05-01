@@ -1809,8 +1809,8 @@ class KlausBot:
             _BLOCKED_HOURS: set = {2, 5, 3, 0, 23}  # 02h PF=0.19 Net=-$12.74 | 05h PF=0.21 Net=-$12.48 | 03h WR=14.3% Net=-$6.77 | 00h+23h user-instructed 2026-05-01 (7h: WR=53% Net=-$13.83 n=26)
             if _utc_hour in _BLOCKED_HOURS:
                 continue
-            # Block 06:30–07:30 UTC: user-flagged high-volatility window (2026-04-29)
-            if (_utc_hour == 6 and _utc_min >= 30) or (_utc_hour == 7 and _utc_min < 30):
+            # Block 06:30–07:15 UTC: 06:30-07:15 PF=0.41 (n=83); 07:15-07:30 shows PF>2 — narrowed 2026-05-01
+            if (_utc_hour == 6 and _utc_min >= 30) or (_utc_hour == 7 and _utc_min < 15):
                 continue
             # Block 04:45–05:00 UTC: 44% WR vs 80% rest-of-H04 (Apr30+May1 n=9)
             if _utc_hour == 4 and _utc_min >= 45:
