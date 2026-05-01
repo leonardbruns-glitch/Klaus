@@ -1046,8 +1046,18 @@ class KlausBot:
                         else:
                             self._pae_above_since.pop(token_id, None)
 
-                # PROFIT_TARGET disabled 2026-05-01: costs -$34.18 vs WOP in 48h sim;
-                # YES windows walk to 0.99 at resolution — early exit just caps the gain.
+                # ── PROFIT_TARGET: exit at 0.99 (effective max) ──────────────────
+                if current_price >= 0.99 and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — exit at max',
+                        pos.asset, pos.direction.name, current_price, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'PROFIT_TARGET')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
 
                 # ── Window outcome: hold to resolution ────────────────────────────
                 # Only sell if bid is ≥0.90 — indicates YES resolution is near.
