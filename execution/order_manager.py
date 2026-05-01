@@ -667,6 +667,27 @@ class OrderManager:
                             shares = actual_shares
                             remaining = actual_shares
                             continue  # retry immediately with corrected size
+                        # Shares exist but fully locked in a resting sell order whose
+                        # cancel failed silently. cancel_market_orders clears it so the
+                        # next attempt can place a new sell. Only do this once (attempt 1)
+                        # to avoid a cancel-retry loop if the API itself is broken.
+                        if actual_ticks > 0 and actual_shares >= remaining - 0.001 and attempt == 1:
+                            try:
+                                from py_clob_client_v2.clob_types import OrderMarketCancelParams
+                                self._client.cancel_market_orders(
+                                    OrderMarketCancelParams(asset_id=token_id)
+                                )
+                                logger.warning(
+                                    "LOCKED_SHARES %s: %d micro-tokens locked in resting orders "
+                                    "— cancelled market orders, retrying",
+                                    token_id[:12], actual_ticks,
+                                )
+                            except Exception as _lock_exc:
+                                logger.error(
+                                    "cancel_market_orders %s failed: %s", token_id[:12], _lock_exc
+                                )
+                            await asyncio.sleep(0.3)
+                            continue
                     # "not enough balance/allowance" — refresh USDC allowance inline.
                     # Price step-down is controlled by allow_stepdown flag (False for
                     # TP/TIME_EXIT, True for reversal stops).
