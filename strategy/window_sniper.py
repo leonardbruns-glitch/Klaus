@@ -282,6 +282,8 @@ class SniperSignal:
     term_remaining_s: float = 0.0    # seconds until window end at signal time
     term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising toward 1.0)
     term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising toward 1.0)
+    term_rsi: float = 0.0              # RSI from scan-loop ask history at entry (0 = < 2 data points)
+    term_ask_vwap: float = 0.0         # size-weighted avg ask price across OB levels at entry
 
 
 def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):

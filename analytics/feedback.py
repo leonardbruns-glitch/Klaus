@@ -212,6 +212,8 @@ class TradeRecord:
     term_tok_decel_ratio: float = 0.0  # d5s/d30s; near 0 = momentum stalled at entry
     term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising)
     term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
+    term_rsi: float = 0.0              # RSI from scan-loop ask history at entry (0 = < 2 data points)
+    term_ask_vwap: float = 0.0         # size-weighted avg ask price across OB levels at entry
     term_binance_1m_pct: Optional[float] = None  # kline-based 1m Binance momentum at entry
     term_binance_5m_pct: Optional[float] = None  # kline-based 5m Binance momentum at entry
     term_pre_snap_60s: float = 0.0   # token ask % change from 60s-before-window-close anchor
@@ -457,6 +459,8 @@ class FeedbackEngine:
         term_pre_snap_60s: float = 0.0,
         term_pre_snap_30s: float = 0.0,
         term_pre_snap_open: float = 0.0,
+        term_rsi: float = 0.0,
+        term_ask_vwap: float = 0.0,
         traj_mfe_10s: float = 0.0,
         traj_mae_10s: float = 0.0,
         traj_mfe_30s: float = 0.0,
@@ -692,6 +696,8 @@ class FeedbackEngine:
             term_pre_snap_60s=round(term_pre_snap_60s, 4),
             term_pre_snap_30s=round(term_pre_snap_30s, 4),
             term_pre_snap_open=round(term_pre_snap_open, 4),
+            term_rsi=round(term_rsi, 2),
+            term_ask_vwap=round(term_ask_vwap, 4),
             traj_mfe_10s=round(traj_mfe_10s, 2),
             traj_mae_10s=round(traj_mae_10s, 2),
             traj_mfe_30s=round(traj_mfe_30s, 2),

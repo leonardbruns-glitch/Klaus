@@ -1943,6 +1943,25 @@ class KlausBot:
                         break
             if not _tok_has_hist:
                 continue  # no 30s price history: WR=60% avg=-$0.27 (n=209 vs has_hist WR=64% avg=+$0.03)
+
+            # RSI from scan-loop ask price history (observation only, no gating)
+            _term_rsi = 0.0
+            if _tok_hist and len(_tok_hist) >= 2:
+                _rsi_prices = [p for _, p in _tok_hist]
+                _rsi_changes = [_rsi_prices[i+1] - _rsi_prices[i] for i in range(len(_rsi_prices)-1)]
+                _rsi_gains = [max(c, 0.0) for c in _rsi_changes]
+                _rsi_losses = [abs(min(c, 0.0)) for c in _rsi_changes]
+                _rsi_avg_gain = sum(_rsi_gains) / len(_rsi_gains)
+                _rsi_avg_loss = sum(_rsi_losses) / len(_rsi_losses)
+                _term_rsi = round(100.0 - 100.0 / (1.0 + _rsi_avg_gain / _rsi_avg_loss), 2) if _rsi_avg_loss > 0 else 100.0
+
+            # OB-level size-weighted ask VWAP (observation only — no trade volume available)
+            _term_ask_vwap = 0.0
+            if ob.asks:
+                _vwap_total = sum(sz for _, sz in ob.asks)
+                if _vwap_total > 0:
+                    _term_ask_vwap = round(sum(px * sz for px, sz in ob.asks) / _vwap_total, 4)
+
             # Flat drift gate removed: n=56, below n=100 threshold; derived from TREND
             # strategy data, not validated on TERMINAL entries specifically.
             signal = SniperSignal(
@@ -1997,6 +2016,8 @@ class KlausBot:
             signal.term_pre_snap_60s  = _anchored_snap(_snap_refs.get(150, 0.0))
             signal.term_pre_snap_30s  = _anchored_snap(_snap_refs.get(120, 0.0))
             signal.term_pre_snap_open = _anchored_snap(_snap_refs.get(90, 0.0))
+            signal.term_rsi           = _term_rsi
+            signal.term_ask_vwap      = _term_ask_vwap
 
             # Ask-history gate: stale ask = ghost order / thin market.
             # stale>=4s: WR drops, dominant losers (T02829 -$9.94, T02814 -$7.22) in 4–7s zone.
@@ -4702,6 +4723,8 @@ class KlausBot:
                     term_pre_snap_60s=float(getattr(signal, "term_pre_snap_60s", 0.0) or 0.0),
                     term_pre_snap_30s=float(getattr(signal, "term_pre_snap_30s", 0.0) or 0.0),
                     term_pre_snap_open=float(getattr(signal, "term_pre_snap_open", 0.0) or 0.0),
+                    term_rsi=float(getattr(signal, "term_rsi", 0.0) or 0.0),
+                    term_ask_vwap=float(getattr(signal, "term_ask_vwap", 0.0) or 0.0),
                     traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
                     traj_mae_10s=float(self._traj_mae.get(token_id, {}).get(10, 0.0)),
                     traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
