@@ -979,6 +979,9 @@ class KlausBot:
                 # Timer only resets if bid recovers above -5% for ≥5s (sustained
                 # recovery). Brief pops above threshold don't wipe the clock.
                 # Bypass inside T-10s (handled by conditional loss-exit window).
+                # Depth gate: after 20s, only fire if bid is ≥12% below entry.
+                # Data: 10/10 trades with trigger_depth <12% are FP (resolved YES).
+                # Shallow dips (5–12%) are transient; deep collapses (≥12%) are real.
                 _pae_depth = -bond_move  # positive = how far below entry
                 if bond_remaining > 10.0 and token_id not in self._exit_in_progress:
                     if _pae_depth >= 0.05:
@@ -987,22 +990,30 @@ class KlausBot:
                         if token_id not in self._pae_below_since:
                             self._pae_below_since[token_id] = now
                         elif now - self._pae_below_since[token_id] >= 20.0:
-                            _held_below = now - self._pae_below_since[token_id]
-                            logger.info(
-                                "BOND_PAE %s: %.0fs below entry | bid=%.4f ep=%.4f"
-                                " (%.1f%% adv) rem=%.0fs",
-                                pos.asset, _held_below, current_price,
-                                pos.entry_price, _pae_depth * 100, bond_remaining,
-                            )
-                            self._exit_in_progress.add(token_id)
-                            self._pae_below_since.pop(token_id, None)
-                            try:
-                                await self._exit_position(
-                                    token_id, current_price, "BOND_PAE"
+                            if _pae_depth < 0.12:
+                                # Shallow confirmation — transient dip, hold position
+                                logger.info(
+                                    "BOND_PAE %s: shallow %.1f%% (<12%%) after 20s — holding"
+                                    " | rem=%.0fs",
+                                    pos.asset, _pae_depth * 100, bond_remaining,
                                 )
-                            finally:
-                                self._exit_in_progress.discard(token_id)
-                            continue
+                            else:
+                                _held_below = now - self._pae_below_since[token_id]
+                                logger.info(
+                                    "BOND_PAE %s: %.0fs below entry | bid=%.4f ep=%.4f"
+                                    " (%.1f%% adv) rem=%.0fs",
+                                    pos.asset, _held_below, current_price,
+                                    pos.entry_price, _pae_depth * 100, bond_remaining,
+                                )
+                                self._exit_in_progress.add(token_id)
+                                self._pae_below_since.pop(token_id, None)
+                                try:
+                                    await self._exit_position(
+                                        token_id, current_price, "BOND_PAE"
+                                    )
+                                finally:
+                                    self._exit_in_progress.discard(token_id)
+                                continue
                     else:
                         # Above threshold — only reset below-timer after 5s sustained recovery
                         if token_id in self._pae_below_since:
