@@ -978,12 +978,13 @@ class KlausBot:
                 # down after 20s resolve against us 70%+ of the time with no BC SL.
                 # Timer only resets if bid recovers above -5% for ≥5s (sustained
                 # recovery). Brief pops above threshold don't wipe the clock.
-                # Bypass inside T-10s (handled by conditional loss-exit window).
+                # Bypass inside T-30s: at T-10s we exit anyway; PAE in the final 30s
+                # fires into a thin, depressed bid on windows that still resolve YES.
                 # Depth gate: after 20s, only fire if bid is ≥12% below entry.
                 # Data: 10/10 trades with trigger_depth <12% are FP (resolved YES).
                 # Shallow dips (5–12%) are transient; deep collapses (≥12%) are real.
                 _pae_depth = -bond_move  # positive = how far below entry
-                if bond_remaining > 10.0 and token_id not in self._exit_in_progress:
+                if bond_remaining > 30.0 and token_id not in self._exit_in_progress:
                     if _pae_depth >= 0.05:
                         # Below threshold — start or continue below-timer; clear above-timer
                         self._pae_above_since.pop(token_id, None)
@@ -1025,12 +1026,11 @@ class KlausBot:
                         else:
                             self._pae_above_since.pop(token_id, None)
 
-                # ── PROFIT_TARGET: exit early at entry×1.12 (+12% of entry price) ──
-                # Relative TP: converts 13 big losses to wins vs fixed 0.99 threshold.
-                # cascade_sell starts at 0.99×bid; PROFIT in reason
-                # → allow_stepdown=False, so if bid has moved below our limit the
-                # order rests and Guard 1 returns without closing — no bad fill.
-                if current_price >= min(pos.entry_price * 1.12, 0.99) and token_id not in self._exit_in_progress:
+                # ── PROFIT_TARGET: exit early at fixed 0.98 ──
+                # Fixed TP: with T-10s as primary exit YES windows walk to ~0.99 anyway.
+                # 0.98 still catches brief spikes on NO-heading windows without capping
+                # YES returns below what T-10s captures.
+                if current_price >= 0.98 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — early exit',
@@ -1043,10 +1043,10 @@ class KlausBot:
                     continue
 
                 # ── Safety net 2: absolute deadline ──────────────────────────────
-                # TERMINAL positions: precise timer fires at T-1s — don't cut early.
-                # Fallback at T-3s in case the asyncio task is cancelled/delayed.
+                # TERMINAL positions: precise timer fires at T-10s — don't cut early.
+                # Fallback at T-8s in case the asyncio task is cancelled/delayed.
                 # All other bond positions: T-15s (original safety net).
-                _deadline_s = 3.0 if _is_terminal else 15.0
+                _deadline_s = 8.0 if _is_terminal else 15.0
                 if bond_remaining <= _deadline_s and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -2002,7 +2002,7 @@ class KlausBot:
                 reason=f"TERMINAL_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s",
                 signal_source="BOND",
                 is_bond=True,
-                bond_exit_sec=4,
+                bond_exit_sec=10,
                 bond_outcome_direction=_token_dir,
                 bond_entry_class="TERMINAL",
             )
