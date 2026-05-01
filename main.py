@@ -1806,7 +1806,7 @@ class KlausBot:
             # Hour blocks: H02/H05 confirmed at PF=0.19/0.21 across full terminal era.
             # H21 UNBLOCKED: all-BOND PF=0.54 was contaminated by out-of-range entries;
             # H21 within 0.80-0.88 target range: n=46 WR=65% PF=1.19 Net=+$4.00 (positive).
-            _BLOCKED_HOURS: set = {2, 5, 3, 0, 23}  # 02h PF=0.19 Net=-$12.74 | 05h PF=0.21 Net=-$12.48 | 03h WR=14.3% Net=-$6.77 | 00h+23h user-instructed 2026-05-01 (7h: WR=53% Net=-$13.83 n=26)
+            _BLOCKED_HOURS: set = {2, 5, 3, 0, 23, 12, 13}  # 02h PF=0.19 | 05h PF=0.21 | 03h WR=14.3% | 00h+23h user-instructed | 12h PF=0.31 Net=-$179 (n=130) | 13h PF=0.42 Net=-$122 (n=151) — 15min analysis 2026-05-01
             if _utc_hour in _BLOCKED_HOURS:
                 continue
             # Block 06:30–07:15 UTC: 06:30-07:15 PF=0.41 (n=83); 07:15-07:30 shows PF>2 — narrowed 2026-05-01
@@ -1814,6 +1814,9 @@ class KlausBot:
                 continue
             # Block 04:45–05:00 UTC: 44% WR vs 80% rest-of-H04 (Apr30+May1 n=9)
             if _utc_hour == 4 and _utc_min >= 45:
+                continue
+            # Block 14:45–15:45 UTC: 14:45-15:30 PF=0.32-0.43 (n=112); 15:30-15:45 PF=0.65 borderline — 15min analysis 2026-05-01
+            if (_utc_hour == 14 and _utc_min >= 45) or (_utc_hour == 15 and _utc_min < 45):
                 continue
             # Block 16:55–17:45 UTC: 17:15+17:30 both 33% WR vs 62% rest-of-H17 (Apr30+May1 n=9)
             if (_utc_hour == 16 and _utc_min >= 55) or (_utc_hour == 17 and _utc_min < 45):
