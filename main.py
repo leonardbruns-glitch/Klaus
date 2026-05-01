@@ -1046,21 +1046,8 @@ class KlausBot:
                         else:
                             self._pae_above_since.pop(token_id, None)
 
-                # ── PROFIT_TARGET: exit early at fixed 0.98 ──
-                # Fixed TP: with T-10s as primary exit YES windows walk to ~0.99 anyway.
-                # 0.98 still catches brief spikes on NO-heading windows without capping
-                # YES returns below what T-10s captures.
-                if current_price >= 0.98 and token_id not in self._exit_in_progress:
-                    self._exit_in_progress.add(token_id)
-                    logger.info(
-                        'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — early exit',
-                        pos.asset, pos.direction.name, current_price, bond_remaining,
-                    )
-                    try:
-                        await self._exit_position(token_id, current_price, 'PROFIT_TARGET')
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
+                # PROFIT_TARGET disabled 2026-05-01: costs -$34.18 vs WOP in 48h sim;
+                # YES windows walk to 0.99 at resolution — early exit just caps the gain.
 
                 # ── Window outcome: hold to resolution ────────────────────────────
                 # Only sell if bid is ≥0.90 — indicates YES resolution is near.
@@ -1844,20 +1831,17 @@ class KlausBot:
             # Hour blocks: H02/H05 confirmed at PF=0.19/0.21 across full terminal era.
             # H21 UNBLOCKED: all-BOND PF=0.54 was contaminated by out-of-range entries;
             # H21 within 0.80-0.88 target range: n=46 WR=65% PF=1.19 Net=+$4.00 (positive).
-            _BLOCKED_HOURS: set = {2, 5, 3, 0, 23, 12, 13}  # 02h PF=0.19 | 05h PF=0.21 | 03h WR=14.3% | 00h+23h user-instructed | 12h PF=0.31 Net=-$179 (n=130) | 13h PF=0.42 Net=-$122 (n=151) — 15min analysis 2026-05-01
+            # H02 PF=0.19 | H05 PF=0.21 | H03 WR=14.3% | H00+H23 user-instructed
+            # H04/H06/H07/H17/H19: all irredeemable — no gate produces PF≥1 (48h WOP+PAE sim 2026-05-01)
+            # H12/H13 unblocked: TERMINAL-era PF=2.07/0.88; prior block used contaminated all-trades data
+            _BLOCKED_HOURS: set = {0, 2, 3, 4, 5, 6, 7, 17, 19, 23}
             if _utc_hour in _BLOCKED_HOURS:
-                continue
-            # Block 06:25–07:15 UTC: 06:25-06:30 PF=0.40 (n=15); extended from 06:30 2026-05-01
-            if (_utc_hour == 6 and _utc_min >= 25) or (_utc_hour == 7 and _utc_min < 15):
-                continue
-            # Block 04:45–05:00 UTC: 44% WR vs 80% rest-of-H04 (Apr30+May1 n=9)
-            if _utc_hour == 4 and _utc_min >= 45:
                 continue
             # Block 14:45–15:45 UTC: 14:45-15:30 PF=0.32-0.43 (n=112); 15:30-15:45 PF=0.65 borderline — 15min analysis 2026-05-01
             if (_utc_hour == 14 and _utc_min >= 45) or (_utc_hour == 15 and _utc_min < 45):
                 continue
-            # Block 16:55–17:45 UTC: 17:15+17:30 both 33% WR vs 62% rest-of-H17 (Apr30+May1 n=9)
-            if (_utc_hour == 16 and _utc_min >= 55) or (_utc_hour == 17 and _utc_min < 45):
+            # Block 16:55–17:00 UTC: tail of H16 into blocked H17
+            if _utc_hour == 16 and _utc_min >= 55:
                 continue
 
             _wkey = (token.asset, round(token.window_end_ts))
