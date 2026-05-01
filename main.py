@@ -505,9 +505,8 @@ class KlausBot:
                 now_ts = time.time()
                 remaining_ts = pos.window_end_ts - now_ts if pos.window_end_ts > 0 else 999
                 if pos.is_bond:
-                    # BOND positions have a dedicated precise timer — never sell via OB_NOOB.
-                    # OB commonly goes None in the last 45s of updown markets (thinning liquidity)
-                    # which was causing 15-20s premature exits on T-60s entries.
+                    # BOND positions hold to window outcome — never force-exit via OB_NOOB.
+                    # OB commonly goes None in the last 45s of updown markets (thinning liquidity).
                     continue
                 if pos.window_end_ts > 0 and remaining_ts <= 45:
                     logger.warning(
@@ -1042,19 +1041,15 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # ── Safety net 2: absolute deadline ──────────────────────────────
-                # TERMINAL positions: precise timer fires at T-10s — don't cut early.
-                # Fallback at T-8s in case the asyncio task is cancelled/delayed.
-                # All other bond positions: T-15s (original safety net).
-                _deadline_s = 8.0 if _is_terminal else 15.0
-                if bond_remaining <= _deadline_s and token_id not in self._exit_in_progress:
+                # ── Window outcome: hold to resolution ────────────────────────────
+                if bond_remaining == 0.0 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_DEADLINE %s/%s | remaining=%.0fs — last-chance exit',
-                        pos.asset, pos.direction.name, bond_remaining,
+                        'WINDOW_OUTCOME %s/%s | window closed bid=%.4f — exiting at resolution',
+                        pos.asset, pos.direction.name, current_price,
                     )
                     try:
-                        await self._exit_position(token_id, current_price, 'BOND_DEADLINE')
+                        await self._exit_position(token_id, current_price, 'WINDOW_OUTCOME')
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
@@ -3236,13 +3231,7 @@ class KlausBot:
             "move_age_s": _token_move_age,
         }
 
-        # BOND: launch a dedicated timer task so TIME_EXIT fires at exactly
-        # T-exit_sec regardless of scan loop delays under load.
-        if getattr(signal, "is_bond", False) and pos.window_end_ts > 0:
-            asyncio.create_task(
-                self._bond_precise_timer(token_id, pos.window_end_ts, pos.bond_exit_sec),
-                name=f"bond_timer_{asset}_{token_id[:8]}",
-            )
+        # BOND: time exit disabled — holding to window outcome (resolution).
 
     # ── LLM independent trader ───────────────────────────────────────────────
 
