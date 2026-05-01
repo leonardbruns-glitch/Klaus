@@ -64,6 +64,7 @@ from analytics.lag_observations import log_lag_observation
 from analytics.macro_engine import MacroEngine, _RateLimitError
 from analytics.research_agent import ResearchAgent
 from execution.order_manager import OrderManager, OrderResult, OrderStatus
+from execution.redemption import Redeemer
 from analytics.feedback import FeedbackEngine
 from analytics.research import ResearchEngine
 
@@ -325,6 +326,13 @@ class KlausBot:
         # _pae_above_since: when bid recovered above -5%; timer only resets after 5s sustained recovery.
         self._pae_below_since: Dict[str, float] = {}
         self._pae_above_since: Dict[str, float] = {}
+        self.redeemer = Redeemer(
+            clob_client=self.orders._client,
+            proxy_wallet=CONFIG.funder_address or "",
+            private_key=CONFIG.wallet_private_key or "",
+            signature_type=CONFIG.signature_type,
+            dry_run=CONFIG.dry_run,
+        )
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -444,6 +452,7 @@ class KlausBot:
         heartbeat_task = asyncio.create_task(self._heartbeat_loop(_watchdog_last_ping))
         research_task = asyncio.create_task(self.research.run())
         prewarm_task = asyncio.create_task(self._prewarm_loop())
+        redeem_task = asyncio.create_task(self.redeemer.run_loop(interval_s=300.0))
 
         try:
             # return_exceptions=True: one task crashing doesn't cancel the others.
@@ -451,7 +460,7 @@ class KlausBot:
             # for exceptions that escape the loop (startup errors, NameError, etc.)
             results = await asyncio.gather(
                 ob_task, signal_task, report_task, heartbeat_task,
-                research_task, prewarm_task,
+                research_task, prewarm_task, redeem_task,
                 return_exceptions=True,
             )
             for i, r in enumerate(results):
