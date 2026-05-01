@@ -72,3 +72,7 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-04-30 ~14:XX UTC | DATA / ALL | XP tracking fixed: _capture_resolution() now patches trades.jsonl with wop/entered_correctly on resolution; 860 historical trades backfilled from post_exit.jsonl
 
 ## 2026-04-30 ~14:XX UTC | DATA / BTC | T02829 corrected: PAE fill at 0.83 was ghost order during spike, position never closed; wop=0.01, net_pnl corrected -$0.10→-$9.94, capital_after 53.52→43.68
+
+## 2026-05-01 ~21:XX UTC | EXIT / ALL | PROFIT_TARGET disabled | costs -$34.18 vs WOP in 48h sim; YES windows walk to 0.99 at resolution — early exit at 0.98 caps gain for no benefit; primary exit now WINDOW_OUTCOME + PAE only
+
+## 2026-05-01 ~21:XX UTC | HOURS / ALL | _BLOCKED_HOURS {0,2,3,4,5,6,7,17,19,23}; H12+H13 unblocked, H04+H06+H07+H17+H19 added | 48h WOP+PAE sim: H12/H13 were blocked on contaminated all-trades data (TERMINAL-era PF=2.07/0.88); H04/H06/H07/H17/H19 irredeemable — no gate produces PF≥1; sub-hour partial rules for these hours removed (superseded)
