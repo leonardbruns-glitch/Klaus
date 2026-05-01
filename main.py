@@ -516,6 +516,18 @@ class KlausBot:
                 if pos.is_bond:
                     # BOND positions hold to window outcome — never force-exit via OB_NOOB.
                     # OB commonly goes None in the last 45s of updown markets (thinning liquidity).
+                    # Exception: window has ended and position is stuck (bid was <0.90 at T=0).
+                    # Check CLOB balance — if 0, token settled on-chain; purge the record.
+                    if pos.window_end_ts > 0 and remaining_ts < -30 and token_id not in self._exit_in_progress:
+                        _settled_bal = self.orders.fetch_token_balance(token_id)
+                        if _settled_bal is not None and _settled_bal < 0.05:
+                            logger.info(
+                                "BOND_SETTLED %s: balance=%.4f 30s post-window — token settled, purging",
+                                token_id[:12], _settled_bal,
+                            )
+                            _pnl = self.risk.close_position(token_id, 0.0, "BOND_SETTLED")
+                            self._open_meta.pop(token_id, None)
+                            self._pos_log_ts.pop(token_id, None)
                     continue
                 if pos.window_end_ts > 0 and remaining_ts <= 45:
                     logger.warning(
@@ -1051,10 +1063,21 @@ class KlausBot:
                     continue
 
                 # ── Window outcome: hold to resolution ────────────────────────────
+                # Only sell if bid is ≥0.90 — indicates YES resolution is near.
+                # A bid of 0.01 means the market is going NO: selling at 0.01
+                # destroys a winning position for 1% of payout. Let losers settle
+                # at $0 via redemption; winners sell at ~0.99 here.
                 if bond_remaining == 0.0 and token_id not in self._exit_in_progress:
+                    if current_price < 0.90:
+                        logger.info(
+                            'WINDOW_OUTCOME %s/%s | bid=%.4f < 0.90 — likely NO resolution, '
+                            'holding for settlement (no sell)',
+                            pos.asset, pos.direction.name, current_price,
+                        )
+                        continue
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'WINDOW_OUTCOME %s/%s | window closed bid=%.4f — exiting at resolution',
+                        'WINDOW_OUTCOME %s/%s | window closed bid=%.4f — selling at resolution',
                         pos.asset, pos.direction.name, current_price,
                     )
                     try:
