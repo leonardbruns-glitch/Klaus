@@ -1789,6 +1789,12 @@ class KlausBot:
             # Block 06:30–07:30 UTC: user-flagged high-volatility window (2026-04-29)
             if (_utc_hour == 6 and _utc_min >= 30) or (_utc_hour == 7 and _utc_min < 30):
                 continue
+            # Block 04:45–05:00 UTC: 44% WR vs 80% rest-of-H04 (Apr30+May1 n=9)
+            if _utc_hour == 4 and _utc_min >= 45:
+                continue
+            # Block 16:55–17:45 UTC: 17:15+17:30 both 33% WR vs 62% rest-of-H17 (Apr30+May1 n=9)
+            if (_utc_hour == 16 and _utc_min >= 55) or (_utc_hour == 17 and _utc_min < 45):
+                continue
             # SOL H06 (06:00–06:29): WR=29% (n=17) — $1.50 stake below CLOB 5-share min; block instead
             if token.asset == "SOL" and _utc_hour == 6:
                 continue
