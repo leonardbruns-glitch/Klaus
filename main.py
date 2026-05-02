@@ -224,6 +224,9 @@ class KlausBot:
         self._traj_mfe: Dict[str, Dict[int, float]] = {}
         self._traj_mae: Dict[str, Dict[int, float]] = {}
         self._price_at_t10s: Dict[str, float] = {}
+        # 5s intra-hold bid snapshots for trajectory analysis.
+        # token_id → next elapsed_s at which to log.
+        self._traj_snap_next: Dict[str, float] = {}
         # Stop-hunt wick confirmation for BOND_SL_20.
         # When SL fires with zero favorable move and fast hold (≤60s), we arm
         # a 25s timer rather than selling immediately. If price recovers above
@@ -627,6 +630,32 @@ class KlausBot:
                       and (now - pos.mae_bounce_start_ts) <= 10.0
                       and current_price > pos.mae_bounce_peak):
                     pos.mae_bounce_peak = current_price
+
+                # ── 5s intra-hold bid snapshot (trajectory logging) ─────────────
+                _snap_due = self._traj_snap_next.get(token_id, 0.0)
+                if _held_s >= _snap_due and pos.entry_price > 0:
+                    self._traj_snap_next[token_id] = _snap_due + 5.0
+                    _snap_mfe = max(0.0,
+                        (pos.highest_price - pos.entry_price) / pos.entry_price * 100
+                    ) if pos.highest_price > pos.entry_price else 0.0
+                    _snap_mae = max(0.0,
+                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
+                    ) if (pos.lowest_price > 0 and pos.lowest_price < pos.entry_price) else 0.0
+                    _pae_clk = round(now - self._pae_below_since[token_id], 1) if token_id in self._pae_below_since else 0.0
+                    try:
+                        with open(os.path.join("logs", "traj_snaps.jsonl"), "a") as _sf:
+                            _sf.write(json.dumps({
+                                "open_ts": round(pos.open_ts, 3),
+                                "tok": token_id[:16],
+                                "el": round(_held_s, 1),
+                                "rem": round(bond_remaining, 1),
+                                "bp": round(bond_move * 100, 2),
+                                "mfe": round(_snap_mfe, 2),
+                                "mae": round(_snap_mae, 2),
+                                "pae": _pae_clk,
+                            }) + "\n")
+                    except Exception:
+                        pass
 
                 # ── Scale-in: smooth runner at T+20-75s ──────────────────────────
                 # Trigger: fav ≥ 25% (peak gain from entry), adv < 8% (clean run —
@@ -1203,6 +1232,7 @@ class KlausBot:
                             self._traj_mfe.pop(token_id, None)
                             self._traj_mae.pop(token_id, None)
                             self._price_at_t10s.pop(token_id, None)
+                            self._traj_snap_next.pop(token_id, None)
                             self._bond_sl_arm_ts.pop(token_id, None)
                             self._catas_breach_ts.pop(token_id, None)
                             self._catas_cancel_count.pop(token_id, None)
@@ -3640,6 +3670,7 @@ class KlausBot:
                 self._traj_mfe.pop(token_id, None)
                 self._traj_mae.pop(token_id, None)
                 self._price_at_t10s.pop(token_id, None)
+                self._traj_snap_next.pop(token_id, None)
                 self._terminal_tp_touched.discard(token_id)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
@@ -4541,6 +4572,7 @@ class KlausBot:
         self._traj_mfe.pop(token_id, None)
         self._traj_mae.pop(token_id, None)
         self._price_at_t10s.pop(token_id, None)
+        self._traj_snap_next.pop(token_id, None)
         self._bond_sl_arm_ts.pop(token_id, None)
         self._catas_breach_ts.pop(token_id, None)
         self._catas_cancel_count.pop(token_id, None)
