@@ -745,8 +745,8 @@ class KlausBot:
                     not self.macro_engine._enabled
                     or (_held_s > 30.0 and (now - _last_good_eval) > 30.0)
                 )
-                # TERMINAL trail stop: disabled (BOND_TRAIL_TP n=16 WR=69% sum=-$1.55)
-                # Positions now hold to LLM_TP_FALLBACK or BOND_DEADLINE.
+                # TERMINAL trail stop active: BOND_TRAIL_TP fires at peak-5% once
+                # peak >= +10%. Separate from LLM TP/SL fallback below.
                 _is_terminal_pos = getattr(pos, "bond_entry_class", "") == "TERMINAL"
 
                 if (_api_dead
@@ -943,6 +943,33 @@ class KlausBot:
                             "hold_s_at_breach": _arm["hold_s_at_breach"],
                             "bond_remaining_at_breach_s": _arm["bond_remaining_at_breach_s"],
                         }) + "\n")
+
+                # ── BOND_TRAIL_TP: trailing stop once +10% is reached ────────────
+                # Activates when peak gain ≥ +10%. Trail width = 5% below peak,
+                # locking in at least +5% once activated. Bypasses final 5s
+                # (TIME_EXIT handles the clean exit at T-4s).
+                # TERMINAL only — non-TERMINAL positions exit via LLM targets.
+                _peak_move = self._peak_bond_move.get(token_id, -999.0)
+                if (
+                    getattr(pos, "bond_entry_class", "") == "TERMINAL"
+                    and _peak_move >= 0.10
+                    and bond_move <= _peak_move - 0.05
+                    and bond_remaining > 5.0
+                    and token_id not in self._exit_in_progress
+                ):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "BOND_TRAIL_TP %s/%s | peak=%+.1f%% curr=%+.1f%% "
+                        "fell=%.1f%% rem=%.0fs",
+                        pos.asset, pos.direction.name,
+                        _peak_move * 100, bond_move * 100,
+                        (_peak_move - bond_move) * 100, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, "BOND_TRAIL_TP")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
 
                 # ── PAE: Persistent Adverse Exit ─────────────────────────────────
                 # Exit if bid ≥5% below entry for 20 continuous seconds.
@@ -1992,13 +2019,13 @@ class KlausBot:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.92  # extended from 0.88 2026-04-30
-            if ask is None or not (0.70 <= ask <= _ask_max):
+            if ask is None or not (0.75 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min 0.70: extended from 0.80 2026-04-30
+                continue  # min 0.75: raised from 0.70 2026-05-02
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
