@@ -2129,16 +2129,6 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # BTC snap60 [20,30%): BTC-only weak momentum zone — WR=66.7% total_pnl=-$11.70 (n=18, user-auth Tier2 2026-05-02)
-            # ETH same zone is neutral (net+$1.04, n=17); SOL WR=92.9% — BTC-specific only
-            if token.asset == "BTC" and 20.0 <= _snap60_val < 30.0:
-                logger.info(
-                    "[BOND] btc_snap60_weak %s/%s | snap60=%.1f%% — BTC weak momentum skip",
-                    token.asset, token.side, _snap60_val,
-                )
-                _b_mom_skip += 1
-                continue
-
             # ETH tok_delta_30s ≥ 100%: ETH 30s overextension — WR=42.9% (n=7, user-auth Tier2 2026-05-02)
             if token.asset == "ETH" and _term_tok_d30 >= 100.0:
                 logger.info(
