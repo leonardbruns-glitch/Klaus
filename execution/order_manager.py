@@ -600,6 +600,19 @@ class OrderManager:
                     if _m:
                         actual_ticks = int(_m.group(1))
                         actual_shares = round(actual_ticks / 1_000_000, 6)
+                        # NEG-RISK SETTLEMENT LOCK: sibling fill (e.g. BTC) not yet settled.
+                        # CLOB shows tokens as "matched" against the neg-risk pool, blocking
+                        # this sell. Cancel does nothing — the lock is from a filled order,
+                        # not a resting one. Wait 2s for settlement and retry.
+                        _mm = _re.search(r'matched orders[:\s]+(\d+)', err, _re.IGNORECASE)
+                        if _mm and int(_mm.group(1)) > 0:
+                            logger.warning(
+                                "NEG_RISK_LOCK %s (attempt %d): %d micro-tokens locked by "
+                                "sibling neg-risk fill — waiting 2s for CLOB settlement",
+                                token_id[:12], attempt + 1, int(_mm.group(1)),
+                            )
+                            await asyncio.sleep(2.0)
+                            continue
                         # GHOST POSITION: balance=0 — but may be CLOB propagation delay.
                         # A fresh buy takes 3–10s to appear in CLOB balance. Retrying
                         # immediately after entry will show balance=0 even though tokens
