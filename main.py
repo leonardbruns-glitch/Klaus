@@ -525,9 +525,36 @@ class KlausBot:
                                 "BOND_SETTLED %s: balance=%.4f 30s post-window — token settled, purging",
                                 token_id[:12], _settled_bal,
                             )
-                            _pnl = self.risk.close_position(token_id, 0.0, "BOND_SETTLED")
-                            self._open_meta.pop(token_id, None)
+                            _bs_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
+                            _pnl = self.risk.close_position(token_id, 0.0, "BOND_SETTLED")
+                            if _pnl is not None:
+                                _bs_sig = _bs_meta.get("signal") or SignalBreakdown(
+                                    direction=pos.direction, entry_price=pos.entry_price,
+                                    composite=0.0, confidence=0.0, breakout_score=0.0,
+                                    trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                                    fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                                    reason="bond_settled",
+                                )
+                                try:
+                                    self.analytics.record_trade(
+                                        token_id=token_id, asset=pos.asset, direction=pos.direction,
+                                        entry_price=pos.entry_price, exit_price=0.0,
+                                        stake=pos.stake, shares=pos.shares,
+                                        entry_fill=_bs_meta.get("entry_fill"), exit_fills=[],
+                                        exit_reason="BOND_SETTLED", signal=_bs_sig,
+                                        ts_open=_bs_meta.get("ts_open", pos.open_ts), ts_close=now_ts,
+                                        capital_before=self.risk.bankroll.capital - _pnl,
+                                        heat_check_active=_bs_meta.get("heat_check", False),
+                                        consecutive_wins=_bs_meta.get("consecutive_wins", 0),
+                                        net_pnl_actual=_pnl,
+                                        market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                                        is_live=not CONFIG.dry_run,
+                                        signal_source=_bs_meta.get("signal_source", "BOND"),
+                                        window_size_s=_bs_meta.get("window_size_s") or pos.window_seconds or 0,
+                                    )
+                                except Exception as _bse:
+                                    logger.error("record_trade BOND_SETTLED failed: %s", _bse)
                     continue
                 if pos.window_end_ts > 0 and remaining_ts <= 45:
                     logger.warning(
@@ -1066,6 +1093,44 @@ class KlausBot:
                 # at $0 via redemption; winners sell at ~0.99 here.
                 if bond_remaining == 0.0 and token_id not in self._exit_in_progress:
                     if current_price < 0.90:
+                        elapsed_post = time.time() - pos.window_end_ts if pos.window_end_ts > 0 else 0
+                        if current_price < 0.05 and elapsed_post > 60:
+                            # Bid at ~0 for >60s post-window: resolved NO, book total loss now.
+                            logger.info(
+                                'WINDOW_OUTCOME %s/%s | bid=%.4f elapsed=%.0fs — resolved NO, booking loss',
+                                pos.asset, pos.direction.name, current_price, elapsed_post,
+                            )
+                            _wo_meta = self._open_meta.pop(token_id, {})
+                            self._pos_log_ts.pop(token_id, None)
+                            _wo_pnl = self.risk.close_position(token_id, 0.0, "BOND_RESOLVED_NO")
+                            if _wo_pnl is not None:
+                                _wo_sig = _wo_meta.get("signal") or SignalBreakdown(
+                                    direction=pos.direction, entry_price=pos.entry_price,
+                                    composite=0.0, confidence=0.0, breakout_score=0.0,
+                                    trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                                    fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                                    reason="bond_resolved_no",
+                                )
+                                try:
+                                    self.analytics.record_trade(
+                                        token_id=token_id, asset=pos.asset, direction=pos.direction,
+                                        entry_price=pos.entry_price, exit_price=0.0,
+                                        stake=pos.stake, shares=pos.shares,
+                                        entry_fill=_wo_meta.get("entry_fill"), exit_fills=[],
+                                        exit_reason="BOND_RESOLVED_NO", signal=_wo_sig,
+                                        ts_open=_wo_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                                        capital_before=self.risk.bankroll.capital - _wo_pnl,
+                                        heat_check_active=_wo_meta.get("heat_check", False),
+                                        consecutive_wins=_wo_meta.get("consecutive_wins", 0),
+                                        net_pnl_actual=_wo_pnl,
+                                        market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                                        is_live=not CONFIG.dry_run,
+                                        signal_source=_wo_meta.get("signal_source", "BOND"),
+                                        window_size_s=_wo_meta.get("window_size_s") or pos.window_seconds or 0,
+                                    )
+                                except Exception as _woe:
+                                    logger.error("record_trade BOND_RESOLVED_NO failed: %s", _woe)
+                            continue
                         logger.info(
                             'WINDOW_OUTCOME %s/%s | bid=%.4f < 0.90 — likely NO resolution, '
                             'holding for settlement (no sell)',
