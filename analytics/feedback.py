@@ -466,6 +466,7 @@ class FeedbackEngine:
         traj_mfe_30s: float = 0.0,
         traj_mae_30s: float = 0.0,
         price_at_t10s: Optional[float] = None,
+        window_outcome_price: float = 0.0,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -705,6 +706,7 @@ class FeedbackEngine:
             price_at_t10s=round(price_at_t10s, 4) if price_at_t10s is not None else None,
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
+            window_outcome_price=round(window_outcome_price, 4),
         )
 
         self._recent.append(rec)

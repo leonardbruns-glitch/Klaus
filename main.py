@@ -634,6 +634,7 @@ class KlausBot:
                 # Stake = original stake (same size). One-shot per trade.
                 if (not pos.scale_in_done
                         and 20.0 <= _held_s <= 75.0
+                        and bond_remaining >= 45.0
                         and pos.entry_price > 0
                         and pos.highest_price > pos.entry_price
                         and token_id not in self._exit_in_progress):
@@ -2215,13 +2216,22 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap30 < 0 AND depth < 200: thin book + falling price = adverse combo
-            # Apr30 today: 4 losses blocked (-$19.28) vs 5 wins blocked (+$6.32) = +$12.96 net
-            # Terminal era n=21 PF=0.48 (flag-only, user-authorised Tier 2)
-            if _snap30_val != 0.0 and _snap30_val < 0.0 and 0 < _term_ob_depth < 200:
+            # snap30 < 0: token falling in 30s pre-entry window — n=144 net=-$7.50
+            # 0.0 = reference not captured (skip gate to avoid false blocks)
+            if _snap30_val != 0.0 and _snap30_val < 0.0:
                 logger.info(
-                    "[BOND] thin_snap30 %s/%s | snap30=%.1f%% depth=%.0f — thin+falling skip",
-                    token.asset, token.side, _snap30_val, _term_ob_depth,
+                    "[BOND] snap30_neg %s/%s | snap30=%.1f%% — token falling pre-entry",
+                    token.asset, token.side, _snap30_val,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # snap30 [5,10%): deceleration zone — WR=67% but avg_loss=-$2.39 → net=-$6.68 (n=43)
+            # 0-5% (stable) and 10%+ (building) are both profitable; 5-10% is the dead zone
+            if 5.0 <= _snap30_val < 10.0:
+                logger.info(
+                    "[BOND] snap30_decel %s/%s | snap30=%.1f%% — deceleration zone skip",
+                    token.asset, token.side, _snap30_val,
                 )
                 _b_mom_skip += 1
                 continue
@@ -3996,6 +4006,7 @@ class KlausBot:
                             traj_mfe_30s=float(_g1_traj_mfe.get(30, 0.0)),
                             traj_mae_30s=float(_g1_traj_mae.get(30, 0.0)),
                             price_at_t10s=_g1_price_at_t10s,
+                            window_outcome_price=1.0 if _g1_price >= 0.80 else 0.0,
                         )
                     except Exception as _g1e:
                         logger.error("record_trade BOND_EXPIRED_UNSOLD failed: %s", _g1e)
