@@ -88,3 +88,11 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-01 ~21:XX UTC | EXIT / ALL | PROFIT_TARGET disabled | costs -$34.18 vs WOP in 48h sim; YES windows walk to 0.99 at resolution — early exit at 0.98 caps gain for no benefit; primary exit now WINDOW_OUTCOME + PAE only
 
 ## 2026-05-01 ~21:XX UTC | HOURS / ALL | _BLOCKED_HOURS {0,2,3,4,5,6,7,17,19,23}; H12+H13 unblocked, H04+H06+H07+H17+H19 added | 48h WOP+PAE sim: H12/H13 were blocked on contaminated all-trades data (TERMINAL-era PF=2.07/0.88); H04/H06/H07/H17/H19 irredeemable — no gate produces PF≥1; sub-hour partial rules for these hours removed (superseded)
+
+## 2026-05-02 | BUG / ALL | BOND_EXPIRED_UNSOLD stale-bid bug fixed: _g1_price forced to 0.0 | OB bid 5s post-expiry = our own resting PROFIT_TARGET at 0.99, not PM settlement; all EXPIRED_UNSOLD are NO outcomes; 4 today's fake-win trades corrected (-$37.13); window_outcome_price=0.0 hardcoded
+
+## 2026-05-02 | CAPITAL / ALL | Bankroll reset to $24.00 to match PM balance | deposit ~$45 after -$37.13 fake-win correction brought logged capital to -$15.49; PM balance $24 is authoritative; daily_start_capital set to $24.00
+
+## 2026-05-02 | SIGNAL / ALL | snap30 ≥120% performance: n=33 WR=66.7% net=-$8.18 (Tier 2) | sweet spot confirmed [10,120%); above 120% WR holds but avg-loss > avg-win (blow-off reversal); monitor at n≥100 before adding upper gate
+
+## 2026-05-02 | BUG / ALL | NEG_RISK_LOCK exit failure fixed (execution/order_manager.py) | 17/21 May2 stuck trades caused by: BTC fill locks SOL token as "matched orders" in neg-risk pool; SOL sell retried immediately × 10, all fail in <2s before ~10s settlement clears; fix: detect "matched orders" in CLOB error, sleep 2s, retry; prior "regime halt" proposal was wrong — 84% of stuck losses were this single execution bug, not market regime
