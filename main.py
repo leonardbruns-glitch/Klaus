@@ -3693,6 +3693,7 @@ class KlausBot:
             # cascade failed on REVERSAL_STOP, TIME_EXIT_EXT used resolution price
             # $0.96 while actual fill was $0.55 → fee ≈ gross, bankroll overstated ~$5).
             _price_found_in_error = False
+            _exit_price_uncertain = False
             _raw_exit = live_price if live_price > 0 else pos.entry_price  # use trigger price, not entry
             for _r in exit_fills:
                 _err = getattr(_r, "error", "") or ""
@@ -3787,10 +3788,11 @@ class KlausBot:
                                 pos.asset, pos.direction.name, _raw_exit,
                             )
                     else:
+                        _exit_price_uncertain = True
                         logger.warning(
                             "EXTERNALLY_SOLD %s/%s — no fill price in error or CLOB history, "
                             "CLOB balance=%.4f (sold externally or resolved). "
-                            "using live_price=%.4f (bankroll may drift vs Polymarket balance)",
+                            "using live_price=%.4f as placeholder; will correct at resolution",
                             pos.asset, pos.direction.name,
                             _residual_bal if _residual_bal is not None else -1.0, _raw_exit,
                         )
@@ -3874,6 +3876,7 @@ class KlausBot:
                         lowest_price_ts=pos.lowest_price_ts,
                         bond_entry_class=pos.bond_entry_class,
                         bond_macro_regime=pos.bond_macro_regime,
+                        exit_price_uncertain=_exit_price_uncertain,
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
@@ -4743,6 +4746,7 @@ class KlausBot:
                     _trades_path = os.path.join("logs", "trades.jsonl")
                     try:
                         _lines = []
+                        _pnl_delta = 0.0
                         with open(_trades_path) as _tf:
                             for _tl in _tf:
                                 try:
@@ -4750,6 +4754,25 @@ class KlausBot:
                                     if _tr.get("trade_id") == trade_id:
                                         _tr["window_outcome_price"] = _wop
                                         _tr["entered_correctly"] = _entered_correctly
+                                        if _tr.get("exit_price_uncertain"):
+                                            # Correct exit_price and net_pnl using resolution.
+                                            # exit_price was a live-bid fallback; wop is authoritative.
+                                            _corr_ep = min(_wop, 0.99) if _wop >= 0.5 else max(_wop, 0.01)
+                                            _old_ep = _tr.get("exit_price", 0.0)
+                                            _old_pnl = _tr.get("net_pnl", 0.0)
+                                            _shares = _tr.get("shares", 0.0)
+                                            _pnl_delta = (_corr_ep - _old_ep) * _shares
+                                            _tr["exit_price"] = round(_corr_ep, 4)
+                                            _tr["gross_pnl"] = round(_tr.get("gross_pnl", 0.0) + _pnl_delta, 4)
+                                            _tr["net_pnl"] = round(_old_pnl + _pnl_delta, 4)
+                                            _tr["capital_after"] = round(_tr.get("capital_after", 0.0) + _pnl_delta, 4)
+                                            _tr["exit_price_uncertain"] = False
+                                            logger.info(
+                                                "RESOLUTION corrected uncertain exit %s: "
+                                                "ep %.4f→%.4f pnl %.4f→%.4f delta=%.4f",
+                                                trade_id[:12], _old_ep, _corr_ep,
+                                                _old_pnl, _tr["net_pnl"], _pnl_delta,
+                                            )
                                         _lines.append(_json.dumps(_tr) + "\n")
                                     else:
                                         _lines.append(_tl)
@@ -4757,6 +4780,14 @@ class KlausBot:
                                     _lines.append(_tl)
                         with open(_trades_path, "w") as _tf:
                             _tf.writelines(_lines)
+                        # Correct bankroll if exit_price was uncertain
+                        if _pnl_delta != 0.0:
+                            self.risk.bankroll.capital += _pnl_delta
+                            self.risk.bankroll.save()
+                            logger.info(
+                                "RESOLUTION bankroll corrected by %.4f → %.4f",
+                                _pnl_delta, self.risk.bankroll.capital,
+                            )
                     except Exception as _pe:
                         logger.debug("trades.jsonl resolution patch failed: %s", _pe)
                     logger.info(

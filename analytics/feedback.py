@@ -116,6 +116,7 @@ class TradeRecord:
     # Answers: did the market resolve in our predicted direction regardless of how we exited?
     window_outcome_price: float = 0.0   # token price at window resolution (0 = not yet known)
     entered_correctly: Optional[bool] = None  # True if resolution_price ≥ 0.80 (our token won)
+    exit_price_uncertain: bool = False  # True when exit_price is a live-bid fallback (no fills confirmed)
 
     # LLM recommendation tracking — veto disabled, recording for validation
     llm_rec: str = ""             # "ENTER" or "SKIP" — what LLM recommended at entry
@@ -467,6 +468,7 @@ class FeedbackEngine:
         traj_mae_30s: float = 0.0,
         price_at_t10s: Optional[float] = None,
         window_outcome_price: float = 0.0,
+        exit_price_uncertain: bool = False,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -707,6 +709,7 @@ class FeedbackEngine:
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
             window_outcome_price=round(window_outcome_price, 4),
+            exit_price_uncertain=exit_price_uncertain,
         )
 
         self._recent.append(rec)
