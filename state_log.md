@@ -51,6 +51,12 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-04-29 19:XX UTC | ENTRY / ALL | snap60 spike gate stale threshold 3s→5s | T02722 BTC (-$2.43): snap60=171% stale=4.1s slipped through 3s gate; same pumped+stale pattern gate targets; n=1 trigger
 
+## 2026-05-02 | ENTRY / ALL | snap60 ≥ 120% unconditional block (replaces prior >150%+fresh gate) | WR=62.5% net+$8.69 sim (n=16); catches T02723_SOL -$6.88, T02572_BTC -$3.23; prior >150%+fresh is strict subset — removed; user-authorised Tier 2
+
+## 2026-05-02 | ENTRY / ETH | ETH tok_delta_30s ≥ 100% block | WR=42.9% lift=5.7x (n=7); ETH 30s overextension; BTC/SOL same zone WR=100% → ETH-specific only; user-authorised Tier 2
+
+## 2026-05-02 | ENTRY / BTC | BTC snap60 [20,30%) block | WR=66.7% total_pnl=-$11.70 (n=18); 12 wins sacrificed ($6.53, 3 are fee-losers) vs 6 losses recovered ($18.23), net +$11.70; ETH same zone neutral (net+$1.04) → BTC-specific only; user-authorised Tier 2
+
 ## 2026-04-29 19:XX UTC | ENTRY / SOL | SOL spread≤3% gate added | spread 1-2% bucket WR=73% net=+$9.18 dir_acc=92% (n=26); spread>3% net=-$12.17 drag; snap+spread≤3 only profitable SOL combo: n=22 WR=64% net=+$2.47 sim=+$2.27; user-authorised Tier 2
 
 ## 2026-04-29 19:XX UTC | EXIT / ALL | PROFIT_TARGET changed fixed 0.99→relative entry×1.12 | 2-day sim: +12% TP converts 13 big losses to wins (+$21.60) vs capping 78 winners earlier (-$18.39); net +$7.26 vs actual exits; avg max_fav of losers=8.4% (not used — too early), winners avg=16.6%; 12% is sweet spot
