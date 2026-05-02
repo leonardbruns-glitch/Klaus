@@ -1983,21 +1983,15 @@ class KlausBot:
                 continue
             _b_total += 1
 
-            # Hour blocks: H02/H05 confirmed at PF=0.19/0.21 across full terminal era.
-            # H21 UNBLOCKED: all-BOND PF=0.54 was contaminated by out-of-range entries;
-            # H21 within 0.80-0.88 target range: n=46 WR=65% PF=1.19 Net=+$4.00 (positive).
-            # H02 PF=0.19 | H05 PF=0.21 | H03 WR=14.3% | H00+H23 user-instructed
-            # H04/H06/H07/H17/H19: all irredeemable — no gate produces PF≥1 (48h WOP+PAE sim 2026-05-01)
-            # H12/H13 unblocked: TERMINAL-era PF=2.07/0.88; prior block used contaminated all-trades data
-            _BLOCKED_HOURS: set = {0, 2, 3, 4, 5, 6, 7, 17, 19, 23}
-            if _utc_hour in _BLOCKED_HOURS:
-                continue
-            # Block 14:45–15:45 UTC: 14:45-15:30 PF=0.32-0.43 (n=112); 15:30-15:45 PF=0.65 borderline — 15min analysis 2026-05-01
-            if (_utc_hour == 14 and _utc_min >= 45) or (_utc_hour == 15 and _utc_min < 45):
-                continue
-            # Block 16:55–17:00 UTC: tail of H16 into blocked H17
-            if _utc_hour == 16 and _utc_min >= 55:
-                continue
+            # Hour blocks: ALL UNBLOCKED 2026-05-02 (user instruction — accumulate fresh data).
+            # Prior blocked set for reference: {0, 2, 3, 4, 5, 6, 7, 17, 19, 23}
+            # Prior minute blocks for reference:
+            #   14:45–15:45 UTC (PF=0.32-0.43 n=112, 15min analysis 2026-05-01)
+            #   16:55–17:00 UTC (tail of H16 into blocked H17)
+            # Evidence behind prior blocks:
+            #   H02 PF=0.19 | H05 PF=0.21 | H03 WR=14.3% | H00+H23 user-instructed
+            #   H04/H06/H07/H17/H19: no gate produces PF≥1 (48h WOP+PAE sim 2026-05-01)
+            # Re-block only at n≥100 per hour in current terminal era.
 
             _wkey = (token.asset, round(token.window_end_ts))
             if _wkey in self._terminal_traded_windows:
