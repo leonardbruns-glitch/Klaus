@@ -6,7 +6,7 @@ Chainlink oracle (30-90s delay) had settled. This causes wrong outcomes especial
 for NO-resolution trades (YES token still shows a non-zero stale price).
 
 This script queries closed markets from the Gamma API and patches trades.jsonl
-with the authoritative winningOutcomeIndex-derived outcome (1.0=YES won, 0.0=NO won).
+with the authoritative outcomePrices-derived outcome (1.0=YES won, 0.0=NO won).
 
 Usage:  python3 analytics/backfill_resolution.py [--dry-run]
 """
@@ -19,17 +19,21 @@ import urllib.request
 import urllib.parse
 
 GAMMA = "https://gamma-api.polymarket.com"
-# Resolve paths relative to the Klaus repo root, regardless of CWD
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TRADES_PATH = os.path.join(_REPO_ROOT, "logs", "trades.jsonl")
 DRY_RUN = "--dry-run" in sys.argv
 
+_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+
+_SLUG_PREFIXES = {"BTC": "btc", "ETH": "eth", "SOL": "sol"}
+
 
 def gamma_get(params: dict) -> list:
-    """Query Gamma API, return list of market dicts."""
+    """Query Gamma API (with User-Agent to avoid 403), return list of market dicts."""
     url = f"{GAMMA}/markets?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers=_HEADERS)
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read())
         if isinstance(data, list):
             return data
@@ -40,32 +44,59 @@ def gamma_get(params: dict) -> list:
     return []
 
 
-def resolve_token(token_id: str) -> float | None:
+def parse_json_field(val, default):
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except Exception:
+            return default
+    return val if val is not None else default
+
+
+def outcome_from_market(m: dict, token_id: str) -> float | None:
     """
-    Return 1.0 if token_id is the winning token, 0.0 if losing, None if not found.
-    Queries Gamma for closed markets containing this token.
+    Extract win/loss from a closed Gamma market dict.
+    Uses outcomePrices: "1" = won ($1.00), "0" = lost.
+    Returns 1.0, 0.0, or None if token_id not found in this market.
     """
-    # Try direct condition lookup isn't possible without cid — scan recent closed markets
-    # by fetching batches of inactive markets and matching clobTokenIds.
-    # Limit to last 2000 closed markets (covers ~7 days of 5M windows across 3 assets).
-    for offset in range(0, 2001, 500):
-        mkts = gamma_get({"active": "false", "closed": "true", "limit": 500, "offset": offset})
+    raw_ids = parse_json_field(m.get("clobTokenIds", []), [])
+    prices = parse_json_field(m.get("outcomePrices", []), [])
+    for i, tid in enumerate(raw_ids):
+        if tid == token_id:
+            p = float(prices[i]) if i < len(prices) else 0.0
+            return 1.0 if p >= 0.5 else 0.0
+    return None
+
+
+def resolve_by_slug(token_id: str, asset: str, ts_open: float) -> float | None:
+    """Try to resolve via slug lookup (fast, exact market)."""
+    prefix = _SLUG_PREFIXES.get(asset.upper(), asset.lower())
+    # Try window start = floor(ts_open, 300) and floor+300 (we might be in next window)
+    for delta in (0, -300, 300):
+        wstart = int(ts_open) - (int(ts_open) % 300) + delta
+        slug = f"{prefix}-updown-5m-{wstart}"
+        mkts = gamma_get({"slug": slug})
+        for m in mkts:
+            result = outcome_from_market(m, token_id)
+            if result is not None:
+                return result
+    return None
+
+
+def resolve_by_scan(token_id: str) -> float | None:
+    """
+    Scan recent closed markets for this token_id.
+    Covers ~7 days of 5M windows across 3 assets (≈ 3×2016 = ~6000 markets).
+    We scan up to 2500 to be safe, stopping early if we hit a match.
+    """
+    for offset in range(0, 2501, 500):
+        mkts = gamma_get({"closed": "true", "limit": 500, "offset": offset})
         if not mkts:
             break
         for m in mkts:
-            raw_ids = m.get("clobTokenIds", [])
-            if isinstance(raw_ids, str):
-                try:
-                    raw_ids = json.loads(raw_ids)
-                except Exception:
-                    raw_ids = []
-            if token_id not in raw_ids:
-                continue
-            widx = m.get("winningOutcomeIndex")
-            if widx is None:
-                continue
-            if widx < len(raw_ids):
-                return 1.0 if raw_ids[widx] == token_id else 0.0
+            result = outcome_from_market(m, token_id)
+            if result is not None:
+                return result
     return None
 
 
@@ -88,15 +119,18 @@ def main():
     live_trades = [(i, t) for i, t in trades if t and t.get("is_live") and t.get("token_id")]
     print(f"Loaded {len(live_trades)} live trades from {len(trades)} total records")
 
-    # Only process trades where window_outcome_price might be wrong:
-    # - value in (0.01, 0.79) — ambiguous zone, stale pre-settlement price
-    # - None/missing
+    # Skip ORPHAN sells (logging bugs, no real position entry)
+    # Only fix trades with ambiguous wop: in (0.01, 0.79) — stale pre-settlement zone
+    # or None where we couldn't capture at all.
     needs_check = [
         (i, t) for i, t in live_trades
-        if t.get("window_outcome_price") is None
-        or (0.01 < (t.get("window_outcome_price") or 0.0) < 0.80)
+        if "ORPHAN" not in (t.get("trade_id") or "")
+        and (
+            t.get("window_outcome_price") is None
+            or (0.01 < (t.get("window_outcome_price") or 0.0) < 0.80)
+        )
     ]
-    print(f"{len(needs_check)} trades with ambiguous/missing window_outcome_price")
+    print(f"{len(needs_check)} non-ORPHAN trades with ambiguous/missing window_outcome_price")
 
     if not needs_check:
         print("Nothing to fix.")
@@ -107,18 +141,27 @@ def main():
     for idx, (line_i, trade) in enumerate(needs_check):
         tid = trade["trade_id"]
         token_id = trade["token_id"]
+        asset = trade.get("asset", "")
+        ts_open = trade.get("ts_open", 0)
         old_wop = trade.get("window_outcome_price")
-        print(f"[{idx+1}/{len(needs_check)}] {tid} token={token_id[:16]}... old_wop={old_wop}", end=" ", flush=True)
+        print(f"[{idx+1}/{len(needs_check)}] {tid} old_wop={old_wop}", end=" ", flush=True)
 
-        outcome = resolve_token(token_id)
+        # Fast path: slug lookup (deterministic market name)
+        outcome = resolve_by_slug(token_id, asset, ts_open)
+
+        # Slow path: scan recent closed markets
         if outcome is None:
-            print("→ not found in Gamma (market too old or archived differently)")
+            print("(slug miss, scanning...)", end=" ", flush=True)
+            outcome = resolve_by_scan(token_id)
+
+        if outcome is None:
+            print("→ not found (market too old or slug format changed)")
             time.sleep(0.3)
             continue
 
         new_correct = outcome >= 0.80
         old_correct = trade.get("entered_correctly")
-        print(f"→ outcome={outcome:.1f} entered_correctly={new_correct} (was {old_wop}/{old_correct})")
+        print(f"→ outcome={outcome:.1f} correct={new_correct} (was {old_wop}/{old_correct})")
 
         if outcome != old_wop or new_correct != old_correct:
             changed += 1
@@ -129,7 +172,7 @@ def main():
             lines[line_i] = json.dumps(trade) + "\n"
 
         patched += 1
-        time.sleep(0.2)  # rate limit
+        time.sleep(0.2)
 
     print(f"\nPatched {patched}/{len(needs_check)} trades, {changed} values changed")
     if DRY_RUN:

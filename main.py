@@ -4586,15 +4586,26 @@ class KlausBot:
                                     for _m in _mkts:
                                         if not _m.get("closed"):
                                             continue
-                                        _widx = _m.get("winningOutcomeIndex")
                                         _raw_ids = _m.get("clobTokenIds", [])
                                         if isinstance(_raw_ids, str):
                                             try:
                                                 _raw_ids = _json.loads(_raw_ids)
                                             except Exception:
                                                 _raw_ids = []
-                                        if _widx is not None and _raw_ids and _widx < len(_raw_ids):
-                                            _wop = 1.0 if _raw_ids[_widx] == token_id else 0.0
+                                        # outcomePrices is the authoritative field:
+                                        # "1" = that token redeems to $1 (won), "0" = lost
+                                        _prices = _m.get("outcomePrices", [])
+                                        if isinstance(_prices, str):
+                                            try:
+                                                _prices = _json.loads(_prices)
+                                            except Exception:
+                                                _prices = []
+                                        for _i, _tid in enumerate(_raw_ids):
+                                            if _tid == token_id:
+                                                _p = float(_prices[_i]) if _i < len(_prices) else 0.0
+                                                _wop = 1.0 if _p >= 0.5 else 0.0
+                                                break
+                                        if _wop is not None:
                                             break
                         except Exception as _ge:
                             logger.debug("RESOLUTION gamma poll %s attempt %d: %s",
