@@ -4339,6 +4339,9 @@ class KlausBot:
                             _bid = _ob2.bids[0][0]
                     if _bid and _bid >= 0.80:
                         _wop = round(_bid, 4)
+                # Empty order book on both sides = token collapsed (NO resolution)
+                if _wop is None:
+                    _wop = 0.0
                 if _wop is not None:
                     _entered_correctly = _wop >= 0.80
                     _res_rec = {
