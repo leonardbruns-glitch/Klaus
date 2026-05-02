@@ -97,7 +97,7 @@ Claude edits locally → commits → pushes to dev branch → Claude SSHes into 
 
 **Deploy command (run via SSH):**
 ```bash
-ssh root@85.137.174.86 "cd /root/Klaus && git pull && systemctl restart klaus && systemctl is-active klaus"
+ssh root@85.137.174.86 "bash -c 'git -C /root/Klaus pull && systemctl restart klaus && systemctl is-active klaus'"
 ```
 
 ---
