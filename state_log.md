@@ -55,6 +55,12 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-05-02 | ENTRY / ETH | ETH tok_delta_30s ≥ 100% block | WR=42.9% lift=5.7x (n=7); ETH 30s overextension; BTC/SOL same zone WR=100% → ETH-specific only; user-authorised Tier 2
 
+## 2026-05-02 | ENTRY / ALL | snap30 gate overhauled: 2 new gates | (1) snap30<0 unconditional block: n=144 net=-$7.50, removed depth<200 condition (144 trades bypassed it); (2) snap30 [5,10%) block: decel zone n=43 WR=67% but avg_loss=-$2.39 net=-$6.68 (T03199_BTC -$9.72 was 7.46%); 0-5% (n=49 net=+$19.78) and 10%+ both kept
+
+## 2026-05-02 | EXIT / ALL | Scale-in guard: block if bond_remaining < 45s | T03169_BTC -$20.86: entered rem=34s, scale-in fired at rem=13s doubling position to $19.96, PROFIT_TARGET sell failed (CLOB error), resolved NO; 45s ensures time to exit full position before window
+
+## 2026-05-02 | LOGGING / ALL | BOND_EXPIRED_UNSOLD window_outcome_price fixed | was always 0.0 (PM API shows 0 for expired tokens); now passes 1.0 when bid≥0.80 at close (YES settlement), 0.0 when bid<0.05 (NO)
+
 ## 2026-05-02 | ENTRY / BTC | BTC snap60 [20,30%) gate APPLIED then REVERTED | strict re-eval: REJECT — sub-bucket inverts between BTC/ETH (regime flip), bootstrap CI crosses zero (P(neg)=85%), n=18<30, jackknife flips positive on 20% removal; classified as regime-boundary overfit; monitor at n≥40
 
 ## 2026-04-29 19:XX UTC | ENTRY / SOL | SOL spread≤3% gate added | spread 1-2% bucket WR=73% net=+$9.18 dir_acc=92% (n=26); spread>3% net=-$12.17 drag; snap+spread≤3 only profitable SOL combo: n=22 WR=64% net=+$2.47 sim=+$2.27; user-authorised Tier 2
