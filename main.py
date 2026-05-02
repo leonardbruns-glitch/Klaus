@@ -1051,6 +1051,16 @@ class KlausBot:
                                         is_live=not CONFIG.dry_run,
                                         signal_source=_wo_meta.get("signal_source", "BOND"),
                                         window_size_s=_wo_meta.get("window_size_s") or pos.window_seconds or 0,
+                                        ob_depth_at_entry=_wo_meta.get("ob_depth_at_entry", 0.0),
+                                        pre_entry_momentum_pct=_wo_meta.get("pre_entry_momentum_pct", 0.0),
+                                        spot_at_entry=_wo_meta.get("spot_at_entry", 0.0),
+                                        signal_to_fill_ms=_wo_meta.get("signal_to_fill_ms", 0.0),
+                                        max_price_seen=pos.highest_price,
+                                        min_price_seen=pos.lowest_price,
+                                        term_pre_snap_60s=float(getattr(_wo_sig, "term_pre_snap_60s", 0.0) or 0.0),
+                                        term_ob_imbalance=float(getattr(_wo_sig, "term_ob_imbalance", 0.0) or 0.0),
+                                        term_ob_depth=float(getattr(_wo_sig, "term_ob_depth", 0.0) or 0.0),
+                                        bond_entry_class=pos.bond_entry_class,
                                     )
                                 except Exception as _woe:
                                     logger.error("record_trade BOND_RESOLVED_NO failed: %s", _woe)
@@ -3771,6 +3781,15 @@ class KlausBot:
                             signal_source=_g1_meta.get("signal_source", "BOND"),
                             window_size_s=_g1_meta.get("window_size_s") or pos.window_seconds or 0,
                             bond_entry_class=pos.bond_entry_class,
+                            ob_depth_at_entry=_g1_meta.get("ob_depth_at_entry", 0.0),
+                            pre_entry_momentum_pct=_g1_meta.get("pre_entry_momentum_pct", 0.0),
+                            spot_at_entry=_g1_meta.get("spot_at_entry", 0.0),
+                            signal_to_fill_ms=_g1_meta.get("signal_to_fill_ms", 0.0),
+                            max_price_seen=pos.highest_price,
+                            min_price_seen=pos.lowest_price,
+                            term_pre_snap_60s=float(getattr(_g1_signal, "term_pre_snap_60s", 0.0) or 0.0),
+                            term_ob_imbalance=float(getattr(_g1_signal, "term_ob_imbalance", 0.0) or 0.0),
+                            term_ob_depth=float(getattr(_g1_signal, "term_ob_depth", 0.0) or 0.0),
                         )
                     except Exception as _g1e:
                         logger.error("record_trade BOND_EXPIRED_UNSOLD failed: %s", _g1e)
