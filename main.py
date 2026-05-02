@@ -3815,6 +3815,7 @@ class KlausBot:
                 entry_price=pos.entry_price,
                 window_end_ts=pos.window_end_ts,
                 binance_price_at_entry=pos.binance_price_at_entry,
+                condition_id=getattr(pos, "condition_id", ""),
             ))
             if pos.window_end_ts > 0:
                 try:
@@ -3830,6 +3831,7 @@ class KlausBot:
                             entry_price=pos.entry_price,
                             window_end_ts=pos.window_end_ts,
                             binance_price_at_entry=pos.binance_price_at_entry,
+                            condition_id=getattr(pos, "condition_id", ""),
                         )) + "\n")
                 except Exception:
                     pass
@@ -4102,6 +4104,7 @@ class KlausBot:
                     entry_price=pos.entry_price,
                     window_end_ts=pos.window_end_ts,
                     binance_price_at_entry=pos.binance_price_at_entry,
+                    condition_id=getattr(pos, "condition_id", ""),
                 ))
                 return
             # Shares still exist — reset and retry next cycle
@@ -4497,6 +4500,7 @@ class KlausBot:
             entry_price=pos.entry_price,
             window_end_ts=pos.window_end_ts,
             binance_price_at_entry=pos.binance_price_at_entry,
+            condition_id=getattr(pos, "condition_id", ""),
         )
         # Persist to disk so restarts don't lose the resolution task
         if pos.window_end_ts > 0:
@@ -4519,6 +4523,7 @@ class KlausBot:
         entry_price: float,
         window_end_ts: float = 0.0,
         binance_price_at_entry: float = 0.0,
+        condition_id: str = "",
     ) -> None:
         """Sample token price at T+30s, T+60s, T+120s after exit.
         For SL exits: also samples at window_end_ts+60s to capture window resolution outcome.
@@ -4543,44 +4548,90 @@ class KlausBot:
                 (_b_exit - binance_price_at_entry) / binance_price_at_entry * 100, 4
             )
 
-        # Resolution task: fires at window_end-5s regardless of when T+30/60/120 loop ends.
-        # TIME_EXIT/DEADLINE exit 1-3s before end — by the time the old block ran (T+120s),
-        # the token was gone. This concurrent task captures outcome while the token is live.
+        # Resolution task: polls Gamma API starting at window_end+10s.
+        # Runs concurrently with the T+30/60/120 price sampling loop.
         async def _capture_resolution() -> None:
             if not window_end_ts:
                 return
-            _wait = max(0.0, window_end_ts + 5.0 - time.time())
+            # Oracle takes 30-90s after window end to publish result.
+            # Start polling 10s past window end rather than 5s — avoids reading
+            # stale CLOB prices before the Chainlink oracle has settled.
+            _wait = max(10.0, window_end_ts + 10.0 - time.time())
             if _wait > 910:
                 return  # window too far out, skip
             if _wait > 0:
                 await asyncio.sleep(_wait)
             try:
                 _wop: float | None = None
-                _tok = self.feed.tokens.get(token_id)
-                if _tok and getattr(_tok, "best_ask", 0) > 0:
-                    _wop = round(_tok.best_ask, 4)
-                if not _wop:
-                    _ob = await self.feed.fetch_order_book(token_id)
-                    if _ob and _ob.asks:
-                        _wop = round(_ob.asks[0][0], 4)
-                # YES tokens near $1 have empty ask side — fall back to bid
-                if _wop is None or _wop < 0.80:
-                    _tok2 = self.feed.tokens.get(token_id)
-                    _bid = None
-                    if _tok2 and getattr(_tok2, "bids", None):
+
+                # Primary: poll Gamma API until market.closed=True.
+                # Authoritative — based on winningOutcomeIndex (on-chain settlement),
+                # not market price which is stale for 30-90s post-window.
+                if condition_id and getattr(self.feed, "_session", None):
+                    import aiohttp as _aiohttp
+                    _gamma_url = f"{CONFIG.markets.gamma_api_url}/markets"
+                    for _attempt in range(10):  # poll every 15s, up to 150s
                         try:
-                            _bid = _tok2.bids[0][0]
-                        except Exception:
-                            pass
-                    if _bid is None:
-                        _ob2 = await self.feed.fetch_order_book(token_id)
-                        if _ob2 and _ob2.bids:
-                            _bid = _ob2.bids[0][0]
-                    if _bid and _bid >= 0.80:
-                        _wop = round(_bid, 4)
-                # Empty order book on both sides = token collapsed (NO resolution)
+                            async with self.feed._session.get(
+                                _gamma_url,
+                                params={"condition_id": condition_id},
+                                timeout=_aiohttp.ClientTimeout(total=8),
+                            ) as _resp:
+                                if _resp.status == 200:
+                                    _data = await _resp.json()
+                                    _mkts = (
+                                        _data if isinstance(_data, list)
+                                        else _data.get("data", [_data] if isinstance(_data, dict) else [])
+                                    )
+                                    for _m in _mkts:
+                                        if not _m.get("closed"):
+                                            continue
+                                        _widx = _m.get("winningOutcomeIndex")
+                                        _raw_ids = _m.get("clobTokenIds", [])
+                                        if isinstance(_raw_ids, str):
+                                            try:
+                                                _raw_ids = _json.loads(_raw_ids)
+                                            except Exception:
+                                                _raw_ids = []
+                                        if _widx is not None and _raw_ids and _widx < len(_raw_ids):
+                                            _wop = 1.0 if _raw_ids[_widx] == token_id else 0.0
+                                            break
+                        except Exception as _ge:
+                            logger.debug("RESOLUTION gamma poll %s attempt %d: %s",
+                                         trade_id[:12], _attempt, _ge)
+                        if _wop is not None:
+                            break
+                        await asyncio.sleep(15)
+
+                # Fallback: CLOB order book price if Gamma didn't resolve in time
+                # (no condition_id, network error, or oracle delay > 150s).
                 if _wop is None:
-                    _wop = 0.0
+                    _tok = self.feed.tokens.get(token_id)
+                    if _tok and getattr(_tok, "best_ask", 0) > 0:
+                        _wop = round(_tok.best_ask, 4)
+                    if not _wop:
+                        _ob = await self.feed.fetch_order_book(token_id)
+                        if _ob and _ob.asks:
+                            _wop = round(_ob.asks[0][0], 4)
+                    # YES tokens near $1 have empty ask side — fall back to bid
+                    if _wop is None or _wop < 0.80:
+                        _tok2 = self.feed.tokens.get(token_id)
+                        _bid = None
+                        if _tok2 and getattr(_tok2, "bids", None):
+                            try:
+                                _bid = _tok2.bids[0][0]
+                            except Exception:
+                                pass
+                        if _bid is None:
+                            _ob2 = await self.feed.fetch_order_book(token_id)
+                            if _ob2 and _ob2.bids:
+                                _bid = _ob2.bids[0][0]
+                        if _bid and _bid >= 0.80:
+                            _wop = round(_bid, 4)
+                    # Empty order book on both sides = token collapsed (NO resolution)
+                    if _wop is None:
+                        _wop = 0.0
+
                 if _wop is not None:
                     _entered_correctly = _wop >= 0.80
                     _res_rec = {
@@ -4620,7 +4671,7 @@ class KlausBot:
                         round(time.time() - window_end_ts),
                     )
                 else:
-                    logger.debug("RESOLUTION %s [%s] | no price at window_end-5s", trade_id[:12], exit_reason)
+                    logger.debug("RESOLUTION %s [%s] | no outcome at window_end+10s", trade_id[:12], exit_reason)
             except Exception as _re:
                 logger.debug("resolution capture failed %s: %s", trade_id[:12], _re)
 
