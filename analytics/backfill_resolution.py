@@ -19,7 +19,9 @@ import urllib.request
 import urllib.parse
 
 GAMMA = "https://gamma-api.polymarket.com"
-TRADES_PATH = os.path.join("logs", "trades.jsonl")
+# Resolve paths relative to the Klaus repo root, regardless of CWD
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TRADES_PATH = os.path.join(_REPO_ROOT, "logs", "trades.jsonl")
 DRY_RUN = "--dry-run" in sys.argv
 
 
