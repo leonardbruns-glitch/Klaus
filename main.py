@@ -2206,31 +2206,12 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap30 > 300%: blow-off spike — token already pumped 3x, reversal risk
-            # 0 false positives in 5h dataset (n=1 catch); highest win s30=235%
-            if _snap30_val > 300.0:
+            # snap30 gate: allow [10%, 120%) only — terminal era sweet spot
+            # <10%: net negative across all sub-buckets (n=1461); ≥120%: avg-loss > avg-win (n=33)
+            # 0.0 = reference not captured, exempt to avoid false blocks
+            if _snap30_val != 0.0 and not (10.0 <= _snap30_val < 120.0):
                 logger.info(
-                    "[BOND] snap30_blowoff %s/%s | snap30=%.1f%% — overextended",
-                    token.asset, token.side, _snap30_val,
-                )
-                _b_mom_skip += 1
-                continue
-
-            # snap30 < 0: token falling in 30s pre-entry window — n=144 net=-$7.50
-            # 0.0 = reference not captured (skip gate to avoid false blocks)
-            if _snap30_val != 0.0 and _snap30_val < 0.0:
-                logger.info(
-                    "[BOND] snap30_neg %s/%s | snap30=%.1f%% — token falling pre-entry",
-                    token.asset, token.side, _snap30_val,
-                )
-                _b_mom_skip += 1
-                continue
-
-            # snap30 [5,10%): deceleration zone — WR=67% but avg_loss=-$2.39 → net=-$6.68 (n=43)
-            # 0-5% (stable) and 10%+ (building) are both profitable; 5-10% is the dead zone
-            if 5.0 <= _snap30_val < 10.0:
-                logger.info(
-                    "[BOND] snap30_decel %s/%s | snap30=%.1f%% — deceleration zone skip",
+                    "[BOND] snap30_gate %s/%s | snap30=%.1f%% — outside [10,120) range",
                     token.asset, token.side, _snap30_val,
                 )
                 _b_mom_skip += 1
