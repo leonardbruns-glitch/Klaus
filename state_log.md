@@ -96,3 +96,5 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-02 | SIGNAL / ALL | snap30 ≥120% performance: n=33 WR=66.7% net=-$8.18 (Tier 2) | sweet spot confirmed [10,120%); above 120% WR holds but avg-loss > avg-win (blow-off reversal); monitor at n≥100 before adding upper gate
 
 ## 2026-05-02 | BUG / ALL | NEG_RISK_LOCK exit failure fixed (execution/order_manager.py) | 17/21 May2 stuck trades caused by: BTC fill locks SOL token as "matched orders" in neg-risk pool; SOL sell retried immediately × 10, all fail in <2s before ~10s settlement clears; fix: detect "matched orders" in CLOB error, sleep 2s, retry; prior "regime halt" proposal was wrong — 84% of stuck losses were this single execution bug, not market regime
+
+## 2026-05-02 | LOGGING / ALL | EXTERNALLY_SOLD exit_price corrected at resolution | when cascade_sell fails with balance=0 and no fills confirmed, exit_price was recorded as live bid (inaccurate); now flagged exit_price_uncertain=True and _capture_resolution overwrites exit_price/net_pnl/bankroll with PM resolution price when known
