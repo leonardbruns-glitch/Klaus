@@ -2307,16 +2307,6 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # Consecutive wins = 3: post-streak cliff — PF=0.62 n=117; cw=1-2 PF=1.39, cw=4+ PF=1.61
-            # At exactly 3 wins the bot enters near exhaustion tops; streak resumes strength at 4+
-            if self.risk.bankroll.consecutive_wins == 3:
-                logger.info(
-                    "[BOND] cw3_pause %s/%s | consecutive_wins=3 — streak cliff pause",
-                    token.asset, token.side,
-                )
-                _b_mom_skip += 1
-                continue
-
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
