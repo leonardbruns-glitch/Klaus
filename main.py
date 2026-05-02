@@ -1035,6 +1035,27 @@ class KlausBot:
                                     fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
                                     reason="bond_resolved_no",
                                 )
+                                _wo_snaps = self._entry_snaps.pop(token_id, {})
+                                _ep_wo = pos.entry_price
+                                _s30_wo = _wo_snaps.get(30, 0.0)
+                                _s60_wo = _wo_snaps.get(60, 0.0)
+                                _r30_wo = (_s30_wo - _ep_wo) / _ep_wo * 100 if _ep_wo > 0 and _s30_wo > 0 else None
+                                _r60_wo = (_s60_wo - _ep_wo) / _ep_wo * 100 if _ep_wo > 0 and _s60_wo > 0 else None
+                                _lowest_wo = pos.lowest_price
+                                _highest_wo = pos.highest_price
+                                _max_adv_wo = ((_ep_wo - _lowest_wo) / _ep_wo * 100) if _ep_wo > 0 and _lowest_wo > 0 else 0.0
+                                _hold_s_wo = time.time() - _wo_meta.get("ts_open", pos.open_ts)
+                                _path_class_wo, _path_conf_wo, _path_reason_wo = _classify_path(
+                                    r30=_r30_wo, r60=_r60_wo, max_adv_pct=_max_adv_wo, hold_s=_hold_s_wo,
+                                    exit_reason="BOND_RESOLVED_NO", exit_price=0.0, entry_price=_ep_wo,
+                                )
+                                _bounce_pct_wo = 0.0
+                                if (pos.entry_price > 0 and pos.mae_bounce_peak > 0
+                                        and pos.lowest_price > 0 and pos.mae_bounce_peak > pos.lowest_price):
+                                    _bounce_pct_wo = (pos.mae_bounce_peak - pos.lowest_price) / pos.entry_price * 100
+                                _bond_llm_wo = self._bond_llm_decisions.pop(token_id, {})
+                                _wo_token_meta = self.feed.tokens.get(token_id)
+                                _wo_spot_exit = self.feed._spot_price.get(pos.asset.upper(), 0.0)
                                 try:
                                     self.analytics.record_trade(
                                         token_id=token_id, asset=pos.asset, direction=pos.direction,
@@ -1047,23 +1068,120 @@ class KlausBot:
                                         heat_check_active=_wo_meta.get("heat_check", False),
                                         consecutive_wins=_wo_meta.get("consecutive_wins", 0),
                                         net_pnl_actual=_wo_pnl,
-                                        market_type=getattr(self.feed.tokens.get(token_id), "market_type", "unknown"),
+                                        market_type=getattr(_wo_token_meta, "market_type", "unknown"),
                                         is_live=not CONFIG.dry_run,
                                         signal_source=_wo_meta.get("signal_source", "BOND"),
                                         window_size_s=_wo_meta.get("window_size_s") or pos.window_seconds or 0,
                                         ob_depth_at_entry=_wo_meta.get("ob_depth_at_entry", 0.0),
                                         pre_entry_momentum_pct=_wo_meta.get("pre_entry_momentum_pct", 0.0),
                                         spot_at_entry=_wo_meta.get("spot_at_entry", 0.0),
+                                        spot_at_exit=_wo_spot_exit,
                                         signal_to_fill_ms=_wo_meta.get("signal_to_fill_ms", 0.0),
-                                        max_price_seen=pos.highest_price,
-                                        min_price_seen=pos.lowest_price,
-                                        term_pre_snap_60s=float(getattr(_wo_sig, "term_pre_snap_60s", 0.0) or 0.0),
+                                        llm_rec=_wo_meta.get("llm_rec", ""),
+                                        llm_rec_conf=_wo_meta.get("llm_rec_conf", 0.0),
+                                        max_price_seen=_highest_wo,
+                                        min_price_seen=_lowest_wo,
+                                        highest_price_ts=pos.highest_price_ts,
+                                        lowest_price_ts=pos.lowest_price_ts,
+                                        binance_price_at_entry=pos.binance_price_at_entry,
+                                        binance_reversal_count_at_exit=pos.binance_reversal_count,
+                                        velocity_5s_pct=_wo_meta.get("velocity_5s_pct", 0.0),
+                                        move_age_s=_wo_meta.get("move_age_s", 999.0),
+                                        path_class=_path_class_wo,
+                                        path_confidence=_path_conf_wo,
+                                        path_reason=_path_reason_wo,
+                                        entry_snap_30s_pct=_r30_wo if _r30_wo is not None else 0.0,
+                                        entry_snap_60s_pct=_r60_wo if _r60_wo is not None else 0.0,
+                                        bond_entry_class=pos.bond_entry_class,
+                                        bond_outcome_direction=getattr(_wo_sig, "bond_outcome_direction", "") or getattr(pos, "bond_outcome_direction", ""),
+                                        bond_macro_regime=pos.bond_macro_regime,
+                                        mae_bounce_10s_pct=_bounce_pct_wo,
+                                        bond_stab_class=getattr(_wo_sig, "bond_stab_class", ""),
+                                        bond_stability_score=int(getattr(_wo_sig, "bond_stability_score", 0)),
+                                        bond_stab_xp_bad=bool(getattr(_wo_sig, "bond_stab_xp_bad", False)),
+                                        bond_stab_slip_bad=bool(getattr(_wo_sig, "bond_stab_slip_bad", False)),
+                                        bond_stab_delta_bad=bool(getattr(_wo_sig, "bond_stab_delta_bad", False)),
+                                        bond_stab_edge_weak=bool(getattr(_wo_sig, "bond_stab_edge_weak", False)),
+                                        bond_stab_vel_flat=bool(getattr(_wo_sig, "bond_stab_vel_flat", False)),
+                                        bond_delta_accel_30s=float(getattr(_wo_sig, "bond_delta_accel_30s", 0.0) or 0.0),
+                                        bond_accel_15s=float(getattr(_wo_sig, "bond_accel_15s", 0.0) or 0.0),
+                                        bond_edge_drift_30s=float(getattr(_wo_sig, "bond_edge_drift_30s", 0.0) or 0.0),
+                                        bond_accel_sustained=bool(getattr(_wo_sig, "bond_accel_sustained", False)),
+                                        bond_has_hist=bool(getattr(_wo_sig, "bond_has_hist", False)),
+                                        bond_smooth_delta_60s=float(getattr(_wo_sig, "bond_smooth_delta_60s", 0.0) or 0.0),
+                                        bond_entry_zone=str(getattr(_wo_sig, "bond_entry_zone", "") or ""),
+                                        pre_score=float(getattr(_wo_sig, "pre_score", 0.0) or 0.0),
+                                        pre_score_version=str(getattr(_wo_sig, "pre_score_version", "") or ""),
+                                        pre_score_schema_hash=str(getattr(_wo_sig, "pre_score_schema_hash", "") or ""),
+                                        pre_score_validity=str(getattr(_wo_sig, "pre_score_validity", "") or ""),
+                                        pre_score_accel=float(getattr(_wo_sig, "pre_score_accel", 0.0) or 0.0),
+                                        pre_score_daccel=float(getattr(_wo_sig, "pre_score_daccel", 0.0) or 0.0),
+                                        pre_score_edge=float(getattr(_wo_sig, "pre_score_edge", 0.0) or 0.0),
+                                        pre_score_stab=float(getattr(_wo_sig, "pre_score_stab", 0.0) or 0.0),
+                                        pre_score_vel=float(getattr(_wo_sig, "pre_score_vel", 0.0) or 0.0),
+                                        pre_score_class=float(getattr(_wo_sig, "pre_score_class", 0.0) or 0.0),
+                                        bond_llm_decision=_bond_llm_wo.get("decision", ""),
+                                        bond_llm_conf=float(_bond_llm_wo.get("conf", 0.0)),
+                                        bond_llm_reason=_bond_llm_wo.get("reason", ""),
+                                        bond_llm_tp_pct=float(_bond_llm_wo.get("shadow_tp_pct", 0.0)),
+                                        bond_llm_sl_pct=float(_bond_llm_wo.get("shadow_sl_pct", 0.0)),
+                                        term_vpin=float(getattr(_wo_sig, "term_vpin", 0.0) or 0.0),
+                                        term_spot_delta_5s=float(getattr(_wo_sig, "term_spot_delta_5s", 0.0) or 0.0),
+                                        term_spot_delta_30s=float(getattr(_wo_sig, "term_spot_delta_30s", 0.0) or 0.0),
+                                        term_spot_delta_60s=float(getattr(_wo_sig, "term_spot_delta_60s", 0.0) or 0.0),
+                                        term_spot_delta_5m=float(getattr(_wo_sig, "term_spot_delta_5m", 0.0) or 0.0),
+                                        term_ask_spread_pct=float(getattr(_wo_sig, "term_ask_spread_pct", 0.0) or 0.0),
+                                        term_ask_qty=float(getattr(_wo_sig, "term_ask_qty", 0.0) or 0.0),
                                         term_ob_imbalance=float(getattr(_wo_sig, "term_ob_imbalance", 0.0) or 0.0),
                                         term_ob_depth=float(getattr(_wo_sig, "term_ob_depth", 0.0) or 0.0),
-                                        bond_entry_class=pos.bond_entry_class,
+                                        term_remaining_s=float(getattr(_wo_sig, "term_remaining_s", 0.0) or 0.0),
+                                        term_token_delta_3s=float(getattr(_wo_sig, "term_token_delta_3s", 0.0) or 0.0),
+                                        term_token_delta_5s=float(getattr(_wo_sig, "term_token_delta_5s", 0.0) or 0.0),
+                                        term_tok_tick_count_5s=int(getattr(_wo_sig, "term_tok_tick_count_5s", 0) or 0),
+                                        term_tok_tick_count_30s=int(getattr(_wo_sig, "term_tok_tick_count_30s", 0) or 0),
+                                        term_ask_stale_s=float(getattr(_wo_sig, "term_ask_stale_s", 999.0) or 999.0),
+                                        term_tok_decel_ratio=float(getattr(_wo_sig, "term_tok_decel_ratio", 0.0) or 0.0),
+                                        term_token_delta_30s=float(getattr(_wo_sig, "term_token_delta_30s", 0.0) or 0.0),
+                                        term_token_delta_60s=float(getattr(_wo_sig, "term_token_delta_60s", 0.0) or 0.0),
+                                        term_binance_1m_pct=getattr(_wo_sig, "term_binance_1m_pct", None),
+                                        term_binance_5m_pct=getattr(_wo_sig, "term_binance_5m_pct", None),
+                                        term_pre_snap_60s=float(getattr(_wo_sig, "term_pre_snap_60s", 0.0) or 0.0),
+                                        term_pre_snap_30s=float(getattr(_wo_sig, "term_pre_snap_30s", 0.0) or 0.0),
+                                        term_pre_snap_open=float(getattr(_wo_sig, "term_pre_snap_open", 0.0) or 0.0),
+                                        term_rsi=float(getattr(_wo_sig, "term_rsi", 0.0) or 0.0),
+                                        term_ask_vwap=float(getattr(_wo_sig, "term_ask_vwap", 0.0) or 0.0),
+                                        traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
+                                        traj_mae_10s=float(self._traj_mae.get(token_id, {}).get(10, 0.0)),
+                                        traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
+                                        traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
+                                        price_at_t10s=self._price_at_t10s.get(token_id),
                                     )
                                 except Exception as _woe:
                                     logger.error("record_trade BOND_RESOLVED_NO failed: %s", _woe)
+                            # Full cleanup — mirrors _exit_position
+                            self._dir_rev_count.pop(token_id, None)
+                            self._term_pre_snap_refs.pop(token_id, None)
+                            self._term_pre_entry_obs.pop(token_id, None)
+                            self._sl_below_count.pop(token_id, None)
+                            self._stall_checked.discard(token_id)
+                            self._peak_bond_move.pop(token_id, None)
+                            self._trough_bond_move.pop(token_id, None)
+                            self._peak_ts.pop(token_id, None)
+                            self._stall_conf_count.pop(token_id, None)
+                            self._exhaustion_conf_count.pop(token_id, None)
+                            self._early_loss_conf_count.pop(token_id, None)
+                            self._peak_breach_ts.pop(token_id, None)
+                            self._zombie_flag_ts.pop(token_id, None)
+                            self._traj_mfe.pop(token_id, None)
+                            self._traj_mae.pop(token_id, None)
+                            self._price_at_t10s.pop(token_id, None)
+                            self._bond_sl_arm_ts.pop(token_id, None)
+                            self._catas_breach_ts.pop(token_id, None)
+                            self._catas_cancel_count.pop(token_id, None)
+                            self._pae_below_since.pop(token_id, None)
+                            self._pae_above_since.pop(token_id, None)
+                            self._bc_arm_tracker.pop(token_id, None)
+                            self._terminal_tp_touched.discard(token_id)
                             continue
                         logger.info(
                             'WINDOW_OUTCOME %s/%s | bid=%.4f < 0.90 — likely NO resolution, '
