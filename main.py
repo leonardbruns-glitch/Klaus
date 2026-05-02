@@ -2098,12 +2098,12 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap60 > 150% AND fresh/stale move (<5s): entered at top of a rapid spike
-            # 5h: 2 reversals caught, 1 win blocked (14:39 ETH); net +$2.20; BTC T02722 slipped at 4.1s
-            if _snap60_val > 150.0 and _term_ask_stale_s < 5.0:
+            # snap60 ≥ 120%: overbought zone — WR=62.5% net+$8.69 sim (n=16, user-auth Tier2 2026-05-02)
+            # supersedes prior >150%+fresh gate (that zone is a subset of this)
+            if _snap60_val >= 120.0:
                 logger.info(
-                    "[BOND] snap60_spike %s/%s | snap60=%.1f%% mage=%.1fs — spike+fresh",
-                    token.asset, token.side, _snap60_val, _term_ask_stale_s,
+                    "[BOND] snap60_overbought %s/%s | snap60=%.1f%% — extreme momentum skip",
+                    token.asset, token.side, _snap60_val,
                 )
                 _b_mom_skip += 1
                 continue
@@ -2125,6 +2125,15 @@ class KlausBot:
                 logger.info(
                     "[BOND] sol_spread %s/%s | spread=%.1f%% — wide spread skip",
                     token.asset, token.side, _term_sprd or 0.0,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # ETH tok_delta_30s ≥ 100%: ETH 30s overextension — WR=42.9% (n=7, user-auth Tier2 2026-05-02)
+            if token.asset == "ETH" and _term_tok_d30 >= 100.0:
+                logger.info(
+                    "[BOND] eth_td30_overext %s/%s | td30=%.1f%% — ETH 30s overextension skip",
+                    token.asset, token.side, _term_tok_d30,
                 )
                 _b_mom_skip += 1
                 continue
