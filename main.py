@@ -3866,7 +3866,7 @@ class KlausBot:
                 _g1_ob   = self.feed.get_order_book(token_id)
                 _g1_bid  = _g1_ob.bids[0][0] if (_g1_ob and _g1_ob.bids) else 0.0
                 _g1_ask  = _g1_ob.asks[0][0] if (_g1_ob and _g1_ob.asks) else 0.0
-                _g1_price = _g1_bid if _g1_bid >= 0.80 else (0.0 if _g1_bid < 0.05 else live_price)
+                _g1_price = 0.0  # stale OB bid (resting PROFIT_TARGET at 0.99) is not settlement; always NO
                 logger.warning(
                     "BOND_EXPIRED_UNSOLD %s/%s — window expired %.0fs ago, 0 fills. "
                     "OB bid=%.4f ask=%.4f → closing at %.4f",
@@ -4006,7 +4006,7 @@ class KlausBot:
                             traj_mfe_30s=float(_g1_traj_mfe.get(30, 0.0)),
                             traj_mae_30s=float(_g1_traj_mae.get(30, 0.0)),
                             price_at_t10s=_g1_price_at_t10s,
-                            window_outcome_price=1.0 if _g1_price >= 0.80 else 0.0,
+                            window_outcome_price=0.0,
                         )
                     except Exception as _g1e:
                         logger.error("record_trade BOND_EXPIRED_UNSOLD failed: %s", _g1e)
