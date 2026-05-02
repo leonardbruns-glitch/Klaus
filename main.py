@@ -2284,6 +2284,17 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # tok30 dead zone [18, 26): mid-momentum fades before resolution
+            # [18,22) PF=0.71 n=71; [22,26) PF=0.78 n=88; combined n=159 PF=0.75 net=-$32.57
+            # High tok30 (≥30) is profitable (PF 1.05–1.83) — gate is non-monotonic, not a cap
+            if 18.0 <= _term_tok_d30 < 26.0:
+                logger.info(
+                    "[BOND] tok30_deadzone %s/%s | tok30=%.1f%% — dead zone [18,26) skip",
+                    token.asset, token.side, _term_tok_d30,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
