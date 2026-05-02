@@ -2857,6 +2857,34 @@ class KlausBot:
             "move_age_s": _token_move_age,
         }
 
+        # Persist term_ signal fields so they survive a bot restart.
+        # On restart _open_meta is empty; _exit_position reads this back
+        # and stamps the recovered fields onto the SignalBreakdown stub.
+        _term_fields = [
+            "term_vpin", "term_binance_1m_pct", "term_binance_5m_pct",
+            "term_spot_delta_5s", "term_spot_delta_30s", "term_spot_delta_60s",
+            "term_spot_delta_5m", "term_ask_spread_pct", "term_ask_qty",
+            "term_ob_imbalance", "term_ob_depth", "term_remaining_s",
+            "term_token_delta_3s", "term_token_delta_5s", "term_tok_tick_count_5s",
+            "term_tok_tick_count_30s", "term_ask_stale_s", "term_tok_decel_ratio",
+            "term_token_delta_30s", "term_token_delta_60s",
+            "term_pre_snap_60s", "term_pre_snap_30s", "term_pre_snap_open",
+            "term_rsi", "term_ask_vwap",
+        ]
+        _sig_snapshot = {f: getattr(signal, f, None) for f in _term_fields}
+        try:
+            _smf = "logs/open_signal_meta.json"
+            _sm = {}
+            if os.path.exists(_smf):
+                with open(_smf) as _f:
+                    _sm = json.load(_f)
+            _sm[token_id] = _sig_snapshot
+            with open(_smf + ".tmp", "w") as _f:
+                json.dump(_sm, _f)
+            os.replace(_smf + ".tmp", _smf)
+        except Exception as _e:
+            logger.debug("open_signal_meta write failed: %s", _e)
+
         # BOND: time exit disabled — holding to window outcome (resolution).
 
     # ── LLM independent trader ───────────────────────────────────────────────
@@ -4345,6 +4373,17 @@ class KlausBot:
                     external_boost=0.0,
                     reason="recovered_from_disk",
                 )
+                # Restore term_ fields saved at entry so logs aren't all-zero
+                # for positions that were open across a bot restart.
+                try:
+                    _smf = "logs/open_signal_meta.json"
+                    if os.path.exists(_smf):
+                        with open(_smf) as _f:
+                            _sm = json.load(_f)
+                        for _k, _v in _sm.get(token_id, {}).items():
+                            setattr(signal, _k, _v)
+                except Exception as _e:
+                    logger.debug("open_signal_meta restore failed: %s", _e)
 
             token_meta = self.feed.tokens.get(token_id)
             # ── Path classification ───────────────────────────────────────────
