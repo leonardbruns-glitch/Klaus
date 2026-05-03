@@ -1132,6 +1132,43 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
+                # ── Early-entry exits: T-60s sell>0.90 + T-50s unconditional ────
+                # Applies when position was entered with >180s remaining (early window).
+                # Prevents BOND_EXPIRED_UNSOLD on long-hold positions; captures profit
+                # at 0.90 if market hasn't walked to 0.99 yet.
+                _is_early_entry = (
+                    pos.open_ts > 0
+                    and pos.window_end_ts > 0
+                    and (pos.window_end_ts - pos.open_ts) > 180.0
+                )
+                if (_is_early_entry
+                        and bond_remaining <= 60.0
+                        and current_price > 0.90
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'BOND_TIME_EXIT %s/%s | early T-%.0fs bid=%.4f>0.90 — profit capture',
+                        pos.asset, pos.direction.name, bond_remaining, current_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'BOND_TIME_EXIT')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+                if (_is_early_entry
+                        and bond_remaining <= 50.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'BOND_TIME_EXIT %s/%s | early T-%.0fs unconditional bid=%.4f',
+                        pos.asset, pos.direction.name, bond_remaining, current_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'BOND_TIME_EXIT')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── T-5s hard gate: unconditional sell ───────────────────────────
                 if bond_remaining <= 5.0 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
