@@ -1,7 +1,7 @@
 # Klaus — Persistent Context for Claude Code
 
 ## WHAT THE BOT IS DOING RIGHT NOW
-**Strategy: TERMINAL** — buy YES tokens at ask 0.75–0.88 in the final 25–90s of 5m updown windows. Hold to TIME_EXIT at T-1s. Edge: high-probability tokens walking to 1.0 at resolution.
+**Strategy: TERMINAL** — buy YES tokens at ask 0.80–0.92 in the final 25–90s of 5m updown windows. Hold to TIME_EXIT at T-1s. Edge: high-probability tokens walking to 1.0 at resolution.
 
 This is not a simulation. Capital is real. Every parameter change has a dollar cost.
 
@@ -53,8 +53,8 @@ Run before any analysis or code change:
 |---|---|---|
 | Strategy | TERMINAL only | 5m windows, ask 0.84–0.88, 25–90s remaining |
 | BOND_CATASTROPHIC SL | -15% | Executes at avg -27% due to slippage; 97% of triggering positions resolve NO |
-| Ask range | 0.70–0.88 (all assets) | Floor 0.70 (user-set). Lowered 0.84→0.80 2026-04-27: 0.82-0.84 PF=1.03 (n=114); 0.80-0.82 raw PF=0.87 (n=115) wick-adj PF=1.24 |
-| Blocked hours ALL assets | none | All blocks removed 2026-04-27: no hour had n≥100 in 0.80-0.88 range. Prior blocks were on all-price data (different regime). Re-block only at n≥100. |
+| Ask range | 0.80–0.92 (all assets) | Floor raised 0.70→0.75 2026-05-02, 0.75→0.80 2026-05-03 (user instruction). Ceiling extended 0.88→0.92 2026-04-30. |
+| Blocked hours BOND | {0,2,3,4,5,6,7,17,19,23} UTC | Re-enabled 2026-05-03 (user instruction). All of today's losses were in these hours. Applied via bond_blocked_hours_utc in config; non-BOND was already blocked. |
 | BOND stake cap | $10.00 min 5 shares | Raised 4→10 2026-04-29: gates now filter weak entries; worst-case 3-asset window = -$30 |
 | OB imbalance gate | imb ≥ 0.20 | imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67; 66 marginal-imbalance trades lost $22.51 |
 | BOND_CATASTROPHIC wick | 8s confirmation | 34% of BC exits are flash crashes (token recovers in 30s); cancel if price returns above -12% within 8s; bypass at <15s remaining |

@@ -2034,6 +2034,9 @@ class KlausBot:
             remaining = token.window_end_ts - now
             if remaining > 90 or remaining <= 25:
                 continue  # enter with 25-90s remaining; 15-25s WR=20% (n=5)
+            _bond_blocked = getattr(CONFIG.edge, "bond_blocked_hours_utc", [])
+            if not CONFIG.dry_run and _bond_blocked and _utc_hour in _bond_blocked:
+                continue
             _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
@@ -2043,13 +2046,13 @@ class KlausBot:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.92  # extended from 0.88 2026-04-30
-            if ask is None or not (0.75 <= ask <= _ask_max):
+            if ask is None or not (0.80 <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
                     token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min 0.75: raised from 0.70 2026-05-02
+                continue  # min 0.80: raised from 0.75 2026-05-03 (user instruction)
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")

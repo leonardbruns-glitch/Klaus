@@ -98,3 +98,7 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-02 | BUG / ALL | NEG_RISK_LOCK exit failure fixed (execution/order_manager.py) | 17/21 May2 stuck trades caused by: BTC fill locks SOL token as "matched orders" in neg-risk pool; SOL sell retried immediately × 10, all fail in <2s before ~10s settlement clears; fix: detect "matched orders" in CLOB error, sleep 2s, retry; prior "regime halt" proposal was wrong — 84% of stuck losses were this single execution bug, not market regime
 
 ## 2026-05-02 | LOGGING / ALL | EXTERNALLY_SOLD exit_price corrected at resolution | when cascade_sell fails with balance=0 and no fills confirmed, exit_price was recorded as live bid (inaccurate); now flagged exit_price_uncertain=True and _capture_resolution overwrites exit_price/net_pnl/bankroll with PM resolution price when known
+
+## 2026-05-03 ~06:XX UTC | ENTRY / ALL | Min ask raised 0.75→0.80 | User instruction. Floor was raised to 0.75 on 2026-05-02 but CLAUDE.md not updated (showed 0.70). Now 0.80.
+
+## 2026-05-03 ~06:XX UTC | ENTRY / BOND | Blocked hours re-enabled for BOND: {0,2,3,4,5,6,7,17,19,23} UTC | User instruction. BOND was exempt from hour blocking (risk/manager.py explicitly skips BOND). All 19 May 3 trades were in blocked hours. Added check in BOND terminal scanner via bond_blocked_hours_utc config field.
