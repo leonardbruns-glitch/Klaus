@@ -493,10 +493,18 @@ class KlausBot:
             pos = self.risk.open_positions.get(token_id)
             if pos is None or not pos.is_bond or token_id in self._exit_in_progress:
                 return
-            bond_remaining = pos.window_end_ts - time.time() if pos.window_end_ts > 0 else 999.0
             if pos.entry_price <= 0:
                 return
-            # WS mid-trade exits disabled — 2-rule mode (time exit only)
+            if bid_price >= 0.99:
+                self._exit_in_progress.add(token_id)
+                logger.info(
+                    "PROFIT_TARGET(WS) %s/%s | bid=%.4f ep=%.4f",
+                    pos.asset, pos.direction.name, bid_price, pos.entry_price,
+                )
+                try:
+                    await self._exit_position(token_id, bid_price, "PROFIT_TARGET")
+                finally:
+                    self._exit_in_progress.discard(token_id)
         except Exception as exc:
             logger.error("_ws_bond_tp_check error: %s", exc)
 
