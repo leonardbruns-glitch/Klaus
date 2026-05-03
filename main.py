@@ -120,7 +120,7 @@ def _compute_terminal_hour_wr(trades_path: str = "logs/trades.jsonl") -> dict:
                         continue
                     h = _dt.datetime.utcfromtimestamp(float(ts)).hour
                     ht[h] += 1
-                    if float(t.get("net_pnl_actual", 0.0)) > 0:
+                    if float(t.get("net_pnl", 0.0)) > 0:
                         hw[h] += 1
                 except Exception:
                     continue
@@ -129,6 +129,32 @@ def _compute_terminal_hour_wr(trades_path: str = "logs/trades.jsonl") -> dict:
     except Exception as exc:
         logging.getLogger("main").warning("terminal_hour_wr compute failed: %s", exc)
     return {h: hw[h] / ht[h] for h in ht if ht[h] >= _BOND_TOTAL_LOSS_COOLDOWN_MIN_N}
+
+
+_COOLDOWN_STATE_FILE = "logs/cooldown_state.json"
+
+
+def _load_cooldown_state() -> dict:
+    """Load persisted total-loss cooldown timestamps so restarts don't reset them."""
+    try:
+        with open(_COOLDOWN_STATE_FILE) as f:
+            data = json.load(f)
+        now = time.time()
+        # Discard entries that are already past the max cooldown window
+        return {k: v for k, v in data.items()
+                if now - float(v) < _BOND_TOTAL_LOSS_COOLDOWN_S}
+    except Exception:
+        return {}
+
+
+def _save_cooldown_state(state: dict) -> None:
+    """Persist total-loss cooldown timestamps to disk."""
+    try:
+        os.makedirs("logs", exist_ok=True)
+        with open(_COOLDOWN_STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception as exc:
+        logger.warning("Failed to save cooldown state: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +256,7 @@ class KlausBot:
         # Prevents re-entry into the same asset after TP/exit within the same window.
         self._terminal_traded_windows: set = set()
         # Total-loss cooldown: asset → ts of last BOND total loss (resolved NO / expired unsold)
-        self._bond_total_loss_ts: Dict[str, float] = {}
+        self._bond_total_loss_ts: Dict[str, float] = _load_cooldown_state()
         # Hourly WR for TERMINAL trades (computed once at startup from trades.jsonl)
         self._terminal_hour_wr: dict = _compute_terminal_hour_wr()
         # Tokens where TERMINAL TP level has been touched — TP price becomes trail floor.
@@ -455,9 +481,10 @@ class KlausBot:
     def _mark_bond_total_loss(self, asset: str) -> None:
         """Record timestamp of a BOND total loss to arm the re-entry cooldown."""
         self._bond_total_loss_ts[asset] = time.time()
-        logger.info(
-            "BOND_TOTAL_LOSS_COOLDOWN armed %s — up to %dm (reduced to %dm in 90%%+ WR hours)",
-            asset, _BOND_TOTAL_LOSS_COOLDOWN_S // 60, _BOND_TOTAL_LOSS_COOLDOWN_REDUCED_S // 60,
+        _save_cooldown_state(self._bond_total_loss_ts)
+        logger.warning(
+            "BOND_TOTAL_LOSS_COOLDOWN armed %s — %dm cooldown starts now (asset key=%r)",
+            asset, _BOND_TOTAL_LOSS_COOLDOWN_S // 60, asset,
         )
 
     async def _ws_bond_tp_check(self, token_id: str, bid_price: float) -> None:
@@ -1026,32 +1053,7 @@ class KlausBot:
                             "bond_remaining_at_breach_s": _arm["bond_remaining_at_breach_s"],
                         }) + "\n")
 
-                # ── BOND_TRAIL_TP: trailing stop once +10% is reached ────────────
-                # Activates when peak gain ≥ +10%. Trail width = 5% below peak,
-                # locking in at least +5% once activated. Bypasses final 5s
-                # (TIME_EXIT handles the clean exit at T-4s).
-                # TERMINAL only — non-TERMINAL positions exit via LLM targets.
-                _peak_move = self._peak_bond_move.get(token_id, -999.0)
-                if (
-                    getattr(pos, "bond_entry_class", "") == "TERMINAL"
-                    and _peak_move >= 0.10
-                    and bond_move <= _peak_move - 0.05
-                    and bond_remaining > 5.0
-                    and token_id not in self._exit_in_progress
-                ):
-                    self._exit_in_progress.add(token_id)
-                    logger.info(
-                        "BOND_TRAIL_TP %s/%s | peak=%+.1f%% curr=%+.1f%% "
-                        "fell=%.1f%% rem=%.0fs",
-                        pos.asset, pos.direction.name,
-                        _peak_move * 100, bond_move * 100,
-                        (_peak_move - bond_move) * 100, bond_remaining,
-                    )
-                    try:
-                        await self._exit_position(token_id, current_price, "BOND_TRAIL_TP")
-                    finally:
-                        self._exit_in_progress.discard(token_id)
-                    continue
+                # BOND_TRAIL_TP disabled — replaced by fixed +10% TP below
 
                 # ── PAE: Persistent Adverse Exit ─────────────────────────────────
                 # Exit if bid ≥5% below entry for 20 continuous seconds.
@@ -1107,12 +1109,14 @@ class KlausBot:
                         else:
                             self._pae_above_since.pop(token_id, None)
 
-                # ── PROFIT_TARGET: exit at 0.99 (effective max) ──────────────────
-                if current_price >= 0.99 and token_id not in self._exit_in_progress:
+                # ── PROFIT_TARGET: exit at entry × 1.10 (capped at 0.99) ────────
+                _tp_threshold = min(pos.entry_price * 1.10, 0.99)
+                if current_price >= _tp_threshold and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'PROFIT_TARGET %s/%s | bid=%.4f remaining=%.1fs — exit at max',
-                        pos.asset, pos.direction.name, current_price, bond_remaining,
+                        'PROFIT_TARGET %s/%s | bid=%.4f tp=%.4f (ep=%.4f +10%%) remaining=%.1fs',
+                        pos.asset, pos.direction.name, current_price,
+                        _tp_threshold, pos.entry_price, bond_remaining,
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'PROFIT_TARGET')
