@@ -2103,8 +2103,8 @@ class KlausBot:
                 continue  # 15m disabled: WR=56% vs 5m WR=69%; BTC 15m WR=44%
 
             remaining = token.window_end_ts - now
-            if remaining > 90 or remaining <= 25:
-                continue  # enter with 25-90s remaining; 15-25s WR=20% (n=5)
+            if remaining <= 25:
+                continue  # enter with >25s remaining; 15-25s WR=20% (n=5)
             _bond_blocked = getattr(CONFIG.edge, "bond_blocked_hours_utc", [])
             if not CONFIG.dry_run and _bond_blocked and _utc_hour in _bond_blocked:
                 continue
@@ -2134,13 +2134,15 @@ class KlausBot:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.92  # extended from 0.88 2026-04-30
-            if ask is None or not (0.80 <= ask <= _ask_max):
+            _elapsed_s = getattr(token, "window_seconds", 300) - remaining
+            _ask_floor = 0.52 if _elapsed_s < 120 else 0.80
+            if ask is None or not (_ask_floor <= ask <= _ask_max):
                 logger.info(
-                    "[BOND] ask_skip %s/%s ask=%s rem=%.0fs",
-                    token.asset, token.side, f"{ask:.4f}" if ask else "None", remaining,
+                    "[BOND] ask_skip %s/%s ask=%s floor=%.2f rem=%.0fs",
+                    token.asset, token.side, f"{ask:.4f}" if ask else "None", _ask_floor, remaining,
                 )
                 _b_ask_skip += 1
-                continue  # min 0.80: raised from 0.75 2026-05-03 (user instruction)
+                continue
 
             cid = getattr(token, "condition_id", "") or ""
             _token_dir  = getattr(token, "outcome_direction", "up")
@@ -2394,7 +2396,8 @@ class KlausBot:
                 continue
 
             # snap60 < 12%: weak pre-entry momentum → 55% WR (n=22, Apr28-29 2d sim)
-            if _snap60_val < 12.0:
+            # 0.0 = reference not captured (early-window entries or logging gap) — exempt
+            if _snap60_val != 0.0 and _snap60_val < 12.0:
                 logger.info(
                     "[BOND] snap60_low %s/%s | snap60=%.1f%% snap30=%.1f%% — no momentum",
                     token.asset, token.side, _snap60_val, _snap30_val,
