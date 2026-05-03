@@ -257,6 +257,10 @@ class KlausBot:
         self._terminal_traded_windows: set = set()
         # Total-loss cooldown: asset → ts of last BOND total loss (resolved NO / expired unsold)
         self._bond_total_loss_ts: Dict[str, float] = _load_cooldown_state()
+        # Regime cooldown: global BOND entry pause after heavy single loss or back-to-back losses.
+        # Tier 1: single loss <= -$7 → 5m pause. Tier 2: 2nd loss <= -$5 in 30m → 10m pause.
+        self._regime_cooldown_until: float = 0.0
+        self._last_regime_loss_ts: float = 0.0
         # Hourly WR for TERMINAL trades (computed once at startup from trades.jsonl)
         self._terminal_hour_wr: dict = _compute_terminal_hour_wr()
         # Tokens where TERMINAL TP level has been touched — TP price becomes trail floor.
@@ -2172,6 +2176,13 @@ class KlausBot:
                             _utc_hour, _tl_wr * 100, _tl_limit // 60,
                         )
                         continue
+            # Regime cooldown: pause all BOND entries after heavy loss or back-to-back losses.
+            if not CONFIG.dry_run and now < self._regime_cooldown_until:
+                logger.info(
+                    "[BOND] regime_cooldown %s — %.0fs remaining",
+                    token.asset, self._regime_cooldown_until - now,
+                )
+                continue
             _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
@@ -4865,6 +4876,27 @@ class KlausBot:
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
+
+            # Regime cooldown arming (BOND only, live only).
+            if pos.is_bond and not CONFIG.dry_run and net_pnl is not None:
+                _rc_now = time.time()
+                if net_pnl <= -7.0:
+                    # Tier 1: single heavy loss (≥70% of stake) → 5m pause.
+                    self._regime_cooldown_until = max(self._regime_cooldown_until, _rc_now + 300)
+                    logger.warning(
+                        "[BOND] REGIME_COOLDOWN T1 armed — net_pnl=%.2f, 5m pause until %s",
+                        net_pnl, time.strftime("%H:%M:%S", time.gmtime(self._regime_cooldown_until)),
+                    )
+                if net_pnl <= -5.0:
+                    # Tier 2: back-to-back losses (2nd ≤-$5 in 30m) → 10m pause.
+                    if self._last_regime_loss_ts > 0 and (_rc_now - self._last_regime_loss_ts) <= 1800:
+                        self._regime_cooldown_until = max(self._regime_cooldown_until, _rc_now + 600)
+                        logger.warning(
+                            "[BOND] REGIME_COOLDOWN T2 armed — 2nd loss=%.2f in %.0fs, 10m pause until %s",
+                            net_pnl, _rc_now - self._last_regime_loss_ts,
+                            time.strftime("%H:%M:%S", time.gmtime(self._regime_cooldown_until)),
+                        )
+                    self._last_regime_loss_ts = _rc_now
 
         self._open_meta.pop(token_id, None)
         self._pos_log_ts.pop(token_id, None)
