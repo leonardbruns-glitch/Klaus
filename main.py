@@ -111,19 +111,19 @@ def _compute_terminal_hour_wr(trades_path: str = "logs/trades.jsonl") -> dict:
             for line in f:
                 try:
                     t = json.loads(line)
+                    if not t.get("is_live"):
+                        continue
+                    if t.get("bond_entry_class") != "TERMINAL":
+                        continue
+                    ts = t.get("ts_open", 0)
+                    if not ts:
+                        continue
+                    h = _dt.datetime.utcfromtimestamp(float(ts)).hour
+                    ht[h] += 1
+                    if float(t.get("net_pnl_actual", 0.0)) > 0:
+                        hw[h] += 1
                 except Exception:
                     continue
-                if not t.get("is_live"):
-                    continue
-                if t.get("bond_entry_class") != "TERMINAL":
-                    continue
-                ts = t.get("ts_open", 0)
-                if not ts:
-                    continue
-                h = _dt.datetime.utcfromtimestamp(float(ts)).hour
-                ht[h] += 1
-                if float(t.get("net_pnl_actual", 0.0)) > 0:
-                    hw[h] += 1
     except FileNotFoundError:
         pass
     except Exception as exc:
@@ -453,9 +453,12 @@ class KlausBot:
             await asyncio.sleep(CONFIG.execution.ob_scan_interval)
 
     def _mark_bond_total_loss(self, asset: str) -> None:
-        """Record timestamp of a BOND total loss to arm the 20-min re-entry cooldown."""
+        """Record timestamp of a BOND total loss to arm the re-entry cooldown."""
         self._bond_total_loss_ts[asset] = time.time()
-        logger.info("BOND_TOTAL_LOSS_COOLDOWN armed %s — %dm cooldown", asset, _BOND_TOTAL_LOSS_COOLDOWN_S // 60)
+        logger.info(
+            "BOND_TOTAL_LOSS_COOLDOWN armed %s — up to %dm (reduced to %dm in 90%%+ WR hours)",
+            asset, _BOND_TOTAL_LOSS_COOLDOWN_S // 60, _BOND_TOTAL_LOSS_COOLDOWN_REDUCED_S // 60,
+        )
 
     async def _ws_bond_tp_check(self, token_id: str, bid_price: float) -> None:
         """Instant BOND TP triggered by WS BBO update — no 1s scan delay."""
