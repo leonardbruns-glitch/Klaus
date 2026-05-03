@@ -1642,7 +1642,14 @@ class KlausBot:
                     # for RUNNER. Total stake target = base × multiplier; add-on
                     # capital = (multiplier − 1) × base. One-shot: structure_state
                     # presence in _open_meta gates re-evaluation.
-                    _scale_mult = 1.0  # runner scale disabled — initial stake only
+                    if structure_state == "DEAD_DRIFT":
+                        _scale_mult = 1.0
+                    elif structure_state == "RUNNER" and runner_conf > 0.90:
+                        _scale_mult = 2.0
+                    elif structure_state == "RUNNER" and runner_conf > 0.75:
+                        _scale_mult = 1.5
+                    else:
+                        _scale_mult = 1.0
                     scale_tier = f"{_scale_mult:.1f}x"
 
                     _open_meta_t["structure_state"] = structure_state
