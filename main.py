@@ -1109,14 +1109,13 @@ class KlausBot:
                         else:
                             self._pae_above_since.pop(token_id, None)
 
-                # ── PROFIT_TARGET: exit at entry × 1.10 OR at 0.99 (max outcome) ─
-                _tp_threshold = pos.entry_price * 1.10
-                if (current_price >= _tp_threshold or current_price >= 0.99) and token_id not in self._exit_in_progress:
+                # ── PROFIT_TARGET: exit at bid ≥ 0.99 ───────────────────────────
+                if current_price >= 0.99 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'PROFIT_TARGET %s/%s | bid=%.4f tp=%.4f (ep=%.4f +10%%) remaining=%.1fs',
+                        'PROFIT_TARGET %s/%s | bid=%.4f ep=%.4f remaining=%.1fs',
                         pos.asset, pos.direction.name, current_price,
-                        _tp_threshold, pos.entry_price, bond_remaining,
+                        pos.entry_price, bond_remaining,
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'PROFIT_TARGET')
