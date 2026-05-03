@@ -2383,45 +2383,45 @@ class KlausBot:
             if _term_ask_stale_s >= 4.0:
                 continue
 
-            # entry_snap_60s gate: token falling before entry = genuine weakness
-            # snap60<0: WR=32.5% (n=65); snap60<-20%: WR=25% (n=32). Both applied.
-            # 0.0 means reference not captured — skip gate to avoid false blocks.
+            # entry_snap_60s / snap30 gates: when window-anchored refs not set yet
+            # (early-window entries before remaining crosses 150s/120s), fall back to
+            # rolling tok_d60 / tok_d30 as proxy — same thresholds applied either way.
             _snap60_val = signal.term_pre_snap_60s
             _snap30_val = signal.term_pre_snap_30s
-            if _snap60_val != 0.0 and _snap60_val < 0.0:
+            _snap60_eff = _snap60_val if _snap60_val != 0.0 else _term_tok_d60
+            _snap30_eff = _snap30_val if _snap30_val != 0.0 else _term_tok_d30
+
+            if _snap60_eff < 0.0:
                 logger.info(
-                    "[BOND] snap60_skip %s/%s | snap60=%.1f%% — token falling pre-entry",
-                    token.asset, token.side, _snap60_val,
+                    "[BOND] snap60_skip %s/%s | snap60_eff=%.1f%% — token falling pre-entry",
+                    token.asset, token.side, _snap60_eff,
                 )
                 continue
 
             # snap60 < 12%: weak pre-entry momentum → 55% WR (n=22, Apr28-29 2d sim)
-            # 0.0 = reference not captured (early-window entries or logging gap) — exempt
-            if _snap60_val != 0.0 and _snap60_val < 12.0:
+            if _snap60_eff < 12.0:
                 logger.info(
-                    "[BOND] snap60_low %s/%s | snap60=%.1f%% snap30=%.1f%% — no momentum",
-                    token.asset, token.side, _snap60_val, _snap30_val,
+                    "[BOND] snap60_low %s/%s | snap60_eff=%.1f%% snap30_eff=%.1f%% — no momentum",
+                    token.asset, token.side, _snap60_eff, _snap30_eff,
                 )
                 _b_mom_skip += 1
                 continue
 
             # snap30 gate: allow [10%, 120%) only — terminal era sweet spot
             # <10%: net negative across all sub-buckets (n=1461); ≥120%: avg-loss > avg-win (n=33)
-            # 0.0 = reference not captured, exempt to avoid false blocks
-            if _snap30_val != 0.0 and not (10.0 <= _snap30_val < 120.0):
+            if not (10.0 <= _snap30_eff < 120.0):
                 logger.info(
-                    "[BOND] snap30_gate %s/%s | snap30=%.1f%% — outside [10,120) range",
-                    token.asset, token.side, _snap30_val,
+                    "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10,120) range",
+                    token.asset, token.side, _snap30_eff,
                 )
                 _b_mom_skip += 1
                 continue
 
             # snap60 ≥ 120%: overbought zone — WR=62.5% net+$8.69 sim (n=16, user-auth Tier2 2026-05-02)
-            # supersedes prior >150%+fresh gate (that zone is a subset of this)
-            if _snap60_val >= 120.0:
+            if _snap60_eff >= 120.0:
                 logger.info(
-                    "[BOND] snap60_overbought %s/%s | snap60=%.1f%% — extreme momentum skip",
-                    token.asset, token.side, _snap60_val,
+                    "[BOND] snap60_overbought %s/%s | snap60_eff=%.1f%% — extreme momentum skip",
+                    token.asset, token.side, _snap60_eff,
                 )
                 _b_mom_skip += 1
                 continue
