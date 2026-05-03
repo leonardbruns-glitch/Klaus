@@ -2517,8 +2517,9 @@ class KlausBot:
                 )
                 _b_mom_skip += 1
                 continue
-            # ETH: flat tok_d30 [0,2%): n=26 WR=38% net=-$92; negative tok_d OK (WR=69%)
-            if token.asset == "ETH" and 0.0 <= _term_tok_d30 < 2.0:
+            # ETH: flat tok_d30 (0,2%): n=26 WR=38% net=-$92; negative tok_d OK (WR=69%)
+            # 0.0 = not captured (logging gap) — exempt to avoid false blocks
+            if token.asset == "ETH" and 0.0 < _term_tok_d30 < 2.0:
                 logger.info(
                     "[BOND] eth_tokd30_skip %s/%s | tok_d30=%.1f%% — ETH flat momentum [0,2) skip",
                     token.asset, token.side, _term_tok_d30,
