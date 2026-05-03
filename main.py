@@ -92,6 +92,46 @@ logger = logging.getLogger("main")
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
+# BOND total-loss cooldown helpers
+# ---------------------------------------------------------------------------
+
+_BOND_TOTAL_LOSS_COOLDOWN_S         = 20 * 60  # 20 min base
+_BOND_TOTAL_LOSS_COOLDOWN_REDUCED_S = 10 * 60  # 10 min in high-WR hours
+_BOND_TOTAL_LOSS_COOLDOWN_MIN_N     = 20        # min trades per hour to trust WR
+
+
+def _compute_terminal_hour_wr(trades_path: str = "logs/trades.jsonl") -> dict:
+    """Per-UTC-hour WR for live TERMINAL trades — used to reduce total-loss cooldown."""
+    import datetime as _dt
+    from collections import defaultdict as _dd
+    hw: dict = _dd(int)
+    ht: dict = _dd(int)
+    try:
+        with open(trades_path) as f:
+            for line in f:
+                try:
+                    t = json.loads(line)
+                except Exception:
+                    continue
+                if not t.get("is_live"):
+                    continue
+                if t.get("bond_entry_class") != "TERMINAL":
+                    continue
+                ts = t.get("ts_open", 0)
+                if not ts:
+                    continue
+                h = _dt.datetime.utcfromtimestamp(float(ts)).hour
+                ht[h] += 1
+                if float(t.get("net_pnl_actual", 0.0)) > 0:
+                    hw[h] += 1
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        logging.getLogger("main").warning("terminal_hour_wr compute failed: %s", exc)
+    return {h: hw[h] / ht[h] for h in ht if ht[h] >= _BOND_TOTAL_LOSS_COOLDOWN_MIN_N}
+
+
+# ---------------------------------------------------------------------------
 # Bot
 # ---------------------------------------------------------------------------
 
@@ -189,6 +229,10 @@ class KlausBot:
         # Per-window TERMINAL dedup: set of (asset, window_end_ts_rounded) already traded.
         # Prevents re-entry into the same asset after TP/exit within the same window.
         self._terminal_traded_windows: set = set()
+        # Total-loss cooldown: asset → ts of last BOND total loss (resolved NO / expired unsold)
+        self._bond_total_loss_ts: Dict[str, float] = {}
+        # Hourly WR for TERMINAL trades (computed once at startup from trades.jsonl)
+        self._terminal_hour_wr: dict = _compute_terminal_hour_wr()
         # Tokens where TERMINAL TP level has been touched — TP price becomes trail floor.
         self._terminal_tp_touched: set = set()
         # Per-token ask price history for pre-entry trajectory: {token_id: deque[(ts, ask)]}
@@ -408,6 +452,11 @@ class KlausBot:
                 logger.error("OB scan error: %s", exc)
             await asyncio.sleep(CONFIG.execution.ob_scan_interval)
 
+    def _mark_bond_total_loss(self, asset: str) -> None:
+        """Record timestamp of a BOND total loss to arm the 20-min re-entry cooldown."""
+        self._bond_total_loss_ts[asset] = time.time()
+        logger.info("BOND_TOTAL_LOSS_COOLDOWN armed %s — %dm cooldown", asset, _BOND_TOTAL_LOSS_COOLDOWN_S // 60)
+
     async def _ws_bond_tp_check(self, token_id: str, bid_price: float) -> None:
         """Instant BOND TP triggered by WS BBO update — no 1s scan delay."""
         try:
@@ -455,6 +504,7 @@ class KlausBot:
                             _bs_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
                             _pnl = self.risk.close_position(token_id, 0.0, "BOND_SETTLED")
+                            self._mark_bond_total_loss(pos.asset)
                             if _pnl is not None:
                                 _bs_sig = _bs_meta.get("signal") or SignalBreakdown(
                                     direction=pos.direction, entry_price=pos.entry_price,
@@ -1084,6 +1134,7 @@ class KlausBot:
                             _wo_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
                             _wo_pnl = self.risk.close_position(token_id, 0.0, "BOND_RESOLVED_NO")
+                            self._mark_bond_total_loss(pos.asset)
                             if _wo_pnl is not None:
                                 _wo_sig = _wo_meta.get("signal") or SignalBreakdown(
                                     direction=pos.direction, entry_price=pos.entry_price,
@@ -2037,6 +2088,23 @@ class KlausBot:
             _bond_blocked = getattr(CONFIG.edge, "bond_blocked_hours_utc", [])
             if not CONFIG.dry_run and _bond_blocked and _utc_hour in _bond_blocked:
                 continue
+            # Total-loss cooldown: skip for 20 min after a NO resolution / expired-unsold.
+            # Reduced to 10 min if current hour has ≥90% WR (n≥20) in historical TERMINAL data.
+            if not CONFIG.dry_run:
+                _tl_ts = self._bond_total_loss_ts.get(token.asset, 0.0)
+                if _tl_ts > 0:
+                    _tl_elapsed = now - _tl_ts
+                    _tl_wr = self._terminal_hour_wr.get(_utc_hour, 0.0)
+                    _tl_limit = (_BOND_TOTAL_LOSS_COOLDOWN_REDUCED_S if _tl_wr >= 0.90
+                                 else _BOND_TOTAL_LOSS_COOLDOWN_S)
+                    if _tl_elapsed < _tl_limit:
+                        logger.info(
+                            "[BOND] total_loss_cooldown %s — %.0fs remaining "
+                            "(h%02d wr=%.0f%% limit=%dm)",
+                            token.asset, _tl_limit - _tl_elapsed,
+                            _utc_hour, _tl_wr * 100, _tl_limit // 60,
+                        )
+                        continue
             _b_in_window += 1
 
             ob = self.feed.get_order_book(token_id)
@@ -3994,6 +4062,7 @@ class KlausBot:
                     _g1_bid, _g1_ask, _g1_price,
                 )
                 _g1_pnl  = self.risk.close_position(token_id, _g1_price, "BOND_EXPIRED_UNSOLD")
+                self._mark_bond_total_loss(pos.asset)
                 _g1_meta = self._open_meta.pop(token_id, {})
                 # Pop analytics data before cleanup so record_trade can use them
                 _g1_snaps = self._entry_snaps.pop(token_id, {})
