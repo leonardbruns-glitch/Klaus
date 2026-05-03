@@ -2178,6 +2178,60 @@ class KlausBot:
             if _term_imb < 0.20:
                 continue  # imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67 (n=300)
 
+            # ── Dead-zone / volatility filters ─────────────────────────────────
+            # All three read from closed kline buffers (populated by WS, not REST).
+            # Gates default OFF (threshold=0) — logged always; block only when enabled.
+            _dz = CONFIG.dead_zone
+            _dz_range = self.feed.get_60m_range_usd(token.asset)
+            _dz_er    = self.feed.get_er(token.asset, n=14)
+            _dz_atr   = self.feed.get_atr_ratio(token.asset)
+
+            # Dynamic range threshold: use % of spot if configured, else fixed USD.
+            _range_thresh = 0.0
+            if _dz.range_use_pct and _spot_now > 0:
+                _range_thresh = _spot_now * _dz.range_pct_of_price
+            elif _dz.range_min_usd > 0:
+                _range_thresh = _dz.range_min_usd
+
+            _dz_range_block = (
+                _range_thresh > 0 and _dz_range > 0 and _dz_range < _range_thresh
+            )
+            _dz_er_block  = _dz.er_min > 0 and _dz_er < _dz.er_min
+            _dz_atr_block = _dz.atr_spike_ratio > 0 and _dz_atr > _dz.atr_spike_ratio
+
+            logger.info(
+                "[BOND] dead_zone %s/%s | range_60m=%.1f(thr=%.0f,blk=%s)"
+                " er=%.3f(min=%.2f,blk=%s) atr_ratio=%.2f(max=%.1f,blk=%s)",
+                token.asset, token.side,
+                _dz_range, _range_thresh, _dz_range_block,
+                _dz_er, _dz.er_min, _dz_er_block,
+                _dz_atr, _dz.atr_spike_ratio, _dz_atr_block,
+            )
+
+            if _dz_range_block:
+                logger.info(
+                    "[BOND] dead_zone_range_skip %s/%s | 60m_range=%.1f < %.0f — flat market",
+                    token.asset, token.side, _dz_range, _range_thresh,
+                )
+                _b_mom_skip += 1
+                continue
+
+            if _dz_er_block:
+                logger.info(
+                    "[BOND] dead_zone_er_skip %s/%s | er=%.3f < %.2f — choppy/directionless",
+                    token.asset, token.side, _dz_er, _dz.er_min,
+                )
+                _b_mom_skip += 1
+                continue
+
+            if _dz_atr_block:
+                logger.info(
+                    "[BOND] dead_zone_atr_skip %s/%s | atr_ratio=%.2f > %.1f — volatility spike",
+                    token.asset, token.side, _dz_atr, _dz.atr_spike_ratio,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Binance momentum (both-rising) gate removed: n=43, below n=100 threshold.
             # Data is still logged (term_binance_1m_pct, term_binance_5m_pct) for accumulation.
 

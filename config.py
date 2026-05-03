@@ -292,6 +292,37 @@ class SignalGatesConfig:
 
 
 @dataclass
+class DeadZoneConfig:
+    """
+    Flat-market / volatility filters for TERMINAL entries.
+    All thresholds default to 0.0 (disabled). Enable after reviewing logs.
+
+    How to read the log fields (all prefixed term_dz_):
+      term_dz_range_usd   — 60-min BTC H-L range in USD
+      term_dz_er          — Kaufman ER (0=chop, 1=clean trend)
+      term_dz_atr_ratio   — current 15-min ATR / 4h baseline ATR
+
+    Enable a gate by setting the threshold to a non-zero value in this config.
+    Recommended starting values once n≥100: range_min_usd=50, er_min=0.25, atr_spike_ratio=1.5
+    """
+    # Minimum 60-min spot H-L range (USD). Skip if BTC < this (flat/dead market).
+    # Dynamic alternative: set range_pct_of_price=0.001 and range_use_pct=True
+    # for 0.1% of spot price (≈$100 at BTC=$100k), which scales with price.
+    range_min_usd: float = 0.0           # 0 = disabled
+    range_pct_of_price: float = 0.001    # 0.1% of spot — used only when range_use_pct=True
+    range_use_pct: bool = False          # if True, use pct threshold instead of fixed USD
+
+    # Kaufman Efficiency Ratio minimum (14-period 1m closes).
+    # Below this = price is chopping, not trending. 0 = disabled.
+    er_min: float = 0.0                  # 0 = disabled; suggested 0.25 after validation
+
+    # Relative ATR spike ratio. If current 15-min ATR > ratio × 4h baseline, skip.
+    # Protects against whipsaw conditions (high spreads, rapid reversals).
+    # 0.0 = disabled; >0 enables the gate.
+    atr_spike_ratio: float = 0.0         # 0 = disabled; suggested 1.5 after validation
+
+
+@dataclass
 class AnalyticsConfig:
     log_dir: str = "logs"
     trade_log: str = "logs/trades.jsonl"
@@ -311,6 +342,7 @@ class KlausConfig:
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
     edge: EdgeConfig = field(default_factory=EdgeConfig)
     signal_gates: SignalGatesConfig = field(default_factory=SignalGatesConfig)
+    dead_zone: DeadZoneConfig = field(default_factory=DeadZoneConfig)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     # Accepts old-bot naming (PRIVATE_KEY / FUNDER_ADDRESS) or Klaus naming.

@@ -360,6 +360,20 @@ class PolymarketFeed:
             "ETH": deque(maxlen=300),
             "SOL": deque(maxlen=300),
         }
+        # ── Volatility / dead-zone buffers ───────────────────────────────────
+        # 5m OHLCV history (H, L, C) for closed candles — maxlen=48 = 4h baseline.
+        # Populated when a 5m kline closes (is_closed=True).
+        self._5m_ohlcv_buf: Dict[str, deque] = {
+            "BTC": deque(maxlen=48),
+            "ETH": deque(maxlen=48),
+            "SOL": deque(maxlen=48),
+        }
+        # 1m close history for Kaufman ER — maxlen=21 covers 20-period ER.
+        self._1m_close_buf: Dict[str, deque] = {
+            "BTC": deque(maxlen=21),
+            "ETH": deque(maxlen=21),
+            "SOL": deque(maxlen=21),
+        }
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -854,6 +868,7 @@ class PolymarketFeed:
                                         # Only update prev when candle actually closes
                                         if is_closed:
                                             self._spot_prev_1m[asset] = close
+                                            self._1m_close_buf[asset].append(close)
                                         # Periodic price health log every 30s
                                         if now_ts - _last_price_log > 30 and asset == "BTC":
                                             _last_price_log = now_ts
@@ -872,6 +887,10 @@ class PolymarketFeed:
                                         self._kline_open_ts[asset] = now_ts
                                         if is_closed:
                                             self._spot_prev_5m[asset] = close
+                                            _h5 = float(k.get("h", 0) or 0)
+                                            _l5 = float(k.get("l", 0) or 0)
+                                            if _h5 > 0 and _l5 > 0:
+                                                self._5m_ohlcv_buf[asset].append((_h5, _l5, close))
 
                                     elif interval == "15m":
                                         self._spot_open_15m[asset] = open_
@@ -1835,6 +1854,43 @@ class PolymarketFeed:
     def get_bars_15m(self, token_id: str, n: int = 20) -> List[Bar]:
         builder = self.bar_builders_15m.get(token_id)
         return builder.get_bars(n) if builder else []
+
+    def get_60m_range_usd(self, asset: str) -> float:
+        """High-Low range over last 12 closed 5m bars (~60 min). 0.0 if < 3 bars."""
+        buf = self._5m_ohlcv_buf.get(asset.upper())
+        if not buf or len(buf) < 3:
+            return 0.0
+        recent = list(buf)[-12:]
+        return round(max(h for h, l, c in recent) - min(l for h, l, c in recent), 2)
+
+    def get_er(self, asset: str, n: int = 14) -> float:
+        """
+        Kaufman Efficiency Ratio over last n closed 1m bars.
+        ER = |net_move| / sum(|bar_changes|). Near 1 = clean trend, near 0 = chop.
+        Returns 1.0 (don't block) when fewer than n+1 bars are available.
+        """
+        buf = self._1m_close_buf.get(asset.upper())
+        if not buf or len(buf) < n + 1:
+            return 1.0
+        prices = list(buf)[-(n + 1):]
+        net = abs(prices[-1] - prices[0])
+        noise = sum(abs(prices[i] - prices[i - 1]) for i in range(1, len(prices)))
+        return round(net / noise, 4) if noise > 0 else 1.0
+
+    def get_atr_ratio(self, asset: str, current_bars: int = 3, baseline_bars: int = 48) -> float:
+        """
+        Recent ATR / baseline ATR ratio using closed 5m candles.
+        current_bars: last N 5m bars for 'current' ATR (default 3 = 15 min).
+        baseline_bars: full buffer depth for baseline ATR (default 48 = 4h).
+        Returns 1.0 (don't block) when fewer than current_bars+2 candles available.
+        """
+        buf = self._5m_ohlcv_buf.get(asset.upper())
+        if not buf or len(buf) < current_bars + 2:
+            return 1.0
+        bars = list(buf)
+        recent_atr = sum(h - l for h, l, c in bars[-current_bars:]) / current_bars
+        baseline_atr = sum(h - l for h, l, c in bars) / len(bars)
+        return round(recent_atr / baseline_atr, 4) if baseline_atr > 0 else 1.0
 
     def get_order_book(self, token_id: str) -> Optional[OrderBook]:
         return self.order_books.get(token_id)
