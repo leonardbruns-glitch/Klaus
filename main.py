@@ -2972,6 +2972,7 @@ class KlausBot:
             "term_token_delta_30s", "term_token_delta_60s",
             "term_pre_snap_60s", "term_pre_snap_30s", "term_pre_snap_open",
             "term_rsi", "term_ask_vwap",
+            "bond_has_hist", "bond_accel_sustained", "bond_outcome_direction",
         ]
         _sig_snapshot = {f: getattr(signal, f, None) for f in _term_fields}
         try:
