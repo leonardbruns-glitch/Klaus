@@ -4058,7 +4058,10 @@ class KlausBot:
             _ext_meta = self._open_meta.pop(token_id, {})
             self._pos_log_ts.pop(token_id, None)
             self._dir_rev_count.pop(token_id, None)
-            self._entry_snaps.pop(token_id, None)
+            _ext_snaps      = self._entry_snaps.pop(token_id, {})
+            _ext_traj_mfe   = self._traj_mfe.pop(token_id, {})
+            _ext_traj_mae   = self._traj_mae.pop(token_id, {})
+            _ext_price_t10s = self._price_at_t10s.pop(token_id, None)
             self._sl_below_count.pop(token_id, None)
             self._stall_checked.discard(token_id)
             self._peak_bond_move.pop(token_id, None)
@@ -4070,9 +4073,6 @@ class KlausBot:
             self._early_chop_count.pop(token_id, None)
             self._peak_breach_ts.pop(token_id, None)
             self._zombie_flag_ts.pop(token_id, None)
-            self._traj_mfe.pop(token_id, None)
-            self._traj_mae.pop(token_id, None)
-            self._price_at_t10s.pop(token_id, None)
             self._terminal_tp_touched.discard(token_id)
             if pnl is not None:
                 _signal = _ext_meta.get("signal")
@@ -4089,6 +4089,17 @@ class KlausBot:
                 # exit_reason = real trigger (STOP_LOSS / PROFIT_1 / HARD_EXIT / etc.)
                 # with _EXT suffix to flag that the position was already gone at sell time
                 _logged_reason = f"{reason}_EXT" if reason != "EXTERNALLY_SOLD" else "EXTERNALLY_SOLD"
+                _ext_s30 = _ext_snaps.get(30, 0.0)
+                _ext_s60 = _ext_snaps.get(60, 0.0)
+                _ext_r30 = (_ext_s30 - pos.entry_price) / pos.entry_price * 100 if pos.entry_price > 0 and _ext_s30 > 0 else None
+                _ext_r60 = (_ext_s60 - pos.entry_price) / pos.entry_price * 100 if pos.entry_price > 0 and _ext_s60 > 0 else None
+                _ext_path_cls, _ext_path_conf, _ext_path_rsn = _classify_path(
+                    pos.entry_price, pos.highest_price, pos.lowest_price,
+                    _ext_traj_mfe, _ext_traj_mae,
+                    _ext_r30, _ext_r60,
+                    pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
+                    time.time() - pos.open_ts,
+                )
                 try:
                     self.analytics.record_trade(
                         token_id=token_id,
@@ -4152,6 +4163,16 @@ class KlausBot:
                         term_rsi=float(getattr(_signal, "term_rsi", 0.0) or 0.0),
                         term_ask_vwap=float(getattr(_signal, "term_ask_vwap", 0.0) or 0.0),
                         exit_price_uncertain=_exit_price_uncertain,
+                        traj_mfe_10s=float(_ext_traj_mfe.get(10, 0.0)),
+                        traj_mae_10s=float(_ext_traj_mae.get(10, 0.0)),
+                        traj_mfe_30s=float(_ext_traj_mfe.get(30, 0.0)),
+                        traj_mae_30s=float(_ext_traj_mae.get(30, 0.0)),
+                        price_at_t10s=_ext_price_t10s,
+                        entry_snap_30s_pct=pos.entry_snap_30s_pct,
+                        entry_snap_60s_pct=pos.entry_snap_60s_pct,
+                        path_class=_ext_path_cls,
+                        path_confidence=_ext_path_conf,
+                        path_reason=_ext_path_rsn,
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
