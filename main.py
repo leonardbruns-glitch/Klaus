@@ -749,7 +749,8 @@ class KlausBot:
                 # Trigger: fav ≥ 25% (peak gain from entry), adv < 8% (clean run —
                 # no significant wick), drawdown from peak ≤ 20% (still near high).
                 # Stake = original stake (same size). One-shot per trade.
-                if (not pos.scale_in_done
+                if (False  # SCALE_IN disabled — need n≥100 BOND scale-in samples to evaluate
+                        and not pos.scale_in_done
                         and 20.0 <= _held_s <= 75.0
                         and bond_remaining >= 45.0
                         and pos.entry_price > 0
