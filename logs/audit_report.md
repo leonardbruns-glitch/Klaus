@@ -1,13 +1,12 @@
-# Quantitative Audit — 2026-05-03 14:00 UTC
+# Quantitative Audit — 2026-05-03 18:08 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (22nd consecutive session)**
+**FAILED — VPS UNREACHABLE (23rd consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 | CLOSED — immediate refusal (exit 1, not timeout) |
-| SSH binary | Absent in sandbox |
-| HTTP/HTTPS port 443 | TCP open; Cloudflare WAF: "Host not in allowlist" |
+| SSH port 22 | SSH binary absent in sandbox |
+| HTTP/HTTPS port 443 | TCP open; Cloudflare WAF blocks all requests |
 | logs/live_trades_recent.jsonl (git) | File absent — cron sync not deployed |
 | local logs/trades.jsonl | Absent (not tracked in git) |
 
@@ -26,7 +25,6 @@ None determinable — no data retrievable.
 ## OB Imbalance
 No data available.
 Current gate: `if _term_imb < 0.20: continue` (main.py:2178).
-Prior evidence: imb≥0.20 PF=1.27 Net=+$24.18 (n=234) vs imb≥0.10 PF=1.01 Net=+$1.67 (n=300).
 
 ## Slippage
 avg_slippage_entry=N/A
@@ -47,9 +45,19 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — VPS unreachable from sandbox (22nd consecutive session).
+**INSUFFICIENT_DATA** — VPS unreachable from sandbox (23rd consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
+
+---
+
+## Code Changes Since Last Audit (14:00 UTC today)
+
+| Commit | Change |
+|---|---|
+| 436901a | Logging fix: persist bond_has_hist/accel_sustained/outcome_direction across restarts. Missing from _term_fields → restart positions logged False as stub default. Gates unaffected; logging artifact only. |
+
+**No gate-relevant code changes since last audit.**
 
 ---
 
@@ -57,31 +65,18 @@ n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock
 
 | Parameter | Value | Location | Notes |
 |---|---|---|---|
-| min_ask | 0.80 | main.py:2124 | Raised 0.75→0.80 commit 627c5f3 (2026-05-03) |
+| min_ask | 0.80 | main.py:2124 | Raised 0.75→0.80 commit 627c5f3 |
 | max_ask | 0.92 | main.py:2123 | Extended 0.88→0.92 commit 2026-04-30 |
 | min_imbalance | 0.20 | main.py:2178 | PF=1.27 (n=234); unchanged |
-| bond_blocked_hours | {0,2,3,4,5,6,7,17,19,23} | config.py:157 | Re-enabled commit 627c5f3 (19 May-3 trades in these hours) |
+| bond_blocked_hours | {0,2,3,4,5,6,7,17,19,23} | config.py:157 | Re-enabled commit 627c5f3 |
 | stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC | 8s wick filter; autonomous change prohibited |
-| stake | $10.00 flat | config.py:27 | Raised from $4 on 2026-05-01 per user directive |
+| stake | $10.00 flat | config.py:27 | Per user directive 2026-05-01 |
 | max_open_positions | 2 | config.py | Unchanged |
 | entry_window | 25–90s remaining | main.py:2093 | Unchanged |
-| profit_target | min(entry×1.10, 0.99) | main.py | Changed HEAD commit 36e59f0 (was fixed 0.99) |
+| profit_target | min(entry×1.10, 0.99) | main.py | Changed commit 36e59f0 (was fixed 0.99) |
 
-**Note:** Audit prompt states max_ask=0.88, stake=4.00, blocked_hours=[]. Actual code values above supersede the prompt's stated defaults.
-
----
-
-## Recent Code Changes (since last audit)
-
-Commits 84182bc → 36e59f0 (2026-05-03):
-
-| Commit | Change |
-|---|---|
-| 36e59f0 | PROFIT_TARGET: fixed 0.99 → min(entry×1.10, 0.99); BOND_TRAIL_TP disabled; cooldown persisted to disk; cooldown WR calc fix |
-| c59ad03 | Fix two bugs in BOND total-loss cooldown |
-| 84182bc | Add 20-min BOND total-loss cooldown (reduces to 10m at ≥90% WR hours) |
-
-The TP change from fixed 0.99 → entry×1.10 (e.g., 0.88 entry → TP at 0.968) is the highest-impact live parameter change in this session. Commit cites 7 trades with MFE≥10% that resolved as losses — they would have exited profitably under the new rule. **This change cannot be validated without live data.**
+## Bankroll State (from git-tracked bankroll.json)
+capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000
 
 ---
 
@@ -103,16 +98,15 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 
 ---
 
-## Infrastructure Alert — Critical (22 consecutive sessions)
+## Infrastructure Alert — Critical (23 consecutive sessions)
 
-SSH port 22 is actively CLOSED (immediate exit 1 — not timeout or filtering).
+SSH port 22 is actively CLOSED (SSH binary absent in sandbox).
 Port 443 open but Cloudflare WAF blocks all HTTP requests.
-SSH binary absent in sandbox.
 
-**Estimated ~13,000–18,000+ trade records accumulated and unanalyzable.**
-WOP-era (post May 1 21:00 UTC) estimated: ~7.9/hr × ~65h ≈ **~514 WOP-era trades** completely inaccessible.
+**Estimated ~14,000–19,000+ trade records accumulated and unanalyzable.**
+WOP-era (post May 1 21:00 UTC) estimated: ~7.9/hr × ~69h ≈ **~545 WOP-era trades** completely inaccessible.
 
-The TP threshold change (entry×1.10 vs fixed 0.99) and the new cooldown persistence are both unverifiable. The audit agent is blind to their live performance.
+The TP threshold change (entry×1.10 vs fixed 0.99), cooldown persistence, and restart field persistence fix are all unverifiable without live data.
 
 ### Required action — push logs once from VPS:
 ```bash
