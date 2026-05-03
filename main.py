@@ -2077,6 +2077,8 @@ class KlausBot:
                     _pre_obs["vwap"] = _pre_vwap
             if token_id in self.risk.open_positions:
                 continue
+            if any(p.asset == token.asset and p.is_bond for p in self.risk.open_positions.values()):
+                continue  # already holding this asset in a different window
             if token.asset in self.risk._pending_assets:
                 continue
             if token.asset in self._pending_asset_entries:
