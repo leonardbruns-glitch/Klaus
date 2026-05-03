@@ -2476,6 +2476,72 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # ── Per-asset pre-entry gates (user-authorised 2026-05-03, n<100 Tier 2) ──
+            # BTC: require positive sustained momentum (daccel>+0.01 AND accel_sustained)
+            # flat daccel: n=38 WR=37% net=-$151; not_sustained: n=54 WR=43% net=-$169
+            if token.asset == "BTC" and _tok_accel <= 0.01:
+                logger.info(
+                    "[BOND] btc_daccel_skip %s/%s | daccel=%.4f tok_d30=%.1f%% — flat/counter skip",
+                    token.asset, token.side, _tok_accel, _term_tok_d30,
+                )
+                _b_mom_skip += 1
+                continue
+            if token.asset == "BTC" and not _tok_sust:
+                logger.info(
+                    "[BOND] btc_sust_skip %s/%s | sust=False tok_d30=%.1f%% tok_d60=%.1f%% — not sustained",
+                    token.asset, token.side, _term_tok_d30, _term_tok_d60,
+                )
+                _b_mom_skip += 1
+                continue
+            # BTC: late entry (elapsed>=0.85): n=27 WR=52% net=-$113 avg=-$4.19
+            if token.asset == "BTC" and _elapsed_pct >= 0.85:
+                logger.info(
+                    "[BOND] btc_late_skip %s/%s | elapsed=%.3f — late BTC entry skip",
+                    token.asset, token.side, _elapsed_pct,
+                )
+                _b_mom_skip += 1
+                continue
+            # BTC: thin OB (top-3 depth<500): n=20 WR=35% net=-$86
+            if token.asset == "BTC" and _term_ob_depth < 500:
+                logger.info(
+                    "[BOND] btc_depth_skip %s/%s | ob_depth=%.1f — thin BTC book skip",
+                    token.asset, token.side, _term_ob_depth,
+                )
+                _b_mom_skip += 1
+                continue
+            # ETH: tighter imbalance (>=0.30 vs global >=0.20): imb<0.30 n=33 WR=55% net=-$21
+            if token.asset == "ETH" and _term_imb < 0.30:
+                logger.info(
+                    "[BOND] eth_imb_skip %s/%s | imb=%.4f — below ETH threshold 0.30",
+                    token.asset, token.side, _term_imb,
+                )
+                _b_mom_skip += 1
+                continue
+            # ETH: flat tok_d30 [0,2%): n=26 WR=38% net=-$92; negative tok_d OK (WR=69%)
+            if token.asset == "ETH" and 0.0 <= _term_tok_d30 < 2.0:
+                logger.info(
+                    "[BOND] eth_tokd30_skip %s/%s | tok_d30=%.1f%% — ETH flat momentum [0,2) skip",
+                    token.asset, token.side, _term_tok_d30,
+                )
+                _b_mom_skip += 1
+                continue
+            # ETH: thin OB (top-3 depth<100): n=11 WR=18% net=-$65
+            if token.asset == "ETH" and _term_ob_depth < 100:
+                logger.info(
+                    "[BOND] eth_depth_skip %s/%s | ob_depth=%.1f — thin ETH book skip",
+                    token.asset, token.side, _term_ob_depth,
+                )
+                _b_mom_skip += 1
+                continue
+            # SOL: late entry (elapsed>=0.75): n=29 WR=65% net=-$46
+            if token.asset == "SOL" and _elapsed_pct >= 0.75:
+                logger.info(
+                    "[BOND] sol_late_skip %s/%s | elapsed=%.3f — late SOL entry skip",
+                    token.asset, token.side, _elapsed_pct,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
             signal.bond_edge_drift_30s   = _tok_drift
