@@ -1099,7 +1099,7 @@ class KlausBot:
                     _pae_fire_depth = 0.12
                     _pae_hold_s     = 20.0
                 _pae_depth = -bond_move  # positive = how far below entry
-                if not _early_window_bypass and bond_remaining > 30.0 and token_id not in self._exit_in_progress:
+                if False and not _early_window_bypass and bond_remaining > 30.0 and token_id not in self._exit_in_progress:  # PAE disabled
                     if _pae_depth >= 0.05:
                         # Below threshold — start or continue below-timer; clear above-timer
                         self._pae_above_since.pop(token_id, None)
