@@ -1215,11 +1215,11 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # ── T-5s hard gate: unconditional sell ───────────────────────────
-                if bond_remaining <= 5.0 and token_id not in self._exit_in_progress:
+                # ── T-3s hard gate: unconditional sell ───────────────────────────
+                if bond_remaining <= 3.0 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_DEADLINE %s/%s | remaining=%.1fs — T-5s forced exit bid=%.4f',
+                        'BOND_DEADLINE %s/%s | remaining=%.1fs — T-3s forced exit bid=%.4f',
                         pos.asset, pos.direction.name, bond_remaining, current_price,
                     )
                     try:
