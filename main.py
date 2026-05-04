@@ -2565,6 +2565,11 @@ class KlausBot:
             # OVEREXTENSION (>+1.5%): UTC15 COR=11% WR=22% Net=-$8 (pump exhaustion)
             # UTC14 preserved: G1_mean=+0.62%, min=+0.11% — well within bounds
             # Skip gate if 60m return unavailable (<61 closed 1m bars since startup)
+            logger.info(
+                "[BOND] G1_check %s/%s | G1_60m=%s",
+                token.asset, token.side,
+                f"{_term_binance_60m:+.3f}%" if _term_binance_60m is not None else "None(bypassed)",
+            )
             if (_term_binance_60m is not None
                     and (_term_binance_60m < -0.3 or _term_binance_60m > 1.5)):
                 logger.info(
