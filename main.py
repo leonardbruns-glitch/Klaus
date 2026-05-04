@@ -1076,9 +1076,22 @@ class KlausBot:
                 # recovery). Brief pops above threshold don't wipe the clock.
                 # Bypass inside T-30s: at T-10s we exit anyway; PAE in the final 30s
                 # fires into a thin, depressed bid on windows that still resolve YES.
-                # Depth gate: after 20s, only fire if bid is ≥12% below entry.
-                # Data: 10/10 trades with trigger_depth <12% are FP (resolved YES).
-                # Shallow dips (5–12%) are transient; deep collapses (≥12%) are real.
+                # Depth gate: only fire after hold timer with depth ≥ threshold.
+                # Both threshold and timer scale with remaining window time:
+                #   rem>180s (early entry, low-floor zone): 20% depth, 40s hold
+                #   rem 90-180s (mid window):               15% depth, 30s hold
+                #   rem<90s  (late entry):                  12% depth, 20s hold
+                # Evidence: ep<0.65 early entries: 80% premature PAE (n=15, May3-4)
+                #            ep>=0.75 late entries:  25% premature PAE — keep tight
+                if bond_remaining > 180.0:
+                    _pae_fire_depth = 0.20
+                    _pae_hold_s     = 40.0
+                elif bond_remaining > 90.0:
+                    _pae_fire_depth = 0.15
+                    _pae_hold_s     = 30.0
+                else:
+                    _pae_fire_depth = 0.12
+                    _pae_hold_s     = 20.0
                 _pae_depth = -bond_move  # positive = how far below entry
                 if bond_remaining > 30.0 and token_id not in self._exit_in_progress:
                     if _pae_depth >= 0.05:
@@ -1086,21 +1099,23 @@ class KlausBot:
                         self._pae_above_since.pop(token_id, None)
                         if token_id not in self._pae_below_since:
                             self._pae_below_since[token_id] = now
-                        elif now - self._pae_below_since[token_id] >= 20.0:
-                            if _pae_depth < 0.12:
+                        elif now - self._pae_below_since[token_id] >= _pae_hold_s:
+                            if _pae_depth < _pae_fire_depth:
                                 # Shallow confirmation — transient dip, hold position
                                 logger.info(
-                                    "BOND_PAE %s: shallow %.1f%% (<12%%) after 20s — holding"
+                                    "BOND_PAE %s: shallow %.1f%% (<%.0f%%) after %.0fs — holding"
                                     " | rem=%.0fs",
-                                    pos.asset, _pae_depth * 100, bond_remaining,
+                                    pos.asset, _pae_depth * 100, _pae_fire_depth * 100,
+                                    _pae_hold_s, bond_remaining,
                                 )
                             else:
                                 _held_below = now - self._pae_below_since[token_id]
                                 logger.info(
                                     "BOND_PAE %s: %.0fs below entry | bid=%.4f ep=%.4f"
-                                    " (%.1f%% adv) rem=%.0fs",
+                                    " (%.1f%% adv) rem=%.0fs thr=%.0f%%",
                                     pos.asset, _held_below, current_price,
                                     pos.entry_price, _pae_depth * 100, bond_remaining,
+                                    _pae_fire_depth * 100,
                                 )
                                 self._exit_in_progress.add(token_id)
                                 self._pae_below_since.pop(token_id, None)
