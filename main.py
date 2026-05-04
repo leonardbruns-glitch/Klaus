@@ -1077,29 +1077,29 @@ class KlausBot:
                 # Bypass inside T-30s: at T-10s we exit anyway; PAE in the final 30s
                 # fires into a thin, depressed bid on windows that still resolve YES.
                 # Depth gate: only fire after hold timer with depth ≥ threshold.
-                # PAE thresholds scale with remaining time and entry type.
-                # Early-window entries (ep<0.75): wider stop — analysis shows 81% of
-                # PAE fires in good G1 hours are wrong (COR=YES, token recovers to $1).
-                # The threshold drop rem>180→90-180 was killing early entries prematurely.
-                # Terminal entries (ep>=0.75): unchanged tight stops.
-                #   Early  rem>180s:   25% depth, 50s hold  (was 20%/40s)
-                #   Early  90-180s:    20% depth, 40s hold  (was 15%/30s)
-                #   Early  <90s:       12% depth, 20s hold  (same)
+                #
+                # EARLY-WINDOW BYPASS (ep<0.80, rem>90s):
+                # n=83 PAE fires across BTC/ETH/SOL, WR=0%, -$160. COR=65-70%
+                # (direction correct; token recovers before resolution). PAE assumes
+                # no recovery time — valid for terminal (rem≤90s), wrong here.
+                # Resume normal PAE once rem≤90s to protect the terminal zone.
+                #
+                # Terminal entries (ep>=0.80): thresholds below apply as before.
                 #   Term   rem>180s:   20% depth, 40s hold
                 #   Term   90-180s:    15% depth, 30s hold
                 #   Term   <90s:       12% depth, 20s hold
-                _is_early_entry = pos.entry_price < 0.75
+                _early_window_bypass = pos.entry_price < 0.80 and bond_remaining > 90.0
                 if bond_remaining > 180.0:
-                    _pae_fire_depth = 0.25 if _is_early_entry else 0.20
-                    _pae_hold_s     = 50.0 if _is_early_entry else 40.0
+                    _pae_fire_depth = 0.20
+                    _pae_hold_s     = 40.0
                 elif bond_remaining > 90.0:
-                    _pae_fire_depth = 0.20 if _is_early_entry else 0.15
-                    _pae_hold_s     = 40.0 if _is_early_entry else 30.0
+                    _pae_fire_depth = 0.15
+                    _pae_hold_s     = 30.0
                 else:
                     _pae_fire_depth = 0.12
                     _pae_hold_s     = 20.0
                 _pae_depth = -bond_move  # positive = how far below entry
-                if bond_remaining > 30.0 and token_id not in self._exit_in_progress:
+                if not _early_window_bypass and bond_remaining > 30.0 and token_id not in self._exit_in_progress:
                     if _pae_depth >= 0.05:
                         # Below threshold — start or continue below-timer; clear above-timer
                         self._pae_above_since.pop(token_id, None)
@@ -1142,6 +1142,12 @@ class KlausBot:
                                 self._pae_above_since.pop(token_id, None)
                         else:
                             self._pae_above_since.pop(token_id, None)
+                else:
+                    # In bypass: clear PAE timers so a stale below-clock can't fire
+                    # immediately once rem crosses 90s into the terminal zone.
+                    if _early_window_bypass:
+                        self._pae_below_since.pop(token_id, None)
+                        self._pae_above_since.pop(token_id, None)
 
                 # ── PROFIT_TARGET: exit at bid ≥ 0.99 ───────────────────────────
                 if current_price >= 0.99 and token_id not in self._exit_in_progress:
