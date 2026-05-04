@@ -1,12 +1,13 @@
-# Quantitative Audit — 2026-05-04 00:35 UTC
+# Quantitative Audit — 2026-05-04 06:13 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (25th consecutive session)**
+**FAILED — VPS UNREACHABLE (26th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 | SSH binary absent in sandbox; TCP timeout confirmed |
-| HTTP/HTTPS port 443 | TCP open; Cloudflare WAF blocks all requests |
+| SSH port 22 (native) | SSH binary absent in sandbox |
+| SSH via Python paramiko | TCP timeout at 85.137.174.86:22 (15s) |
+| HTTP/HTTPS port 443 | Cloudflare WAF blocks all requests |
 | logs/live_trades_recent.jsonl (git) | File absent — cron sync not deployed |
 | local logs/trades.jsonl | Absent (not tracked in git) |
 
@@ -38,7 +39,7 @@ No trades.jsonl accessible. n=0 per hour — no block/unblock decisions possible
 |---|---|---|---|---|
 | 00–23 | 0 | N/A | N/A | collecting data |
 
-Current `bond_blocked_hours_utc` (config.py:157): `{0,2,3,4,5,6,7,17,19,23}`
+Current `bond_blocked_hours_utc` (config.py:157): `[0,2,3,4,5,6,7,17,19,23]`
 Block threshold: n≥100 per hour AND PF<0.80.
 Unblock threshold: n≥100 per hour AND PF≥0.90.
 Cannot evaluate without data. No change to blocked_hours.
@@ -46,24 +47,23 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — VPS unreachable from sandbox (25th consecutive session).
+**INSUFFICIENT_DATA** — VPS unreachable from sandbox (26th consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
 
 ---
 
-## Code Changes Since Last Audit (2026-05-04 00:12 UTC)
-
-No new commits since scout report c4ba185.
+## Deployed Parameter State (from main.py / config.py)
 
 | Parameter | Deployed value | Location |
 |---|---|---|
-| ask floor (late-window, elapsed≥120s) | 0.80 | main.py:2196 |
-| ask floor (early-window, elapsed<120s) | 0.52 | main.py:2196 |
+| ask floor (elapsed≥120s, late-window) | 0.80 | main.py:2196 |
+| ask floor (elapsed<120s, early-window) | 0.52 | main.py:2196 |
 | max_ask | 0.92 | main.py:2194 |
-| min_imbalance | 0.20 | main.py:2251 |
+| min_imbalance (global) | 0.20 | main.py:2251 |
+| min_imbalance (ETH) | 0.30 | main.py:2574 |
 | bond_blocked_hours_utc | {0,2,3,4,5,6,7,17,19,23} | config.py:157 |
-| stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC |
+| stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC, 8s wick filter |
 | stake | $10.00 | config.py:27 |
 
 ---
@@ -87,16 +87,18 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 ---
 
 ## Bankroll State (from git-tracked bankroll.json)
-capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000
+capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (2026-05-02 ~04:26 UTC)
+
+Note: bankroll snapshot is ~50h stale. Estimated ~395 additional trades since snapshot (7.9/hr × 50h).
 
 ---
 
-## Infrastructure Alert — Critical (25 consecutive sessions)
+## Infrastructure Alert — Critical (26 consecutive sessions)
 
-SSH port 22 is actively CLOSED (SSH binary absent in sandbox; TCP connection times out).
+SSH port 22 is actively unreachable: native SSH binary absent in sandbox; Python paramiko TCP timeout at 15s.
 Port 443 open but Cloudflare WAF blocks all HTTP requests.
 
-**Estimated WOP-era (May 1 21:00+) trades inaccessible:** ~403+ and growing.
+**Estimated WOP-era (May 1 21:00+) trades inaccessible:** ~475+ and growing (~7.9/hr × 60h).
 
 All gate-relevant changes deployed since last data-backed audit remain unverifiable:
 - Early-window entries (ask 0.52, elapsed<120s) — post-fix WR unknown
