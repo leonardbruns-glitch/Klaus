@@ -2527,12 +2527,46 @@ class KlausBot:
 
             # Binance slow-bleed regime: spot falling -0.05% to -0.02% in 5m
             # n=233 PF=0.95 net=-$8.47; fast falls (<-0.05%) are fine (PF=2.31, market already priced)
+            # Only applies to YES UP: for YES DOWN a falling spot is favourable.
             # Skip gate if value is None/0.0 (not captured) to avoid false blocks
-            if (_term_binance_5m is not None and _term_binance_5m != 0.0
+            if (_token_dir == "up"
+                    and _term_binance_5m is not None and _term_binance_5m != 0.0
                     and -0.05 <= _term_binance_5m < -0.02):
                 logger.info(
-                    "[BOND] binance_slowbleed %s/%s | b5m=%.4f%% — spot slow-bleed skip",
+                    "[BOND] binance_slowbleed %s/%s | b5m=%.4f%% — spot slow-bleed skip (UP only)",
                     token.asset, token.side, _term_binance_5m,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # ── Direction-aware Binance momentum gates (user-auth 2026-05-04, Tier 2) ──
+            # YES UP: skip if BTC trending down in last 1m (W avg=+0.0028, L avg=-0.0023, Δ=0.0051**)
+            # UTC 22 exception: mean-reversion regime, Bnc signal inverts — gate disabled.
+            if (_token_dir == "up" and _utc_hour != 22
+                    and _term_binance_1m is not None and _term_binance_1m != 0.0
+                    and _term_binance_1m < 0.0):
+                logger.info(
+                    "[BOND] bnc_dir_skip %s/%s | dir=UP b1m=%.4f%% — BTC falling, skip YES UP",
+                    token.asset, token.side, _term_binance_1m,
+                )
+                _b_mom_skip += 1
+                continue
+            # YES DOWN: skip if BTC trending up in last 1m (need BTC down to win)
+            if (_token_dir == "down"
+                    and _term_binance_1m is not None and _term_binance_1m != 0.0
+                    and _term_binance_1m > 0.0):
+                logger.info(
+                    "[BOND] bnc_dir_skip %s/%s | dir=DOWN b1m=%.4f%% — BTC rising, skip YES DOWN",
+                    token.asset, token.side, _term_binance_1m,
+                )
+                _b_mom_skip += 1
+                continue
+            # YES DOWN: skip if ask queue > 200 shares (huge wall signals high resolution risk)
+            # UTC 20 trade #1: askq=632.6 alone cost -$9.81; n=small but asymmetric risk
+            if (_token_dir == "down" and _term_aqty > 200.0):
+                logger.info(
+                    "[BOND] down_askq_skip %s/%s | askq=%.1f — massive ask wall, skip YES DOWN",
+                    token.asset, token.side, _term_aqty,
                 )
                 _b_mom_skip += 1
                 continue
