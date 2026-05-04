@@ -1077,18 +1077,24 @@ class KlausBot:
                 # Bypass inside T-30s: at T-10s we exit anyway; PAE in the final 30s
                 # fires into a thin, depressed bid on windows that still resolve YES.
                 # Depth gate: only fire after hold timer with depth ≥ threshold.
-                # Both threshold and timer scale with remaining window time:
-                #   rem>180s (early entry, low-floor zone): 20% depth, 40s hold
-                #   rem 90-180s (mid window):               15% depth, 30s hold
-                #   rem<90s  (late entry):                  12% depth, 20s hold
-                # Evidence: ep<0.65 early entries: 80% premature PAE (n=15, May3-4)
-                #            ep>=0.75 late entries:  25% premature PAE — keep tight
+                # PAE thresholds scale with remaining time and entry type.
+                # Early-window entries (ep<0.75): wider stop — analysis shows 81% of
+                # PAE fires in good G1 hours are wrong (COR=YES, token recovers to $1).
+                # The threshold drop rem>180→90-180 was killing early entries prematurely.
+                # Terminal entries (ep>=0.75): unchanged tight stops.
+                #   Early  rem>180s:   25% depth, 50s hold  (was 20%/40s)
+                #   Early  90-180s:    20% depth, 40s hold  (was 15%/30s)
+                #   Early  <90s:       12% depth, 20s hold  (same)
+                #   Term   rem>180s:   20% depth, 40s hold
+                #   Term   90-180s:    15% depth, 30s hold
+                #   Term   <90s:       12% depth, 20s hold
+                _is_early_entry = pos.entry_price < 0.75
                 if bond_remaining > 180.0:
-                    _pae_fire_depth = 0.20
-                    _pae_hold_s     = 40.0
+                    _pae_fire_depth = 0.25 if _is_early_entry else 0.20
+                    _pae_hold_s     = 50.0 if _is_early_entry else 40.0
                 elif bond_remaining > 90.0:
-                    _pae_fire_depth = 0.15
-                    _pae_hold_s     = 30.0
+                    _pae_fire_depth = 0.20 if _is_early_entry else 0.15
+                    _pae_hold_s     = 40.0 if _is_early_entry else 30.0
                 else:
                     _pae_fire_depth = 0.12
                     _pae_hold_s     = 20.0
