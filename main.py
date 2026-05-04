@@ -2179,9 +2179,9 @@ class KlausBot:
             if _wkey in self._terminal_traded_windows:
                 continue  # already traded this asset in this window
 
-            is_5m = 250 <= getattr(token, "window_seconds", 0) < 900
-            if not is_5m:
-                continue  # 15m disabled: WR=56% vs 5m WR=69%; BTC 15m WR=44%
+            _window_s = getattr(token, "window_seconds", 0)
+            if not (250 <= _window_s <= 950):
+                continue  # only 5m and 15m windows
 
             remaining = token.window_end_ts - now
             if remaining <= 25:
@@ -2222,8 +2222,13 @@ class KlausBot:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.92  # extended from 0.88 2026-04-30
-            _elapsed_s = getattr(token, "window_seconds", 300) - remaining
-            _ask_floor = 0.52 if _elapsed_s < 120 else 0.80
+            _elapsed_s = _window_s - remaining
+            # 5m:  early window = first 120s elapsed (floor=0.52), terminal = last 180s (floor=0.80)
+            # 15m: early window = remaining>300s (floor=0.52), terminal = last 300s (floor=0.80)
+            if _window_s >= 900:
+                _ask_floor = 0.52 if remaining > 300 else 0.80
+            else:
+                _ask_floor = 0.52 if _elapsed_s < 120 else 0.80
             if ask is None or not (_ask_floor <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s floor=%.2f rem=%.0fs",
