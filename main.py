@@ -2242,11 +2242,6 @@ class KlausBot:
             _elapsed_pct = 1.0 - remaining / max(1, token.window_seconds)
             _wlabel      = f"{token.window_seconds // 60}m"
 
-            # YES DOWN disabled: COR=33%, Net=-$46 across all hours (2026-05-04)
-            if _token_dir == "down":
-                logger.debug("[BOND] yes_down_disabled %s/%s — YES DOWN blocked globally", token.asset, token.side)
-                _b_mom_skip += 1
-                continue
 
             # ── TERMINAL observation metrics (data collection only) ──────────
             _asset_up = token.asset.upper()
@@ -2591,7 +2586,8 @@ class KlausBot:
                 token.asset, token.side,
                 f"{_term_binance_60m:+.3f}%" if _term_binance_60m is not None else "None(bypassed)",
             )
-            if (_term_binance_60m is not None
+            if (_token_dir == "up"
+                    and _term_binance_60m is not None
                     and (_term_binance_60m < -0.3 or _term_binance_60m > 1.5)):
                 logger.info(
                     "[BOND] G1_regime_skip %s/%s | G1_60m=%+.3f%% — outside COR-stable zone [-0.3,+1.5]",
