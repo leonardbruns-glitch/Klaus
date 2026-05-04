@@ -217,6 +217,7 @@ class TradeRecord:
     term_ask_vwap: float = 0.0         # size-weighted avg ask price across OB levels at entry
     term_binance_1m_pct: Optional[float] = None  # kline-based 1m Binance momentum at entry
     term_binance_5m_pct: Optional[float] = None  # kline-based 5m Binance momentum at entry
+    term_binance_60m_pct: Optional[float] = None # rolling 60m G1 regime return at entry
     term_pre_snap_60s: float = 0.0   # token ask % change from 60s-before-window-close anchor
     term_pre_snap_30s: float = 0.0   # token ask % change from 30s-before-window-close anchor
     term_pre_snap_open: float = 0.0  # token ask % change from window-open anchor
@@ -459,6 +460,7 @@ class FeedbackEngine:
         term_token_delta_60s: float = 0.0,
         term_binance_1m_pct: Optional[float] = None,
         term_binance_5m_pct: Optional[float] = None,
+        term_binance_60m_pct: Optional[float] = None,
         term_pre_snap_60s: float = 0.0,
         term_pre_snap_30s: float = 0.0,
         term_pre_snap_open: float = 0.0,
@@ -700,6 +702,7 @@ class FeedbackEngine:
             term_token_delta_60s=round(term_token_delta_60s, 4),
             term_binance_1m_pct=round(term_binance_1m_pct, 4) if term_binance_1m_pct is not None else None,
             term_binance_5m_pct=round(term_binance_5m_pct, 4) if term_binance_5m_pct is not None else None,
+            term_binance_60m_pct=round(term_binance_60m_pct, 4) if term_binance_60m_pct is not None else None,
             term_pre_snap_60s=round(term_pre_snap_60s, 4),
             term_pre_snap_30s=round(term_pre_snap_30s, 4),
             term_pre_snap_open=round(term_pre_snap_open, 4),

@@ -1337,6 +1337,7 @@ class KlausBot:
                                         term_token_delta_60s=float(getattr(_wo_sig, "term_token_delta_60s", 0.0) or 0.0),
                                         term_binance_1m_pct=getattr(_wo_sig, "term_binance_1m_pct", None),
                                         term_binance_5m_pct=getattr(_wo_sig, "term_binance_5m_pct", None),
+                                        term_binance_60m_pct=getattr(_wo_sig, "term_binance_60m_pct", None),
                                         term_pre_snap_60s=float(getattr(_wo_sig, "term_pre_snap_60s", 0.0) or 0.0),
                                         term_pre_snap_30s=float(getattr(_wo_sig, "term_pre_snap_30s", 0.0) or 0.0),
                                         term_pre_snap_open=float(getattr(_wo_sig, "term_pre_snap_open", 0.0) or 0.0),
@@ -2234,8 +2235,9 @@ class KlausBot:
             _asset_up = token.asset.upper()
             # Kline-based Binance momentum (same source as ext_signals in main scan loop)
             _term_ext = self._last_ext_signals.get(token.asset)
-            _term_binance_1m = _term_ext.spot_momentum_1m if _term_ext else None
-            _term_binance_5m = _term_ext.spot_momentum_5m if _term_ext else None
+            _term_binance_1m  = _term_ext.spot_momentum_1m  if _term_ext else None
+            _term_binance_5m  = _term_ext.spot_momentum_5m  if _term_ext else None
+            _term_binance_60m = _term_ext.spot_momentum_60m if _term_ext else None
             # VPIN
             _vpin_t = self.feed.vpin_trackers.get(_asset_up)
             _term_vpin = round(_vpin_t.vpin, 4) if (_vpin_t and getattr(_vpin_t, "_trade_count", 0) > 50) else 0.0
@@ -2426,8 +2428,9 @@ class KlausBot:
             )
             # Attach TERMINAL observations to signal for downstream logging
             signal.term_vpin          = _term_vpin
-            signal.term_binance_1m_pct = _term_binance_1m
-            signal.term_binance_5m_pct = _term_binance_5m
+            signal.term_binance_1m_pct  = _term_binance_1m
+            signal.term_binance_5m_pct  = _term_binance_5m
+            signal.term_binance_60m_pct = _term_binance_60m
             signal.term_spot_delta_5s  = _term_d5s
             signal.term_spot_delta_30s = _term_d30
             signal.term_spot_delta_60s = _term_d60
@@ -2546,6 +2549,21 @@ class KlausBot:
                 logger.info(
                     "[BOND] tok30_deadzone %s/%s | tok30=%.1f%% — dead zone [18,26) skip",
                     token.asset, token.side, _term_tok_d30,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # ── G1 regime filter (COR-stability gate, user-auth 2026-05-04) ─────────────
+            # Block YES UP when 60m rolling BTC return is outside the COR-stable zone.
+            # CRASH (<-0.3%): UTC10 WR=0% Net=-$22; DUMP: UTC08 WR=0% Net=-$8
+            # OVEREXTENSION (>+1.5%): UTC15 COR=11% WR=22% Net=-$8 (pump exhaustion)
+            # UTC14 preserved: G1_mean=+0.62%, min=+0.11% — well within bounds
+            # Skip gate if 60m return unavailable (<61 closed 1m bars since startup)
+            if (_term_binance_60m is not None
+                    and (_term_binance_60m < -0.3 or _term_binance_60m > 1.5)):
+                logger.info(
+                    "[BOND] G1_regime_skip %s/%s | G1_60m=%+.3f%% — outside COR-stable zone [-0.3,+1.5]",
+                    token.asset, token.side, _term_binance_60m,
                 )
                 _b_mom_skip += 1
                 continue
@@ -3269,7 +3287,7 @@ class KlausBot:
         # On restart _open_meta is empty; _exit_position reads this back
         # and stamps the recovered fields onto the SignalBreakdown stub.
         _term_fields = [
-            "term_vpin", "term_binance_1m_pct", "term_binance_5m_pct",
+            "term_vpin", "term_binance_1m_pct", "term_binance_5m_pct", "term_binance_60m_pct",
             "term_spot_delta_5s", "term_spot_delta_30s", "term_spot_delta_60s",
             "term_spot_delta_5m", "term_ask_spread_pct", "term_ask_qty",
             "term_ob_imbalance", "term_ob_depth", "term_remaining_s",
@@ -4329,6 +4347,7 @@ class KlausBot:
                         term_tok_decel_ratio=float(getattr(_signal, "term_tok_decel_ratio", 0.0) or 0.0),
                         term_binance_1m_pct=getattr(_signal, "term_binance_1m_pct", None),
                         term_binance_5m_pct=getattr(_signal, "term_binance_5m_pct", None),
+                        term_binance_60m_pct=getattr(_signal, "term_binance_60m_pct", None),
                         term_pre_snap_60s=float(getattr(_signal, "term_pre_snap_60s", 0.0) or 0.0),
                         term_pre_snap_30s=float(getattr(_signal, "term_pre_snap_30s", 0.0) or 0.0),
                         term_pre_snap_open=float(getattr(_signal, "term_pre_snap_open", 0.0) or 0.0),
@@ -4525,6 +4544,7 @@ class KlausBot:
                             term_token_delta_60s=float(getattr(_g1_signal, "term_token_delta_60s", 0.0) or 0.0),
                             term_binance_1m_pct=getattr(_g1_signal, "term_binance_1m_pct", None),
                             term_binance_5m_pct=getattr(_g1_signal, "term_binance_5m_pct", None),
+                            term_binance_60m_pct=getattr(_g1_signal, "term_binance_60m_pct", None),
                             term_pre_snap_60s=float(getattr(_g1_signal, "term_pre_snap_60s", 0.0) or 0.0),
                             term_pre_snap_30s=float(getattr(_g1_signal, "term_pre_snap_30s", 0.0) or 0.0),
                             term_pre_snap_open=float(getattr(_g1_signal, "term_pre_snap_open", 0.0) or 0.0),
@@ -4981,6 +5001,7 @@ class KlausBot:
                     term_token_delta_60s=float(getattr(signal, "term_token_delta_60s", 0.0) or 0.0),
                     term_binance_1m_pct=getattr(signal, "term_binance_1m_pct", None),
                     term_binance_5m_pct=getattr(signal, "term_binance_5m_pct", None),
+                    term_binance_60m_pct=getattr(signal, "term_binance_60m_pct", None),
                     term_pre_snap_60s=float(getattr(signal, "term_pre_snap_60s", 0.0) or 0.0),
                     term_pre_snap_30s=float(getattr(signal, "term_pre_snap_30s", 0.0) or 0.0),
                     term_pre_snap_open=float(getattr(signal, "term_pre_snap_open", 0.0) or 0.0),

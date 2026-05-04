@@ -110,6 +110,7 @@ class ExternalSignal:
     funding_rate: Optional[float] = None     # annualised perp funding
     spot_momentum_5m: Optional[float] = None # % change on spot last 5 min
     spot_momentum_15m: Optional[float] = None
+    spot_momentum_60m: Optional[float] = None # rolling 60m return for G1 regime filter
     realized_vol_1h: Optional[float] = None  # annualised
     spot_price: Optional[float] = None       # current Binance spot price (absolute)
     spot_momentum_1m: Optional[float] = None # % change on spot last 1 min
@@ -368,11 +369,11 @@ class PolymarketFeed:
             "ETH": deque(maxlen=48),
             "SOL": deque(maxlen=48),
         }
-        # 1m close history for Kaufman ER — maxlen=21 covers 20-period ER.
+        # 1m close history — maxlen=65 covers 60m G1 lookback (61 closes needed) + Kaufman ER.
         self._1m_close_buf: Dict[str, deque] = {
-            "BTC": deque(maxlen=21),
-            "ETH": deque(maxlen=21),
-            "SOL": deque(maxlen=21),
+            "BTC": deque(maxlen=65),
+            "ETH": deque(maxlen=65),
+            "SOL": deque(maxlen=65),
         }
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
@@ -1714,6 +1715,12 @@ class PolymarketFeed:
                 signal.spot_momentum_5m = (c0 - c1_5m) / c1_5m * 100
             if c0 and c1_15m and c1_15m > 0:
                 signal.spot_momentum_15m = (c0 - c1_15m) / c1_15m * 100
+            # G1: rolling 60m return — needs 61 closed 1m candles in buffer
+            _buf60 = self._1m_close_buf.get(asset.upper())
+            if c0 and _buf60 and len(_buf60) >= 61:
+                _p60 = _buf60[-61]
+                if _p60 > 0:
+                    signal.spot_momentum_60m = (c0 - _p60) / _p60 * 100
             if open_5m:
                 signal.spot_window_open_5m = open_5m
             if open_15m:
