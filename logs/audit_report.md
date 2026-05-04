@@ -1,12 +1,11 @@
-# Quantitative Audit — 2026-05-04 06:13 UTC
+# Quantitative Audit — 2026-05-04 12:17 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (26th consecutive session)**
+**FAILED — VPS UNREACHABLE (27th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 (native) | SSH binary absent in sandbox |
-| SSH via Python paramiko | TCP timeout at 85.137.174.86:22 (15s) |
+| SSH port 22 (native) | TCP timeout at 85.137.174.86:22 (20s ConnectTimeout) |
 | HTTP/HTTPS port 443 | Cloudflare WAF blocks all requests |
 | logs/live_trades_recent.jsonl (git) | File absent — cron sync not deployed |
 | local logs/trades.jsonl | Absent (not tracked in git) |
@@ -25,7 +24,7 @@ None determinable — no data retrievable.
 
 ## OB Imbalance
 No data available.
-Current gate: `if _term_imb < 0.20: continue` (main.py:2251).
+Current gate: `if _term_imb < 0.20: continue` (main.py:2268); ETH override: `if _term_imb < 0.30` (main.py:2653).
 
 ## Slippage
 avg_slippage_entry=N/A
@@ -47,7 +46,7 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — VPS unreachable from sandbox (26th consecutive session).
+**INSUFFICIENT_DATA** — VPS unreachable from sandbox (27th consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
 
@@ -57,14 +56,15 @@ n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock
 
 | Parameter | Deployed value | Location |
 |---|---|---|
-| ask floor (elapsed≥120s, late-window) | 0.80 | main.py:2196 |
-| ask floor (elapsed<120s, early-window) | 0.52 | main.py:2196 |
-| max_ask | 0.92 | main.py:2194 |
-| min_imbalance (global) | 0.20 | main.py:2251 |
-| min_imbalance (ETH) | 0.30 | main.py:2574 |
+| ask floor (elapsed≥120s, late-window) | 0.80 | main.py:2213 |
+| ask floor (elapsed<120s, early-window) | 0.52 | main.py:2213 |
+| max_ask | 0.92 | main.py:2211 (extended from 0.88, 2026-04-30) |
+| min_imbalance (global) | 0.20 | main.py:2268 |
+| min_imbalance (ETH) | 0.30 | main.py:2653 |
 | bond_blocked_hours_utc | {0,2,3,4,5,6,7,17,19,23} | config.py:157 |
 | stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC, 8s wick filter |
-| stake | $10.00 | config.py:27 |
+| base_stake | $4.00 | config.py:27 (reduced from $10, 2026-05-04) |
+| scaled_stake | $4.00 | config.py:34 (flat, heat-check disabled) |
 
 ---
 
@@ -74,7 +74,7 @@ n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock
   "min_ask": 0.80,
   "max_ask": 0.92,
   "min_imbalance": 0.20,
-  "stake": 10.00,
+  "stake": 4.00,
   "stop_loss": -0.15,
   "blocked_hours": [0, 2, 3, 4, 5, 6, 7, 17, 19, 23]
 }
@@ -89,22 +89,23 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 ## Bankroll State (from git-tracked bankroll.json)
 capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (2026-05-02 ~04:26 UTC)
 
-Note: bankroll snapshot is ~50h stale. Estimated ~395 additional trades since snapshot (7.9/hr × 50h).
+Note: bankroll snapshot is ~56h stale. Estimated ~445 additional trades since snapshot (7.9/hr × 56h).
 
 ---
 
-## Infrastructure Alert — Critical (26 consecutive sessions)
+## Infrastructure Alert — Critical (27 consecutive sessions)
 
-SSH port 22 is actively unreachable: native SSH binary absent in sandbox; Python paramiko TCP timeout at 15s.
-Port 443 open but Cloudflare WAF blocks all HTTP requests.
+SSH port 22 is actively unreachable: TCP timeout at 15–20s. Port 443 blocked by Cloudflare WAF.
 
-**Estimated WOP-era (May 1 21:00+) trades inaccessible:** ~475+ and growing (~7.9/hr × 60h).
+**Estimated WOP-era (May 1 21:00+) trades inaccessible:** ~530+ and growing (~7.9/hr × 67h).
 
 All gate-relevant changes deployed since last data-backed audit remain unverifiable:
 - Early-window entries (ask 0.52, elapsed<120s) — post-fix WR unknown
 - T-50s unconditional exit for early entries — effect unknown
 - Regime cooldown (T1≤-$7→5m) — trigger frequency unknown
 - Per-asset sub-pattern gates (BTC daccel, ETH tok_d30, SOL elapsed) — WOP-era WR unknown
+- 4-layer pre-entry regime gate system — effectiveness unknown
+- Base stake reduction $10→$4 (2026-05-04) — impact on capital curve unknown
 
 ### Required action — push logs ONCE from VPS:
 ```bash
