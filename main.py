@@ -1150,7 +1150,7 @@ class KlausBot:
                         self._pae_above_since.pop(token_id, None)
 
                 # ── INVERTED_TP: exit at +75% on inverted (low-price) entries ────
-                _inv_tp = pos.entry_price * 1.75
+                _inv_tp = pos.entry_price * 1.50
                 if current_price >= _inv_tp and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
