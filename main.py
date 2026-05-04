@@ -2180,8 +2180,8 @@ class KlausBot:
                 continue  # already traded this asset in this window
 
             _window_s = getattr(token, "window_seconds", 0)
-            if not (250 <= _window_s <= 950):
-                continue  # only 5m and 15m windows
+            if not (250 <= _window_s < 900):
+                continue  # 5m only
 
             remaining = token.window_end_ts - now
             if remaining <= 25:
