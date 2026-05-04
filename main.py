@@ -2783,9 +2783,46 @@ class KlausBot:
                 logger.info("TERMINAL REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
+            # INVERT: gates fired on _token_dir side — buy the opposite direction instead.
+            _inv_dir = "down" if _token_dir == "up" else "up"
+            _inv_id: str | None = None
+            _inv_ask: float | None = None
+            for _pid, _pt in self.feed.tokens.items():
+                if _pid == token_id:
+                    continue
+                if getattr(_pt, "condition_id", "") != cid:
+                    continue
+                _pob = self.feed.get_order_book(_pid)
+                if _pob and _pob.asks:
+                    _inv_id = _pid
+                    _inv_ask = _pob.asks[0][0]
+                    break
+            if _inv_id is None or _inv_ask is None:
+                logger.warning(
+                    "[BOND] INVERT_NO_PARTNER %s/%s — no partner ask, skipping",
+                    token.asset, token.side,
+                )
+                continue
+            _inv_side = getattr(self.feed.tokens[_inv_id], "side", "?")
+            signal.side                   = _inv_side
+            signal.entry_price            = _inv_ask
+            signal.token_ask              = _inv_ask
+            signal.edge                   = round(1.0 - _inv_ask, 4)
+            signal.composite              = round(1.0 - _inv_ask, 4)
+            signal.confidence             = _inv_ask
+            signal.bond_outcome_direction = _inv_dir
+            signal.reason                 = f"TERMINAL_INVERT_{_wlabel} ask={_inv_ask:.3f} rem={remaining:.0f}s"
+            tpsl = TPSLLevels(
+                take_profit=min(0.99, round(_inv_ask + 0.04, 4)),
+                stop_loss=round(_inv_ask * 0.85, 4),
+                tp_pct=round(0.04 / _inv_ask * 100, 1),
+                sl_pct=15.0,
+                risk_reward=0.0,
+            )
+
             logger.info(
-                "TERMINAL ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs | stake=$%.2f",
-                token.asset, token.side, _wlabel, ask, remaining, decision.stake,
+                "TERMINAL ENTRY %s/%s [%s] | ask=%.4f rem=%.0fs | stake=$%.2f (INVERTED from %s/%.4f)",
+                token.asset, _inv_side, _wlabel, _inv_ask, remaining, decision.stake, token.side, ask,
             )
 
             # ── SNAP shadow gate (observability only — no execution effect) ────
@@ -2797,10 +2834,10 @@ class KlausBot:
                     _sf.write(_json.dumps({
                         "ts": now,
                         "asset": token.asset,
-                        "token_id": token_id,
+                        "token_id": _inv_id,
                         "snap_60s": _snap_60,
                         "snap_30s": _snap_30,
-                        "entry_ask": ask,
+                        "entry_ask": _inv_ask,
                         "remaining_s": round(remaining, 1),
                         "would_block": _snap_60 < 0.0 and _snap_30 < 0.0,
                     }) + "\n")
@@ -2816,15 +2853,15 @@ class KlausBot:
             _b_fired += 1
             self._terminal_traded_windows.add(_wkey)  # lock this asset×window — no re-entry
             asyncio.create_task(
-                self._enter_position(token_id, token.asset, signal, tpsl, decision),
-                name=f"bond_{token.asset}_{token.side}",
+                self._enter_position(_inv_id, token.asset, signal, tpsl, decision),
+                name=f"bond_{token.asset}_{_inv_dir}",
             )
             asyncio.create_task(
                 self._record_terminal_final_price(
-                    token_id, token.asset, token.side,
-                    token.window_end_ts, ask,
+                    _inv_id, token.asset, _inv_side,
+                    token.window_end_ts, _inv_ask,
                 ),
-                name=f"wfp_{token.asset}_{token.side}",
+                name=f"wfp_{token.asset}_{_inv_dir}",
             )
           except Exception as _bond_tok_exc:
             logger.error(
