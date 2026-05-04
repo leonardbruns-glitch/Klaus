@@ -2285,8 +2285,8 @@ class KlausBot:
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
-            if _term_imb < 0.20:
-                continue  # imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67 (n=300)
+            if not (0.30 <= _term_imb < 0.70):
+                continue  # [0.3,0.7): COR=75% n=75; <0.3: COR=58% n=44; >=0.7: COR=58% n=26
 
             # ── Dead-zone / volatility filters ─────────────────────────────────
             # All three read from closed kline buffers (populated by WS, not REST).
@@ -2687,14 +2687,6 @@ class KlausBot:
                 logger.info(
                     "[BOND] btc_depth_skip %s/%s | ob_depth=%.1f — thin BTC book skip",
                     token.asset, token.side, _term_ob_depth,
-                )
-                _b_mom_skip += 1
-                continue
-            # ETH: tighter imbalance (>=0.30 vs global >=0.20): imb<0.30 n=33 WR=55% net=-$21
-            if token.asset == "ETH" and _term_imb < 0.30:
-                logger.info(
-                    "[BOND] eth_imb_skip %s/%s | imb=%.4f — below ETH threshold 0.30",
-                    token.asset, token.side, _term_imb,
                 )
                 _b_mom_skip += 1
                 continue
