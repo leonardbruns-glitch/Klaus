@@ -24,14 +24,14 @@ except ImportError:
 @dataclass
 class BankrollConfig:
     total: float = 109.66             # updated: 2026-04-18, capital=$109.66
-    base_stake: float = 10.0          # 2026-05-01 (user directive: 4→10)
+    base_stake: float = 4.0           # 2026-05-04 (user directive: 10→4, capital preservation)
     # Scale-up tiers (static sizing — Kelly deferred until n≥50 with stable per-regime WR):
-    #   Tier 1: $10 — now active (raised from $4 2026-05-01)
-    #   Tier 2: $20 — after confirmed WR>55% over 20+ live trades
-    #   Tier 3: $40 — after confirmed WR>55% over 50+ live trades post-filter
+    #   Tier 1: $4  — now active (reduced from $10 2026-05-04)
+    #   Tier 2: $10 — after confirmed WR>55% over 20+ live trades post-gate-system
+    #   Tier 3: $20 — after confirmed WR>55% over 50+ live trades post-filter
     # Kelly deferred: edge is regime-dependent (WR swings 0%→80% by regime);
     # stop-hunting creates fat-tailed losses that break Kelly variance assumptions.
-    scaled_stake: float = 10.0        # flat — heat-check disabled; raise per tiers above
+    scaled_stake: float = 4.0         # flat — heat-check disabled; raise per tiers above
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 3       # data collection phase — allow more concurrent trades
     max_daily_loss: float = 9999.0    # disabled — no intraday halt
