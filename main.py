@@ -2600,12 +2600,13 @@ class KlausBot:
                 continue
 
             # ── Layer 2: Momentum exhaustion filter (hard gate) ──────────────────────
-            # YES DOWN: skip if tok30 > 50 — YES token already running hard, move is mature.
-            # Sim n=102: td30>50 → 4 DOWN trades (1W/3L -$5.63), net +$5.72.
-            # Start conservative at 50; refine toward 40 per asset as n grows.
-            if (_token_dir == "down" and _term_tok_d30 > 50.0):
+            # YES DOWN: skip if tok30 > 40 — YES token already running hard, move is mature.
+            # Validation n=35 DOWN: >40 → 9 trades (1W/8L -$21.20), net +$21.20.
+            # Only 1 winner above 40 (UTC20 BTC td30=68.6 +$1.12 TP) vs 8 PAE losses.
+            # Universal across BTC/ETH/SOL and all hours — no asset/hour carve-outs needed.
+            if (_token_dir == "down" and _term_tok_d30 > 40.0):
                 logger.info(
-                    "[BOND] L2_tok30_exhaust %s/%s | dir=DOWN tok30=%.1f%% — exhausted >50, skip",
+                    "[BOND] L2_tok30_exhaust %s/%s | dir=DOWN tok30=%.1f%% — exhausted >40, skip",
                     token.asset, token.side, _term_tok_d30,
                 )
                 _b_mom_skip += 1
