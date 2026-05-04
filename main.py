@@ -2433,7 +2433,7 @@ class KlausBot:
                 reason=f"TERMINAL_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s",
                 signal_source="BOND",
                 is_bond=True,
-                bond_exit_sec=10,
+                bond_exit_sec=30,
                 bond_outcome_direction=_token_dir,
                 bond_entry_class="TERMINAL",
             )
@@ -3368,7 +3368,13 @@ class KlausBot:
         except Exception as _e:
             logger.debug("open_signal_meta write failed: %s", _e)
 
-        # BOND: time exit disabled — holding to window outcome (resolution).
+        # BOND: time exit at T-30s
+        _bond_wend = getattr(self.feed.tokens.get(token_id), "window_end_ts", 0.0)
+        if _bond_wend > 0 and pos is not None:
+            asyncio.create_task(
+                self._bond_precise_timer(token_id, _bond_wend, pos.bond_exit_sec or 30),
+                name=f"bond_timer_{token_id[:8]}",
+            )
 
     # ── LLM independent trader ───────────────────────────────────────────────
 
@@ -3693,62 +3699,11 @@ class KlausBot:
     async def _bond_precise_timer(
         self, token_id: str, window_end_ts: float, exit_sec: int
     ) -> None:
-        """
-        Dedicated asyncio timer for BOND TIME_EXIT.
-
-        Sleeps until exactly window_end_ts - exit_sec, then fires the exit.
-        Bypasses the 1s scan loop which can drift 3-8s under load, causing
-        TIME_EXIT to fire too close to window close (→ BOND_TIME_EXIT_EXT).
-
-        The scan loop TIME_EXIT check remains as a fallback, but this task
-        fires first when both are eligible.
-        """
-        target_ts = window_end_ts - exit_sec
-
-        # Conditional loss-exit window T-10s→T-5s: poll every 0.5s.
-        # Exit immediately if bid < entry_price at any point in this window.
-        # Winners (bid >= entry throughout) fall through to T-4s TIME_EXIT.
-        _t10_ts = window_end_ts - 10.0
-        _wait_to_t10 = _t10_ts - time.time()
-        if _wait_to_t10 > 0:
-            await asyncio.sleep(_wait_to_t10)
-        _t5_ts = window_end_ts - 5.0
-        _first_t10_snap = True
-        while time.time() < _t5_ts:
-            _pos_chk = self.risk.open_positions.get(token_id)
-            if _pos_chk is None or not getattr(_pos_chk, "is_bond", False):
-                return
-            if token_id in self._exit_in_progress:
-                return
-            _ob_chk = self.feed.get_order_book(token_id)
-            _bid_chk = (
-                _ob_chk.bids[0][0] if (_ob_chk and _ob_chk.bids)
-                else _pos_chk.entry_price
-            )
-            if _first_t10_snap:
-                self._price_at_t10s[token_id] = _bid_chk
-                _first_t10_snap = False
-            _ep = getattr(_pos_chk, "entry_price", 1.0)
-            if _bid_chk < _ep:
-                actual_remaining = max(0.0, window_end_ts - time.time())
-                logger.info(
-                    "BOND_TIMER %s: loss-window exit | remaining=%.1fs bid=%.4f ep=%.4f",
-                    _pos_chk.asset, actual_remaining, _bid_chk, _ep,
-                )
-                self._exit_in_progress.add(token_id)
-                try:
-                    await self._exit_position(token_id, _bid_chk, "BOND_TIME_EXIT")
-                finally:
-                    self._exit_in_progress.discard(token_id)
-                return
-            await asyncio.sleep(0.5)
-
-        # T-4s unconditional TIME_EXIT
-        wait_s = target_ts - time.time()
+        """Sleeps until window_end_ts - exit_sec, then fires unconditional TIME_EXIT."""
+        wait_s = (window_end_ts - exit_sec) - time.time()
         if wait_s > 0:
             await asyncio.sleep(wait_s)
 
-        # Re-check: position might have already been exited by TP or reversal stop
         if token_id not in self.risk.open_positions:
             return
         pos = self.risk.open_positions.get(token_id)
