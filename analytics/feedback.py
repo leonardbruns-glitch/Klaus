@@ -220,6 +220,8 @@ class TradeRecord:
     term_pre_snap_60s: float = 0.0   # token ask % change from 60s-before-window-close anchor
     term_pre_snap_30s: float = 0.0   # token ask % change from 30s-before-window-close anchor
     term_pre_snap_open: float = 0.0  # token ask % change from window-open anchor
+    term_snap60_eff: float = 0.0     # gate composite: pre_snap_60s if set, else tok_d60
+    term_snap30_eff: float = 0.0     # gate composite: pre_snap_30s if set, else tok_d30
     # During-hold trajectory snapshots (MFE/MAE at T+10s and T+30s after entry)
     traj_mfe_10s: float = 0.0   # max favourable % at T+10s
     traj_mae_10s: float = 0.0   # max adverse % at T+10s

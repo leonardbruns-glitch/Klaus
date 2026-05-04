@@ -1340,6 +1340,8 @@ class KlausBot:
                                         term_pre_snap_60s=float(getattr(_wo_sig, "term_pre_snap_60s", 0.0) or 0.0),
                                         term_pre_snap_30s=float(getattr(_wo_sig, "term_pre_snap_30s", 0.0) or 0.0),
                                         term_pre_snap_open=float(getattr(_wo_sig, "term_pre_snap_open", 0.0) or 0.0),
+                                        term_snap60_eff=float(getattr(_wo_sig, "term_snap60_eff", 0.0) or 0.0),
+                                        term_snap30_eff=float(getattr(_wo_sig, "term_snap30_eff", 0.0) or 0.0),
                                         term_rsi=float(getattr(_wo_sig, "term_rsi", 0.0) or 0.0),
                                         term_ask_vwap=float(getattr(_wo_sig, "term_ask_vwap", 0.0) or 0.0),
                                         traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
@@ -2463,6 +2465,8 @@ class KlausBot:
             _snap30_val = signal.term_pre_snap_30s
             _snap60_eff = _snap60_val if _snap60_val != 0.0 else _term_tok_d60
             _snap30_eff = _snap30_val if _snap30_val != 0.0 else _term_tok_d30
+            signal.term_snap60_eff = round(_snap60_eff, 4)
+            signal.term_snap30_eff = round(_snap30_eff, 4)
 
             if _snap60_eff < 0.0:
                 logger.info(
@@ -4322,6 +4326,8 @@ class KlausBot:
                         term_pre_snap_60s=float(getattr(_signal, "term_pre_snap_60s", 0.0) or 0.0),
                         term_pre_snap_30s=float(getattr(_signal, "term_pre_snap_30s", 0.0) or 0.0),
                         term_pre_snap_open=float(getattr(_signal, "term_pre_snap_open", 0.0) or 0.0),
+                        term_snap60_eff=float(getattr(_signal, "term_snap60_eff", 0.0) or 0.0),
+                        term_snap30_eff=float(getattr(_signal, "term_snap30_eff", 0.0) or 0.0),
                         term_rsi=float(getattr(_signal, "term_rsi", 0.0) or 0.0),
                         term_ask_vwap=float(getattr(_signal, "term_ask_vwap", 0.0) or 0.0),
                         exit_price_uncertain=_exit_price_uncertain,
@@ -4516,6 +4522,8 @@ class KlausBot:
                             term_pre_snap_60s=float(getattr(_g1_signal, "term_pre_snap_60s", 0.0) or 0.0),
                             term_pre_snap_30s=float(getattr(_g1_signal, "term_pre_snap_30s", 0.0) or 0.0),
                             term_pre_snap_open=float(getattr(_g1_signal, "term_pre_snap_open", 0.0) or 0.0),
+                            term_snap60_eff=float(getattr(_g1_signal, "term_snap60_eff", 0.0) or 0.0),
+                            term_snap30_eff=float(getattr(_g1_signal, "term_snap30_eff", 0.0) or 0.0),
                             term_rsi=float(getattr(_g1_signal, "term_rsi", 0.0) or 0.0),
                             term_ask_vwap=float(getattr(_g1_signal, "term_ask_vwap", 0.0) or 0.0),
                             traj_mfe_10s=float(_g1_traj_mfe.get(10, 0.0)),
@@ -4970,6 +4978,8 @@ class KlausBot:
                     term_pre_snap_60s=float(getattr(signal, "term_pre_snap_60s", 0.0) or 0.0),
                     term_pre_snap_30s=float(getattr(signal, "term_pre_snap_30s", 0.0) or 0.0),
                     term_pre_snap_open=float(getattr(signal, "term_pre_snap_open", 0.0) or 0.0),
+                    term_snap60_eff=float(getattr(signal, "term_snap60_eff", 0.0) or 0.0),
+                    term_snap30_eff=float(getattr(signal, "term_snap30_eff", 0.0) or 0.0),
                     term_rsi=float(getattr(signal, "term_rsi", 0.0) or 0.0),
                     term_ask_vwap=float(getattr(signal, "term_ask_vwap", 0.0) or 0.0),
                     traj_mfe_10s=float(self._traj_mfe.get(token_id, {}).get(10, 0.0)),
