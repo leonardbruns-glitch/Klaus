@@ -154,7 +154,7 @@ class EdgeConfig:
     blocked_hours_utc: List[int] = field(default_factory=lambda: [])
     # Full-hour BOND block: no entries at all during these UTC hours.
     # 00=midnight reset, 08=EU open, 13=NYSE open, 18=NYSE midday spike, 20=late US session.
-    bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [0,2,3,4,5,6,7,17,23])
+    bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [])
     bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6])  # first 15 min only
     bond_volatile_minutes_gate: int = 15
 
