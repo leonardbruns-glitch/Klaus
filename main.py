@@ -4185,12 +4185,15 @@ class KlausBot:
                 _ext_s60 = _ext_snaps.get(60, 0.0)
                 _ext_r30 = (_ext_s30 - pos.entry_price) / pos.entry_price * 100 if pos.entry_price > 0 and _ext_s30 > 0 else None
                 _ext_r60 = (_ext_s60 - pos.entry_price) / pos.entry_price * 100 if pos.entry_price > 0 and _ext_s60 > 0 else None
+                _ext_max_adv = ((pos.entry_price - pos.lowest_price) / pos.entry_price * 100
+                               if pos.entry_price > 0 and pos.lowest_price > 0 else 0.0)
                 _ext_path_cls, _ext_path_conf, _ext_path_rsn = _classify_path(
-                    pos.entry_price, pos.highest_price, pos.lowest_price,
-                    _ext_traj_mfe, _ext_traj_mae,
-                    _ext_r30, _ext_r60,
-                    pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
-                    time.time() - pos.open_ts,
+                    r30=_ext_r30, r60=_ext_r60,
+                    max_adv_pct=_ext_max_adv,
+                    hold_s=time.time() - pos.open_ts,
+                    exit_reason=_logged_reason,
+                    exit_price=exit_price,
+                    entry_price=pos.entry_price,
                 )
                 try:
                     self.analytics.record_trade(
