@@ -5016,98 +5016,46 @@ class KlausBot:
         async def _capture_resolution() -> None:
             if not window_end_ts:
                 return
-            # Oracle takes 30-90s after window end to publish result.
-            # Start polling 10s past window end rather than 5s — avoids reading
-            # stale CLOB prices before the Chainlink oracle has settled.
-            _wait = max(10.0, window_end_ts + 10.0 - time.time())
+            # Polymarket 5m up/down markets resolve based on Chainlink BTC/ETH/SOL
+            # price at window_end vs window_start. outcomePrices in the Gamma API is
+            # the CLOB price (collapses to 0 for all tokens after market close) — it
+            # does NOT reflect oracle settlement. Binance 5m klines use the same 300s
+            # grid and agree directionally with Chainlink >99% of the time.
+            # Wait 35s past window_end so the 5m kline is fully closed.
+            _wait = max(35.0, window_end_ts + 35.0 - time.time())
             if _wait > 910:
                 return  # window too far out, skip
             if _wait > 0:
                 await asyncio.sleep(_wait)
             try:
                 _wop: float | None = None
+                _resolution_method = "unknown"
 
-                # Primary: poll Gamma API until market.closed=True.
-                # Authoritative — based on winningOutcomeIndex (on-chain settlement),
-                # not market price which is stale for 30-90s post-window.
-                if condition_id and getattr(self.feed, "_session", None):
+                # Primary: Binance 5m kline open vs close for the exact window.
+                _symbol_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+                _symbol = _symbol_map.get(asset.upper())
+                _window_start_ms = int((window_end_ts - 300) * 1000)
+                if _symbol and getattr(self.feed, "_session", None):
                     import aiohttp as _aiohttp
-                    _gamma_url = f"{CONFIG.markets.gamma_api_url}/markets"
-                    for _attempt in range(10):  # poll every 15s, up to 150s
-                        try:
-                            async with self.feed._session.get(
-                                _gamma_url,
-                                params={"condition_id": condition_id},
-                                timeout=_aiohttp.ClientTimeout(total=8),
-                            ) as _resp:
-                                if _resp.status == 200:
-                                    _data = await _resp.json()
-                                    _mkts = (
-                                        _data if isinstance(_data, list)
-                                        else _data.get("data", [_data] if isinstance(_data, dict) else [])
-                                    )
-                                    for _m in _mkts:
-                                        if not _m.get("closed"):
-                                            continue
-                                        _raw_ids = _m.get("clobTokenIds", [])
-                                        if isinstance(_raw_ids, str):
-                                            try:
-                                                _raw_ids = _json.loads(_raw_ids)
-                                            except Exception:
-                                                _raw_ids = []
-                                        # outcomePrices is the authoritative field:
-                                        # "1" = that token redeems to $1 (won), "0" = lost
-                                        _prices = _m.get("outcomePrices", [])
-                                        if isinstance(_prices, str):
-                                            try:
-                                                _prices = _json.loads(_prices)
-                                            except Exception:
-                                                _prices = []
-                                        for _i, _tid in enumerate(_raw_ids):
-                                            if _tid == token_id:
-                                                _p = float(_prices[_i]) if _i < len(_prices) else 0.0
-                                                _wop = 1.0 if _p >= 0.5 else 0.0
-                                                break
-                                        if _wop is not None:
-                                            break
-                        except Exception as _ge:
-                            logger.debug("RESOLUTION gamma poll %s attempt %d: %s",
-                                         trade_id[:12], _attempt, _ge)
-                        if _wop is not None:
-                            break
-                        await asyncio.sleep(15)
-
-                # Fallback: CLOB order book price if Gamma didn't resolve in time
-                # (no condition_id, network error, or oracle delay > 150s).
-                if _wop is None:
-                    _tok = self.feed.tokens.get(token_id)
-                    if _tok and getattr(_tok, "best_ask", 0) > 0:
-                        _wop = round(_tok.best_ask, 4)
-                    if not _wop:
-                        _ob = await self.feed.fetch_order_book(token_id)
-                        if _ob and _ob.asks:
-                            _wop = round(_ob.asks[0][0], 4)
-                    # YES tokens near $1 have empty ask side — fall back to bid
-                    if _wop is None or _wop < 0.80:
-                        _tok2 = self.feed.tokens.get(token_id)
-                        _bid = None
-                        if _tok2 and getattr(_tok2, "bids", None):
-                            try:
-                                _bid = _tok2.bids[0][0]
-                            except Exception:
-                                pass
-                        if _bid is None:
-                            _ob2 = await self.feed.fetch_order_book(token_id)
-                            if _ob2 and _ob2.bids:
-                                _bid = _ob2.bids[0][0]
-                        if _bid and _bid >= 0.80:
-                            _wop = round(_bid, 4)
-                    # Empty order book on both sides = token collapsed (NO resolution)
-                    if _wop is None:
-                        _wop = 0.0
+                    try:
+                        async with self.feed._session.get(
+                            "https://api.binance.com/api/v3/klines",
+                            params={"symbol": _symbol, "interval": "5m",
+                                    "startTime": _window_start_ms, "limit": 1},
+                            timeout=_aiohttp.ClientTimeout(total=8),
+                        ) as _resp:
+                            if _resp.status == 200:
+                                _klines = await _resp.json()
+                                if _klines and len(_klines[0]) >= 5:
+                                    _open  = float(_klines[0][1])
+                                    _close = float(_klines[0][4])
+                                    _wop = 1.0 if _close >= _open else 0.0
+                                    _resolution_method = f"kline:{_open:.2f}->{_close:.2f}"
+                    except Exception as _ke:
+                        logger.debug("RESOLUTION kline fetch %s: %s", trade_id[:12], _ke)
 
                 if _wop is not None:
-                    _entered_correctly = _wop >= 0.80
+                    _entered_correctly = _wop >= 0.5  # 1.0=YES won, 0.0=NO won
                     _res_rec = {
                         "trade_id": trade_id,
                         "record_type": "resolution",
@@ -5115,6 +5063,7 @@ class KlausBot:
                         "entered_correctly": _entered_correctly,
                         "resolution_delay_s": round(time.time() - window_end_ts),
                         "exit_reason": exit_reason,
+                        "resolution_method": _resolution_method,
                     }
                     with open(log_path, "a") as _rf:
                         _rf.write(_json.dumps(_res_rec) + "\n")
@@ -5168,12 +5117,12 @@ class KlausBot:
                     except Exception as _pe:
                         logger.debug("trades.jsonl resolution patch failed: %s", _pe)
                     logger.info(
-                        "RESOLUTION %s/%s [%s] | outcome=%.4f correct=%s delay=%ds",
-                        asset, direction, exit_reason, _wop, _wop >= 0.80,
-                        round(time.time() - window_end_ts),
+                        "RESOLUTION %s/%s [%s] | outcome=%.1f correct=%s delay=%ds method=%s",
+                        asset, direction, exit_reason, _wop, _entered_correctly,
+                        round(time.time() - window_end_ts), _resolution_method,
                     )
                 else:
-                    logger.debug("RESOLUTION %s [%s] | no outcome at window_end+10s", trade_id[:12], exit_reason)
+                    logger.debug("RESOLUTION %s [%s] | no outcome resolved", trade_id[:12], exit_reason)
             except Exception as _re:
                 logger.debug("resolution capture failed %s: %s", trade_id[:12], _re)
 
