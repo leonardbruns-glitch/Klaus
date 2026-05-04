@@ -2586,6 +2586,31 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # ── Layer 1: Market structure filter (hard gate) ─────────────────────────
+            # BTC YES DOWN only: skip if OB too thick — token can't walk to 1.0 through wall.
+            # Sim n=102: depth>2000 → 8 BTC-DOWN trades (2W/6L -$21.97), net +$22.07.
+            # Uses _term_ob_depth (top-3 bid+ask); ob_depth_at_entry (top-5) runs ~20% higher.
+            if (_token_dir == "down" and token.asset == "BTC"
+                    and _term_ob_depth > 2000.0):
+                logger.info(
+                    "[BOND] L1_depth_skip %s/%s | dir=DOWN ob_depth=%.1f — thick book >2000, skip",
+                    token.asset, token.side, _term_ob_depth,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # ── Layer 2: Momentum exhaustion filter (hard gate) ──────────────────────
+            # YES DOWN: skip if tok30 > 50 — YES token already running hard, move is mature.
+            # Sim n=102: td30>50 → 4 DOWN trades (1W/3L -$5.63), net +$5.72.
+            # Start conservative at 50; refine toward 40 per asset as n grows.
+            if (_token_dir == "down" and _term_tok_d30 > 50.0):
+                logger.info(
+                    "[BOND] L2_tok30_exhaust %s/%s | dir=DOWN tok30=%.1f%% — exhausted >50, skip",
+                    token.asset, token.side, _term_tok_d30,
+                )
+                _b_mom_skip += 1
+                continue
+
             # ── Per-asset pre-entry gates (user-authorised 2026-05-03, n<100 Tier 2) ──
             # BTC: require positive sustained momentum (daccel>+0.01 AND accel_sustained)
             # flat daccel: n=38 WR=37% net=-$151; not_sustained: n=54 WR=43% net=-$169
@@ -2644,6 +2669,21 @@ class KlausBot:
                 )
                 _b_mom_skip += 1
                 continue
+            # ── Layer 3: Cross-asset regime modifier ─────────────────────────────────
+            # ETH YES UP: require BTC positive momentum ≥ +0.015% (not just non-negative).
+            # ETH UP WR=41% -$15.40; flat BTC (0 to +0.015%) provides no UP support for ETH.
+            # Global UP gate already blocks bnc<0. This tightens ETH UP only (not UTC22).
+            # ETH DOWN: no additional restriction — already profitable (WR=55% +$13.93).
+            if (token.asset == "ETH" and _token_dir == "up" and _utc_hour != 22
+                    and _term_binance_1m is not None and _term_binance_1m != 0.0
+                    and _term_binance_1m < 0.0150):
+                logger.info(
+                    "[BOND] L3_eth_bnc_skip %s/%s | dir=UP b1m=%.4f%% — ETH UP needs BTC≥+0.015%%",
+                    token.asset, token.side, _term_binance_1m,
+                )
+                _b_mom_skip += 1
+                continue
+
             # SOL: late entry (elapsed>=0.75): n=29 WR=65% net=-$46
             if token.asset == "SOL" and _elapsed_pct >= 0.75:
                 logger.info(
@@ -2652,6 +2692,17 @@ class KlausBot:
                 )
                 _b_mom_skip += 1
                 continue
+
+            # ── Layer 4: Microstructure noise — log-only, no gate ────────────────────
+            # Track ask_stale distribution: stale<1.0 = active repricing = potential volatility.
+            # Sim showed stale<0.5 fires 0 trades (floor at 0.5s); stale<1.0 filters 30 (13W/17L).
+            # Log here (post all hard gates) to build distribution for future threshold decision.
+            if _term_ask_stale_s < 1.0:
+                logger.info(
+                    "[BOND] L4_stale_monitor %s/%s | dir=%s stale=%.1f sprd=%.2f%% depth=%.1f — log only",
+                    token.asset, token.side, _token_dir,
+                    _term_ask_stale_s, _term_sprd, _term_ob_depth,
+                )
 
             # Trajectory fields (populate bond_ fields so report sections work)
             signal.bond_delta_accel_30s  = _tok_accel
