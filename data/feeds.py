@@ -419,6 +419,8 @@ class PolymarketFeed:
         else:
             # Seed bar history from CLOB prices-history so scoring starts immediately
             await self._warmup_live_bars()
+            # Pre-fill 1m close buffer so G1 regime filter works immediately
+            await self._bootstrap_1m_buf()
             # Launch WebSocket subscriptions for real-time data
             self._ws_tasks = [
                 asyncio.create_task(self._run_clob_ws()),
@@ -790,6 +792,31 @@ class PolymarketFeed:
                 logger.warning("Binance WS disconnected (%s) — reconnecting in 5s [total drops: %d]",
                                exc, self.reconnects["binance_ws"])
                 await asyncio.sleep(5)
+
+    async def _bootstrap_1m_buf(self) -> None:
+        """Seed 1m close buffer from Binance REST on startup — avoids 60min G1 cold-start."""
+        _SYMBOL_MAP = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+        url = "https://api.binance.com/api/v3/klines"
+        for asset, symbol in _SYMBOL_MAP.items():
+            try:
+                params = {"symbol": symbol, "interval": "1m", "limit": 66}
+                async with self._session.get(url, params=params) as resp:
+                    if resp.status != 200:
+                        logger.warning("bootstrap_1m_buf %s: HTTP %d", asset, resp.status)
+                        continue
+                    klines = await resp.json()
+                # Skip the last entry — it's the current (unclosed) candle
+                for k in klines[:-1]:
+                    close = float(k[4])
+                    if close > 0:
+                        self._1m_close_buf[asset].append(close)
+                logger.info(
+                    "bootstrap_1m_buf %s: loaded %d closes (G1_ready=%s)",
+                    asset, len(self._1m_close_buf[asset]),
+                    len(self._1m_close_buf[asset]) >= 61,
+                )
+            except Exception as exc:
+                logger.warning("bootstrap_1m_buf %s: failed — %s", asset, exc)
 
     async def _run_binance_kline_ws(self) -> None:
         """
