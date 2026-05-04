@@ -2224,6 +2224,12 @@ class KlausBot:
             _elapsed_pct = 1.0 - remaining / max(1, token.window_seconds)
             _wlabel      = f"{token.window_seconds // 60}m"
 
+            # YES DOWN disabled: COR=33%, Net=-$46 across all hours (2026-05-04)
+            if _token_dir == "down":
+                logger.debug("[BOND] yes_down_disabled %s/%s — YES DOWN blocked globally", token.asset, token.side)
+                _b_mom_skip += 1
+                continue
+
             # ── TERMINAL observation metrics (data collection only) ──────────
             _asset_up = token.asset.upper()
             # Kline-based Binance momentum (same source as ext_signals in main scan loop)
