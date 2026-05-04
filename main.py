@@ -2242,7 +2242,6 @@ class KlausBot:
             _elapsed_pct = 1.0 - remaining / max(1, token.window_seconds)
             _wlabel      = f"{token.window_seconds // 60}m"
 
-
             # ── TERMINAL observation metrics (data collection only) ──────────
             _asset_up = token.asset.upper()
             # Kline-based Binance momentum (same source as ext_signals in main scan loop)
@@ -4400,6 +4399,7 @@ class KlausBot:
                 window_end_ts=pos.window_end_ts,
                 binance_price_at_entry=pos.binance_price_at_entry,
                 condition_id=getattr(pos, "condition_id", ""),
+                outcome_direction=getattr(pos, "bond_outcome_direction", "up") or "up",
             ))
             if pos.window_end_ts > 0:
                 try:
@@ -4693,6 +4693,7 @@ class KlausBot:
                     window_end_ts=pos.window_end_ts,
                     binance_price_at_entry=pos.binance_price_at_entry,
                     condition_id=getattr(pos, "condition_id", ""),
+                    outcome_direction=getattr(pos, "bond_outcome_direction", "up") or "up",
                 ))
                 return
             # Shares still exist — reset and retry next cycle
@@ -5125,6 +5126,7 @@ class KlausBot:
             window_end_ts=pos.window_end_ts,
             binance_price_at_entry=pos.binance_price_at_entry,
             condition_id=getattr(pos, "condition_id", ""),
+            outcome_direction=getattr(pos, "bond_outcome_direction", "up") or "up",
         )
         # Persist to disk so restarts don't lose the resolution task
         if pos.window_end_ts > 0:
@@ -5148,6 +5150,7 @@ class KlausBot:
         window_end_ts: float = 0.0,
         binance_price_at_entry: float = 0.0,
         condition_id: str = "",
+        outcome_direction: str = "up",
     ) -> None:
         """Sample token price at T+30s, T+60s, T+120s after exit.
         For SL exits: also samples at window_end_ts+60s to capture window resolution outcome.
@@ -5216,7 +5219,10 @@ class KlausBot:
                         logger.debug("RESOLUTION kline fetch %s: %s", trade_id[:12], _ke)
 
                 if _wop is not None:
-                    _entered_correctly = _wop >= 0.5  # 1.0=YES won, 0.0=NO won
+                    # _wop=1.0 means price went UP (kline close>=open); 0.0 means DOWN.
+                    # For YES UP: correct if price went UP (_wop>=0.5).
+                    # For YES DOWN: correct if price went DOWN (_wop<0.5).
+                    _entered_correctly = (_wop >= 0.5) if outcome_direction == "up" else (_wop < 0.5)
                     _res_rec = {
                         "trade_id": trade_id,
                         "record_type": "resolution",
