@@ -1149,6 +1149,21 @@ class KlausBot:
                         self._pae_below_since.pop(token_id, None)
                         self._pae_above_since.pop(token_id, None)
 
+                # ── INVERTED_TP: exit at +75% on inverted (low-price) entries ────
+                _inv_tp = pos.entry_price * 1.75
+                if current_price >= _inv_tp and token_id not in self._exit_in_progress:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'INVERTED_TP %s/%s | bid=%.4f ep=%.4f tp=%.4f remaining=%.1fs',
+                        pos.asset, pos.direction.name, current_price,
+                        pos.entry_price, _inv_tp, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'INVERTED_TP')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── PROFIT_TARGET: exit at bid ≥ 0.99 ───────────────────────────
                 if current_price >= 0.99 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
