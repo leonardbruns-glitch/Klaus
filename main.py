@@ -2443,7 +2443,7 @@ class KlausBot:
                 reason=f"TERMINAL_{_wlabel} ask={ask:.3f} rem={remaining:.0f}s",
                 signal_source="BOND",
                 is_bond=True,
-                bond_exit_sec=30,
+                bond_exit_sec=3,
                 bond_outcome_direction=_token_dir,
                 bond_entry_class="TERMINAL",
             )
