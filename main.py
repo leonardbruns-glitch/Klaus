@@ -2505,6 +2505,16 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # Early-window snap60 floor at 30%: [20,30) COR=43.8% ◄, [30,50) COR=72.7% ▲
+            # n=59 populated (May 4). BTC [30,50)=80%, ETH [30,50)=90%. Tier 2.
+            if ask < 0.80 and _snap60_eff < 30.0:
+                logger.info(
+                    "[BOND] snap60_early_low %s/%s | snap60_eff=%.1f%% — below early-window 30%% floor",
+                    token.asset, token.side, _snap60_eff,
+                )
+                _b_mom_skip += 1
+                continue
+
             # snap30 gate: allow [10%, 120%) only — terminal era sweet spot
             # <10%: net negative across all sub-buckets (n=1461); ≥120%: avg-loss > avg-win (n=33)
             if not (10.0 <= _snap30_eff < 120.0):
