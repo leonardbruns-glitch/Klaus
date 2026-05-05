@@ -265,9 +265,9 @@ async def check_and_approve_collateral(
     Private key:
         Read from TRADING_EOA_PRIVATE_KEY env var. Never passed as argument.
     """
-    private_key = os.environ.get("TRADING_EOA_PRIVATE_KEY")
+    private_key = os.environ.get("PRIVATE_KEY")
     if not private_key:
-        raise EnvironmentError("TRADING_EOA_PRIVATE_KEY not set")
+        raise EnvironmentError("PRIVATE_KEY not set")
 
     w3           = _ProviderSingleton.get(rpc_url)
     owner_addr   = AsyncWeb3.to_checksum_address(owner)

@@ -2,13 +2,11 @@
 Experimental V2 branch — Polymarket CLOB order listener + pre-flight guard + on-chain fill.
 
 Environment variables required:
-    POLYGON_RPC_URL              — Polygon HTTP RPC (Alchemy / Infura / private node)
-    TRADING_EOA_ADDRESS          — your EOA (0x...)
-    TRADING_EOA_PRIVATE_KEY      — private key for signing fill + approval txs
-    CLOB_API_KEY                 — Polymarket CLOB API key
-    CLOB_API_SECRET              — Polymarket CLOB API secret
-    CLOB_API_PASSPHRASE          — Polymarket CLOB API passphrase
-    DRY_RUN                      — set to "true" to log without submitting (default: true)
+    POLYGON_RPC_URL   — Polygon HTTP RPC (add to .env — not in main bot's .env)
+    FUNDER_ADDRESS    — EOA address (already in .env)
+    PRIVATE_KEY       — signing key (already in .env, shared with main bot)
+    CLOB_API_KEY      — Polymarket CLOB API key (add to .env)
+    DRY_RUN           — already in .env; ensure it is "true" before first run
 
 Fill in CLOB_WS_URL and CLOB_REST_URL from the Polymarket CLOB API docs.
 """
@@ -46,9 +44,9 @@ from tools.preflight import (
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-RPC_URL      = os.environ["POLYGON_RPC_URL"]
-EOA_ADDRESS  = os.environ["TRADING_EOA_ADDRESS"]
-CLOB_API_KEY = os.environ.get("CLOB_API_KEY", "")
+RPC_URL      = os.environ["POLYGON_RPC_URL"]        # add to .env
+EOA_ADDRESS  = os.environ["FUNDER_ADDRESS"]          # already in .env
+CLOB_API_KEY = os.environ.get("CLOB_API_KEY", "")   # add to .env
 
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() != "false"
 
@@ -159,7 +157,7 @@ async def submit_fill_onchain(
     from tools.preflight import _encode_fill_order, _ProviderSingleton, V2_EXCHANGE
 
     w3 = _ProviderSingleton.get(RPC_URL)
-    private_key = os.environ["TRADING_EOA_PRIVATE_KEY"]
+    private_key = os.environ["PRIVATE_KEY"]
     owner_addr  = AsyncWeb3.to_checksum_address(EOA_ADDRESS)
 
     calldata   = _encode_fill_order(signed_order, token_id)
