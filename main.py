@@ -2721,6 +2721,15 @@ class KlausBot:
                 )
                 _b_mom_skip += 1
                 continue
+            # ETH: no sustained momentum — tok_d30>0.5% AND tok_d60>0.5% required
+            # 2026-05-05: n=13 ETH, 0 winners had sust=False; T03710 (-$4.57) had tok_d30=0%
+            if token.asset == "ETH" and not _tok_sust:
+                logger.info(
+                    "[BOND] eth_sust_skip %s/%s | sust=False tok_d30=%.1f%% tok_d60=%.1f%% — ETH flat momentum skip",
+                    token.asset, token.side, _term_tok_d30, _term_tok_d60,
+                )
+                _b_mom_skip += 1
+                continue
             # ETH: thin OB (top-3 depth<100): n=11 WR=18% net=-$65
             if token.asset == "ETH" and _term_ob_depth < 100:
                 logger.info(
