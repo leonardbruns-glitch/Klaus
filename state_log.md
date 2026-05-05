@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-05 | ENTRY / ALL | rem>90s entries blocked — TERMINAL zone only (25–90s) | user instruction
+
 ---
 
 ## 2026-04-27 | ENTRY / ALL | ask range lowered 0.84→0.80 | 0.82–0.84 PF=1.03 (n=114); 0.80–0.82 raw PF=0.87 (n=115) wick-adj PF=1.24 expected with wick filter
@@ -102,5 +104,15 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-03 ~06:XX UTC | ENTRY / ALL | Min ask raised 0.75→0.80 | User instruction. Floor was raised to 0.75 on 2026-05-02 but CLAUDE.md not updated (showed 0.70). Now 0.80.
 
 ## 2026-05-03 ~06:XX UTC | ENTRY / BOND | Blocked hours re-enabled for BOND: {0,2,3,4,5,6,7,17,19,23} UTC | User instruction. BOND was exempt from hour blocking (risk/manager.py explicitly skips BOND). All 19 May 3 trades were in blocked hours. Added check in BOND terminal scanner via bond_blocked_hours_utc config field.
+
+## 2026-05-04 | STRATEGY / ALL | Inversion scoped to early window only | user instruction; _ask_floor==0.52 (rem>180s) → invert to partner; _ask_floor==0.80 (rem≤180s, TERMINAL zone) → buy signalled token directly
+
+## 2026-05-04 | HOURS / ALL | All trade hours unblocked (bond_blocked_hours_utc=[]) | user instruction; previously blocked {0,2,3,4,5,6,7,17,23}
+
+## 2026-05-04 | EXIT / ALL | INVERTED_TP added: exit at bid >= entry_price * 1.75 | user instruction; fires before 0.99 PROFIT_TARGET; inverted entries are low-priced (~0.10–0.20), +75% is reachable if signal direction reverses strongly
+
+## 2026-05-04 | EXIT / ALL | TIME_EXIT re-enabled at T-30s | user instruction; bond_exit_sec 10→30; timer fires unconditional sell 30s before window close; previously disabled (holding to resolution)
+
+## 2026-05-04 | STRATEGY / ALL | TERMINAL direction inverted: buy opposite side when gates fire | user instruction; when signal approves YES UP token, bot now finds partner token (same condition_id, opposite outcome_direction) and enters that instead; signal/tpsl/entered_correctly all updated to partner; INVERT_NO_PARTNER warning logged if partner has no ask
 
 ## 2026-05-04 | BUG / ALL | window_outcome_price was wrong for all historical trades | Gamma API outcomePrices collapses to ["0","0"] for ALL tokens after market close (CLOB price, not oracle settlement). This caused wop=0.0 for ~96% of trades since May 3 19:00 UTC — actual YES rate was 61%. Fix: replaced Gamma polling + CLOB fallback with Binance 5m kline (open vs close of exact 300s window), which shares the same grid as Polymarket windows and agrees with Chainlink >99% of the time. Wait increased 10s→35s for kline to fully close. entered_correctly threshold corrected 0.80→0.5 (wop now clean binary 0/1). Backfilled n=75 trades (May 3 19:00 UTC+) with correct values via Binance klines. All prior analysis using window_outcome_price or entered_correctly is invalid and must be re-run.
