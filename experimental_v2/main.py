@@ -24,23 +24,11 @@ from typing import Any, Optional
 import aiohttp
 from web3 import AsyncWeb3
 
-from tools.collateral import (
-    CollateralResult,
-    CollateralStatus,
-    check_and_approve_collateral,
-)
+from tools.collateral import CollateralStatus, check_and_approve_collateral
+from tools.preflight import Abort, init_provider, pre_flight_check
+from experimental_v2.strategy import StrategyLayer, SniperSignal
 
-# APPROVAL_PENDING means a concurrent coroutine already broadcast an approval;
-# the fill must still use nonce_for_fill — same as APPROVAL_SENT.
 _COLLATERAL_NEEDS_NONCE = {CollateralStatus.APPROVAL_SENT, CollateralStatus.APPROVAL_PENDING}
-from tools.preflight import (
-    Abort,
-    PreFlightResult,
-    V2_EXCHANGE,
-    _ProviderSingleton,
-    init_provider,
-    pre_flight_check,
-)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -132,176 +120,126 @@ async def fetch_token_id_map() -> dict[str, str]:
         return _token_id_cache
 
 
-# ── P&L gate (stub — replace with your real check) ───────────────────────────
+# ── Taker order builder ───────────────────────────────────────────────────────
 
-async def local_pnl_check(signed_order: dict[str, Any]) -> bool:
+def _build_clob_client():
     """
-    Return True if the order passes your local P&L / exposure rules.
-    Runs concurrently with the simulation inside asyncio.gather.
+    Initialise py_clob_client for signing and submitting taker orders.
+    Requires CLOB_API_SECRET and CLOB_API_PASSPHRASE in .env (not yet set).
     """
-    maker_amount = int(signed_order.get("makerAmount", 0))
-    return maker_amount > 0  # replace with real check
-
-
-# ── On-chain fill submission ──────────────────────────────────────────────────
-
-async def submit_fill_onchain(
-    signed_order: dict[str, Any],
-    token_id: str,
-    explicit_nonce: Optional[int],
-) -> str:
-    """
-    Encode and broadcast the fillOrder transaction directly to the V2 Exchange.
-    Returns the tx hash.
-    """
-    from tools.preflight import _encode_fill_order, _ProviderSingleton, V2_EXCHANGE
-
-    w3 = _ProviderSingleton.get(RPC_URL)
-    private_key = os.environ["PRIVATE_KEY"]
-    owner_addr  = AsyncWeb3.to_checksum_address(EOA_ADDRESS)
-
-    calldata   = _encode_fill_order(signed_order, token_id)
-    base_fee   = (await w3.eth.get_block("latest"))["baseFeePerGas"]
-    tip_wei    = AsyncWeb3.to_wei(100, "gwei")
-    max_fee    = (2 * base_fee) + tip_wei
-
-    nonce = explicit_nonce if explicit_nonce is not None else (
-        await w3.eth.get_transaction_count(owner_addr, "pending")
+    from py_clob_client.client import ClobClient
+    return ClobClient(
+        host           = CLOB_REST_URL,
+        key            = os.environ["PRIVATE_KEY"],
+        chain_id       = 137,  # Polygon
+        signature_type = int(os.environ.get("SIGNATURE_TYPE", "1")),
+        funder         = EOA_ADDRESS,
     )
 
-    tx = {
-        "to":                  AsyncWeb3.to_checksum_address(V2_EXCHANGE),
-        "from":                owner_addr,
-        "data":                calldata,
-        "value":               0,
-        "nonce":               nonce,
-        "maxPriorityFeePerGas": tip_wei,
-        "maxFeePerGas":        max_fee,
-        "chainId":             await w3.eth.chain_id,
-    }
-    tx["gas"] = await w3.eth.estimate_gas(tx)
 
-    signed_txn = w3.eth.account.sign_transaction(tx, private_key)
-    tx_hash    = await w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-    return tx_hash.hex()
-
-
-# ── Order event handler ───────────────────────────────────────────────────────
-
-async def handle_order_update(event: dict[str, Any]) -> None:
+async def _build_taker_order(signal: SniperSignal) -> Optional[dict[str, Any]]:
     """
-    Process a single order_update event from the CLOB WebSocket.
-
-    Expected event shape (adjust field names to match actual CLOB WS schema):
-        {
-            "type": "order_update",
-            "order": {
-                "maker":         "0x...",
-                "taker":         "0x...",
-                "makerAmount":   "1000000",
-                "takerAmount":   "800000",
-                "expiration":    "1234567890",
-                "nonce":         "0",
-                "asset_id":      "...",      # used for token_id resolution
-                "feeRateBps":    "0",
-                "side":          0,
-                "signatureType": 1,          # POLY_PROXY
-                "signature":     "0x..."
-            }
-        }
+    Build a signed GTC limit order to take the signalled ask.
+    Returns the signed order dict ready for POST /order, or None on failure.
     """
-    signed_order: dict[str, Any] = event.get("order", event)
-    order_id = signed_order.get("id", "unknown")
-
-    log.info("order_update received | id=%s | maker=%s", order_id, signed_order.get("maker"))
-
-    # ── Run simulation, P&L gate, and collateral check concurrently ───────────
     try:
-        preflight_coro = pre_flight_check(
-            signed_order,
-            rpc_url=RPC_URL,
-            fetch_token_id_map=fetch_token_id_map,
-            pnl_check=local_pnl_check,
-            sender=EOA_ADDRESS,
+        from py_clob_client.clob_types import OrderArgs, OrderType, BUY
+        client      = _build_clob_client()
+        order_args  = OrderArgs(
+            price    = signal.price,
+            size     = signal.size_usdc / signal.price,  # convert USDC → shares
+            side     = BUY,
+            token_id = signal.token_id,
         )
-        collateral_coro = check_and_approve_collateral(
-            signed_order,
-            rpc_url=RPC_URL,
-            owner=EOA_ADDRESS,
-            await_receipt=False,  # nonce-chained; fill uses nonce_for_fill
-        )
-
-        preflight_result, collateral_result = await asyncio.gather(
-            preflight_coro,
-            collateral_coro,
-            return_exceptions=True,
-        )
+        signed = client.create_order(order_args)
+        return signed
     except Exception as exc:
-        log.error("gather error | id=%s | %s", order_id, exc)
-        return
+        log.error("order build failed | token=%s | %s", signal.token_id[:12], exc)
+        return None
 
-    # ── Propagate any unexpected exceptions from gather ───────────────────────
-    if isinstance(preflight_result, Exception):
-        log.error("preflight raised | id=%s | %s", order_id, preflight_result)
-        return
-    if isinstance(collateral_result, Exception):
-        log.error("collateral raised | id=%s | %s", order_id, collateral_result)
-        return
 
-    preflight: PreFlightResult    = preflight_result
-    collateral: CollateralResult  = collateral_result
+async def _submit_taker_order(signed_order: dict[str, Any]) -> Optional[str]:
+    """POST signed order to CLOB REST API. Returns order_id or None."""
+    try:
+        from py_clob_client.clob_types import OrderType
+        client   = _build_clob_client()
+        response = client.post_order(signed_order, OrderType.GTC)
+        return response.get("orderID") or response.get("id")
+    except Exception as exc:
+        log.error("order submit failed: %s", exc)
+        return None
 
-    # ── Preflight gates ───────────────────────────────────────────────────────
-    if not preflight.go:
-        if preflight.abort_reason == Abort.GHOST_ORDER:
-            # Issue #338 — structured log for audit
-            log.error(
-                "GHOST_ORDER | id=%s | token=%s | gas=%s | sig_type=%s | %.1fms",
-                order_id, preflight.token_id, preflight.gas_estimate,
-                signed_order.get("signatureType"), preflight.elapsed_ms,
-            )
-        else:
-            log.warning(
-                "preflight ABORT | id=%s | reason=%s | msg=%s | %.1fms",
-                order_id, preflight.abort_reason.name,
-                preflight.revert_msg, preflight.elapsed_ms,
-            )
-        return
 
-    if collateral.status == CollateralStatus.FAILED:
-        log.error("collateral FAILED | id=%s | %s", order_id, collateral.error)
-        return
+# ── Snipe executor ────────────────────────────────────────────────────────────
 
-    # ── Determine fill nonce ──────────────────────────────────────────────────
-    # APPROVAL_SENT / APPROVAL_PENDING → use nonce_for_fill so the mempool
-    # sequences approval → fill regardless of mining order.
-    # SUFFICIENT / APPROVED → let eth_getTransactionCount decide.
-    fill_nonce: Optional[int] = (
-        collateral.nonce_for_fill
-        if collateral.status in _COLLATERAL_NEEDS_NONCE
-        else None
+async def execute_snipe(signal: SniperSignal) -> None:
+    """
+    Full execution path for a sniper signal:
+        1. Build signed taker order
+        2. Collateral check (concurrent with order build)
+        3. Pre-flight simulation
+        4. Submit to CLOB REST API
+    """
+    log.info(
+        "SNIPE EXECUTE | token=%s… | ask=%.4f | fair=%.4f | discount=%.2f%% | $%.2f",
+        signal.token_id[:12], signal.price, signal.fair_price,
+        signal.discount_pct * 100, signal.size_usdc,
     )
+
+    # ── Build order and check collateral concurrently ─────────────────────────
+    order_task      = asyncio.create_task(_build_taker_order(signal))
+    collateral_task = asyncio.create_task(check_and_approve_collateral(
+        {"makerAmount": str(int(signal.size_usdc * 1e6))},  # pUSD has 6 decimals
+        rpc_url      = RPC_URL,
+        owner        = EOA_ADDRESS,
+        await_receipt = False,
+    ))
+
+    signed_order, collateral = await asyncio.gather(
+        order_task, collateral_task, return_exceptions=True
+    )
+
+    if isinstance(signed_order, Exception) or signed_order is None:
+        log.error("SNIPE ABORT — order build failed | token=%s…", signal.token_id[:12])
+        return
+    if isinstance(collateral, Exception) or collateral.status == CollateralStatus.FAILED:
+        log.error("SNIPE ABORT — collateral failed | %s", getattr(collateral, "error", collateral))
+        return
+
+    # ── Pre-flight simulation ─────────────────────────────────────────────────
+    preflight = await pre_flight_check(
+        signed_order,
+        rpc_url          = RPC_URL,
+        fetch_token_id_map = fetch_token_id_map,
+        sender           = EOA_ADDRESS,
+    )
+
+    if not preflight.go:
+        log.warning(
+            "SNIPE ABORT — preflight %s | %s | %.1fms",
+            preflight.abort_reason.name, preflight.revert_msg, preflight.elapsed_ms,
+        )
+        return
 
     log.info(
-        "pre-flight PASSED | id=%s | gas=%d | collateral=%s | nonce=%s | %.1fms",
-        order_id, preflight.gas_estimate, collateral.status.name,
-        fill_nonce, preflight.elapsed_ms,
+        "SNIPE PREFLIGHT OK | gas=%s | collateral=%s | %.1fms",
+        preflight.gas_estimate, collateral.status.name, preflight.elapsed_ms,
     )
 
-    # ── Submit ────────────────────────────────────────────────────────────────
     if DRY_RUN:
-        log.info("DRY_RUN — fill suppressed | id=%s | nonce_would_be=%s", order_id, fill_nonce)
+        log.info(
+            "DRY_RUN — snipe suppressed | token=%s… | ask=%.4f | $%.2f",
+            signal.token_id[:12], signal.price, signal.size_usdc,
+        )
         return
 
-    try:
-        tx_hash = await submit_fill_onchain(
-            signed_order,
-            token_id=preflight.token_id,
-            explicit_nonce=fill_nonce,
-        )
-        log.info("fill broadcast | id=%s | tx=%s", order_id, tx_hash)
-    except Exception as exc:
-        log.error("fill broadcast failed | id=%s | %s", order_id, exc)
+    # ── Submit ────────────────────────────────────────────────────────────────
+    order_id = await _submit_taker_order(signed_order)
+    if order_id:
+        log.info("SNIPE SUBMITTED | order_id=%s | token=%s… | ask=%.4f | $%.2f",
+                 order_id, signal.token_id[:12], signal.price, signal.size_usdc)
+    else:
+        log.error("SNIPE SUBMIT FAILED | token=%s…", signal.token_id[:12])
 
 
 # ── WebSocket listener ────────────────────────────────────────────────────────
@@ -343,7 +281,7 @@ async def _subscribe_payload(asset_ids: list[str]) -> str:
     })
 
 
-async def listen(condition_ids: list[str]) -> None:
+async def listen(condition_ids: list[str], strategy: StrategyLayer) -> None:
     """
     Connect to the CLOB market WebSocket and dispatch order_update events.
     Resolves condition IDs → asset token IDs before subscribing.
@@ -384,8 +322,9 @@ async def listen(condition_ids: list[str]) -> None:
 
                             events = payload if isinstance(payload, list) else [payload]
                             for event in events:
-                                if event.get("event_type") == "order" or event.get("type") == "order_update":
-                                    asyncio.create_task(handle_order_update(event))
+                                if "price_changes" in event:
+                                    for signal in strategy.process(event):
+                                        asyncio.create_task(execute_snipe(signal))
 
                         elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                             log.warning("WebSocket closed/error: %s", msg)
@@ -417,7 +356,11 @@ async def _main(market_ids: list[str]) -> None:
     await fetch_token_id_map()
     log.info("token map primed")
 
-    await listen(ids)
+    strategy = StrategyLayer()
+    log.info("strategy layer ready | threshold=%.0f%% | max=$%.0f",
+             strategy.snipe_threshold * 100, strategy.max_usdc)
+
+    await listen(ids, strategy)
 
 
 if __name__ == "__main__":
