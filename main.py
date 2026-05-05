@@ -2770,6 +2770,24 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # Gate A: YES DOWN ep≥0.88 — break-even needs 89% WR, actual 81% (n=31, Tier2 2026-05-05)
+            if _token_dir == "down" and ask >= 0.88:
+                logger.info(
+                    "[BOND] down_ep_skip %s/%s | ep=%.4f — YES DOWN ep≥0.88 skip",
+                    token.asset, token.side, ask,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # Gate D: YES UP decel≥2.0 — sharp reversal in progress (n=2 WR=0%, Tier2 2026-05-05)
+            if _token_dir == "up" and _term_tok_decel_ratio >= 2.0:
+                logger.info(
+                    "[BOND] up_decel_skip %s/%s | decel=%.4f — YES UP decel≥2.0 skip",
+                    token.asset, token.side, _term_tok_decel_ratio,
+                )
+                _b_mom_skip += 1
+                continue
+
             # ── Layer 4: Microstructure noise — log-only, no gate ────────────────────
             # Track ask_stale distribution: stale<1.0 = active repricing = potential volatility.
             # Sim showed stale<0.5 fires 0 trades (floor at 0.5s); stale<1.0 filters 30 (13W/17L).
@@ -2811,6 +2829,15 @@ class KlausBot:
             if not decision.approved:
                 logger.info("TERMINAL REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
+
+            # Gate C: YES UP snap30≥60% — blow-off pattern, reduce stake to 30% (Tier2 2026-05-05)
+            if _token_dir == "up" and _snap30_eff >= 60.0:
+                _orig_stake = decision.stake
+                decision.stake = max(5.0, round(decision.stake * 0.30, 2))
+                logger.info(
+                    "[BOND] up_snap30_reduce %s/%s | snap30=%.1f%% stake $%.2f→$%.2f — blow-off stake cut",
+                    token.asset, token.side, _snap30_eff, _orig_stake, decision.stake,
+                )
 
             if _ask_floor == 0.52:
                 # Early window: invert — gates fired on _token_dir side, buy opposite instead.
