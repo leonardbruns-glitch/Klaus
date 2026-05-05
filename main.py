@@ -17,6 +17,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import logging.handlers
 import math
 from collections import deque
 import os
@@ -76,7 +77,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("logs/bot.log"),
+        logging.handlers.RotatingFileHandler(
+            "logs/bot.log", maxBytes=50_000_000, backupCount=5
+        ),
     ],
 )
 # Silence noisy third-party loggers

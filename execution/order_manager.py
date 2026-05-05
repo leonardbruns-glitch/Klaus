@@ -190,6 +190,14 @@ class OrderManager:
         # Measures round-trip time from order submission to CLOB response.
         # High latency (>500ms) = network is the bottleneck.
         self._order_latencies_ms: List[float] = []  # all order RTTs this session
+        # Serializes all synchronous CLOB HTTP calls wrapped in asyncio.to_thread.
+        # curl_cffi Session is not thread-safe for concurrent calls; this lock
+        # ensures at most one HTTP call runs at a time while keeping the event loop
+        # free during the call (unlike the previous bare synchronous pattern).
+        self._clob_http_lock: asyncio.Lock = asyncio.Lock()
+        # Tokens pre-approved this session — exit path uses 0.3s propagation wait
+        # instead of 1.0s (approval already live on CLOB from position-open call).
+        self._approved_tokens: set = set()
 
     def _setup_fill_tracker(self) -> None:
         """Extract API creds from the CLOB client and give them to FillTracker."""
@@ -281,14 +289,16 @@ class OrderManager:
 
         # Refresh USDC allowance before buy — CLOB allowance depletes with each order
         # and must be reset or buys fail with "not enough balance / allowance".
-        # Same pattern as _approve_token() for sells (AssetType.CONDITIONAL).
+        # Wrapped in to_thread + lock to avoid blocking the event loop during the HTTP call.
         try:
-            self._client.update_balance_allowance(
-                BalanceAllowanceParams(
-                    asset_type=AssetType.COLLATERAL,
-                    signature_type=CONFIG.signature_type,
+            async with self._clob_http_lock:
+                await asyncio.to_thread(
+                    self._client.update_balance_allowance,
+                    BalanceAllowanceParams(
+                        asset_type=AssetType.COLLATERAL,
+                        signature_type=CONFIG.signature_type,
+                    )
                 )
-            )
         except Exception as _exc:
             logger.warning("USDC allowance refresh failed: %s", _exc)
 
@@ -380,21 +390,30 @@ class OrderManager:
             return False
         try:
             # Refresh conditional token allowance (the tokens being sold)
-            self._client.update_balance_allowance(
-                BalanceAllowanceParams(
-                    asset_type=AssetType.CONDITIONAL,
-                    token_id=token_id,
-                )
-            )
             # Refresh USDC allowance — required even for sells when free USDC is low
             # (concurrent positions lock USDC; CLOB needs a small reserve for fees)
-            self._client.update_balance_allowance(
-                BalanceAllowanceParams(
-                    asset_type=AssetType.COLLATERAL,
-                    signature_type=CONFIG.signature_type,
+            # Both calls are wrapped in to_thread so they don't block the event loop
+            # (critical: precise exit timers and BOND_DEADLINE must fire during approval).
+            async with self._clob_http_lock:
+                await asyncio.to_thread(
+                    self._client.update_balance_allowance,
+                    BalanceAllowanceParams(
+                        asset_type=AssetType.CONDITIONAL,
+                        token_id=token_id,
+                    )
                 )
-            )
-            await asyncio.sleep(1.0)  # approval propagation delay
+                await asyncio.to_thread(
+                    self._client.update_balance_allowance,
+                    BalanceAllowanceParams(
+                        asset_type=AssetType.COLLATERAL,
+                        signature_type=CONFIG.signature_type,
+                    )
+                )
+            # Propagation wait: 0.3s is sufficient — the CLOB API returns only after
+            # the approval is indexed server-side. 1.0s was overly conservative and
+            # consumed most of the T-4s exit window.
+            await asyncio.sleep(0.3)
+            self._approved_tokens.add(token_id)
             logger.debug("Token + USDC approved for sell: %s", token_id[:8])
             return True
         except Exception as exc:
@@ -862,7 +881,9 @@ class OrderManager:
             _order_t0 = time.time()
             _attempted_order_ids: list = []   # track ALL order IDs placed this call
             for _cf_attempt in range(3):
-                signed = self._client.create_order(order_args, options=opts)
+                # create_order: EIP-712 signing (CPU-only, no HTTP).
+                # Wrapped in to_thread so secp256k1 signing doesn't block the event loop.
+                signed = await asyncio.to_thread(self._client.create_order, order_args, options=opts)
                 # Capture order ID from signed order BEFORE posting — the ID is
                 # deterministic (hash of parameters + signature) and available even
                 # if CF blocks the POST response. Used to cancel stale resting orders
@@ -874,7 +895,11 @@ class OrderManager:
                 if _signed_id:
                     _attempted_order_ids.append(_signed_id)
                 try:
-                    resp = self._client.post_order(signed, order_type)
+                    # post_order: HTTP POST via curl_cffi (synchronous, would block event loop).
+                    # Lock serializes concurrent CLOB submissions from multiple position exits
+                    # (curl_cffi Session is not thread-safe for concurrent calls).
+                    async with self._clob_http_lock:
+                        resp = await asyncio.to_thread(self._client.post_order, signed, order_type)
                     _transient_exc = None
                 except Exception as _post_exc:
                     # PolyApiException: status_code=500 with 'could not run the execution'
@@ -922,7 +947,7 @@ class OrderManager:
                     # skip the retry and let downstream logic handle the existing order.
                     if _signed_id:
                         try:
-                            _prev_order = self._client.get_order(_signed_id)
+                            _prev_order = await asyncio.to_thread(self._client.get_order, _signed_id)
                             _prev_status = (
                                 (_prev_order.get("status") or "").lower()
                                 if _prev_order else ""
