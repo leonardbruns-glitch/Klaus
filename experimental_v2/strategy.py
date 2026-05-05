@@ -146,6 +146,41 @@ class StrategyLayer:
             self._books[token_id] = _TokenBook(token_id)
         return self._books[token_id]
 
+    def process_book_snapshot(self, snap: dict) -> None:
+        """
+        Process the initial full book snapshot sent on WS connect.
+
+        Shape: {"asset_id": "...", "bids": [{"price":"0.25","size":"100"},...],
+                "asks": [{"price":"0.26","size":"50"},...]}
+
+        Seeds the EMA so price_changes events can fire signals immediately.
+        """
+        token_id = str(snap.get("asset_id", ""))
+        if not token_id:
+            return
+
+        book = self._book(token_id)
+
+        for level in snap.get("bids", []):
+            try:
+                book.on_buy_update(float(level["price"]), float(level["size"]), None)
+            except (KeyError, ValueError):
+                pass
+
+        for level in snap.get("asks", []):
+            try:
+                book.on_sell_update(float(level["price"]), float(level["size"]))
+            except (KeyError, ValueError):
+                pass
+
+        log.info(
+            "book snapshot | token=%s… | bid=%s ask=%s fair=%s (n=%d)",
+            token_id[:12],
+            book.bids.best, book.asks.best,
+            f"{book._ema:.4f}" if book._ema else "warming",
+            book._n,
+        )
+
     def process(self, event: dict) -> list[SniperSignal]:
         """
         Process one price_changes WS event.

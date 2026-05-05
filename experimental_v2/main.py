@@ -322,7 +322,11 @@ async def listen(condition_ids: list[str], strategy: StrategyLayer) -> None:
 
                             events = payload if isinstance(payload, list) else [payload]
                             for event in events:
-                                if "price_changes" in event:
+                                # Initial book snapshot (list of per-token dicts with bids/asks)
+                                if "bids" in event or "asks" in event:
+                                    strategy.process_book_snapshot(event)
+                                # Incremental price_changes updates
+                                elif "price_changes" in event:
                                     for signal in strategy.process(event):
                                         asyncio.create_task(execute_snipe(signal))
 
