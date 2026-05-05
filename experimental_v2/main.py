@@ -306,42 +306,86 @@ async def handle_order_update(event: dict[str, Any]) -> None:
 
 # ── WebSocket listener ────────────────────────────────────────────────────────
 
-async def _subscribe_payload(market_ids: list[str]) -> str:
-    """Build the CLOB WS subscription message. Adjust to match actual API schema."""
+async def _resolve_asset_ids(condition_ids: list[str]) -> list[str]:
+    """
+    Convert condition IDs → token asset IDs for the market channel subscription.
+    Market channel takes asset_ids (token IDs), not condition IDs.
+    """
+    asset_ids = []
+    async with aiohttp.ClientSession() as session:
+        for cid in condition_ids:
+            try:
+                async with session.get(
+                    f"{CLOB_REST_URL}/markets/{cid}",
+                    timeout=aiohttp.ClientTimeout(total=5.0),
+                ) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+                    for token in data.get("tokens", []):
+                        tid = token.get("token_id")
+                        if tid:
+                            asset_ids.append(str(tid))
+            except Exception as exc:
+                log.warning("could not resolve token IDs for %s: %s", cid, exc)
+    return asset_ids
+
+
+async def _subscribe_payload(asset_ids: list[str]) -> str:
+    """
+    Market channel subscription. Type IS the channel name ("market").
+    Uses asset_ids (token IDs), not condition IDs.
+    Auth field uses "apiKey" — "key" causes immediate server close.
+    """
     return json.dumps({
-        "auth":    {"apiKey": CLOB_API_KEY},
-        "type":    "subscribe",
-        "channel": "market",
-        "markets": market_ids,
+        "auth":      {"apiKey": CLOB_API_KEY},
+        "type":      "market",
+        "assets_ids": asset_ids,
     })
 
 
-async def listen(market_ids: list[str]) -> None:
+async def listen(condition_ids: list[str]) -> None:
     """
-    Connect to the CLOB WebSocket and dispatch order_update events.
+    Connect to the CLOB market WebSocket and dispatch order_update events.
+    Resolves condition IDs → asset token IDs before subscribing.
     Reconnects automatically on disconnect.
     """
+    import ssl as _ssl
+    try:
+        import certifi as _certifi
+        _ssl_ctx = _ssl.create_default_context(cafile=_certifi.where())
+    except ImportError:
+        _ssl_ctx = _ssl.create_default_context()
+
+    asset_ids = await _resolve_asset_ids(condition_ids)
+    if not asset_ids:
+        log.error("no asset IDs resolved from condition IDs — cannot subscribe")
+        return
+    log.info("resolved %d asset IDs for subscription", len(asset_ids))
+
     while True:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(
                     CLOB_WS_URL,
+                    ssl=_ssl_ctx,
                     heartbeat=WS_PING_INTERVAL_S,
                     timeout=aiohttp.ClientTimeout(connect=10.0),
                 ) as ws:
-                    await ws.send_str(await _subscribe_payload(market_ids))
-                    log.info("WebSocket connected | markets=%s", market_ids)
+                    await ws.send_str(await _subscribe_payload(asset_ids))
+                    log.info("WebSocket connected | assets=%d", len(asset_ids))
 
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
+                            log.debug("RAW WS: %s", msg.data[:300])
                             try:
-                                event = json.loads(msg.data)
+                                payload = json.loads(msg.data)
                             except json.JSONDecodeError:
                                 continue
 
-                            if event.get("type") == "order_update":
-                                # Fire-and-forget: don't await — keeps the WS loop hot
-                                asyncio.create_task(handle_order_update(event))
+                            events = payload if isinstance(payload, list) else [payload]
+                            for event in events:
+                                if event.get("event_type") == "order" or event.get("type") == "order_update":
+                                    asyncio.create_task(handle_order_update(event))
 
                         elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                             log.warning("WebSocket closed/error: %s", msg)
@@ -373,7 +417,7 @@ async def _main(market_ids: list[str]) -> None:
     await fetch_token_id_map()
     log.info("token map primed")
 
-    await listen(market_ids)
+    await listen(ids)
 
 
 if __name__ == "__main__":
