@@ -43,6 +43,7 @@ class SniperSignal:
 
 @dataclass
 class _BookSide:
+    is_bid: bool                    = False
     best:   Optional[float]         = None
     levels: dict[float, float]      = field(default_factory=dict)
 
@@ -51,7 +52,10 @@ class _BookSide:
             self.levels.pop(price, None)
         else:
             self.levels[price] = size
-        self.best = min(self.levels) if self.levels else None
+        if self.levels:
+            self.best = max(self.levels) if self.is_bid else min(self.levels)
+        else:
+            self.best = None
 
     def set_best(self, price: float) -> None:
         """Fast path: set best from the WS best_bid/best_ask hint."""
@@ -63,8 +67,8 @@ class _TokenBook:
 
     def __init__(self, token_id: str) -> None:
         self.token_id = token_id
-        self.bids     = _BookSide()
-        self.asks     = _BookSide()
+        self.bids     = _BookSide(is_bid=True)
+        self.asks     = _BookSide(is_bid=False)
         self._ema:    Optional[float] = None
         self._n:      int = 0
 
