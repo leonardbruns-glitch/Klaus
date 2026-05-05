@@ -25,7 +25,7 @@ import aiohttp
 from web3 import AsyncWeb3
 
 from tools.collateral import CollateralStatus, check_and_approve_collateral
-from tools.preflight import Abort, init_provider, pre_flight_check
+from tools.preflight import Abort, V2_EXCHANGE, init_provider, pre_flight_check
 from experimental_v2.strategy import StrategyLayer, SniperSignal
 
 _COLLATERAL_NEEDS_NONCE = {CollateralStatus.APPROVAL_SENT, CollateralStatus.APPROVAL_PENDING}
