@@ -3265,6 +3265,18 @@ class KlausBot:
 
         self._buy_filled += 1
 
+        # Fill quality log: tracks gap between signal ask and actual fill for all BOND entries.
+        # Existing SLIPPAGE_ABORT fires at >0.10 below signal; this covers the 0–0.10 gray zone.
+        # T03720 (2026-05-05): signal=0.83 fill=0.73 slip=0.10 — just missed the abort threshold.
+        if getattr(signal, "signal_source", "") == "BOND" or True:
+            _fill_gap = signal.entry_price - fill.avg_fill_price
+            if abs(_fill_gap) > 0.005:
+                logger.info(
+                    "[BOND] fill_quality %s: fill=%.4f signal=%.4f gap=%+.4f (%+.1f%%)",
+                    asset, fill.avg_fill_price, signal.entry_price,
+                    -_fill_gap, -_fill_gap / signal.entry_price * 100 if signal.entry_price else 0,
+                )
+
         # Use actual fill cost as stake — CLOB 5-share minimum may require more than
         # the risk-approved stake (e.g. $1 stake but minimum order is $3.45 at price 0.69).
         actual_stake = fill.avg_fill_price * fill.total_size
