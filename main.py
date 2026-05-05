@@ -6339,4 +6339,10 @@ if __name__ == "__main__":
         except FileNotFoundError:
             pass
 
+    try:
+        import uvloop
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        logger.info("uvloop event loop active — improved timer precision + I/O throughput")
+    except ImportError:
+        logger.info("uvloop not installed — using default asyncio event loop")
     asyncio.run(_main())

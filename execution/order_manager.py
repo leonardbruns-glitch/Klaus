@@ -190,13 +190,19 @@ class OrderManager:
         # Measures round-trip time from order submission to CLOB response.
         # High latency (>500ms) = network is the bottleneck.
         self._order_latencies_ms: List[float] = []  # all order RTTs this session
-        # Serializes all synchronous CLOB HTTP calls wrapped in asyncio.to_thread.
-        # curl_cffi Session is not thread-safe for concurrent calls; this lock
-        # ensures at most one HTTP call runs at a time while keeping the event loop
-        # free during the call (unlike the previous bare synchronous pattern).
-        self._clob_http_lock: asyncio.Lock = asyncio.Lock()
-        # Tokens pre-approved this session — exit path uses 0.3s propagation wait
-        # instead of 1.0s (approval already live on CLOB from position-open call).
+        # _session_lock: guards the module-level _CffiSession (not thread-safe).
+        # Held only for the duration of a single HTTP call — released between calls
+        # so other tokens can interleave. Narrower than the old _clob_http_lock which
+        # held across entire approve+order sequences.
+        self._session_lock: asyncio.Lock = asyncio.Lock()
+        # _token_locks: per-token flow lock — prevents two coroutines from
+        # interleaving approve/order operations for the *same* token. Different
+        # tokens acquire different locks and can run their non-HTTP work concurrently,
+        # only serializing at _session_lock for the actual curl_cffi HTTP call.
+        self._token_locks: Dict[str, asyncio.Lock] = {}
+        # Tokens approved this session — allowances persist server-side until the
+        # session ends, so repeat exits skip both allowance HTTP calls + the
+        # propagation sleep, saving ~650ms per exit at 128ms RTT.
         self._approved_tokens: set = set()
 
     def _setup_fill_tracker(self) -> None:
@@ -291,7 +297,7 @@ class OrderManager:
         # and must be reset or buys fail with "not enough balance / allowance".
         # Wrapped in to_thread + lock to avoid blocking the event loop during the HTTP call.
         try:
-            async with self._clob_http_lock:
+            async with self._session_lock:
                 await asyncio.to_thread(
                     self._client.update_balance_allowance,
                     BalanceAllowanceParams(
@@ -383,32 +389,45 @@ class OrderManager:
         Refreshes BOTH conditional token allowance AND USDC (collateral) allowance.
         With multiple concurrent positions, free USDC depletes and sell orders fail
         with "not enough balance / allowance" even though tokens are held.
+
+        Fast path: if this token was approved earlier in the session, allowances
+        are still live server-side — skip both HTTP calls and the propagation sleep.
+        This saves ~650ms at current RTT, critical for T-4s exit timing.
         """
         if CONFIG.dry_run:
             return True
         if self._client is None:
             return False
+        if token_id in self._approved_tokens:
+            logger.debug("Token already approved this session — skipping allowance refresh: %s", token_id[:8])
+            return True
         try:
-            # Refresh conditional token allowance (the tokens being sold)
-            # Refresh USDC allowance — required even for sells when free USDC is low
-            # (concurrent positions lock USDC; CLOB needs a small reserve for fees)
-            # Both calls are wrapped in to_thread so they don't block the event loop
-            # (critical: precise exit timers and BOND_DEADLINE must fire during approval).
-            async with self._clob_http_lock:
-                await asyncio.to_thread(
-                    self._client.update_balance_allowance,
-                    BalanceAllowanceParams(
-                        asset_type=AssetType.CONDITIONAL,
-                        token_id=token_id,
+            if token_id not in self._token_locks:
+                self._token_locks[token_id] = asyncio.Lock()
+            async with self._token_locks[token_id]:
+                # Re-check inside the token lock — another coroutine for this token
+                # may have completed approval while we were waiting.
+                if token_id in self._approved_tokens:
+                    return True
+                # Conditional and collateral allowance: two separate HTTP calls each
+                # holding _session_lock only for their own duration. Releasing the
+                # session lock between calls lets other tokens' HTTP calls interleave.
+                async with self._session_lock:
+                    await asyncio.to_thread(
+                        self._client.update_balance_allowance,
+                        BalanceAllowanceParams(
+                            asset_type=AssetType.CONDITIONAL,
+                            token_id=token_id,
+                        )
                     )
-                )
-                await asyncio.to_thread(
-                    self._client.update_balance_allowance,
-                    BalanceAllowanceParams(
-                        asset_type=AssetType.COLLATERAL,
-                        signature_type=CONFIG.signature_type,
+                async with self._session_lock:
+                    await asyncio.to_thread(
+                        self._client.update_balance_allowance,
+                        BalanceAllowanceParams(
+                            asset_type=AssetType.COLLATERAL,
+                            signature_type=CONFIG.signature_type,
+                        )
                     )
-                )
             # Propagation wait: 0.3s is sufficient — the CLOB API returns only after
             # the approval is indexed server-side. 1.0s was overly conservative and
             # consumed most of the T-4s exit window.
@@ -896,9 +915,9 @@ class OrderManager:
                     _attempted_order_ids.append(_signed_id)
                 try:
                     # post_order: HTTP POST via curl_cffi (synchronous, would block event loop).
-                    # Lock serializes concurrent CLOB submissions from multiple position exits
-                    # (curl_cffi Session is not thread-safe for concurrent calls).
-                    async with self._clob_http_lock:
+                    # _session_lock serializes concurrent CLOB submissions — curl_cffi Session
+                    # is not thread-safe. Lock held only for this single HTTP call.
+                    async with self._session_lock:
                         resp = await asyncio.to_thread(self._client.post_order, signed, order_type)
                     _transient_exc = None
                 except Exception as _post_exc:
