@@ -143,7 +143,8 @@ async def _build_taker_order(signal: SniperSignal) -> Optional[dict[str, Any]]:
     Returns the signed order dict ready for POST /order, or None on failure.
     """
     try:
-        from py_clob_client.clob_types import OrderArgs, OrderType, BUY
+        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client.order_builder.constants import BUY
         client      = _build_clob_client()
         order_args  = OrderArgs(
             price    = signal.price,
