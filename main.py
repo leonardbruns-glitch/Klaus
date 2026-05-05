@@ -571,6 +571,10 @@ class KlausBot:
                                         is_live=not CONFIG.dry_run,
                                         signal_source=_bs_meta.get("signal_source", "BOND"),
                                         window_size_s=_bs_meta.get("window_size_s") or pos.window_seconds or 0,
+                                        bond_delta_accel_30s=float(getattr(_bs_sig, "bond_delta_accel_30s", 0.0) or 0.0),
+                                        bond_edge_drift_30s=float(getattr(_bs_sig, "bond_edge_drift_30s", 0.0) or 0.0),
+                                        bond_accel_sustained=bool(getattr(_bs_sig, "bond_accel_sustained", False)),
+                                        bond_has_hist=bool(getattr(_bs_sig, "bond_has_hist", False)),
                                     )
                                 except Exception as _bse:
                                     logger.error("record_trade BOND_SETTLED failed: %s", _bse)
@@ -617,6 +621,10 @@ class KlausBot:
                                     is_live=not CONFIG.dry_run,
                                     signal_source=_noob_meta.get("signal_source", "SNIPER"),
                                     window_size_s=_noob_meta.get("window_size_s") or pos.window_seconds or 0,
+                                    bond_delta_accel_30s=float(getattr(_noob_sig, "bond_delta_accel_30s", 0.0) or 0.0),
+                                    bond_edge_drift_30s=float(getattr(_noob_sig, "bond_edge_drift_30s", 0.0) or 0.0),
+                                    bond_accel_sustained=bool(getattr(_noob_sig, "bond_accel_sustained", False)),
+                                    bond_has_hist=bool(getattr(_noob_sig, "bond_has_hist", False)),
                                 )
                             except Exception as _ne:
                                 logger.error("record_trade NOOB_EXTERNALLY_SOLD failed: %s", _ne)
@@ -4141,6 +4149,10 @@ class KlausBot:
                             is_live=not CONFIG.dry_run,
                             signal_source=_ghost_meta.get("signal_source", "SNIPER"),
                             window_size_s=_ghost_meta.get("window_size_s") or pos.window_seconds or 0,
+                            bond_delta_accel_30s=float(getattr(_ghost_signal, "bond_delta_accel_30s", 0.0) or 0.0),
+                            bond_edge_drift_30s=float(getattr(_ghost_signal, "bond_edge_drift_30s", 0.0) or 0.0),
+                            bond_accel_sustained=bool(getattr(_ghost_signal, "bond_accel_sustained", False)),
+                            bond_has_hist=bool(getattr(_ghost_signal, "bond_has_hist", False)),
                         )
                     except Exception as _e:
                         logger.error("record_trade GHOST_POSITION failed: %s", _e)
@@ -4408,6 +4420,10 @@ class KlausBot:
                         path_class=_ext_path_cls,
                         path_confidence=_ext_path_conf,
                         path_reason=_ext_path_rsn,
+                        bond_delta_accel_30s=float(getattr(_signal, "bond_delta_accel_30s", 0.0) or 0.0),
+                        bond_edge_drift_30s=float(getattr(_signal, "bond_edge_drift_30s", 0.0) or 0.0),
+                        bond_accel_sustained=bool(getattr(_signal, "bond_accel_sustained", False)),
+                        bond_has_hist=bool(getattr(_signal, "bond_has_hist", False)),
                     )
                 except Exception as _rec_exc:
                     logger.error("record_trade EXTERNALLY_SOLD failed: %s", _rec_exc)
@@ -5906,6 +5922,10 @@ class KlausBot:
                             is_live=not CONFIG.dry_run,
                             signal_source=meta.get("signal_source", "SNIPER"),
                             window_size_s=meta.get("window_size_s") or pos.window_seconds or 0,
+                            bond_delta_accel_30s=float(getattr(_sig, "bond_delta_accel_30s", 0.0) or 0.0),
+                            bond_edge_drift_30s=float(getattr(_sig, "bond_edge_drift_30s", 0.0) or 0.0),
+                            bond_accel_sustained=bool(getattr(_sig, "bond_accel_sustained", False)),
+                            bond_has_hist=bool(getattr(_sig, "bond_has_hist", False)),
                         )
                     except Exception as _e:
                         logger.error("record_trade STARTUP_EXTERNALLY_SOLD failed: %s", _e)
