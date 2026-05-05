@@ -1,13 +1,14 @@
-# Quantitative Audit — 2026-05-04 18:29 UTC
+# Quantitative Audit — 2026-05-05 00:20 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (28th consecutive session)**
+**FAILED — VPS UNREACHABLE (29th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 (native binary) | SSH binary absent; apt-get install failed (network timeout at 185.125.190.81:80 during package download) |
-| SSH port 22 (paramiko Python) | TCP timeout at 85.137.174.86:22 (15s ConnectTimeout) |
-| HTTP/HTTPS port 443 | Cloudflare WAF blocks all requests |
+| SSH port 22 (native binary) | SSH binary absent from sandbox |
+| SSH port 22 (paramiko/asyncssh) | Libraries absent; port 22 TCP-closed at 85.137.174.86 |
+| HTTP port 80 | Open but blocked by curl allowlist |
+| HTTPS port 443 | Open but blocked by curl allowlist |
 | logs/live_trades_recent.jsonl (git) | File absent — cron sync not deployed |
 | local logs/trades.jsonl | Absent (not tracked in git) |
 
@@ -25,8 +26,8 @@ None determinable — no data retrievable.
 
 ## OB Imbalance
 No data available.
-Current gate (main.py:2282): `if _term_imb < 0.20: continue`
-ETH override (main.py:2683): `if token.asset == "ETH" and _term_imb < 0.30: continue`
+Current gate (main.py:2297): `if not (0.30 <= _term_imb < 0.70): continue`
+Comment cites: COR=75% n=75 in [0.3,0.7); COR=58% below 0.30; COR=58% at ≥0.70.
 
 ## Slippage
 avg_slippage_entry=N/A
@@ -40,7 +41,7 @@ No trades.jsonl accessible. n=0 per hour — no block/unblock decisions possible
 |---|---|---|---|---|
 | 00–23 | 0 | N/A | N/A | collecting data |
 
-Current `bond_blocked_hours_utc` (config.py:157): `[0,2,3,4,5,6,7,17,19,23]`
+Current `bond_blocked_hours_utc` (config.py:157): `[]` (all hours unblocked — commit 51e590f)
 Block threshold: n≥100 per hour AND PF<0.80.
 Unblock threshold: n≥100 per hour AND PF≥0.90.
 Cannot evaluate without data. No change to blocked_hours.
@@ -48,23 +49,43 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — VPS unreachable from sandbox (28th consecutive session).
+**INSUFFICIENT_DATA** — VPS unreachable from sandbox (29th consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
 
 ---
 
-## Changes Since Last Audit (20260504-1217 / commit 1485e2e)
+## Changes Since Last Audit (20260504-1829 / commit fc85b70)
 
-| Commit | Time (UTC) | Change |
-|---|---|---|
-| `929942d` | ~12:17 | Fix record_trade crash: add term_snap60_eff param to FeedbackEngine |
-| `d4d2657` | ~12:17 | Fix record_trade crash: add term_snap30_eff to signature and TradeRecord |
-| `8efcd36` | ~post-12:17 | **YES DOWN disabled globally** — COR=33%, Net=-$46 across all hours |
-| `0f2467d` | ~post-12:17 | **G1 regime filter**: block YES UP when BTC 60m return outside [-0.3%, +1.5%] |
-| `693166b` | ~post-12:17 | **PAE widened for early-window entries** (ep<0.75): rem>180s 20/40s → 25/50s; 90-180s 15/30s → 20/40s |
+| Commit | Change |
+|---|---|
+| `00cbf96` | BOND_DEADLINE T-5s → T-3s (align with TIME_EXIT) |
+| `8a40459` | BOND_TIME_EXIT T-30s → T-3s (unconditional exit at T−3) |
+| `cc223be` | Disable BOND PAE entirely |
+| `5600f5b` | Disable early window entries — TERMINAL only; ask floor fixed at 0.80 |
+| `c6e938d` | INVERTED_TP threshold 75%→50% (entry_price × 1.50) |
+| `95fa943` | Inversion early-window only; late/TERMINAL buys as signalled |
+| `51e590f` | Unblock all trade hours (bond_blocked_hours_utc cleared to []) |
+| `291eadb` | Add INVERTED_TP: exit at +75% profit on inverted entries |
+| `eed10b0` | Time exit at T-30s: re-enable precise timer, unconditional |
+| `462e941` | Invert TERMINAL direction: buy opposite side when signal fires |
+| `b38e6c4` | Disable 15m windows — 5m only |
+| `6b3cba7` | Fix entered_correctly inverted for YES DOWN trades |
+| `36b6cda` | Re-enable YES DOWN with snap60 gate active; fix G1 gate direction |
+| `7f64d20` | Re-enable 15m windows with scaled entry timing |
+| `18e2433` | Bootstrap 1m close buffer from Binance REST on startup for instant G1 |
+| `c369116` | Unblock hour 19 UTC for BOND entries |
+| `a739f76` | Raise snap60_eff floor to 30% for early-window entries (ask<0.80) |
+| `9417de2` | Gate imb to [0.30, 0.70): floor raised, ceiling added |
+| `d60a8cc` | Disable PAE for early-window entries (ep<0.80, rem>90s) |
 
-**Net strategy effect:** Universe reduced to YES UP only. Two new filters cut YES UP further (G1 60m regime; already-live Bnc dir/other gates). PAE less trigger-happy on early entries. All unverifiable without raw data.
+**Net strategy effect (vs last audit):**
+- TERMINAL-only entries with ask fixed at [0.80, 0.92]; early window (ask<0.80) disabled
+- Time exits compressed to T-3s (from T-30s); PAE disabled
+- INVERTED_TP: profit-taking at +50% on inverted entries
+- Imbalance gate tightened to [0.30, 0.70) with ceiling added
+- All hours unblocked (was: {0,2,3,4,5,6,7,17,19,23})
+- All unverifiable without raw data.
 
 ---
 
@@ -72,18 +93,18 @@ n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock
 
 | Parameter | Deployed value | Location |
 |---|---|---|
-| ask floor (elapsed≥120s, late-window) | 0.80 | main.py:2220 |
-| ask floor (elapsed<120s, early-window) | 0.52 | main.py:2220 |
-| max_ask | 0.92 | main.py:2218 (extended from 0.88, 2026-04-30) |
-| min_imbalance (global) | 0.20 | main.py:2282 |
-| min_imbalance (ETH) | 0.30 | main.py:2683 |
-| bond_blocked_hours_utc | {0,2,3,4,5,6,7,17,19,23} | config.py:157 |
-| stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC, 8s wick filter |
-| base_stake | $4.00 | config.py:27 (reduced from $10, 2026-05-04) |
-| YES DOWN | DISABLED globally | main.py:2235 (COR=33%, Net=-$46) |
-| G1 regime gate | YES UP blocked if BTC 60m < -0.3% or > +1.5% | main.py:2568 |
-| PAE early-entry (ep<0.75, rem>180s) | 25% depth, 50s hold | main.py:1093 |
-| PAE early-entry (ep<0.75, rem 90-180s) | 20% depth, 40s hold | main.py:1096 |
+| ask floor | 0.80 (TERMINAL-only; early window disabled) | main.py:2241 |
+| max_ask | 0.92 | main.py:2239 |
+| min_imbalance | 0.30 (floor raised from 0.20; ceiling 0.70 added) | main.py:2297 |
+| bond_blocked_hours_utc | [] (all hours unblocked) | config.py:157 |
+| stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC, wick filter |
+| base_stake | $4.00 | config.py:27 |
+| scaled_stake | $4.00 (heat-check disabled) | config.py:34 |
+| BOND_TIME_EXIT | T-3s unconditional | main.py:1219 |
+| BOND_DEADLINE | T-3s forced exit | main.py:1219 |
+| BOND PAE | DISABLED | commit cc223be |
+| Early window entries | DISABLED (ask floor fixed at 0.80) | commit 5600f5b |
+| INVERTED_TP | +50% exit on inverted entries | main.py:1157 |
 
 ---
 
@@ -92,10 +113,10 @@ n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock
 {
   "min_ask": 0.80,
   "max_ask": 0.92,
-  "min_imbalance": 0.20,
+  "min_imbalance": 0.30,
   "stake": 4.00,
   "stop_loss": -0.15,
-  "blocked_hours": [0, 2, 3, 4, 5, 6, 7, 17, 19, 23]
+  "blocked_hours": []
 }
 ```
 
@@ -106,18 +127,18 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 ---
 
 ## Bankroll State (from git-tracked bankroll.json)
-capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (~2025-05-02 04:26 UTC)
+capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (~2026-05-02 04:26 UTC)
 
-Note: bankroll snapshot pre-dates current session. Estimated 445+ additional trades at ~7.9/hr.
+Note: bankroll snapshot is stale. Bot has been running continuously since then.
 
 ---
 
-## Infrastructure Alert — Critical (28 consecutive sessions)
+## Infrastructure Alert — Critical (29 consecutive sessions)
 
-SSH port 22 actively unreachable: TCP timeout 15s at 85.137.174.86:22.
-SSH apt-get install fails: Ubuntu package mirror unreachable from sandbox.
+SSH port 22 actively closed at 85.137.174.86. SSH binary absent in sandbox.
+Curl outbound blocked by allowlist for VPS IP.
 
-**Required action — push logs ONCE from VPS:**
+**Required action — push logs from VPS (one command):**
 ```bash
 cd /root/Klaus
 tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
@@ -126,7 +147,7 @@ git commit -m "manual log sync $(date -u)"
 git push origin claude/find-lag-parameter-rFQ0N
 ```
 
-**Or install cron (every 30 minutes):**
+**Or install cron sync (every 30 minutes):**
 ```bash
 cat > /etc/cron.d/push-logs << 'EOF'
 */30 * * * * root cd /root/Klaus && \
@@ -137,3 +158,5 @@ cat > /etc/cron.d/push-logs << 'EOF'
 EOF
 chmod 644 /etc/cron.d/push-logs
 ```
+
+Without log data, audit is structurally blocked. Every session spends time re-discovering the same dead ends. The cron above is a 30-second fix.
