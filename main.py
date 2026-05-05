@@ -3232,11 +3232,11 @@ class KlausBot:
         # us mid-order — signal is invalidated. Close immediately rather than enter
         # a position anchored to a stale thesis. (T00026: limit=0.495 fill=0.310)
         slippage_on_entry = signal.entry_price - fill.avg_fill_price
-        if slippage_on_entry > 0.10:
+        if slippage_on_entry >= 0.10:
             self._buy_failed_reasons["slippage_abort"] = \
                 self._buy_failed_reasons.get("slippage_abort", 0) + 1
             logger.warning(
-                "SLIPPAGE ABORT %s: fill=%.4f vs limit=%.4f (slippage=%.4f > 0.10) "
+                "SLIPPAGE ABORT %s: fill=%.4f vs limit=%.4f (slippage=%.4f >= 0.10) "
                 "— market moved against signal mid-order, not opening position",
                 asset, fill.avg_fill_price, signal.entry_price, slippage_on_entry,
             )
