@@ -348,14 +348,10 @@ def _subscribe_payload(token_ids: list[str]) -> str:
     })
 
 
-async def run_polymarket(tokens: list[Token]) -> None:
-    if not tokens:
+async def run_polymarket(initial_tokens: list[Token]) -> None:
+    if not initial_tokens:
         log.error("No tokens to subscribe — polymarket WS disabled")
         return
-
-    token_map: dict[str, Token] = {t.token_id: t for t in tokens}
-    token_ids = list(token_map.keys())
-    log.info("Subscribing to %d Polymarket tokens", len(token_ids))
 
     import ssl as _ssl
     try:
@@ -366,10 +362,28 @@ async def run_polymarket(tokens: list[Token]) -> None:
 
     # Subscription in batches of 200 (WS limit)
     batch_size = 200
+    _last_discovery: float = 0.0
+    _REDISCOVER_S = 240.0  # re-discover tokens every 4 minutes (< 5m window)
 
     while not _stop_event.is_set():
         try:
             async with aiohttp.ClientSession() as session:
+                # Re-discover tokens if stale (window has likely rotated)
+                now = time.time()
+                if now - _last_discovery >= _REDISCOVER_S:
+                    fresh = await discover_tokens(session)
+                    if fresh:
+                        tokens = fresh
+                        # Refresh the module-level token→asset map
+                        for tok in tokens:
+                            _token_asset[tok.token_id] = tok.asset
+                    else:
+                        tokens = initial_tokens  # fallback to startup list
+                    _last_discovery = now
+
+                token_map: dict[str, Token] = {t.token_id: t for t in tokens}
+                token_ids = list(token_map.keys())
+
                 async with session.ws_connect(
                     _CLOB_WS,
                     ssl=ssl_ctx,
@@ -380,7 +394,7 @@ async def run_polymarket(tokens: list[Token]) -> None:
                     for i in range(0, len(token_ids), batch_size):
                         batch = token_ids[i:i + batch_size]
                         await ws.send_str(_subscribe_payload(batch))
-                    log.info("Polymarket WS connected")
+                    log.info("Polymarket WS connected | tokens=%d", len(token_ids))
 
                     async for msg in ws:
                         if _stop_event.is_set():
@@ -565,7 +579,7 @@ def _print_summary(samples: list[dict]) -> None:
     print(f"  max:  {lags[-1]:.0f} ms")
     print(f"  min:  {lags[0]:.0f} ms")
 
-    matches = sum(1 for s in samples if s.get("direction_match"))
+    matches = sum(1 for s in samples if s.get("dir_match"))
     print(f"\n  Direction match: {matches}/{n} = {matches/n*100:.1f}%")
 
     print("\n  Lag buckets:")
@@ -588,7 +602,7 @@ def _print_summary(samples: list[dict]) -> None:
             continue
         sub_lags = sorted(s["lag_ms"] for s in subset)
         sn = len(sub_lags)
-        m = sum(1 for s in subset if s.get("direction_match"))
+        m = sum(1 for s in subset if s.get("dir_match"))
         p50 = sub_lags[int(0.5 * sn)]
         p90 = sub_lags[min(int(0.9 * sn), sn - 1)]
         print(f"  {asset}: n={sn:3d}  p50={p50:.0f}ms  p90={p90:.0f}ms  "
