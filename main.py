@@ -2533,6 +2533,18 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # Real-time reversal gate: tok_d60 < -5% means token is currently falling at eval time
+            # (distinct from snap60_eff which uses term_pre_snap — the trigger-time reference)
+            # May5 data: catches 5 losses (-$52.45) blocked by reversal after terminal trigger,
+            # costs 5 wins ($3.94); n=89 since May5 06:00. Tier 2.
+            if _term_tok_d60 < -5.0:
+                logger.info(
+                    "[BOND] rtsnap60_skip %s/%s | tok_d60=%.1f%% — token reversing at entry",
+                    token.asset, token.side, _term_tok_d60,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Early-window snap60 floor at 30%: [20,30) COR=43.8% ◄, [30,50) COR=72.7% ▲
             # n=59 populated (May 4). BTC [30,50)=80%, ETH [30,50)=90%. Tier 2.
             if ask < 0.80 and _snap60_eff < 30.0:
