@@ -2555,10 +2555,10 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap30 gate: allow [10%, 80%) — ceiling lowered 120→80 May6 ([80,120) bot-wide net -$24.71; DOWN saves $29.67, UP costs $4.96)
-            if not (10.0 <= _snap30_eff < 80.0):
+            # snap30 gate: allow [10.5%, 80%) — floor raised 10→10.5 May6 ([10,10.5) WR=33% pnl=-$34.70 n=3; catches both BTC DEAD_DRIFT catastrophes at 10.39%; 1 FP ETH DEAD_DRIFT +$1.89; ceiling lowered 120→80 May6)
+            if not (10.5 <= _snap30_eff < 80.0):
                 logger.info(
-                    "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10,80) range",
+                    "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10.5,80) range",
                     token.asset, token.side, _snap30_eff,
                 )
                 _b_mom_skip += 1
