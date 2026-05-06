@@ -3,6 +3,14 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-06 | ENTRY / DOWN | imb ceiling: 0.70 → 0.655 for YES DOWN only | YES DOWN [0.655,0.70) n=39 net=-$6.67; YES UP same range net=+$21.32 (kept at 0.70); direction-specific via _imb_ceil; Tier 2 user-authorised; re-eval at n≥100
+
+## 2026-05-06 | ENTRY / DOWN | snap60 floor: 12% → 13% for YES DOWN only | YES DOWN [12,13) n=32 net=-$11.74; YES UP same range net=+$18.85 (kept at 12%); direction-specific via _snap60_floor; Tier 2 user-authorised; re-eval at n≥100
+
+## 2026-05-06 | ENTRY / ALL | snap30 ceiling: 120% → 80% (universal) | [80,120) bot-wide net -$24.71: DOWN saves $29.67, UP costs only $4.96; safe to apply universally; Tier 2 user-authorised; re-eval at n≥100
+
+## 2026-05-05 | ENTRY / ETH | eth_sust_skip gate added: block ETH when tok_d30≤0.5% OR tok_d60≤0.5% | forensic audit 06:00–14:00 UTC: n=13 ETH, 0 winners had sust=False; T03710_ETH (-$4.57) entered on tok_d30=0% bypassing eth_tokd30_skip via 0.0 exemption; Tier 2 user-authorised
+
 ## 2026-05-05 | ENTRY / ALL | rem>90s entries blocked — TERMINAL zone only (25–90s) | user instruction
 
 ---

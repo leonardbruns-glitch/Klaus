@@ -2307,8 +2307,9 @@ class KlausBot:
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
-            if not (0.30 <= _term_imb < 0.70):
-                continue  # [0.3,0.7): COR=75% n=75; <0.3: COR=58% n=44; >=0.7: COR=58% n=26
+            _imb_ceil = 0.655 if _token_dir == "down" else 0.70
+            if not (0.30 <= _term_imb < _imb_ceil):
+                continue  # UP:[0.3,0.7) COR=75% n=75; DOWN:[0.3,0.655) ceiling tightened May6 n=39 net=-$6.67
 
             # ── Dead-zone / volatility filters ─────────────────────────────────
             # All three read from closed kline buffers (populated by WS, not REST).
@@ -2518,11 +2519,12 @@ class KlausBot:
                 )
                 continue
 
-            # snap60 < 12%: weak pre-entry momentum → 55% WR (n=22, Apr28-29 2d sim)
-            if _snap60_eff < 12.0:
+            # snap60 floor: 13% for DOWN (saves $11.74 on [12,13) net-neg n=32); 12% for UP ([12,13) UP=+$18.85)
+            _snap60_floor = 13.0 if _token_dir == "down" else 12.0
+            if _snap60_eff < _snap60_floor:
                 logger.info(
-                    "[BOND] snap60_low %s/%s | snap60_eff=%.1f%% snap30_eff=%.1f%% — no momentum",
-                    token.asset, token.side, _snap60_eff, _snap30_eff,
+                    "[BOND] snap60_low %s/%s | snap60_eff=%.1f%% floor=%.0f%% (%s) — no momentum",
+                    token.asset, token.side, _snap60_eff, _snap60_floor, _token_dir,
                 )
                 _b_mom_skip += 1
                 continue
@@ -2537,11 +2539,10 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap30 gate: allow [10%, 120%) only — terminal era sweet spot
-            # <10%: net negative across all sub-buckets (n=1461); ≥120%: avg-loss > avg-win (n=33)
-            if not (10.0 <= _snap30_eff < 120.0):
+            # snap30 gate: allow [10%, 80%) — ceiling lowered 120→80 May6 ([80,120) bot-wide net -$24.71; DOWN saves $29.67, UP costs $4.96)
+            if not (10.0 <= _snap30_eff < 80.0):
                 logger.info(
-                    "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10,120) range",
+                    "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10,80) range",
                     token.asset, token.side, _snap30_eff,
                 )
                 _b_mom_skip += 1
