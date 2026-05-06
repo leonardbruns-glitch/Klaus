@@ -4288,13 +4288,39 @@ class KlausBot:
                 _ob_chk = await self.feed.fetch_order_book(token_id)
                 _best_bid_chk = _ob_chk.bids[0][0] if (_ob_chk and _ob_chk.bids) else 0.0
                 if _best_bid_chk < 0.02:
-                    _raw_exit = 0.0
-                    _is_resolved_zero = True
-                    logger.warning(
-                        "EXTERNALLY_SOLD %s/%s — token resolved worthless "
-                        "(best_bid=%.4f), recording full loss exit_price=0.0000",
-                        pos.asset, pos.direction.name, _best_bid_chk,
-                    )
+                    # Low bid may mean resolved worthless OR GTC sold before resolution
+                    # but CLOB indexing hadn't caught up in 4s. Retry once at +8s.
+                    await asyncio.sleep(8.0)
+                    try:
+                        _clob_retry = await asyncio.to_thread(
+                            self.orders.fetch_recent_token_sells,
+                            token_id, pos.open_ts,
+                        )
+                        if _clob_retry:
+                            _tsz = sum(s for _, s in _clob_retry)
+                            _tval = sum(p * s for p, s in _clob_retry)
+                            if _tsz > 0:
+                                _raw_exit = round(_tval / _tsz, 6)
+                                _price_found_in_error = True
+                                logger.info(
+                                    "EXT price recovered on low-bid retry: %s/%s → %.4f "
+                                    "(%d fill(s), %.4f shares)",
+                                    pos.asset, pos.direction.name, _raw_exit,
+                                    len(_clob_retry), _tsz,
+                                )
+                    except Exception as _clob_retry_exc:
+                        logger.warning(
+                            "CLOB retry on low-bid failed %s: %s",
+                            token_id[:12], _clob_retry_exc,
+                        )
+                    if not _price_found_in_error:
+                        _raw_exit = 0.0
+                        _is_resolved_zero = True
+                        logger.warning(
+                            "EXTERNALLY_SOLD %s/%s — token resolved worthless "
+                            "(best_bid=%.4f), recording full loss exit_price=0.0000",
+                            pos.asset, pos.direction.name, _best_bid_chk,
+                        )
                 else:
                     # Shares not confirmed sold — check CLOB balance before giving up.
                     # If balance > 0, shares are still in wallet (thin OB stalled the exit).
