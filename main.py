@@ -5332,7 +5332,7 @@ class KlausBot:
                                         if _tr.get("exit_price_uncertain"):
                                             # Correct exit_price and net_pnl using resolution.
                                             # exit_price was a live-bid fallback; wop is authoritative.
-                                            _corr_ep = min(_wop, 0.99) if _wop >= 0.5 else max(_wop, 0.01)
+                                            _corr_ep = 0.99 if _entered_correctly else 0.01
                                             _old_ep = _tr.get("exit_price", 0.0)
                                             _old_pnl = _tr.get("net_pnl", 0.0)
                                             _shares = _tr.get("shares", 0.0)
