@@ -2519,9 +2519,11 @@ class KlausBot:
                 )
                 continue
 
-            # snap60 floor: 13% for DOWN, 12% for UP; raised to 25% during 12:30-13:30 UTC
+            # snap60 floor: 13% for DOWN, 12% for UP; ETH raised to 15% (both dirs May6: [12,14) WR=0% n=2 pnl=-$39.08; 1 FP +$2.67); raised to 25% during 12:30-13:30 UTC
             # (5/5 H12:30-13:30 losses in 2 days had snap60<25%; execution failures at this window amplify bad entries)
             _snap60_floor = 13.0 if _token_dir == "down" else 12.0
+            if token.asset == "ETH":
+                _snap60_floor = max(_snap60_floor, 15.0)
             _in_h1230_1330 = (_utc_hour == 12 and _utc_min >= 30) or (_utc_hour == 13 and _utc_min < 30)
             if _in_h1230_1330:
                 _snap60_floor = 25.0
