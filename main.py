@@ -2519,8 +2519,12 @@ class KlausBot:
                 )
                 continue
 
-            # snap60 floor: 13% for DOWN (saves $11.74 on [12,13) net-neg n=32); 12% for UP ([12,13) UP=+$18.85)
+            # snap60 floor: 13% for DOWN, 12% for UP; raised to 25% during 12:30-13:30 UTC
+            # (5/5 H12:30-13:30 losses in 2 days had snap60<25%; execution failures at this window amplify bad entries)
             _snap60_floor = 13.0 if _token_dir == "down" else 12.0
+            _in_h1230_1330 = (_utc_hour == 12 and _utc_min >= 30) or (_utc_hour == 13 and _utc_min < 30)
+            if _in_h1230_1330:
+                _snap60_floor = 25.0
             if _snap60_eff < _snap60_floor:
                 logger.info(
                     "[BOND] snap60_low %s/%s | snap60_eff=%.1f%% floor=%.0f%% (%s) — no momentum",
