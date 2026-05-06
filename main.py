@@ -2869,6 +2869,8 @@ class KlausBot:
                     "[BOND] stake_tier2 %s/%s | snap60=%.1f%% rem=%.0fs cap=$%.2f → stake=$%.2f (14%% floor base=$%.2f)",
                     token.asset, token.side, _snap60_eff, remaining, _capital, decision.stake, _base,
                 )
+            else:
+                decision.stake = _base
 
             # Gate C: YES UP snap30≥60% — blow-off pattern, reduce stake to 30% (Tier2 2026-05-05)
             if _token_dir == "up" and _snap30_eff >= 60.0:

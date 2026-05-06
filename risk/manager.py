@@ -666,9 +666,9 @@ class RiskManager:
         max_pct = 0.50
         stake = min(stake, round(self.bankroll.capital * max_pct, 2))
 
-        # BOND stake cap: $20.00 per user instruction 2026-05-05; floor = 5 shares
+        # BOND stake cap: floored at base_stake (2026-05-06: raised 20→30 per user instruction)
         if getattr(signal, "signal_source", "") == "BOND":
-            stake = min(stake, 20.00)
+            stake = min(stake, self.cfg.base_stake)
             min_shares_stake = round(5 * signal.entry_price, 2)
             if min_shares_stake > stake:
                 stake = min_shares_stake
