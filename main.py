@@ -2852,6 +2852,22 @@ class KlausBot:
                 logger.info("TERMINAL REJECTED %s/%s: %s", token.asset, token.side, decision.reason)
                 continue
 
+            # Equity-based stake sizing: snap60+rem tiers (user-authorised May 6)
+            # Tier 1: snap60≥50% → 18% of equity; Tier 2: snap60≥20%+rem≥75s → 14% of equity
+            _capital = self.risk.bankroll.capital
+            if _snap60_eff >= 50.0:
+                decision.stake = max(5.0, round(_capital * 0.18, 2))
+                logger.info(
+                    "[BOND] stake_tier1 %s/%s | snap60=%.1f%% cap=$%.2f → stake=$%.2f (18%%)",
+                    token.asset, token.side, _snap60_eff, _capital, decision.stake,
+                )
+            elif _snap60_eff >= 20.0 and remaining >= 75.0:
+                decision.stake = max(5.0, round(_capital * 0.14, 2))
+                logger.info(
+                    "[BOND] stake_tier2 %s/%s | snap60=%.1f%% rem=%.0fs cap=$%.2f → stake=$%.2f (14%%)",
+                    token.asset, token.side, _snap60_eff, remaining, _capital, decision.stake,
+                )
+
             # Gate C: YES UP snap30≥60% — blow-off pattern, reduce stake to 30% (Tier2 2026-05-05)
             if _token_dir == "up" and _snap30_eff >= 60.0:
                 _orig_stake = decision.stake

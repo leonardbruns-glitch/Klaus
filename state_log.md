@@ -3,6 +3,14 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-06 20:XX UTC | SIZING / ALL | equity-pct stake tiers added | Tier 1: snap60≥50% → 18% of equity; Tier 2: snap60≥20%+rem≥75s → 14% of equity; base_stake used otherwise; blow-off gate still applies after; user-authorised May 6
+
+## 2026-05-06 19:XX UTC | ENTRY / ETH | snap60 floor raised to 15% (both dirs) | ETH [12,14) WR=0% pnl=-$39.08 (n=2): T03742 -$19.84 H20, T03746 -$19.24 H22; both pass all other gates; [15,20) loss already blocked by H12:30 25% gate; 1 FP T03760 +$2.67 at 14.86%; Tier 2 user-authorised; re-eval at n≥40
+
+## 2026-05-06 18:XX UTC | ENTRY / ALL | snap30 floor raised 10% → 10.5% | [10,10.5) bucket since May5 06:00: WR=33% pnl=-$34.70 (n=3); both BTC DEAD_DRIFT losses T03785 -$19.65 and T03798 -$16.95 had snap30_eff=10.39%; 1 FP ETH DEAD_DRIFT +$1.89; [10.5,11) clean (1W 0L); Tier 2 user-authorised; re-eval at n≥40
+
+## 2026-05-06 14:XX UTC | ENTRY / ALL | snap60 floor raised to 25% during 12:30–13:30 UTC | 5/5 H12:30–13:30 losses over 2 days had snap60<25% (T03720 18.6%, T03722 0%, T03783 19.4%, T03785 16.4%; T03784 at 31.8% was execution bug not signal); recurring neg-risk lock + BOND_EXPIRED_UNSOLD failures at this window make weak entries unacceptably risky at $20 stake; Tier 2 user-authorised; re-eval at n≥100
+
 ## 2026-05-06 | ENTRY / DOWN | imb ceiling: 0.70 → 0.655 for YES DOWN only | YES DOWN [0.655,0.70) n=39 net=-$6.67; YES UP same range net=+$21.32 (kept at 0.70); direction-specific via _imb_ceil; Tier 2 user-authorised; re-eval at n≥100
 
 ## 2026-05-06 | ENTRY / DOWN | snap60 floor: 12% → 13% for YES DOWN only | YES DOWN [12,13) n=32 net=-$11.74; YES UP same range net=+$18.85 (kept at 12%); direction-specific via _snap60_floor; Tier 2 user-authorised; re-eval at n≥100
