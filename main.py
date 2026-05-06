@@ -2853,19 +2853,21 @@ class KlausBot:
                 continue
 
             # Equity-based stake sizing: snap60+rem tiers (user-authorised May 6)
+            # Tiers floored at base_stake so they never reduce below the configured flat stake.
             # Tier 1: snap60≥50% → 18% of equity; Tier 2: snap60≥20%+rem≥75s → 14% of equity
             _capital = self.risk.bankroll.capital
+            _base = CONFIG.bankroll.base_stake
             if _snap60_eff >= 50.0:
-                decision.stake = max(5.0, round(_capital * 0.18, 2))
+                decision.stake = max(_base, round(_capital * 0.18, 2))
                 logger.info(
-                    "[BOND] stake_tier1 %s/%s | snap60=%.1f%% cap=$%.2f → stake=$%.2f (18%%)",
-                    token.asset, token.side, _snap60_eff, _capital, decision.stake,
+                    "[BOND] stake_tier1 %s/%s | snap60=%.1f%% cap=$%.2f → stake=$%.2f (18%% floor base=$%.2f)",
+                    token.asset, token.side, _snap60_eff, _capital, decision.stake, _base,
                 )
             elif _snap60_eff >= 20.0 and remaining >= 75.0:
-                decision.stake = max(5.0, round(_capital * 0.14, 2))
+                decision.stake = max(_base, round(_capital * 0.14, 2))
                 logger.info(
-                    "[BOND] stake_tier2 %s/%s | snap60=%.1f%% rem=%.0fs cap=$%.2f → stake=$%.2f (14%%)",
-                    token.asset, token.side, _snap60_eff, remaining, _capital, decision.stake,
+                    "[BOND] stake_tier2 %s/%s | snap60=%.1f%% rem=%.0fs cap=$%.2f → stake=$%.2f (14%% floor base=$%.2f)",
+                    token.asset, token.side, _snap60_eff, remaining, _capital, decision.stake, _base,
                 )
 
             # Gate C: YES UP snap30≥60% — blow-off pattern, reduce stake to 30% (Tier2 2026-05-05)
