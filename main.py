@@ -2214,6 +2214,8 @@ class KlausBot:
                 continue  # enter with >25s remaining; 15-25s WR=20% (n=5)
             if remaining > 90:
                 continue  # TERMINAL zone only — skip early window entries (rem>90s)
+            if _utc_hour == 21 and remaining > 60:
+                continue  # H21: rem cap 60s (n=78 TERMINAL, rem<=60 saves +$61 net vs baseline)
             _bond_blocked = getattr(CONFIG.edge, "bond_blocked_hours_utc", [])
             if not CONFIG.dry_run and _bond_blocked and _utc_hour in _bond_blocked:
                 continue
@@ -2384,6 +2386,12 @@ class KlausBot:
             _term_tok_d30  = _token_delta(_tok_hist, 30)
             _term_tok_d60  = _token_delta(_tok_hist, 60)
             _term_tok_tick5 = sum(1 for ts, _ in (_tok_hist or []) if ts >= now - 5.0)
+
+            if _utc_hour == 21 and _term_tok_d30 >= 35:
+                logger.info("[BOND] h21_tok_skip %s/%s tok_d30=%.1f >= 35 rem=%.0fs",
+                            token.asset, token.side, _term_tok_d30, remaining)
+                _b_mom_skip += 1
+                continue
 
             # Tick count 30s: distinct ask price changes in last 30s (wider window than 5s)
             _term_tok_tick_count_30s = 0
