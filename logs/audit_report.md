@@ -1,14 +1,16 @@
-# Quantitative Audit — 2026-05-06 00:14 UTC
+# Quantitative Audit — 2026-05-06 06:10 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (32nd consecutive session)**
+**FAILED — VPS UNREACHABLE (33rd consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 | `ssh` binary absent from sandbox (`command not found`) |
+| SSH port 22 | Installed (openssh-client 9.6p1 now present), but `ssh: connect to host 85.137.174.86 port 22: Connection timed out` |
 | logs/live_trades_recent.jsonl (git) | File absent — cron sync not deployed |
 | local logs/trades.jsonl | Absent (not tracked in git) |
 | local logs/post_exit.jsonl | Absent |
+
+> Previous sessions failed with `ssh: command not found`. This session: SSH binary is installed, but egress to port 22 from this sandbox is blocked (firewall or VPS down). The VPS or network between sandbox and VPS must be investigated.
 
 ---
 
@@ -37,7 +39,7 @@ No trades.jsonl accessible. n=0 per hour — no block/unblock decisions possible
 |---|---|---|---|---|
 | 00–23 | 0 | N/A | N/A | collecting data |
 
-Current `bond_blocked_hours_utc` (config.py:156): `[]` (all hours unblocked — per user instruction 2026-05-02)
+Current `bond_blocked_hours_utc` (config.py:156): `[]` (all hours unblocked)
 Block threshold: n≥100 per hour AND PF<0.80.
 Unblock threshold: n≥100 per hour AND PF≥0.90.
 Cannot evaluate without data. No change to blocked_hours.
@@ -45,26 +47,27 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — SSH binary absent from sandbox (32nd consecutive session).
+**INSUFFICIENT_DATA** — SSH port 22 timeout from sandbox (33rd consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
 
 ---
 
-## Deployed Parameter State (from main.py)
+## Deployed Parameter State (from main.py + config.py)
 
 | Parameter | Deployed value | Location |
 |---|---|---|
 | ask floor | 0.80 | main.py:2254 |
 | max_ask | 0.92 | main.py:2252 (extended from 0.88 on 2026-04-30) |
-| min_imbalance | 0.30 | main.py:2311 |
+| min_imbalance | 0.30 | main.py:2311 `if not (0.30 <= _term_imb < _imb_ceil):` |
 | bond_blocked_hours_utc | [] (all hours unblocked) | config.py:156 |
 | stop_loss | ask×0.85 (−15%) | main.py (BOND_CATASTROPHIC) |
-| base_stake | $4.00 | config.py:27 |
-| scaled_stake | $4.00 (heat-check disabled) | config.py:34 |
+| base_stake | $20.00 | config.py:27 (raised $4→$20 per user directive 2026-05-05) |
+| scaled_stake | $20.00 (heat-check disabled) | config.py:33 |
 
 ## Bankroll State (git-tracked bankroll.json — stale ~4 days)
 capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (~2026-05-02 04:26 UTC)
+Note: a $50+ deposit was made 2026-05-05; actual current capital unknown without VPS access.
 
 ---
 
@@ -74,7 +77,7 @@ capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (~2
   "min_ask": 0.80,
   "max_ask": 0.92,
   "min_imbalance": 0.30,
-  "stake": 4.00,
+  "stake": 20.00,
   "stop_loss": -0.15,
   "blocked_hours": []
 }
@@ -86,10 +89,15 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 
 ---
 
-## Infrastructure Alert — Critical (32 consecutive sessions)
+## Infrastructure Alert — Critical (33 consecutive sessions)
 
-`ssh` binary is absent from the sandbox (`command not found`). Port reachability unknown.
-HTTP/HTTPS to VPS previously returned 403 (Cloudflare WAF or firewall).
+**Previous failure mode**: `ssh` binary absent (`command not found`)
+**Current failure mode**: `ssh` binary installed; `connect to host 85.137.174.86 port 22: Connection timed out`
+
+This indicates either:
+1. The VPS is down or unreachable
+2. This sandbox's outbound port 22 is blocked by firewall rules
+3. The VPS firewall is blocking this sandbox's IP range
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
@@ -114,5 +122,5 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-Without log data, audit is structurally blocked. 32 sessions wasted.
+Without log data, audit is structurally blocked. 33 sessions wasted.
 The cron above is a 30-second fix that unblocks all future audits permanently.
