@@ -3,6 +3,10 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-07 15:XX UTC | GATE / DOWN | Imbalance floor 0.35 → 0.42 (DOWN only) | Tier 2. YES DOWN forensic Apr24+ n=798 PF=0.66 net=-$133. imb<0.42 bucket: n=399 PF=0.71 net=-$126 (~entire DOWN bleed). Survivors imb>=0.42: macro n=399 PF=0.98 (~breakeven); May 5+ n=63 PF=1.88 +$43 (vs baseline -$34, +$77 swing). Catches 4 of 5 May 5-7 wipeout DOWN losers (T03832, T03836, T03838, T03746). 0.42 chosen over 0.45 because [0.42,0.45) bucket May 5+ is profitable +$18 (regime shift); 0.42 keeps n=63 vs n=57 at higher PF. BTC UP 0.50 floor unchanged. UP/non-DOWN universal stays 0.35. Mechanism: directional branch in _imb_floor at main.py:2352. Bot remains stopped — gate ships in code only.
+
+## 2026-05-07 14:55 UTC | OPS / ALL | klaus stopped on VPS | user instruction during YES DOWN forensic; no auto-restart on gate ships until user authorizes
+
 ## 2026-05-07 14:XX UTC | GATE / SOL DOWN | depth<100 skip added (asset+direction-specific) | Tier 2. Apr 28-May 7 SOL DOWN n=131 PF=0.66 net=-$45.46; depth<100 bucket n=45 PF=0.47 net=-$44.61 — accounts for ~entire SOL DOWN bleed. Survivors n=86 PF=0.98 net=-$0.85 (~breakeven). DIRECTION-SPECIFIC: same filter on SOL UP would kill $15 of edge (PF 1.15→1.04). Mirrors ETH depth<100 (main.py:2869) and BTC depth<500 (main.py:2843). May 6-7 backtest: blocks T03838_SOL only (-$24.91 BOND_LOSER_CUT flash crash, depth=61.8 with snap60=+90% vertical pump). 6 winning SOL trades May 6-7 untouched.
 
 ## 2026-05-07 ~11:XX UTC | ROBUST STACK / ALL | Ship Stage 1 + partial Stage 2 + Stage 3 shadow log | user-instructed Tier 2. (1) Ask ceiling 0.92→0.88 (main.py:2254); (2) Imbalance floor 0.30→0.35 with DOWN ceiling unchanged at 0.655, UP at 0.70 (main.py:2313); (3) tok_d30 sandwich [5,60) added before deadzone (main.py:~2616); (4) Stage 3 shadow log: trades passing all gates but with snap60_eff<25 emit `[SIGNAL_PASS][STAGE_3_REJECT]` for 48h tracking — Snap60 25% floor NOT enforced, Tier-C deferred (no spec yet).
