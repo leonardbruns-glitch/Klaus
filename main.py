@@ -2665,11 +2665,14 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # 5s reversal gate: tok_d5 reveals momentum in the final 5s before entry.
-            # DOWN: token falling = ETH reversing up = we're buying the reversal.
-            # UP: token already flying = terminal velocity = snap-back risk.
-            # Evidence: T03840_ETH DOWN tok_d5=-4.40% → -$35.29.
-            if (_token_dir == "down" and _term_tok_d5 < -2.0) or (_token_dir == "up" and _term_tok_d5 > 2.0):
+            # 5s momentum gate — two independent failure modes:
+            # DOWN (<-3%): token falling = ETH reversing up = buying the reversal.
+            #   Evidence: T03840_ETH tok_d5=-4.40% → -$35.29. Threshold -3% (not -2%)
+            #   to release T03774/T03823 winners at -2.3%.
+            # UP (>10%): token overbought in final 5s = snap-back risk.
+            #   May6-7: 4 losers avg -$22 all had d5>10%; 5-10% bucket is 100% WR (n=9)
+            #   so that zone must stay open. Low-d5 UP losers (3-4%) are a snap60 problem.
+            if (_token_dir == "down" and _term_tok_d5 < -3.0) or (_token_dir == "up" and _term_tok_d5 > 10.0):
                 logger.info(
                     "[BOND] tok5_gate %s/%s | tok_d5=%.1f%% dir=%s — adverse 5s momentum, skip",
                     token.asset, token.side, _term_tok_d5, _token_dir,
