@@ -2267,6 +2267,16 @@ class KlausBot:
             _elapsed_pct = 1.0 - remaining / max(1, token.window_seconds)
             _wlabel      = f"{token.window_seconds // 60}m"
 
+            # RUIN_FLOOR: YES UP is all-time -$292 (933 trades). Block when capital < $50.
+            # Ruin floor documented in CLAUDE.md; kill switch was disabled in config.
+            if _token_dir == "up" and self.risk.bankroll.capital < 50.0:
+                logger.warning(
+                    "[BOND] RUIN_FLOOR_BLOCK %s/UP | capital=$%.2f < $50.00 — YES UP halted",
+                    token.asset, self.risk.bankroll.capital,
+                )
+                _b_mom_skip += 1
+                continue
+
             # ── TERMINAL observation metrics (data collection only) ──────────
             _asset_up = token.asset.upper()
             # Kline-based Binance momentum (same source as ext_signals in main scan loop)
