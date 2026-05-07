@@ -2219,6 +2219,9 @@ class KlausBot:
                     _pre_obs["vwap"] = _pre_vwap
             if token_id in self.risk.open_positions:
                 continue
+            # 2026-05-07 user instruction: 1 BOND position max concurrent (across all assets)
+            if any(p.is_bond for p in self.risk.open_positions.values()):
+                continue
             if any(p.asset == token.asset and p.is_bond for p in self.risk.open_positions.values()):
                 continue  # already holding this asset in a different window
             if token.asset in self.risk._pending_assets:
@@ -2287,7 +2290,7 @@ class KlausBot:
             if time.time() - ob.ts > 3.0:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
-            _ask_max = 0.88  # tightened 0.92→0.88 2026-05-07 (Robust Stack ship)
+            _ask_max = 0.92  # restored 0.88→0.92 2026-05-07 (May 6 daytime cost +$24.57 of winners)
             _elapsed_s = _window_s - remaining
             _ask_floor = 0.80  # early window disabled — TERMINAL only
             if ask is None or not (_ask_floor <= ask <= _ask_max):
@@ -2917,10 +2920,10 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # Gate A: YES DOWN ep≥0.88 — break-even needs 89% WR, actual 81% (n=31, Tier2 2026-05-05)
-            if _token_dir == "down" and ask >= 0.88:
+            # Gate A: YES DOWN ep>=0.92 — universal ceiling (raised 0.88->0.92 2026-05-07)
+            if _token_dir == "down" and ask >= 0.92:
                 logger.info(
-                    "[BOND] down_ep_skip %s/%s | ep=%.4f — YES DOWN ep≥0.88 skip",
+                    "[BOND] down_ep_skip %s/%s | ep=%.4f — YES DOWN ep>=0.92 skip",
                     token.asset, token.side, ask,
                 )
                 _b_mom_skip += 1
