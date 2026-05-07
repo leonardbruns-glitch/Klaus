@@ -2633,21 +2633,11 @@ class KlausBot:
                 )
                 continue
 
-            # snap60 floor: 13% for DOWN, 12% for UP; ETH raised to 15% (both dirs May6: [12,14) WR=0% n=2 pnl=-$39.08; 1 FP +$2.67); raised to 25% during 12:30-13:30 UTC
-            # (5/5 H12:30-13:30 losses in 2 days had snap60<25%; execution failures at this window amplify bad entries)
-            _snap60_floor = 13.0 if _token_dir == "down" else 12.0
-            if token.asset == "ETH":
-                _snap60_floor = max(_snap60_floor, 15.0)
-            _in_h1230_1330 = (_utc_hour == 12 and _utc_min >= 30) or (_utc_hour == 13 and _utc_min < 30)
-            if _in_h1230_1330:
-                _snap60_floor = 25.0
-            if _snap60_eff < _snap60_floor:
-                logger.info(
-                    "[BOND] snap60_low %s/%s | snap60_eff=%.1f%% floor=%.0f%% (%s) — no momentum",
-                    token.asset, token.side, _snap60_eff, _snap60_floor, _token_dir,
-                )
-                _b_mom_skip += 1
-                continue
+            # snap60_low gate REMOVED 2026-05-07 — structural redundancy with
+            # snap30_gate. n=1523 snap_shadow.jsonl: P(snap30 fails | snap60 fails)
+            # = 89.5%; snap60_low only caught 56/1523 (3.7%) unique rejections
+            # snap30 didn't already catch. EXIT_SHADOW logger now records what
+            # those 56 cases would have done.
 
             # Real-time reversal gate: tok_d60 < -5% means token is currently falling at eval time
             # (distinct from snap60_eff which uses term_pre_snap — the trigger-time reference)
