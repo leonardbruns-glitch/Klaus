@@ -2292,7 +2292,7 @@ class KlausBot:
             ask = ob.asks[0][0] if ob.asks else None
             _ask_max = 0.92  # restored 0.88→0.92 2026-05-07 (May 6 daytime cost +$24.57 of winners)
             _elapsed_s = _window_s - remaining
-            _ask_floor = 0.80  # early window disabled — TERMINAL only
+            _ask_floor = 0.78  # 2026-05-07: 0.80→0.78 (gate-survivors [0.78,0.80) n=3 reliable, 3/3 dir-right)
             if ask is None or not (_ask_floor <= ask <= _ask_max):
                 logger.info(
                     "[BOND] ask_skip %s/%s ask=%s floor=%.2f rem=%.0fs",
