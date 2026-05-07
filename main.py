@@ -336,6 +336,11 @@ class KlausBot:
         # Joinable to trades.jsonl via (token_id, ts_open) → logs/exit_shadow.jsonl.
         self._shadow_fired: Dict[str, bool] = {}
         self._shadow_velocity_buf: Dict[str, list] = {}
+        # EXPO_SHADOW: log candidates that would pass relaxed snap30 thresholds
+        # (floor 10.5→5.0, ceiling 80→92) but currently fail the live gate.
+        # Dedupe per (token_id, window_end_ts). → logs/expo_shadow.jsonl.
+        # Joinable to kline resolution via window_end_ts.
+        self._expo_shadow_logged: set = set()
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
@@ -2667,6 +2672,33 @@ class KlausBot:
                     "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10.5,80) range",
                     token.asset, token.side, _snap30_eff,
                 )
+                # EXPO_SHADOW: log candidates that WOULD pass relaxed thresholds
+                # (floor 5.0, ceiling 92). No entry — log only. Output joinable
+                # to kline resolution via window_end_ts. logs/expo_shadow.jsonl.
+                _expo_floor = 5.0 <= _snap30_eff < 10.5
+                _expo_ceil  = 80.0 <= _snap30_eff < 92.0
+                if _expo_floor or _expo_ceil:
+                    _expo_key = (token_id, round(token.window_end_ts))
+                    if _expo_key not in self._expo_shadow_logged:
+                        self._expo_shadow_logged.add(_expo_key)
+                        try:
+                            with open(os.path.join("logs", "expo_shadow.jsonl"), "a") as _ef:
+                                _ef.write(json.dumps({
+                                    "ts": round(now, 3),
+                                    "token_id": token_id,
+                                    "asset": token.asset,
+                                    "side": token.side,
+                                    "outcome_dir": _token_dir,
+                                    "snap30_eff": round(_snap30_eff, 2),
+                                    "snap60_eff": round(_snap60_eff, 2),
+                                    "ask": round(ask, 4) if ask else None,
+                                    "remaining_s": round(remaining, 1),
+                                    "window_end_ts": round(token.window_end_ts, 1),
+                                    "window_size_s": int(token.window_seconds),
+                                    "expo_reason": "floor_capture" if _expo_floor else "ceiling_capture",
+                                }) + "\n")
+                        except Exception:
+                            pass
                 _b_mom_skip += 1
                 continue
 
