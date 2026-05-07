@@ -2897,6 +2897,17 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # SOL DOWN: thin OB (top-3 depth<100). Apr28-May7 n=45 PF=0.47 net=-$44.61;
+            # survivors n=86 PF=0.98 net=-$0.85. Direction-specific: SOL UP unaffected
+            # (depth<100 on UP would kill +$15 of edge). Mirrors ETH depth<100 gate.
+            if token.asset == "SOL" and _token_dir == "down" and _term_ob_depth < 100:
+                logger.info(
+                    "[BOND] sol_dn_depth_skip %s/%s | ob_depth=%.1f — thin SOL DOWN book skip",
+                    token.asset, token.side, _term_ob_depth,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Gate A: YES DOWN ep≥0.88 — break-even needs 89% WR, actual 81% (n=31, Tier2 2026-05-05)
             if _token_dir == "down" and ask >= 0.88:
                 logger.info(
