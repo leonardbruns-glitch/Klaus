@@ -133,4 +133,6 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-05-04 | STRATEGY / ALL | TERMINAL direction inverted: buy opposite side when gates fire | user instruction; when signal approves YES UP token, bot now finds partner token (same condition_id, opposite outcome_direction) and enters that instead; signal/tpsl/entered_correctly all updated to partner; INVERT_NO_PARTNER warning logged if partner has no ask
 
+## 2026-05-07 06:45 UTC | GATE / YES UP | RUIN_FLOOR_BLOCK removed | user instruction; gate added autonomously, reverted on request
+
 ## 2026-05-04 | BUG / ALL | window_outcome_price was wrong for all historical trades | Gamma API outcomePrices collapses to ["0","0"] for ALL tokens after market close (CLOB price, not oracle settlement). This caused wop=0.0 for ~96% of trades since May 3 19:00 UTC — actual YES rate was 61%. Fix: replaced Gamma polling + CLOB fallback with Binance 5m kline (open vs close of exact 300s window), which shares the same grid as Polymarket windows and agrees with Chainlink >99% of the time. Wait increased 10s→35s for kline to fully close. entered_correctly threshold corrected 0.80→0.5 (wop now clean binary 0/1). Backfilled n=75 trades (May 3 19:00 UTC+) with correct values via Binance klines. All prior analysis using window_outcome_price or entered_correctly is invalid and must be re-run.
