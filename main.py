@@ -2656,6 +2656,23 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # ── DOWN session-conditional G1 (user-auth 2026-05-07, Tier 2 — thin-sample exception) ──
+            # LATE DOWN: skip if Bnc60m > 0% (band [-inf, 0%]). Spot rising in last hour while
+            # entering DOWN in LATE session = bad. n=42 macro era, +$17.60 in-sample vs ungated -$2.92.
+            # CAVEAT: load-bearing bucket [0%, +0.25%) is n=5; ~$15 of edge from 1 BOND_EXPIRED_UNSOLD outlier.
+            # Deployed under user override of n>=40-per-bucket rule. Re-evaluate at n>=40 in [0,+0.25%).
+            # ASIA/LDN/US DOWN: no gate (per-session optimums are negligible or n<20).
+            if (_token_dir == "down"
+                    and _g1_sess == "LATE"
+                    and _term_binance_60m is not None
+                    and _term_binance_60m > 0.0):
+                logger.info(
+                    "[BOND] G1_down_late_skip %s/%s | sess=LATE G1_60m=%+.3f%% > 0%% — DOWN late+rising-spot skip",
+                    token.asset, token.side, _term_binance_60m,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Binance slow-bleed regime: spot falling -0.05% to -0.02% in 5m
             # n=233 PF=0.95 net=-$8.47; fast falls (<-0.05%) are fine (PF=2.31, market already priced)
             # Only applies to YES UP: for YES DOWN a falling spot is favourable.
