@@ -2624,23 +2624,34 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # ── G1 regime filter (COR-stability gate, user-auth 2026-05-04) ─────────────
-            # Block YES UP when 60m rolling BTC return is outside the COR-stable zone.
-            # CRASH (<-0.3%): UTC10 WR=0% Net=-$22; DUMP: UTC08 WR=0% Net=-$8
-            # OVEREXTENSION (>+1.5%): UTC15 COR=11% WR=22% Net=-$8 (pump exhaustion)
-            # UTC14 preserved: G1_mean=+0.62%, min=+0.11% — well within bounds
+            # ── G1 regime filter — session-adaptive bands (user-auth 2026-05-07, Tier 2) ──
+            # YES UP only. Per-session counterfactual on macro-populated subset (n=145 pre-May7):
+            #   universal [0%, +0.30%]: pre-May7 +$17, May7 -$22 (vs current [-0.3,+1.5] -$54/-$157)
+            #   per-session optimum bands (in-sample fitted, expect 50-70% of gain OOS):
+            #     ASIA  (00-08): [-0.05%, +0.25%] — n=71, optimum +$17 vs ungated -$164
+            #     LDN   (08-13): [ 0.00%, +0.30%] — universal default (n=18 too thin)
+            #     US    (13-18): [ 0.00%, +0.30%] — universal default (n=17 too thin)
+            #     LATE  (18-24): [+0.05%, +0.25%] — n=50, optimum +$25 vs ungated -$56
             # Skip gate if 60m return unavailable (<61 closed 1m bars since startup)
+            if 0 <= _utc_hour < 8:
+                _g1_lo, _g1_hi, _g1_sess = -0.05, 0.25, "ASIA"
+            elif 8 <= _utc_hour < 13:
+                _g1_lo, _g1_hi, _g1_sess = 0.00, 0.30, "LDN"
+            elif 13 <= _utc_hour < 18:
+                _g1_lo, _g1_hi, _g1_sess = 0.00, 0.30, "US"
+            else:
+                _g1_lo, _g1_hi, _g1_sess = 0.05, 0.25, "LATE"
             logger.info(
-                "[BOND] G1_check %s/%s | G1_60m=%s",
-                token.asset, token.side,
+                "[BOND] G1_check %s/%s | sess=%s band=[%+.2f%%,%+.2f%%] G1_60m=%s",
+                token.asset, token.side, _g1_sess, _g1_lo, _g1_hi,
                 f"{_term_binance_60m:+.3f}%" if _term_binance_60m is not None else "None(bypassed)",
             )
             if (_token_dir == "up"
                     and _term_binance_60m is not None
-                    and (_term_binance_60m < -0.3 or _term_binance_60m > 1.5)):
+                    and not (_g1_lo <= _term_binance_60m <= _g1_hi)):
                 logger.info(
-                    "[BOND] G1_regime_skip %s/%s | G1_60m=%+.3f%% — outside COR-stable zone [-0.3,+1.5]",
-                    token.asset, token.side, _term_binance_60m,
+                    "[BOND] G1_regime_skip %s/%s | sess=%s G1_60m=%+.3f%% outside [%+.2f%%,%+.2f%%]",
+                    token.asset, token.side, _g1_sess, _term_binance_60m, _g1_lo, _g1_hi,
                 )
                 _b_mom_skip += 1
                 continue
@@ -2887,6 +2898,25 @@ class KlausBot:
                 logger.info(
                     "[BOND] up_snap30_reduce %s/%s | snap30=%.1f%% stake $%.2f→$%.2f — blow-off stake cut",
                     token.asset, token.side, _snap30_eff, _orig_stake, decision.stake,
+                )
+
+            # ── Session × Direction stake multiplier (user-auth 2026-05-07, Tier 2) ──
+            # Per-session direction-asymmetric sizing. Pre-May7 evidence per cell, n>=151 (deploy-grade):
+            #   ASIA UP   n=200 avg -$0.22 → 0.5x   |  ASIA DOWN n=151 avg +$0.03 → 1.0x
+            #   LDN  UP   n=176 avg -$0.12 → 1.0x   |  LDN  DOWN n=171 avg -$0.47 → 0.5x  (worst DOWN)
+            #   US   UP   n=234 avg +$0.16 → 1.5x   |  US   DOWN n=223 avg -$0.12 → 1.0x  (only +ve UP cell)
+            #   LATE UP   n=314 avg -$0.33 → 0.3x   |  LATE DOWN n=241 avg +$0.09 → 1.0x  (worst UP, max -$32.92)
+            # Floor at $5 to avoid sub-min-share orders. Applied AFTER all other sizing logic.
+            _sxd_mult = {
+                ("up",   "ASIA"): 0.5, ("up",   "LDN"): 1.0, ("up",   "US"): 1.5, ("up",   "LATE"): 0.3,
+                ("down", "ASIA"): 1.0, ("down", "LDN"): 0.5, ("down", "US"): 1.0, ("down", "LATE"): 1.0,
+            }.get((_token_dir, _g1_sess), 1.0)
+            if _sxd_mult != 1.0:
+                _pre_sxd = decision.stake
+                decision.stake = max(5.0, round(decision.stake * _sxd_mult, 2))
+                logger.info(
+                    "[BOND] sxd_stake %s/%s | sess=%s dir=%s mult=%.1fx stake $%.2f→$%.2f",
+                    token.asset, token.side, _g1_sess, _token_dir, _sxd_mult, _pre_sxd, decision.stake,
                 )
 
             if _ask_floor == 0.52:

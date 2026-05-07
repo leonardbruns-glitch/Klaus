@@ -3,6 +3,10 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-07 10:XX UTC | SIZING / ALL | session×direction stake multipliers added | UP×ASIA 0.5x, UP×LDN 1.0x, UP×US 1.5x, UP×LATE 0.3x; DOWN×ASIA/US/LATE 1.0x, DOWN×LDN 0.5x; per-session pre-May7 evidence n>=151 deploy-grade; in-sample backtest May 5-7 -$210→+$29 (+$239 swing, ~50-70% expected OOS); applied AFTER snap30 blow-off cut, floor $5
+
+## 2026-05-07 10:XX UTC | ENTRY / UP | G1 gate: per-session bands replace [-0.3,+1.5] universal | ASIA [-0.05,+0.25], LDN [0,+0.30], US [0,+0.30], LATE [+0.05,+0.25]; in-sample joint optimum on macro era n=145 pre-May7 + n=11 May7; ceiling tightening +1.50→+0.30 is dominant lever (UP avg -$0.37→+$0.18); on May 7 alone blocks 4 of 6 catastrophic UP losers
+
 ## 2026-05-06 21:XX UTC | SIZING / ALL | base_stake raised $20→$30; equity tiers floored at base_stake | user directive; May 6 PASS gates net=$73.72 WR=97.2% n=36; Tier 2 (14%=$25) is currently a no-op (below $30 base) until equity>$214; Tier 1 (18%=$32) still adds ~$2 boost
 
 ## 2026-05-06 20:XX UTC | SIZING / ALL | equity-pct stake tiers added | Tier 1: snap60≥50% → 18% of equity; Tier 2: snap60≥20%+rem≥75s → 14% of equity; base_stake used otherwise; blow-off gate still applies after; user-authorised May 6
