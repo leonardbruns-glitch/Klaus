@@ -2665,6 +2665,18 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # 5s reversal gate: tok_d5 reveals momentum in the final 5s before entry.
+            # DOWN: token falling = ETH reversing up = we're buying the reversal.
+            # UP: token already flying = terminal velocity = snap-back risk.
+            # Evidence: T03840_ETH DOWN tok_d5=-4.40% → -$35.29.
+            if (_token_dir == "down" and _term_tok_d5 < -2.0) or (_token_dir == "up" and _term_tok_d5 > 2.0):
+                logger.info(
+                    "[BOND] tok5_gate %s/%s | tok_d5=%.1f%% dir=%s — adverse 5s momentum, skip",
+                    token.asset, token.side, _term_tok_d5, _token_dir,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Early-window snap60 floor at 30%: [20,30) COR=43.8% ◄, [30,50) COR=72.7% ▲
             # n=59 populated (May 4). BTC [30,50)=80%, ETH [30,50)=90%. Tier 2.
             if ask < 0.80 and _snap60_eff < 30.0:
