@@ -2672,16 +2672,12 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
             # YES DOWN: skip if BTC trending up in last 1m (need BTC down to win)
-            # Fallback to bnc5m when bnc1m unavailable (post-restart: null-bnc1m n=149 WR=65% PnL=-$35.72
-            # vs bnc1m-available n=330 WR=68% PnL=+$11.23; gate silently disabled for ~60min after restart)
-            _bnc_down_sig = (_term_binance_1m if (_term_binance_1m is not None and _term_binance_1m != 0.0)
-                             else _term_binance_5m if (_term_binance_5m is not None and _term_binance_5m != 0.0)
-                             else None)
-            if (_token_dir == "down" and _bnc_down_sig is not None and _bnc_down_sig > 0.0):
-                _src = "b1m" if (_term_binance_1m is not None and _term_binance_1m != 0.0) else "b5m"
+            if (_token_dir == "down"
+                    and _term_binance_1m is not None and _term_binance_1m != 0.0
+                    and _term_binance_1m > 0.0):
                 logger.info(
-                    "[BOND] bnc_dir_skip %s/%s | dir=DOWN %s=%.4f%% — BTC rising, skip YES DOWN",
-                    token.asset, token.side, _src, _bnc_down_sig,
+                    "[BOND] bnc_dir_skip %s/%s | dir=DOWN b1m=%.4f%% — BTC rising, skip YES DOWN",
+                    token.asset, token.side, _term_binance_1m,
                 )
                 _b_mom_skip += 1
                 continue
