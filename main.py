@@ -2626,9 +2626,9 @@ class KlausBot:
 
             # ── G1 regime filter (COR-stability gate, user-auth 2026-05-04) ─────────────
             # Block YES UP when 60m rolling BTC return is outside the COR-stable zone.
-            # Floor raised -0.30% → +0.022% 2026-05-07: May 7 H02+H04 had bnc60m<0, all lost.
-            # Night scan (H22-H06, n=79): at +0.022% blocks 19 trades, saves $81 net.
+            # CRASH (<-0.3%): UTC10 WR=0% Net=-$22; DUMP: UTC08 WR=0% Net=-$8
             # OVEREXTENSION (>+1.5%): UTC15 COR=11% WR=22% Net=-$8 (pump exhaustion)
+            # UTC14 preserved: G1_mean=+0.62%, min=+0.11% — well within bounds
             # Skip gate if 60m return unavailable (<61 closed 1m bars since startup)
             logger.info(
                 "[BOND] G1_check %s/%s | G1_60m=%s",
@@ -2637,9 +2637,9 @@ class KlausBot:
             )
             if (_token_dir == "up"
                     and _term_binance_60m is not None
-                    and (_term_binance_60m < 0.022 or _term_binance_60m > 1.5)):
+                    and (_term_binance_60m < -0.3 or _term_binance_60m > 1.5)):
                 logger.info(
-                    "[BOND] G1_regime_skip %s/%s | G1_60m=%+.3f%% — outside COR-stable zone [+0.022,+1.5]",
+                    "[BOND] G1_regime_skip %s/%s | G1_60m=%+.3f%% — outside COR-stable zone [-0.3,+1.5]",
                     token.asset, token.side, _term_binance_60m,
                 )
                 _b_mom_skip += 1
