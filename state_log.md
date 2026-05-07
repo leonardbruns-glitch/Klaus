@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-07 11:XX UTC | SIZING / DOWN-LDN | rollback DOWN×LDN 0.5x → 1.0x | original n=171 evidence (avg -$0.47) was contaminated by pre-May-5 era (n=153 -$87.99); May 5+ era n=18 WR=83.3% +$7.99 +$0.44/trade — cell is profitable, 0.5x cut was costing ~$2/day; ALL DOWN sessions now 1.0x; era split: Apr24-May4 n=704 -$92.22 vs May5-May6 n=82 +$11.98
+
 ## 2026-05-07 10:XX UTC | SIZING / ALL | session×direction stake multipliers added | UP×ASIA 0.5x, UP×LDN 1.0x, UP×US 1.5x, UP×LATE 0.3x; DOWN×ASIA/US/LATE 1.0x, DOWN×LDN 0.5x; per-session pre-May7 evidence n>=151 deploy-grade; in-sample backtest May 5-7 -$210→+$29 (+$239 swing, ~50-70% expected OOS); applied AFTER snap30 blow-off cut, floor $5
 
 ## 2026-05-07 10:XX UTC | ENTRY / UP | G1 gate: per-session bands replace [-0.3,+1.5] universal | ASIA [-0.05,+0.25], LDN [0,+0.30], US [0,+0.30], LATE [+0.05,+0.25]; in-sample joint optimum on macro era n=145 pre-May7 + n=11 May7; ceiling tightening +1.50→+0.30 is dominant lever (UP avg -$0.37→+$0.18); on May 7 alone blocks 4 of 6 catastrophic UP losers

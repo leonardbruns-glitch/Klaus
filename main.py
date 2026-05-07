@@ -2901,15 +2901,19 @@ class KlausBot:
                 )
 
             # ── Session × Direction stake multiplier (user-auth 2026-05-07, Tier 2) ──
-            # Per-session direction-asymmetric sizing. Pre-May7 evidence per cell, n>=151 (deploy-grade):
-            #   ASIA UP   n=200 avg -$0.22 → 0.5x   |  ASIA DOWN n=151 avg +$0.03 → 1.0x
-            #   LDN  UP   n=176 avg -$0.12 → 1.0x   |  LDN  DOWN n=171 avg -$0.47 → 0.5x  (worst DOWN)
-            #   US   UP   n=234 avg +$0.16 → 1.5x   |  US   DOWN n=223 avg -$0.12 → 1.0x  (only +ve UP cell)
-            #   LATE UP   n=314 avg -$0.33 → 0.3x   |  LATE DOWN n=241 avg +$0.09 → 1.0x  (worst UP, max -$32.92)
+            # Per-session direction-asymmetric sizing. Pre-May7 evidence per cell:
+            #   ASIA UP   n=200 avg -$0.22 → 0.5x   |  ASIA DOWN → 1.0x
+            #   LDN  UP   n=176 avg -$0.12 → 1.0x   |  LDN  DOWN → 1.0x (rolled back 2026-05-07: full-era n=171
+            #                                                   was contaminated by pre-May-5 era; May 5+ n=18
+            #                                                   WR 83.3% +$0.44/trade — cell is profitable)
+            #   US   UP   n=234 avg +$0.16 → 1.5x   |  US   DOWN → 1.0x
+            #   LATE UP   n=314 avg -$0.33 → 0.3x   |  LATE DOWN → 1.0x
+            # DOWN era split: Apr24-May4 n=704 -$92.22; May5-May6 n=82 +$11.98 — DOWN currently profitable
+            # across all sessions; no DOWN multipliers needed. Re-evaluate at n>=100 May 5+ per session.
             # Floor at $5 to avoid sub-min-share orders. Applied AFTER all other sizing logic.
             _sxd_mult = {
                 ("up",   "ASIA"): 0.5, ("up",   "LDN"): 1.0, ("up",   "US"): 1.5, ("up",   "LATE"): 0.3,
-                ("down", "ASIA"): 1.0, ("down", "LDN"): 0.5, ("down", "US"): 1.0, ("down", "LATE"): 1.0,
+                ("down", "ASIA"): 1.0, ("down", "LDN"): 1.0, ("down", "US"): 1.0, ("down", "LATE"): 1.0,
             }.get((_token_dir, _g1_sess), 1.0)
             if _sxd_mult != 1.0:
                 _pre_sxd = decision.stake
