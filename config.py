@@ -27,7 +27,7 @@ class BankrollConfig:
     base_stake: float = 50.0          # 2026-05-07 (user directive: 30→50, concurrent cap 1)
     scaled_stake: float = 50.0        # flat — heat-check disabled
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
-    max_open_positions: int = 1       # 2026-05-07 user instruction: 1 BOND position max concurrent
+    max_open_positions: int = 2       # 2026-05-07 user instruction: 1→2 BOND positions max concurrent
     max_daily_loss: float = 9999.0    # disabled — no intraday halt
     weekly_floor: float = 0.0         # disabled
     ruin_floor: float = 0.0           # disabled

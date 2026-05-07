@@ -2219,8 +2219,8 @@ class KlausBot:
                     _pre_obs["vwap"] = _pre_vwap
             if token_id in self.risk.open_positions:
                 continue
-            # 2026-05-07 user instruction: 1 BOND position max concurrent (across all assets)
-            if any(p.is_bond for p in self.risk.open_positions.values()):
+            # 2026-05-07 user instruction: 2 BOND positions max concurrent (across all assets)
+            if sum(1 for p in self.risk.open_positions.values() if p.is_bond) >= 2:
                 continue
             if any(p.asset == token.asset and p.is_bond for p in self.risk.open_positions.values()):
                 continue  # already holding this asset in a different window
