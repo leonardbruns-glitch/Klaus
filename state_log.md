@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-07 ~11:XX UTC | ROBUST STACK / ALL | Ship Stage 1 + partial Stage 2 + Stage 3 shadow log | user-instructed Tier 2. (1) Ask ceiling 0.92→0.88 (main.py:2254); (2) Imbalance floor 0.30→0.35 with DOWN ceiling unchanged at 0.655, UP at 0.70 (main.py:2313); (3) tok_d30 sandwich [5,60) added before deadzone (main.py:~2616); (4) Stage 3 shadow log: trades passing all gates but with snap60_eff<25 emit `[SIGNAL_PASS][STAGE_3_REJECT]` for 48h tracking — Snap60 25% floor NOT enforced, Tier-C deferred (no spec yet).
+
 ## 2026-05-07 11:XX UTC | ENTRY / DOWN-LATE | G1 gate added: skip DOWN if Bnc60m > 0% in LATE session (18-24 UTC) | n=42 macro era, in-sample +$17.60 vs ungated -$2.92; load-bearing bucket [0,+0.25%) n=5 with ~$15 of edge from 1 BOND_EXPIRED_UNSOLD outlier; user override of n>=40 rule explicit "my call"; ASIA/LDN/US DOWN remain ungated; re-eval at n>=40 in [0,+0.25%) bucket alone
 
 ## 2026-05-07 11:XX UTC | SIZING / DOWN-LDN | rollback DOWN×LDN 0.5x → 1.0x | original n=171 evidence (avg -$0.47) was contaminated by pre-May-5 era (n=153 -$87.99); May 5+ era n=18 WR=83.3% +$7.99 +$0.44/trade — cell is profitable, 0.5x cut was costing ~$2/day; ALL DOWN sessions now 1.0x; era split: Apr24-May4 n=704 -$92.22 vs May5-May6 n=82 +$11.98

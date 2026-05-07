@@ -2251,7 +2251,7 @@ class KlausBot:
             if time.time() - ob.ts > 3.0:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
-            _ask_max = 0.92  # extended from 0.88 2026-04-30
+            _ask_max = 0.88  # tightened 0.92→0.88 2026-05-07 (Robust Stack ship)
             _elapsed_s = _window_s - remaining
             _ask_floor = 0.80  # early window disabled — TERMINAL only
             if ask is None or not (_ask_floor <= ask <= _ask_max):
@@ -2310,8 +2310,8 @@ class KlausBot:
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
             _imb_ceil = 0.655 if _token_dir == "down" else 0.70
-            if not (0.30 <= _term_imb < _imb_ceil):
-                continue  # UP:[0.3,0.7) COR=75% n=75; DOWN:[0.3,0.655) ceiling tightened May6 n=39 net=-$6.67
+            if not (0.35 <= _term_imb < _imb_ceil):
+                continue  # UP:[0.35,0.7) DOWN:[0.35,0.655); floor raised 0.30→0.35 2026-05-07 (Robust Stack: Tier A imbalance signal compromise)
 
             # ── Dead-zone / volatility filters ─────────────────────────────────
             # All three read from closed kline buffers (populated by WS, not REST).
@@ -2608,6 +2608,17 @@ class KlausBot:
             if token.asset == "ETH" and _term_tok_d30 >= 100.0:
                 logger.info(
                     "[BOND] eth_td30_overext %s/%s | td30=%.1f%% — ETH 30s overextension skip",
+                    token.asset, token.side, _term_tok_d30,
+                )
+                _b_mom_skip += 1
+                continue
+
+            # tok_d30 sandwich (Robust Stack 2026-05-07): accept only [5, 60).
+            # Floor 5%: below this is no-momentum — Stage 1 finding too clean to ignore.
+            # Ceiling 60%: above this is blow-off / overextension; combine with deadzone below.
+            if _term_tok_d30 < 5.0 or _term_tok_d30 >= 60.0:
+                logger.info(
+                    "[BOND] tok30_sandwich %s/%s | tok30=%.1f%% — outside [5,60) skip",
                     token.asset, token.side, _term_tok_d30,
                 )
                 _b_mom_skip += 1
@@ -2995,6 +3006,14 @@ class KlausBot:
             # ── SNAP shadow gate (observability only — no execution effect) ────
             _snap_60 = float(getattr(signal, "term_pre_snap_60s", 0.0) or 0.0)
             _snap_30 = float(getattr(signal, "term_pre_snap_30s", 0.0) or 0.0)
+            # Stage 3 shadow log (2026-05-07): tag entries that pass current gates
+            # but would fail under a 25% snap60_eff floor. Goal: 48h tracking to
+            # decide if Stage 3 floor is worth promoting from log-only to enforced.
+            if _snap60_eff < 25.0:
+                logger.info(
+                    "[SIGNAL_PASS][STAGE_3_REJECT] %s/%s | snap60_eff=%.1f%% (floor=25) ask=%.4f rem=%.0fs dir=%s tok_id=%s",
+                    token.asset, _inv_side, _snap60_eff, _inv_ask, remaining, _inv_dir, _inv_id,
+                )
             try:
                 import json as _json
                 with open("logs/snap_shadow.jsonl", "a") as _sf:
