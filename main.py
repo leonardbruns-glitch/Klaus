@@ -760,6 +760,42 @@ class KlausBot:
                     except Exception:
                         pass
 
+                # ── BOND_LOSER_CUT: staged early exit for confirmed losers ──────
+                # TERMINAL-only. Fires before T-3 TIME_EXIT to cut deeply-red
+                # trades that never showed real green. Two stages:
+                #   S1 (rem 20–30s): bid ≤ −10% AND mfe_so_far < 3%
+                #   S2 (rem ≤ 20s):  bid ≤ −5%  AND mfe_so_far < 3%
+                # Evidence: May 2–7 traj_snaps n=569 matched, precision 70–87%
+                # train/test; +$55 / 25% bleed cut on May 5–7 TERMINAL.
+                if (pos.bond_entry_class == "TERMINAL"
+                        and bond_remaining <= 30.0
+                        and token_id not in self._exit_in_progress):
+                    _lc_bp = bond_move * 100.0
+                    _lc_mfe = (
+                        (pos.highest_price - pos.entry_price) / pos.entry_price * 100.0
+                        if pos.highest_price > pos.entry_price else 0.0
+                    )
+                    _lc_fire = False
+                    _lc_stage = ""
+                    if bond_remaining > 20.0 and _lc_bp <= -10.0 and _lc_mfe < 3.0:
+                        _lc_fire = True
+                        _lc_stage = "S1_T30"
+                    elif bond_remaining <= 20.0 and _lc_bp <= -5.0 and _lc_mfe < 3.0:
+                        _lc_fire = True
+                        _lc_stage = "S2_T20"
+                    if _lc_fire:
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            "BOND_LOSER_CUT %s/%s | %s rem=%.0fs bp=%+.1f%% mfe=%+.1f%% — early exit",
+                            pos.asset, pos.direction.name, _lc_stage,
+                            bond_remaining, _lc_bp, _lc_mfe,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, "BOND_LOSER_CUT")
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 # ── Scale-in: smooth runner at T+20-75s ──────────────────────────
                 # Trigger: fav ≥ 25% (peak gain from entry), adv < 8% (clean run —
                 # no significant wick), drawdown from peak ≤ 20% (still near high).
