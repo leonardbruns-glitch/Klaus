@@ -330,6 +330,12 @@ class KlausBot:
         # _pae_above_since: when bid recovered above -5%; timer only resets after 5s sustained recovery.
         self._pae_below_since: Dict[str, float] = {}
         self._pae_above_since: Dict[str, float] = {}
+        # Shadow exit logger: bid-depth + velocity rules, log-only.
+        # _shadow_fired: token_id → True once first-fire event has been emitted.
+        # _shadow_velocity_buf: token_id → [(ts, bid)] for ~20s history at 1s sampling.
+        # Joinable to trades.jsonl via (token_id, ts_open) → logs/exit_shadow.jsonl.
+        self._shadow_fired: Dict[str, bool] = {}
+        self._shadow_velocity_buf: Dict[str, list] = {}
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
@@ -759,6 +765,54 @@ class KlausBot:
                             }) + "\n")
                     except Exception:
                         pass
+
+                # ── EXIT_SHADOW: bid-depth + velocity rule logger (log-only) ────
+                # Records first moment proposed bid-depth or velocity-stall rules
+                # would have fired. No position action taken. Output joinable to
+                # trades.jsonl via (token_id, ts_open) → logs/exit_shadow.jsonl.
+                # Rule A (depth):     best_bid_size < pos.shares * 1.2
+                # Rule B (velocity):  rem<60s AND no upward bid progress over 15s
+                if bond_remaining <= 90.0 and not self._shadow_fired.get(token_id):
+                    _sh_ob = self.feed.get_order_book(token_id)
+                    if _sh_ob is not None and _sh_ob.bids:
+                        _sh_bid_size = _sh_ob.bids[0][1]
+                        _sh_pos_shares = float(getattr(pos, "shares", 0) or 0)
+                        _sh_buf = self._shadow_velocity_buf.setdefault(token_id, [])
+                        if not _sh_buf or now - _sh_buf[-1][0] >= 1.0:
+                            _sh_buf.append((now, current_price))
+                            while _sh_buf and now - _sh_buf[0][0] > 20.0:
+                                _sh_buf.pop(0)
+                        _sh_p15 = next((p for t, p in _sh_buf if now - t >= 14.0), None)
+                        _rule_a = _sh_pos_shares > 0 and _sh_bid_size < _sh_pos_shares * 1.2
+                        _rule_b = (
+                            bond_remaining < 60.0
+                            and _sh_p15 is not None
+                            and current_price <= _sh_p15
+                        )
+                        if _rule_a or _rule_b:
+                            self._shadow_fired[token_id] = True
+                            try:
+                                with open(os.path.join("logs", "exit_shadow.jsonl"), "a") as _shf:
+                                    _shf.write(json.dumps({
+                                        "event": "first_fire",
+                                        "ts": round(now, 3),
+                                        "token_id": token_id,
+                                        "open_ts": round(pos.open_ts, 3),
+                                        "asset": pos.asset,
+                                        "direction": pos.direction.name,
+                                        "entry_price": round(pos.entry_price, 4),
+                                        "fire_price": round(current_price, 4),
+                                        "fire_rem_s": round(bond_remaining, 1),
+                                        "fire_pnl_pct": round(bond_move * 100, 2),
+                                        "pos_shares": round(_sh_pos_shares, 2),
+                                        "best_bid_size": round(_sh_bid_size, 2),
+                                        "depth_ratio": round(_sh_bid_size / _sh_pos_shares, 3) if _sh_pos_shares else None,
+                                        "price_15s_ago": round(_sh_p15, 4) if _sh_p15 is not None else None,
+                                        "rule_a_depth": _rule_a,
+                                        "rule_b_velocity": _rule_b,
+                                    }) + "\n")
+                            except Exception:
+                                pass
 
                 # ── BOND_LOSER_CUT: staged early exit for confirmed losers ──────
                 # TERMINAL-only. Fires before T-3 TIME_EXIT to cut deeply-red
@@ -5390,6 +5444,8 @@ class KlausBot:
         self._catas_cancel_count.pop(token_id, None)
         self._pae_below_since.pop(token_id, None)
         self._pae_above_since.pop(token_id, None)
+        self._shadow_fired.pop(token_id, None)
+        self._shadow_velocity_buf.pop(token_id, None)
         # Log outcome for BC-armed positions that never fully reversed
         _arm_exit = self._bc_arm_tracker.pop(token_id, None)
         if _arm_exit:
