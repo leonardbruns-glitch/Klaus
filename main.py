@@ -2310,8 +2310,12 @@ class KlausBot:
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
             _imb_ceil = 0.655 if _token_dir == "down" else 0.70
-            if not (0.35 <= _term_imb < _imb_ceil):
-                continue  # UP:[0.35,0.7) DOWN:[0.35,0.655); floor raised 0.30→0.35 2026-05-07 (Robust Stack: Tier A imbalance signal compromise)
+            # BTC UP: asset-specific floor 0.50 (vs 0.35 universal). Bucket [0.35,0.50)
+            # full-era n=63 PF=0.40 net=-$160; would have prevented all 4 BTC UP H21-H04
+            # wipeout trades May 6-7 (-$115 saved). Other cells stay at 0.35 floor.
+            _imb_floor = 0.50 if (token.asset == "BTC" and _token_dir == "up") else 0.35
+            if not (_imb_floor <= _term_imb < _imb_ceil):
+                continue  # UP:[0.35,0.7) DOWN:[0.35,0.655); BTC UP override:[0.50,0.7) 2026-05-07
 
             # ── Dead-zone / volatility filters ─────────────────────────────────
             # All three read from closed kline buffers (populated by WS, not REST).
