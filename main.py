@@ -2889,15 +2889,6 @@ class KlausBot:
                     token.asset, token.side, _snap30_eff, _orig_stake, decision.stake,
                 )
 
-            # Bad night hours for YES UP: H00/H02/H04 — WR=33-58%, all net negative (n=9-12)
-            if _token_dir == "up" and _utc_hour in {0, 2, 4}:
-                _orig_stake = decision.stake
-                decision.stake = 5.0
-                logger.info(
-                    "[BOND] night_hour_stake_cut %s/%s | H%02d stake $%.2f→$5.00 — bad night hours",
-                    token.asset, token.side, _utc_hour, _orig_stake,
-                )
-
             if _ask_floor == 0.52:
                 # Early window: invert — gates fired on _token_dir side, buy opposite instead.
                 _inv_dir = "down" if _token_dir == "up" else "up"
