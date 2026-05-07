@@ -2684,6 +2684,24 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
+            # ── ETH UP regime asymmetry (user-auth 2026-05-07, Tier 2 — thin-sample exception) ──
+            # ETH UP is mean-reverting in rising-spot regimes: bnc60m≥0% n=38 avg -$1.39,
+            # bnc60m<0% n=15 avg +$0.95. Bot enters UP into rallies that revert at resolution.
+            # cor% (resolution rate) is healthy 57-64% across imb thresholds — not a base-rate
+            # problem; it's a regime-selection problem orthogonal to imb. Tier 2 with n=53
+            # macro-populated trades; deployed under user override of n≥100 rule by symmetry
+            # with LATE DOWN gate above. Re-evaluate at n≥100 macro era.
+            if (token.asset == "ETH"
+                    and _token_dir == "up"
+                    and _term_binance_60m is not None
+                    and _term_binance_60m > 0.0):
+                logger.info(
+                    "[BOND] G1_eth_up_skip %s/%s | G1_60m=%+.3f%% > 0%% — ETH UP rising-spot mean-reverts skip",
+                    token.asset, token.side, _term_binance_60m,
+                )
+                _b_mom_skip += 1
+                continue
+
             # Binance slow-bleed regime: spot falling -0.05% to -0.02% in 5m
             # n=233 PF=0.95 net=-$8.47; fast falls (<-0.05%) are fine (PF=2.31, market already priced)
             # Only applies to YES UP: for YES DOWN a falling spot is favourable.
