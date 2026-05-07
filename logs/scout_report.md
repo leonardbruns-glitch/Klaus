@@ -1,41 +1,54 @@
-# Alpha Scout Report — 2026-05-07 00:07 UTC
+# Alpha Scout Report — 2026-05-07 12:15 UTC
 
-**Method:** Commit-embedded analysis + codebase field audit — VPS SSH unreachable (29th consecutive scout session)
-**Connectivity:** SSH binary absent from sandbox; TCP port 22 to 85.137.174.86 times out. No trades.jsonl or post_exit.jsonl retrievable.
-**Data sources used:** git log (commits 2169759 → 2b8fdf7, 2026-05-06 04:26 → 22:17 UTC; 6 commits since last scout); main.py code analysis for un-gated logged fields
+**Method:** Commit-embedded analysis + codebase field audit — VPS SSH unreachable (30th consecutive scout session)
+**Connectivity:** SSH binary absent from sandbox; no trades.jsonl or post_exit.jsonl retrievable.
+**Data sources used:** git log (commits since last scout 3c006ac, 2026-05-07 00:07 UTC → HEAD 054195d, 11:59 UTC; 14 commits from VPS bot); main.py + data/feeds.py codebase audit; state_log.md; prior scout report.
 **Bankroll snapshot (stale — 2026-05-02 04:26 UTC):** capital=$37.32, total_trades=2605, total_pnl=+$87.87
 
 ---
 
-## Changes Since Last Scout Report (2026-05-06 12:10 UTC)
+## Changes Since Last Scout Report (2026-05-07 00:07 UTC)
 
-| Commit | Time (UTC) | Change |
-|---|---|---|
-| `351f2e2` | ~13:18 | snap60 floor raised 12%→25% during 12:30–13:30 UTC (5/5 H12 losses had snap60_eff<25%) |
-| `fe26969` | ~13:53 | Real-time reversal gate: tok_d60<−5% blocks entry (May5 n=89: catches 5 losses −$52.45, costs 5 wins $3.94, net +$48.51) |
-| `040b15d` | ~14:09 | Fix EXT exit logging: 8s CLOB retry before recording exit_price=0.0 |
-| `455f1ec` | ~16:xx | snap30 floor raised 10%→10.5% ([10,10.5) WR=33% pnl=−$34.70, n=3) |
-| `1b68cf3` | ~17:xx | ETH snap60 floor raised to 15% (both dirs): [12,14) WR=0% pnl=−$39.08 |
-| `f96e37a` | ~18:xx | Equity-pct stake tiers: snap60≥50%→18%, snap60≥20%+rem≥75s→14% of equity |
-| `dbe9f07` | ~19:xx | Raise base_stake $20→$30; floor equity tiers at base_stake |
-| `c666111` | ~20:xx | Bug fix: $30 base_stake not applied to BOND orders (hardcoded $20 cap in manager.py) |
-| `2b8fdf7` | ~22:17 | H21 TERMINAL: rem cap 60s + tok_d30≥35 gate (n=78 H21: combined saves +$59 vs baseline) |
+Fourteen commits landed in 12 hours, all authored by Klaus Bot from the VPS. Major deployments:
 
-**Net effect:** 9 changes in 10 hours after last scout report, all from VPS-side analysis. The bot IS running and analyzing live data — the cron sync recommendation from prior cycles remains the only blocker for scout-side analysis.
+| Commit | Time (UTC) | Change | Evidence base |
+|---|---|---|---|
+| `7a63a76` | ~10:10 | Adaptive G1 per-session bnc60m bands + session×direction stake matrix | n≥151 per cell (UP); n≥200 per cell (DOWN) |
+| `0c07984` | ~10:40 | LATE DOWN G1: skip if bnc60m>0% | n=42 LATE DOWN macro-era; user override n<40 |
+| `d54129e` | ~10:34 | DOWN×LDN rollback 0.5x→1.0x | era contamination: May5+ n=18 WR=83.3% +$7.99 |
+| `233a396` | ~11:26 | Robust Stack: ask 0.92→0.88, imb 0.30→0.35, tok_d30 sandwich [5,60), Stage 3 shadow log | multi-cell cumulative; user-instructed |
+| `fef03b4` | ~11:45 | ETH UP G1: skip if bnc60m>0% | n=53; user override |
+| `054195d` | ~11:59 | BTC UP imb floor 0.35→0.50 | Full-era n=175; bucket [0.35,0.50) PF=0.40 net=-$160 |
+
+The VPS is actively analyzing and deploying at high cadence. The era split (pre-May-5 vs May-5+) is now the dominant frame: pre-May-5 n=704 WR=62.8% avg -$0.13 vs May-5+ n=82 WR=81.7% avg +$0.15 for all DOWN trades. All historical analysis before May 5 should be weighted down or excluded.
 
 ---
 
 ## Investigation 1: Cross-Exchange Lead-Lag
 
-**HYPOTHESIS:** Positive Binance spot momentum in the 5s before entry (`pre_entry_momentum_pct > 0`) predicts higher YES resolution rate for YES UP entries.
+**HYPOTHESIS:** Positive Binance spot momentum in the 5s before entry predicts YES UP resolution.
 **MATH:** `pre_entry_momentum_pct = (spot_now - spot_5s_ago) / spot_5s_ago`
 
-**STATUS: INCONCLUSIVE — n=0 retrievable (29th consecutive cycle)**
+**STATUS: INCONCLUSIVE — n=0 directly retrievable. Critical field clarification from code audit.**
 
-**Deployment context:** The direction-aware Binance 1m gate (bnc_dir_skip) was added 2026-05-04, derived from this hypothesis applied at 1m resolution. W avg=+0.0028%, L avg=−0.0023%, Δ=0.0051%**. The 5s version (`pre_entry_momentum_pct` / `term_spot_delta_5s`) remains ungated — it may carry residual signal not captured by the 1m gate. A parallel field `velocity_5s_pct` (Binance 5s velocity from WS aggTrades) is also logged but ungated.
-
-**New data needed (run on VPS):**
+**Field identity correction (important):** `pre_entry_momentum_pct` as logged in trades.jsonl is NOT the 5s delta. From `main.py:3335`:
 ```python
+pre_entry_momentum_pct = _ext_entry.spot_momentum_1m  # 60-second Binance lookback
+```
+The TRUE 5-second Binance velocity field is `velocity_5s_pct` (from `data/feeds.py:get_velocity_5s`). The mandate's investigation was unknowingly targeting the wrong field. The `pre_entry_momentum_pct` field is effectively a duplicate of the 1m family already exploited by deployed gates.
+
+**Deployed coverage of the 1m signal:**
+- YES DOWN: `bnc_dir_skip` skips when `bnc1m > 0%` (BTC rising = skip YES DOWN)
+- YES UP: G1 per-session bands `[-0.05%,+0.25%]` / `[0%,+0.30%]` / `[+0.05%,+0.25%]`
+- ETH UP: skip when `bnc60m > 0%` (n=53, avg -$1.39 when rising vs avg +$0.95 when falling)
+- LATE DOWN: skip when `bnc60m > 0%` (n=42 LATE DOWN)
+
+**Known contamination risk (live):** null-bnc1m YES DOWN (post-restart, ~60 min window): n=149 WR=65% PnL=-$35.72 vs bnc1m-available n=330 WR=68% PnL=+$11.23. The bnc5m fallback was added (commit 47b358d) then reverted (3b2d629). Gate silently disabled for ~60 min after every restart.
+
+**The true uninvestigated field:** `velocity_5s_pct` — Binance aggTrade-based 5s spot velocity. Logged at every BOND entry. Gated ONLY at extreme spike threshold (>0.1% opposing direction). General directional effect never analyzed.
+
+```python
+# Run on VPS against logs/trades.jsonl
 import json, time
 from collections import defaultdict
 trades = [json.loads(l) for l in open("logs/trades.jsonl") if l.strip()]
@@ -44,31 +57,35 @@ bond = [t for t in trades
         if t.get("signal_source") == "BOND"
         and t.get("is_live") is True
         and t.get("ts_open", 0) >= cutoff]
-up = [t for t in bond if t.get("bond_outcome_direction") == "up"]
-# Bucket pre_entry_momentum_pct
-for label, grp in [("mom<0", [t for t in up if t.get("pre_entry_momentum_pct",0) < 0]),
-                   ("mom≥0", [t for t in up if t.get("pre_entry_momentum_pct",0) >= 0])]:
-    if not grp:
-        print(f"{label}: n=0"); continue
-    wins = sum(1 for t in grp if t.get("net_pnl", 0) > 0)
-    print(f"{label}: n={len(grp)} WR={wins/len(grp):.0%}")
+
+for label, grp in [
+    ("vel>0 / YES UP",   [t for t in bond if t.get("bond_outcome_direction","up")=="up"   and t.get("velocity_5s_pct",0) > 0]),
+    ("vel≤0 / YES UP",   [t for t in bond if t.get("bond_outcome_direction","up")=="up"   and t.get("velocity_5s_pct",0) <= 0]),
+    ("vel<0 / YES DOWN", [t for t in bond if t.get("bond_outcome_direction","up")=="down" and t.get("velocity_5s_pct",0) < 0]),
+    ("vel≥0 / YES DOWN", [t for t in bond if t.get("bond_outcome_direction","up")=="down" and t.get("velocity_5s_pct",0) >= 0]),
+]:
+    if len(grp) < 20: print(f"{label}: n={len(grp)} — INCONCLUSIVE"); continue
+    wins = sum(1 for t in grp if t.get("net_pnl",0) > 0)
+    gw = sum(t["net_pnl"] for t in grp if t.get("net_pnl",0)>0) or 0
+    gl = abs(sum(t["net_pnl"] for t in grp if t.get("net_pnl",0)<0)) or 1
+    print(f"{label}: n={len(grp)} WR={wins/len(grp):.0%} PF={gw/gl:.2f} net=${sum(t.get('net_pnl',0) for t in grp):.2f}")
 ```
 
-**RESULT:** No data.
+**RESULT:** No direct data.
 **CONCLUSION: INCONCLUSIVE**
-**FAILURE_MET: Cannot evaluate — n=0**
+**FAILURE_MET:** Cannot evaluate — n=0. Field identity now clarified: mandate was testing the wrong field. The actual 5s velocity signal (`velocity_5s_pct`) is ungated and uninvestigated.
 
 ---
 
-## Investigation 2: Tick Count Filter
+## Investigation 2: Tick Count as Toxicity Filter
 
-**HYPOTHESIS:** Low tick count (`term_tok_tick_count_5s` ≤ 2) = thin/dead market = adverse selection. High tick count = informed flow = better WR.
+**HYPOTHESIS:** Low `term_tok_tick_count_5s` (thin book, dead market) predicts worse WR for BOND entries.
 
-**STATUS: INCONCLUSIVE — n=0 retrievable (29th consecutive cycle)**
+**STATUS: INCONCLUSIVE — n=0 directly retrievable. No commit-embedded evidence found for this field.**
 
-**Deployment context:** `term_tok_tick_count_30s` (distinct ask price changes in last 30s) is also logged. Neither 5s nor 30s tick count has been gated. The `term_ask_stale_s` field (seconds since ask last changed) is a complementary signal — already gated at ≥4s (losers T02829 −$9.94, T02814 −$7.22 in 4–7s zone). The stale<1.0 zone (active repricing) shows 13W/17L (43% WR) in sim — not gated, logging only.
+**Code audit finding:** Both `term_tok_tick_count_5s` (5s count) and `term_tok_tick_count_30s` (30s count) are logged in every BOND trade (`main.py:1370-1371`). Neither appears in any commit message, state_log, or audit report — they have never been analyzed despite ~2000+ BOND trades where these fields are populated.
 
-**RESULT:** No data.
+**Related deployed signal:** `term_ask_stale_s ≥ 4s` is gated (stale ask = bad). Tick count covers the same information domain continuously rather than via the stale threshold.
 
 | Bucket | n | WR | PF |
 |---|---|---|---|
@@ -86,153 +103,152 @@ for label, grp in [("mom<0", [t for t in up if t.get("pre_entry_momentum_pct",0)
 
 **HYPOTHESIS:** Dead market entries (`|term_token_delta_5s| < 0.005`) underperform active entries.
 
-**STATUS: INCONCLUSIVE — n=0 retrievable (29th consecutive cycle)**
+**STATUS: INCONCLUSIVE — n=0 directly retrievable. Partial structural evidence from code and commits.**
 
-**Deployment context:** The extreme end of this signal IS already gated: `d5s_blowoff > 25%` was added with n=49 (WR=43%, PF=0.47, net=−$18.4 vs rest WR=66%, PF=1.15, net=+$25.7). The dead drift hypothesis (very LOW delta) is distinct and ungated. Related: snap30 floor was raised to 10.5% to catch the lowest-momentum trades ([10,10.5) WR=33%, pnl=−$34.70, n=3). The dead drift hypothesis using 5s delta is a finer-grained version of this same effect.
+**Architecture clarification:** `DEAD_DRIFT` in the codebase is an EXIT-PHASE classifier set during the hold period (flat MFE + gradual MAE), not an entry signal. The mandate targets entry-time flat token delta.
 
-**New related field (ungated):** `term_tok_decel_ratio` (d5s/d30s, clamped [−3,3]) — gated only at ≥2.0 for YES UP (n=2, WR=0%). The range [0, 2.0) has never been analyzed. If decel_ratio < 0.5 (5s momentum is less than half of 30s momentum), the move may be stalling.
+**Partial signal from commit data:** snap30 floor was raised 10%→10.5% (2026-05-06) after two DEAD_DRIFT-pattern losses: T03785 BTC -$19.65 and T03798 BTC -$16.95, both at snap30_eff=10.39%. These entered with minimal 30s momentum and fell into DEAD_DRIFT exit state. The 5s delta (`term_token_delta_5s`) at entry time is a finer-grained version of the same effect — catches tokens already stalling at entry even if the 30s snapshot is borderline.
 
-**RESULT:** No data.
+**Deployed overlap:** The tok_d30 sandwich `[5, 60)` (Robust Stack, 2026-05-07) gates the 30s token delta below 5%. The 5s delta dead-drift hypothesis adds granularity below the 5% threshold that the 30s sandwich would still pass.
 
 | Group | n | WR | PF |
 |---|---|---|---|
-| Dead drift (|Δ5s| < 0.005) | 0 | N/A | N/A |
-| Active (|Δ5s| ≥ 0.005) | 0 | N/A | N/A |
+| Dead drift (\|Δ5s\| < 0.005) | 0 | N/A | N/A |
+| Active (\|Δ5s\| ≥ 0.005) | 0 | N/A | N/A |
 
 **CONCLUSION: INCONCLUSIVE**
+**FAILURE_MET:** Cannot evaluate — n=0. Structural overlap with snap30/tok_d30 gates means 5s version may yield marginal marginal signal; worth testing but lower priority than Investigation 1.
 
 ---
 
 ## Investigation 4: Asset-Specific Edge
 
-**HYPOTHESIS:** One asset (BTC/ETH/SOL) outperforms others in TERMINAL BOND strategy in the last 48h.
+**HYPOTHESIS:** One asset (BTC/ETH/SOL) consistently outperforms others in the last 48h.
 
-**STATUS: INCONCLUSIVE — n=0 retrievable directly. Partial data from commit-embedded evidence.**
+**STATUS: INCONCLUSIVE — n=0 direct 48h data. Full-era commit-embedded data violates 48h window requirement.**
 
-**Commit-extracted data (all-time, not 48h — use with caution):**
+**Full-era data (all-time — era contamination exists pre-May-5; annotated accordingly):**
 
-| Asset | Gate-derived WR | pnl | n | Notes |
-|---|---|---|---|---|
-| BTC | ~43% (btc_daccel flat n=38) / ~43% (not_sust n=54) | −$151 / −$169 | 38/54 | Two major loss pools found and gated |
-| ETH | 38% flat_tok_d30 [0,2) | −$92 | n=26 | 0% WR at snap60 [12,14) n=small |
-| SOL | 65% late entry (elapsed≥0.75) | −$46 | n=29 | spread>3%: −$12.17 drag |
+| Asset | Direction | n (era) | PF | net | Gate state |
+|---|---|---|---|---|---|
+| BTC UP | YES UP | 175 at imb≥0.35 | 0.40 | -$161 | imb floor now 0.50; PF=1.08 at ≥0.50 (n=106) |
+| BTC DOWN | YES DOWN | unquantified | <1.0 | negative | DEFERRED — "imb-immune AND bnc-immune" |
+| ETH UP | YES UP | 53 macro-era | split | bnc60m≥0%: avg -$1.39; bnc60m<0%: avg +$0.95 | G1 skip bnc60m>0% deployed |
+| SOL UP | YES UP | 103 | 1.37 | positive | imb≥0.35 (already optimal) |
 
-These are the populations that TRIGGERED gates, so they represent the worst-performing buckets, not overall WR. Actual WR on live trades that PASSED all gates is unknown without trades.jsonl.
+**48h window (May 5-7) inferred from commits:**
+- BTC UP: ≥6 wipeout trades blocked by new imb gate (-$152); 4 night-cluster losses H21-H04 (-$115)
+- DOWN (all assets, May5-6): n=82 WR=81.7% avg +$0.15 net +$11.98
 
-**RESULT:** No 48h data.
-
-| Asset | n (48h) | WR | PF | Avg net_pnl |
-|---|---|---|---|---|
-| BTC | 0 | N/A | N/A | N/A |
-| ETH | 0 | N/A | N/A | N/A |
-| SOL | 0 | N/A | N/A | N/A |
-
-**CONCLUSION: INCONCLUSIVE — n < 20 per asset in accessible window. No reweighting warranted.**
-
-**Note (ETH):** The ETH sust gate (tok_d30>0.5% AND tok_d60>0.5%) was deployed on n=13. Still needs validation at n≥50.
+**CONCLUSION: INCONCLUSIVE — n < 20 per asset in 48h window. No reweighting warranted.**
+**Observation (not a gate):** SOL UP is the healthiest cell (PF=1.37, no further gating needed). BTC DOWN is structurally broken at all gate settings — the single largest unresolved cell. See NEW-C below.
 
 ---
 
-## New Variables for Investigation (added this cycle)
+## New Variables for Investigation (This Cycle)
 
-Six logged fields with no gate and sufficient theoretical basis for analysis. Run these against trades.jsonl on VPS.
+### NEW-A: `velocity_5s_pct` — True 5s Binance spot momentum (High priority)
 
-### NEW-1: `term_tok_decel_ratio` in [0.0, 2.0)
-- **Definition:** d5s/d30s (5s token delta / 30s token delta), clamped [−3, 3]
-- **Hypothesis:** decel_ratio < 0.5 = momentum stalling before entry = adverse resolution
-- **Gate threshold gated at:** ≥2.0 YES UP only (n=2, n too small — Tier2 note in code)
-- **Failure criteria:** WR difference between decel<0.5 and decel≥0.5 less than 5pp
+The field the mandate's Investigation 1 was trying to analyze. `pre_entry_momentum_pct` is the 1m version (already gated). `velocity_5s_pct` is the actual 5-second spot velocity at order placement — orthogonal time horizon from both G1 (bnc60m) and bnc_dir_skip (bnc1m).
+
+- **Definition:** % price change over last 5s from Binance aggTrade stream (`feeds.py:get_velocity_5s`)
+- **Hypothesis:** YES UP with falling/flat spot (vel_5s ≤ 0) has lower WR than rising spot (vel_5s > 0); symmetric for YES DOWN
+- **Current gate:** Only extreme spike suppression at >0.1% opposing direction (`main.py:2011`)
+- **Failure criteria:** WR difference < 5pp per direction bucket, or n < 20 per bucket
+- **Run snippet:** See Investigation 1 above
+
+### NEW-B: `term_tok_tick_count_5s` bucketed by direction (Medium priority)
+
+2000+ untouched data points. DOWN token books may be systematically thinner than UP token books; direction-specific tick floor may outperform a universal gate.
 
 ```python
-for label, grp in [("decel<0.5", [t for t in bond if 0 < t.get("term_tok_decel_ratio",1) < 0.5]),
-                   ("decel≥0.5", [t for t in bond if t.get("term_tok_decel_ratio",1) >= 0.5])]:
-    if not grp: print(f"{label}: n=0"); continue
-    wins = sum(1 for t in grp if t.get("net_pnl", 0) > 0)
-    pf_g = sum(t["net_pnl"] for t in grp if t.get("net_pnl",0) > 0) or 0
-    pf_l = abs(sum(t["net_pnl"] for t in grp if t.get("net_pnl",0) < 0)) or 1
-    print(f"{label}: n={len(grp)} WR={wins/len(grp):.0%} PF={pf_g/pf_l:.2f}")
+def tick_bucket(n):
+    if n <= 2: return "0-2"
+    if n <= 5: return "3-5"
+    if n <= 10: return "6-10"
+    return "11+"
+
+for direction in ["up", "down"]:
+    by_tick = defaultdict(list)
+    for t in bond:
+        if t.get("bond_outcome_direction","up") == direction:
+            by_tick[tick_bucket(t.get("term_tok_tick_count_5s",0))].append(t)
+    print(f"--- YES {direction.upper()} ---")
+    for b in ["0-2","3-5","6-10","11+"]:
+        grp = by_tick[b]
+        if not grp: print(f"  {b}: n=0"); continue
+        wins = sum(1 for t in grp if t.get("net_pnl",0) > 0)
+        print(f"  {b}: n={len(grp)} WR={wins/len(grp):.0%} net=${sum(t.get('net_pnl',0) for t in grp):.2f}")
 ```
 
-### NEW-2: `term_ask_stale_s` in [1.0, 4.0)
-- **Definition:** seconds since ask last changed in scan-loop history
-- **Context:** stale≥4s gated (losers T02829/T02814). stale<1.0 = log-only (sim: 13W/17L = 43% WR)
-- **Hypothesis:** stale in [1, 2) zone is optimal; stale≥2 but <4 may have elevated loss rate
-- **Failure criteria:** WR spread < 5pp across [0,1), [1,2), [2,4) buckets
+### NEW-C: BTC DOWN base-rate investigation (High priority — VPS-flagged, unresolved)
+
+VPS explicitly identified: "BTC DOWN: imb-immune AND bnc-immune — different failure mode." Sub-50% WR at every imbalance threshold even after bnc1m gating. The question is whether BTC DOWN has a structural directional bias (BTC 5m windows systematically resolve UP more than DOWN) or an hour/session-specific problem.
+
+- **Hypothesis:** BTC DOWN has sub-50% base resolution rate in current regime, making YES DOWN entries systematically unprofitable regardless of OB signal. Check hour×session breakdown.
+- **Failure criteria:** WR > 50% for BTC DOWN in any major session disproves systematic deficit
 
 ```python
-def stale_bucket(s):
-    if s < 1.0: return "<1.0"
-    if s < 2.0: return "1-2"
-    if s < 4.0: return "2-4"
-    return "≥4 (gated)"
-by_stale = defaultdict(list)
-for t in bond:
-    by_stale[stale_bucket(t.get("term_ask_stale_s", 999))].append(t)
-for b in ["<1.0","1-2","2-4","≥4 (gated)"]:
-    grp = by_stale[b]
-    if not grp: print(f"{b}: n=0"); continue
+sessions = {"ASIA":(0,8),"LDN":(8,13),"US":(13,18),"LATE":(18,24)}
+btc_down = [t for t in bond if t.get("asset")=="BTC" and t.get("bond_outcome_direction","up")=="down"]
+print(f"BTC DOWN total: n={len(btc_down)}")
+for sess, (h0,h1) in sessions.items():
+    grp = [t for t in btc_down if h0 <= (t.get("hour_utc") or int(t.get("ts_open",0))//3600%24) < h1]
+    if len(grp) < 10: print(f"  {sess}: n={len(grp)} — thin"); continue
     wins = sum(1 for t in grp if t.get("net_pnl",0) > 0)
-    print(f"{b}: n={len(grp)} WR={wins/len(grp):.0%}")
+    print(f"  {sess}: n={len(grp)} WR={wins/len(grp):.0%} net=${sum(t.get('net_pnl',0) for t in grp):.2f}")
 ```
 
-### NEW-3: `bond_llm_shadow_pnl` — LLM shadow validation
-- **Definition:** what the LLM's shadow TP/SL would have made if executed
-- **Hypothesis:** trades where `bond_llm_decision == "TAKE"` have higher WR than "SKIP" — validates LLM signal
-- **Failure criteria:** WR difference < 5pp, or n < 20 per bucket
+### NEW-D: null-bnc1m gate contamination fix (Infrastructure)
+
+Not a signal — a data quality issue. null-bnc1m YES DOWN (post-restart ~60 min) silently disables bnc_dir_skip, letting through bad trades. The bnc5m fallback fix was reverted. Re-add it or log gate-disabled trades for separate tracking:
 
 ```python
-for label, grp in [("LLM_TAKE", [t for t in bond if t.get("bond_llm_decision") == "TAKE"]),
-                   ("LLM_SKIP", [t for t in bond if t.get("bond_llm_decision") == "SKIP"])]:
-    if not grp: print(f"{label}: n=0"); continue
-    wins = sum(1 for t in grp if t.get("net_pnl",0) > 0)
-    shadow = sum(t.get("bond_llm_shadow_pnl", 0) for t in grp)
-    print(f"{label}: n={len(grp)} WR={wins/len(grp):.0%} shadow_pnl=${shadow:.2f}")
-```
-
-### NEW-4: `pre_score` — Layer-1 composite quality gate (observation mode)
-- **Definition:** composite pre-causal entry quality score (accel, daccel, edge, stab, vel, class)
-- **Context:** deployed in observation mode only — never blocks trades
-- **Hypothesis:** pre_score < 0.40 predicts loss; pre_score ≥ 0.60 predicts win
-- **Failure criteria:** WR difference < 5pp across score buckets, or pre_score=0 in >50% of records (data not populated)
-
-```python
-for label, grp in [("pre<0.40", [t for t in bond if 0 < t.get("pre_score",0) < 0.40]),
-                   ("pre≥0.40", [t for t in bond if t.get("pre_score",0) >= 0.40])]:
-    if not grp: print(f"{label}: n=0"); continue
-    wins = sum(1 for t in grp if t.get("net_pnl",0) > 0)
-    pf_g = sum(t["net_pnl"] for t in grp if t.get("net_pnl",0) > 0) or 0
-    pf_l = abs(sum(t["net_pnl"] for t in grp if t.get("net_pnl",0) < 0)) or 1
-    print(f"{label}: n={len(grp)} WR={wins/len(grp):.0%} PF={pf_g/pf_l:.2f}")
+# In main.py at the YES DOWN bnc_dir_skip block:
+_bnc_down_ref = (
+    _term_binance_1m if (_term_binance_1m is not None and _term_binance_1m != 0.0)
+    else _term_binance_5m if (_term_binance_5m is not None and _term_binance_5m != 0.0)
+    else None
+)
+if _token_dir == "down" and _bnc_down_ref is not None and _bnc_down_ref > 0.0:
+    logger.info("[BOND] bnc_dir_skip %s/%s | DOWN src=%s val=%.4f%% — BTC rising, skip",
+                token.asset, token.side,
+                "b1m" if _term_binance_1m else "b5m", _bnc_down_ref)
+    _b_mom_skip += 1; continue
 ```
 
 ---
 
 ## Priority Signal for Next Implementation
 
-**No actionable signals this cycle — continue data collection.**
+**`velocity_5s_pct` — the true 5s cross-exchange lead-lag signal (NEW-A).**
 
-All four mandated investigations remain INCONCLUSIVE due to 29 consecutive cycles of VPS SSH inaccessibility. The strongest unvalidated candidate remains Investigation 2 (tick count filter) and NEW-1 (decel_ratio [0, 2.0) bucket) — both logged in every BOND trade, neither gated.
+All four mandated investigations remain INCONCLUSIVE due to inaccessible trades.jsonl. However, this cycle's code audit revealed a material finding: the mandate's Investigation 1 (`pre_entry_momentum_pct`) targets the wrong field. The 1m momentum signal is already gated (G1, bnc_dir_skip). The uninvestigated 5-second version is `velocity_5s_pct`, logged in every BOND trade, gated only at extreme spike levels.
 
-**VPS-side evidence this cycle (from commit messages):** The H21 gate (tok_d30≥35, rem≤60s) was deployed with n=78 H21 TERMINAL trades and saves +$59 combined. The ETH snap60 floor at 15% was deployed with limited n (small sample flag in audit_report). Both need validation at n≥100.
+**Variable:** `velocity_5s_pct`
+**Math:** `(price_now - price_5s_ago) / price_5s_ago × 100` via Binance aggTrade WS
+**Proposed gate (if n≥20 per bucket and WR diff ≥5pp):** Skip YES UP when `velocity_5s_pct ≤ 0.0`; skip YES DOWN when `velocity_5s_pct ≥ 0.0`
+**Implementation location:** main.py, immediately after the existing bnc_dir_skip block
+**Failure criteria:** WR difference < 5pp between positive/negative velocity buckets per direction
+
+Second priority: **NEW-C (BTC DOWN base-rate)** — the largest unresolved loss cell, VPS-identified but never quantified.
 
 ---
 
-## Infrastructure Alert — Critical (29 consecutive scout sessions)
+## Infrastructure Alert — Critical (30 consecutive scout sessions)
 
-**Root cause:** Sandbox outbound port 22 blocked (confirmed TCP timeout to 85.137.174.86:22). No SSH binary in this environment.
+**Root cause:** SSH binary absent from sandbox. TCP port 22 egress blocked at network level.
 
-**VPS IS running** — 9 commits pushed from VPS-side analysis in last 10 hours today, all from `Klaus Bot <bot@Klaus.local>`. The VPS can push to git. The following cron deploys in 30 seconds and unblocks all future scout cycles permanently:
+**VPS IS running** — 14 VPS-authored commits in 12 hours today. Cron sync is the only blocker.
 
-**Option A: One-time manual sync (30 seconds)**
+**One-time manual sync (30 seconds on VPS):**
 ```bash
-cd /root/Klaus
-tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
-git add logs/live_trades_recent.jsonl logs/bankroll.json
-git commit -m "manual log sync $(date -u)"
-git push origin claude/find-lag-parameter-rFQ0N
+cd /root/Klaus && tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl && \
+git add logs/live_trades_recent.jsonl logs/bankroll.json && \
+git commit -m "manual log sync $(date -u)" && git push origin claude/find-lag-parameter-rFQ0N
 ```
 
-**Option B: Cron sync (every 30 minutes, permanent)**
+**Permanent cron unblock:**
 ```bash
 cat > /etc/cron.d/push-logs << 'EOF'
 */30 * * * * root cd /root/Klaus && \
@@ -243,14 +259,3 @@ cat > /etc/cron.d/push-logs << 'EOF'
 EOF
 chmod 644 /etc/cron.d/push-logs
 ```
-
-**Option C: Run analysis scripts and commit output**
-```bash
-cd /root/Klaus
-python3 analytics/lag_detector.py --duration 3600
-git add logs/lag_ws_events.jsonl
-git commit -m "lag detector 1h run $(date -u)"
-git push origin claude/find-lag-parameter-rFQ0N
-```
-
-Without log data, all four mandated investigations remain structurally blocked.
