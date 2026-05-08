@@ -64,6 +64,27 @@
         {"name": "would_take_at_ask",     "type": "bool"}
       ]
     },
+    "shadow_telemetry": {
+      "doc": "Pipeline self-telemetry; emitted every telemetry_interval_s (default 60s). Rides the same queue as data records — same durability path.",
+      "key": ["ts_s"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8"},
+        {"name": "record_type",           "type": "string",  "doc": "literal 'shadow_telemetry'"},
+        {"name": "ts_s",                  "type": "int64"},
+        {"name": "uptime_s",              "type": "int64"},
+        {"name": "queue_depth",           "type": "int32"},
+        {"name": "queue_max",             "type": "int32"},
+        {"name": "queue_pct_full",        "type": "float32"},
+        {"name": "written_total",         "type": "int64"},
+        {"name": "dropped_total",         "type": "int64", "doc": "ANY non-zero is a hard validation-gate failure"},
+        {"name": "rows_per_min",          "type": "float32"},
+        {"name": "flush_count",           "type": "int64"},
+        {"name": "flush_latency_p50_ms",  "type": "float32"},
+        {"name": "flush_latency_p95_ms",  "type": "float32"},
+        {"name": "rss_mb",                "type": "float32",  "doc": "process RSS via /proc/PID/status"},
+        {"name": "files",                 "type": "map<string,struct<path: string, size_bytes: int64>>"}
+      ]
+    },
     "window_resolution": {
       "doc": "One row per (condition_id, window_end_ts). Resolution from Binance 5m kline open vs close — same 300s grid as the Chainlink oracle.",
       "key": ["condition_id", "window_end_ts"],
