@@ -116,6 +116,13 @@ class TimelineSampler:
                 gt = self._build_gate_trace(rec)
                 if gt is not None:
                     self.pipe.emit(gt)
+                # Exit-policy shadow: register first-fires (gate all_pass), then
+                # evaluate active tracked positions against this tick.
+                _exit_pol = getattr(self.bot, "shadow_exit_policy", None)
+                if _exit_pol is not None:
+                    if gt is not None:
+                        _exit_pol.register_first_fire(rec, gt)
+                    _exit_pol.evaluate_tick(rec)
                 # Schedule window resolution (idempotent per cid+wend).
                 # Mirrors live bot's _capture_resolution scheduling pattern —
                 # task sleeps until window_end_ts+35s then fetches kline,

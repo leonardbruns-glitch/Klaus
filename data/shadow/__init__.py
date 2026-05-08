@@ -11,9 +11,11 @@ drop-on-full). No coupling to live trading state — read-only over feed caches.
 from .pipeline import ShadowPipeline
 from .timeline import TimelineSampler
 from .resolution import ResolutionWriter
+from .exit_policy import ExitPolicyShadow
 from .trade import emit_token_trade, emit_binance_trade
 
 __all__ = [
     "ShadowPipeline", "TimelineSampler", "ResolutionWriter",
+    "ExitPolicyShadow",
     "emit_token_trade", "emit_binance_trade",
 ]

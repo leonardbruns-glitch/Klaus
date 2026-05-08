@@ -152,6 +152,39 @@
         {"name": "resolution_delay_s",    "type": "int32",    "doc": "ts_resolved_s - window_end_ts"},
         {"name": "resolution_source",     "type": "string",   "doc": "literal 'binance_kline'"}
       ]
+    },
+    "exit_policy_shadow": {
+      "doc": "One row per (first_fire, policy_id). First_fire = gate_trace.all_pass=True deduped per (token_id, window_end_ts). Triggers: PT (bid >= threshold), FALLBACK_30s (hold>=30s), BE_TRAIL (trail-stop after MFE arm), WINDOW_END (rem<=5s backstop). Validation criteria for live swap (per 2026-05-08 audit Deliverable 3): n>=500 fires, >=5 days, every regime quartile n>=40, realistic_pnl_pct mean>=+1.0%, worst quartile>=-1.0%, derate(clean-realistic)<=0.5pp, cat-rate (<=-70%)<=2%.",
+      "key": ["token_id", "window_end_ts", "policy_id"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8"},
+        {"name": "record_type",           "type": "string",  "doc": "literal 'exit_policy_shadow'"},
+        {"name": "ts_s",                  "type": "int64",   "doc": "emit time"},
+        {"name": "token_id",              "type": "string"},
+        {"name": "condition_id",          "type": "string"},
+        {"name": "asset",                 "type": "string"},
+        {"name": "outcome_dir",           "type": "string"},
+        {"name": "outcome_side",          "type": "string"},
+        {"name": "window_end_ts",         "type": "int64"},
+        {"name": "fire_ts_s",             "type": "int64",   "doc": "first-fire (gate all_pass) tick"},
+        {"name": "fire_ask",              "type": "float32", "doc": "best_ask at first-fire — entry-side reference"},
+        {"name": "sec_to_res_at_fire",    "type": "float32"},
+        {"name": "policy_id",             "type": "string",  "doc": "PT0.95+30s | PT0.93+30s | BE_trail_5_3"},
+        {"name": "exit_ts_s",             "type": "int64"},
+        {"name": "exit_bid",              "type": "float32"},
+        {"name": "exit_bid_size",         "type": "float32"},
+        {"name": "exit_trigger",          "type": "string",  "doc": "PT | FALLBACK_30s | BE_TRAIL | WINDOW_END"},
+        {"name": "clean_pnl_pct",         "type": "float32", "doc": "(exit_bid - fire_ask)/fire_ask * 100"},
+        {"name": "realistic_pnl_pct",     "type": "float32", "doc": "with bid-evaporation derate vs REF_SHARES=10"},
+        {"name": "fill_ok",               "type": "bool",    "doc": "exit_bid_size >= REF_SHARES"},
+        {"name": "hold_seconds",          "type": "float32"},
+        {"name": "bnc_5m_pct",            "type": "float32", "doc": "regime tag — snapshot at first-fire"},
+        {"name": "snap30",                "type": "float32"},
+        {"name": "snap60",                "type": "float32"},
+        {"name": "hour_utc",              "type": "int8"},
+        {"name": "session_bucket",        "type": "string"},
+        {"name": "direction",             "type": "string",  "doc": "up|down — copy of outcome_dir for query convenience"}
+      ]
     }
   }
 }
