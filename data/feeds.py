@@ -727,9 +727,13 @@ class PolymarketFeed:
                         logger.info("Binance WS: subscribed to markPrice + aggTrade for BTC/ETH/SOL")
                         while self._running:
                             try:
-                                msg = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                                # heartbeat=20 (ping/pong) is the primary liveness check.
+                                # This receive timeout is a backstop for "TCP alive but
+                                # app silent" — 90s is well above markPrice@1s cadence,
+                                # avoids reconnect during legitimate quiet windows.
+                                msg = await asyncio.wait_for(ws.receive(), timeout=90.0)
                             except asyncio.TimeoutError:
-                                logger.warning("Binance WS silence timeout (30s) — forcing reconnect")
+                                logger.warning("Binance WS silence timeout (90s) — forcing reconnect")
                                 break
                             if not self._running:
                                 break
@@ -872,9 +876,11 @@ class PolymarketFeed:
                         _last_price_log = 0.0
                         while self._running:
                             try:
-                                msg = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                                # heartbeat=20 handles dead connections; 90s app
+                                # backstop avoids reconnects during quiet 1m windows.
+                                msg = await asyncio.wait_for(ws.receive(), timeout=90.0)
                             except asyncio.TimeoutError:
-                                logger.warning("Binance kline WS silence timeout (30s) — forcing reconnect")
+                                logger.warning("Binance kline WS silence timeout (90s) — forcing reconnect")
                                 break
                             if not self._running:
                                 break
