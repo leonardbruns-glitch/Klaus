@@ -292,8 +292,10 @@ class TimelineSampler:
     def _build_gate_trace(self, tl: dict) -> Optional[dict]:
         ask = tl["best_ask"]
         snap30 = tl["tok_snap_30s"]
+        sec = tl["seconds_to_resolution"]
         spread_pct = (tl["spread_abs"] / ask * 100.0) if ask else 0.0
         gates = {
+            "terminal_zone": "PASS" if 25.0 <= sec <= 90.0 else f"FAIL@{sec:.0f}s",
             "ask_floor":    "PASS" if ask >= _GATE_ASK_FLOOR else f"FAIL@{ask:.2f}<{_GATE_ASK_FLOOR}",
             "ask_max":      "PASS" if ask <= _GATE_ASK_MAX   else f"FAIL@{ask:.2f}>{_GATE_ASK_MAX}",
             "spread":       "PASS" if spread_pct <= _GATE_SPREAD_PCT_MAX else f"FAIL@{spread_pct:.1f}>{_GATE_SPREAD_PCT_MAX}",
