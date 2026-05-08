@@ -1317,18 +1317,20 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # ── BOND_PT95_TIMEOUT: TERMINAL held ≥30s without PT → exit at bid ──
-                # Audit 2026-05-08: 4-day live cross-check n=219 — eliminating the
-                # hold-to-resolution path saves $155 ($39/day), cat-rate (≤−70%)
-                # drops 33×. Targets short-hold TERMINAL entries; early-entry exits
-                # below still cover the >180s-held cohort.
+                # ── BOND_PT95_TIMEOUT: TERMINAL held ≥30s, bid below entry → exit ──
+                # Conditional on bid < entry_price (Phase 2 shadow 2026-05-08, n=246):
+                # at T+30s, winners (PT_YES/PT_NO) are at +2–6% above entry while
+                # losers (MISS_NO) are at −22%. Hard timeout was cutting 55% of PT
+                # hitters before they reached 0.95. Conditional preserves those while
+                # still dumping positions that are already underwater at T+30s.
                 _held_s_pt95 = (now - pos.open_ts) if pos.open_ts > 0 else 0.0
                 if (getattr(pos, "bond_entry_class", "") == "TERMINAL"
                         and _held_s_pt95 >= 30.0
+                        and current_price < pos.entry_price
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
-                        'BOND_PT95_TIMEOUT %s/%s | held=%.1fs bid=%.4f ep=%.4f rem=%.1fs',
+                        'BOND_PT95_TIMEOUT %s/%s | held=%.1fs bid=%.4f ep=%.4f rem=%.1fs (bid<entry — exiting)',
                         pos.asset, pos.direction.name, _held_s_pt95, current_price,
                         pos.entry_price, bond_remaining,
                     )
