@@ -2663,36 +2663,15 @@ class KlausBot:
             if _term_ask_stale_s >= 4.0:
                 continue
 
-            # entry_snap_60s / snap30 gates: when window-anchored refs not set yet
-            # (early-window entries before remaining crosses 150s/120s), fall back to
-            # rolling tok_d60 / tok_d30 as proxy — same thresholds applied either way.
+            # snap60/snap30 computed for logging only — gates removed 2026-05-09 (Model A)
+            # Phase 2 ablation (n=499): snap30/snap60 r=0.71 (redundant); ob_imb orthogonal
+            # and dominant; snap gates compressed throughput for no net EV gain.
             _snap60_val = signal.term_pre_snap_60s
             _snap30_val = signal.term_pre_snap_30s
             _snap60_eff = _snap60_val if _snap60_val != 0.0 else _term_tok_d60
             _snap30_eff = _snap30_val if _snap30_val != 0.0 else _term_tok_d30
             signal.term_snap60_eff = round(_snap60_eff, 4)
             signal.term_snap30_eff = round(_snap30_eff, 4)
-
-            if _snap60_eff < 0.0:
-                logger.info(
-                    "[BOND] snap60_skip %s/%s | snap60_eff=%.1f%% — token falling pre-entry",
-                    token.asset, token.side, _snap60_eff,
-                )
-                continue
-
-            # snap60 floor removed 2026-05-08: snap60 [0,12) YES=87% same as [12+); binary ≥0 check above is sufficient
-
-            # Real-time reversal gate: tok_d60 < -5% means token is currently falling at eval time
-            # (distinct from snap60_eff which uses term_pre_snap — the trigger-time reference)
-            # May5 data: catches 5 losses (-$52.45) blocked by reversal after terminal trigger,
-            # costs 5 wins ($3.94); n=89 since May5 06:00. Tier 2.
-            if _term_tok_d60 < -5.0:
-                logger.info(
-                    "[BOND] rtsnap60_skip %s/%s | tok_d60=%.1f%% — token reversing at entry",
-                    token.asset, token.side, _term_tok_d60,
-                )
-                _b_mom_skip += 1
-                continue
 
             # 5s momentum gate — two independent failure modes:
             # DOWN (<-3%): token falling = ETH reversing up = buying the reversal.
@@ -2705,27 +2684,6 @@ class KlausBot:
                 logger.info(
                     "[BOND] tok5_gate %s/%s | tok_d5=%.1f%% dir=%s — adverse 5s momentum, skip",
                     token.asset, token.side, _term_tok_d5, _token_dir,
-                )
-                _b_mom_skip += 1
-                continue
-
-            # Early-window snap60 floor at 30%: [20,30) COR=43.8% ◄, [30,50) COR=72.7% ▲
-            # n=59 populated (May 4). BTC [30,50)=80%, ETH [30,50)=90%. Tier 2.
-            if ask < 0.80 and _snap60_eff < 30.0:
-                logger.info(
-                    "[BOND] snap60_early_low %s/%s | snap60_eff=%.1f%% — below early-window 30%% floor",
-                    token.asset, token.side, _snap60_eff,
-                )
-                _b_mom_skip += 1
-                continue
-
-            # snap30 gate removed 2026-05-08: snap30 [0,10.5) YES=90.2% > [10.5,80) YES=84%; ceiling was anti-signal (>80 YES=63% vs pass 52%)
-
-            # snap60 ≥ 120%: overbought zone — WR=62.5% net+$8.69 sim (n=16, user-auth Tier2 2026-05-02)
-            if _snap60_eff >= 120.0:
-                logger.info(
-                    "[BOND] snap60_overbought %s/%s | snap60_eff=%.1f%% — extreme momentum skip",
-                    token.asset, token.side, _snap60_eff,
                 )
                 _b_mom_skip += 1
                 continue
@@ -2755,28 +2713,6 @@ class KlausBot:
             if token.asset == "ETH" and _term_tok_d30 >= 100.0:
                 logger.info(
                     "[BOND] eth_td30_overext %s/%s | td30=%.1f%% — ETH 30s overextension skip",
-                    token.asset, token.side, _term_tok_d30,
-                )
-                _b_mom_skip += 1
-                continue
-
-            # tok_d30 sandwich (Robust Stack 2026-05-07): accept only [5, 60).
-            # Floor 5%: below this is no-momentum — Stage 1 finding too clean to ignore.
-            # Ceiling 60%: above this is blow-off / overextension; combine with deadzone below.
-            if _term_tok_d30 < 5.0 or _term_tok_d30 >= 60.0:
-                logger.info(
-                    "[BOND] tok30_sandwich %s/%s | tok30=%.1f%% — outside [5,60) skip",
-                    token.asset, token.side, _term_tok_d30,
-                )
-                _b_mom_skip += 1
-                continue
-
-            # tok30 dead zone [18, 26): mid-momentum fades before resolution
-            # [18,22) PF=0.71 n=71; [22,26) PF=0.78 n=88; combined n=159 PF=0.75 net=-$32.57
-            # High tok30 (≥30) is profitable (PF 1.05–1.83) — gate is non-monotonic, not a cap
-            if 18.0 <= _term_tok_d30 < 26.0:
-                logger.info(
-                    "[BOND] tok30_deadzone %s/%s | tok30=%.1f%% — dead zone [18,26) skip",
                     token.asset, token.side, _term_tok_d30,
                 )
                 _b_mom_skip += 1
