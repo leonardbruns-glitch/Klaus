@@ -169,13 +169,41 @@ class TimelineSampler:
         utc = datetime.now(timezone.utc)
         wend = int(getattr(token, "window_end_ts", 0))
 
+        # Peer-token link (sister YES↔NO of same condition_id). Lets future
+        # analyses compute (yes_ask + no_ask) sum-to-1 deviations and one-sided
+        # pressure at the same instant — irrecoverable later because the
+        # cross-token timing pair is what matters.
+        cond_id = getattr(token, "condition_id", "") or ""
+        peer_token_id = ""
+        peer_bid = 0.0
+        peer_ask = 0.0
+        peer_age_ms = 0
+        arb_sum_yes_no = 0.0
+        if cond_id:
+            for ptid, ptok in feed.tokens.items():
+                if ptid == token_id:
+                    continue
+                if getattr(ptok, "condition_id", "") != cond_id:
+                    continue
+                pob = feed.get_order_book(ptid)
+                if pob is None or not pob.bids or not pob.asks:
+                    peer_token_id = ptid
+                    break
+                peer_token_id = ptid
+                peer_bid = pob.bids[0][0]
+                peer_ask = pob.asks[0][0]
+                peer_age_ms = int((now - pob.ts) * 1000)
+                arb_sum_yes_no = round(best_ask + peer_ask, 4)
+                break
+
         return {
             "schema_version": SCHEMA_VERSION,
             "record_type": "market_timeline",
             "ts_s": int(now),
+            "ts_ms_local": int(now * 1000),
             # market identity
             "token_id": token_id,
-            "condition_id": getattr(token, "condition_id", "") or "",
+            "condition_id": cond_id,
             "asset": token.asset,
             "outcome_dir": getattr(token, "outcome_direction", "up"),
             "outcome_side": getattr(token, "side", "YES"),
@@ -210,6 +238,12 @@ class TimelineSampler:
             "binance_ret_30s_pct": round(binance_ret_30s, 4),
             "binance_ret_60s_pct": round(binance_ret_60s, 4),
             "binance_ret_5m_pct":  round(binance_ret_5m, 4),
+            # peer-token link (YES↔NO sister of same condition_id)
+            "peer_token_id": peer_token_id,
+            "peer_bid": round(peer_bid, 4),
+            "peer_ask": round(peer_ask, 4),
+            "peer_age_ms": peer_age_ms,
+            "arb_sum_yes_no": arb_sum_yes_no,
         }
 
     def _snap_pct(self, hist, now: float, secs: float) -> float:
@@ -265,6 +299,7 @@ class TimelineSampler:
             "schema_version": SCHEMA_VERSION,
             "record_type": "gate_trace",
             "ts_s": tl["ts_s"],
+            "ts_ms_local": tl["ts_ms_local"],
             "token_id": tl["token_id"],
             "condition_id": tl["condition_id"],
             "asset": tl["asset"],

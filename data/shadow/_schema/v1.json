@@ -9,6 +9,7 @@
         {"name": "schema_version",        "type": "int8",    "doc": "monotonic — never reused"},
         {"name": "record_type",           "type": "string",  "doc": "literal 'market_timeline'"},
         {"name": "ts_s",                  "type": "int64",   "doc": "unix epoch seconds"},
+        {"name": "ts_ms_local",           "type": "int64",   "doc": "millisecond-precision local receive time; directive #4"},
         {"name": "token_id",              "type": "string"},
         {"name": "condition_id",          "type": "string"},
         {"name": "asset",                 "type": "string",  "doc": "BTC|ETH|SOL"},
@@ -39,7 +40,12 @@
         {"name": "binance_spot",          "type": "float32"},
         {"name": "binance_ret_30s_pct",   "type": "float32"},
         {"name": "binance_ret_60s_pct",   "type": "float32"},
-        {"name": "binance_ret_5m_pct",    "type": "float32"}
+        {"name": "binance_ret_5m_pct",    "type": "float32"},
+        {"name": "peer_token_id",         "type": "string",   "doc": "sister YES↔NO token of same condition_id; '' if not yet discovered"},
+        {"name": "peer_bid",              "type": "float32",  "doc": "best bid of peer token; 0.0 if peer OB unavailable"},
+        {"name": "peer_ask",              "type": "float32",  "doc": "best ask of peer token; 0.0 if peer OB unavailable"},
+        {"name": "peer_age_ms",           "type": "int32",    "doc": "staleness of peer's OB at sample time"},
+        {"name": "arb_sum_yes_no",        "type": "float32",  "doc": "best_ask + peer_ask; 1.0 = no arb signal, deviation = pricing inefficiency"}
       ]
     },
     "gate_trace": {
@@ -49,6 +55,7 @@
         {"name": "schema_version",        "type": "int8"},
         {"name": "record_type",           "type": "string"},
         {"name": "ts_s",                  "type": "int64"},
+        {"name": "ts_ms_local",           "type": "int64",    "doc": "millisecond-precision local receive time; directive #4"},
         {"name": "token_id",              "type": "string"},
         {"name": "condition_id",          "type": "string"},
         {"name": "asset",                 "type": "string"},
