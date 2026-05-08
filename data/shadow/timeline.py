@@ -168,7 +168,7 @@ class TimelineSampler:
             "outcome_side": getattr(token, "side", "YES"),
             "window_end_ts": wend,
             "window_size_s": int(getattr(token, "window_seconds", 300)),
-            "remaining_s": round(remaining, 1),
+            "seconds_to_resolution": round(remaining, 1),
             # time
             "weekday": utc.weekday(),
             "hour_utc": utc.hour,
@@ -258,7 +258,7 @@ class TimelineSampler:
             "outcome_dir": tl["outcome_dir"],
             "outcome_side": tl["outcome_side"],
             "window_end_ts": tl["window_end_ts"],
-            "remaining_s": tl["remaining_s"],
+            "seconds_to_resolution": tl["seconds_to_resolution"],
             "ask": tl["best_ask"],
             "gate_results": gates,
             "all_pass": all_pass,

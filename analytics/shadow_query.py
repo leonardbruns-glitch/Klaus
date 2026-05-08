@@ -79,7 +79,7 @@ def main() -> None:
                        t.token_id, t.window_end_ts, t.best_ask
                 FROM timeline t
                 WHERE t.best_ask BETWEEN 0.78 AND 0.92
-                  AND t.remaining_s BETWEEN 5 AND 90
+                  AND t.seconds_to_resolution BETWEEN 5 AND 90
             )
             SELECT ve.asset, ve.session_bucket,
                    COUNT(*) AS n_virtual_entries,
