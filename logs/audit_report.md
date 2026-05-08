@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-08 12:02 UTC
+# Quantitative Audit — 2026-05-08 18:06 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (38th consecutive session)**
+**FAILED — VPS UNREACHABLE (39th consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -49,7 +49,7 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — SSH blocked from sandbox (38th consecutive session).
+**INSUFFICIENT_DATA** — SSH blocked from sandbox (39th consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
 
@@ -62,11 +62,11 @@ n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock
 | ask floor | 0.78 | main.py:2382 (0.80→0.78 2026-05-07) |
 | max_ask | 0.92 | main.py:2380 (0.88→0.92 2026-05-07) |
 | min_imbalance (ETH/SOL UP) | 0.35 | main.py:2451 |
-| min_imbalance (BTC UP) | 0.50 | main.py:2446 |
+| min_imbalance (BTC UP) | 0.50 | main.py:2446 (0.35→0.50 2026-05-07) |
 | min_imbalance (DOWN) | 0.42 | main.py:2448 (0.35→0.42 2026-05-07) |
 | bond_blocked_hours_utc | [] (all hours unblocked) | config.py:151 |
 | stop_loss | ask×0.85 (−15%) | main.py:3091 (BOND_CATASTROPHIC) |
-| base_stake | $50.00 | config.py:27 (30→50 2026-05-07) |
+| base_stake | $50.00 | config.py:27 |
 | scaled_stake | $50.00 (heat-check disabled) | config.py |
 | snap60 floor (UP, normal) | 12% (ETH: 15%; 12:30–13:30: 25%) | main.py |
 | snap60 floor (DOWN, normal) | 13% (ETH: 15%; 12:30–13:30: 25%) | main.py |
@@ -99,9 +99,9 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 
 ---
 
-## Infrastructure Alert — Critical (38 consecutive sessions)
+## Infrastructure Alert — Critical (39 consecutive sessions)
 
-**Root cause**: Sandbox network blocks outbound TCP port 22 (confirmed: ssh binary absent; TCP connect to 85.137.174.86:22 blocked at network level). No trade data has been accessible for 38 consecutive audit sessions.
+**Root cause**: Sandbox network blocks outbound TCP port 22 (confirmed: ssh binary absent; TCP connect to 85.137.174.86:22 blocked at network level). No trade data has been accessible for 39 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
@@ -126,4 +126,4 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-Without log data, the audit is structurally blocked for the 38th consecutive session.
+Without log data, the audit is structurally blocked for the 39th consecutive session.
