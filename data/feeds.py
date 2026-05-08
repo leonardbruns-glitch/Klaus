@@ -704,12 +704,17 @@ class PolymarketFeed:
         """
         import json as _json
         _SYMBOL_MAP = {"BTC": "btcusdt", "ETH": "ethusdt", "SOL": "solusdt"}
-        # Combined stream: markPrice (funding) + aggTrade (VPIN)
+        # Combined stream: markPrice (funding) + aggTrade (VPIN).
+        # Use documented combined-stream URL: wss://fstream.binance.com/stream?streams=...
+        # The undocumented /ws/<concat> pattern mis-parses stream names containing
+        # extra '@' tokens (e.g. markPrice@1s) and silently delivers zero messages
+        # on the resulting connection. Kline streams (kline_1m) don't have this
+        # problem so the kline WS still uses /ws/<concat>.
         _STREAMS = "/".join(
             f"{s}@markPrice@1s/{s}@aggTrade"
             for s in _SYMBOL_MAP.values()
         )
-        _URL = f"{self.BINANCE_WS}/{_STREAMS}"
+        _URL = f"wss://fstream.binance.com/stream?streams={_STREAMS}"
 
         while self._running:
             try:
