@@ -92,6 +92,43 @@
         {"name": "files",                 "type": "map<string,struct<path: string, size_bytes: int64>>"}
       ]
     },
+    "token_trade": {
+      "doc": "Polymarket CLOB last_trade_price events for tracked updown tokens. Captures aggressor side when reported and exchange ts when present in payload. Real-time only — Polymarket does not expose comprehensive historical trade tape, so this stream is irrecoverable later.",
+      "key": ["token_id", "ts_ms_local"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8"},
+        {"name": "record_type",           "type": "string",  "doc": "literal 'token_trade'"},
+        {"name": "ts_s",                  "type": "int64"},
+        {"name": "ts_ms_local",           "type": "int64",   "doc": "ms-precision local receive time"},
+        {"name": "exchange_ts_ms",        "type": "int64",   "doc": "Polymarket exchange timestamp from payload (best-effort across timestamp/t/ts/T fields); 0 if absent"},
+        {"name": "token_id",              "type": "string"},
+        {"name": "condition_id",          "type": "string"},
+        {"name": "asset",                 "type": "string"},
+        {"name": "outcome_dir",           "type": "string"},
+        {"name": "outcome_side",          "type": "string"},
+        {"name": "window_end_ts",         "type": "int64"},
+        {"name": "seconds_to_resolution", "type": "float32"},
+        {"name": "price",                 "type": "float32"},
+        {"name": "size",                  "type": "float32"},
+        {"name": "side",                  "type": "string",  "doc": "taker direction if reported (BUY/SELL); '' if absent"}
+      ]
+    },
+    "binance_trade": {
+      "doc": "Binance USDT-perp aggTrade tape for BTC/ETH/SOL. Sub-second order flow source for VPIN, sweep detection, lead/lag vs Polymarket. Backfillable in principle via Binance /aggTrades endpoint but rate-limited at scale, so persisted live.",
+      "key": ["asset", "exchange_ts_ms"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8"},
+        {"name": "record_type",           "type": "string",  "doc": "literal 'binance_trade'"},
+        {"name": "ts_s",                  "type": "int64"},
+        {"name": "ts_ms_local",           "type": "int64",   "doc": "ms-precision local receive time"},
+        {"name": "exchange_ts_ms",        "type": "int64",   "doc": "Binance T field — exchange trade-time ms"},
+        {"name": "asset",                 "type": "string",  "doc": "BTC|ETH|SOL"},
+        {"name": "price",                 "type": "float32"},
+        {"name": "qty",                   "type": "float32"},
+        {"name": "is_buyer_maker",        "type": "bool",    "doc": "Binance m field; true → buyer was maker → taker=SELL"},
+        {"name": "taker_side",            "type": "string",  "doc": "BUY|SELL — derived from is_buyer_maker for query convenience"}
+      ]
+    },
     "window_resolution": {
       "doc": "One row per (condition_id, window_end_ts). Resolution from Binance 5m kline open vs close — same 300s grid as the Chainlink oracle.",
       "key": ["condition_id", "window_end_ts"],

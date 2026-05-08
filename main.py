@@ -57,7 +57,7 @@ _PRE_SCORE_SCHEMA_HASH = hashlib.sha256(
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
-from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter
+from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter, emit_token_trade, emit_binance_trade
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
 from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED, MOM_ENABLED
 from risk.manager import RiskManager, ExitStage
@@ -432,6 +432,14 @@ class KlausBot:
         await self.shadow_pipeline.start()
         await self.shadow_timeline.start()
         await self.shadow_resolution.start()
+        # Wire shadow trade-tape callbacks (event-driven; persist what feeds.py
+        # currently discards: Polymarket trades + Binance aggTrades).
+        self.feed._shadow_emit_clob_trade = lambda token_id, ev: emit_token_trade(
+            self.shadow_pipeline, self, token_id, ev
+        )
+        self.feed._shadow_emit_binance_trade = lambda asset, price, qty, ibm, ets: emit_binance_trade(
+            self.shadow_pipeline, asset, price, qty, ibm, ets
+        )
 
     async def stop(self) -> None:
         self._running = False

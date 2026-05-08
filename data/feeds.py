@@ -303,6 +303,12 @@ class PolymarketFeed:
         # Optional callback: fires on every BBO update with (token_id, ask_price).
         # Used by main bot for instant TP checks without waiting for the 1s scan loop.
         self._on_bbo_update = None
+        # Shadow trade-tape callbacks. Set by main.py after shadow pipeline starts.
+        # token_trade: callable(token_id, ev_dict) — Polymarket last_trade_price
+        # binance_trade: callable(asset, price, qty, is_buyer_maker, exchange_ts_ms)
+        # Both are non-blocking sync calls; ShadowPipeline.emit drops on full.
+        self._shadow_emit_clob_trade = None
+        self._shadow_emit_binance_trade = None
         # VPIN trackers per asset (fed from Binance aggTrade WebSocket)
         self.vpin_trackers: Dict[str, VPINTracker] = {
             "BTC": VPINTracker(),
@@ -609,6 +615,11 @@ class PolymarketFeed:
                         self._ws_ob_ts[asset_id] = time.time()
                 except Exception as _e:
                     logger.debug("WS handler error: %s", type(_e).__name__)
+            if self._shadow_emit_clob_trade is not None and asset_id in self.tokens:
+                try:
+                    self._shadow_emit_clob_trade(asset_id, ev)
+                except Exception:
+                    logger.debug("shadow token_trade emit failed", exc_info=True)
 
     async def _run_rtds_ws(self) -> None:
         """
@@ -752,6 +763,7 @@ class PolymarketFeed:
                                             price = float(ev.get("p", 0))
                                             qty = float(ev.get("q", 0))
                                             is_buyer_maker = bool(ev.get("m", False))
+                                            exchange_T_ms = int(ev.get("T", 0) or 0)
                                             if price > 0 and qty > 0:
                                                 for asset, sym in _SYMBOL_MAP.items():
                                                     if symbol == sym.upper():
@@ -779,6 +791,14 @@ class PolymarketFeed:
                                                                             self._delta_spike_cb(asset, _delta, price),
                                                                             name=f"spike_{asset}",
                                                                         )
+                                                        # 4. Shadow trade tape — irrecoverable, persist now
+                                                        if self._shadow_emit_binance_trade is not None:
+                                                            try:
+                                                                self._shadow_emit_binance_trade(
+                                                                    asset, price, qty, is_buyer_maker, exchange_T_ms,
+                                                                )
+                                                            except Exception:
+                                                                logger.debug("shadow binance_trade emit failed", exc_info=True)
                                                         break
                                         except Exception as _e:
                                             logger.debug("WS handler error: %s", type(_e).__name__)
