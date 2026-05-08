@@ -39,11 +39,11 @@ _SESSION_BUCKETS = (
 # time of writing; they are NOT the authoritative trace (the live strategy is)
 # but they let analysts ask "what would a stripped-down policy have done"
 # without joining trades.jsonl. Update when live thresholds change.
-_GATE_ASK_FLOOR = 0.78
-_GATE_ASK_MAX   = 0.92
-_GATE_SPREAD_PCT_MAX = 5.0
-_GATE_SNAP30_FLOOR = 10.5
-_GATE_SNAP30_CEIL  = 80.0
+_GATE_ASK_FLOOR = 0.70
+_GATE_ASK_MAX   = 0.99
+_GATE_SPREAD_PCT_MAX = 5.5
+_GATE_SNAP30_FLOOR = 9.45
+_GATE_SNAP30_CEIL  = 88.0
 
 
 def _session_bucket(hour: int) -> str:
