@@ -44,6 +44,9 @@ _GATE_ASK_MAX   = 0.99
 _GATE_SPREAD_PCT_MAX = 5.5
 _GATE_SNAP30_FLOOR = 9.45
 _GATE_SNAP30_CEIL  = 88.0
+_GATE_SNAP60_FLOOR = 12.0
+_GATE_OB_IMB_FLOOR = 0.35
+_GATE_OB_IMB_CEIL  = 0.70
 
 
 def _session_bucket(hour: int) -> str:
@@ -292,15 +295,20 @@ class TimelineSampler:
     def _build_gate_trace(self, tl: dict) -> Optional[dict]:
         ask = tl["best_ask"]
         snap30 = tl["tok_snap_30s"]
+        snap60 = tl["tok_snap_60s"]
         sec = tl["seconds_to_resolution"]
+        imb = tl["ob_imb_top3"]
         spread_pct = (tl["spread_abs"] / ask * 100.0) if ask else 0.0
         gates = {
-            "terminal_zone": "PASS" if 25.0 <= sec <= 90.0 else f"FAIL@{sec:.0f}s",
+            "terminal_zone": "PASS" if 25.0 <= sec <= 120.0 else f"FAIL@{sec:.0f}s",
             "ask_floor":    "PASS" if ask >= _GATE_ASK_FLOOR else f"FAIL@{ask:.2f}<{_GATE_ASK_FLOOR}",
             "ask_max":      "PASS" if ask <= _GATE_ASK_MAX   else f"FAIL@{ask:.2f}>{_GATE_ASK_MAX}",
             "spread":       "PASS" if spread_pct <= _GATE_SPREAD_PCT_MAX else f"FAIL@{spread_pct:.1f}>{_GATE_SPREAD_PCT_MAX}",
             "snap30_floor": "PASS" if snap30 >= _GATE_SNAP30_FLOOR else f"FAIL@{snap30:.2f}<{_GATE_SNAP30_FLOOR}",
             "snap30_ceil":  "PASS" if snap30 <= _GATE_SNAP30_CEIL  else f"FAIL@{snap30:.2f}>{_GATE_SNAP30_CEIL}",
+            "snap60_floor": "PASS" if snap60 >= _GATE_SNAP60_FLOOR else f"FAIL@{snap60:.2f}<{_GATE_SNAP60_FLOOR}",
+            "ob_imb_floor": "PASS" if imb >= _GATE_OB_IMB_FLOOR else f"FAIL@{imb:.3f}<{_GATE_OB_IMB_FLOOR}",
+            "ob_imb_ceil":  "PASS" if imb < _GATE_OB_IMB_CEIL   else f"FAIL@{imb:.3f}>={_GATE_OB_IMB_CEIL}",
         }
         all_pass = all(v == "PASS" for v in gates.values())
         first_fail = next((k for k, v in gates.items() if v != "PASS"), None)
