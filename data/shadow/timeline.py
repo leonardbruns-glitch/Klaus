@@ -116,6 +116,19 @@ class TimelineSampler:
                 gt = self._build_gate_trace(rec)
                 if gt is not None:
                     self.pipe.emit(gt)
+                # Schedule window resolution (idempotent per cid+wend).
+                # Mirrors live bot's _capture_resolution scheduling pattern —
+                # task sleeps until window_end_ts+35s then fetches kline,
+                # so we don't need the market still in feed.tokens at resolve.
+                res = getattr(self.bot, "shadow_resolution", None)
+                if res is not None and rec["condition_id"] and rec["window_end_ts"] > 0:
+                    res.schedule(
+                        cid=rec["condition_id"],
+                        wend=rec["window_end_ts"],
+                        asset=rec["asset"],
+                        outcome_dir=rec["outcome_dir"],
+                        window_size_s=rec["window_size_s"],
+                    )
                 self._last_emit_ts[token_id] = now_s
             except Exception:
                 logger.debug("timeline build failed token=%s", token_id, exc_info=True)
