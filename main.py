@@ -3187,10 +3187,10 @@ class KlausBot:
                 )
 
             # ── IMMEDIATE SAFETY CAP (2026-05-08) ────────────────────────────
-            # Hard $10 per-trade cap while PT0.95+30s exit is being battle-tested.
+            # Hard $7 per-trade cap while PT0.95+30s exit is being battle-tested.
             # User-authorised "capped exposure" mode during active drawdown. Reverts
             # when shadow validation completes or user lifts the cap.
-            _SAFETY_STAKE_CAP = 10.0
+            _SAFETY_STAKE_CAP = 7.0
             if decision.stake > _SAFETY_STAKE_CAP:
                 _pre_cap = decision.stake
                 decision.stake = _SAFETY_STAKE_CAP
