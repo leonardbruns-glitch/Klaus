@@ -2403,7 +2403,7 @@ class KlausBot:
             if time.time() - ob.ts > 3.0:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
-            _ask_max = 0.92  # restored 0.88→0.92 2026-05-07 (May 6 daytime cost +$24.57 of winners)
+            _ask_max = 0.95  # raised 0.92→0.95 2026-05-08: ask[0.92,0.95) YES=92.5% n=1724; exit is bottleneck not entry
             _elapsed_s = _window_s - remaining
             _ask_floor = 0.78  # 2026-05-07: 0.80→0.78 (gate-survivors [0.78,0.80) n=3 reliable, 3/3 dir-right)
             if ask is None or not (_ask_floor <= ask <= _ask_max):
@@ -2461,22 +2461,8 @@ class KlausBot:
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
-            _imb_ceil = 0.655 if _token_dir == "down" else 0.70
-            # BTC UP: asset-specific floor 0.50 (vs 0.35 universal). Bucket [0.35,0.50)
-            # full-era n=63 PF=0.40 net=-$160; would have prevented all 4 BTC UP H21-H04
-            # wipeout trades May 6-7 (-$115 saved).
-            # DOWN: floor raised 0.35→0.42. Apr24+ DOWN n=798; survivors imb>=0.42 n=399
-            # PF=0.98 (~breakeven) vs imb<0.42 n=399 PF=0.71 net=-$126. May 5+ survivors
-            # n=63 PF=1.88 +$43 vs baseline -$34 (+$77 swing). Catches 4 of 5 May 5-7
-            # DOWN wipeouts (T03832, T03836, T03838, T03746).
-            if token.asset == "BTC" and _token_dir == "up":
-                _imb_floor = 0.50
-            elif _token_dir == "down":
-                _imb_floor = 0.42
-            else:
-                _imb_floor = 0.35
-            if not (_imb_floor <= _term_imb < _imb_ceil):
-                continue  # UP:[0.35,0.7) DOWN:[0.42,0.655); BTC UP:[0.50,0.7); DOWN floor 0.42 2026-05-07
+            if _term_imb < 0.20:
+                continue  # ob_imb floor 0.20: shadow data imb>=0.20 YES=88.6% vs <0.20 YES=83.9%; prior per-asset ceilings removed 2026-05-08
 
             # ── Dead-zone / volatility filters ─────────────────────────────────
             # All three read from closed kline buffers (populated by WS, not REST).
@@ -2692,20 +2678,7 @@ class KlausBot:
                 )
                 continue
 
-            # snap60 floor: 13% for DOWN, 12% for UP; ETH raised to 15%; raised to 25% during 12:30-13:30 UTC
-            _snap60_floor = 13.0 if _token_dir == "down" else 12.0
-            if token.asset == "ETH":
-                _snap60_floor = max(_snap60_floor, 15.0)
-            _in_h1230_1330 = (_utc_hour == 12 and _utc_min >= 30) or (_utc_hour == 13 and _utc_min < 30)
-            if _in_h1230_1330:
-                _snap60_floor = 25.0
-            if _snap60_eff < _snap60_floor:
-                logger.info(
-                    "[BOND] snap60_low %s/%s | snap60_eff=%.1f%% floor=%.0f%% (%s) — no momentum",
-                    token.asset, token.side, _snap60_eff, _snap60_floor, _token_dir,
-                )
-                _b_mom_skip += 1
-                continue
+            # snap60 floor removed 2026-05-08: snap60 [0,12) YES=87% same as [12+); binary ≥0 check above is sufficient
 
             # Real-time reversal gate: tok_d60 < -5% means token is currently falling at eval time
             # (distinct from snap60_eff which uses term_pre_snap — the trigger-time reference)
@@ -2744,44 +2717,7 @@ class KlausBot:
                 _b_mom_skip += 1
                 continue
 
-            # snap30 gate: allow [10.5%, 80%) — floor raised 10→10.5 May6 ([10,10.5) WR=33% pnl=-$34.70 n=3; catches both BTC DEAD_DRIFT catastrophes at 10.39%; 1 FP ETH DEAD_DRIFT +$1.89; ceiling lowered 120→80 May6)
-            if not (10.5 <= _snap30_eff < 80.0):
-                logger.info(
-                    "[BOND] snap30_gate %s/%s | snap30_eff=%.1f%% — outside [10.5,80) range",
-                    token.asset, token.side, _snap30_eff,
-                )
-                # EXPO_SHADOW: log candidates that WOULD pass relaxed thresholds
-                # (floor 5.0, ceiling 92). No entry — log only. Output joinable
-                # to kline resolution via window_end_ts. logs/expo_shadow.jsonl.
-                _expo_floor = 5.0 <= _snap30_eff < 10.5
-                _expo_ceil  = 80.0 <= _snap30_eff < 92.0
-                if _expo_floor or _expo_ceil:
-                    _expo_key = (token_id, round(token.window_end_ts))
-                    if _expo_key not in self._expo_shadow_logged:
-                        self._expo_shadow_logged.add(_expo_key)
-                        try:
-                            with open(os.path.join("logs", "expo_shadow.jsonl"), "a") as _ef:
-                                _ef.write(json.dumps({
-                                    "ts": round(now, 3),
-                                    "token_id": token_id,
-                                    "asset": token.asset,
-                                    "side": token.side,
-                                    "outcome_dir": _token_dir,
-                                    "snap30_eff": round(_snap30_eff, 2),
-                                    "snap60_eff": round(_snap60_eff, 2),
-                                    "ask": round(ask, 4) if ask else None,
-                                    "remaining_s": round(remaining, 1),
-                                    "window_end_ts": round(token.window_end_ts, 1),
-                                    "window_size_s": int(token.window_seconds),
-                                    "expo_reason": "floor_capture" if _expo_floor else "ceiling_capture",
-                                }) + "\n")
-                            asyncio.create_task(self._expo_shadow_resolve(
-                                token_id, token.asset, token.window_end_ts, _token_dir
-                            ))
-                        except Exception:
-                            pass
-                _b_mom_skip += 1
-                continue
+            # snap30 gate removed 2026-05-08: snap30 [0,10.5) YES=90.2% > [10.5,80) YES=84%; ceiling was anti-signal (>80 YES=63% vs pass 52%)
 
             # snap60 ≥ 120%: overbought zone — WR=62.5% net+$8.69 sim (n=16, user-auth Tier2 2026-05-02)
             if _snap60_eff >= 120.0:
