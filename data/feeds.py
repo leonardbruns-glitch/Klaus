@@ -694,27 +694,24 @@ class PolymarketFeed:
 
     async def _run_binance_ws(self) -> None:
         """
-        Subscribe to Binance futures WebSocket for:
-          1. markPrice@1s  — real-time funding rates (annualised)
-          2. aggTrade      — individual trade stream for VPIN computation
+        Subscribe to Binance SPOT WebSocket aggTrade stream for BTC/ETH/SOL.
 
         VPIN (Volume-Synchronized Probability of Informed Trading) measures order
         flow toxicity. VPIN > 0.60 + directional imbalance = momentum signal.
-        This replaces the broken volume signal in the composite scorer.
+
+        Endpoint note: Binance Futures (fstream.binance.com) is silently blocked
+        for EU/Ireland IPs (regulatory restriction), so the previous markPrice
+        +aggTrade subscription delivered zero messages from this VPS. Funding
+        rates have been 0 across all recent live trades for the same reason.
+        Switched to Binance Spot (stream.binance.com:9443) which is unrestricted;
+        markPrice/funding is futures-only so we lose that field, but it was
+        already always-zero. aggTrade is present on both spot and futures with
+        identical schema (e/E/s/a/p/q/m fields).
         """
         import json as _json
         _SYMBOL_MAP = {"BTC": "btcusdt", "ETH": "ethusdt", "SOL": "solusdt"}
-        # Combined stream: markPrice (funding) + aggTrade (VPIN).
-        # Use documented combined-stream URL: wss://fstream.binance.com/stream?streams=...
-        # The undocumented /ws/<concat> pattern mis-parses stream names containing
-        # extra '@' tokens (e.g. markPrice@1s) and silently delivers zero messages
-        # on the resulting connection. Kline streams (kline_1m) don't have this
-        # problem so the kline WS still uses /ws/<concat>.
-        _STREAMS = "/".join(
-            f"{s}@markPrice@1s/{s}@aggTrade"
-            for s in _SYMBOL_MAP.values()
-        )
-        _URL = f"wss://fstream.binance.com/stream?streams={_STREAMS}"
+        _STREAMS = "/".join(f"{s}@aggTrade" for s in _SYMBOL_MAP.values())
+        _URL = f"wss://stream.binance.com:9443/stream?streams={_STREAMS}"
 
         while self._running:
             try:
@@ -729,7 +726,7 @@ class PolymarketFeed:
 
                 async with aiohttp.ClientSession() as ws_session:
                     async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
-                        logger.info("Binance WS: subscribed to markPrice + aggTrade for BTC/ETH/SOL")
+                        logger.info("Binance WS: subscribed to aggTrade (SPOT) for BTC/ETH/SOL")
                         while self._running:
                             try:
                                 # heartbeat=20 (ping/pong) is the primary liveness check.
