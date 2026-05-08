@@ -540,7 +540,7 @@ class KlausBot:
                 return
             if pos.entry_price <= 0:
                 return
-            if bid_price >= 0.99:
+            if bid_price >= 0.95:
                 self._exit_in_progress.add(token_id)
                 logger.info(
                     "PROFIT_TARGET(WS) %s/%s | bid=%.4f ep=%.4f",
@@ -1298,8 +1298,10 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # ── PROFIT_TARGET: exit at bid ≥ 0.99 ───────────────────────────
-                if current_price >= 0.99 and token_id not in self._exit_in_progress:
+                # ── PROFIT_TARGET: exit at bid ≥ 0.95 ───────────────────────────
+                # Lowered 0.99→0.95 on 2026-05-08 (audit n=219 4-day live: PT0.95+30s
+                # would have saved $155, cat-rate 16.9%→0.5%). Live PT 0.99 fillok ~2%.
+                if current_price >= 0.95 and token_id not in self._exit_in_progress:
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'PROFIT_TARGET %s/%s | bid=%.4f ep=%.4f remaining=%.1fs',
@@ -1308,6 +1310,27 @@ class KlausBot:
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'PROFIT_TARGET')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── BOND_PT95_TIMEOUT: TERMINAL held ≥30s without PT → exit at bid ──
+                # Audit 2026-05-08: 4-day live cross-check n=219 — eliminating the
+                # hold-to-resolution path saves $155 ($39/day), cat-rate (≤−70%)
+                # drops 33×. Targets short-hold TERMINAL entries; early-entry exits
+                # below still cover the >180s-held cohort.
+                _held_s_pt95 = (now - pos.open_ts) if pos.open_ts > 0 else 0.0
+                if (getattr(pos, "bond_entry_class", "") == "TERMINAL"
+                        and _held_s_pt95 >= 30.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'BOND_PT95_TIMEOUT %s/%s | held=%.1fs bid=%.4f ep=%.4f rem=%.1fs',
+                        pos.asset, pos.direction.name, _held_s_pt95, current_price,
+                        pos.entry_price, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'BOND_PT95_TIMEOUT')
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
@@ -3161,6 +3184,19 @@ class KlausBot:
                 logger.info(
                     "[BOND] sxd_stake %s/%s | sess=%s dir=%s mult=%.1fx stake $%.2f→$%.2f",
                     token.asset, token.side, _g1_sess, _token_dir, _sxd_mult, _pre_sxd, decision.stake,
+                )
+
+            # ── IMMEDIATE SAFETY CAP (2026-05-08) ────────────────────────────
+            # Hard $10 per-trade cap while PT0.95+30s exit is being battle-tested.
+            # User-authorised "capped exposure" mode during active drawdown. Reverts
+            # when shadow validation completes or user lifts the cap.
+            _SAFETY_STAKE_CAP = 10.0
+            if decision.stake > _SAFETY_STAKE_CAP:
+                _pre_cap = decision.stake
+                decision.stake = _SAFETY_STAKE_CAP
+                logger.info(
+                    "[BOND] safety_cap %s/%s | stake $%.2f→$%.2f (cap=$%.2f)",
+                    token.asset, token.side, _pre_cap, decision.stake, _SAFETY_STAKE_CAP,
                 )
 
             if _ask_floor == 0.52:
