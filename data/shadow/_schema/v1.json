@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "description": "Shadow market observation engine — Phase 1 base substrate. Field catalog. Adding a new field requires (a) appending here AND (b) emitting in the corresponding sampler. Removing a field is forbidden — leave nullable.",
+  "record_types": {
+    "market_timeline": {
+      "doc": "One row per (token_id, second) when token is in eligibility band. Read-only over feed caches.",
+      "key": ["token_id", "ts_s"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8",    "doc": "monotonic — never reused"},
+        {"name": "record_type",           "type": "string",  "doc": "literal 'market_timeline'"},
+        {"name": "ts_s",                  "type": "int64",   "doc": "unix epoch seconds"},
+        {"name": "token_id",              "type": "string"},
+        {"name": "condition_id",          "type": "string"},
+        {"name": "asset",                 "type": "string",  "doc": "BTC|ETH|SOL"},
+        {"name": "outcome_dir",           "type": "string",  "doc": "up|down — from market title"},
+        {"name": "outcome_side",          "type": "string",  "doc": "YES|NO"},
+        {"name": "window_end_ts",         "type": "int64"},
+        {"name": "window_size_s",         "type": "int16",   "doc": "300 for 5m"},
+        {"name": "remaining_s",           "type": "float32"},
+        {"name": "weekday",               "type": "int8",    "doc": "0=Mon..6=Sun"},
+        {"name": "hour_utc",              "type": "int8"},
+        {"name": "minute_utc",            "type": "int8"},
+        {"name": "session_bucket",        "type": "string",  "doc": "asia|ldn_open|eu_overlap|ny_pre|ny_open|ny_lunch|power_hour|after_hours"},
+        {"name": "best_bid",              "type": "float32"},
+        {"name": "best_ask",              "type": "float32"},
+        {"name": "mid",                   "type": "float32"},
+        {"name": "spread_abs",            "type": "float32"},
+        {"name": "spread_bps",            "type": "float32"},
+        {"name": "ob_top1_bid_size",      "type": "float32"},
+        {"name": "ob_top1_ask_size",      "type": "float32"},
+        {"name": "ob_imb_top3",           "type": "float32",  "doc": "(b3-a3)/(b3+a3)"},
+        {"name": "ob_book_depth_size",    "type": "float32",  "doc": "b3+a3"},
+        {"name": "ob_levels_bid",         "type": "int8"},
+        {"name": "ob_levels_ask",         "type": "int8"},
+        {"name": "ob_quote_age_ms",       "type": "int32"},
+        {"name": "tok_snap_30s",          "type": "float32",  "doc": "% change of token ask vs 30s ago"},
+        {"name": "tok_snap_60s",          "type": "float32"},
+        {"name": "tok_history_seconds",   "type": "int16"},
+        {"name": "binance_spot",          "type": "float32"},
+        {"name": "binance_ret_30s_pct",   "type": "float32"},
+        {"name": "binance_ret_60s_pct",   "type": "float32"},
+        {"name": "binance_ret_5m_pct",    "type": "float32"}
+      ]
+    },
+    "gate_trace": {
+      "doc": "Phase-1 PASSIVE reconstruction of a stripped-down gate set; not the live strategy trace. Strategy version stamped so future analyses can scope.",
+      "key": ["token_id", "ts_s"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8"},
+        {"name": "record_type",           "type": "string"},
+        {"name": "ts_s",                  "type": "int64"},
+        {"name": "token_id",              "type": "string"},
+        {"name": "condition_id",          "type": "string"},
+        {"name": "asset",                 "type": "string"},
+        {"name": "outcome_dir",           "type": "string"},
+        {"name": "outcome_side",          "type": "string"},
+        {"name": "window_end_ts",         "type": "int64"},
+        {"name": "remaining_s",           "type": "float32"},
+        {"name": "ask",                   "type": "float32"},
+        {"name": "gate_results",          "type": "map<string,string>", "doc": "name → PASS|FAIL@<value><op><threshold>"},
+        {"name": "all_pass",              "type": "bool"},
+        {"name": "first_failed_gate",     "type": "string"},
+        {"name": "strategy_version",      "type": "string"},
+        {"name": "would_take_at_ask",     "type": "bool"}
+      ]
+    },
+    "window_resolution": {
+      "doc": "One row per (condition_id, window_end_ts). Resolution from Binance 5m kline open vs close — same 300s grid as the Chainlink oracle.",
+      "key": ["condition_id", "window_end_ts"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8"},
+        {"name": "record_type",           "type": "string"},
+        {"name": "ts_resolved_s",         "type": "int64"},
+        {"name": "condition_id",          "type": "string"},
+        {"name": "asset",                 "type": "string"},
+        {"name": "outcome_dir",           "type": "string"},
+        {"name": "window_end_ts",         "type": "int64"},
+        {"name": "window_size_s",         "type": "int16"},
+        {"name": "binance_open_5m",       "type": "float32"},
+        {"name": "binance_close_5m",      "type": "float32"},
+        {"name": "binance_high_5m",       "type": "float32"},
+        {"name": "binance_low_5m",        "type": "float32"},
+        {"name": "realized_move_pct",     "type": "float32"},
+        {"name": "moved_up",              "type": "bool",     "doc": "kline close>=open"},
+        {"name": "resolved_yes",          "type": "bool",     "doc": "moved_up XOR (outcome_dir==down)"},
+        {"name": "resolution_method",     "type": "string",   "doc": "e.g. 'kline:67200.00->67342.10'"},
+        {"name": "resolution_delay_s",    "type": "int32",    "doc": "ts_resolved_s - window_end_ts"},
+        {"name": "resolution_source",     "type": "string",   "doc": "literal 'binance_kline'"}
+      ]
+    }
+  }
+}

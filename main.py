@@ -57,6 +57,7 @@ _PRE_SCORE_SCHEMA_HASH = hashlib.sha256(
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
+from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
 from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED, MOM_ENABLED
 from risk.manager import RiskManager, ExitStage
@@ -341,6 +342,12 @@ class KlausBot:
         # Dedupe per (token_id, window_end_ts). → logs/expo_shadow.jsonl.
         # Joinable to kline resolution via window_end_ts.
         self._expo_shadow_logged: set = set()
+        # Shadow market observation engine (Phase 1 base substrate).
+        # Runs parallel to live trading; reads only from feed caches.
+        # Logs to logs/shadow/hot/<date>/{market_timeline,gate_trace,window_resolution}.jsonl.
+        self.shadow_pipeline = ShadowPipeline()
+        self.shadow_timeline = TimelineSampler(self, self.shadow_pipeline)
+        self.shadow_resolution = ResolutionWriter(self, self.shadow_pipeline)
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
@@ -421,8 +428,20 @@ class KlausBot:
         # Replay resolution tasks missed due to previous restarts (within 15min)
         asyncio.create_task(self._replay_pending_resolutions())
 
+        # Start shadow observation engine (last — needs feed/_session live).
+        await self.shadow_pipeline.start()
+        await self.shadow_timeline.start()
+        await self.shadow_resolution.start()
+
     async def stop(self) -> None:
         self._running = False
+        # Stop shadow first so queue can drain before feed/orders shut down.
+        try:
+            await self.shadow_timeline.stop()
+            await self.shadow_resolution.stop()
+            await self.shadow_pipeline.stop()
+        except Exception:
+            logger.exception("shadow stop failed")
         await self.feed.stop()
         await self.orders.stop()
         report = self.analytics.generate_claude_report()
