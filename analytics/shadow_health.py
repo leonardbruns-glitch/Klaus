@@ -91,7 +91,11 @@ def main() -> int:
         print(f"  rows/min       : {latest['rows_per_min']}")
         print(f"  flush p50/p95  : {latest['flush_latency_p50_ms']}ms / {latest['flush_latency_p95_ms']}ms")
         print(f"  rss_mb         : {latest['rss_mb']}")
-        print(f"  files          : {', '.join(f'{k}={v[\"size_bytes\"]/1024/1024:.1f}MB' for k,v in latest['files'].items())}")
+        files_str = ", ".join(
+            "%s=%.1fMB" % (k, v["size_bytes"] / 1024 / 1024)
+            for k, v in latest["files"].items()
+        )
+        print(f"  files          : {files_str}")
 
         if len(recent) >= 2:
             print(f"\n=== Trend (last {args.minutes}min, n={len(recent)} samples) ===")
