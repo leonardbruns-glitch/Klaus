@@ -802,6 +802,7 @@ class KlausBot:
                                         "event": "first_fire",
                                         "ts": round(now, 3),
                                         "token_id": token_id,
+                                        "trade_id": getattr(self.analytics, "last_trade_id", None),
                                         "open_ts": round(pos.open_ts, 3),
                                         "asset": pos.asset,
                                         "direction": pos.direction.name,
@@ -2310,8 +2311,8 @@ class KlausBot:
             remaining = token.window_end_ts - now
             if remaining <= 25:
                 continue  # enter with >25s remaining; 15-25s WR=20% (n=5)
-            if remaining > 90:
-                continue  # TERMINAL zone only — skip early window entries (rem>90s)
+            if remaining > 120:
+                continue  # TERMINAL zone only — skip early window entries (rem>120s)
             if _utc_hour == 21 and remaining > 60:
                 continue  # H21: rem cap 60s (n=78 TERMINAL, rem<=60 saves +$61 net vs baseline)
             _bond_blocked = getattr(CONFIG.edge, "bond_blocked_hours_utc", [])
@@ -2721,6 +2722,9 @@ class KlausBot:
                                     "window_size_s": int(token.window_seconds),
                                     "expo_reason": "floor_capture" if _expo_floor else "ceiling_capture",
                                 }) + "\n")
+                            asyncio.create_task(self._expo_shadow_resolve(
+                                token_id, token.asset, token.window_end_ts, _token_dir
+                            ))
                         except Exception:
                             pass
                 _b_mom_skip += 1
@@ -5821,6 +5825,58 @@ class KlausBot:
 
         # Resolution is now captured by the concurrent _capture_resolution() task
         # fired at the start of this function — no duplicate block needed here.
+
+    # ── Expo shadow outcome enrichment ───────────────────────────────────────
+
+    async def _expo_shadow_resolve(
+        self, token_id: str, asset: str, window_end_ts: float, outcome_dir: str
+    ) -> None:
+        """Fetch Binance kline at window close; append outcome record to expo_shadow.jsonl."""
+        _wait = max(35.0, window_end_ts + 35.0 - time.time())
+        if _wait > 910:
+            return
+        if _wait > 0:
+            await asyncio.sleep(_wait)
+        try:
+            _symbol_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+            _symbol = _symbol_map.get(asset.upper())
+            _window_start_ms = int((window_end_ts - 300) * 1000)
+            _wop: float | None = None
+            if _symbol and getattr(self.feed, "_session", None):
+                import aiohttp as _aiohttp
+                try:
+                    async with self.feed._session.get(
+                        "https://api.binance.com/api/v3/klines",
+                        params={"symbol": _symbol, "interval": "5m",
+                                "startTime": _window_start_ms, "limit": 1},
+                        timeout=_aiohttp.ClientTimeout(total=8),
+                    ) as _resp:
+                        if _resp.status == 200:
+                            _klines = await _resp.json()
+                            if _klines and len(_klines[0]) >= 5:
+                                _open  = float(_klines[0][1])
+                                _close = float(_klines[0][4])
+                                _wop = 1.0 if _close >= _open else 0.0
+                except Exception as _ke:
+                    logger.debug("expo_shadow_resolve kline %s: %s", asset, _ke)
+            if _wop is not None:
+                _entered_correctly = (_wop >= 0.5) if outcome_dir == "up" else (_wop < 0.5)
+                try:
+                    with open(os.path.join("logs", "expo_shadow.jsonl"), "a") as _ef:
+                        _ef.write(json.dumps({
+                            "event": "outcome",
+                            "token_id": token_id,
+                            "asset": asset,
+                            "outcome_dir": outcome_dir,
+                            "window_end_ts": round(window_end_ts, 1),
+                            "window_outcome_price": _wop,
+                            "entered_correctly": _entered_correctly,
+                            "resolved_at": round(time.time(), 3),
+                        }) + "\n")
+                except Exception:
+                    pass
+        except Exception as _re:
+            logger.debug("expo_shadow_resolve failed %s: %s", asset, _re)
 
     # ── Pending resolution replay (restart recovery) ─────────────────────────
 
