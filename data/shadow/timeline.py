@@ -55,18 +55,25 @@ def _liquidity_regime(depth: float) -> str:
     return "thin"
 
 
-# Phase-1 passive gate replication. These mirror the live thresholds at the
-# time of writing; they are NOT the authoritative trace (the live strategy is)
-# but they let analysts ask "what would a stripped-down policy have done"
-# without joining trades.jsonl. Update when live thresholds change.
-_GATE_ASK_FLOOR = 0.70
-_GATE_ASK_MAX   = 0.99
-_GATE_SPREAD_PCT_MAX = 5.5
-_GATE_SNAP30_FLOOR = 9.45
-_GATE_SNAP30_CEIL  = 88.0
-_GATE_SNAP60_FLOOR = 12.0
-_GATE_OB_IMB_FLOOR = 0.35
-_GATE_OB_IMB_CEIL  = 0.70
+# Passive gate replication — mirrors live thresholds as of 2026-05-09.
+# NOT the authoritative trace (live strategy is), but lets analysts ask
+# "what would the stripped-down structural gates have done" without joining
+# trades.jsonl. Update this block whenever live thresholds change.
+#
+# Current live gates replicated here:
+#   ask_floor  0.78  (main.py:2381)
+#   ask_max    0.95  (main.py:2379)
+#   ob_imb     0.20  (main.py:2437)
+#   terminal   25-120s (main.py:_REM_MIN/_REM_MAX)
+#
+# Removed vs Phase-1 reconstruction (gates no longer in live bot):
+#   spread     (SOL-only at 3%, not universal)
+#   snap30     (removed 2026-05-09, Model A)
+#   snap60     (removed earlier)
+#   ob_imb_ceil (not in live code)
+_GATE_ASK_FLOOR    = 0.78
+_GATE_ASK_MAX      = 0.95
+_GATE_OB_IMB_FLOOR = 0.20
 
 
 def _session_bucket(hour: int) -> str:
@@ -328,21 +335,13 @@ class TimelineSampler:
 
     def _build_gate_trace(self, tl: dict) -> Optional[dict]:
         ask = tl["best_ask"]
-        snap30 = tl["tok_snap_30s"]
-        snap60 = tl["tok_snap_60s"]
         sec = tl["seconds_to_resolution"]
         imb = tl["ob_imb_top3"]
-        spread_pct = (tl["spread_abs"] / ask * 100.0) if ask else 0.0
         gates = {
             "terminal_zone": "PASS" if 25.0 <= sec <= 120.0 else f"FAIL@{sec:.0f}s",
-            "ask_floor":    "PASS" if ask >= _GATE_ASK_FLOOR else f"FAIL@{ask:.2f}<{_GATE_ASK_FLOOR}",
-            "ask_max":      "PASS" if ask <= _GATE_ASK_MAX   else f"FAIL@{ask:.2f}>{_GATE_ASK_MAX}",
-            "spread":       "PASS" if spread_pct <= _GATE_SPREAD_PCT_MAX else f"FAIL@{spread_pct:.1f}>{_GATE_SPREAD_PCT_MAX}",
-            "snap30_floor": "PASS" if snap30 >= _GATE_SNAP30_FLOOR else f"FAIL@{snap30:.2f}<{_GATE_SNAP30_FLOOR}",
-            "snap30_ceil":  "PASS" if snap30 <= _GATE_SNAP30_CEIL  else f"FAIL@{snap30:.2f}>{_GATE_SNAP30_CEIL}",
-            "snap60_floor": "PASS" if snap60 >= _GATE_SNAP60_FLOOR else f"FAIL@{snap60:.2f}<{_GATE_SNAP60_FLOOR}",
-            "ob_imb_floor": "PASS" if imb >= _GATE_OB_IMB_FLOOR else f"FAIL@{imb:.3f}<{_GATE_OB_IMB_FLOOR}",
-            "ob_imb_ceil":  "PASS" if imb < _GATE_OB_IMB_CEIL   else f"FAIL@{imb:.3f}>={_GATE_OB_IMB_CEIL}",
+            "ask_floor":     "PASS" if ask >= _GATE_ASK_FLOOR else f"FAIL@{ask:.2f}<{_GATE_ASK_FLOOR}",
+            "ask_max":       "PASS" if ask <= _GATE_ASK_MAX   else f"FAIL@{ask:.2f}>{_GATE_ASK_MAX}",
+            "ob_imb_floor":  "PASS" if imb >= _GATE_OB_IMB_FLOOR else f"FAIL@{imb:.3f}<{_GATE_OB_IMB_FLOOR}",
         }
         all_pass = all(v == "PASS" for v in gates.values())
         first_fail = next((k for k, v in gates.items() if v != "PASS"), None)
@@ -362,6 +361,6 @@ class TimelineSampler:
             "gate_results": gates,
             "all_pass": all_pass,
             "first_failed_gate": first_fail,
-            "strategy_version": "shadow-passive-v1",
+            "strategy_version": "shadow-passive-v2",
             "would_take_at_ask": all_pass,
         }
