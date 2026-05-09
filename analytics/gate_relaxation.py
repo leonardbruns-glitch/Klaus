@@ -33,7 +33,12 @@ GATE_TRACE_PATTERN  = os.path.join(SHADOW_ROOT, "*", "gate_trace.jsonl")
 
 
 def load_resolutions(days: int) -> dict:
-    """Returns {(condition_id, window_end_ts): resolved_yes}."""
+    """Returns {(condition_id, window_end_ts): full resolution record}.
+
+    Join with direction_aware_resolved_yes() — the scheduler stores one record
+    per (cid, wend) using the first token's direction (always 'up'), so YES-DOWN
+    tokens need resolved_yes flipped at join time.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     out = {}
     for f in sorted(glob.glob(RESOLUTION_PATTERN)):
@@ -46,8 +51,15 @@ def load_resolutions(days: int) -> dict:
         with open(f) as fh:
             for line in fh:
                 r = json.loads(line)
-                out[(r["condition_id"], r["window_end_ts"])] = r["resolved_yes"]
+                out[(r["condition_id"], r["window_end_ts"])] = r
     return out
+
+
+def direction_aware_resolved_yes(res: dict, token_outcome_dir: str) -> bool:
+    ry = res["resolved_yes"]
+    if res.get("outcome_dir", "up") != token_outcome_dir:
+        ry = not ry
+    return ry
 
 
 def load_gate_trace(days: int) -> list:
@@ -109,7 +121,9 @@ def main():
             unresolved += 1
             continue
         r = dict(r)
-        r["resolved_yes"] = resolutions[key]
+        r["resolved_yes"] = direction_aware_resolved_yes(
+            resolutions[key], r.get("outcome_dir", "up")
+        )
         joined.append(r)
     print(f"  joined: {len(joined)} | unresolved (no kline yet): {unresolved}")
 

@@ -70,7 +70,13 @@ def _parse_date(s: str) -> datetime:
 
 
 def load_resolutions(days: int) -> dict:
-    """Returns {(condition_id, window_end_ts): resolved_yes}."""
+    """Returns {(condition_id, window_end_ts): full resolution record}.
+
+    Callers must do a direction-aware join: if the token's outcome_dir differs
+    from the stored resolution's outcome_dir, flip resolved_yes. The scheduler
+    stores one record per (cid, wend) using whichever token direction called it
+    first (always 'up' in practice), so YES-DOWN tokens need the flip.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     out = {}
     for f in sorted(glob.glob(RESOLUTION_PATTERN)):
@@ -83,8 +89,16 @@ def load_resolutions(days: int) -> dict:
         with open(f) as fh:
             for line in fh:
                 r = json.loads(line)
-                out[(r["condition_id"], r["window_end_ts"])] = r["resolved_yes"]
+                out[(r["condition_id"], r["window_end_ts"])] = r
     return out
+
+
+def direction_aware_resolved_yes(res: dict, token_outcome_dir: str) -> bool:
+    """Return the correct resolved_yes for a token, accounting for direction mismatch."""
+    ry = res["resolved_yes"]
+    if res.get("outcome_dir", "up") != token_outcome_dir:
+        ry = not ry
+    return ry
 
 
 def load_gate_trace(days: int) -> dict:
@@ -134,7 +148,12 @@ def load_timeline_first_fire(days: int) -> dict:
 
 
 def join_dataset(tl_rows: dict, gt_rows: dict, resolutions: dict) -> list:
-    """Join first-fire timeline + gate_trace + resolution into analysis rows."""
+    """Join first-fire timeline + gate_trace + resolution into analysis rows.
+
+    Uses direction-aware resolution join: the resolution record stores outcome_dir
+    from the first scheduling call (always 'up'). YES-DOWN tokens get resolved_yes
+    flipped so their label reflects whether THEIR outcome resolved, not UP's.
+    """
     joined = []
     for key, tl in tl_rows.items():
         res_key = (tl["condition_id"], tl["window_end_ts"])
@@ -142,7 +161,9 @@ def join_dataset(tl_rows: dict, gt_rows: dict, resolutions: dict) -> list:
             continue
         gt = gt_rows.get(key)
         row = dict(tl)
-        row["resolved_yes"] = resolutions[res_key]
+        row["resolved_yes"] = direction_aware_resolved_yes(
+            resolutions[res_key], tl.get("outcome_dir", "up")
+        )
         row["all_pass"] = gt["all_pass"] if gt else False
         row["gate_results"] = gt.get("gate_results", {}) if gt else {}
         row["first_failed_gate"] = gt.get("first_failed_gate") if gt else None
