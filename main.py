@@ -2337,8 +2337,8 @@ class KlausBot:
             remaining = token.window_end_ts - now
             if remaining <= 25:
                 continue  # enter with >25s remaining; 15-25s WR=20% (n=5)
-            if remaining > 120:
-                continue  # TERMINAL zone only — skip early window entries (rem>120s)
+            if remaining > 90:
+                continue  # TERMINAL zone only — skip early window entries (rem>90s)
             if _utc_hour == 21 and remaining > 60:
                 continue  # H21: rem cap 60s (n=78 TERMINAL, rem<=60 saves +$61 net vs baseline)
             _bond_blocked = getattr(CONFIG.edge, "bond_blocked_hours_utc", [])
