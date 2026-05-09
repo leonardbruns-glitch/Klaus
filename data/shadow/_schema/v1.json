@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "description": "Shadow market observation engine — Phase 1 base substrate. Field catalog. Adding a new field requires (a) appending here AND (b) emitting in the corresponding sampler. Removing a field is forbidden — leave nullable.",
+  "schema_version": 2,
+  "description": "Shadow market observation engine — Phase 2. Field catalog. Adding a new field requires (a) appending here AND (b) emitting in the corresponding sampler. Removing a field is forbidden — leave nullable. Phase 2 adds: hold_path record type (per-second trajectory of virtual positions) and regime tags on market_timeline.",
   "record_types": {
     "market_timeline": {
       "doc": "One row per (token_id, second) when token is in eligibility band. Read-only over feed caches.",
@@ -45,7 +45,11 @@
         {"name": "peer_bid",              "type": "float32",  "doc": "best bid of peer token; 0.0 if peer OB unavailable"},
         {"name": "peer_ask",              "type": "float32",  "doc": "best ask of peer token; 0.0 if peer OB unavailable"},
         {"name": "peer_age_ms",           "type": "int32",    "doc": "staleness of peer's OB at sample time"},
-        {"name": "arb_sum_yes_no",        "type": "float32",  "doc": "best_ask + peer_ask; 1.0 = no arb signal, deviation = pricing inefficiency"}
+        {"name": "arb_sum_yes_no",        "type": "float32",  "doc": "best_ask + peer_ask; 1.0 = no arb signal, deviation = pricing inefficiency"},
+        {"name": "vol_regime",             "type": "string",   "doc": "calm|normal|volatile|extreme — bucketed from abs(binance_ret_5m_pct); Phase 2"},
+        {"name": "trend_regime",           "type": "string",   "doc": "up|down|flat — from binance_ret_60s_pct; Phase 2"},
+        {"name": "liquidity_regime",       "type": "string",   "doc": "thin|normal|deep — from ob_book_depth_size; Phase 2"},
+        {"name": "macro_event_window",     "type": "bool",     "doc": "true ±15min of CPI/NFP/FOMC; placeholder false until macro calendar wired; Phase 2"}
       ]
     },
     "gate_trace": {
@@ -151,6 +155,48 @@
         {"name": "resolution_method",     "type": "string",   "doc": "e.g. 'kline:67200.00->67342.10'"},
         {"name": "resolution_delay_s",    "type": "int32",    "doc": "ts_resolved_s - window_end_ts"},
         {"name": "resolution_source",     "type": "string",   "doc": "literal 'binance_kline'"}
+      ]
+    },
+    "hold_path": {
+      "doc": "One row per (virtual_position, second). Virtual position opens at first gate_trace.all_pass=True per (token_id, window_end_ts); rows emitted every second until window closes. Key substrate for Phase-2 trajectory analysis: MAE/MFE evolution, drawdown velocity, imbalance collapse, liquidity decay, divergence vs Binance.",
+      "key": ["token_id", "window_end_ts", "ts_s"],
+      "fields": [
+        {"name": "schema_version",        "type": "int8",     "doc": "2 — Phase 2 record type"},
+        {"name": "record_type",           "type": "string",   "doc": "literal 'hold_path'"},
+        {"name": "ts_s",                  "type": "int64"},
+        {"name": "ts_ms_local",           "type": "int64"},
+        {"name": "token_id",              "type": "string"},
+        {"name": "condition_id",          "type": "string"},
+        {"name": "asset",                 "type": "string"},
+        {"name": "outcome_dir",           "type": "string"},
+        {"name": "outcome_side",          "type": "string"},
+        {"name": "window_end_ts",         "type": "int64"},
+        {"name": "seconds_to_resolution", "type": "float32"},
+        {"name": "fire_ask",              "type": "float32",  "doc": "best_ask at virtual entry (first all_pass tick)"},
+        {"name": "fire_ts_s",             "type": "int64",    "doc": "unix second of virtual entry"},
+        {"name": "fire_sec_to_res",       "type": "float32",  "doc": "seconds_to_resolution at virtual entry"},
+        {"name": "seconds_held",          "type": "int32",    "doc": "ts_s - fire_ts_s"},
+        {"name": "bid",                   "type": "float32"},
+        {"name": "ask",                   "type": "float32"},
+        {"name": "mid",                   "type": "float32"},
+        {"name": "spread_abs",            "type": "float32"},
+        {"name": "pnl_pct",              "type": "float32",  "doc": "(bid - fire_ask) / fire_ask * 100"},
+        {"name": "mae",                   "type": "float32",  "doc": "running min of pnl_pct since fire — max adverse excursion"},
+        {"name": "mfe",                   "type": "float32",  "doc": "running max of pnl_pct since fire — max favourable excursion"},
+        {"name": "bid_velocity_1s",       "type": "float32",  "doc": "bid - prev_bid; negative = dropping"},
+        {"name": "ob_imb_top3",           "type": "float32"},
+        {"name": "ob_book_depth_size",    "type": "float32"},
+        {"name": "ob_depth_delta_1s",     "type": "float32",  "doc": "ob_book_depth_size - prev_depth; negative = liquidity leaving"},
+        {"name": "ob_quote_age_ms",       "type": "int32"},
+        {"name": "binance_spot",          "type": "float32"},
+        {"name": "binance_ret_5m_pct",    "type": "float32"},
+        {"name": "binance_ret_60s_pct",   "type": "float32"},
+        {"name": "session_bucket",        "type": "string"},
+        {"name": "hour_utc",              "type": "int8"},
+        {"name": "weekday",               "type": "int8"},
+        {"name": "vol_regime",            "type": "string"},
+        {"name": "trend_regime",          "type": "string"},
+        {"name": "liquidity_regime",      "type": "string"}
       ]
     },
     "exit_policy_shadow": {

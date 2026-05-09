@@ -337,12 +337,7 @@ class KlausBot:
         # Joinable to trades.jsonl via (token_id, ts_open) → logs/exit_shadow.jsonl.
         self._shadow_fired: Dict[str, bool] = {}
         self._shadow_velocity_buf: Dict[str, list] = {}
-        # EXPO_SHADOW: log candidates that would pass relaxed snap30 thresholds
-        # (floor 10.5→5.0, ceiling 80→92) but currently fail the live gate.
-        # Dedupe per (token_id, window_end_ts). → logs/expo_shadow.jsonl.
-        # Joinable to kline resolution via window_end_ts.
-        self._expo_shadow_logged: set = set()
-        # Shadow market observation engine (Phase 1 base substrate).
+        # Shadow market observation engine (Phase 2).
         # Runs parallel to live trading; reads only from feed caches.
         # Logs to logs/shadow/hot/<date>/{market_timeline,gate_trace,window_resolution}.jsonl.
         self.shadow_pipeline = ShadowPipeline()
@@ -775,31 +770,7 @@ class KlausBot:
                       and current_price > pos.mae_bounce_peak):
                     pos.mae_bounce_peak = current_price
 
-                # ── 5s intra-hold bid snapshot (trajectory logging) ─────────────
-                _snap_due = self._traj_snap_next.get(token_id, 0.0)
-                if _held_s >= _snap_due and pos.entry_price > 0:
-                    self._traj_snap_next[token_id] = _snap_due + 5.0
-                    _snap_mfe = max(0.0,
-                        (pos.highest_price - pos.entry_price) / pos.entry_price * 100
-                    ) if pos.highest_price > pos.entry_price else 0.0
-                    _snap_mae = max(0.0,
-                        (pos.entry_price - pos.lowest_price) / pos.entry_price * 100
-                    ) if (pos.lowest_price > 0 and pos.lowest_price < pos.entry_price) else 0.0
-                    _pae_clk = round(now - self._pae_below_since[token_id], 1) if token_id in self._pae_below_since else 0.0
-                    try:
-                        with open(os.path.join("logs", "traj_snaps.jsonl"), "a") as _sf:
-                            _sf.write(json.dumps({
-                                "open_ts": round(pos.open_ts, 3),
-                                "tok": token_id[:16],
-                                "el": round(_held_s, 1),
-                                "rem": round(bond_remaining, 1),
-                                "bp": round(bond_move * 100, 2),
-                                "mfe": round(_snap_mfe, 2),
-                                "mae": round(_snap_mae, 2),
-                                "pae": _pae_clk,
-                            }) + "\n")
-                    except Exception:
-                        pass
+                # traj_snaps.jsonl retired 2026-05-09 — subsumed by shadow hold_path table (Phase 2)
 
                 # ── EXIT_SHADOW: bid-depth + velocity rule logger (log-only) ────
                 # Records first moment proposed bid-depth or velocity-stall rules
@@ -3139,21 +3110,7 @@ class KlausBot:
                     "[SIGNAL_PASS][STAGE_3_REJECT] %s/%s | snap60_eff=%.1f%% (floor=25) ask=%.4f rem=%.0fs dir=%s tok_id=%s",
                     token.asset, _inv_side, _snap60_eff, _inv_ask, remaining, _inv_dir, _inv_id,
                 )
-            try:
-                import json as _json
-                with open("logs/snap_shadow.jsonl", "a") as _sf:
-                    _sf.write(_json.dumps({
-                        "ts": now,
-                        "asset": token.asset,
-                        "token_id": _inv_id,
-                        "snap_60s": _snap_60,
-                        "snap_30s": _snap_30,
-                        "entry_ask": _inv_ask,
-                        "remaining_s": round(remaining, 1),
-                        "would_block": _snap_60 < 0.0 and _snap_30 < 0.0,
-                    }) + "\n")
-            except Exception:
-                pass
+            # snap_shadow.jsonl retired 2026-05-09 — subsumed by gate_trace in shadow substrate
 
             # ── Entry stability classification (observability only) ────────────
             # Decomposable instability labels — one signal per dimension, no
@@ -5766,57 +5723,7 @@ class KlausBot:
         # Resolution is now captured by the concurrent _capture_resolution() task
         # fired at the start of this function — no duplicate block needed here.
 
-    # ── Expo shadow outcome enrichment ───────────────────────────────────────
-
-    async def _expo_shadow_resolve(
-        self, token_id: str, asset: str, window_end_ts: float, outcome_dir: str
-    ) -> None:
-        """Fetch Binance kline at window close; append outcome record to expo_shadow.jsonl."""
-        _wait = max(35.0, window_end_ts + 35.0 - time.time())
-        if _wait > 910:
-            return
-        if _wait > 0:
-            await asyncio.sleep(_wait)
-        try:
-            _symbol_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
-            _symbol = _symbol_map.get(asset.upper())
-            _window_start_ms = int((window_end_ts - 300) * 1000)
-            _wop: float | None = None
-            if _symbol and getattr(self.feed, "_session", None):
-                import aiohttp as _aiohttp
-                try:
-                    async with self.feed._session.get(
-                        "https://api.binance.com/api/v3/klines",
-                        params={"symbol": _symbol, "interval": "5m",
-                                "startTime": _window_start_ms, "limit": 1},
-                        timeout=_aiohttp.ClientTimeout(total=8),
-                    ) as _resp:
-                        if _resp.status == 200:
-                            _klines = await _resp.json()
-                            if _klines and len(_klines[0]) >= 5:
-                                _open  = float(_klines[0][1])
-                                _close = float(_klines[0][4])
-                                _wop = 1.0 if _close >= _open else 0.0
-                except Exception as _ke:
-                    logger.debug("expo_shadow_resolve kline %s: %s", asset, _ke)
-            if _wop is not None:
-                _entered_correctly = (_wop >= 0.5) if outcome_dir == "up" else (_wop < 0.5)
-                try:
-                    with open(os.path.join("logs", "expo_shadow.jsonl"), "a") as _ef:
-                        _ef.write(json.dumps({
-                            "event": "outcome",
-                            "token_id": token_id,
-                            "asset": asset,
-                            "outcome_dir": outcome_dir,
-                            "window_end_ts": round(window_end_ts, 1),
-                            "window_outcome_price": _wop,
-                            "entered_correctly": _entered_correctly,
-                            "resolved_at": round(time.time(), 3),
-                        }) + "\n")
-                except Exception:
-                    pass
-        except Exception as _re:
-            logger.debug("expo_shadow_resolve failed %s: %s", asset, _re)
+    # expo_shadow_resolve retired 2026-05-09 — subsumed by shadow window_resolution + market_timeline join
 
     # ── Pending resolution replay (restart recovery) ─────────────────────────
 

@@ -16,11 +16,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from .holdpath import HoldPathSampler
 from .pipeline import ShadowPipeline
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # UTC hour → session_bucket. Aligned with feedback_updown_analysis findings
 # (Asia / LDN / EU overlap / NY pre-open / NY open / NY lunch / power hour / after).
@@ -34,6 +35,25 @@ _SESSION_BUCKETS = (
     (18, 21, "power_hour"),
     (21, 24, "after_hours"),
 )
+
+def _vol_regime(abs_5m_pct: float) -> str:
+    if abs_5m_pct < 0.05: return "calm"
+    if abs_5m_pct < 0.15: return "normal"
+    if abs_5m_pct < 0.30: return "volatile"
+    return "extreme"
+
+
+def _trend_regime(ret_60s_pct: float) -> str:
+    if ret_60s_pct > 0.02: return "up"
+    if ret_60s_pct < -0.02: return "down"
+    return "flat"
+
+
+def _liquidity_regime(depth: float) -> str:
+    if depth > 500: return "deep"
+    if depth > 150: return "normal"
+    return "thin"
+
 
 # Phase-1 passive gate replication. These mirror the live thresholds at the
 # time of writing; they are NOT the authoritative trace (the live strategy is)
@@ -71,6 +91,7 @@ class TimelineSampler:
         self._task: Optional[asyncio.Task] = None
         self._stop = asyncio.Event()
         self._last_emit_ts: dict = {}  # token_id → int(ts_s) of last emission, dedup
+        self.hold_path = HoldPathSampler(pipeline)
 
     async def start(self) -> None:
         if self._task is None:
@@ -139,6 +160,8 @@ class TimelineSampler:
                         outcome_dir=rec["outcome_dir"],
                         window_size_s=rec["window_size_s"],
                     )
+                # Phase 2: hold-path evolution (per-second trajectory of virtual positions).
+                self.hold_path.on_tick(rec, gt)
                 self._last_emit_ts[token_id] = now_s
             except Exception:
                 logger.debug("timeline build failed token=%s", token_id, exc_info=True)
@@ -146,6 +169,8 @@ class TimelineSampler:
         if len(self._last_emit_ts) > 200:
             stale_cutoff = now_s - 600
             self._last_emit_ts = {k: v for k, v in self._last_emit_ts.items() if v > stale_cutoff}
+        # GC expired virtual positions from hold-path tracker
+        self.hold_path.gc_stale(now)
 
     def _build_record(self, token_id: str, token, now: float, remaining: float) -> Optional[dict]:
         feed = self.bot.feed
@@ -206,6 +231,10 @@ class TimelineSampler:
                 arb_sum_yes_no = round(best_ask + peer_ask, 4)
                 break
 
+        vol_reg = _vol_regime(abs(binance_ret_5m))
+        trend_reg = _trend_regime(binance_ret_60s)
+        liq_reg = _liquidity_regime(b3 + a3)
+
         return {
             "schema_version": SCHEMA_VERSION,
             "record_type": "market_timeline",
@@ -254,6 +283,11 @@ class TimelineSampler:
             "peer_ask": round(peer_ask, 4),
             "peer_age_ms": peer_age_ms,
             "arb_sum_yes_no": arb_sum_yes_no,
+            # Phase 2 regime tags (directive #6 — non-optional, baked in from day one)
+            "vol_regime": vol_reg,
+            "trend_regime": trend_reg,
+            "liquidity_regime": liq_reg,
+            "macro_event_window": False,  # placeholder; populate with CPI/NFP/FOMC ±15min later
         }
 
     def _snap_pct(self, hist, now: float, secs: float) -> float:
