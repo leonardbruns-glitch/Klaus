@@ -31,13 +31,21 @@ class HoldPathSampler:
         """Call after each (market_timeline, gate_trace) pair from TimelineSampler."""
         key = (tl["token_id"], tl["window_end_ts"])
         now_s = tl["ts_s"]
+        sec = tl["seconds_to_resolution"]
 
-        # Register on first all_pass; never overwrite once open.
-        if gt is not None and gt["all_pass"] and key not in self._vpos:
+        # Open on FIRST terminal-zone entry (25-120s), regardless of gate state.
+        # Full counterfactual coverage per directive #2: gate-qualified and
+        # gate-rejected entries are comparable in the same dataset. Gate state
+        # at open + at every tick is stored so analysts can slice either way.
+        if 25.0 <= sec <= 120.0 and key not in self._vpos:
+            gate_pass = gt["all_pass"] if gt is not None else False
+            first_fail = (gt.get("first_failed_gate") or "") if gt is not None else ""
             self._vpos[key] = {
                 "fire_ask": tl["best_ask"],
                 "fire_ts_s": now_s,
-                "fire_sec_to_res": tl["seconds_to_resolution"],
+                "fire_sec_to_res": sec,
+                "gate_all_pass_at_open": gate_pass,
+                "first_failed_gate_at_open": first_fail,
                 "mae": 0.0,
                 "mfe": 0.0,
                 "last_bid": tl["best_bid"],
@@ -65,6 +73,8 @@ class HoldPathSampler:
 
         seconds_held = now_s - vp["fire_ts_s"]
 
+        gate_pass_now = gt["all_pass"] if gt is not None else False
+
         self.pipe.emit({
             "schema_version": SCHEMA_VERSION,
             "record_type": "hold_path",
@@ -82,12 +92,20 @@ class HoldPathSampler:
             "fire_ts_s": vp["fire_ts_s"],
             "fire_sec_to_res": round(vp["fire_sec_to_res"], 1),
             "seconds_held": seconds_held,
+            # gate state — enables entry-timing analysis:
+            #   gate_all_pass_at_open: was the gate green when this vpos opened?
+            #   gate_all_pass_now: is the gate green at THIS tick?
+            #   filtering on gate_all_pass_at_open=True replicates current bot behaviour;
+            #   filtering on gate_all_pass_now=True gives "optimal entry timing" surface.
+            "gate_all_pass_at_open": vp["gate_all_pass_at_open"],
+            "first_failed_gate_at_open": vp["first_failed_gate_at_open"],
+            "gate_all_pass_now": gate_pass_now,
             # price state
             "bid": round(bid, 4),
             "ask": round(tl["best_ask"], 4),
             "mid": round(tl["mid"], 4),
             "spread_abs": round(tl["spread_abs"], 4),
-            # synthetic PnL trajectory
+            # synthetic PnL trajectory (vs fire_ask)
             "pnl_pct": round(pnl_pct, 4),
             "mae": round(vp["mae"], 4),
             "mfe": round(vp["mfe"], 4),
@@ -101,7 +119,7 @@ class HoldPathSampler:
             "binance_spot": tl["binance_spot"],
             "binance_ret_5m_pct": tl["binance_ret_5m_pct"],
             "binance_ret_60s_pct": tl["binance_ret_60s_pct"],
-            # regime (copied from market_timeline so hold_path is self-contained)
+            # regime (self-contained — no join needed for conditional analysis)
             "session_bucket": tl["session_bucket"],
             "hour_utc": tl["hour_utc"],
             "weekday": tl["weekday"],
