@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-09 12:13 UTC
+# Quantitative Audit — 2026-05-09 18:06 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (41st consecutive session)**
+**FAILED — VPS UNREACHABLE (42nd consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -18,23 +18,25 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 41 sessions: sandbox network blocks TCP port 22 egress.
+> Root cause unchanged across 42 sessions: sandbox network blocks TCP port 22 egress.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
 
 ---
 
-## Confirmed Current Parameters (from main.py / config.py — NOT from stale prompt defaults)
+## Confirmed Current Parameters (from main.py / config.py — ground truth)
 
 | Parameter | Code Location | Current Value | Prompt Default | Last Changed |
 |---|---|---|---|---|
 | min_ask (_ask_floor) | main.py:2381 | **0.78** | 0.80 (stale) | 2026-05-07 |
 | max_ask (_ask_max) | main.py:2379 | **0.95** | 0.88 (stale) | 2026-05-08 |
-| min_imbalance (_term_imb gate) | main.py:2437 | **0.20** | 0.20 | unchanged |
+| min_imbalance (_term_imb gate) | main.py:2437 | **0.0** | 0.20 (stale) | 2026-05-09 (today) |
 | bond_blocked_hours_utc | config.py:151 | **[]** | [] | unchanged |
 | stop_loss | main.py:2962 | **−15%** (ask×0.85) | −0.15 | unchanged |
 
-> Prompt "current values" for min_ask/max_ask are 2 days stale. Code is the ground truth.
+> **Note**: The prompt "current values" (min_ask=0.80, max_ask=0.88, min_imbalance=0.20) are all stale.
+> Code is the ground truth. `min_imbalance` was relaxed 0.20→0.0 today (commit 69d4028) based on
+> shadow data: solo-fail tokens (imb<0.20) resolved YES at 89.9% vs gate-pass baseline 76.0%.
 
 ---
 
@@ -57,6 +59,8 @@ None determinable — no trade records accessible.
 | 0.20–0.30 | 0 | N/A | N/A |
 | >0.30 | 0 | N/A | N/A |
 
+Note: `min_imbalance` floor is now 0.0 (relaxed today). The <0.20 bucket will now be live.
+
 ## Slippage
 avg_slippage_entry=N/A (no data)
 
@@ -78,7 +82,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (42nd consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -88,20 +92,20 @@ No change warranted. All patch conditions require trade data; none available.
 {
   "min_ask": 0.78,
   "max_ask": 0.95,
-  "min_imbalance": 0.20,
+  "min_imbalance": 0.0,
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (41st consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (42nd consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (41 consecutive sessions)
+## Infrastructure Alert — Critical (42 consecutive sessions)
 
 **Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary absent.
-No trade data has been accessible for 41 consecutive audit sessions.
+No trade data has been accessible for 42 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
