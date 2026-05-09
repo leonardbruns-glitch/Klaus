@@ -1,25 +1,25 @@
-# Quantitative Audit — 2026-05-08 18:06 UTC
+# Quantitative Audit — 2026-05-09 06:10 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (39th consecutive session)**
+**FAILED — VPS UNREACHABLE (40th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 to 85.137.174.86 | `ssh: command not found` — binary absent from sandbox |
-| TCP connectivity | Port 22 egress blocked at sandbox network level |
+| SSH port 22 to 85.137.174.86 | `Connection timed out` — binary installed, port 22 blocked at network/firewall level |
+| TCP connectivity | Port 22 egress times out from sandbox (firewall, not binary absence) |
 | logs/live_trades_recent.jsonl (git) | Absent — cron sync not deployed |
 | local logs/trades.jsonl | Absent (not git-tracked) |
 | local logs/post_exit.jsonl | Absent |
 
-> SSH binary absent from sandbox. TCP port 22 egress confirmed blocked at network level.
+> Progress from last session: openssh-client installed via apt-get. But TCP port 22 to 85.137.174.86 now times out — egress is filtered at the sandbox network boundary, not missing the binary. Root cause unchanged.
 > No trade data is accessible. All analysis sections reflect INSUFFICIENT_DATA.
 
 ---
 
 ## 6h Summary
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
-0.78–0.84 bucket: n=0 WR=N/A E=N/A
-0.84–0.92 bucket: n=0 WR=N/A E=N/A
+0.80–0.84 bucket: n=0 WR=N/A E=N/A
+0.84–0.88 bucket: n=0 WR=N/A E=N/A
 
 **INSUFFICIENT_DATA** — threshold for ask/imbalance changes: n≥20 in 6h window. Not met.
 
@@ -34,14 +34,14 @@ avg_slippage_entry=N/A
 
 ---
 
-## Hour Analysis (all-time, 0.78–0.92)
+## Hour Analysis (all-time, 0.80–0.88)
 No trades.jsonl accessible. n=0 per hour — no block/unblock decisions possible (threshold: n≥100/hour).
 
 | H | n | WR | PF | status |
 |---|---|---|---|---|
 | 00–23 | 0 | N/A | N/A | collecting data |
 
-Current `bond_blocked_hours_utc` (config.py): `[]` (all hours unblocked)
+Current `bond_blocked_hours_utc` (config.py:151): `[]` (all hours unblocked)
 Block threshold: n≥100 per hour AND PF<0.80.
 Unblock threshold: n≥100 per hour AND PF≥0.90.
 Cannot evaluate without data. No change to blocked_hours.
@@ -49,33 +49,27 @@ Cannot evaluate without data. No change to blocked_hours.
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — SSH blocked from sandbox (39th consecutive session).
+**INSUFFICIENT_DATA** — VPS TCP port 22 blocked from sandbox (40th consecutive session).
 n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
 n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
 
 ---
 
-## Deployed Parameter State (from main.py + config.py)
+## Deployed Parameter State (from main.py + config.py as of HEAD)
 
 | Parameter | Deployed value | Location |
 |---|---|---|
-| ask floor | 0.78 | main.py:2382 (0.80→0.78 2026-05-07) |
-| max_ask | 0.92 | main.py:2380 (0.88→0.92 2026-05-07) |
-| min_imbalance (ETH/SOL UP) | 0.35 | main.py:2451 |
-| min_imbalance (BTC UP) | 0.50 | main.py:2446 (0.35→0.50 2026-05-07) |
-| min_imbalance (DOWN) | 0.42 | main.py:2448 (0.35→0.42 2026-05-07) |
+| ask floor | 0.78 | main.py:2410 (0.80→0.78 2026-05-07) |
+| max_ask | 0.95 | main.py:2408 (0.92→0.95 2026-05-08: n=1724 YES=92.5%) |
+| min_imbalance | 0.20 | main.py:2467 (per-asset ceilings removed 2026-05-08; single floor) |
 | bond_blocked_hours_utc | [] (all hours unblocked) | config.py:151 |
-| stop_loss | ask×0.85 (−15%) | main.py:3091 (BOND_CATASTROPHIC) |
+| stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC with 8s wick filter |
 | base_stake | $50.00 | config.py:27 |
-| scaled_stake | $50.00 (heat-check disabled) | config.py |
-| snap60 floor (UP, normal) | 12% (ETH: 15%; 12:30–13:30: 25%) | main.py |
-| snap60 floor (DOWN, normal) | 13% (ETH: 15%; 12:30–13:30: 25%) | main.py |
-| snap60 early-window floor | 30% (ask<0.80) | main.py:2713 |
-| tok5_gate (DOWN) | −3% blocks entry | main.py (Tier 2) |
-| tok5_gate (UP) | +10% blocks entry | main.py (Tier 2) |
 
-## Bankroll State (git-tracked bankroll.json — stale ~6 days)
-capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (~2026-05-02 04:26 UTC)
+> Note: audit prompt listed min_ask=0.80, max_ask=0.88 as "current values" — these are stale. Deployed code shows 0.78/0.95 as of 2026-05-08 commits.
+
+## Bankroll State (git-tracked bankroll.json)
+capital=$84.61 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=2026-05-08 19:26 UTC
 
 ---
 
@@ -83,10 +77,8 @@ capital=$37.32 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=1746160000 (~2
 ```json
 {
   "min_ask": 0.78,
-  "max_ask": 0.92,
-  "min_imbalance_btc_up": 0.50,
-  "min_imbalance_down": 0.42,
-  "min_imbalance_other": 0.35,
+  "max_ask": 0.95,
+  "min_imbalance": 0.20,
   "stake": 50.00,
   "stop_loss": -0.15,
   "blocked_hours": []
@@ -99,9 +91,9 @@ INSUFFICIENT_DATA enforced per anti-sycophancy rules.
 
 ---
 
-## Infrastructure Alert — Critical (39 consecutive sessions)
+## Infrastructure Alert — Critical (40 consecutive sessions)
 
-**Root cause**: Sandbox network blocks outbound TCP port 22 (confirmed: ssh binary absent; TCP connect to 85.137.174.86:22 blocked at network level). No trade data has been accessible for 39 consecutive audit sessions.
+**Root cause**: TCP port 22 egress is blocked at the sandbox network boundary. openssh-client is now installed but all connection attempts to 85.137.174.86:22 time out. No trade data has been accessible for 40 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
@@ -126,4 +118,4 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-Without log data, the audit is structurally blocked for the 39th consecutive session.
+Without log data, the audit is structurally blocked for the 40th consecutive session.
