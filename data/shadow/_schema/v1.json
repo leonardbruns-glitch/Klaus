@@ -49,7 +49,13 @@
         {"name": "vol_regime",             "type": "string",   "doc": "calm|normal|volatile|extreme — bucketed from abs(binance_ret_5m_pct); Phase 2"},
         {"name": "trend_regime",           "type": "string",   "doc": "up|down|flat — from binance_ret_60s_pct; Phase 2"},
         {"name": "liquidity_regime",       "type": "string",   "doc": "thin|normal|deep — from ob_book_depth_size; Phase 2"},
-        {"name": "macro_event_window",     "type": "bool",     "doc": "true ±15min of CPI/NFP/FOMC; placeholder false until macro calendar wired; Phase 2"}
+        {"name": "macro_event_window",     "type": "bool",     "doc": "true ±15min of CPI/NFP/FOMC; placeholder false until macro calendar wired; Phase 2"},
+        {"name": "binance_ret_1m_pct",     "type": "float32",  "doc": "kline close-to-close 1m return; same source as live bot spot_momentum_1m direction gate"},
+        {"name": "binance_ret_60m_pct",    "type": "float32",  "doc": "61-bar lookback 1m kline return; same source as live bot G1 regime filter; 0.0 until 61 bars available"},
+        {"name": "vpin_score",             "type": "float32",  "doc": "volume-sync'd prob of informed trading; 0=neutral, >0.6=elevated toxicity; 0.0 if <50 trades"},
+        {"name": "tok_delta_5s",           "type": "float32",  "doc": "token ask % change last 5s; tok5_gate signal"},
+        {"name": "tok_decel_ratio",        "type": "float32",  "doc": "tok_delta_5s / tok_snap_30s; >1=accelerating, <1=stalling; 0.0 when |snap30|<0.5"},
+        {"name": "ask_stale_s",            "type": "float32",  "doc": "seconds since ask last changed >0.005; 999.0=no prior change observed"}
       ]
     },
     "gate_trace": {

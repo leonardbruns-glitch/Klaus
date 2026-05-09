@@ -242,6 +242,55 @@ class TimelineSampler:
         trend_reg = _trend_regime(binance_ret_60s)
         liq_reg = _liquidity_regime(b3 + a3)
 
+        # ── Kline-based Binance momentum (same source as live bot gates) ──────
+        # 1m: previous closed bar vs current; 60m: 61 bars ago vs current (G1).
+        buf_1m = getattr(feed, "_1m_close_buf", {}).get(asset_up)
+        c0 = binance_spot
+        binance_ret_1m = 0.0
+        binance_ret_60m = 0.0
+        if buf_1m and c0 > 0:
+            if len(buf_1m) >= 2:
+                c1 = buf_1m[-2]
+                if c1 > 0:
+                    binance_ret_1m = round((c0 - c1) / c1 * 100.0, 4)
+            if len(buf_1m) >= 61:
+                p60 = buf_1m[-61]
+                if p60 > 0:
+                    binance_ret_60m = round((c0 - p60) / p60 * 100.0, 4)
+
+        # ── VPIN ─────────────────────────────────────────────────────────────
+        vpin_t = getattr(feed, "vpin_trackers", {}).get(asset_up)
+        vpin_score = 0.0
+        if vpin_t and getattr(vpin_t, "_trade_count", 0) > 50:
+            vpin_score = round(vpin_t.vpin, 4)
+
+        # ── Token microstructure from ask history ─────────────────────────────
+        tok_d5 = 0.0
+        tok_decel = 0.0
+        ask_stale_s = 999.0
+        if hist and len(hist) >= 2:
+            latest_ask = hist[-1][1]
+            # 5s token delta
+            cutoff5 = now - 5.0
+            ref5 = None
+            for _ts, _p in hist:
+                if _ts <= cutoff5:
+                    ref5 = _p
+            if ref5 and ref5 > 0:
+                tok_d5 = round((latest_ask - ref5) / ref5 * 100.0, 4)
+            # deceleration ratio: d5s / d30s (valid only when |d30| >= 0.5%)
+            if abs(snap_30s) >= 0.5 and tok_d5 != 0.0:
+                tok_decel = round(tok_d5 / snap_30s, 4)
+            # ask staleness: seconds since ask last changed
+            hist_list = list(hist)
+            for _ts, _p in reversed(hist_list):
+                if abs(_p - latest_ask) > 0.005:
+                    ask_stale_s = round(now - _ts, 1)
+                    break
+            else:
+                if hist_list:
+                    ask_stale_s = round(now - hist_list[0][0], 1)
+
         return {
             "schema_version": SCHEMA_VERSION,
             "record_type": "market_timeline",
@@ -295,6 +344,13 @@ class TimelineSampler:
             "trend_regime": trend_reg,
             "liquidity_regime": liq_reg,
             "macro_event_window": False,  # placeholder; populate with CPI/NFP/FOMC ±15min later
+            # Phase 2 signal enrichment — live-gate signals for signal_analysis
+            "binance_ret_1m_pct":  binance_ret_1m,   # kline close-to-close, direction gate signal
+            "binance_ret_60m_pct": binance_ret_60m,  # G1 regime filter signal
+            "vpin_score":          vpin_score,        # 0=neutral, >0.6=elevated toxicity
+            "tok_delta_5s":        tok_d5,            # 5s token ask momentum (tok5_gate signal)
+            "tok_decel_ratio":     tok_decel,         # d5s/d30s — momentum deceleration
+            "ask_stale_s":         ask_stale_s,       # seconds since ask last changed
         }
 
     def _snap_pct(self, hist, now: float, secs: float) -> float:
