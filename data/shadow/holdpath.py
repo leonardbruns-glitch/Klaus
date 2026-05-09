@@ -33,11 +33,11 @@ class HoldPathSampler:
         now_s = tl["ts_s"]
         sec = tl["seconds_to_resolution"]
 
-        # Open on FIRST terminal-zone entry (25-120s), regardless of gate state.
+        # Open on FIRST terminal-zone entry (25-90s), regardless of gate state.
         # Full counterfactual coverage per directive #2: gate-qualified and
         # gate-rejected entries are comparable in the same dataset. Gate state
         # at open + at every tick is stored so analysts can slice either way.
-        if 25.0 <= sec <= 120.0 and key not in self._vpos:
+        if 25.0 <= sec <= 90.0 and key not in self._vpos:
             gate_pass = gt["all_pass"] if gt is not None else False
             first_fail = (gt.get("first_failed_gate") or "") if gt is not None else ""
             self._vpos[key] = {

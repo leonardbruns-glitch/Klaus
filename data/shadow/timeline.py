@@ -394,7 +394,7 @@ class TimelineSampler:
         sec = tl["seconds_to_resolution"]
         imb = tl["ob_imb_top3"]
         gates = {
-            "terminal_zone": "PASS" if 25.0 <= sec <= 120.0 else f"FAIL@{sec:.0f}s",
+            "terminal_zone": "PASS" if 25.0 <= sec <= 90.0 else f"FAIL@{sec:.0f}s",
             "ask_floor":     "PASS" if ask >= _GATE_ASK_FLOOR else f"FAIL@{ask:.2f}<{_GATE_ASK_FLOOR}",
             "ask_max":       "PASS" if ask <= _GATE_ASK_MAX   else f"FAIL@{ask:.2f}>{_GATE_ASK_MAX}",
             "ob_imb_floor":  "PASS" if imb >= _GATE_OB_IMB_FLOOR else f"FAIL@{imb:.3f}<{_GATE_OB_IMB_FLOOR}",
