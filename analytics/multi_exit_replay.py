@@ -72,8 +72,17 @@ def load_resolutions(days: int) -> dict:
     return out
 
 
-def load_holdpath(days: int, gate_filter: str) -> dict:
-    """Returns {(token_id, window_end_ts): sorted list of tick dicts}."""
+def load_holdpath(days: int, gate_filter: str,
+                  config_effective_from: int = None,
+                  fire_rem_max: float = None) -> dict:
+    """Returns {(token_id, window_end_ts): sorted list of tick dicts}.
+
+    Filters:
+    - gate_filter: "gated"|"free"|"all" — uses gate_all_pass_at_open from hold_path
+    - config_effective_from: Unix ts cutoff on fire_ts_s (intra-day gate drift)
+    - fire_rem_max: max fire_sec_to_res — exclude entries fired outside live entry zone
+      (pre-2026-05-08 hold_path rows may have fire_sec_to_res in 90-120s range)
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     positions = defaultdict(list)
     for f in sorted(glob.glob(HOLDPATH_FILE_PATTERN)):
@@ -89,6 +98,10 @@ def load_holdpath(days: int, gate_filter: str) -> dict:
                 if gate_filter == "gated" and not r.get("gate_all_pass_at_open"):
                     continue
                 if gate_filter == "free" and r.get("gate_all_pass_at_open"):
+                    continue
+                if config_effective_from is not None and r.get("fire_ts_s", 0) < config_effective_from:
+                    continue
+                if fire_rem_max is not None and r.get("fire_sec_to_res", 0) > fire_rem_max:
                     continue
                 key = (r["token_id"], r["window_end_ts"])
                 positions[key].append(r)
@@ -222,11 +235,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=3)
     parser.add_argument("--gate-filter", choices=["gated", "free", "all"], default="all")
+    parser.add_argument("--config-effective-from", type=int, default=None,
+                        help="Unix ts cutoff on fire_ts_s (handles intra-day gate config drift)")
+    parser.add_argument("--fire-rem-max", type=float, default=90.0,
+                        help="Max fire_sec_to_res (default 90 = live entry zone max). Set None/0 to disable.")
     args = parser.parse_args()
+    fire_rem_max = args.fire_rem_max if args.fire_rem_max and args.fire_rem_max > 0 else None
 
-    print(f"Loading hold_path data (last {args.days} days, gate_filter={args.gate_filter})...")
+    print(f"Loading hold_path data (last {args.days} days, gate_filter={args.gate_filter}, "
+          f"config_from={args.config_effective_from}, fire_rem_max={fire_rem_max})...")
     resolutions = load_resolutions(args.days)
-    positions = load_holdpath(args.days, args.gate_filter)
+    positions = load_holdpath(args.days, args.gate_filter,
+                               args.config_effective_from, fire_rem_max)
 
     if not positions:
         print("No hold_path data found. Run after shadow Phase 2 has been collecting for a few hours.")

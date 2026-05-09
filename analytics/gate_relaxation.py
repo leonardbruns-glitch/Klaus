@@ -62,11 +62,14 @@ def direction_aware_resolved_yes(res: dict, token_outcome_dir: str) -> bool:
     return ry
 
 
-def load_gate_trace(days: int, strategy_version: str = "v2") -> list:
-    """Load gate_trace rows in terminal zone (25-120s) only. One row per second.
+def load_gate_trace(days: int, strategy_version: str = "v2",
+                    rem_min: float = 25.0, rem_max: float = 90.0,
+                    config_effective_from: int = None) -> list:
+    """Load gate_trace rows in terminal zone. One row per second.
 
-    strategy_version filter: "v1" | "v2" | "all". Default "v2" — v1 rows have
-    stale gate set (snap30/60, spread, ob_imb_ceil) removed from live 2026-05-09.
+    Defaults match the live entry window (25-90s) per feedback_terminal_window_filter.
+    strategy_version: "v1" | "v2" | "all" (default v2 = current live gate set).
+    config_effective_from: Unix ts cutoff for intra-day gate config drift handling.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     sv_target = {
@@ -86,9 +89,11 @@ def load_gate_trace(days: int, strategy_version: str = "v2") -> list:
             for line in fh:
                 r = json.loads(line)
                 sec = r.get("seconds_to_resolution", 0)
-                if not (25.0 <= sec <= 120.0):
+                if not (rem_min <= sec <= rem_max):
                     continue
                 if sv_target is not None and r.get("strategy_version") != sv_target:
+                    continue
+                if config_effective_from is not None and r.get("ts_s", 0) < config_effective_from:
                     continue
                 rows.append(r)
     return rows
@@ -114,12 +119,21 @@ def main():
     parser.add_argument("--min-n", type=int, default=20,
                         help="Minimum n per gate bucket to report")
     parser.add_argument("--strategy-version", choices=["v1", "v2", "all"], default="v2",
-                        help="Filter gate_trace by shadow strategy version (default: v2 — current live gate set)")
+                        help="Filter gate_trace by shadow strategy version (default v2 = current live gate set)")
+    parser.add_argument("--rem-min", type=float, default=25.0,
+                        help="Min seconds_to_resolution (default 25 = live entry zone min)")
+    parser.add_argument("--rem-max", type=float, default=90.0,
+                        help="Max seconds_to_resolution (default 90 = live entry zone max)")
+    parser.add_argument("--config-effective-from", type=int, default=None,
+                        help="Unix ts cutoff — exclude rows with ts_s < this (handles intra-day gate drift)")
     args = parser.parse_args()
 
-    print(f"Loading gate_trace + window_resolution (last {args.days} days, strategy_version={args.strategy_version})...")
+    print(f"Loading gate_trace + window_resolution (last {args.days} days, "
+          f"sv={args.strategy_version}, rem={args.rem_min:.0f}-{args.rem_max:.0f}s, "
+          f"config_from={args.config_effective_from})...")
     resolutions = load_resolutions(args.days)
-    gate_rows = load_gate_trace(args.days, args.strategy_version)
+    gate_rows = load_gate_trace(args.days, args.strategy_version,
+                                 args.rem_min, args.rem_max, args.config_effective_from)
     print(f"  gate_trace rows (terminal zone, {args.strategy_version}): {len(gate_rows)}")
 
     first_fires = first_fire_per_window(gate_rows)

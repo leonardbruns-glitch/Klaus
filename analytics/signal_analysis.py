@@ -61,8 +61,28 @@ CONTINUOUS_SIGNALS = [
     "seconds_to_resolution",
 ]
 
+# Fields where v=0 is a placeholder ("not computed") rather than a real value.
+# Exclude these from quantile/correlation analysis.
+# Audit 2026-05-09 found binance_ret_30s/60s_pct have ~22% zeros clustering in middle bins.
+PLACEHOLDER_ZERO_FIELDS = {
+    "binance_ret_30s_pct",
+    "binance_ret_60s_pct",
+    "binance_ret_5m_pct",
+    "binance_ret_1m_pct",
+    "binance_ret_60m_pct",
+    "vpin_score",
+    "tok_decel_ratio",
+}
+
 # Gates replicated in gate_trace (same keys as gate_results in gate_trace rows)
 GATES = ["terminal_zone", "ask_floor", "ask_max", "ob_imb_floor"]
+
+# Strategy version targets — must match shadow timeline emitter
+_SV_TARGETS = {
+    "v1":  "shadow-passive-v1",
+    "v2":  "shadow-passive-v2",
+    "all": None,
+}
 
 
 def _parse_date(s: str) -> datetime:
@@ -101,9 +121,19 @@ def direction_aware_resolved_yes(res: dict, token_outcome_dir: str) -> bool:
     return ry
 
 
-def load_gate_trace(days: int) -> dict:
-    """Returns {(token_id, window_end_ts): first gate_trace row in terminal zone}."""
+def load_gate_trace(days: int, rem_min: float = 25.0, rem_max: float = 90.0,
+                    strategy_version: str = "v2",
+                    config_effective_from: int = None) -> dict:
+    """Returns {(token_id, window_end_ts): first gate_trace row in terminal zone}.
+
+    Filters:
+    - rem_min/rem_max: terminal zone (default 25-90s = live entry window)
+    - strategy_version: "v1" | "v2" | "all" (default v2 = current live gate set)
+    - config_effective_from: Unix ts; rows with ts_s < this are excluded (handles
+      intra-day gate config drift; pass latest threshold-change ts to get current-config-only data).
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    sv_target = _SV_TARGETS[strategy_version]
     rows = {}
     for f in sorted(glob.glob(GATE_TRACE_PATTERN)):
         date_str = f.split(os.sep)[-2]
@@ -116,7 +146,11 @@ def load_gate_trace(days: int) -> dict:
             for line in fh:
                 r = json.loads(line)
                 sec = r.get("seconds_to_resolution", 0)
-                if not (25.0 <= sec <= 120.0):
+                if not (rem_min <= sec <= rem_max):
+                    continue
+                if sv_target is not None and r.get("strategy_version") != sv_target:
+                    continue
+                if config_effective_from is not None and r.get("ts_s", 0) < config_effective_from:
                     continue
                 key = (r["token_id"], r["window_end_ts"])
                 if key not in rows:
@@ -124,8 +158,16 @@ def load_gate_trace(days: int) -> dict:
     return rows
 
 
-def load_timeline_first_fire(days: int) -> dict:
-    """Returns {(token_id, window_end_ts): first market_timeline row in terminal zone}."""
+def load_timeline_first_fire(days: int, rem_min: float = 25.0, rem_max: float = 90.0,
+                             allowed_keys: set = None,
+                             config_effective_from: int = None) -> dict:
+    """Returns {(token_id, window_end_ts): first market_timeline row in terminal zone}.
+
+    market_timeline rows lack strategy_version, so we filter by:
+    - allowed_keys: only keep rows whose (token_id, window_end_ts) is in this set
+      (use the filtered gate_trace key set to enforce temporal/version alignment)
+    - config_effective_from: Unix ts cutoff
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     rows = {}
     for f in sorted(glob.glob(TIMELINE_PATTERN)):
@@ -139,9 +181,13 @@ def load_timeline_first_fire(days: int) -> dict:
             for line in fh:
                 r = json.loads(line)
                 sec = r.get("seconds_to_resolution", 0)
-                if not (25.0 <= sec <= 120.0):
+                if not (rem_min <= sec <= rem_max):
+                    continue
+                if config_effective_from is not None and r.get("ts_s", 0) < config_effective_from:
                     continue
                 key = (r["token_id"], r["window_end_ts"])
+                if allowed_keys is not None and key not in allowed_keys:
+                    continue
                 if key not in rows:
                     rows[key] = r
     return rows
@@ -195,19 +241,34 @@ def pearson_r(xs: list, ys: list) -> float:
     return num / (dxs * dys)
 
 
+def _is_valid_signal_value(sig: str, v) -> bool:
+    """Reject None, NaN, stale-marker (999.0), and field-specific placeholder zeros."""
+    if v is None:
+        return False
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return False
+    if math.isnan(f) or f == 999.0:
+        return False
+    if f == 0.0 and sig in PLACEHOLDER_ZERO_FIELDS:
+        return False
+    return True
+
+
 def correlation_matrix(rows: list, min_n: int = 50) -> None:
     print(f"\n=== 1. Pairwise correlation matrix (|r|>0.40, n≥{min_n}) ===")
     print(f"   Flags which signals move together — redundant pairs (|r|>0.60) waste gate slots.")
+    print(f"   Placeholder zeros excluded for: {sorted(PLACEHOLDER_ZERO_FIELDS)}")
     print()
 
     signals = [s for s in CONTINUOUS_SIGNALS]
-    # Extract vectors, skipping 0/null-heavy signals
     vecs = {}
     for sig in signals:
         vals = []
         for r in rows:
             v = r.get(sig)
-            if v is not None and not math.isnan(float(v)) and float(v) != 999.0:
+            if _is_valid_signal_value(sig, v):
                 vals.append(float(v))
             else:
                 vals.append(None)
@@ -248,13 +309,15 @@ def quantile_yes_rate(rows: list, n_bins: int = 10, min_bin_n: int = 10) -> None
     print()
 
     baseline = sum(1 for r in rows if r["resolved_yes"]) / len(rows) if rows else 0.0
+    n_total = len(rows)
 
     for sig in CONTINUOUS_SIGNALS:
-        vals = [(r.get(sig), r["resolved_yes"]) for r in rows
-                if r.get(sig) is not None and float(r.get(sig, 999.0)) != 999.0]
-        vals = [(float(v), y) for v, y in vals if not math.isnan(float(v))]
-        if len(vals) < n_bins * min_bin_n:
-            print(f"  {sig}: insufficient data (n={len(vals)}, need ≥{n_bins * min_bin_n})")
+        vals = [(float(r[sig]), r["resolved_yes"]) for r in rows
+                if _is_valid_signal_value(sig, r.get(sig))]
+        n_used = len(vals)
+        n_dropped = n_total - n_used
+        if n_used < n_bins * min_bin_n:
+            print(f"  {sig}: insufficient data (n={n_used}, need ≥{n_bins * min_bin_n}; dropped {n_dropped} placeholder/null)")
             continue
 
         vals_sorted = sorted(vals, key=lambda x: x[0])
@@ -291,7 +354,8 @@ def quantile_yes_rate(rows: list, n_bins: int = 10, min_bin_n: int = 10) -> None
         max_yr = max(yes_rates)
         spread = max_yr - min_yr
 
-        print(f"\n  {sig}  [baseline={baseline:.1%}  spread={spread:+.1%}  {mono}]")
+        drop_note = f"  (dropped {n_dropped} placeholder/null of {n_total})" if n_dropped else ""
+        print(f"\n  {sig}  [baseline={baseline:.1%}  spread={spread:+.1%}  {mono}]{drop_note}")
         print(f"  {'bin':>4} {'range':<22} {'n':>5} {'YES%':>7}")
         print(f"  " + "-" * 43)
         for i, entry in enumerate(bin_yes_rates):
@@ -383,14 +447,29 @@ def main():
     parser.add_argument("--split-date", default="2026-05-08",
                         help="ISO date — discover before, validate on/after")
     parser.add_argument("--min-n", type=int, default=20)
+    parser.add_argument("--rem-min", type=float, default=25.0,
+                        help="Min seconds_to_resolution (default 25 = live entry zone min)")
+    parser.add_argument("--rem-max", type=float, default=90.0,
+                        help="Max seconds_to_resolution (default 90 = live entry zone max; "
+                             "feedback_terminal_window_filter mandates 25-90s)")
+    parser.add_argument("--strategy-version", choices=["v1", "v2", "all"], default="v2",
+                        help="Filter gate_trace by shadow strategy version (default v2 = current live gate set)")
+    parser.add_argument("--config-effective-from", type=int, default=None,
+                        help="Unix ts cutoff — exclude rows with ts_s < this. Use to filter to "
+                             "post-gate-config-change data (today's last threshold change: 19:49 UTC)")
     args = parser.parse_args()
 
     split_dt = _parse_date(args.split_date)
 
-    print(f"Loading data (last {args.days} days)...")
+    print(f"Loading data (last {args.days} days, rem {args.rem_min:.0f}-{args.rem_max:.0f}s, "
+          f"strategy_version={args.strategy_version}, config_from={args.config_effective_from})...")
     resolutions = load_resolutions(args.days)
-    tl_rows = load_timeline_first_fire(args.days)
-    gt_rows = load_gate_trace(args.days)
+    gt_rows = load_gate_trace(args.days, args.rem_min, args.rem_max,
+                               args.strategy_version, args.config_effective_from)
+    # Constrain timeline to keys present in filtered gate_trace → enforces version/time alignment
+    tl_rows = load_timeline_first_fire(args.days, args.rem_min, args.rem_max,
+                                        allowed_keys=set(gt_rows.keys()),
+                                        config_effective_from=args.config_effective_from)
 
     print(f"  timeline first-fires (terminal zone): {len(tl_rows)}")
     print(f"  gate_trace first-fires:               {len(gt_rows)}")
