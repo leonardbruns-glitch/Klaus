@@ -73,7 +73,7 @@ def _liquidity_regime(depth: float) -> str:
 #   ob_imb_ceil (not in live code)
 _GATE_ASK_FLOOR    = 0.78
 _GATE_ASK_MAX      = 0.95
-_GATE_OB_IMB_FLOOR = 0.20
+_GATE_OB_IMB_FLOOR = 0.0
 
 
 def _session_bucket(hour: int) -> str:

@@ -2434,8 +2434,8 @@ class KlausBot:
             _b3 = sum(q for _, q in ob.bids[:3])
             _term_ob_depth = round(_b3 + _a3, 2)
             _term_imb  = round((_b3 - _a3) / (_b3 + _a3), 4) if (_b3 + _a3) > 0 else 0.0
-            if _term_imb < 0.20:
-                continue  # ob_imb floor 0.20: shadow data imb>=0.20 YES=88.6% vs <0.20 YES=83.9%; prior per-asset ceilings removed 2026-05-08
+            if _term_imb < 0.0:
+                continue  # ob_imb floor 0.0 (was 0.20): signal_analysis 25-90s n=2614 solo-fail YES=89.9% vs pass-baseline 76.0%; negative imb in live ep range resolves YES more than gate-passers; existing UP/DOWN ceilings guard high-positive zone
 
             # ── Dead-zone / volatility filters ─────────────────────────────────
             # All three read from closed kline buffers (populated by WS, not REST).
