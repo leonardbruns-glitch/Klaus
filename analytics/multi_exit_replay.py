@@ -184,6 +184,40 @@ def summarise(rule_results: dict) -> None:
               f"{p10:>+6.2f}% {p50:>+6.2f}% {p90:>+6.2f}% {cat:>6.1f}%")
 
 
+def summarise_full_cohort(full_data: dict) -> None:
+    """Print full-cohort table — each rule + HOLD_TO_CLOSE fallback for non-fires.
+
+    Apples-to-apples comparison: every rule scored on every position. If the
+    rule didn't fire, the position falls through to HOLD_TO_CLOSE (last tick),
+    the shadow analog of the live +30s timeout.
+    """
+    all_rules = (
+        list(PT_THRESHOLDS) + list(TIME_EXITS) + list(TRAIL_RULES) +
+        ["depth_collapse", "HOLD_TO_CLOSE"]
+    )
+    print(f"\n{'Rule':<18} {'n':>6} {'fire%':>7} {'WR%':>7} {'avg_pnl':>8} "
+          f"{'p10':>7} {'p50':>7} {'p90':>7} {'cat%':>7}")
+    print("-" * 80)
+    for rule in all_rules:
+        rows = full_data.get(rule, [])
+        n = len(rows)
+        if n == 0:
+            print(f"{rule:<18} {'0':>6}")
+            continue
+        pnls = [p for p, _ in rows]
+        n_fired = sum(1 for _, f in rows if f)
+        fire_pct = n_fired / n * 100
+        wr = sum(1 for p in pnls if p > 0) / n * 100
+        avg = sum(pnls) / n
+        sorted_p = sorted(pnls)
+        p10 = sorted_p[max(0, int(n * 0.10))]
+        p50 = sorted_p[n // 2]
+        p90 = sorted_p[min(n - 1, int(n * 0.90))]
+        cat = sum(1 for p in pnls if p <= -10.0) / n * 100
+        print(f"{rule:<18} {n:>6} {fire_pct:>6.1f}% {wr:>6.1f}% {avg:>+7.2f}% "
+              f"{p10:>+6.2f}% {p50:>+6.2f}% {p90:>+6.2f}% {cat:>6.1f}%")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=3)
@@ -203,6 +237,8 @@ def main():
 
     rule_pnls = defaultdict(list)
     rule_pnls["_total_vpos"] = len(positions)
+    full_data = defaultdict(list)  # rule -> [(pnl, fired_bool), ...] for full-cohort scoring
+    optional_rules = list(PT_THRESHOLDS) + list(TIME_EXITS) + list(TRAIL_RULES) + ["depth_collapse"]
     skipped = 0
 
     for (token_id, wend), ticks in positions.items():
@@ -212,12 +248,23 @@ def main():
         exit_pnls = apply_exit_rules(ticks)
         for rule, pnl in exit_pnls.items():
             rule_pnls[rule].append(pnl)
+        htc = exit_pnls["HOLD_TO_CLOSE"]
+        for rule in optional_rules:
+            if rule in exit_pnls:
+                full_data[rule].append((exit_pnls[rule], True))
+            else:
+                full_data[rule].append((htc, False))
+        full_data["HOLD_TO_CLOSE"].append((htc, True))
 
     print(f"Skipped (< 3 ticks): {skipped}")
 
-    # By gate cohort breakdown
-    print(f"\n=== Multi-Exit Replay — gate_filter={args.gate_filter}, n_vpos={len(positions)} ===")
+    # Fired-only stats (rule pnl conditional on rule firing)
+    print(f"\n=== Multi-Exit Replay — FIRED-ONLY  gate_filter={args.gate_filter}, n_vpos={len(positions)} ===")
     summarise(dict(rule_pnls))
+
+    # Full-cohort stats (rule pnl if fired, else HOLD_TO_CLOSE fallback) — apples-to-apples
+    print(f"\n=== Multi-Exit Replay — FULL-COHORT (rule + HOLD_TO_CLOSE fallback)  n_vpos={len(positions)} ===")
+    summarise_full_cohort(dict(full_data))
 
     # Entry-timing analysis: pnl_pct at HOLD_TO_CLOSE grouped by fire_sec_to_res bucket
     all_ticks_last = []

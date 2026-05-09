@@ -62,9 +62,18 @@ def direction_aware_resolved_yes(res: dict, token_outcome_dir: str) -> bool:
     return ry
 
 
-def load_gate_trace(days: int) -> list:
-    """Load gate_trace rows in terminal zone (25-120s) only. One row per second."""
+def load_gate_trace(days: int, strategy_version: str = "v2") -> list:
+    """Load gate_trace rows in terminal zone (25-120s) only. One row per second.
+
+    strategy_version filter: "v1" | "v2" | "all". Default "v2" — v1 rows have
+    stale gate set (snap30/60, spread, ob_imb_ceil) removed from live 2026-05-09.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    sv_target = {
+        "v1":  "shadow-passive-v1",
+        "v2":  "shadow-passive-v2",
+        "all": None,
+    }[strategy_version]
     rows = []
     for f in sorted(glob.glob(GATE_TRACE_PATTERN)):
         date_str = f.split(os.sep)[-2]
@@ -77,8 +86,11 @@ def load_gate_trace(days: int) -> list:
             for line in fh:
                 r = json.loads(line)
                 sec = r.get("seconds_to_resolution", 0)
-                if 25.0 <= sec <= 120.0:
-                    rows.append(r)
+                if not (25.0 <= sec <= 120.0):
+                    continue
+                if sv_target is not None and r.get("strategy_version") != sv_target:
+                    continue
+                rows.append(r)
     return rows
 
 
@@ -101,12 +113,14 @@ def main():
     parser.add_argument("--days", type=int, default=3)
     parser.add_argument("--min-n", type=int, default=20,
                         help="Minimum n per gate bucket to report")
+    parser.add_argument("--strategy-version", choices=["v1", "v2", "all"], default="v2",
+                        help="Filter gate_trace by shadow strategy version (default: v2 — current live gate set)")
     args = parser.parse_args()
 
-    print(f"Loading gate_trace + window_resolution (last {args.days} days)...")
+    print(f"Loading gate_trace + window_resolution (last {args.days} days, strategy_version={args.strategy_version})...")
     resolutions = load_resolutions(args.days)
-    gate_rows = load_gate_trace(args.days)
-    print(f"  gate_trace rows (terminal zone): {len(gate_rows)}")
+    gate_rows = load_gate_trace(args.days, args.strategy_version)
+    print(f"  gate_trace rows (terminal zone, {args.strategy_version}): {len(gate_rows)}")
 
     first_fires = first_fire_per_window(gate_rows)
     print(f"  unique token×windows (first-fire dedup): {len(first_fires)}")
