@@ -1,99 +1,107 @@
-# Quantitative Audit — 2026-05-09 06:10 UTC
+# Quantitative Audit — 2026-05-09 12:13 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (40th consecutive session)**
+**FAILED — VPS UNREACHABLE (41st consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH port 22 to 85.137.174.86 | `Connection timed out` — binary installed, port 22 blocked at network/firewall level |
-| TCP connectivity | Port 22 egress times out from sandbox (firewall, not binary absence) |
-| logs/live_trades_recent.jsonl (git) | Absent — cron sync not deployed |
-| local logs/trades.jsonl | Absent (not git-tracked) |
-| local logs/post_exit.jsonl | Absent |
+| SSH to root@85.137.174.86:22 | SSH binary absent in sandbox; TCP port 22 egress blocked at network boundary |
+| /tmp/trades.jsonl | 0 lines — SSH pull failed |
+| /tmp/post_exit.jsonl | absent |
+| logs/trades.jsonl (git-tracked) | not present |
+| logs/bankroll.json (local snapshot) | readable — see below |
 
-> Progress from last session: openssh-client installed via apt-get. But TCP port 22 to 85.137.174.86 now times out — egress is filtered at the sandbox network boundary, not missing the binary. Root cause unchanged.
-> No trade data is accessible. All analysis sections reflect INSUFFICIENT_DATA.
+**Bankroll snapshot** (from `logs/bankroll.json`, ts=1778268412 / 2026-05-08 19:26 UTC):
+- capital: $84.61
+- total_trades: 2,605
+- total_pnl: +$87.87
+- consecutive_wins: 0
+- daily_start_capital: $15.95 (stale — from last VPS-connected session)
+
+> Root cause unchanged across 41 sessions: sandbox network blocks TCP port 22 egress.
+> No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
+> All analysis sections below reflect **INSUFFICIENT_DATA**.
+
+---
+
+## Confirmed Current Parameters (from main.py / config.py — NOT from stale prompt defaults)
+
+| Parameter | Code Location | Current Value | Prompt Default | Last Changed |
+|---|---|---|---|---|
+| min_ask (_ask_floor) | main.py:2381 | **0.78** | 0.80 (stale) | 2026-05-07 |
+| max_ask (_ask_max) | main.py:2379 | **0.95** | 0.88 (stale) | 2026-05-08 |
+| min_imbalance (_term_imb gate) | main.py:2437 | **0.20** | 0.20 | unchanged |
+| bond_blocked_hours_utc | config.py:151 | **[]** | [] | unchanged |
+| stop_loss | main.py:2962 | **−15%** (ask×0.85) | −0.15 | unchanged |
+
+> Prompt "current values" for min_ask/max_ask are 2 days stale. Code is the ground truth.
 
 ---
 
 ## 6h Summary
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
-0.80–0.84 bucket: n=0 WR=N/A E=N/A
-0.84–0.88 bucket: n=0 WR=N/A E=N/A
 
-**INSUFFICIENT_DATA** — threshold for ask/imbalance changes: n≥20 in 6h window. Not met.
+**Buckets (ask range, applied to actual floor=0.78 / ceil=0.95):**
+- 0.80–0.84: n=0 WR=N/A E=N/A
+- 0.84–0.88: n=0 WR=N/A E=N/A
+
+**INSUFFICIENT_DATA** — ask/imbalance change threshold: n≥20 in 6h window. Not met.
 
 ## Loss Signatures
-None determinable — no data retrievable.
+None determinable — no trade records accessible.
 
-## OB Imbalance
-No data available.
+## OB Imbalance Breakdown
+| Bucket | n | WR | PF |
+|---|---|---|---|
+| <0.20 | 0 | N/A | N/A |
+| 0.20–0.30 | 0 | N/A | N/A |
+| >0.30 | 0 | N/A | N/A |
 
 ## Slippage
-avg_slippage_entry=N/A
+avg_slippage_entry=N/A (no data)
 
 ---
 
-## Hour Analysis (all-time, 0.80–0.88)
-No trades.jsonl accessible. n=0 per hour — no block/unblock decisions possible (threshold: n≥100/hour).
+## Hour Analysis (all-time, 0.78–0.95 — actual current gates)
+No trades.jsonl accessible. n=0 per hour — block/unblock threshold is n≥100/hour.
 
 | H | n | WR | PF | status |
 |---|---|---|---|---|
 | 00–23 | 0 | N/A | N/A | collecting data |
 
-Current `bond_blocked_hours_utc` (config.py:151): `[]` (all hours unblocked)
-Block threshold: n≥100 per hour AND PF<0.80.
-Unblock threshold: n≥100 per hour AND PF≥0.90.
-Cannot evaluate without data. No change to blocked_hours.
+Current `bond_blocked_hours_utc` (config.py:151): `[]` — all hours open.
+Block criteria: n≥100/hour AND PF<0.80. **Not evaluable.**
+Unblock criteria: hour in blocked set AND n≥100/hour AND PF≥0.90. **Not evaluable.**
+
+No change to blocked_hours.
 
 ---
 
 ## Flags
-**INSUFFICIENT_DATA** — VPS TCP port 22 blocked from sandbox (40th consecutive session).
-n=0 in 6h window (threshold: n≥20 for ask/imbalance changes).
-n=0 per hour all-time in this session (threshold: n≥100/hour for block/unblock decisions).
-
----
-
-## Deployed Parameter State (from main.py + config.py as of HEAD)
-
-| Parameter | Deployed value | Location |
-|---|---|---|
-| ask floor | 0.78 | main.py:2410 (0.80→0.78 2026-05-07) |
-| max_ask | 0.95 | main.py:2408 (0.92→0.95 2026-05-08: n=1724 YES=92.5%) |
-| min_imbalance | 0.20 | main.py:2467 (per-asset ceilings removed 2026-05-08; single floor) |
-| bond_blocked_hours_utc | [] (all hours unblocked) | config.py:151 |
-| stop_loss | ask×0.85 (−15%) | BOND_CATASTROPHIC with 8s wick filter |
-| base_stake | $50.00 | config.py:27 |
-
-> Note: audit prompt listed min_ask=0.80, max_ask=0.88 as "current values" — these are stale. Deployed code shows 0.78/0.95 as of 2026-05-08 commits.
-
-## Bankroll State (git-tracked bankroll.json)
-capital=$84.61 | total_trades=2605 | total_pnl=+$87.87 | saved_ts=2026-05-08 19:26 UTC
-
----
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved
+- No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
+No change warranted. All patch conditions require trade data; none available.
+
 ```json
 {
   "min_ask": 0.78,
   "max_ask": 0.95,
   "min_imbalance": 0.20,
-  "stake": 50.00,
   "stop_loss": -0.15,
-  "blocked_hours": []
+  "blocked_hours": [],
+  "change": false,
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (41st consecutive session)"
 }
 ```
 
-**No parameter changes applied.**
-Reason: zero trade data retrieved from VPS — evidence base for any modification: none.
-INSUFFICIENT_DATA enforced per anti-sycophancy rules.
-
 ---
 
-## Infrastructure Alert — Critical (40 consecutive sessions)
+## Infrastructure Alert — Critical (41 consecutive sessions)
 
-**Root cause**: TCP port 22 egress is blocked at the sandbox network boundary. openssh-client is now installed but all connection attempts to 85.137.174.86:22 time out. No trade data has been accessible for 40 consecutive audit sessions.
+**Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary absent.
+No trade data has been accessible for 41 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
@@ -118,4 +126,4 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-Without log data, the audit is structurally blocked for the 40th consecutive session.
+Without log data, the audit is structurally blocked. Bankroll is healthy ($84.61, +$87.87 PnL) but parameter optimization is blind.
