@@ -62,7 +62,7 @@ def _liquidity_regime(depth: float) -> str:
 #
 # Current live gates replicated here:
 #   ask_floor  0.78  (main.py:2381)
-#   ask_max    0.95  (main.py:2379)
+#   ask_max    0.93  (main.py:2379)
 #   ob_imb     0.20  (main.py:2437)
 #   terminal   25-120s (main.py:_REM_MIN/_REM_MAX)
 #
@@ -72,7 +72,7 @@ def _liquidity_regime(depth: float) -> str:
 #   snap60     (removed earlier)
 #   ob_imb_ceil (not in live code)
 _GATE_ASK_FLOOR    = 0.78
-_GATE_ASK_MAX      = 0.95
+_GATE_ASK_MAX      = 0.93
 _GATE_OB_IMB_FLOOR = 0.0
 
 

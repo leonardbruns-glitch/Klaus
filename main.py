@@ -2376,7 +2376,7 @@ class KlausBot:
             if time.time() - ob.ts > 3.0:
                 continue  # OB snapshot >3s old: WS and REST both lagging, skip entry
             ask = ob.asks[0][0] if ob.asks else None
-            _ask_max = 0.95  # raised 0.92→0.95 2026-05-08: ask[0.92,0.95) YES=92.5% n=1724; exit is bottleneck not entry
+            _ask_max = 0.93  # 0.95→0.93 2026-05-09: enforce 2-cent gap below PT0.95 exit (entries at ask 0.94/0.95 had ≤+1.06% upside; 14% of shadow gated entries in [0.93,0.96) dead zone)
             _elapsed_s = _window_s - remaining
             _ask_floor = 0.78  # 2026-05-07: 0.80→0.78 (gate-survivors [0.78,0.80) n=3 reliable, 3/3 dir-right)
             if ask is None or not (_ask_floor <= ask <= _ask_max):
