@@ -7,6 +7,7 @@ surviving signal family fires:
     AND outcome_dir == "down"
     AND 0.10 <= best_ask <= 0.55
     AND 60 <= seconds_to_resolution <= 240
+    AND window_size_s == 300              (5m markets only — live bot ignores 15m)
 
 Per (token_id, window_end_ts) first-fire dedup. One record per window.
 Raw fields only — no derived features. Joinable to window_resolution.jsonl
@@ -37,6 +38,10 @@ def matches(rec: dict) -> bool:
         return False
     if not (60 <= rem <= 240):
         return False
+    # Live bot trades 5m only (CLAUDE.md). Reject 15m markets so the
+    # recorder matches what we'd actually deploy on.
+    if int(rec.get("window_size_s", 0) or 0) != 300:
+        return False
     return True
 
 
@@ -53,6 +58,7 @@ def build_record(rec: dict, source: str) -> dict:
         "outcome_dir": rec.get("outcome_dir", ""),
         "outcome_side": rec.get("outcome_side", ""),
         "window_end_ts": rec.get("window_end_ts", 0),
+        "window_size_s": rec.get("window_size_s", 0),
         "seconds_to_resolution": rec.get("seconds_to_resolution", 0),
         "best_ask": rec.get("best_ask", 0.0),
         "best_bid": rec.get("best_bid", 0.0),
