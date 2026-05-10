@@ -351,6 +351,12 @@ class KlausBot:
         # (arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-240). Hooked from
         # TimelineSampler via getattr. Zero impact on execution path.
         self.shadow_discover_signal = DiscoverSignalRecorder(self.shadow_pipeline)
+        # Phase 2 Discovery — live entry path (2026-05-10).
+        # GATED OFF (.enabled=False). Activate only after live-vs-replay
+        # validation passes. Per user instruction, BOND must be disabled
+        # when this is enabled — only one strategy active at a time.
+        from strategy.discover_strategy import DiscoverStrategy
+        self.discover_strategy = DiscoverStrategy(self)
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
@@ -2218,6 +2224,17 @@ class KlausBot:
                     logger.error(
                         "BOND SCAN LOOP ERROR (isolated) — bond scan skipped this cycle: %s",
                         _bond_exc, exc_info=True,
+                    )
+                # Phase 2 Discovery live entry path. Internally gated off via
+                # self.discover_strategy.enabled = False; this is a no-op until
+                # explicitly enabled. Isolated try/except so a bug in the
+                # discover path can never block BOND or sniper signals.
+                try:
+                    await self.discover_strategy.scan()
+                except Exception as _disc_exc:
+                    logger.error(
+                        "DISCOVER SCAN ERROR (isolated): %s",
+                        _disc_exc, exc_info=True,
                     )
                 await self._scan_reversal_candidates()
                 if self.research_agent.due():
