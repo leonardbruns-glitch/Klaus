@@ -135,9 +135,13 @@ class DiscoverStrategy:
     def _should_fire(self, token_id: str, token, now: float):
         """Return (signal_class, target_stake_usd, outcome_dir) or None.
 
-        S2: arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-240, $5 stake (validated)
-        S3: arb<0.99 + UP   + ask 0.10-0.30 + rem 180-300, $1 stake
-            (n=72 in backtest; small-stake live test 2026-05-10 per user)
+        S2: arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-180, $5 stake.
+            rem tightened 60-240 -> 60-180 on 2026-05-10: n=160 CI [+0.27,+3.07]
+            cleanly positive vs n=218 rem 60-240 CI [+0.01,+2.31] just barely.
+
+        S3 (UP) was deployed 2026-05-10 22:25 UTC and reverted 2026-05-10 22:35 UTC:
+        the headline EV mixed 5m + 15m windows; 5m-only S3 cell n=105 EV +$1.37
+        CI [-0.22, +2.96] does not pass CI-lo > 0.
         """
         # 5m only
         if int(getattr(token, "window_seconds", 0)) != 300:
@@ -161,24 +165,16 @@ class DiscoverStrategy:
             return None
         ask = ob.asks[0][0]
         ask_size = ob.asks[0][1]
-        # Direction-specific signal cell
+        # S2 (DOWN) only
         outcome_dir = getattr(token, "outcome_direction", "")
-        if outcome_dir == "down":
-            if not (60 <= rem <= 240):
-                return None
-            if not (0.10 <= ask <= 0.55):
-                return None
-            signal_class = "S2"
-            target_stake = 5.00
-        elif outcome_dir == "up":
-            if not (180 <= rem <= 300):
-                return None
-            if not (0.10 <= ask <= 0.30):
-                return None
-            signal_class = "S3"
-            target_stake = 1.00
-        else:
+        if outcome_dir != "down":
             return None
+        if not (60 <= rem <= 180):
+            return None
+        if not (0.10 <= ask <= 0.55):
+            return None
+        signal_class = "S2"
+        target_stake = 5.00
         # Find peer for arb_sum
         cid = getattr(token, "condition_id", "") or ""
         if not cid:
