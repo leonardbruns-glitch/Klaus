@@ -59,11 +59,13 @@ CONTINUOUS_SIGNALS = [
     "tok_decel_ratio",
     "ask_stale_s",
     "seconds_to_resolution",
+    "arb_sum_yes_no",
 ]
 
 # Fields where v=0 is a placeholder ("not computed") rather than a real value.
 # Exclude these from quantile/correlation analysis.
 # Audit 2026-05-09 found binance_ret_30s/60s_pct have ~22% zeros clustering in middle bins.
+# arb_sum_yes_no=0.0 when peer token not yet discovered — exclude those rows.
 PLACEHOLDER_ZERO_FIELDS = {
     "binance_ret_30s_pct",
     "binance_ret_60s_pct",
@@ -72,6 +74,7 @@ PLACEHOLDER_ZERO_FIELDS = {
     "binance_ret_60m_pct",
     "vpin_score",
     "tok_decel_ratio",
+    "arb_sum_yes_no",
 }
 
 # Gates replicated in gate_trace (same keys as gate_results in gate_trace rows)
