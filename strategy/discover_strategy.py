@@ -118,7 +118,8 @@ class DiscoverStrategy:
         }
         for token_id, token in list(self.bot.feed.tokens.items()):
             try:
-                if not self._should_fire(token_id, token, now):
+                spec = self._should_fire(token_id, token, now)
+                if spec is None:
                     continue
                 # Acquire window lock BEFORE await — single-threaded asyncio
                 # makes this race-safe.
@@ -127,44 +128,61 @@ class DiscoverStrategy:
                 if key in self._traded_windows:
                     continue
                 self._traded_windows.add(key)
-                await self._enter(token_id, token, now)
+                await self._enter(token_id, token, now, spec)
             except Exception:
                 logger.exception("[DISCOVER] scan failed token=%s", token_id[:12])
 
-    def _should_fire(self, token_id: str, token, now: float) -> bool:
+    def _should_fire(self, token_id: str, token, now: float):
+        """Return (signal_class, target_stake_usd, outcome_dir) or None.
+
+        S2: arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-240, $5 stake (validated)
+        S3: arb<0.99 + UP   + ask 0.10-0.30 + rem 180-300, $1 stake
+            (n=72 in backtest; small-stake live test 2026-05-10 per user)
+        """
         # 5m only
         if int(getattr(token, "window_seconds", 0)) != 300:
-            return False
+            return None
         # Asset whitelist: BTC + ETH only (SOL EV +$0.32/trade, marginal — blocked 2026-05-10)
         if str(getattr(token, "asset", "")).upper() not in ("BTC", "ETH"):
-            return False
+            return None
         wend = getattr(token, "window_end_ts", 0)
         if wend <= 0:
-            return False
+            return None
         rem = wend - now
-        if not (60 <= rem <= 240):
-            return False
         # Already traded this window?
         if (token_id, int(wend)) in self._traded_windows:
-            return False
+            return None
         # Position open already (other path)?
         if token_id in self.bot.risk.open_positions:
-            return False
+            return None
         # Need order book + peer book for arb
         ob = self.bot.feed.get_order_book(token_id)
         if ob is None or not ob.asks:
-            return False
+            return None
         ask = ob.asks[0][0]
         ask_size = ob.asks[0][1]
-        if not (0.10 <= ask <= 0.55):
-            return False
-        # Outcome direction
-        if getattr(token, "outcome_direction", "") != "down":
-            return False
+        # Direction-specific signal cell
+        outcome_dir = getattr(token, "outcome_direction", "")
+        if outcome_dir == "down":
+            if not (60 <= rem <= 240):
+                return None
+            if not (0.10 <= ask <= 0.55):
+                return None
+            signal_class = "S2"
+            target_stake = 5.00
+        elif outcome_dir == "up":
+            if not (180 <= rem <= 300):
+                return None
+            if not (0.10 <= ask <= 0.30):
+                return None
+            signal_class = "S3"
+            target_stake = 1.00
+        else:
+            return None
         # Find peer for arb_sum
         cid = getattr(token, "condition_id", "") or ""
         if not cid:
-            return False
+            return None
         peer_ask = 0.0
         for ptid, ptok in self.bot.feed.tokens.items():
             if ptid == token_id:
@@ -173,27 +191,28 @@ class DiscoverStrategy:
                 continue
             pob = self.bot.feed.get_order_book(ptid)
             if pob is None or not pob.asks:
-                return False
+                return None
             peer_ask = pob.asks[0][0]
             break
         if peer_ask <= 0:
-            return False
+            return None
         arb_sum = ask + peer_ask
         if not (0.0 < arb_sum < 0.99):
-            return False
+            return None
         # Adaptive feasibility check (same as live execution)
         floor = max(self.entry_floor_usd, self.share_min * ask)
         if ask_size < self.share_min:
-            return False
+            return None
         inventory = ask * ask_size
-        fill = min(self.target_stake, inventory)
+        fill = min(target_stake, inventory)
         if fill < floor:
-            return False
-        return True
+            return None
+        return (signal_class, target_stake, outcome_dir)
 
     # ── Entry ────────────────────────────────────────────────────────────────
 
-    async def _enter(self, token_id: str, token, now: float) -> None:
+    async def _enter(self, token_id: str, token, now: float, spec) -> None:
+        signal_class, target_stake, outcome_dir = spec
         ob = self.bot.feed.get_order_book(token_id)
         ask = ob.asks[0][0]
         ask_size = ob.asks[0][1]
@@ -202,12 +221,13 @@ class DiscoverStrategy:
 
         floor = max(self.entry_floor_usd, self.share_min * ask)
         inventory = ask * ask_size
-        target_fill = min(self.target_stake, inventory)
+        target_fill = min(target_stake, inventory)
         target_fill = max(target_fill, floor)  # ensure floor met (guarded above)
 
         logger.info(
-            "[DISCOVER] enter %s/%s ask=%.4f size=%.1f rem=%.0fs target_fill=$%.2f",
-            token.asset, getattr(token, "side", "?"), ask, ask_size, rem, target_fill,
+            "[DISCOVER:%s] enter %s/%s ask=%.4f size=%.1f rem=%.0fs target_fill=$%.2f dir=%s",
+            signal_class, token.asset, getattr(token, "side", "?"),
+            ask, ask_size, rem, target_fill, outcome_dir,
         )
 
         # Place market_buy via existing OrderManager (handles 5-share min snap).
@@ -262,7 +282,7 @@ class DiscoverStrategy:
                     token.asset.upper(), 0.0
                 ),
                 is_bond=True,
-                bond_outcome_direction="down",
+                bond_outcome_direction=outcome_dir,
                 bond_entry_class="DISCOVER",
             )
         except Exception:
