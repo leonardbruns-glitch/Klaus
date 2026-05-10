@@ -55,7 +55,7 @@ class DiscoverStrategy:
         # token_id -> exit task
         self._exit_tasks: Dict[str, asyncio.Task] = {}
         # Sizing
-        self.target_stake: float = 5.00
+        self.target_stake: float = 3.00
         self.entry_floor_usd: float = 1.00
         self.share_min: int = 5
         # Risk caps (separate from BOND).
@@ -135,7 +135,7 @@ class DiscoverStrategy:
     def _should_fire(self, token_id: str, token, now: float):
         """Return (signal_class, target_stake_usd, outcome_dir) or None.
 
-        S2: arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-180, $5 stake.
+        S2: arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-180, $3 stake.
             rem tightened 60-240 -> 60-180 on 2026-05-10: n=160 CI [+0.27,+3.07]
             cleanly positive vs n=218 rem 60-240 CI [+0.01,+2.31] just barely.
 
@@ -174,7 +174,7 @@ class DiscoverStrategy:
         if not (0.10 <= ask <= 0.55):
             return None
         signal_class = "S2"
-        target_stake = 5.00
+        target_stake = 3.00
         # Find peer for arb_sum
         cid = getattr(token, "condition_id", "") or ""
         if not cid:
