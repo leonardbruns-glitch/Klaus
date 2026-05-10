@@ -1269,8 +1269,11 @@ class KlausBot:
                         self._pae_above_since.pop(token_id, None)
 
                 # ── INVERTED_TP: exit at +75% on inverted (low-price) entries ────
+                # DISCOVER excluded 2026-05-10: must hold to PT0.95 / T-15 / T-5.
                 _inv_tp = pos.entry_price * 1.50
-                if current_price >= _inv_tp and token_id not in self._exit_in_progress:
+                if (current_price >= _inv_tp
+                        and getattr(pos, "bond_entry_class", "") != "DISCOVER"
+                        and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'INVERTED_TP %s/%s | bid=%.4f ep=%.4f tp=%.4f remaining=%.1fs',
