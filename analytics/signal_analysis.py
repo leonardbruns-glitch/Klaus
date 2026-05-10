@@ -49,6 +49,7 @@ CONTINUOUS_SIGNALS = [
     "spread_bps",
     "tok_snap_30s",
     "tok_snap_60s",
+    "binance_vel_5s_pct",
     "binance_ret_30s_pct",
     "binance_ret_60s_pct",
     "binance_ret_5m_pct",
@@ -67,6 +68,7 @@ CONTINUOUS_SIGNALS = [
 # Audit 2026-05-09 found binance_ret_30s/60s_pct have ~22% zeros clustering in middle bins.
 # arb_sum_yes_no=0.0 when peer token not yet discovered — exclude those rows.
 PLACEHOLDER_ZERO_FIELDS = {
+    "binance_vel_5s_pct",
     "binance_ret_30s_pct",
     "binance_ret_60s_pct",
     "binance_ret_5m_pct",

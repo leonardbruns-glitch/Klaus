@@ -204,6 +204,7 @@ class TimelineSampler:
 
         asset_up = token.asset.upper()
         binance_spot = feed._spot_price.get(asset_up, 0.0) or 0.0
+        binance_vel_5s  = self._binance_ret(asset_up, now, 5)
         binance_ret_30s = self._binance_ret(asset_up, now, 30)
         binance_ret_60s = self._binance_ret(asset_up, now, 60)
         binance_ret_5m  = self._binance_ret_5m(asset_up)
@@ -330,6 +331,7 @@ class TimelineSampler:
             "tok_history_seconds": tok_history_seconds,
             # external
             "binance_spot": binance_spot,
+            "binance_vel_5s_pct":  round(binance_vel_5s, 4),
             "binance_ret_30s_pct": round(binance_ret_30s, 4),
             "binance_ret_60s_pct": round(binance_ret_60s, 4),
             "binance_ret_5m_pct":  round(binance_ret_5m, 4),
