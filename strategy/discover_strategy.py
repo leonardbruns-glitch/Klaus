@@ -232,6 +232,9 @@ class DiscoverStrategy:
         tpsl = TPSLLevels(
             take_profit=0.0,
             stop_loss=0.0,
+            tp_pct=0.0,
+            sl_pct=0.0,
+            risk_reward=0.0,
         )
         # Build a minimal "signal" object the risk tracker can read.
         class _Sig:
