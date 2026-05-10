@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-10 12:08 UTC
+# Quantitative Audit — 2026-05-10 18:07 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (45th consecutive session)**
+**FAILED — VPS UNREACHABLE (46th consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -18,7 +18,7 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 45 sessions: sandbox network blocks TCP port 22 egress.
+> Root cause unchanged across 46 sessions: sandbox network blocks TCP port 22 egress.
 > SSH binary is absent — the block is at the network boundary.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
@@ -31,7 +31,7 @@
 |---|---|---|---|
 | min_ask (_ask_floor) | main.py:2381 | **0.78** | Lowered from 0.80 on 2026-05-07 |
 | max_ask (_ask_max) | main.py:2379 | **0.93** | Lowered from 0.95→0.93 on 2026-05-09 |
-| min_imbalance (_term_imb gate) | main.py:2438 | **0.0** | Relaxed from 0.20 on 2026-05-09; negative imb still blocked |
+| min_imbalance (_term_imb gate) | main.py:2437–2438 | **0.0** | Negative imb blocked; positive imb passes |
 | bond_blocked_hours_utc | config.py:151 | **[]** | All hours open |
 | stop_loss | main.py | **−15%** (ask×0.85) | Unchanged |
 
@@ -44,8 +44,8 @@
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
 
 **Buckets (ask range, applied to actual floor=0.78 / ceil=0.93):**
-- 0.80–0.84: n=0 WR=N/A E=N/A
-- 0.84–0.88: n=0 WR=N/A E=N/A
+- 0.78–0.84: n=0 WR=N/A E=N/A
+- 0.84–0.93: n=0 WR=N/A E=N/A
 
 **INSUFFICIENT_DATA** — ask/imbalance change threshold: n≥20 in 6h window. Not met.
 
@@ -55,12 +55,12 @@ None determinable — no trade records accessible.
 ## OB Imbalance Breakdown
 | Bucket | n | WR | PF |
 |---|---|---|---|
-| <0.00 (blocked) | 0 | N/A | N/A |
+| <0.00 (blocked via gate) | 0 | N/A | N/A |
 | 0.00–0.20 | 0 | N/A | N/A |
 | 0.20–0.30 | 0 | N/A | N/A |
 | >0.30 | 0 | N/A | N/A |
 
-Note: `min_imbalance` floor is now 0.0 (relaxed 2026-05-09). Negative imb still blocked via `< 0.0` gate.
+Note: `min_imbalance` floor is 0.0 (relaxed 2026-05-09). Negative imb blocked at main.py:2437.
 
 ## Slippage
 avg_slippage_entry=N/A (no data)
@@ -83,7 +83,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (45th consecutive session)
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (46th consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -97,16 +97,16 @@ No change warranted. All patch conditions require trade data; none available.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (45th consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (46th consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (45 consecutive sessions)
+## Infrastructure Alert — Critical (46 consecutive sessions)
 
 **Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary is absent.
-No trade data has been accessible for 45 consecutive audit sessions.
+No trade data has been accessible for 46 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
