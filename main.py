@@ -1286,7 +1286,9 @@ class KlausBot:
                 # ── PROFIT_TARGET: exit at bid ≥ 0.95 ───────────────────────────
                 # Lowered 0.99→0.95 on 2026-05-08 (audit n=219 4-day live: PT0.95+30s
                 # would have saved $155, cat-rate 16.9%→0.5%). Live PT 0.99 fillok ~2%.
-                if current_price >= 0.95 and token_id not in self._exit_in_progress:
+                # DISCOVER opted in 2026-05-10 (user instruction).
+                if (current_price >= 0.95
+                        and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'PROFIT_TARGET %s/%s | bid=%.4f ep=%.4f remaining=%.1fs',
@@ -1330,6 +1332,7 @@ class KlausBot:
                     pos.open_ts > 0
                     and pos.window_end_ts > 0
                     and (pos.window_end_ts - pos.open_ts) > 180.0
+                    and getattr(pos, "bond_entry_class", "") != "DISCOVER"
                 )
                 if (_is_early_entry
                         and bond_remaining <= 60.0
@@ -1355,6 +1358,24 @@ class KlausBot:
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'BOND_TIME_EXIT')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── DISCOVER T-5 deadline backup ─────────────────────────────────
+                # Primary exit is the T-15 asyncio task in discover_strategy.py.
+                # This is a safety net if that task dies (exception, restart).
+                # Fires before BOND_DEADLINE T-3 to leave cascade_sell room.
+                if (getattr(pos, "bond_entry_class", "") == "DISCOVER"
+                        and bond_remaining <= 5.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'DISCOVER_DEADLINE %s/%s | remaining=%.1fs — T-5 backup exit bid=%.4f',
+                        pos.asset, pos.direction.name, bond_remaining, current_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'DISCOVER_DEADLINE')
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue

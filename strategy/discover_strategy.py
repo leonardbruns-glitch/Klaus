@@ -38,7 +38,6 @@ import time
 from datetime import datetime, timezone
 from typing import Optional, Set, Tuple, Dict
 
-from data.shadow.discover_signal import matches as signal_matches
 from strategy.momentum import Direction, TPSLLevels
 
 logger = logging.getLogger(__name__)
@@ -47,8 +46,10 @@ logger = logging.getLogger(__name__)
 class DiscoverStrategy:
     def __init__(self, bot) -> None:
         self.bot = bot
-        # GATED OFF — must be explicitly flipped at runtime.
-        self.enabled: bool = False
+        # ACTIVE 2026-05-10: switched on at restart together with BOND_ENABLED=False.
+        # Flip back to False to disable; flip BOND_ENABLED=True in window_sniper.py
+        # to revert to the prior strategy. Only one of the two should be True.
+        self.enabled: bool = True
         # Per-window dedup: (token_id, window_end_ts).
         self._traded_windows: Set[Tuple[str, int]] = set()
         # token_id -> exit task
@@ -57,10 +58,13 @@ class DiscoverStrategy:
         self.target_stake: float = 5.00
         self.entry_floor_usd: float = 1.00
         self.share_min: int = 5
-        # Risk caps (separate from BOND)
-        self.daily_loss_limit: float = -10.00
+        # Risk caps (separate from BOND).
+        # 2026-05-10: user-authorised override — no killswitches for this run.
+        # daily_loss_limit and consecutive_loss_halt set to values that cannot
+        # trigger. max_concurrent kept at 3 as a position-sizing bound, not a halt.
+        self.daily_loss_limit: float = float("-inf")
         self.max_concurrent: int = 3
-        self.consecutive_loss_halt: int = 5
+        self.consecutive_loss_halt: int = 10**9
         # State
         self._daily_pnl: float = 0.0
         self._daily_pnl_date: str = ""
@@ -208,7 +212,7 @@ class DiscoverStrategy:
             token_id=token_id,
             intended_price=ask,
             stake_usd=target_fill,
-            direction=Direction.YES_DOWN,
+            direction=Direction.BUY_YES,
             neg_risk=getattr(token, "neg_risk", False),
             tick_size=getattr(token, "tick_size", "0.01"),
         )
@@ -233,14 +237,14 @@ class DiscoverStrategy:
         class _Sig:
             signal_source = "DISCOVER"
             entry_price = fill.avg_fill_price
-            direction = Direction.YES_DOWN
+            direction = Direction.BUY_YES
         sig = _Sig()
 
         try:
             self.bot.risk.open_position(
                 token_id=token_id,
                 asset=token.asset,
-                direction=Direction.YES_DOWN,
+                direction=Direction.BUY_YES,
                 stake=actual_stake,
                 entry_price=fill.avg_fill_price,
                 tpsl=tpsl,
@@ -251,17 +255,13 @@ class DiscoverStrategy:
                 binance_price_at_entry=self.bot.feed._spot_price.get(
                     token.asset.upper(), 0.0
                 ),
+                is_bond=True,
+                bond_outcome_direction="down",
                 bond_entry_class="DISCOVER",
             )
         except Exception:
             logger.exception("[DISCOVER] risk.open_position failed %s", token.asset)
             return
-
-        # Mark is_bond=True after open so position monitor leaves us alone
-        pos = self.bot.risk.open_positions.get(token_id)
-        if pos is not None:
-            pos.is_bond = True
-            pos.bond_entry_class = "DISCOVER"
 
         # Schedule T-15 sell.
         exit_at = wend - self.exit_before_end_s
@@ -285,6 +285,9 @@ class DiscoverStrategy:
                 return
             ob = self.bot.feed.get_order_book(token_id)
             cur_bid = ob.bids[0][0] if (ob and ob.bids) else 0.0
+            tok = self.bot.feed.tokens.get(token_id)
+            _neg = bool(getattr(tok, "neg_risk", False)) if tok else False
+            _tick = str(getattr(tok, "tick_size", "0.01")) if tok else "0.01"
             logger.info(
                 "[DISCOVER] T-15 sell %s shares=%.4f bid=%.4f",
                 asset, shares, cur_bid,
@@ -294,8 +297,8 @@ class DiscoverStrategy:
                 total_shares=shares,
                 current_price=cur_bid,
                 reason="DISCOVER_T15",
-                neg_risk=False,
-                tick_size="0.01",
+                neg_risk=_neg,
+                tick_size=_tick,
                 force_exit=True,
             )
             # P&L bookkeeping (rough — use first-fill price; risk manager will

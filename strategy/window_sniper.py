@@ -130,9 +130,9 @@ CONTRARIAN_DELTA_ENABLED  = False  # disabled: 4W/5L net=-$5.93 — correlated m
 CONTRARIAN_DELTA_MIN_PCT  = 0.050   # minimum abs Binance delta to trigger contrarian
 CONTRARIAN_DELTA_MAX_PCT  = 0.060   # maximum abs Binance delta to trigger contrarian
 
-BOND_ENABLED = True   # re-enabled 2026-04-15: back to high-prob tokens 0.70–0.90
-                      # prior losses attributed to high-volatility bear conditions
-                      # thesis: works in quiet/trending markets — capture final walk to resolution
+BOND_ENABLED = False  # disabled 2026-05-10: switched to DISCOVER strategy (Phase 2 live entry).
+                      # Only one strategy active at a time per user instruction; flip this back
+                      # to True and set bot.discover_strategy.enabled=False to revert.
 SNIPER_ENABLED = False  # disabled 2026-04-16: isolating BOND instant-sell bug
 MOM_ENABLED = False     # disabled 2026-04-22: bond-only while exit state machine stabilises
 
