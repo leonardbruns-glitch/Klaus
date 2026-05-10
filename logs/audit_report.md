@@ -1,13 +1,13 @@
-# Quantitative Audit — 2026-05-10 00:03 UTC
+# Quantitative Audit — 2026-05-10 06:20 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (43rd consecutive session)**
+**FAILED — VPS UNREACHABLE (44th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH to root@85.137.174.86:22 | SSH binary absent in sandbox; TCP port 22 egress blocked at network boundary |
+| SSH to root@85.137.174.86:22 | TCP port 22 egress blocked at network boundary (connection timeout) |
 | /tmp/trades.jsonl | 0 lines — SSH pull failed |
-| /tmp/post_exit.jsonl | absent |
+| /tmp/post_exit.jsonl | 0 lines — SSH pull failed |
 | logs/trades.jsonl (git-tracked) | not present |
 | logs/bankroll.json (local snapshot) | readable — see below |
 
@@ -18,7 +18,8 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 43 sessions: sandbox network blocks TCP port 22 egress.
+> Root cause unchanged across 44 sessions: sandbox network blocks TCP port 22 egress.
+> SSH client is now installed (openssh-client) but TCP connection times out — the block is at the network boundary, not missing binary.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
 
@@ -32,10 +33,10 @@
 | max_ask (_ask_max) | main.py:2379 | **0.93** | Lowered from 0.95→0.93 on 2026-05-09 |
 | min_imbalance (_term_imb gate) | main.py:2437 | **0.0** | Relaxed from 0.20 on 2026-05-09; negative imb still blocked |
 | bond_blocked_hours_utc | config.py:151 | **[]** | All hours open |
-| stop_loss | main.py:2962 | **−15%** (ask×0.85) | Unchanged |
+| stop_loss | main.py | **−15%** (ask×0.85) | Unchanged |
 
 > **Note**: The prompt "current values" (min_ask=0.80, max_ask=0.88, min_imbalance=0.20) are all stale.
-> Code is the ground truth.
+> Code is the ground truth. Parameters confirmed by direct file reads this session.
 
 ---
 
@@ -82,7 +83,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (43rd consecutive session)
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (44th consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -96,16 +97,16 @@ No change warranted. All patch conditions require trade data; none available.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (43rd consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (44th consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (43 consecutive sessions)
+## Infrastructure Alert — Critical (44 consecutive sessions)
 
-**Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary absent.
-No trade data has been accessible for 43 consecutive audit sessions.
+**Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH client now installed but connection times out — IP-level block, not missing binary.
+No trade data has been accessible for 44 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
@@ -130,4 +131,4 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-Without log data, the audit is structurally blocked. Bankroll is healthy ($84.61, +$87.87 PnL) but parameter optimization is blind.
+Without log data, the audit is structurally blocked. Bankroll snapshot (2026-05-08 19:26 UTC) shows healthy state ($84.61, +$87.87 PnL on 2,605 trades) but parameter optimization is blind — no entry/exit details accessible.
