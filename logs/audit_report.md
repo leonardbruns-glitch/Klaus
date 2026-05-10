@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-09 18:06 UTC
+# Quantitative Audit — 2026-05-10 00:03 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (42nd consecutive session)**
+**FAILED — VPS UNREACHABLE (43rd consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -18,7 +18,7 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 42 sessions: sandbox network blocks TCP port 22 egress.
+> Root cause unchanged across 43 sessions: sandbox network blocks TCP port 22 egress.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
 
@@ -26,24 +26,23 @@
 
 ## Confirmed Current Parameters (from main.py / config.py — ground truth)
 
-| Parameter | Code Location | Current Value | Prompt Default | Last Changed |
-|---|---|---|---|---|
-| min_ask (_ask_floor) | main.py:2381 | **0.78** | 0.80 (stale) | 2026-05-07 |
-| max_ask (_ask_max) | main.py:2379 | **0.95** | 0.88 (stale) | 2026-05-08 |
-| min_imbalance (_term_imb gate) | main.py:2437 | **0.0** | 0.20 (stale) | 2026-05-09 (today) |
-| bond_blocked_hours_utc | config.py:151 | **[]** | [] | unchanged |
-| stop_loss | main.py:2962 | **−15%** (ask×0.85) | −0.15 | unchanged |
+| Parameter | Code Location | Current Value | Notes |
+|---|---|---|---|
+| min_ask (_ask_floor) | main.py:2381 | **0.78** | Lowered from 0.80 on 2026-05-07 |
+| max_ask (_ask_max) | main.py:2379 | **0.93** | Lowered from 0.95→0.93 on 2026-05-09 |
+| min_imbalance (_term_imb gate) | main.py:2437 | **0.0** | Relaxed from 0.20 on 2026-05-09; negative imb still blocked |
+| bond_blocked_hours_utc | config.py:151 | **[]** | All hours open |
+| stop_loss | main.py:2962 | **−15%** (ask×0.85) | Unchanged |
 
 > **Note**: The prompt "current values" (min_ask=0.80, max_ask=0.88, min_imbalance=0.20) are all stale.
-> Code is the ground truth. `min_imbalance` was relaxed 0.20→0.0 today (commit 69d4028) based on
-> shadow data: solo-fail tokens (imb<0.20) resolved YES at 89.9% vs gate-pass baseline 76.0%.
+> Code is the ground truth.
 
 ---
 
 ## 6h Summary
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
 
-**Buckets (ask range, applied to actual floor=0.78 / ceil=0.95):**
+**Buckets (ask range, applied to actual floor=0.78 / ceil=0.93):**
 - 0.80–0.84: n=0 WR=N/A E=N/A
 - 0.84–0.88: n=0 WR=N/A E=N/A
 
@@ -55,18 +54,19 @@ None determinable — no trade records accessible.
 ## OB Imbalance Breakdown
 | Bucket | n | WR | PF |
 |---|---|---|---|
-| <0.20 | 0 | N/A | N/A |
+| <0.00 (blocked) | 0 | N/A | N/A |
+| 0.00–0.20 | 0 | N/A | N/A |
 | 0.20–0.30 | 0 | N/A | N/A |
 | >0.30 | 0 | N/A | N/A |
 
-Note: `min_imbalance` floor is now 0.0 (relaxed today). The <0.20 bucket will now be live.
+Note: `min_imbalance` floor is now 0.0 (relaxed 2026-05-09). Negative imb still blocked via `< 0.0` gate.
 
 ## Slippage
 avg_slippage_entry=N/A (no data)
 
 ---
 
-## Hour Analysis (all-time, 0.78–0.95 — actual current gates)
+## Hour Analysis (all-time, 0.78–0.93 — actual current gates)
 No trades.jsonl accessible. n=0 per hour — block/unblock threshold is n≥100/hour.
 
 | H | n | WR | PF | status |
@@ -82,7 +82,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (42nd consecutive session)
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (43rd consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -91,21 +91,21 @@ No change warranted. All patch conditions require trade data; none available.
 ```json
 {
   "min_ask": 0.78,
-  "max_ask": 0.95,
+  "max_ask": 0.93,
   "min_imbalance": 0.0,
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (42nd consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (43rd consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (42 consecutive sessions)
+## Infrastructure Alert — Critical (43 consecutive sessions)
 
 **Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary absent.
-No trade data has been accessible for 42 consecutive audit sessions.
+No trade data has been accessible for 43 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
