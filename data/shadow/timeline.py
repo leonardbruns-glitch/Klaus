@@ -154,6 +154,11 @@ class TimelineSampler:
                     if gt is not None:
                         _exit_pol.register_first_fire(rec, gt)
                     _exit_pol.evaluate_tick(rec)
+                # Phase 2 Discovery — Step 3 passive recorder (2026-05-10).
+                # Strict signal filter; first-fire-per-window dedup.
+                _disc = getattr(self.bot, "shadow_discover_signal", None)
+                if _disc is not None:
+                    _disc.maybe_emit(rec, self.pipe)
                 # Schedule window resolution (idempotent per cid+wend).
                 # Mirrors live bot's _capture_resolution scheduling pattern —
                 # task sleeps until window_end_ts+35s then fetches kline,

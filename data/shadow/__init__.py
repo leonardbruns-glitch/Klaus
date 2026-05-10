@@ -15,10 +15,11 @@ from .pipeline import ShadowPipeline
 from .timeline import TimelineSampler
 from .resolution import ResolutionWriter
 from .exit_policy import ExitPolicyShadow
+from .discover_signal import DiscoverSignalRecorder
 from .trade import emit_token_trade, emit_binance_trade
 
 __all__ = [
     "HoldPathSampler", "ShadowPipeline", "TimelineSampler", "ResolutionWriter",
-    "ExitPolicyShadow",
+    "ExitPolicyShadow", "DiscoverSignalRecorder",
     "emit_token_trade", "emit_binance_trade",
 ]

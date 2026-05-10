@@ -57,7 +57,7 @@ _PRE_SCORE_SCHEMA_HASH = hashlib.sha256(
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
-from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter, ExitPolicyShadow, emit_token_trade, emit_binance_trade
+from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter, ExitPolicyShadow, DiscoverSignalRecorder, emit_token_trade, emit_binance_trade
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
 from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED, MOM_ENABLED
 from risk.manager import RiskManager, ExitStage
@@ -346,6 +346,11 @@ class KlausBot:
         # Exit-policy shadow (Deliverable 3 of 2026-05-08 audit). Hooks into
         # TimelineSampler via getattr; no start/stop needed (stateless writer).
         self.shadow_exit_policy = ExitPolicyShadow(self.shadow_pipeline)
+        # Phase 2 Discovery — Step 3 passive recorder (2026-05-10).
+        # Records first-fire raw state for the single surviving signal family
+        # (arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-240). Hooked from
+        # TimelineSampler via getattr. Zero impact on execution path.
+        self.shadow_discover_signal = DiscoverSignalRecorder(self.shadow_pipeline)
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
