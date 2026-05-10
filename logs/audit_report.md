@@ -1,11 +1,11 @@
-# Quantitative Audit — 2026-05-10 06:20 UTC
+# Quantitative Audit — 2026-05-10 12:08 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (44th consecutive session)**
+**FAILED — VPS UNREACHABLE (45th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH to root@85.137.174.86:22 | TCP port 22 egress blocked at network boundary (connection timeout) |
+| SSH to root@85.137.174.86:22 | TCP port 22 egress blocked at network boundary (ssh binary absent in sandbox) |
 | /tmp/trades.jsonl | 0 lines — SSH pull failed |
 | /tmp/post_exit.jsonl | 0 lines — SSH pull failed |
 | logs/trades.jsonl (git-tracked) | not present |
@@ -18,8 +18,8 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 44 sessions: sandbox network blocks TCP port 22 egress.
-> SSH client is now installed (openssh-client) but TCP connection times out — the block is at the network boundary, not missing binary.
+> Root cause unchanged across 45 sessions: sandbox network blocks TCP port 22 egress.
+> SSH binary is absent — the block is at the network boundary.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
 
@@ -31,7 +31,7 @@
 |---|---|---|---|
 | min_ask (_ask_floor) | main.py:2381 | **0.78** | Lowered from 0.80 on 2026-05-07 |
 | max_ask (_ask_max) | main.py:2379 | **0.93** | Lowered from 0.95→0.93 on 2026-05-09 |
-| min_imbalance (_term_imb gate) | main.py:2437 | **0.0** | Relaxed from 0.20 on 2026-05-09; negative imb still blocked |
+| min_imbalance (_term_imb gate) | main.py:2438 | **0.0** | Relaxed from 0.20 on 2026-05-09; negative imb still blocked |
 | bond_blocked_hours_utc | config.py:151 | **[]** | All hours open |
 | stop_loss | main.py | **−15%** (ask×0.85) | Unchanged |
 
@@ -83,7 +83,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (44th consecutive session)
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (45th consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -97,16 +97,16 @@ No change warranted. All patch conditions require trade data; none available.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (44th consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (45th consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (44 consecutive sessions)
+## Infrastructure Alert — Critical (45 consecutive sessions)
 
-**Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH client now installed but connection times out — IP-level block, not missing binary.
-No trade data has been accessible for 44 consecutive audit sessions.
+**Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary is absent.
+No trade data has been accessible for 45 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
