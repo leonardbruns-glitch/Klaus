@@ -357,13 +357,12 @@ class KlausBot:
         # when this is enabled — only one strategy active at a time.
         from strategy.discover_strategy import DiscoverStrategy
         self.discover_strategy = DiscoverStrategy(self)
-        # Oracle sweep — exploits 35s Chainlink latency window.
-        # Direction is correct. Exit at T+31s often finds empty CLOB; Redeemer handles cleanup.
-        from strategy.oracle_sweep import OracleSweeper
-        self.oracle_sweeper = OracleSweeper(self)
-        # Gap sweeper — exploits MM silence gaps (B2).
-        from strategy.gap_sweeper import GapSweeper
-        self.gap_sweeper = GapSweeper(self)
+        # Oracle sweep DISABLED — direction inversion confirmed: tokens["up"] buys the
+        # losing side consistently. All A1/A2/A3 positions resolved against us.
+        # Root cause not yet identified. Do not re-enable until direction mapping is audited.
+        self.oracle_sweeper = None
+        # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
+        self.gap_sweeper = None
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
@@ -448,7 +447,8 @@ class KlausBot:
         await self.shadow_pipeline.start()
         await self.shadow_timeline.start()
         await self.shadow_resolution.start()
-        await self.gap_sweeper.start()
+        if self.gap_sweeper is not None:
+            await self.gap_sweeper.start()
         # Wire shadow trade-tape callbacks (event-driven; persist what feeds.py
         # currently discards: Polymarket trades + Binance aggTrades).
         self.feed._shadow_emit_clob_trade = lambda token_id, ev: emit_token_trade(
@@ -469,7 +469,8 @@ class KlausBot:
         # so Binance forceOrder events are persisted (previously memory-only).
         self.feed._shadow_pipeline = self.shadow_pipeline
         # Gap sweeper: wire ob_delta callback so GapSweeper tracks last-quote timestamps.
-        self.feed._gap_sweeper_cb = self.gap_sweeper.on_ob_event
+        if self.gap_sweeper is not None:
+            self.feed._gap_sweeper_cb = self.gap_sweeper.on_ob_event
 
     async def stop(self) -> None:
         self._running = False
