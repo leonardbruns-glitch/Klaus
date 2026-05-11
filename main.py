@@ -549,7 +549,7 @@ class KlausBot:
                 return
             if pos.entry_price <= 0:
                 return
-            if bid_price >= 0.95:
+            if bid_price >= 0.99:
                 self._exit_in_progress.add(token_id)
                 logger.info(
                     "PROFIT_TARGET(WS) %s/%s | bid=%.4f ep=%.4f",
@@ -1286,11 +1286,10 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # ── PROFIT_TARGET: exit at bid ≥ 0.95 ───────────────────────────
-                # Lowered 0.99→0.95 on 2026-05-08 (audit n=219 4-day live: PT0.95+30s
-                # would have saved $155, cat-rate 16.9%→0.5%). Live PT 0.99 fillok ~2%.
-                # DISCOVER opted in 2026-05-10 (user instruction).
-                if (current_price >= 0.95
+                # ── PROFIT_TARGET: exit at bid ≥ 0.99 ───────────────────────────
+                # Raised 0.95→0.99 on 2026-05-11 (user instruction: DISCOVER hold to
+                # near-certainty, otherwise time exit only).
+                if (current_price >= 0.99
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
