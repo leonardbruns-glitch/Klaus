@@ -146,8 +146,8 @@ class DiscoverStrategy:
         # 5m only
         if int(getattr(token, "window_seconds", 0)) != 300:
             return None
-        # Asset whitelist: BTC + ETH only (SOL EV +$0.32/trade, marginal — blocked 2026-05-10)
-        if str(getattr(token, "asset", "")).upper() not in ("BTC", "ETH"):
+        # Asset whitelist: ETH only (BTC backtest CI clips zero n=74, live -$18.48 n=13 — blocked 2026-05-11)
+        if str(getattr(token, "asset", "")).upper() not in ("ETH",):
             return None
         wend = getattr(token, "window_end_ts", 0)
         if wend <= 0:
