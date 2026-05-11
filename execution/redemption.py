@@ -112,17 +112,20 @@ class Redeemer:
             return
 
         positions = resp.json()
+        # Settled winning tokens always show curPrice=0 in the data API (market closed).
+        # curPrice >= 0.95 check was wrong — redeemable=True is the correct signal.
         winning = [
             p for p in positions
             if p.get("redeemable")
-            and (p.get("curPrice") or 0) >= 0.95
             and (p.get("size") or 0) > 0
             and p.get("asset") not in self._redeemed
         ]
 
         if not winning:
-            logger.debug("REDEEM no winning redeemable positions found")
+            logger.debug("REDEEM no redeemable positions found")
             return
+        logger.info("REDEEM found %d redeemable positions (%.2f total shares)",
+                    len(winning), sum(float(p.get("size", 0)) for p in winning))
 
         for pos in winning:
             token_id = pos["asset"]

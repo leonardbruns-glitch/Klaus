@@ -357,8 +357,8 @@ class OracleSweeper:
         if total_shares <= 0:
             return
 
-        # Schedule exit sell at ORACLE_FIRES_S - 2s
-        exit_wait = max(0.5, (wend + ORACLE_FIRES_S - 2) - time.time())
+        # Exit at T+5s: CLOB bids still exist; T+31s (oracle fires) book is empty
+        exit_wait = max(0.5, (wend + 5.0) - time.time())
         logger.info(
             "oracle_sweep: scheduling exit in %.1fs (%.4f shares, cost=$%.2f)",
             exit_wait, total_shares, total_spent,
