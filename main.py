@@ -57,7 +57,7 @@ _PRE_SCORE_SCHEMA_HASH = hashlib.sha256(
 
 from config import CONFIG
 from data.feeds import PolymarketFeed
-from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter, ExitPolicyShadow, DiscoverSignalRecorder, emit_token_trade, emit_binance_trade
+from data.shadow import ShadowPipeline, TimelineSampler, ResolutionWriter, ExitPolicyShadow, DiscoverSignalRecorder, emit_token_trade, emit_binance_trade, emit_ob_delta
 from strategy.momentum import MomentumScorer, Direction, FeeZone, SignalBreakdown, calculate_tp_sl, TPSLLevels
 from strategy.window_sniper import WindowSniper, SniperBlock, SniperSignal, _session_min_delta, CONTRARIAN_MAX_ASK, CONTRARIAN_DELTA_ENABLED, BOND_ENABLED, SNIPER_ENABLED, MOM_ENABLED
 from risk.manager import RiskManager, ExitStage
@@ -448,6 +448,11 @@ class KlausBot:
         )
         self.feed._shadow_emit_binance_trade = lambda asset, price, qty, ibm, ets: emit_binance_trade(
             self.shadow_pipeline, asset, price, qty, ibm, ets
+        )
+        # Tier 1: OB delta event-stream recorder. Fires from feeds.py per WS
+        # price_change/best_bid_ask. Top-5-level filter inside the emitter.
+        self.feed._shadow_emit_ob_delta = lambda token_id, ev: emit_ob_delta(
+            self.shadow_pipeline, self, token_id, ev
         )
 
     async def stop(self) -> None:

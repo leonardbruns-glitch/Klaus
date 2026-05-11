@@ -309,6 +309,11 @@ class PolymarketFeed:
         # Both are non-blocking sync calls; ShadowPipeline.emit drops on full.
         self._shadow_emit_clob_trade = None
         self._shadow_emit_binance_trade = None
+        # Tier 1: per-event OB delta recorder. Set by main.py after pipeline
+        # starts. Fired from _handle_clob_ws_event for price_change /
+        # best_bid_ask events BEFORE the OB-rebuild section (so the pre-event
+        # snapshot is available for context).
+        self._shadow_emit_ob_delta = None
         # VPIN trackers per asset (fed from Binance aggTrade WebSocket)
         self.vpin_trackers: Dict[str, VPINTracker] = {
             "BTC": VPINTracker(),
@@ -559,6 +564,14 @@ class PolymarketFeed:
             token = self.tokens.get(asset_id)
             if token is None:
                 return
+            # Tier 1: emit ob_delta BEFORE the OB-rebuild so the pre-event
+            # snapshot is the reference for level-rank/BBO context. Fully
+            # non-blocking; emitter must not raise.
+            if self._shadow_emit_ob_delta is not None:
+                try:
+                    self._shadow_emit_ob_delta(asset_id, ev)
+                except Exception:
+                    logger.debug("shadow ob_delta emit failed", exc_info=True)
             bids_raw = ev.get("bids", [])
             asks_raw = ev.get("asks", [])
             # best_bid_ask event has single price/size fields

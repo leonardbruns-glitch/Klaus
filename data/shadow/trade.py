@@ -15,7 +15,7 @@ Fired non-blocking through ShadowPipeline.emit (drop-on-full).
 """
 import time
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # v2 adds transaction_hash + fee_rate_bps to token_trade (additive)
 
 
 def _exchange_ts_ms(ev: dict) -> int:
@@ -65,6 +65,15 @@ def emit_token_trade(pipeline, bot, token_id: str, ev: dict) -> None:
     if isinstance(side, str):
         side = side.upper()
 
+    # v2 additive fields — used downstream for on-chain wallet lookup (whale
+    # tracking, toxic-counterparty markout) and net-of-fee markout analysis.
+    # Both are pushed by Polymarket WS but currently discarded; empty/NaN if absent.
+    transaction_hash = str(ev.get("transaction_hash", "") or "")
+    try:
+        fee_rate_bps = float(ev.get("fee_rate_bps")) if ev.get("fee_rate_bps") is not None else None
+    except (TypeError, ValueError):
+        fee_rate_bps = None
+
     now = time.time()
     wend = int(getattr(token, "window_end_ts", 0))
     remaining = (wend - now) if wend else 0.0
@@ -85,6 +94,8 @@ def emit_token_trade(pipeline, bot, token_id: str, ev: dict) -> None:
         "price": round(price, 4),
         "size": round(size, 4),
         "side": side,  # taker direction if reported; '' if absent
+        "transaction_hash": transaction_hash,  # v2: Polygon settlement hash
+        "fee_rate_bps": fee_rate_bps,          # v2: per-trade fee rate
     })
 
 

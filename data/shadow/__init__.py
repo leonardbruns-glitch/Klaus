@@ -17,9 +17,10 @@ from .resolution import ResolutionWriter
 from .exit_policy import ExitPolicyShadow
 from .discover_signal import DiscoverSignalRecorder
 from .trade import emit_token_trade, emit_binance_trade
+from .ob_delta import emit_ob_delta
 
 __all__ = [
     "HoldPathSampler", "ShadowPipeline", "TimelineSampler", "ResolutionWriter",
     "ExitPolicyShadow", "DiscoverSignalRecorder",
-    "emit_token_trade", "emit_binance_trade",
+    "emit_token_trade", "emit_binance_trade", "emit_ob_delta",
 ]
