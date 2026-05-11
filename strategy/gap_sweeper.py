@@ -42,6 +42,7 @@ from typing import Any, Dict, Optional, Set
 
 import aiohttp
 
+from risk.manager import PositionMeta
 from strategy.momentum import Direction
 
 logger = logging.getLogger(__name__)
@@ -261,6 +262,23 @@ class GapSweeper:
                 )
                 self._emit_shadow(asset, outcome_dir, token_id, ask_price,
                                   result.total_size, spent, gap_s, move_pct, wend)
+                # Register in risk so orphan scanner doesn't force-sell early
+                self.bot.risk.open_positions[token_id] = PositionMeta(
+                    token_id=token_id,
+                    asset=asset,
+                    direction=Direction.BUY_YES,
+                    stake=spent,
+                    entry_price=ask_price,
+                    tp=0.99,
+                    sl=0.01,
+                    shares=result.total_size,
+                    remaining_shares=result.total_size,
+                    window_end_ts=float(wend),
+                    is_bond=True,
+                    bond_entry_class="GAP_SWEEP",
+                    bond_outcome_direction=outcome_dir,
+                    bond_exit_sec=15,
+                )
                 exit_delay = max(1.0, rem - 15.0)
                 asyncio.create_task(
                     self._exit_at(token_id, result.total_size, exit_delay, asset),
@@ -300,6 +318,7 @@ class GapSweeper:
                 reason="gap_sweep_exit",
                 force_exit=True,
             )
+            self.bot.risk.open_positions.pop(token_id, None)
         except Exception as exc:
             logger.debug("gap_sweeper exit error: %s", exc)
 
