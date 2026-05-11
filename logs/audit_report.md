@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-11 00:18 UTC
+# Quantitative Audit — 2026-05-11 06:14 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (47th consecutive session)**
+**FAILED — VPS UNREACHABLE (48th consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -19,9 +19,9 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 47 sessions: sandbox network blocks TCP port 22 egress.
+> Root cause unchanged across 48 sessions: sandbox network blocks TCP port 22 egress.
 > SSH binary is absent — the block is at the network boundary.
-> Bankroll snapshot unchanged from previous audit (same saved_ts=1778268412) — either no new
+> Bankroll snapshot UNCHANGED from prior audit (same saved_ts=1778268412) — either no new
 > trades since 2026-05-08 19:26 UTC, or bankroll.json not synced to git.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
@@ -86,7 +86,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (47th consecutive session)
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (48th consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -100,16 +100,16 @@ No change warranted. All patch conditions require trade data; none available.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (47th consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (48th consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (47 consecutive sessions)
+## Infrastructure Alert — Critical (48 consecutive sessions)
 
 **Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary is absent.
-No trade data has been accessible for 47 consecutive audit sessions.
+No trade data has been accessible for 48 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
