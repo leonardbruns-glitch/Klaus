@@ -165,10 +165,14 @@ class OracleSweeper:
             if spot <= 0 or open_5m <= 0:
                 return
 
-            candle_pct = abs((spot - open_5m) / open_5m * 100.0)
-            logger.info("flat_entry A1: %s candle_pct=%.4f%% (flat<%.3f%%)", asset, candle_pct, FLAT_PCT_THRESHOLD)
-            if candle_pct >= FLAT_PCT_THRESHOLD:
-                return  # not flat enough
+            signed_pct = (spot - open_5m) / open_5m * 100.0
+            candle_pct = abs(signed_pct)
+            logger.info("flat_entry A1: %s candle_pct=%+.4f%% (need 0<=pct<%.3f%%)", asset, signed_pct, FLAT_PCT_THRESHOLD)
+            # Edge is the tie rule: close >= open → YES_UP wins.
+            # Only enter when heading UP or exactly flat (signed_pct >= 0).
+            # A slightly DOWN candle (-0.015%) still resolves YES_DOWN — no edge.
+            if signed_pct < 0 or candle_pct >= FLAT_PCT_THRESHOLD:
+                return
 
             yes_token_id = tokens.get("up")
             if not yes_token_id:
