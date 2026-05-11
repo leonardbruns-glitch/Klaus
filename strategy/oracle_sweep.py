@@ -52,6 +52,15 @@ ASK_CEILING        = 0.97   # maximum price we'll pay (must leave 3% margin)
 MAX_STAKE_PER_WIN  = 50.0   # max USDC per window
 MIN_EDGE_USD       = 0.01   # skip if expected profit < $0.01
 
+# A1 — flat-market pre-entry constants
+# Verified: 43/43 windows where kclose==kopen resolved YES UP (tie rule).
+# If Binance candle is near-flat in final 30s, YES_UP has structural edge.
+FLAT_PCT_THRESHOLD  = 0.020  # |candle_return_pct| < 0.02% = effectively flat
+FLAT_ENTRY_REM_MIN  = 5.0    # enter no earlier than 30s before close
+FLAT_ENTRY_REM_MAX  = 30.0
+FLAT_ASK_CEILING    = 0.70   # pay up to 0.70 for near-certain YES_UP in flat market
+FLAT_MAX_STAKE      = 20.0   # more capital — tie is structural guarantee
+
 _SYMBOL_MAP   = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
 _INTERVAL_MAP = {300: "5m", 900: "15m"}
 _CLOB_BOOK_URL = "https://clob.polymarket.com/book"
@@ -93,24 +102,29 @@ class OracleSweeper:
         asset: str,
         window_size_s: int,
     ) -> None:
-        """Idempotent. First call per (cid, wend) spawns the sweep task."""
+        """Idempotent. First call per (cid, wend) spawns post-close sweep + A1 flat-entry task."""
         if not self.enabled:
             return
         key = (cid, wend)
         if key in self._scheduled:
             return
         tokens = self._cid_tokens.get(cid, {})
-        # Need both sides registered before we can sweep
         if "up" not in tokens or "down" not in tokens:
             return
         self._scheduled.add(key)
+        # Post-close sweep (A2 + A3)
         task = asyncio.create_task(
             self._run(cid, wend, asset, window_size_s, dict(tokens)),
             name=f"oracle_sweep_{cid[:8]}_{wend}",
         )
         self._tasks.append(task)
-        # Bound task list
-        if len(self._tasks) > 128:
+        # A1: flat-market pre-entry — fires at T-30s, checks if candle is flat
+        flat_task = asyncio.create_task(
+            self._flat_entry(cid, wend, asset, dict(tokens)),
+            name=f"flat_entry_{cid[:8]}_{wend}",
+        )
+        self._tasks.append(flat_task)
+        if len(self._tasks) > 256:
             self._tasks = [t for t in self._tasks if not t.done()]
 
     async def stop(self) -> None:
@@ -119,6 +133,93 @@ class OracleSweeper:
             t.cancel()
         if live:
             await asyncio.gather(*live, return_exceptions=True)
+
+    # ── A1: flat-market pre-entry ──────────────────────────────────────────────
+
+    async def _flat_entry(
+        self,
+        cid: str,
+        wend: int,
+        asset: str,
+        tokens: Dict[str, str],
+    ) -> None:
+        """A1 exploit: verified that 100% of flat-kline windows resolve YES UP.
+        In the final 30s, if Binance candle is near-flat, pre-buy YES_UP.
+        Never raises."""
+        try:
+            # Sleep until FLAT_ENTRY_REM_MAX seconds before window close
+            wake_at = wend - FLAT_ENTRY_REM_MAX
+            wait = wake_at - time.time()
+            if wait > 0:
+                await asyncio.sleep(wait)
+            if time.time() > wend - FLAT_ENTRY_REM_MIN:
+                return  # too late
+
+            feed = self.bot.feed
+            asset_up = asset.upper()
+            spot     = feed._spot_price.get(asset_up, 0.0)
+            open_5m  = feed._spot_open_5m.get(asset_up, 0.0)
+            if spot <= 0 or open_5m <= 0:
+                return
+
+            candle_pct = abs((spot - open_5m) / open_5m * 100.0)
+            if candle_pct >= FLAT_PCT_THRESHOLD:
+                return  # not flat enough
+
+            yes_token_id = tokens.get("up")
+            if not yes_token_id:
+                return
+            # Already in a position?
+            if yes_token_id in self.bot.risk.open_positions:
+                return
+
+            # Get current ask on YES_UP token
+            ob = feed.get_order_book(yes_token_id)
+            if ob is None or not ob.asks:
+                return
+            ask = ob.asks[0][0]
+            if ask > FLAT_ASK_CEILING:
+                return  # too expensive
+
+            logger.info(
+                "flat_entry A1: %s candle_pct=%.4f%% YES ask=%.4f rem=%.0fs — ENTERING",
+                asset, candle_pct, ask, wend - time.time(),
+            )
+
+            stake = min(FLAT_MAX_STAKE, ask * ob.asks[0][1])
+            stake = max(stake, 1.0)
+            result = await self.bot.orders.limit_buy(
+                token_id=yes_token_id,
+                intended_price=ask,
+                stake_usd=stake,
+                direction=Direction.BUY,
+            )
+            from execution.order_manager import OrderStatus
+            if result.status == OrderStatus.FILLED and result.total_size > 0:
+                logger.info(
+                    "flat_entry A1 FILLED: %.4f shares @ %.4f $%.2f | %s",
+                    result.total_size, ask, ask * result.total_size, asset,
+                )
+                self._emit_shadow(asset, "up", yes_token_id, ask,
+                                  result.total_size, ask * result.total_size, wend,
+                                  extra={"candle_pct": round(candle_pct, 5), "entry_type": "flat_A1"})
+                # Exit: post-close oracle sweep handles the sell naturally;
+                # also schedule a T-3s safety exit here.
+                exit_wait = max(1.0, wend - time.time() - 3.0)
+                await asyncio.sleep(exit_wait)
+                ob2 = feed.get_order_book(yes_token_id)
+                bid = ob2.bids[0][0] if (ob2 and ob2.bids) else 0.99
+                await self.bot.orders.cascade_sell(
+                    token_id=yes_token_id,
+                    total_shares=result.total_size,
+                    current_price=max(bid, 0.01),
+                    reason="flat_A1_exit",
+                    force_exit=True,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.debug("flat_entry error %s wend=%s", asset, wend, exc_info=True)
 
     # ── Sweep task ─────────────────────────────────────────────────────────────
 
@@ -338,13 +439,14 @@ class OracleSweeper:
         shares: float,
         cost_usd: float,
         wend: int,
+        extra: Optional[dict] = None,
     ) -> None:
         """Log the sweep to shadow pipeline if available."""
         pipeline = getattr(self.bot, "shadow_pipeline", None)
         if pipeline is None:
             return
         try:
-            pipeline.emit({
+            rec = {
                 "schema_version": 1,
                 "record_type": "oracle_sweep",
                 "ts_s": int(time.time()),
@@ -357,6 +459,9 @@ class OracleSweeper:
                 "expected_return_usd": round(shares, 4),
                 "expected_profit_usd": round(shares - cost_usd, 4),
                 "window_end_ts": wend,
-            })
+            }
+            if extra:
+                rec.update(extra)
+            pipeline.emit(rec)
         except Exception:
             pass

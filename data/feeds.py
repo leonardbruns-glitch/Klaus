@@ -572,6 +572,13 @@ class PolymarketFeed:
                     self._shadow_emit_ob_delta(asset_id, ev)
                 except Exception:
                     logger.debug("shadow ob_delta emit failed", exc_info=True)
+            # Gap sweeper: record last ob_delta timestamp + Binance price for this token
+            _gap_cb = getattr(self, "_gap_sweeper_cb", None)
+            if _gap_cb is not None:
+                try:
+                    _gap_cb(asset_id, token.asset)
+                except Exception:
+                    pass
             bids_raw = ev.get("bids", [])
             asks_raw = ev.get("asks", [])
             # best_bid_ask event has single price/size fields
