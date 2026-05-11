@@ -163,6 +163,7 @@ class OracleSweeper:
                 return
 
             candle_pct = abs((spot - open_5m) / open_5m * 100.0)
+            logger.info("flat_entry A1: %s candle_pct=%.4f%% (flat<%.3f%%)", asset, candle_pct, FLAT_PCT_THRESHOLD)
             if candle_pct >= FLAT_PCT_THRESHOLD:
                 return  # not flat enough
 
@@ -273,7 +274,7 @@ class OracleSweeper:
         # Fetch CLOB book for winning token via REST
         cheap_asks = await self._get_cheap_asks(winning_token_id)
         if not cheap_asks:
-            logger.debug("oracle_sweep: no cheap asks for %s", winning_token_id[:12])
+            logger.info("oracle_sweep: no stale asks ≤%.2f for %s/%s", ASK_CEILING, asset, winner_dir)
             return
 
         # Check time budget — must sweep before ORACLE_FIRES_S
