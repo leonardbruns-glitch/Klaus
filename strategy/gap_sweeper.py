@@ -203,56 +203,73 @@ class GapSweeper:
         rem: float,
         wend: int,
     ) -> None:
-        """REST-fetch CLOB book and buy cheap asks if the gap is real."""
+        """Fetch book and buy cheapest ask below Binance-implied fair value."""
+        # Dedup immediately — prevents retry storm if orders fail.
+        self._gap_traded.add(token_id)
+
         cheap_asks = await self._get_cheap_asks(token_id)
         if not cheap_asks:
-            logger.debug("gap_sweeper: no cheap asks for %s", token_id[:12])
+            logger.info("gap_sweeper: no cheap asks ≤%.2f for %s", SWEEP_CEILING, token_id[:12])
             return
 
         asset       = token.asset
         outcome_dir = getattr(token, "outcome_direction", "")
-        budget      = MAX_STAKE
 
-        for ask_price, ask_size in cheap_asks:
-            if budget < 1.0:
-                break
-            stake = min(budget, ask_price * ask_size)
-            if stake < 1.0:
-                continue
+        # Gap sweep edge: MM quoted stale price before going offline. Binance has since
+        # moved. The stale ask is the CHEAPEST one, below Binance-implied fair value.
+        # Buying the full book up to 0.85 sweeps normal retail orders — not the exploit.
+        # We take only the single cheapest ask (the most likely MM-stale price).
+        ask_price, ask_size = cheap_asks[0]
 
-            self.sweeps_attempted += 1
+        # Additional guard: only buy if ask is below Binance-implied fair value.
+        # Rough fair value for binary: 0.5 + move_pct/100 * sensitivity (5×).
+        # If ask is already above fair value, it's normal retail pricing — skip.
+        implied_fv = 0.50 + (abs(move_pct) / 100.0) * 5.0
+        implied_fv = min(implied_fv, 0.80)  # cap
+        if ask_price >= implied_fv:
             logger.info(
-                "gap_sweeper: BUY %s/%s ask=%.4f stake=$%.2f gap=%.0fs move=%+.3f%%",
-                asset, outcome_dir, ask_price, stake, gap_s, move_pct,
+                "gap_sweeper: ask=%.4f >= implied_fv=%.4f for %s/%s — not stale, skip",
+                ask_price, implied_fv, asset, outcome_dir,
             )
+            return
 
-            try:
-                result = await self.bot.orders.limit_buy(
-                    token_id=token_id,
-                    intended_price=ask_price,
-                    stake_usd=stake,
-                    direction=Direction.BUY,
+        stake = min(MAX_STAKE, ask_price * ask_size)
+        if stake < 1.0:
+            logger.info("gap_sweeper: stake too small ($%.2f) for %s", stake, token_id[:12])
+            return
+
+        self.sweeps_attempted += 1
+        logger.info(
+            "gap_sweeper: BUY %s/%s ask=%.4f implied_fv=%.4f stake=$%.2f gap=%.0fs move=%+.3f%%",
+            asset, outcome_dir, ask_price, implied_fv, stake, gap_s, move_pct,
+        )
+
+        try:
+            result = await self.bot.orders.limit_buy(
+                token_id=token_id,
+                intended_price=ask_price,
+                stake_usd=stake,
+                direction=Direction.BUY,
+            )
+            from execution.order_manager import OrderStatus
+            if result.status == OrderStatus.FILLED and result.total_size > 0:
+                self.sweeps_filled += 1
+                spent = ask_price * result.total_size
+                logger.info(
+                    "gap_sweeper FILLED: %.4f shares @ %.4f | $%.2f spent | rem=%.0fs",
+                    result.total_size, ask_price, spent, rem,
                 )
-                from execution.order_manager import OrderStatus
-                if result.status == OrderStatus.FILLED and result.total_size > 0:
-                    self.sweeps_filled += 1
-                    spent = ask_price * result.total_size
-                    budget -= spent
-                    self._gap_traded.add(token_id)
-                    logger.info(
-                        "gap_sweeper FILLED: %.4f shares @ %.4f | $%.2f spent | rem=%.0fs",
-                        result.total_size, ask_price, spent, rem,
-                    )
-                    self._emit_shadow(asset, outcome_dir, token_id, ask_price,
-                                      result.total_size, spent, gap_s, move_pct, wend)
-                    # Schedule exit at T-15s
-                    exit_delay = max(1.0, rem - 15.0)
-                    asyncio.create_task(
-                        self._exit_at(token_id, result.total_size, exit_delay, asset),
-                        name=f"gap_exit_{token_id[:8]}",
-                    )
-            except Exception as exc:
-                logger.debug("gap_sweeper buy error: %s", exc)
+                self._emit_shadow(asset, outcome_dir, token_id, ask_price,
+                                  result.total_size, spent, gap_s, move_pct, wend)
+                exit_delay = max(1.0, rem - 15.0)
+                asyncio.create_task(
+                    self._exit_at(token_id, result.total_size, exit_delay, asset),
+                    name=f"gap_exit_{token_id[:8]}",
+                )
+            else:
+                logger.info("gap_sweeper: order not filled at ask=%.4f for %s", ask_price, asset)
+        except Exception as exc:
+            logger.info("gap_sweeper buy error %s: %s", asset, exc)
 
         # GC stale dedup entries (window ended)
         now = time.time()
