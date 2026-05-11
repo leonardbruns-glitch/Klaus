@@ -274,7 +274,20 @@ class OracleSweeper:
         # Fetch CLOB book for winning token via REST
         cheap_asks = await self._get_cheap_asks(winning_token_id)
         if not cheap_asks:
-            logger.info("oracle_sweep: no stale asks ≤%.2f for %s/%s", ASK_CEILING, asset, winner_dir)
+            # Log actual book state so we can diagnose: empty vs priced-out vs swept
+            ob = self.bot.feed.get_order_book(winning_token_id)
+            if ob and ob.asks:
+                best_ask = ob.asks[0][0]
+                n_asks = len(ob.asks)
+                logger.info(
+                    "oracle_sweep: no stale asks ≤%.2f for %s/%s (book: %d asks, best=%.4f)",
+                    ASK_CEILING, asset, winner_dir, n_asks, best_ask,
+                )
+            else:
+                logger.info(
+                    "oracle_sweep: no stale asks ≤%.2f for %s/%s (book: EMPTY)",
+                    ASK_CEILING, asset, winner_dir,
+                )
             return
 
         # Check time budget — must sweep before ORACLE_FIRES_S
