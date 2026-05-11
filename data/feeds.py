@@ -339,6 +339,10 @@ class PolymarketFeed:
         self._spot_open_15m: Dict[str, float] = {}    # asset → current 15m candle open
         self._kline_ts: Dict[str, float] = {}         # asset → last aggTrade/spot price update ts
         self._kline_open_ts: Dict[str, float] = {}    # asset → last time kline OPEN was updated (separate from spot)
+        # Oracle sweep: cache winner direction from WS kline close event (x=True).
+        # Populated within ~0ms of window close — eliminates 258ms REST call.
+        # Format: asset → ("up"/"down", wend_ts_s)
+        self._kline_winner_cache: Dict[str, tuple] = {}
         # ── Connectivity telemetry (VPS justification data) ──────────────────
         # Each reconnect = a period where the bot had no live data.
         # Export via connectivity_stats() for session report.
@@ -967,6 +971,12 @@ class PolymarketFeed:
                                             _l5 = float(k.get("l", 0) or 0)
                                             if _h5 > 0 and _l5 > 0:
                                                 self._5m_ohlcv_buf[asset].append((_h5, _l5, close))
+                                            # Oracle sweep cache: winner direction from WS (zero-latency).
+                                            # k["T"] = close_time ms = wend*1000 - 1
+                                            if open_ > 0:
+                                                _wend = (int(k.get("T", 0)) + 1) // 1000
+                                                _dir = "up" if close >= open_ else "down"
+                                                self._kline_winner_cache[asset] = (_dir, _wend)
 
                                     elif interval == "15m":
                                         self._spot_open_15m[asset] = open_

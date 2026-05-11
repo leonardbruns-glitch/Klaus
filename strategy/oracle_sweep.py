@@ -46,7 +46,7 @@ from strategy.momentum import Direction
 logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-SWEEP_DELAY_S      = 1.0    # seconds after window_end_ts before we sweep
+SWEEP_DELAY_S      = 0.0    # fire immediately at window close (WS kline cache eliminates REST wait)
 ORACLE_FIRES_S     = 33.0   # sell/cancel before this (oracle fires at ~35s)
 ASK_CEILING        = 0.97   # maximum price we'll pay (must leave 3% margin)
 MAX_STAKE_PER_WIN  = 50.0   # max USDC per window
@@ -363,16 +363,32 @@ class OracleSweeper:
         wend: int,
         window_size_s: int,
     ) -> Optional[str]:
-        """Fetch Binance kline for the closed window. Returns 'up' or 'down'."""
+        """Determine winner from closed kline. WS cache first (0ms), REST fallback (258ms)."""
+        # ── Fast path: WS kline close event already populated the cache ──────────
+        ws_cache = getattr(self.bot.feed, "_kline_winner_cache", {})
+        cached = ws_cache.get(asset.upper())
+        if cached:
+            direction, cached_wend = cached
+            if abs(cached_wend - wend) <= 2:
+                logger.debug("oracle_sweep: kline WS cache hit %s → %s (wend=%s)", asset, direction, wend)
+                return direction
+        # WS not yet delivered — wait briefly then retry cache once before REST
+        await asyncio.sleep(0.15)
+        cached = ws_cache.get(asset.upper())
+        if cached:
+            direction, cached_wend = cached
+            if abs(cached_wend - wend) <= 2:
+                logger.debug("oracle_sweep: kline WS cache hit (retry) %s → %s", asset, direction)
+                return direction
+
+        # ── Slow path: REST fallback (~258ms) ─────────────────────────────────
         symbol   = _SYMBOL_MAP.get(asset.upper())
         interval = _INTERVAL_MAP.get(window_size_s)
         if not symbol or not interval:
             return None
-
         session = getattr(self.bot.feed, "_session", None)
         if session is None:
             return None
-
         wstart_ms = int((wend - window_size_s) * 1000)
         try:
             async with session.get(
@@ -387,21 +403,26 @@ class OracleSweeper:
         except Exception as exc:
             logger.debug("oracle_sweep kline fetch %s/%s: %s", asset, wend, exc)
             return None
-
         if not klines or len(klines[0]) < 5:
             return None
-
         kopen  = float(klines[0][1])
         kclose = float(klines[0][4])
-        # Tie rule (verified): close >= open → YES UP wins (100% of ties in n=43 data)
         return "up" if kclose >= kopen else "down"
 
     async def _get_cheap_asks(
         self,
         token_id: str,
     ) -> list:
-        """Fetch CLOB order book via REST. Returns list of (price, size) tuples
-        for asks below ASK_CEILING, sorted cheapest first."""
+        """Returns (price, size) asks below ASK_CEILING. WS book cache first (0ms), REST fallback."""
+        # ── Fast path: WS order book already cached by CLOB websocket ────────────
+        ob = self.bot.feed.get_order_book(token_id)
+        if ob and ob.asks:
+            result = [(p, s) for p, s in ob.asks if p < ASK_CEILING and s > 0]
+            if result:
+                logger.debug("oracle_sweep: WS book hit %s — %d cheap asks", token_id[:12], len(result))
+                return result
+
+        # ── Slow path: REST fallback (~43ms) ──────────────────────────────────
         session = getattr(self.bot.feed, "_session", None)
         if session is None:
             return []
@@ -417,7 +438,6 @@ class OracleSweeper:
         except Exception as exc:
             logger.debug("oracle_sweep book fetch %s: %s", token_id[:12], exc)
             return []
-
         asks = data.get("asks", [])
         result = []
         for entry in asks:
