@@ -1666,6 +1666,21 @@ class PolymarketFeed:
                                     liq["long"].append((ts_now, usd_val))
                                 elif side == "BUY":
                                     liq["short"].append((ts_now, usd_val))
+                                # Persist to shadow for replay analysis
+                                _liq_pipeline = getattr(self, "_shadow_pipeline", None)
+                                if _liq_pipeline is not None:
+                                    try:
+                                        from data.shadow.liquidation import emit_liquidation
+                                        emit_liquidation(
+                                            _liq_pipeline,
+                                            asset=asset,
+                                            symbol=symbol,
+                                            side=side,
+                                            price=price,
+                                            qty=qty,
+                                        )
+                                    except Exception:
+                                        pass
                                 # Periodic prune — keep only last 60s
                                 if ts_now - _last_prune > _PRUNE_INTERVAL:
                                     cutoff = ts_now - 60

@@ -172,6 +172,20 @@ class TimelineSampler:
                         outcome_dir=rec["outcome_dir"],
                         window_size_s=rec["window_size_s"],
                     )
+                # Oracle sweep: register this token's side + schedule sweep at window close.
+                _sweep = getattr(self.bot, "oracle_sweeper", None)
+                if _sweep is not None and rec["condition_id"] and rec["window_end_ts"] > 0:
+                    _sweep.register_token(
+                        cid=rec["condition_id"],
+                        outcome_dir=rec["outcome_dir"],
+                        token_id=token_id,
+                    )
+                    _sweep.schedule(
+                        cid=rec["condition_id"],
+                        wend=rec["window_end_ts"],
+                        asset=rec["asset"],
+                        window_size_s=rec["window_size_s"],
+                    )
                 # Phase 2: hold-path evolution (per-second trajectory of virtual positions).
                 self.hold_path.on_tick(rec, gt)
                 self._last_emit_ts[token_id] = now_s

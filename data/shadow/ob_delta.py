@@ -119,7 +119,7 @@ def emit_ob_delta(pipeline, bot, asset_id: str, ev: dict) -> None:
     }
 
     if ev_type == "best_bid_ask":
-        # Single BBO update — emit one row with both best prices.
+        # Single BBO update — emit one row with both best prices plus depth snapshot.
         try:
             bb = float(ev.get("best_bid")) if ev.get("best_bid") is not None else None
             ba = float(ev.get("best_ask")) if ev.get("best_ask") is not None else None
@@ -127,6 +127,15 @@ def emit_ob_delta(pipeline, bot, asset_id: str, ev: dict) -> None:
             return
         if bb is None and ba is None:
             return
+        # Top-3 depth from current book snapshot (for MM gap analysis)
+        ask_top3 = None
+        bid_top3 = None
+        if ob is not None:
+            try:
+                ask_top3 = [[round(p, 4), round(s, 4)] for p, s in ob.asks[:3]]
+                bid_top3 = [[round(p, 4), round(s, 4)] for p, s in ob.bids[:3]]
+            except Exception:
+                pass
         rec = dict(common)
         rec.update({
             "level_price": None,
@@ -136,6 +145,8 @@ def emit_ob_delta(pipeline, bot, asset_id: str, ev: dict) -> None:
             "level_rank": 0,
             "best_bid_at_event": bb,
             "best_ask_at_event": ba,
+            "ask_top3": ask_top3,
+            "bid_top3": bid_top3,
         })
         pipeline.emit(rec)
         return

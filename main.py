@@ -357,6 +357,11 @@ class KlausBot:
         # when this is enabled — only one strategy active at a time.
         from strategy.discover_strategy import DiscoverStrategy
         self.discover_strategy = DiscoverStrategy(self)
+        # Oracle sweep — exploits 35s Chainlink latency window (2026-05-11).
+        # Buys winning token at any ask < 0.97 after window close, exits before oracle fires.
+        # Verified: 35s lag in 99% of windows, tie→YES in 100% of flat windows.
+        from strategy.oracle_sweep import OracleSweeper
+        self.oracle_sweeper = OracleSweeper(self)
         self.redeemer = Redeemer(
             clob_client=self.orders._client,
             proxy_wallet=CONFIG.funder_address or "",
@@ -457,6 +462,9 @@ class KlausBot:
         # Tier 1: order lifecycle recorder. Wires shadow pipeline into OrderManager
         # so every submit/fill event is logged to order_lifecycle.jsonl.
         self.orders._shadow_pipeline = self.shadow_pipeline
+        # Tier 1: liquidation recorder. Wires shadow pipeline into feeds.py
+        # so Binance forceOrder events are persisted (previously memory-only).
+        self.feed._shadow_pipeline = self.shadow_pipeline
 
     async def stop(self) -> None:
         self._running = False
@@ -464,6 +472,9 @@ class KlausBot:
         try:
             await self.shadow_timeline.stop()
             await self.shadow_resolution.stop()
+            _sweeper = getattr(self, "oracle_sweeper", None)
+            if _sweeper is not None:
+                await _sweeper.stop()
             await self.shadow_pipeline.stop()
         except Exception:
             logger.exception("shadow stop failed")
