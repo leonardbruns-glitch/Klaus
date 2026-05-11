@@ -281,7 +281,7 @@ class GapSweeper:
                 )
                 exit_delay = max(1.0, rem - 15.0)
                 asyncio.create_task(
-                    self._exit_at(token_id, result.total_size, exit_delay, asset),
+                    self._exit_at(token_id, result.total_size, exit_delay, asset, ask_price),
                     name=f"gap_exit_{token_id[:8]}",
                 )
             else:
@@ -301,21 +301,43 @@ class GapSweeper:
         shares: float,
         delay_s: float,
         asset: str,
+        entry_price: float,
     ) -> None:
-        """Sell gap position at T-15s."""
+        """Sell gap position: immediately when bid reprices above edge, else at T-15s."""
+        EDGE_THRESHOLD = 0.02   # bid must clear entry + 2¢ to trigger early exit (covers both-leg fees)
+        target_bid = entry_price + EDGE_THRESHOLD
+        deadline = time.monotonic() + delay_s
         try:
-            await asyncio.sleep(delay_s)
+            exit_reason = "gap_sweep_deadline"
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                await asyncio.sleep(min(5.0, remaining))
+                if token_id not in self.bot.risk.open_positions:
+                    return  # already exited by another path
+                ob = self.bot.feed.get_order_book(token_id)
+                bid = ob.bids[0][0] if (ob and ob.bids) else 0.0
+                if bid >= target_bid:
+                    logger.info(
+                        "gap_sweeper: edge exit bid=%.4f >= target=%.4f | %s",
+                        bid, target_bid, asset,
+                    )
+                    exit_reason = "gap_sweep_edge"
+                    break
+
             ob = self.bot.feed.get_order_book(token_id)
             bid = ob.bids[0][0] if (ob and ob.bids) else 0.0
             if bid <= 0.01:
                 logger.info("gap_sweeper exit: no bid for %s — leaving to settle", token_id[:12])
                 return
-            logger.info("gap_sweeper exit: cascade_sell %.4f shares @ %.4f (%s)", shares, bid, asset)
+            logger.info("gap_sweeper exit: cascade_sell %.4f shares @ %.4f (%s) [%s]",
+                        shares, bid, asset, exit_reason)
             await self.bot.orders.cascade_sell(
                 token_id=token_id,
                 total_shares=shares,
                 current_price=bid,
-                reason="gap_sweep_exit",
+                reason=exit_reason,
                 force_exit=True,
             )
             self.bot.risk.open_positions.pop(token_id, None)
