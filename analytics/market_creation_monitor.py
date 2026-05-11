@@ -119,7 +119,15 @@ def run(max_markets: int, duration_s: int) -> None:
 
             seen_slugs.add(slug)
             markets_seen += 1
-            token_ids = m.get("clobTokenIds") or []
+            _raw_tids = m.get("clobTokenIds") or []
+            # Gamma API returns clobTokenIds as a JSON-encoded string, not a list
+            if isinstance(_raw_tids, str):
+                try:
+                    import json as _json
+                    _raw_tids = _json.loads(_raw_tids)
+                except Exception:
+                    _raw_tids = []
+            token_ids = [str(t).strip('"') for t in _raw_tids]
             condition_id = m.get("conditionId") or ""
 
             record = {
