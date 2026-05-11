@@ -454,6 +454,9 @@ class KlausBot:
         self.feed._shadow_emit_ob_delta = lambda token_id, ev: emit_ob_delta(
             self.shadow_pipeline, self, token_id, ev
         )
+        # Tier 1: order lifecycle recorder. Wires shadow pipeline into OrderManager
+        # so every submit/fill event is logged to order_lifecycle.jsonl.
+        self.orders._shadow_pipeline = self.shadow_pipeline
 
     async def stop(self) -> None:
         self._running = False

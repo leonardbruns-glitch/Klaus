@@ -184,6 +184,8 @@ class OrderManager:
         self._client = _build_clob_client() if not CONFIG.dry_run else None
         self._session: Optional[aiohttp.ClientSession] = None
         self.fill_history: List[Fill] = []
+        # Shadow pipeline for order lifecycle recording (set by main.py after pipeline starts).
+        self._shadow_pipeline = None
         self._fill_tracker = FillTracker()
         self._setup_fill_tracker()
         # ── Order latency telemetry (VPS justification data) ─────────────────
@@ -913,6 +915,26 @@ class OrderManager:
                 )
                 if _signed_id:
                     _attempted_order_ids.append(_signed_id)
+                # Emit submit event on first attempt only (subsequent CF retries are retries,
+                # not new logical orders). Try/except: recorder must never block the order path.
+                if _cf_attempt == 0 and _signed_id:
+                    try:
+                        from data.shadow.order_lifecycle import emit_order_event
+                        emit_order_event(
+                            self._shadow_pipeline,
+                            event="submit",
+                            order_id=_signed_id,
+                            token_id=token_id,
+                            condition_id="",  # not available at this call depth; join via token_id
+                            asset="",
+                            outcome_side="",
+                            seconds_to_resolution=0.0,
+                            side=side.name,
+                            intended_price=price,
+                            intended_size=size,
+                        )
+                    except Exception:
+                        pass
                 try:
                     # post_order: HTTP POST via curl_cffi (synchronous, would block event loop).
                     # _session_lock serializes concurrent CLOB submissions — curl_cffi Session
@@ -1439,6 +1461,27 @@ class OrderManager:
                 slippage=slippage,
             )
             self.fill_history.append(fill)
+            try:
+                from data.shadow.order_lifecycle import emit_order_event
+                emit_order_event(
+                    self._shadow_pipeline,
+                    event="fill",
+                    order_id=order_id_str,
+                    token_id=token_id,
+                    condition_id="",
+                    asset="",
+                    outcome_side="",
+                    seconds_to_resolution=0.0,
+                    side=side.name,
+                    intended_price=price,
+                    intended_size=size,
+                    realized_price=fill_price,
+                    realized_size=fill_size,
+                    latency_ms=(time.time() - _order_t0) * 1000,
+                    cf_attempts=_cf_attempt + 1,
+                )
+            except Exception:
+                pass
             return OrderResult(
                 status=OrderStatus.FILLED,
                 fills=[fill],

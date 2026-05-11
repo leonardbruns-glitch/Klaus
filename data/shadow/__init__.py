@@ -18,9 +18,10 @@ from .exit_policy import ExitPolicyShadow
 from .discover_signal import DiscoverSignalRecorder
 from .trade import emit_token_trade, emit_binance_trade
 from .ob_delta import emit_ob_delta
+from .order_lifecycle import emit_order_event
 
 __all__ = [
     "HoldPathSampler", "ShadowPipeline", "TimelineSampler", "ResolutionWriter",
     "ExitPolicyShadow", "DiscoverSignalRecorder",
-    "emit_token_trade", "emit_binance_trade", "emit_ob_delta",
+    "emit_token_trade", "emit_binance_trade", "emit_ob_delta", "emit_order_event",
 ]
