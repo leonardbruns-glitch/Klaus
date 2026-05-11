@@ -118,12 +118,15 @@ class OracleSweeper:
             name=f"oracle_sweep_{cid[:8]}_{wend}",
         )
         self._tasks.append(task)
-        # A1: flat-market pre-entry — fires at T-30s, checks if candle is flat
-        flat_task = asyncio.create_task(
-            self._flat_entry(cid, wend, asset, dict(tokens)),
-            name=f"flat_entry_{cid[:8]}_{wend}",
-        )
-        self._tasks.append(flat_task)
+        # A1: flat-market pre-entry — 5m windows only.
+        # A1 checks the current 5m Binance candle for flatness. For 15m windows,
+        # the resolution kline is 15m (not 5m), so A1's signal is wrong for them.
+        if window_size_s == 300:
+            flat_task = asyncio.create_task(
+                self._flat_entry(cid, wend, asset, dict(tokens)),
+                name=f"flat_entry_{cid[:8]}_{wend}",
+            )
+            self._tasks.append(flat_task)
         if len(self._tasks) > 256:
             self._tasks = [t for t in self._tasks if not t.done()]
 
@@ -204,10 +207,12 @@ class OracleSweeper:
                 self._emit_shadow(asset, "up", yes_token_id, ask,
                                   result.total_size, ask * result.total_size, wend,
                                   extra={"candle_pct": round(candle_pct, 5), "entry_type": "flat_A1"})
-                # Exit: post-close oracle sweep handles the sell naturally;
-                # also schedule a T-3s safety exit here.
+                # Exit: T-3s safety sell. CLOB minimum is 5 shares — skip if below.
                 exit_wait = max(1.0, wend - time.time() - 3.0)
                 await asyncio.sleep(exit_wait)
+                if result.total_size < 5.0:
+                    logger.info("flat_A1 exit: %.4f shares < 5 CLOB minimum — holding to settle", result.total_size)
+                    return
                 ob2 = feed.get_order_book(yes_token_id)
                 bid = ob2.bids[0][0] if (ob2 and ob2.bids) else 0.99
                 await self.bot.orders.cascade_sell(
