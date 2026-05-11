@@ -8,7 +8,7 @@ per user instruction.
 Signal (mirrors data/shadow/discover_signal.matches() exactly):
     arb_sum_yes_no in (0, 0.99)
     AND outcome_dir == "down"
-    AND best_ask in [0.10, 0.55]
+    AND best_ask in [0.10, 0.40]
     AND seconds_to_resolution in [60, 240]
     AND window_size_s == 300                   # 5m only
 
@@ -135,7 +135,7 @@ class DiscoverStrategy:
     def _should_fire(self, token_id: str, token, now: float):
         """Return (signal_class, target_stake_usd, outcome_dir) or None.
 
-        S2: arb<0.99 + DOWN + ask 0.10-0.55 + rem 60-180, $3 stake.
+        S2: arb<0.99 + DOWN + ask 0.10-0.40 + rem 60-180, $3 stake.
             rem tightened 60-240 -> 60-180 on 2026-05-10: n=160 CI [+0.27,+3.07]
             cleanly positive vs n=218 rem 60-240 CI [+0.01,+2.31] just barely.
 
@@ -171,7 +171,7 @@ class DiscoverStrategy:
             return None
         if not (60 <= rem <= 180):
             return None
-        if not (0.10 <= ask <= 0.55):
+        if not (0.10 <= ask <= 0.40):
             return None
         signal_class = "S2"
         target_stake = 3.00
