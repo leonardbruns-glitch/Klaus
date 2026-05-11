@@ -193,7 +193,7 @@ class OracleSweeper:
                 token_id=yes_token_id,
                 intended_price=ask,
                 stake_usd=stake,
-                direction=Direction.BUY,
+                direction=Direction.BUY_YES,
             )
             from execution.order_manager import OrderStatus
             if result.status == OrderStatus.FILLED and result.total_size > 0:
@@ -220,7 +220,7 @@ class OracleSweeper:
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.debug("flat_entry error %s wend=%s", asset, wend, exc_info=True)
+            logger.info("flat_entry error %s wend=%s", asset, wend, exc_info=True)
 
     # ── Sweep task ─────────────────────────────────────────────────────────────
 
@@ -310,7 +310,7 @@ class OracleSweeper:
                     token_id=winning_token_id,
                     intended_price=ask_price,
                     stake_usd=stake,
-                    direction=Direction.BUY,
+                    direction=Direction.BUY_YES,
                 )
                 from execution.order_manager import OrderStatus
                 if result.status == OrderStatus.FILLED and result.total_size > 0:
@@ -328,9 +328,9 @@ class OracleSweeper:
                     self._emit_shadow(asset, winner_dir, winning_token_id, ask_price,
                                       result.total_size, spent, wend)
                 else:
-                    logger.debug("oracle_sweep: fill failed at ask=%.4f", ask_price)
+                    logger.info("oracle_sweep: fill failed at ask=%.4f", ask_price)
             except Exception as exc:
-                logger.debug("oracle_sweep: buy error: %s", exc)
+                logger.info("oracle_sweep: buy error: %s", exc)
 
         if total_shares <= 0:
             return

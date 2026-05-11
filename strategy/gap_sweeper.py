@@ -249,7 +249,7 @@ class GapSweeper:
                 token_id=token_id,
                 intended_price=ask_price,
                 stake_usd=stake,
-                direction=Direction.BUY,
+                direction=Direction.BUY_YES,
             )
             from execution.order_manager import OrderStatus
             if result.status == OrderStatus.FILLED and result.total_size > 0:
