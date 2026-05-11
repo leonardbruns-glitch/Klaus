@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-10 18:07 UTC
+# Quantitative Audit — 2026-05-11 00:18 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (46th consecutive session)**
+**FAILED — VPS UNREACHABLE (47th consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -9,6 +9,7 @@
 | /tmp/trades.jsonl | 0 lines — SSH pull failed |
 | /tmp/post_exit.jsonl | 0 lines — SSH pull failed |
 | logs/trades.jsonl (git-tracked) | not present |
+| logs/live_trades_recent.jsonl (git-tracked) | not present |
 | logs/bankroll.json (local snapshot) | readable — see below |
 
 **Bankroll snapshot** (from `logs/bankroll.json`, ts=1778268412 / 2026-05-08 19:26 UTC):
@@ -18,8 +19,10 @@
 - consecutive_wins: 0
 - daily_start_capital: $15.95 (stale — from last VPS-connected session)
 
-> Root cause unchanged across 46 sessions: sandbox network blocks TCP port 22 egress.
+> Root cause unchanged across 47 sessions: sandbox network blocks TCP port 22 egress.
 > SSH binary is absent — the block is at the network boundary.
+> Bankroll snapshot unchanged from previous audit (same saved_ts=1778268412) — either no new
+> trades since 2026-05-08 19:26 UTC, or bankroll.json not synced to git.
 > No trade-level records (entry_price, exit_price, slippage, pnl, ob_imbalance) are accessible.
 > All analysis sections below reflect **INSUFFICIENT_DATA**.
 
@@ -29,13 +32,13 @@
 
 | Parameter | Code Location | Current Value | Notes |
 |---|---|---|---|
-| min_ask (_ask_floor) | main.py:2381 | **0.78** | Lowered from 0.80 on 2026-05-07 |
-| max_ask (_ask_max) | main.py:2379 | **0.93** | Lowered from 0.95→0.93 on 2026-05-09 |
-| min_imbalance (_term_imb gate) | main.py:2437–2438 | **0.0** | Negative imb blocked; positive imb passes |
+| min_ask (_ask_floor) | main.py:2427 | **0.78** | Lowered from 0.80 on 2026-05-07 |
+| max_ask (_ask_max) | main.py:2425 | **0.93** | 0.95→0.93 on 2026-05-09 |
+| min_imbalance (_term_imb gate) | main.py:2483–2484 | **0.0** | Negative imb blocked; positive imb passes |
 | bond_blocked_hours_utc | config.py:151 | **[]** | All hours open |
-| stop_loss | main.py | **−15%** (ask×0.85) | Unchanged |
+| stop_loss | main.py:3008 | **−15%** (ask×0.85) | Unchanged |
 
-> **Note**: The prompt "current values" (min_ask=0.80, max_ask=0.88, min_imbalance=0.20) are all stale.
+> **Note**: The prompt "current values" (min_ask=0.80, max_ask=0.88, min_imbalance=0.20) are stale.
 > Code is the ground truth. Parameters confirmed by direct file reads this session.
 
 ---
@@ -60,7 +63,7 @@ None determinable — no trade records accessible.
 | 0.20–0.30 | 0 | N/A | N/A |
 | >0.30 | 0 | N/A | N/A |
 
-Note: `min_imbalance` floor is 0.0 (relaxed 2026-05-09). Negative imb blocked at main.py:2437.
+Note: `min_imbalance` floor is 0.0 (relaxed). Negative imb blocked at main.py:2483.
 
 ## Slippage
 avg_slippage_entry=N/A (no data)
@@ -83,7 +86,7 @@ No change to blocked_hours.
 ---
 
 ## Flags
-- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (46th consecutive session)
+- **INSUFFICIENT_DATA** — 6h n=0; all-time hour n=0; no trade records retrieved (47th consecutive session)
 - No NEGATIVE_EDGE, OVERBET, or block/unblock decisions possible
 
 ## SYSTEM_PATCH
@@ -97,16 +100,16 @@ No change warranted. All patch conditions require trade data; none available.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (46th consecutive session)"
+  "reason": "INSUFFICIENT_DATA — VPS unreachable, 0 trade records retrieved (47th consecutive session)"
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (46 consecutive sessions)
+## Infrastructure Alert — Critical (47 consecutive sessions)
 
 **Root cause**: TCP port 22 egress blocked at sandbox network boundary. SSH binary is absent.
-No trade data has been accessible for 46 consecutive audit sessions.
+No trade data has been accessible for 47 consecutive audit sessions.
 
 **Required action — run ONE of these on the VPS to unblock all future audits:**
 
@@ -131,4 +134,6 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-Without log data, the audit is structurally blocked. Bankroll snapshot (2026-05-08 19:26 UTC) shows healthy state ($84.61, +$87.87 PnL on 2,605 trades) but parameter optimization is blind — no entry/exit details accessible.
+Without log data, the audit is structurally blocked. Bankroll snapshot (2026-05-08 19:26 UTC, unchanged
+from prior session) shows healthy state ($84.61, +$87.87 PnL on 2,605 trades) but parameter
+optimization is blind — no entry/exit details accessible.
