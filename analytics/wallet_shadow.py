@@ -114,6 +114,7 @@ FAST_POLL_WALLETS = {
 }
 FAST_POLL_S = 4.0
 SLOW_POLL_S = 30.0
+ACTIVITY_POLL_S = 30.0   # /activity poll for REDEEM + MERGE — these don't show in /trades
 POLL_S = SLOW_POLL_S  # legacy fallback if FAST_POLL_WALLETS not used
 LOG_DIR = Path("/root/Klaus/logs/shadow/hot")
 LOG_NAME = "wallet_shadow.jsonl"
@@ -125,12 +126,17 @@ logger = logging.getLogger("wallet_shadow")
 @dataclass
 class State:
     last_trade_ts: Dict[str, int] = field(default_factory=dict)
+    last_activity_ts: Dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def load(cls) -> "State":
         if STATE_FILE.exists():
             try:
-                return cls(**json.loads(STATE_FILE.read_text()))
+                raw = json.loads(STATE_FILE.read_text())
+                # Tolerate older state files that don't have last_activity_ts
+                if "last_activity_ts" not in raw:
+                    raw["last_activity_ts"] = {}
+                return cls(**raw)
             except Exception:
                 pass
         return cls()
@@ -170,6 +176,41 @@ def fetch_trades(session: requests.Session, wallet: str, after_ts: int) -> List[
         return []
     out = [t for t in d if int(t.get("timestamp") or 0) > after_ts]
     out.sort(key=lambda t: int(t.get("timestamp") or 0))
+    return out
+
+
+def fetch_activity_events(session: requests.Session, wallet: str, after_ts: int) -> List[dict]:
+    """Pull recent /activity for a wallet, return REDEEM + MERGE events newer than after_ts.
+
+    REDEEM = winning shares converted to $1 each (after resolution).
+    MERGE  = YES+NO pair burned for $1 each (instant exit, pre-resolution).
+
+    These are the exit mechanisms for arb wallets. They DO NOT appear in /trades.
+    """
+    try:
+        r = session.get(
+            f"{DATA_API}/activity",
+            params={"user": wallet, "limit": 100},
+            timeout=15,
+        )
+        if r.status_code != 200:
+            logger.warning("activity http %s for %s", r.status_code, wallet[:14])
+            return []
+        d = r.json()
+    except Exception as exc:
+        logger.warning("activity fetch failed %s: %s", wallet[:14], exc)
+        return []
+    if not isinstance(d, list):
+        return []
+    out = []
+    for a in d:
+        atype = (a.get("type") or "").upper()
+        if atype not in ("REDEEM", "MERGE"):
+            continue
+        ts = int(a.get("timestamp") or 0)
+        if ts > after_ts:
+            out.append(a)
+    out.sort(key=lambda a: int(a.get("timestamp") or 0))
     return out
 
 
@@ -213,6 +254,44 @@ def record_event(out_path: Path, ev: dict) -> None:
     line = json.dumps(ev, separators=(",", ":"), default=str)
     with out_path.open("a") as f:
         f.write(line + "\n")
+
+
+def poll_activity_once(session: requests.Session, state: State, observed_ts: int) -> int:
+    """One pass over all wallets — captures REDEEM + MERGE only. Returns count logged."""
+    n_new = 0
+    out_path = log_path()
+    for name, wallet in WALLETS.items():
+        last = state.last_activity_ts.get(wallet, observed_ts)
+        events = fetch_activity_events(session, wallet, last)
+        if not events:
+            continue
+        for a in events:
+            ts = int(a.get("timestamp") or 0)
+            atype = (a.get("type") or "").upper()
+            ev = {
+                "rec": f"wallet_{atype.lower()}",   # wallet_redeem | wallet_merge
+                "wallet_name": name,
+                "wallet": wallet,
+                "ts": ts,
+                "iso": datetime.utcfromtimestamp(ts).isoformat() if ts else None,
+                "polled_at": time.time(),
+                "type": atype,
+                "asset": a.get("asset"),
+                "condition_id": a.get("conditionId"),
+                "slug": a.get("slug"),
+                "outcome": a.get("outcome"),
+                "outcome_index": a.get("outcomeIndex"),
+                "size": float(a.get("size", 0) or 0),
+                "price": float(a.get("price", 0) or 0),
+                "usdc_size": float(a.get("usdcSize", 0) or 0),
+                "transaction_hash": a.get("transactionHash"),
+            }
+            record_event(out_path, ev)
+            n_new += 1
+            state.last_activity_ts[wallet] = ts
+    if n_new:
+        state.save()
+    return n_new
 
 
 def poll_once(session: requests.Session, state: State, observed_ts: int,
@@ -283,16 +362,24 @@ def main() -> None:
     fast_subset = {n: w for n, w in WALLETS.items() if n in FAST_POLL_WALLETS}
     slow_subset = {n: w for n, w in WALLETS.items() if n not in FAST_POLL_WALLETS}
 
-    logger.info("wallet_shadow start — %d wallets total: %d FAST (%.1fs) + %d SLOW (%.1fs)",
-                len(WALLETS), len(fast_subset), FAST_POLL_S, len(slow_subset), SLOW_POLL_S)
+    # Seed activity timestamps too (don't backfill years of REDEEM/MERGE on first run)
+    for wallet in WALLETS.values():
+        if wallet not in state.last_activity_ts:
+            state.last_activity_ts[wallet] = seed_ts
+    state.save()
+
+    logger.info("wallet_shadow start — %d wallets total: %d FAST (%.1fs) + %d SLOW (%.1fs); activity-poll every %.1fs",
+                len(WALLETS), len(fast_subset), FAST_POLL_S, len(slow_subset), SLOW_POLL_S, ACTIVITY_POLL_S)
     logger.info("logs → %s", LOG_DIR / "<date>" / LOG_NAME)
     logger.warning("REST timestamps are integer-second resolution; sub-second fills "
                    "cannot be captured. For ms-level capture, WebSocket subscription "
                    "to each tracked wallet's markets would be required.")
+    logger.info("activity poll captures REDEEM + MERGE events (not in /trades — these are exit mechanisms for arb wallets)")
 
-    # Interleaved scheduling: fast tier fires every FAST_POLL_S, slow tier every SLOW_POLL_S.
+    # Interleaved scheduling: fast tier, slow tier, activity tier, each with its own deadline.
     next_fast = time.time()
     next_slow = time.time()
+    next_act = time.time()
     while True:
         now = time.time()
         try:
@@ -306,9 +393,14 @@ def main() -> None:
                 if n_slow:
                     logger.info("SLOW tier: %d new trade(s)", n_slow)
                 next_slow = now + SLOW_POLL_S
+            if now >= next_act:
+                n_act = poll_activity_once(session, state, seed_ts)
+                if n_act:
+                    logger.info("ACTIVITY tier: %d new REDEEM/MERGE event(s)", n_act)
+                next_act = now + ACTIVITY_POLL_S
         except Exception as exc:
             logger.exception("poll failed: %s", exc)
-        sleep_for = max(0.5, min(next_fast, next_slow) - time.time())
+        sleep_for = max(0.5, min(next_fast, next_slow, next_act) - time.time())
         time.sleep(sleep_for)
 
 

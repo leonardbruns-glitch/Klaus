@@ -251,6 +251,38 @@ def detect_exit(ev: dict, future_events: list, max_window_s: int = 3 * 3600) -> 
     return None
 
 
+def detect_merge_exit(ev: dict, future_events: list, max_window_s: int = 24 * 3600) -> Optional[dict]:
+    """
+    Find a wallet_merge event from the same wallet on the same condition_id after ev.
+
+    A MERGE means the wallet burned YES+NO pairs for $1 each per matched share.
+    For our copy: if the wallet merged on this condition_id, AND we copied both
+    legs, our copy can also merge → exit at $1.00 per share.
+
+    NOTE: this UPPER-BOUNDS copy-trade PnL — it assumes our shadow copied BOTH
+    legs. If only one leg was copied, we cannot merge alone.
+    """
+    w = ev.get("wallet")
+    cid = ev.get("condition_id")
+    ts = int(ev.get("ts", 0))
+    if not (w and cid and ts):
+        return None
+    for nxt in future_events:
+        if nxt.get("rec") != "wallet_merge":
+            continue
+        nts = int(nxt.get("ts", 0))
+        if nts <= ts:
+            continue
+        if nts - ts > max_window_s:
+            break
+        if nxt.get("wallet") != w:
+            continue
+        if nxt.get("condition_id") != cid:
+            continue
+        return nxt
+    return None
+
+
 # --------------------------------------------------------------------------- Simulator core
 def simulate(events: list, stake_usd: float, lag_s: float, mode: str,
              sess: requests.Session, cache_resolve: dict, cache_mark: dict) -> tuple[list, dict]:
@@ -296,7 +328,12 @@ def simulate(events: list, stake_usd: float, lag_s: float, mode: str,
         # Exit logic
         exit_price = None
         status = "OPEN"
-        if mode == "mirror":
+        if mode == "merge":
+            merge_ev = detect_merge_exit(ev, events_sorted[i + 1:])
+            if merge_ev is not None:
+                exit_price = 1.0  # MERGE pays $1 per matched share
+                status = "EXIT_MERGE"
+        if exit_price is None and mode == "mirror":
             exit_ev = detect_exit(ev, events_sorted[i + 1:])
             if exit_ev is not None:
                 exit_price = float(exit_ev.get("price") or 0)
@@ -346,11 +383,13 @@ def simulate(events: list, stake_usd: float, lag_s: float, mode: str,
         n_resolved_won = sum(1 for f in w_fills if f["status"] == "RESOLVED" and f["pnl_net"] > 0)
         n_open = sum(1 for f in w_fills if f["status"] in ("OPEN", "OPEN_MARK"))
         n_mirror = sum(1 for f in w_fills if f["status"] == "EXIT_MIRROR")
+        n_merge = sum(1 for f in w_fills if f["status"] == "EXIT_MERGE")
         cost_total = sum(f["stake"] * f["filled_pct"] for f in w_fills)
         pnl_resolved = sum(f["pnl_net"] for f in w_fills if f["status"] == "RESOLVED")
         pnl_open = sum(f["pnl_net"] for f in w_fills if f["status"] in ("OPEN", "OPEN_MARK"))
         pnl_mirror = sum(f["pnl_net"] for f in w_fills if f["status"] == "EXIT_MIRROR")
-        pnl_total = pnl_resolved + pnl_open + pnl_mirror
+        pnl_merge = sum(f["pnl_net"] for f in w_fills if f["status"] == "EXIT_MERGE")
+        pnl_total = pnl_resolved + pnl_open + pnl_mirror + pnl_merge
         slip_total = sum(f["slip"] * f["shares"] for f in w_fills)
 
         # Running cumulative PnL & drawdown
@@ -370,11 +409,12 @@ def simulate(events: list, stake_usd: float, lag_s: float, mode: str,
         per_wallet[w] = dict(
             n_total=n_total, n_filled=n_filled, fill_pct=round(100 * n_filled / max(1, n_total), 1),
             n_resolved=n_resolved, n_resolved_won=n_resolved_won, wr_resolved=round(wr_resolved, 3),
-            n_open=n_open, n_mirror=n_mirror,
+            n_open=n_open, n_mirror=n_mirror, n_merge=n_merge,
             cost=round(cost_total, 2),
             pnl_resolved=round(pnl_resolved, 2),
             pnl_open=round(pnl_open, 2),
             pnl_mirror=round(pnl_mirror, 2),
+            pnl_merge=round(pnl_merge, 2),
             pnl_total=round(pnl_total, 2),
             ev_trade=round(ev_trade, 4),
             roi=round(roi, 4),
@@ -523,8 +563,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=utc_today())
     ap.add_argument("--stake", type=float, default=DEFAULT_STAKE)
-    ap.add_argument("--mode", choices=["hold", "mirror"], default="hold",
-                    help="hold-to-resolution or mirror wallet exit")
+    ap.add_argument("--mode", choices=["hold", "mirror", "merge"], default="hold",
+                    help="hold-to-resolution, mirror wallet SELL, or merge (uses /activity MERGE events)")
     ap.add_argument("--latencies", type=float, nargs="*", default=DEFAULT_LATENCIES)
     ap.add_argument("--csv-lag", type=float, default=3.0,
                     help="which lag's fills to export to CSV")
