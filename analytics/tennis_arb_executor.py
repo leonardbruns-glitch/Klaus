@@ -339,13 +339,6 @@ class TennisArbExecutor(TennisArbWS):
             )
             return
 
-        # Asymmetric win exit: one side bid > 0.95 — match nearly over, sell winner now
-        if bid_a > 0.95 and pos.get("shares_a", 0) > 0:
-            logger.info("ARB WIN EXIT: %s leg_a bid=%.4f", pos["slug"], bid_a)
-            await self._sell_leg(cid, pos, "a", bid_a)
-        elif bid_b > 0.95 and pos.get("shares_b", 0) > 0:
-            logger.info("ARB WIN EXIT: %s leg_b bid=%.4f", pos["slug"], bid_b)
-            await self._sell_leg(cid, pos, "b", bid_b)
 
     async def _sell_leg(self, cid: str, pos: dict, leg: str, current_bid: float) -> None:
         token_id = pos[f"token_{leg}"]
