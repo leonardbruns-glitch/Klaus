@@ -44,9 +44,9 @@ CLOB = "https://clob.polymarket.com"
 # their median market volume is $41k; range $7k-$235k. But TOTAL volume ≠ ACTIVE
 # liquidity — most tennis markets in this band have wide-open books (sum_ask 1.5-1.9).
 # We filter to markets with recent activity (volume24hr) AND non-pathological books.
-VOL_TOTAL_MIN = 15_000
-VOL_TOTAL_MAX = 300_000
-VOL_24H_MIN = 5_000        # actively traded today
+VOL_TOTAL_MIN = 2_000      # user instruction: include thin-market niche
+VOL_TOTAL_MAX = 500_000
+VOL_24H_MIN = 500          # any activity today, however small
 MAX_SUM_ASK_FOR_SCAN = 1.15  # skip wide-empty books; they aren't pair-arb candidates
 SCAN_PERIOD_S = 4.0                    # ~match our wallet_shadow FAST tier
 METADATA_REFRESH_S = 60.0              # refresh market list every minute
