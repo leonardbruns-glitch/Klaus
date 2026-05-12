@@ -108,6 +108,9 @@ FAST_POLL_WALLETS = {
     "sixx7", "fluffyfluffyfluffy",        # 15m updown both-side scalpers
     "outlier_172pct_multi",                # multi-market high-frequency
     "esports_75pct",                       # LoL concentrated rapid bets
+    # Moved from SLOW after observing high event rate in first 6 min post-restart:
+    "crypto_specialist_6E1d",              # 32 events in 6 min on SLOW tier
+    "swisstony",                           # 21 events in 6 min on SLOW tier
 }
 FAST_POLL_S = 4.0
 SLOW_POLL_S = 30.0
