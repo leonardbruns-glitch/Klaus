@@ -65,7 +65,40 @@ class CryptoArbStrategy:
                 self._monitor_loop(), name="crypto_arb_monitor"
             )
 
-    # ── Scan (called from main bot loop) ─────────────────────────────────────
+    # ── Fast path: book-event-driven entry ───────────────────────────────────
+
+    async def on_book_update(self, token_id: str, _bid: float) -> None:
+        """Called on every BBO update. Checks for arb opportunity immediately."""
+        if not self.enabled:
+            return
+        self.start_monitor()
+        token = self.bot.feed.tokens.get(token_id)
+        if token is None:
+            return
+        now = time.time()
+        cid = getattr(token, "condition_id", "") or ""
+        if not cid:
+            return
+        wend = int(getattr(token, "window_end_ts", 0))
+        if (cid, wend) in self._traded:
+            return
+        if cid in self._in_flight or cid in self._positions:
+            return
+        if len(self._positions) >= MAX_POS:
+            return
+        spec = self._should_fire(cid, token_id, token, now)
+        if spec is None:
+            return
+        self._traded.add((cid, wend))
+        self._in_flight.add(cid)
+        # GC stale dedup entries (opportunistic, on each fire)
+        self._traded = {(c, w) for c, w in self._traded if w > now - 60}
+        asyncio.create_task(
+            self._enter(cid, *spec),
+            name=f"crypto_arb_enter_{cid[:8]}",
+        )
+
+    # ── Scan (called from main bot loop — fallback) ───────────────────────────
 
     async def scan(self) -> None:
         if not self.enabled:

@@ -377,7 +377,12 @@ class KlausBot:
 
     async def start(self) -> None:
         await self.feed.start()
-        self.feed._on_bbo_update = self._ws_bond_tp_check
+        _bond_tp = self._ws_bond_tp_check
+        _carb = self.crypto_arb.on_book_update
+        async def _bbo_chain(tid: str, bid: float) -> None:
+            await _bond_tp(tid, bid)
+            await _carb(tid, bid)
+        self.feed._on_bbo_update = _bbo_chain
         await self.orders.start()
         self._running = True
         mode = "DRY RUN" if CONFIG.dry_run else "LIVE"
