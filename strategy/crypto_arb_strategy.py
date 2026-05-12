@@ -225,14 +225,14 @@ class CryptoArbStrategy:
 
             await self.bot.orders.refresh_usdc_allowance()
 
-            fill_yes, fill_no = await asyncio.gather(
-                self.bot.orders.arb_buy(yes_tid, ask_yes, n_shares),
-                self.bot.orders.arb_buy(no_tid,  ask_no,  n_shares),
-                return_exceptions=True,
+            # Single post_orders FOK call — both legs in one round-trip.
+            # FOK: fills immediately or self-cancels; no resting orders.
+            fill_yes, fill_no = await self.bot.orders.arb_buy_both(
+                yes_tid, ask_yes, no_tid, ask_no, n_shares,
             )
 
-            ok_yes = not isinstance(fill_yes, Exception) and fill_yes.status == OrderStatus.FILLED
-            ok_no  = not isinstance(fill_no,  Exception) and fill_no.status  == OrderStatus.FILLED
+            ok_yes = fill_yes.status == OrderStatus.FILLED
+            ok_no  = fill_no.status  == OrderStatus.FILLED
 
             if ok_yes and ok_no:
                 cost = fill_yes.avg_fill_price * fill_yes.total_size + fill_no.avg_fill_price * fill_no.total_size

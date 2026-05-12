@@ -29,7 +29,7 @@ try:
     from py_clob_client_v2.clob_types import (
         MarketOrderArgs, OrderType, OrderArgs,
         BalanceAllowanceParams, AssetType,
-        PartialCreateOrderOptions,
+        PartialCreateOrderOptions, PostOrdersV2Args,
     )
     from py_clob_client_v2.order_builder.constants import BUY as CLOB_BUY, SELL as CLOB_SELL
     CLOB_CLIENT_AVAILABLE = True
@@ -426,7 +426,105 @@ class OrderManager:
             neg_risk=None, tick_size=tick_size,
         )
 
-    # ── Token approval ────────────────────────────────────────────────────────
+    async def arb_buy_both(
+        self,
+        yes_token_id: str, yes_price: float,
+        no_token_id: str,  no_price: float,
+        n_shares: float,
+        tick_size: str = TICK_SIZE,
+    ) -> "tuple[OrderResult, OrderResult]":
+        """Both arb legs in one post_orders FOK call — one round-trip, no resting orders."""
+        import math as _math
+
+        _FAIL = OrderResult(status=OrderStatus.FAILED, error="no client")
+        if self._client is None:
+            return _FAIL, _FAIL
+
+        if CONFIG.dry_run:
+            def _dr(tid, p):
+                return OrderResult(status=OrderStatus.FILLED,
+                                   fills=[Fill(order_id="dry-arb", token_id=tid,
+                                               side=OrderSide.BUY, price=p,
+                                               size=n_shares, fee=0.0)],
+                                   avg_fill_price=p, total_size=n_shares)
+            return _dr(yes_token_id, yes_price), _dr(no_token_id, no_price)
+
+        def _snap(price: float, size: float) -> tuple:
+            tick_f = float(tick_size) if tick_size else 0.01
+            try:
+                snap_dec = len(tick_size.rstrip("0").split(".")[-1]) if "." in tick_size else 0
+                p = round(round(price / tick_f) * tick_f, snap_dec + 2)
+            except Exception:
+                p = price
+            p_cents = round(p * 100)
+            if p_cents <= 0:
+                return p, size
+            step = 10000 // _math.gcd(p_cents, 10000)
+            min_ticks = max(_math.ceil(1_000_000 / p_cents), 50_000)
+            snapped = (_math.ceil(max(round(size * 10000), min_ticks) / step) * step) / 10000
+            return p, snapped
+
+        yes_lim, yes_sz = _snap(round(min(yes_price * 1.005, 0.99), 4), n_shares)
+        no_lim,  no_sz  = _snap(round(min(no_price  * 1.005, 0.99), 4), n_shares)
+
+        opts = PartialCreateOrderOptions(tick_size=tick_size, neg_risk=None)
+        from py_clob_client_v2.clob_types import OrderArgs as _OA
+        yes_args = _OA(token_id=yes_token_id, price=yes_lim, size=yes_sz, side=CLOB_BUY)
+        no_args  = _OA(token_id=no_token_id,  price=no_lim,  size=no_sz,  side=CLOB_BUY)
+
+        try:
+            signed_yes, signed_no = await asyncio.gather(
+                asyncio.to_thread(self._client.create_order, yes_args, opts),
+                asyncio.to_thread(self._client.create_order, no_args,  opts),
+            )
+        except Exception as e:
+            err = str(e)
+            return (OrderResult(status=OrderStatus.FAILED, error=err),
+                    OrderResult(status=OrderStatus.FAILED, error=err))
+
+        batch = [
+            PostOrdersV2Args(order=signed_yes, orderType=OrderType.FOK),
+            PostOrdersV2Args(order=signed_no,  orderType=OrderType.FOK),
+        ]
+        try:
+            async with self._session_lock:
+                resp = await asyncio.to_thread(self._client.post_orders, batch)
+        except Exception as e:
+            err = str(e)
+            logger.warning("[ARB_BOTH] post_orders failed: %s", err)
+            return (OrderResult(status=OrderStatus.FAILED, error=err),
+                    OrderResult(status=OrderStatus.FAILED, error=err))
+
+        logger.debug("[ARB_BOTH] post_orders raw: %s", resp)
+
+        def _parse(r, price, size) -> "OrderResult":
+            if not isinstance(r, dict):
+                return OrderResult(status=OrderStatus.FAILED, error=str(r)[:120])
+            status = (r.get("status") or "").lower()
+            taking_raw = r.get("takingAmount") or r.get("takingamount") or "0"
+            try:
+                taking_f = float(taking_raw)
+            except (TypeError, ValueError):
+                taking_f = 0.0
+            if status in ("matched", "filled") or (status == "delayed" and taking_f > 0):
+                fill_sz = (taking_f / price) if price > 0 else size
+                f = Fill(order_id=r.get("id", r.get("orderID", "")),
+                         token_id="", side=OrderSide.BUY,
+                         price=price, size=fill_sz, fee=0.0)
+                return OrderResult(status=OrderStatus.FILLED, fills=[f],
+                                   avg_fill_price=price, total_size=fill_sz)
+            return OrderResult(status=OrderStatus.FAILED,
+                               error=f"fok_miss:status={status}")
+
+        if not isinstance(resp, list) or len(resp) < 2:
+            # Unexpected shape — log raw and treat both as failed
+            logger.warning("[ARB_BOTH] unexpected response shape: %s", resp)
+            return (_parse(resp[0] if isinstance(resp, list) and resp else resp, yes_price, yes_sz),
+                    OrderResult(status=OrderStatus.FAILED, error="missing_no_leg"))
+
+        return _parse(resp[0], yes_price, yes_sz), _parse(resp[1], no_price, no_sz)
+
+    # ── Token approval ────────────────────────────────────────────────────────────
 
     async def approve_token_for_sell(self, token_id: str) -> bool:
         """
