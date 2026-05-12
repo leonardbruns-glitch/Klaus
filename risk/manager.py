@@ -397,7 +397,8 @@ class RiskManager:
                 # Discard positions whose 5-min window has already expired.
                 # Keeping stale positions fills max_open_positions and blocks
                 # all new trades. The market resolved on-chain; we can't sell.
-                if pos.window_end_ts > 0 and pos.window_end_ts < now - 30:
+                if (pos.window_end_ts > 0 and pos.window_end_ts < now - 30
+                        and pos.bond_entry_class != "LDA"):
                     if pos.exit_stage == ExitStage.STAGE_1_DONE:
                         # Stage-1 was profitable (60% sold) but bot crashed before stage-2 completed.
                         # Queue for recovery record in _startup_orphan_sweep — don't silently discard.
