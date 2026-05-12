@@ -79,6 +79,22 @@ class LateDirectionArb:
         if abs(bnc_move_pct) < BNC_MOVE_MIN:
             return  # move too small; all known reversals were at <0.056%
 
+        # Per-asset / per-window-size bnc gates (shadow data, n=1631, May 8-12):
+        #   ETH 15m: all bnc zones NEG EV or LOW WR → block entirely
+        #   SOL 15m: 0.07-0.10% NEG EV (dominant bucket), rest too small → block entirely
+        #   BTC 15m: 0.07-0.10% LOW WR (87.5%) → require bnc >= 0.10%
+        #   SOL 5m:  0.10-0.15% and 0.15%+ NEG EV (ask too high by then) → cap at 0.10%
+        wsz   = rec.get("window_size_s", 300)
+        asset = rec.get("asset", "").upper()
+        bnc_abs = abs(bnc_move_pct)
+        if wsz == 900:  # 15m window
+            if asset in ("ETH", "SOL"):
+                return
+            if asset == "BTC" and bnc_abs < 0.10:
+                return
+        elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
+            return
+
         bnc_dir = "up" if bnc_move_pct > 0 else "down"
         if bnc_dir != rec.get("outcome_dir"):
             return  # this token is NOT on the predicted winning side
