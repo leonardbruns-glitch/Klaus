@@ -237,6 +237,19 @@ class TennisArbExecutor(TennisArbWS):
                 err_a = str(fill_a) if isinstance(fill_a, Exception) else getattr(fill_a, "error", "?")
                 err_b = str(fill_b) if isinstance(fill_b, Exception) else getattr(fill_b, "error", "?")
                 logger.info("ARB MISS: neither leg filled for %s (a=%s b=%s)", slug, err_a, err_b)
+                # Cancel any resting/delayed orders so they don't fill later without a hedge.
+                # "Unfilled: delayed" means the order was accepted by CLOB but our code
+                # returned before waiting — the order remains live until explicitly cancelled.
+                for tid in (token_a, token_b):
+                    try:
+                        if self.orders._client:
+                            from py_clob_client_v2.clob_types import OrderMarketCancelParams
+                            await asyncio.to_thread(
+                                self.orders._client.cancel_market_orders,
+                                OrderMarketCancelParams(asset_id=tid),
+                            )
+                    except Exception as _ce:
+                        logger.debug("ARB MISS cancel %s: %s", tid[:12], _ce)
                 _log_trade({
                     "rec": "arb_miss", "ts": ts_start, "iso": _iso(),
                     "cid": cid, "slug": slug,
