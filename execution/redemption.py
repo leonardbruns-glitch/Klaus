@@ -17,6 +17,7 @@ Run via asyncio: asyncio.create_task(redeemer.run_loop())
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from typing import Optional
@@ -29,6 +30,7 @@ DATA_API = "https://data-api.polymarket.com"
 CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 POLYGON_RPC = os.getenv("POLYGON_RPC", "https://1rpc.io/matic")
+CONFIRMED_WINNERS_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "confirmed_winners.json")
 
 CTF_ABI = [
     {
@@ -78,7 +80,33 @@ class Redeemer:
         self._sig_type = signature_type
         self._dry_run = dry_run
         self._redeemed: set[str] = set()       # token_ids processed this session
-        self.confirmed_winners: set[str] = set()  # orderbook-gone → PM auto-redeeming
+        self.confirmed_winners: set[str] = self._load_confirmed_winners()
+
+    # ── persistence ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _load_confirmed_winners() -> set[str]:
+        try:
+            with open(CONFIRMED_WINNERS_FILE) as f:
+                data = json.load(f)
+            loaded = set(data.get("winners", []))
+            if loaded:
+                logger.info("REDEEM loaded %d confirmed winners from disk", len(loaded))
+            return loaded
+        except FileNotFoundError:
+            return set()
+        except Exception as exc:
+            logger.warning("REDEEM failed to load confirmed_winners: %s", exc)
+            return set()
+
+    def _save_confirmed_winners(self) -> None:
+        try:
+            tmp = CONFIRMED_WINNERS_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"winners": list(self.confirmed_winners)}, f)
+            os.replace(tmp, CONFIRMED_WINNERS_FILE)
+        except Exception as exc:
+            logger.warning("REDEEM failed to save confirmed_winners: %s", exc)
 
     # ── public ────────────────────────────────────────────────────────────────
 
@@ -220,6 +248,7 @@ class Redeemer:
                         token_id[:12], cur_price,
                     )
                     self.confirmed_winners.add(token_id)
+                    self._save_confirmed_winners()
                 else:
                     logger.info(
                         "REDEEM CONFIRMED_LOSS %s: orderbook gone, curPrice=%.2f — resolved NO",
