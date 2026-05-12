@@ -26,7 +26,7 @@ ASK_CEIL     = 0.994
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 90.0    # don't enter >90s before close (signal less reliable)
-BNC_MOVE_MIN = 0.10    # |5m return %| floor; all reversals were at <0.056%
+BNC_MOVE_MIN = 0.07    # |5m return %| floor; all reversals were at <0.056%; 0.07→99.8% acc +66% trades
 STAKE_USD    = 5.00
 
 

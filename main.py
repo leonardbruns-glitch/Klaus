@@ -1327,6 +1327,7 @@ class KlausBot:
                 # Raised 0.95→0.99 on 2026-05-11 (user instruction: DISCOVER hold to
                 # near-certainty, otherwise time exit only).
                 if (current_price >= 0.99
+                        and getattr(pos, "bond_entry_class", "") != "LDA"
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -1420,7 +1421,10 @@ class KlausBot:
                     continue
 
                 # ── T-3s hard gate: unconditional sell ───────────────────────────
-                if bond_remaining <= 3.0 and token_id not in self._exit_in_progress:
+                # LDA excluded: holds to resolution, Redeemer collects $1.00.
+                if (bond_remaining <= 3.0
+                        and getattr(pos, "bond_entry_class", "") != "LDA"
+                        and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'BOND_DEADLINE %s/%s | remaining=%.1fs — T-3s forced exit bid=%.4f',
