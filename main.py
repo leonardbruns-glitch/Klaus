@@ -357,6 +357,8 @@ class KlausBot:
         # when this is enabled — only one strategy active at a time.
         from strategy.discover_strategy import DiscoverStrategy
         self.discover_strategy = DiscoverStrategy(self)
+        from strategy.crypto_arb_strategy import CryptoArbStrategy
+        self.crypto_arb = CryptoArbStrategy(self)
         # Oracle sweep DISABLED — direction inversion confirmed: tokens["up"] buys the
         # losing side consistently. All A1/A2/A3 positions resolved against us.
         # Root cause not yet identified. Do not re-enable until direction mapping is audited.
@@ -2286,6 +2288,13 @@ class KlausBot:
                     logger.error(
                         "DISCOVER SCAN ERROR (isolated): %s",
                         _disc_exc, exc_info=True,
+                    )
+                try:
+                    await self.crypto_arb.scan()
+                except Exception as _carb_exc:
+                    logger.error(
+                        "CRYPTO_ARB SCAN ERROR (isolated): %s",
+                        _carb_exc, exc_info=True,
                     )
                 await self._scan_reversal_candidates()
                 if self.research_agent.due():
