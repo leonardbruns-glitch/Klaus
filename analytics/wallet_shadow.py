@@ -33,7 +33,29 @@ CLOB_API = "https://clob.polymarket.com"
 GAMMA_API = "https://gamma-api.polymarket.com"
 
 WALLETS: Dict[str, str] = {
+    # Tennis negative-risk arb specialist. /value=$63k, +$1.6k cash PnL today.
     "Eulhunter": "0x98db8cca55c32b24cfb414b5b43d273f4e1fdd17",
+    # Tennis arb, smaller. /value=$13k, 45% WR, +$4.4k realized.
+    "tradecraft": "0xde9f7f4e77a1595623ceb58e469f776257ccd43c",
+    # Long-tail NO grinder, multi-category. /value=$64k. realized +$306k.
+    # Buys NO at 0.97-0.999 on "will rare-event happen by date" markets.
+    "melchior1248": "0x36901eb0f21519cc9055662a6d2483e96da1e16f",
+    # Politics + NO-on-certainty grinder. /value=$35k, 73% WR, +$2.8k cash.
+    "vinii": "0x1ee9a5fc09665909c0cce297c581703bfbb9197f",
+    # Crypto-only target specialist. /value=$373k, 234 pos, 65% WR, +$150k realized.
+    # Buys YES at 0.95-0.99 on BTC/ETH "above $X by date" near-certain targets.
+    "crypto_specialist_6E1d": "0x6e1d5040d0ac73709b0621f620d2a60b80d2d0fa",
+    # Updown 15m passive limit-order scalper. /value=$263, +$33k realized.
+    # 1935 BUYs / 0 SELLs across both UP and DOWN, micro-stakes — the rare wallet
+    # making money on the same market our bot loses on.
+    "sixx7": "0xee55214ee3a9ee22a404663c76ca832577df7b04",
+    # UK politics specialist. /value=$55k, 290 pos, 59% WR, +$8k cash PnL.
+    "buoys": "0x7e35a2a8cfd1eb1e69dacd043206db5a787f1a6c",
+    # Politics + macro grinder. /value=$10k, 41% WR, +$2.7k cash.
+    "cwc909": "0x8db4f2bcb37078763c70dac5d99c285995479c07",
+    # Best WR signal in our sample: 78% WR, /value=$187k, +$24k pnl, only 27 positions
+    # (highly selective; UFC, NBA, WTI futures).
+    "selective_5F45": "0x5f45b60c29d6e4d55c0bfd8ddd39ad45c5e0a77a",
 }
 
 POLL_S = 20.0
