@@ -44,7 +44,7 @@ def _net_edge(ask_yes: float, ask_no: float) -> float:
 class CryptoArbStrategy:
     def __init__(self, bot) -> None:
         self.bot = bot
-        self.enabled: bool = True
+        self.enabled: bool = False  # disabled 2026-05-12: REST latency > arb window; always partial fills
 
         # cid → {token_yes, token_no, shares, ask_yes, ask_no, cost, window_end_ts, asset}
         self._positions: Dict[str, dict] = {}
