@@ -49,7 +49,7 @@ class DiscoverStrategy:
         # ACTIVE 2026-05-10: switched on at restart together with BOND_ENABLED=False.
         # Flip back to False to disable; flip BOND_ENABLED=True in window_sniper.py
         # to revert to the prior strategy. Only one of the two should be True.
-        self.enabled: bool = True
+        self.enabled: bool = False  # paused 2026-05-12: testing tennis arb
         # Per-window dedup: (token_id, window_end_ts).
         self._traded_windows: Set[Tuple[str, int]] = set()
         # token_id -> exit task
