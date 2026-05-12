@@ -42,11 +42,29 @@ VOL_TOTAL_MIN = 2_000            # user instruction: include thin-market niche
 VOL_TOTAL_MAX = 500_000
 VOL_24H_MIN = 500                # any activity today, however small
 
-FEE_BPS = 200
-FEE_DRAG_PCT = 0.04
-SLIPPAGE_BUFFER = 0.01
-ARB_THRESHOLD = 1.00 - FEE_DRAG_PCT - SLIPPAGE_BUFFER   # 0.95
+SLIPPAGE_BUFFER = 0.005
+# Polymarket fee is bell-shaped (peak ~1.8% at p=0.50, ~0.5% near extremes).
+# True per-pair fee depends on leg prices, computed in fee_for_pair() below.
+# Use 0.97 as default near-miss threshold to catch any sum<1.00 + buffer.
+ARB_THRESHOLD = 0.99        # detection threshold; net edge computed per-pair
 NEAR_MISS_THRESHOLD = 1.02
+
+
+def fee_for_price(p: float) -> float:
+    """Approximate Polymarket bell-shaped fee per leg (from CONFIG.fees)."""
+    if p < 0.35 or p > 0.65:
+        return 0.005
+    dist = abs(p - 0.50)
+    if dist >= 0.15:
+        return 0.005
+    return 0.018 - (0.018 - 0.005) * (dist / 0.15)
+
+
+def net_edge_pct(ask_a: float, ask_b: float) -> float:
+    """Net edge after real Polymarket fees for both legs, as a fraction (0.01 = 1%)."""
+    gross = 1.0 - (ask_a + ask_b)
+    fees = fee_for_price(ask_a) + fee_for_price(ask_b)
+    return gross - fees - SLIPPAGE_BUFFER
 METADATA_REFRESH_S = 120.0
 
 LOG_DIR = Path("/root/Klaus/logs/shadow/hot")
@@ -191,10 +209,16 @@ class TennisArbWS:
         bid_a = self.best_bid.get(tokens[0], (0, 0))[0]
         bid_b = self.best_bid.get(tokens[1], (0, 0))[0]
         meta = self.token_meta.get(src_token, {})
-        rec_type = "ARB_OPPORTUNITY" if sum_ask < ARB_THRESHOLD else "NEAR_MISS"
-        if rec_type == "ARB_OPPORTUNITY":
+        # Compute REAL net edge with bell-shaped fees
+        net = net_edge_pct(ask_a, ask_b)
+        if net > 0:
+            rec_type = "ARB_OPPORTUNITY"
             self.stats["arb_fires"] += 1
+        elif sum_ask < 1.00:
+            rec_type = "SUB_PARITY_BUT_FEE_NEGATIVE"
+            self.stats["near_miss"] += 1
         else:
+            rec_type = "NEAR_MISS"
             self.stats["near_miss"] += 1
         ev = {
             "rec": rec_type,
@@ -214,13 +238,18 @@ class TennisArbWS:
             "size_at_ask_a": round(sz_a, 2),
             "size_at_ask_b": round(sz_b, 2),
             "cap_usd_min": round(capacity, 2),
-            "fireable_at_5usd_per_leg": capacity >= 5.0 and sum_ask < ARB_THRESHOLD,
+            "fee_a_pct": round(fee_for_price(ask_a) * 100, 3),
+            "fee_b_pct": round(fee_for_price(ask_b) * 100, 3),
+            "net_edge_pct": round(net * 100, 3),
+            "fireable_at_5usd_per_leg": capacity >= 5.0 and net > 0,
         }
         record(ev)
         self.last_logged_sum[cid] = sum_ask
         if rec_type == "ARB_OPPORTUNITY":
-            logger.info("FIRE  %s sum=%.3f edge=%.2f%% cap=$%.0f  %s",
-                        rec_type, sum_ask, ev["edge_pct"], capacity, (meta.get("slug") or "")[:40])
+            logger.info("FIRE  sum=%.3f gross=%.2f%% fees=%.2f%% net=%+.2f%%  cap=$%.0f  %s",
+                        sum_ask, (1 - sum_ask) * 100,
+                        (fee_for_price(ask_a) + fee_for_price(ask_b)) * 100,
+                        net * 100, capacity, (meta.get("slug") or "")[:40])
 
     async def handle_event(self, ev: dict) -> None:
         self.stats["events"] += 1
