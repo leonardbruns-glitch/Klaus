@@ -56,6 +56,16 @@ WALLETS: Dict[str, str] = {
     # Best WR signal in our sample: 78% WR, /value=$187k, +$24k pnl, only 27 positions
     # (highly selective; UFC, NBA, WTI futures).
     "selective_5F45": "0x5f45b60c29d6e4d55c0bfd8ddd39ad45c5e0a77a",
+    # +756% ROI on $602 staked — geopolitical longshot NO at <0.05 entry. 7/7 WR.
+    "outlier_756pct_geo": "0x2e0ab2ff6c513dc62870a0a7176186380222e172",
+    # +172% ROI on $22.8k — multi-cat longshot NO grinder, 500 pos, avg_stake=$406.
+    "outlier_172pct_multi": "0x91d757346e322976a9544dd07b9b7e3f58550dfc",
+    # +75% ROI on $2.4k — LoL esports concentrated convictions, 100% WR.
+    "esports_75pct": "0xea58b24f4add059c8e368d7318d3c30a4704930f",
+    # mr.ozi: $56k profit, 85% WR on geopolitics. /value=$539k.
+    "mr_ozi_geo": "0x614dc8d3542c12103d2c6a3553fd761e391d1546",
+    # +262k profit, 64% WR on politics, /value=$520k. High-WR politics grinder.
+    "politics_64wr_011f": "0x011f2d377e56119fb09196dffb0948ae55711122",
 }
 
 POLL_S = 20.0
