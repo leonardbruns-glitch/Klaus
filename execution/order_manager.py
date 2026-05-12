@@ -380,6 +380,52 @@ class OrderManager:
         return await self.limit_buy(token_id, intended_price, stake_usd, direction,
                                     neg_risk=neg_risk, tick_size=tick_size)
 
+    async def refresh_usdc_allowance(self) -> None:
+        """Refresh USDC collateral allowance once. Call before a batch of arb orders."""
+        if self._client is None:
+            return
+        async with self._session_lock:
+            await asyncio.to_thread(
+                self._client.update_balance_allowance,
+                BalanceAllowanceParams(
+                    asset_type=AssetType.COLLATERAL,
+                    signature_type=CONFIG.signature_type,
+                ),
+            )
+
+    async def arb_buy(
+        self,
+        token_id: str,
+        price: float,
+        n_shares: float,
+        tick_size: str = TICK_SIZE,
+    ) -> "OrderResult":
+        """
+        Place a buy for exactly n_shares at price (+ 0.5% buffer).
+        No per-order allowance refresh — caller must call refresh_usdc_allowance() first.
+        No orphan recovery loop — returns immediately on failure.
+        """
+        if CONFIG.dry_run:
+            f = Fill(
+                order_id="dry-arb",
+                token_id=token_id,
+                side=OrderSide.BUY,
+                price=price,
+                size=n_shares,
+                fee=0.0,
+            )
+            return OrderResult(
+                status=OrderStatus.FILLED,
+                fills=[f],
+                avg_fill_price=price,
+                total_size=n_shares,
+            )
+        limit_price = round(min(price * 1.005, 0.99), 4)
+        return await self._submit_limit_order(
+            token_id, OrderSide.BUY, limit_price, n_shares,
+            neg_risk=None, tick_size=tick_size,
+        )
+
     # ── Token approval ────────────────────────────────────────────────────────
 
     async def approve_token_for_sell(self, token_id: str) -> bool:
