@@ -21,12 +21,13 @@ from strategy.momentum import Direction, TPSLLevels
 
 logger = logging.getLogger(__name__)
 
-ASK_FLOOR  = 0.70
-ASK_CEIL   = 0.994
-BID_MIN    = 0.50   # safeguard: both tokens on wrong side if bid < 0.50
-REM_MIN_S  = 8.0    # don't enter if <8s left (can't fill reliably)
-REM_MAX_S  = 90.0   # don't enter >90s before close (signal less reliable)
-STAKE_USD  = 5.00
+ASK_FLOOR    = 0.70
+ASK_CEIL     = 0.994
+BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
+REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
+REM_MAX_S    = 90.0    # don't enter >90s before close (signal less reliable)
+BNC_MOVE_MIN = 0.10    # |5m return %| floor; all reversals were at <0.056%
+STAKE_USD    = 5.00
 
 
 class LateDirectionArb:
@@ -74,7 +75,11 @@ class LateDirectionArb:
         if spot <= 0 or open_5m <= 0:
             return
 
-        bnc_dir = "up" if spot >= open_5m else "down"
+        bnc_move_pct = (spot - open_5m) / open_5m * 100.0
+        if abs(bnc_move_pct) < BNC_MOVE_MIN:
+            return  # move too small; all known reversals were at <0.056%
+
+        bnc_dir = "up" if bnc_move_pct > 0 else "down"
         if bnc_dir != rec.get("outcome_dir"):
             return  # this token is NOT on the predicted winning side
 
@@ -83,7 +88,7 @@ class LateDirectionArb:
         self.entries_attempted += 1
 
         task = asyncio.create_task(
-            self._fire(dict(rec), bnc_dir, spot, open_5m),
+            self._fire(dict(rec), bnc_dir, spot, open_5m, bnc_move_pct),
             name=f"lda_{cid[:8]}_{wend}",
         )
         self._tasks.append(task)
@@ -105,10 +110,11 @@ class LateDirectionArb:
         bnc_dir: str,
         spot: float,
         open_5m: float,
+        bnc_move_pct: float,
     ) -> None:
         """Execute the buy and register the position. Never raises."""
         try:
-            await self._fire_inner(rec, bnc_dir, spot, open_5m)
+            await self._fire_inner(rec, bnc_dir, spot, bnc_move_pct)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -119,7 +125,7 @@ class LateDirectionArb:
         rec: dict,
         bnc_dir: str,
         spot: float,
-        open_5m: float,
+        bnc_move_pct: float,
     ) -> None:
         from execution.order_manager import OrderStatus
 
@@ -129,7 +135,6 @@ class LateDirectionArb:
         rem      = rec["seconds_to_resolution"]
         cid      = rec["condition_id"]
         wend     = rec["window_end_ts"]
-        bnc_move_pct = (spot - open_5m) / open_5m * 100.0
 
         logger.info(
             "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%%",
