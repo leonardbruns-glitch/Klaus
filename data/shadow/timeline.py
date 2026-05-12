@@ -153,7 +153,7 @@ class TimelineSampler:
                 if _exit_pol is not None:
                     if gt is not None:
                         _exit_pol.register_first_fire(rec, gt)
-                    _exit_pol.evaluate_tick(rec)
+                    _exit_pol.evaluate_tick(rec, gt)
                 # Phase 2 Discovery — Step 3 passive recorder (2026-05-10).
                 # Strict signal filter; first-fire-per-window dedup.
                 _disc = getattr(self.bot, "shadow_discover_signal", None)
@@ -172,20 +172,11 @@ class TimelineSampler:
                         outcome_dir=rec["outcome_dir"],
                         window_size_s=rec["window_size_s"],
                     )
-                # Oracle sweep: register this token's side + schedule sweep at window close.
-                _sweep = getattr(self.bot, "oracle_sweeper", None)
-                if _sweep is not None and rec["condition_id"] and rec["window_end_ts"] > 0:
-                    _sweep.register_token(
-                        cid=rec["condition_id"],
-                        outcome_dir=rec["outcome_dir"],
-                        token_id=token_id,
-                    )
-                    _sweep.schedule(
-                        cid=rec["condition_id"],
-                        wend=rec["window_end_ts"],
-                        asset=rec["asset"],
-                        window_size_s=rec["window_size_s"],
-                    )
+                # Oracle sweep: permanently off; oracle_sweeper is None.
+                # Late-direction arb: check conditions each tick, fire if eligible.
+                _lda = getattr(self.bot, "lda_strategy", None)
+                if _lda is not None and rec["condition_id"] and rec["window_end_ts"] > 0:
+                    _lda.schedule_if_ready(rec)
                 # Phase 2: hold-path evolution (per-second trajectory of virtual positions).
                 self.hold_path.on_tick(rec, gt)
                 self._last_emit_ts[token_id] = now_s

@@ -1,0 +1,190 @@
+"""
+Late-window directional arb (LDA).
+
+Signal: Binance 5m-return direction (spot vs open_5m).
+Gate  : predicted-winner token ask in [0.70, 0.994] + bid > 0.50.
+Timing: one entry per window, fired the first eligible tick in T-8 to T-90s.
+Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
+        Losing tokens resolve NO and are booked by BOND_RESOLVED_NO.
+
+Accuracy baseline (n=85 windows, 2 days): 96.6% direction accuracy, PF≈6.3.
+Stake: $5 per window during validation (raise after n≥100, WR>55%).
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from typing import Any, Dict, Set, Tuple
+
+from strategy.momentum import Direction, TPSLLevels
+
+logger = logging.getLogger(__name__)
+
+ASK_FLOOR  = 0.70
+ASK_CEIL   = 0.994
+BID_MIN    = 0.50   # safeguard: both tokens on wrong side if bid < 0.50
+REM_MIN_S  = 8.0    # don't enter if <8s left (can't fill reliably)
+REM_MAX_S  = 90.0   # don't enter >90s before close (signal less reliable)
+STAKE_USD  = 5.00
+
+
+class LateDirectionArb:
+    """Per-tick late-window directional arb."""
+
+    def __init__(self, bot: Any) -> None:
+        self.bot = bot
+        self.enabled: bool = True
+
+        self._fired: Set[Tuple[str, int]] = set()  # (cid, wend) already entered
+        self._tasks = []
+
+        self.entries_attempted: int = 0
+        self.entries_filled: int = 0
+
+    # ── Public: called synchronously from timeline sampler ────────────────────
+
+    def schedule_if_ready(self, rec: dict) -> None:
+        """Check current tick; spawn async entry task if conditions met."""
+        if not self.enabled:
+            return
+
+        remaining = rec.get("seconds_to_resolution", 0.0)
+        if not (REM_MIN_S <= remaining <= REM_MAX_S):
+            return
+
+        cid  = rec.get("condition_id", "")
+        wend = rec.get("window_end_ts", 0)
+        if not cid or not wend:
+            return
+
+        key = (cid, wend)
+        if key in self._fired:
+            return
+
+        ask = rec.get("best_ask", 0.0)
+        bid = rec.get("best_bid", 0.0)
+        if not (ASK_FLOOR <= ask <= ASK_CEIL) or bid < BID_MIN:
+            return
+
+        feed = self.bot.feed
+        asset_up = rec.get("asset", "").upper()
+        spot    = feed._spot_price.get(asset_up, 0.0)
+        open_5m = feed._spot_open_5m.get(asset_up, 0.0)
+        if spot <= 0 or open_5m <= 0:
+            return
+
+        bnc_dir = "up" if spot >= open_5m else "down"
+        if bnc_dir != rec.get("outcome_dir"):
+            return  # this token is NOT on the predicted winning side
+
+        # Mark fired BEFORE creating task to prevent a second tick from double-firing.
+        self._fired.add(key)
+        self.entries_attempted += 1
+
+        task = asyncio.create_task(
+            self._fire(dict(rec), bnc_dir, spot, open_5m),
+            name=f"lda_{cid[:8]}_{wend}",
+        )
+        self._tasks.append(task)
+        if len(self._tasks) > 128:
+            self._tasks = [t for t in self._tasks if not t.done()]
+
+    async def stop(self) -> None:
+        live = [t for t in self._tasks if not t.done()]
+        for t in live:
+            t.cancel()
+        if live:
+            await asyncio.gather(*live, return_exceptions=True)
+
+    # ── Async entry execution ─────────────────────────────────────────────────
+
+    async def _fire(
+        self,
+        rec: dict,
+        bnc_dir: str,
+        spot: float,
+        open_5m: float,
+    ) -> None:
+        """Execute the buy and register the position. Never raises."""
+        try:
+            await self._fire_inner(rec, bnc_dir, spot, open_5m)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("[LDA] unhandled error %s/%s", rec.get("asset"), rec.get("window_end_ts"))
+
+    async def _fire_inner(
+        self,
+        rec: dict,
+        bnc_dir: str,
+        spot: float,
+        open_5m: float,
+    ) -> None:
+        from execution.order_manager import OrderStatus
+
+        token_id = rec["token_id"]
+        asset    = rec["asset"]
+        ask      = rec["best_ask"]
+        rem      = rec["seconds_to_resolution"]
+        cid      = rec["condition_id"]
+        wend     = rec["window_end_ts"]
+        bnc_move_pct = (spot - open_5m) / open_5m * 100.0
+
+        logger.info(
+            "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%%",
+            asset, bnc_dir, ask, rem, bnc_move_pct,
+        )
+
+        fill = await self.bot.orders.limit_buy(
+            token_id=token_id,
+            intended_price=ask,
+            stake_usd=STAKE_USD,
+            direction=Direction.BUY_YES,
+        )
+
+        if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
+            logger.info("[LDA] fill failed %s: %s", asset, getattr(fill, "error", "?"))
+            key = (cid, wend)
+            self._fired.discard(key)  # allow retry on next tick
+            self.entries_attempted -= 1
+            return
+
+        self.entries_filled += 1
+        actual_stake = fill.avg_fill_price * fill.total_size
+
+        logger.info(
+            "[LDA] FILLED %s/%s %.4f shares @ %.4f | cost=$%.2f expect=$%.2f (+$%.2f)",
+            asset, bnc_dir, fill.total_size, fill.avg_fill_price,
+            actual_stake, fill.total_size, fill.total_size - actual_stake,
+        )
+
+        tpsl = TPSLLevels(
+            take_profit=0.0, stop_loss=0.0,
+            tp_pct=0.0, sl_pct=0.0, risk_reward=0.0,
+        )
+
+        class _Sig:
+            signal_source = "LDA"
+            entry_price = fill.avg_fill_price
+            direction = Direction.BUY_YES
+
+        try:
+            self.bot.risk.open_position(
+                token_id=token_id,
+                asset=asset,
+                direction=Direction.BUY_YES,
+                stake=actual_stake,
+                entry_price=fill.avg_fill_price,
+                tpsl=tpsl,
+                condition_id=cid,
+                window_end_ts=wend,
+                window_seconds=rec.get("window_size_s", 300),
+                quality_score=0,
+                binance_price_at_entry=spot,
+                is_bond=True,
+                bond_outcome_direction=bnc_dir,
+                bond_entry_class="LDA",
+            )
+        except Exception:
+            logger.exception("[LDA] risk.open_position failed %s", asset)

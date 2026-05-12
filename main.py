@@ -359,10 +359,9 @@ class KlausBot:
         self.discover_strategy = DiscoverStrategy(self)
         from strategy.crypto_arb_strategy import CryptoArbStrategy
         self.crypto_arb = CryptoArbStrategy(self)
-        # Oracle sweep DISABLED — direction inversion confirmed: tokens["up"] buys the
-        # losing side consistently. All A1/A2/A3 positions resolved against us.
-        # Root cause not yet identified. Do not re-enable until direction mapping is audited.
-        self.oracle_sweeper = None
+        self.oracle_sweeper = None  # permanently off; replaced by LDA
+        from strategy.late_direction_arb import LateDirectionArb
+        self.lda_strategy = LateDirectionArb(self)
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
         self.redeemer = Redeemer(
@@ -488,6 +487,9 @@ class KlausBot:
             _sweeper = getattr(self, "oracle_sweeper", None)
             if _sweeper is not None:
                 await _sweeper.stop()
+            _lda = getattr(self, "lda_strategy", None)
+            if _lda is not None:
+                await _lda.stop()
             _gap = getattr(self, "gap_sweeper", None)
             if _gap is not None:
                 await _gap.stop()
