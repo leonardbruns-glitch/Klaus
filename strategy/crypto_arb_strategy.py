@@ -116,7 +116,7 @@ class CryptoArbStrategy:
         if wend <= 0:
             return None
         rem = wend - now
-        if not (60 <= rem <= 240):
+        if rem < 30:
             return None
 
         asset = str(getattr(token, "asset", "")).upper()
