@@ -153,16 +153,17 @@ class Redeemer:
         condition_id: Optional[str] = pos.get("conditionId")
         neg_risk: bool = bool(pos.get("negativeRisk", False))
 
+        cur_price = float(pos.get("curPrice", 0.0))
         if self._sig_type == 0:
             # EOA direct: call CTF.redeemPositions from the EOA wallet
             ok = await self._ctf_redeem_eoa(token_id, condition_id, neg_risk)
         else:
             # Proxy wallet: refresh approval + post limit sell via CLOB
-            ok = await self._clob_sell_attempt(token_id, size)
+            ok = await self._clob_sell_attempt(token_id, size, cur_price)
 
         return ok
 
-    async def _clob_sell_attempt(self, token_id: str, size: float) -> bool:
+    async def _clob_sell_attempt(self, token_id: str, size: float, cur_price: float = 1.0) -> bool:
         """
         SIGNATURE_TYPE=1 path: refresh approval + post limit sell at 0.99.
         The CLOB accepts sell orders briefly after resolution on winning markets.
@@ -211,13 +212,20 @@ class Redeemer:
         except Exception as exc:
             if "does not exist" in str(exc):
                 # Orderbook closed post-resolution — market settled, PM will auto-redeem.
-                # Mark as confirmed winner so BOND_SETTLED books at 1.0 instead of 0.0.
-                logger.info(
-                    "REDEEM CONFIRMED_WIN %s: orderbook gone, PM will auto-redeem",
-                    token_id[:12],
-                )
-                self.confirmed_winners.add(token_id)
-                return True  # stop retrying
+                # Only mark as confirmed winner if curPrice>=0.95 (token resolved YES).
+                # Losers (curPrice=0) also get "orderbook does not exist" but must book at 0.
+                if cur_price >= 0.95:
+                    logger.info(
+                        "REDEEM CONFIRMED_WIN %s: orderbook gone, curPrice=%.2f — PM will auto-redeem",
+                        token_id[:12], cur_price,
+                    )
+                    self.confirmed_winners.add(token_id)
+                else:
+                    logger.info(
+                        "REDEEM CONFIRMED_LOSS %s: orderbook gone, curPrice=%.2f — resolved NO",
+                        token_id[:12], cur_price,
+                    )
+                return True  # stop retrying either way
             logger.warning("REDEEM CLOB sell failed %s: %s", token_id[:12], exc)
             return False
 
