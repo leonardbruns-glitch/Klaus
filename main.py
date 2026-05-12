@@ -1064,7 +1064,9 @@ class KlausBot:
                 # Hypothesis confirmed at n<100; monitor bc_hold_bucket in wick_events.jsonl.
                 _is_terminal = getattr(pos, "bond_entry_class", "") == "TERMINAL"
                 _sl_threshold = -2.0  # BC disabled: -1.0 still fired at move=-1.0 (price→0); -2.0 is truly unreachable (max loss=-1.0)
-                if bond_move <= _sl_threshold and token_id not in self._exit_in_progress:
+                if (bond_move <= _sl_threshold
+                        and getattr(pos, "bond_entry_class", "") != "LDA"
+                        and token_id not in self._exit_in_progress):
                     _breach_ts = self._catas_breach_ts.get(token_id, 0.0)
                     _hold_s_at_breach = now - getattr(pos, "open_ts", now)
                     _bc_hold_bucket = "late" if _hold_s_at_breach > 35.0 else ("fast" if _hold_s_at_breach < 15.0 else "mid")
