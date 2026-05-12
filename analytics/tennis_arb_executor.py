@@ -83,6 +83,8 @@ class TennisArbExecutor(TennisArbWS):
         self.arb_positions: dict[str, dict] = {}
         # cids currently being entered (prevent double-fire)
         self._in_flight: set[str] = set()
+        # token_id → {signed, limit_price, size} pre-signed orders
+        self._presigned: dict[str, dict] = {}
         self._load_positions()
 
     # ── Position persistence ──────────────────────────────────────────────────
@@ -100,7 +102,48 @@ class TennisArbExecutor(TennisArbWS):
         POSITIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
         POSITIONS_FILE.write_text(json.dumps(self.arb_positions, indent=2, default=str))
 
+    # ── Pre-signing ───────────────────────────────────────────────────────────
+
+    async def _bg_presign(self, token_id: str, ask: float) -> None:
+        """Sign a BUY order for token_id at current ask, cache it. Background, non-blocking."""
+        import math as _math
+        try:
+            client = self.orders._client
+            if client is None:
+                return
+            limit_price = round(min(ask * 1.005, 0.99), 4)
+            cached = self._presigned.get(token_id)
+            if cached and abs(cached["limit_price"] - limit_price) < 1e-4:
+                return
+            from py_clob_client_v2.clob_types import OrderArgs, PartialCreateOrderOptions
+            from py_clob_client_v2.order_builder.constants import BUY as _BUY
+            p_cents = round(limit_price * 100)
+            if p_cents <= 0:
+                return
+            step = 10000 // _math.gcd(p_cents, 10000)
+            min_ticks = max(_math.ceil(1_000_000 / p_cents), 50_000)
+            req_ticks = round((MAX_CAPITAL_PER_ARB / 2 / ask) * 10000)
+            snapped = (_math.ceil(max(req_ticks, min_ticks) / step) * step) / 10000
+            args = OrderArgs(token_id=token_id, price=limit_price, size=snapped, side=_BUY)
+            opts = PartialCreateOrderOptions(tick_size="0.01", neg_risk=None)
+            signed = await asyncio.to_thread(client.create_order, args, opts)
+            self._presigned[token_id] = {"signed": signed, "limit_price": limit_price, "size": snapped}
+        except Exception as e:
+            logger.debug("PRESIGN %s: %s", token_id[:12], e)
+
     # ── WS scanner override ───────────────────────────────────────────────────
+
+    async def handle_event(self, ev: dict) -> None:
+        """Process WS event, then trigger background presigning on ask updates."""
+        await super().handle_event(ev)
+        asset_id = ev.get("asset_id", ev.get("market", ""))
+        if asset_id and asset_id in self.token_meta:
+            ba = self.best_ask.get(asset_id)
+            if ba and ba[0] > 0:
+                asyncio.create_task(
+                    self._bg_presign(asset_id, ba[0]),
+                    name=f"tennis_presign_{asset_id[:8]}",
+                )
 
     async def _maybe_log_arb(self, cid: str, src_token: str) -> None:
         """Log as usual, then attempt execution if edge is sufficient."""
@@ -177,19 +220,26 @@ class TennisArbExecutor(TennisArbWS):
             # Single allowance refresh before both orders
             await self.orders.refresh_usdc_allowance()
 
-            # Fire both legs simultaneously
-            # create_order (signing) runs in parallel for both; post_order
-            # serializes through _session_lock (~200ms gap between submissions)
-            fill_a, fill_b = await asyncio.gather(
-                self.orders.arb_buy(token_a, ask_a, n_shares),
-                self.orders.arb_buy(token_b, ask_b, n_shares),
-                return_exceptions=True,
+            # Both legs in one post_orders FOK call — one round-trip, no resting orders.
+            # Use pre-signed orders if available at the same price (skip signing ~15ms).
+            lim_a = round(min(ask_a * 1.005, 0.99), 4)
+            lim_b = round(min(ask_b * 1.005, 0.99), 4)
+            ps_a = self._presigned.get(token_a)
+            ps_b = self._presigned.get(token_b)
+            pre_a = (ps_a["signed"] if ps_a and ps_a["size"] >= n_shares
+                     and abs(ps_a["limit_price"] - lim_a) < 1e-4 else None)
+            pre_b = (ps_b["signed"] if ps_b and ps_b["size"] >= n_shares
+                     and abs(ps_b["limit_price"] - lim_b) < 1e-4 else None)
+            if pre_a or pre_b:
+                logger.debug("PRESIGN hit a=%s b=%s", pre_a is not None, pre_b is not None)
+
+            fill_a, fill_b = await self.orders.arb_buy_both(
+                token_a, ask_a, token_b, ask_b, n_shares,
+                presigned_yes=pre_a, presigned_no=pre_b,
             )
 
-            ok_a = isinstance(fill_a, object) and not isinstance(fill_a, Exception) \
-                   and fill_a.status == OrderStatus.FILLED
-            ok_b = isinstance(fill_b, object) and not isinstance(fill_b, Exception) \
-                   and fill_b.status == OrderStatus.FILLED
+            ok_a = fill_a.status == OrderStatus.FILLED
+            ok_b = fill_b.status == OrderStatus.FILLED
 
             if ok_a and ok_b:
                 # Perfect: both legs filled — locked arb
@@ -224,18 +274,16 @@ class TennisArbExecutor(TennisArbWS):
                 )
 
             elif ok_a and not ok_b:
-                err_b = str(fill_b) if isinstance(fill_b, Exception) else getattr(fill_b, "error", "?")
-                logger.warning("ARB PARTIAL: leg_a filled, leg_b failed (%s) — emergency sell A", err_b)
+                logger.warning("ARB PARTIAL: leg_a filled, leg_b failed (%s) — emergency sell A", fill_b.error)
                 await self._emergency_sell(token_a, fill_a.total_size, fill_a.avg_fill_price, slug, "PARTIAL_SELL_A")
 
             elif ok_b and not ok_a:
-                err_a = str(fill_a) if isinstance(fill_a, Exception) else getattr(fill_a, "error", "?")
-                logger.warning("ARB PARTIAL: leg_b filled, leg_a failed (%s) — emergency sell B", err_a)
+                logger.warning("ARB PARTIAL: leg_b filled, leg_a failed (%s) — emergency sell B", fill_a.error)
                 await self._emergency_sell(token_b, fill_b.total_size, fill_b.avg_fill_price, slug, "PARTIAL_SELL_B")
 
             else:
-                err_a = str(fill_a) if isinstance(fill_a, Exception) else getattr(fill_a, "error", "?")
-                err_b = str(fill_b) if isinstance(fill_b, Exception) else getattr(fill_b, "error", "?")
+                err_a = fill_a.error or "?"
+                err_b = fill_b.error or "?"
                 logger.info("ARB MISS: neither leg filled for %s (a=%s b=%s)", slug, err_a, err_b)
                 # Cancel any resting/delayed orders so they don't fill later without a hedge.
                 # "Unfilled: delayed" means the order was accepted by CLOB but our code
