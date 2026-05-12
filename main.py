@@ -1627,9 +1627,14 @@ class KlausBot:
                             pos.asset, pos.direction.name, current_price,
                         )
                         continue
-                    # LDA excluded: holds to resolution, Redeemer collects $1.00.
+                    # LDA: sell via CLOB if bid ≥ 0.99 — catches the brief post-resolution
+                    # window before the OB closes. Loses 1% vs $1.00 but returns USDC
+                    # immediately without depending on PM's unreliable auto-redemption.
+                    # If bid is 0.90-0.98, hold (OB may open briefly; Redeemer will catch it).
                     if getattr(pos, "bond_entry_class", "") == "LDA":
-                        continue
+                        if current_price < 0.99:
+                            continue
+                        # Fall through to CLOB sell below
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'WINDOW_OUTCOME %s/%s | window closed bid=%.4f — selling at resolution',
