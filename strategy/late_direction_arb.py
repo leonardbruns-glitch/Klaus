@@ -191,5 +191,14 @@ class LateDirectionArb:
                 bond_outcome_direction=bnc_dir,
                 bond_entry_class="LDA",
             )
+            import time as _time
+            self.bot._open_meta[token_id] = {
+                "signal_source": "LDA",
+                "ts_open": _time.time(),
+                "spot_at_entry": spot,
+                "pre_entry_momentum_pct": bnc_move_pct,
+                "window_size_s": rec.get("window_size_s", 300),
+                "capital_before": self.bot.risk.bankroll.capital,
+            }
         except Exception:
             logger.exception("[LDA] risk.open_position failed %s", asset)
