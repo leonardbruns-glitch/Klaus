@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Set, Tuple
 
 from strategy.momentum import Direction, TPSLLevels
@@ -22,12 +23,13 @@ from strategy.momentum import Direction, TPSLLevels
 logger = logging.getLogger(__name__)
 
 ASK_FLOOR    = 0.70
-ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.99 so entries at 0.98+ have zero/negative margin
+ASK_CEIL     = 0.93   # shadow n=1812: [0.93,0.96) WR=91.8% EV=-$0.17 (37.7% of wrongs); above 0.96 near-zero EV
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 90.0    # don't enter >90s before close (signal less reliable)
 BNC_MOVE_MIN = 0.07    # |5m return %| floor; all reversals were at <0.056%; 0.07→99.8% acc +66% trades
 STAKE_USD    = 5.00
+BLOCKED_HOURS_UTC = {1}  # H01 WR=88.6% n=79 wrong=9 (shadow); only flagged hour
 
 
 class LateDirectionArb:
@@ -61,6 +63,10 @@ class LateDirectionArb:
 
         key = (cid, wend)
         if key in self._fired:
+            return
+
+        hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
+        if hour_utc in BLOCKED_HOURS_UTC:
             return
 
         ask = rec.get("best_ask", 0.0)
