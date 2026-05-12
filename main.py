@@ -586,7 +586,7 @@ class KlausBot:
                 return
             if pos.entry_price <= 0:
                 return
-            if bid_price >= 0.99:
+            if bid_price >= 0.99 and getattr(pos, "bond_entry_class", "") != "LDA":
                 self._exit_in_progress.add(token_id)
                 logger.info(
                     "PROFIT_TARGET(WS) %s/%s | bid=%.4f ep=%.4f",
