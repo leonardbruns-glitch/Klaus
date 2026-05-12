@@ -230,7 +230,7 @@ class Redeemer:
                     token_id=token_id,
                     amount=size,
                     side=CLOB_SELL,
-                    price=0.95,   # worst acceptable price
+                    price=0.999,  # worst acceptable price — 0.001 tick is valid on these markets
                 )
             )
             result = self._client.post_order(order)
