@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -46,7 +47,7 @@ SLIPPAGE_BUFFER = 0.005
 # Polymarket fee is bell-shaped (peak ~1.8% at p=0.50, ~0.5% near extremes).
 # True per-pair fee depends on leg prices, computed in fee_for_pair() below.
 # Use 0.97 as default near-miss threshold to catch any sum<1.00 + buffer.
-ARB_THRESHOLD = 0.99        # detection threshold; net edge computed per-pair
+ARB_THRESHOLD = float(os.getenv("TENNIS_ARB_THRESHOLD", "0.99"))  # raise to 1.01 for test fires
 NEAR_MISS_THRESHOLD = 1.02
 
 
