@@ -66,6 +66,38 @@ WALLETS: Dict[str, str] = {
     "mr_ozi_geo": "0x614dc8d3542c12103d2c6a3553fd761e391d1546",
     # +262k profit, 64% WR on politics, /value=$520k. High-WR politics grinder.
     "politics_64wr_011f": "0x011f2d377e56119fb09196dffb0948ae55711122",
+    # ---- Verified positive realized + non-negative cash (strict bar) ----
+    # politics, 85% WR, realized +$110k, cash +$38k, /value=$547k — exceptional WR signal.
+    "politics_85wr_0c0e": "0x0c0e270cf879583d6a0142fc817e05b768d0434e",
+    # soccer specialist (best-cluster 38% profitable rate), realized +$105k, cash +$13k.
+    "soccer_fe94": "0xfe9455e2cad5257b26547af62cbbfd75c8968a3d",
+    # "other"/multi-cat, 51% WR, realized +$62k on 43 pos, /value=$42k.
+    "other_51wr_05ab": "0x05ab749a8554fb7c852238c271d384bae6798145",
+    # politics, 54% WR over 240 positions, realized +$21k, cash +$1.4k.
+    "politics_54wr_bad2": "0xbad26fe5458e6219cec3e40272760e275e835296",
+    # ---- High-realized whales (for cluster breadth, not necessarily replicable) ----
+    # politics, 34% WR, 188 pos, realized +$313k, cash near-flat.
+    "politics_whale_24c8": "0x24c8cf69a0e0a17eee21f69d29752bfa32e823e1",
+    # politics, 45% WR, 500 pos, realized +$309k, cash near-flat.
+    "politics_whale_4e25": "0x4e25605fd905e9972efc0f4d8814530c655cd7a7",
+    # politics, 52% WR, 130 pos, realized +$49k, cash near-flat.
+    "politics_52wr_7c3d": "0x7c3db723f1d4d8cb9c550095203b686cb11e5c6b",
+    # politics, 33% WR, 105 pos, realized +$84k.
+    "politics_33wr_0042": "0x00425c692a667981118f679ef68fdc775257321e",
+    # politics, 27% WR, 500 pos, realized +$47k. "Bikesarethebest".
+    "Bikesarethebest": "0x0a6d26d31b28fd5a84c301f8b27296612f3b1d0a",
+    # geopolitics, 43% WR, 65 pos, realized +$37k.
+    "geo_43wr_44c1": "0x44c1dfe43260c94ed4f1d00de2e1f80fb113ebc1",
+    # other, 45% WR, 500 pos, realized +$140k. "swisstony".
+    "swisstony": "0x204f72f35326db932158cba6adff0b9a1da95e14",
+    # basketball, 4% WR longshot specialist, realized +$113k. "CavaSoTasty".
+    "CavaSoTasty": "0x7fea691e28d169a33c500607279f2acb49058f74",
+    # updown grinder, realized +$20k, similar pattern to sixx7. "fluffyfluffyfluffy".
+    "fluffyfluffyfluffy": "0xc76f85c258044adea3167f4ee7b29c24c4eba5db",
+    # politics, 22% WR, 500 pos, realized +$22k.
+    "politics_22wr_21ff": "0x21ffd2b7a212a6f277ed3eca1a9f8efcbca90d71",
+    # geopolitics, 40% WR, 500 pos, realized +$127k.
+    "geo_40wr_d49b": "0xd49b42bce7ea10bac53e2901c188cae20ea4bdf9",
 }
 
 POLL_S = 20.0
