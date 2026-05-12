@@ -100,7 +100,18 @@ WALLETS: Dict[str, str] = {
     "geo_40wr_d49b": "0xd49b42bce7ea10bac53e2901c188cae20ea4bdf9",
 }
 
-POLL_S = 20.0
+# Wallets that trade in same-second clusters (arb / scalp / HFT). We poll these
+# aggressively — but note REST gives integer-second timestamps, so true sub-second
+# resolution requires WebSocket which is not implemented here.
+FAST_POLL_WALLETS = {
+    "Eulhunter", "tradecraft",            # tennis taker-arb scalpers
+    "sixx7", "fluffyfluffyfluffy",        # 15m updown both-side scalpers
+    "outlier_172pct_multi",                # multi-market high-frequency
+    "esports_75pct",                       # LoL concentrated rapid bets
+}
+FAST_POLL_S = 4.0
+SLOW_POLL_S = 30.0
+POLL_S = SLOW_POLL_S  # legacy fallback if FAST_POLL_WALLETS not used
 LOG_DIR = Path("/root/Klaus/logs/shadow/hot")
 LOG_NAME = "wallet_shadow.jsonl"
 STATE_FILE = Path("/root/Klaus/logs/shadow/wallet_shadow_state.json")
@@ -201,11 +212,13 @@ def record_event(out_path: Path, ev: dict) -> None:
         f.write(line + "\n")
 
 
-def poll_once(session: requests.Session, state: State, observed_ts: int) -> int:
-    """One pass over all wallets. Returns number of new trades logged."""
+def poll_once(session: requests.Session, state: State, observed_ts: int,
+              wallet_subset: Optional[dict] = None) -> int:
+    """One pass over wallet_subset (or all WALLETS). Returns number of new trades logged."""
     n_new = 0
     out_path = log_path()
-    for name, wallet in WALLETS.items():
+    targets = wallet_subset if wallet_subset is not None else WALLETS
+    for name, wallet in targets.items():
         last = state.last_trade_ts.get(wallet, observed_ts)
         trades = fetch_trades(session, wallet, last)
         if not trades:
@@ -264,17 +277,36 @@ def main() -> None:
             state.last_trade_ts[wallet] = seed_ts
     state.save()
 
-    logger.info("wallet_shadow start — tracking %d wallets, poll=%ss", len(WALLETS), POLL_S)
-    logger.info("logs → %s", LOG_DIR / "<date>" / LOG_NAME)
+    fast_subset = {n: w for n, w in WALLETS.items() if n in FAST_POLL_WALLETS}
+    slow_subset = {n: w for n, w in WALLETS.items() if n not in FAST_POLL_WALLETS}
 
+    logger.info("wallet_shadow start — %d wallets total: %d FAST (%.1fs) + %d SLOW (%.1fs)",
+                len(WALLETS), len(fast_subset), FAST_POLL_S, len(slow_subset), SLOW_POLL_S)
+    logger.info("logs → %s", LOG_DIR / "<date>" / LOG_NAME)
+    logger.warning("REST timestamps are integer-second resolution; sub-second fills "
+                   "cannot be captured. For ms-level capture, WebSocket subscription "
+                   "to each tracked wallet's markets would be required.")
+
+    # Interleaved scheduling: fast tier fires every FAST_POLL_S, slow tier every SLOW_POLL_S.
+    next_fast = time.time()
+    next_slow = time.time()
     while True:
+        now = time.time()
         try:
-            n = poll_once(session, state, seed_ts)
-            if n:
-                logger.info("recorded %d new trade(s)", n)
+            if now >= next_fast:
+                n_fast = poll_once(session, state, seed_ts, wallet_subset=fast_subset)
+                if n_fast:
+                    logger.info("FAST tier: %d new trade(s)", n_fast)
+                next_fast = now + FAST_POLL_S
+            if now >= next_slow:
+                n_slow = poll_once(session, state, seed_ts, wallet_subset=slow_subset)
+                if n_slow:
+                    logger.info("SLOW tier: %d new trade(s)", n_slow)
+                next_slow = now + SLOW_POLL_S
         except Exception as exc:
             logger.exception("poll failed: %s", exc)
-        time.sleep(POLL_S)
+        sleep_for = max(0.5, min(next_fast, next_slow) - time.time())
+        time.sleep(sleep_for)
 
 
 if __name__ == "__main__":
