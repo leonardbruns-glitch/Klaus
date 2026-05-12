@@ -432,8 +432,12 @@ class OrderManager:
         no_token_id: str,  no_price: float,
         n_shares: float,
         tick_size: str = TICK_SIZE,
+        presigned_yes=None,
+        presigned_no=None,
     ) -> "tuple[OrderResult, OrderResult]":
-        """Both arb legs in one post_orders FOK call — one round-trip, no resting orders."""
+        """Both arb legs in one post_orders FOK call — one round-trip, no resting orders.
+        Pass presigned_yes/no to skip EIP-712 signing when orders were pre-signed on BBO.
+        """
         import math as _math
 
         _FAIL = OrderResult(status=OrderStatus.FAILED, error="no client")
@@ -468,19 +472,29 @@ class OrderManager:
         no_lim,  no_sz  = _snap(round(min(no_price  * 1.005, 0.99), 4), n_shares)
 
         opts = PartialCreateOrderOptions(tick_size=tick_size, neg_risk=None)
-        from py_clob_client_v2.clob_types import OrderArgs as _OA
-        yes_args = _OA(token_id=yes_token_id, price=yes_lim, size=yes_sz, side=CLOB_BUY)
-        no_args  = _OA(token_id=no_token_id,  price=no_lim,  size=no_sz,  side=CLOB_BUY)
+
+        # Use pre-signed orders when available — skips EIP-712 signing (~15ms).
+        # Fall back to signing any leg that wasn't pre-signed.
+        to_sign = []
+        if presigned_yes is None:
+            from py_clob_client_v2.clob_types import OrderArgs as _OA
+            to_sign.append(("yes", _OA(token_id=yes_token_id, price=yes_lim, size=yes_sz, side=CLOB_BUY)))
+        if presigned_no is None:
+            from py_clob_client_v2.clob_types import OrderArgs as _OA
+            to_sign.append(("no", _OA(token_id=no_token_id, price=no_lim, size=no_sz, side=CLOB_BUY)))
 
         try:
-            signed_yes, signed_no = await asyncio.gather(
-                asyncio.to_thread(self._client.create_order, yes_args, opts),
-                asyncio.to_thread(self._client.create_order, no_args,  opts),
+            results = await asyncio.gather(
+                *[asyncio.to_thread(self._client.create_order, args, opts) for _, args in to_sign]
             )
         except Exception as e:
             err = str(e)
             return (OrderResult(status=OrderStatus.FAILED, error=err),
                     OrderResult(status=OrderStatus.FAILED, error=err))
+
+        signed_map = {label: signed for (label, _), signed in zip(to_sign, results)}
+        signed_yes = presigned_yes if presigned_yes is not None else signed_map["yes"]
+        signed_no  = presigned_no  if presigned_no  is not None else signed_map["no"]
 
         batch = [
             PostOrdersV2Args(order=signed_yes, orderType=OrderType.FOK),

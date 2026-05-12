@@ -56,6 +56,8 @@ class CryptoArbStrategy:
         self._exit_tasks: Dict[str, asyncio.Task] = {}
         # monitor task (started once)
         self._monitor_task: Optional[asyncio.Task] = None
+        # token_id → {signed, limit_price, size} — pre-signed orders ready to post
+        self._presigned: Dict[str, dict] = {}
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -64,6 +66,45 @@ class CryptoArbStrategy:
             self._monitor_task = asyncio.create_task(
                 self._monitor_loop(), name="crypto_arb_monitor"
             )
+
+    # ── Pre-signing ──────────────────────────────────────────────────────────
+
+    async def _bg_presign(self, token_id: str, ask: float) -> None:
+        """Sign a BUY order for token_id at current ask, cache it.
+        Called in background so it never blocks the detection path.
+        """
+        import math as _math
+        try:
+            client = self.bot.orders._client
+            if client is None:
+                return
+            limit_price = round(min(ask * 1.005, 0.99), 4)
+            cached = self._presigned.get(token_id)
+            if cached and abs(cached["limit_price"] - limit_price) < 1e-4:
+                return  # already have a valid signed order at this price
+
+            from py_clob_client_v2.clob_types import OrderArgs, PartialCreateOrderOptions
+            from py_clob_client_v2.order_builder.constants import BUY as _BUY
+
+            p_cents = round(limit_price * 100)
+            if p_cents <= 0:
+                return
+            step = 10000 // _math.gcd(p_cents, 10000)
+            min_ticks = max(_math.ceil(1_000_000 / p_cents), 50_000)
+            # Pre-sign for max possible shares given STAKE budget
+            req_ticks = round((STAKE / ask) * 10000)
+            snapped = (_math.ceil(max(req_ticks, min_ticks) / step) * step) / 10000
+
+            args = OrderArgs(token_id=token_id, price=limit_price, size=snapped, side=_BUY)
+            opts = PartialCreateOrderOptions(tick_size="0.01", neg_risk=None)
+            signed = await asyncio.to_thread(client.create_order, args, opts)
+            self._presigned[token_id] = {
+                "signed": signed,
+                "limit_price": limit_price,
+                "size": snapped,
+            }
+        except Exception as e:
+            logger.debug("[CRYPTO_ARB] presign %s: %s", token_id[:12], e)
 
     # ── Fast path: book-event-driven entry ───────────────────────────────────
 
@@ -76,6 +117,18 @@ class CryptoArbStrategy:
         if token is None:
             return
         now = time.time()
+        # Pre-sign opportunistically for eligible tokens (5m updown, correct asset).
+        # Runs in background — never blocks detection. If fire happens on next BBO
+        # tick, signing is already done and POST goes out immediately.
+        if (int(getattr(token, "window_seconds", 0)) == 300
+                and str(getattr(token, "asset", "")).upper() in ("ETH", "BTC", "SOL")):
+            ob = self.bot.feed.get_order_book(token_id)
+            if ob and ob.asks:
+                asyncio.create_task(
+                    self._bg_presign(token_id, ob.asks[0][0]),
+                    name=f"crypto_arb_presign_{token_id[:8]}",
+                )
+
         cid = getattr(token, "condition_id", "") or ""
         if not cid:
             return
@@ -225,10 +278,22 @@ class CryptoArbStrategy:
 
             await self.bot.orders.refresh_usdc_allowance()
 
+            # Use pre-signed orders if available at the same price (skip signing).
+            ps_yes = self._presigned.get(yes_tid)
+            ps_no  = self._presigned.get(no_tid)
+            yes_lim = round(min(ask_yes * 1.005, 0.99), 4)
+            no_lim  = round(min(ask_no  * 1.005, 0.99), 4)
+            pre_yes = (ps_yes["signed"] if ps_yes and ps_yes["size"] >= n_shares
+                       and abs(ps_yes["limit_price"] - yes_lim) < 1e-4 else None)
+            pre_no  = (ps_no["signed"]  if ps_no  and ps_no["size"]  >= n_shares
+                       and abs(ps_no["limit_price"]  - no_lim)  < 1e-4 else None)
+            if pre_yes or pre_no:
+                logger.debug("[CRYPTO_ARB] presign hit yes=%s no=%s", pre_yes is not None, pre_no is not None)
+
             # Single post_orders FOK call — both legs in one round-trip.
-            # FOK: fills immediately or self-cancels; no resting orders.
             fill_yes, fill_no = await self.bot.orders.arb_buy_both(
                 yes_tid, ask_yes, no_tid, ask_no, n_shares,
+                presigned_yes=pre_yes, presigned_no=pre_no,
             )
 
             ok_yes = fill_yes.status == OrderStatus.FILLED
