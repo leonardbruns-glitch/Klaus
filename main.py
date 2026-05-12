@@ -627,13 +627,18 @@ class KlausBot:
                         _settled_bal = self.orders.fetch_token_balance(token_id)
                         if _settled_bal is not None and _settled_bal < 0.05:
                             logger.info(
-                                "BOND_SETTLED %s: balance=%.4f 30s post-window — token settled, purging",
+                                "BOND_SETTLED %s: balance=%.4f 30s post-window — %s",
                                 token_id[:12], _settled_bal,
+                                "redeemed win" if token_id in self.redeemer.confirmed_winners else "resolved NO",
                             )
                             _bs_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
-                            _pnl = self.risk.close_position(token_id, 0.0, "BOND_SETTLED")
-                            self._mark_bond_total_loss(pos.asset)
+                            _is_redeemed_win = token_id in self.redeemer.confirmed_winners
+                            _bs_exit_price = 1.0 if _is_redeemed_win else 0.0
+                            _bs_reason = "REDEEMED" if _is_redeemed_win else "BOND_SETTLED"
+                            _pnl = self.risk.close_position(token_id, _bs_exit_price, _bs_reason)
+                            if not _is_redeemed_win:
+                                self._mark_bond_total_loss(pos.asset)
                             if _pnl is not None:
                                 _bs_sig = _bs_meta.get("signal") or SignalBreakdown(
                                     direction=pos.direction, entry_price=pos.entry_price,
@@ -645,10 +650,10 @@ class KlausBot:
                                 try:
                                     self.analytics.record_trade(
                                         token_id=token_id, asset=pos.asset, direction=pos.direction,
-                                        entry_price=pos.entry_price, exit_price=0.0,
+                                        entry_price=pos.entry_price, exit_price=_bs_exit_price,
                                         stake=pos.stake, shares=pos.shares,
                                         entry_fill=_bs_meta.get("entry_fill"), exit_fills=[],
-                                        exit_reason="BOND_SETTLED", signal=_bs_sig,
+                                        exit_reason=_bs_reason, signal=_bs_sig,
                                         ts_open=_bs_meta.get("ts_open", pos.open_ts), ts_close=now_ts,
                                         capital_before=self.risk.bankroll.capital - _pnl,
                                         heat_check_active=_bs_meta.get("heat_check", False),

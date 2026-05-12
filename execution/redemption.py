@@ -77,7 +77,8 @@ class Redeemer:
         self._pk = private_key
         self._sig_type = signature_type
         self._dry_run = dry_run
-        self._redeemed: set[str] = set()  # token_ids processed this session
+        self._redeemed: set[str] = set()       # token_ids processed this session
+        self.confirmed_winners: set[str] = set()  # orderbook-gone → PM auto-redeeming
 
     # ── public ────────────────────────────────────────────────────────────────
 
@@ -208,6 +209,15 @@ class Redeemer:
             return True
 
         except Exception as exc:
+            if "does not exist" in str(exc):
+                # Orderbook closed post-resolution — market settled, PM will auto-redeem.
+                # Mark as confirmed winner so BOND_SETTLED books at 1.0 instead of 0.0.
+                logger.info(
+                    "REDEEM CONFIRMED_WIN %s: orderbook gone, PM will auto-redeem",
+                    token_id[:12],
+                )
+                self.confirmed_winners.add(token_id)
+                return True  # stop retrying
             logger.warning("REDEEM CLOB sell failed %s: %s", token_id[:12], exc)
             return False
 
