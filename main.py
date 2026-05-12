@@ -1620,6 +1620,9 @@ class KlausBot:
                             pos.asset, pos.direction.name, current_price,
                         )
                         continue
+                    # LDA excluded: holds to resolution, Redeemer collects $1.00.
+                    if getattr(pos, "bond_entry_class", "") == "LDA":
+                        continue
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'WINDOW_OUTCOME %s/%s | window closed bid=%.4f — selling at resolution',
