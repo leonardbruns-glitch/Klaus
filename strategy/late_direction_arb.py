@@ -23,7 +23,7 @@ from strategy.momentum import Direction, TPSLLevels
 logger = logging.getLogger(__name__)
 
 ASK_FLOOR    = 0.70
-ASK_CEIL     = 0.93   # shadow n=1812: [0.93,0.96) WR=91.8% EV=-$0.17 (37.7% of wrongs); above 0.96 near-zero EV
+ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 90.0    # don't enter >90s before close (signal less reliable)
