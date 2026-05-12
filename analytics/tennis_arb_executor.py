@@ -308,9 +308,9 @@ class TennisArbExecutor(TennisArbWS):
     # ── Position monitor ──────────────────────────────────────────────────────
 
     async def _monitor_positions_loop(self) -> None:
-        """Check open arb positions every 60s for exit opportunities."""
+        """Check open arb positions every 5s for exit opportunities."""
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(5)
             for cid in list(self.arb_positions):
                 try:
                     await self._check_exit(cid)
@@ -325,7 +325,21 @@ class TennisArbExecutor(TennisArbWS):
         bid_a = self.best_bid.get(pos["token_a"], (0.0, 0.0))[0]
         bid_b = self.best_bid.get(pos["token_b"], (0.0, 0.0))[0]
 
-        # Sell the winner when bid > 0.95 — captures near-full $1 payout without waiting
+        # Symmetric arb recovery exit: both bids sum to ≥1.00 — sell both legs now,
+        # capturing the edge without waiting for resolution. This fires when MMs reprice
+        # both sides upward after the arb window closes.
+        if bid_a + bid_b >= 1.00 and pos.get("shares_a", 0) > 0 and pos.get("shares_b", 0) > 0:
+            logger.info(
+                "ARB RECOVERY EXIT: %s sum_bid=%.4f (%.4f+%.4f)",
+                pos["slug"], bid_a + bid_b, bid_a, bid_b,
+            )
+            await asyncio.gather(
+                self._sell_leg(cid, pos, "a", bid_a),
+                self._sell_leg(cid, pos, "b", bid_b),
+            )
+            return
+
+        # Asymmetric win exit: one side bid > 0.95 — match nearly over, sell winner now
         if bid_a > 0.95 and pos.get("shares_a", 0) > 0:
             logger.info("ARB WIN EXIT: %s leg_a bid=%.4f", pos["slug"], bid_a)
             await self._sell_leg(cid, pos, "a", bid_a)
