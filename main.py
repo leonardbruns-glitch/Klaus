@@ -1314,9 +1314,11 @@ class KlausBot:
 
                 # ── INVERTED_TP: exit at +75% on inverted (low-price) entries ────
                 # DISCOVER excluded 2026-05-10: must hold to PT0.95 / T-15 / T-5.
+                # LDA excluded 2026-05-13: holds to early-entry T-60/T-50 exits or
+                # post-window kline check; entry×1.5 fires too early at low ask (0.63→0.945).
                 _inv_tp = pos.entry_price * 1.50
                 if (current_price >= _inv_tp
-                        and getattr(pos, "bond_entry_class", "") != "DISCOVER"
+                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -1423,6 +1425,27 @@ class KlausBot:
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'DISCOVER_DEADLINE')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── LDA T-5s backstop: fires when _is_early_entry missed ─────────
+                # _is_early_entry requires pos.open_ts>0 AND window_end_ts>0 — if
+                # either is unset the T-60/T-50 exits silently skip, causing
+                # BOND_EXPIRED_UNSOLD. This deadline is unconditional for LDA so
+                # it catches those cases. Winners (bid≥0.90) already exited at T-60;
+                # this catches losers (bid≈0.01) that would otherwise expire at $0.
+                if (bond_remaining <= 5.0
+                        and bond_remaining >= -30.0
+                        and getattr(pos, "bond_entry_class", "") == "LDA"
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'BOND_TIME_EXIT(LDA) %s/%s | T-%.0fs backstop bid=%.4f',
+                        pos.asset, pos.direction.name, bond_remaining, current_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'BOND_TIME_EXIT')
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
