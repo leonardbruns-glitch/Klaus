@@ -228,6 +228,30 @@ class LateDirectionArb:
         cid      = rec["condition_id"]
         wend     = rec["window_end_ts"]
 
+        # ── BNC-decay freshness re-check ─────────────────────────────────────
+        # Re-read Binance spot ~500ms after signal eval. If the 5m return has
+        # reversed by more than 0.03% against bet direction, skip — the
+        # underlying momentum that justified the signal has died.
+        # Shadow (May 9-13, n=2643): blocks 6.7%, kill ratio 1.77:1 (113L/64W),
+        # lifts kept WR 81.1% → 84.3%. Holds in every cell.
+        await asyncio.sleep(0.5)
+        feed = self.bot.feed
+        asset_up = asset.upper()
+        spot_now    = feed._spot_price.get(asset_up, 0.0)
+        open_5m_now = feed._spot_open_5m.get(asset_up, 0.0)
+        if spot_now > 0 and open_5m_now > 0:
+            bnc_now_pct = (spot_now - open_5m_now) / open_5m_now * 100.0
+            sign        = 1.0 if bnc_dir == "up" else -1.0
+            s_bnc_now   = sign * bnc_now_pct
+            if s_bnc_now < -0.03:
+                logger.info(
+                    "[LDA] BNC_DECAY skip %s/%s ask=%.4f rem=%.1fs: signed_bnc %+.4f%% (was %+.4f%%)",
+                    asset, bnc_dir, ask, rem, s_bnc_now, sign * bnc_move_pct,
+                )
+                self.entries_attempted -= 1
+                # Keep _fired marker — signal is degraded, don't retry this bucket.
+                return
+
         logger.info(
             "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%% stake=$%.2f",
             asset, bnc_dir, ask, rem, bnc_move_pct, stake_usd,
