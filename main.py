@@ -1451,8 +1451,11 @@ class KlausBot:
                 if bond_remaining == 0.0 and token_id not in self._exit_in_progress:
                     if current_price < 0.90:
                         elapsed_post = time.time() - pos.window_end_ts if pos.window_end_ts > 0 else 0
-                        if current_price < 0.05 and elapsed_post > 60:
-                            # Bid at ~0 for >60s post-window: resolved NO, book total loss now.
+                        # LDA positions: oracle settles ~35s post-window, bid recovers 35-90s later.
+                        # Give LDA winners 3 min before conceding loss (BOND uses 60s).
+                        _rno_threshold = 180 if getattr(pos, "bond_entry_class", "") == "LDA" else 60
+                        if current_price < 0.05 and elapsed_post > _rno_threshold:
+                            # Bid at ~0 for >threshold post-window: resolved NO, book total loss now.
                             logger.info(
                                 'WINDOW_OUTCOME %s/%s | bid=%.4f elapsed=%.0fs — resolved NO, booking loss',
                                 pos.asset, pos.direction.name, current_price, elapsed_post,
