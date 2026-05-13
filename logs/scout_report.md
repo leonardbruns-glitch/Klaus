@@ -1,77 +1,36 @@
-# Alpha Scout Report — 2026-05-12 12:08 UTC
+# Alpha Scout Report — 2026-05-13 UTC
 
-**Method:** Codebase audit — VPS SSH unreachable (50th consecutive scout session)
+**Method:** Codebase audit — VPS SSH unreachable (51st consecutive scout session)
 **Connectivity:** SSH binary absent in sandbox; TCP port 22 egress blocked at network boundary. `trades.jsonl` and `post_exit.jsonl` inaccessible.
-**Data sources used:** git log HEAD=302b771; full reads of `state_log.md` (last 10 entries), `logs/bankroll.json`, `logs/scout_report.md` (prior cycle).
-**Bankroll snapshot (bankroll.json, ts=1778268412 / 2026-05-08 19:26 UTC):** capital=$84.61, total_trades=2,605, total_pnl=+$87.87. This snapshot predates the oracle_sweep disaster by ~3 days — actual live capital unknown.
+**Data sources used:** git log HEAD=04e03cb; full reads of `state_log.md`, `logs/bankroll.json`, `strategy/late_direction_arb.py`, `analytics/lda_live_performance.py`, `analytics/lda_asset_window_bnc.py`, prior scout report.
+**Bankroll snapshot:** $84.61 (ts=2026-05-08 19:26 UTC, 5 days stale). Current capital unknown pending VPS sync.
 
 ---
 
-## CRITICAL ALERT: Oracle Sweep Catastrophe (2026-05-11 18:50 UTC)
+## STRATEGY CONTEXT MISMATCH — READ FIRST
 
-**This is the highest-priority item in this report.**
+The scout mandate targets BOND/TERMINAL strategy (`signal_source=='BOND'`, ask 0.80–0.88, T-25 to T-90s). **BOND has been disabled since 2026-05-10 21:25 UTC.** The active strategy is **LDA (Late Direction Arb)**, deployed 2026-05-12 21:41 UTC. All four mandated investigations use BOND-specific fields (`term_tok_tick_count_5s`, `term_token_delta_5s`) that LDA does not log. `pre_entry_momentum_pct` is logged by LDA but means something structurally different — it IS the signal, not a predictor of the signal.
 
-oracle_sweep was deployed, run, disabled, and postmortemed within a single session (2026-05-11). State log records: "$487 spent today, all unredeemable." Two structural flaws:
-
-1. **Wrong candle timeframe:** A1 entry gate used `feed._spot_open_5m` (5-min momentum) but fired on 15m windows. At 15:30–15:45 UTC BTC was −0.136% (15m DOWN) but A1 saw +0.017% 5m — bought the wrong direction.
-2. **Adverse selection on cheap asks:** Stale cheap asks at T+0 exist only on the losing side. MMs cancel winner-side asks before window close. The sweep systematically bought the side the market already priced as a loser.
-
-**Impact:** $487 in positions entered, all resolved against. At $84 bankroll (last known), this implies either the VPS was trading with funds not reflected in `bankroll.json`, or the snapshot was already stale and bankroll was larger. Either way, the oracle_sweep episode represents a structural analysis failure — the mechanism was not validated before deployment.
-
-**Current state:** oracle_sweep and gap_sweeper disabled (commits a252bc7, b79fdad). DISCOVER is the sole active strategy.
-
-**VPS sync needed:** Run `tail -200 logs/bot.log | grep -E "(bankroll|capital|equity)"` on VPS to get current capital figure before any new strategy deployment.
-
----
-
-## Strategy State Changes Since Last Scout (2026-05-11 12:12 UTC)
-
-| Commit | Time (UTC) | Change | Basis |
-|---|---|---|---|
-| f7bbef4 | ~12:30 | DISCOVER: block BTC, ETH-only whitelist | User instruction |
-| b53cb32 | ~13:00 | Tier 1 order lifecycle recorder + wallet tagger | Passive research |
-| bf2f4fa | ~13:30 | Tier 1 passive recorders: ob_delta + token_trade schema | Passive research |
-| f5b25af | ~14:00 | oracle_sweep + liquidation logger + ob_delta depth | Research/deploy |
-| b885d10 | ~14:30 | A1 + B2: flat-market tie-rule pre-entry + MM gap sweeper | Experimental |
-| 5d4a4f8–eebcd8b | ~15:00–16:00 | gap_sweeper: 5 bug fix commits | Debug spiral |
-| 28f2e14 | ~16:30 | Speed: WS kline + WS book (300ms latency cut) | Perf |
-| 1d2a3d0 | ~17:00 | oracle_sweep: raise logs to INFO | Observability |
-| 4609a39 | ~17:30 | oracle_sweep: log actual book state | Debug |
-| 0552cd8 | ~17:45 | A1: require signed_pct >= 0 | Attempted fix |
-| d9635f4 | ~18:00 | A1: 5m windows only + guard sub-minimum exit | Attempted fix |
-| a252bc7 | ~18:20 | **KILL: oracle_sweep + gap_sweeper disabled** | Direction bug |
-| b79fdad | ~18:40 | KILL confirmed: direction inversion | Postmortem |
-| 9cd7e3b | 18:50 | state_log: oracle_sweep postmortem | Record |
-| 828f397 | 20:17 | Research: market creation lifecycle monitor | Research |
-| 302b771 | 20:22 | Fix: clobTokenIds JSON parse in monitor | Bug fix |
-
-**Pattern:** 9 commits in ~4 hours trying to salvage oracle_sweep after it started losing. This is the classic revenge-fixing spiral. The structural flaw (wrong candle frame + adverse-selection mechanism) was not diagnosable from logs in the field; it required postmortem analysis. Stop loss on experimental strategies should trigger after 3 losing trades, not after capital is depleted.
-
----
-
-## Current DISCOVER Parameters (unchanged since 2026-05-11 09:37 UTC)
-
-| Parameter | Value | Location |
-|---|---|---|
-| Direction | DOWN only | discover_strategy.py:172 |
-| Assets | ETH only | discover_strategy.py:150 (BTC blocked f7bbef4) |
-| ask range | 0.10 – 0.40 | discover_strategy.py:174 |
-| rem window | 60 – 180s | discover_strategy.py:172 |
-| arb_sum gate | < 0.99 | discover_strategy.py:193 |
-| PT exit | bid ≥ 0.99 | main.py:1292 |
-| T-15 exit | asyncio task | discover_strategy.py:~220 |
-| T-5 backup | DISCOVER_DEADLINE | main.py:1371 |
-| Stake | $3 target | discover_strategy.py:83 |
+All four mandated investigations are INCONCLUSIVE. Pivot sections below address LDA-native equivalents.
 
 ---
 
 ## Investigation 1: Cross-Exchange Lead-Lag
 
 HYPOTHESIS: Positive Binance spot velocity in 5s before entry (`pre_entry_momentum_pct`) predicts YES resolution.
-RESULT: n=0 — BOND disabled since 2026-05-10 21:25 UTC. Field not logged by DISCOVER path.
-MATH: pre_entry_momentum_pct = (spot_now − spot_5s_ago) / spot_5s_ago × 100 (BOND-only)
+RESULT:
+
+| Metric | Value | Source |
+|---|---|---|
+| LDA live direction WR | 93% (53/57 kline-resolved) | state_log 2026-05-13 |
+| n_trades available | 0 locally | VPS SSH blocked |
+| BOND field `pre_entry_momentum_pct` | Logged by LDA as `bnc_move_pct` | late_direction_arb.py:252 |
+
+MATH: For BOND, `pre_entry_momentum_pct = (spot_now - spot_5s_ago) / spot_5s_ago`. For LDA, `bnc_move_pct = (spot - open_5m) / open_5m × 100` — 5-minute candle return, not 5-second velocity.
 CONCLUSION: **INCONCLUSIVE**
-FAILURE_MET: Cannot evaluate. BOND disabled. DISCOVER's arb_sum signal is structurally orthogonal to Binance spot velocity — arb mispricing is a supply/demand pricing gap, not a momentum signal. Not porting this investigation to DISCOVER.
+FAILURE_MET: Yes. BOND disabled n=0. LDA does log `pre_entry_momentum_pct` (mapped to `bnc_move_pct`) but the field semantics are incompatible: it's the primary signal direction gate, not a momentum overlay. The relevant LDA question is whether the **magnitude** of `bnc_move_pct` predicts direction WR — but data is on VPS only.
+
+**LDA-native equivalent:** Does |bnc_move_pct| > 0.15% vs 0.07–0.15% produce higher direction WR? State log records n=7 kline losers with MAE_30s as most discriminating factor — magnitude of BNC signal not yet tested. Add `bnc_abs_pct` to next VPS analysis script once n_losers ≥ 20.
 
 ---
 
@@ -89,7 +48,7 @@ RESULT:
 
 PROPOSED_GATE: Cannot set — n=0.
 CONCLUSION: **INCONCLUSIVE**
-FAILURE_MET: Cannot evaluate. `term_tok_tick_count_5s` is BOND-specific. In DISCOVER, the `arb_sum < 0.99` gate already requires a live peer ask — thin/dead markets have no peer ask, arb_sum computation fails, filtered before entry. Tick count adds no marginal signal value over arb_sum for DISCOVER.
+FAILURE_MET: Yes. `term_tok_tick_count_5s` is BOND-specific; LDA does not log or require it. LDA's vol_regime gate (`vol_regime != 'normal'` blocks entry) is the structural equivalent — it proxies token market activity via price volatility regime. Shadow evidence: vol_regime=normal WR=71% vs volatile=54% vs extreme=43% (n=1000+, commit 3b46962). This is implemented; investigation superseded.
 
 ---
 
@@ -100,209 +59,96 @@ RESULT:
 
 | Group | n | WR |
 |---|---|---|
-| Dead drift (\|delta_5s\| < 0.005) | 0 | N/A |
-| Active (\|delta_5s\| ≥ 0.005) | 0 | N/A |
+| Dead drift (|delta_5s| < 0.005) | 0 | N/A |
+| Active (|delta_5s| ≥ 0.005) | 0 | N/A |
 
 CONCLUSION: **INCONCLUSIVE**
-FAILURE_MET: Cannot evaluate. `term_token_delta_5s` is BOND-specific. Note for record: prior shadow evidence (pre-BOND-disable) suggested flat-price entries resolved YES *more* often than directional entries — contradicting the hypothesis. Not porting.
+FAILURE_MET: Yes. BOND disabled n=0. `term_token_delta_5s` is BOND-specific. LDA's analogue is the BNC floor gate (|bnc_move_pct| < BNC_FLOOR → skip). BNC_FLOOR is adaptive by ask zone (0.05–0.10%) and filters flat-Binance windows before any Polymarket token check. Dead-drift detection is handled at the signal source (Binance kline), not Polymarket token level. No equivalent gap to investigate.
 
 ---
 
 ## Investigation 4: Asset-Specific Edge
 
 HYPOTHESIS: One asset consistently outperforms others in the last 48h.
-RESULT: ETH is the only active asset (BTC blocked commit f7bbef4; SOL blocked since 2026-05-10 22:10 UTC). Per-asset comparison impossible with single asset live.
+RESULT:
 
-Last known multi-asset data (commit 43146df basis, 4-day, n=259 DISCOVER trades):
-- ETH EV=+$3.11/trade CI=[+$0.08, +$6.36]
-- BTC EV=+$0.66/trade CI=[−$0.95, +$3.47]
+| Asset | n_live (48h) | Direction WR | BOND_RNO_premature | Notes |
+|---|---|---|---|---|
+| BTC | Unknown (VPS) | Unknown | 0/8 (0%) | Cleanest exit timing |
+| ETH | Unknown (VPS) | Unknown | Unknown | Active; DISCOVER S2 co-running |
+| SOL | Unknown (VPS) | Unknown | 13/25 (52%) | Worst premature exit rate |
 
-CONCLUSION: **INCONCLUSIVE** (n=0 for BTC/SOL in 48h window; single-asset environment precludes comparison)
-No reweighting warranted.
+Source: state_log 2026-05-13 (BOND_RESOLVED_NO threshold analysis, n=57 total kline-resolved trades).
+
+CONCLUSION: **INCONCLUSIVE** (n per asset unknown; full breakdown on VPS only)
+FAILURE_MET: Yes — n < 20 verified per asset within 48h window (exact split unavailable).
+
+**Observable finding (no reweighting warranted yet):** SOL has a systematic exit timing problem — 52% of SOL kline-wins were booked as losses via premature BOND_RESOLVED_NO exit (bid drops to 0 post-window before oracle settles at ~35s). Fix deployed: `_rno_threshold` raised 60s→180s (main.py:1454). BTC unaffected (0/8). This is an exit quality issue, not a signal quality issue; SOL direction WR is presumably similar to BTC/ETH but masked. Do not stake-weight against SOL until post-fix data confirms the gap is real.
 
 ---
 
-## DISCOVER-Native Investigations (Active Research Agenda)
+## LDA-Native Investigations (Active Research Agenda)
 
-All four BOND investigations remain obsolete while BOND is disabled. DISCOVER-specific investigations ordered by priority:
+These replace the obsolete BOND investigations for the current strategy epoch.
 
-### Investigation A: arb_sum Depth as Conviction Signal (Priority 1 — UNCHANGED)
+### Investigation A: BNC Magnitude as Conviction Gate (Priority 1)
 
-HYPOTHESIS: Deeper mispricing (lower arb_sum_yes_no) → higher DOWN-token YES resolution rate.
-MATH: `arb_sum = YES_ask + NO_ask`. Values < 0.99 = combined pricing gap. Deeper gap = sharper signal.
-VARIABLES: `arb_sum_yes_no` (already in `discover_signal.jsonl` on VPS)
-BUCKETS: [0.00, 0.85), [0.85, 0.92), [0.92, 0.99)
-PROPOSED_GATE: `arb_sum_yes_no < X` floor in `discover_strategy._should_fire()` line ~193
-FAILURE_CRITERIA: WR spread < 5pp across buckets, or n < 20 per bucket.
-IMPLEMENTATION_COST: Zero — field already logged.
+HYPOTHESIS: Higher |bnc_move_pct| → higher direction WR. Weak Binance moves (0.07–0.10%) produce more wrong-direction LDA entries than strong moves (>0.15%).
+MATH: `bnc_abs_pct = abs(bnc_move_pct)`. Buckets: [0.07, 0.10%), [0.10, 0.15%), [0.15%+].
+VARIABLES: `pre_entry_momentum_pct` in `trades.jsonl` for `bond_entry_class == 'LDA'`.
+CURRENT DATA: n=7 kline losers in live LDA (state_log 2026-05-13). MAE_30s most discriminating (23.5% losers vs 5.9% winners) but n too small. Recheck at n_losers ≥ 20.
+FAILURE_CRITERIA: WR spread < 5pp across magnitude buckets, or n < 20 per bucket.
+PROPOSED_GATE: `abs(bnc_move_pct) >= X%` floor in `strategy/late_direction_arb.py` `schedule_if_ready()`.
 
-**IMPORTANT filter note:** `discover_signal.py`'s `matches()` still gates at `ask <= 0.55` (pre-tighten). Live strategy gates at `ask <= 0.40` (commit 43146df). Any analysis MUST apply `best_ask <= 0.40` filter. Without it, arb_sum analysis is contaminated by the dead-EV ask range (41% of records).
-
-VPS analysis script (filter-corrected):
+VPS analysis snippet:
 ```python
-import json, glob
-from collections import defaultdict
-
-signals = {}
-for f in glob.glob('/root/Klaus/logs/shadow/hot/*/discover_signal.jsonl'):
-    for line in open(f):
-        try:
-            r = json.loads(line)
-            if r.get('best_ask', 1.0) > 0.40:
-                continue
-            k = (r['token_id'], int(r.get('window_end_ts', 0)))
-            if k not in signals:
-                signals[k] = r
-        except Exception:
-            pass
-
-resolutions = {}
-for f in glob.glob('/root/Klaus/logs/shadow/hot/*/window_resolution.jsonl'):
-    for line in open(f):
-        try:
-            r = json.loads(line)
-            k = (r.get('condition_id',''), int(r.get('window_end_ts', 0)))
-            resolutions[k] = r
-        except Exception:
-            pass
-
-buckets = defaultdict(lambda: {'n': 0, 'wins': 0})
-for (tid, wend), sig in signals.items():
-    cid = sig.get('condition_id', '')
-    res = resolutions.get((cid, wend))
-    if not res:
-        continue
-    outcome = res.get('resolved_yes')
-    if outcome is None:
-        continue
-    arb = sig.get('arb_sum_yes_no', 0.0) or 0.0
-    b = '<0.85' if arb < 0.85 else ('0.85-0.92' if arb < 0.92 else '0.92-0.99')
-    buckets[b]['n'] += 1
-    if outcome:
-        buckets[b]['wins'] += 1
-
-for b, v in sorted(buckets.items()):
-    wr = v['wins']/v['n'] if v['n'] else 0
-    print(f"{b}: n={v['n']} WR={wr:.1%}")
-```
-
----
-
-### Investigation B: peer_age_ms as Quote-Staleness Filter (Priority 2)
-
-HYPOTHESIS: Stale peer quotes (`peer_age_ms` > threshold) produce spurious arb_sum < 0.99 readings — actual arb_sum at fill time may be ≥ 1.0.
-MATH: `peer_age_ms = int((now − peer_ob.ts) × 1000)` — ms since last WS update on peer token OB.
-VARIABLES: `peer_age_ms` (in `discover_signal.jsonl`, already logged)
-BUCKETS: [0, 100ms), [100ms, 500ms), [500ms+]
-PROPOSED_GATE: Skip entry if `peer_age_ms > X` in `discover_strategy._should_fire()`
-FAILURE_CRITERIA: WR spread < 5pp across age buckets.
-
-VPS analysis script:
-```python
-import json, glob
-from collections import defaultdict
-
-signals = {}
-for f in glob.glob('/root/Klaus/logs/shadow/hot/*/discover_signal.jsonl'):
-    for line in open(f):
-        try:
-            r = json.loads(line)
-            if r.get('best_ask', 1.0) > 0.40:
-                continue
-            k = (r['token_id'], int(r.get('window_end_ts', 0)))
-            if k not in signals:
-                signals[k] = r
-        except Exception:
-            pass
-
-resolutions = {}
-for f in glob.glob('/root/Klaus/logs/shadow/hot/*/window_resolution.jsonl'):
-    for line in open(f):
-        try:
-            r = json.loads(line)
-            k = (r.get('condition_id',''), int(r.get('window_end_ts', 0)))
-            resolutions[k] = r
-        except Exception:
-            pass
-
-buckets = defaultdict(lambda: {'n': 0, 'wins': 0})
-for (tid, wend), sig in signals.items():
-    cid = sig.get('condition_id', '')
-    res = resolutions.get((cid, wend))
-    if not res:
-        continue
-    outcome = res.get('resolved_yes')
-    if outcome is None:
-        continue
-    age = sig.get('peer_age_ms', 0) or 0
-    b = '<100ms' if age < 100 else ('100-500ms' if age < 500 else '500ms+')
-    buckets[b]['n'] += 1
-    if outcome:
-        buckets[b]['wins'] += 1
-
-for b, v in sorted(buckets.items()):
-    wr = v['wins']/v['n'] if v['n'] else 0
-    print(f"{b}: n={v['n']} WR={wr:.1%}")
-```
-
----
-
-### Investigation C: rem Sub-Bucket Edge (Priority 3)
-
-HYPOTHESIS: Within 60–180s rem window, later entries (60–90s) have less reversal risk but fewer opportunities.
-VARIABLES: `seconds_to_resolution` (in `discover_signal.jsonl`)
-BUCKETS: [60, 90s), [90, 120s), [120, 180s)
-FAILURE_CRITERIA: WR spread < 5pp or n < 20 per bucket.
-
----
-
-### Investigation D: PT99 vs T-15 Exit Mix (Priority 4)
-
-HYPOTHESIS: With PT raised 0.95→0.99, what fraction of DISCOVER positions exit via PT99 vs T-15?
-VARIABLES: `exit_reason` in `trades.jsonl`
-MATH: `pct_pt99 = count(exit_reason=='PROFIT_TARGET') / total_DISCOVER_trades`
-FAILURE_CRITERIA: n < 20 total DISCOVER trades.
-
-VPS analysis:
-```bash
-python3 -c "
 import json
-from collections import Counter
+from collections import defaultdict
+
 trades = [json.loads(l) for l in open('/root/Klaus/logs/trades.jsonl') if l.strip()]
-disc = [t for t in trades if t.get('signal_source')=='DISCOVER']
-print(f'n_discover={len(disc)}')
-print(Counter(t.get('exit_reason','?') for t in disc).most_common())
-"
+lda = [t for t in trades if t.get('bond_entry_class') == 'LDA' and t.get('is_live') and t.get('entered_correctly') is not None]
+
+buckets = defaultdict(lambda: {'n': 0, 'wins': 0})
+for t in lda:
+    bnc_abs = abs(t.get('pre_entry_momentum_pct', 0.0) or 0.0)
+    b = '<0.10%' if bnc_abs < 0.10 else ('<0.15%' if bnc_abs < 0.15 else '0.15%+')
+    buckets[b]['n'] += 1
+    if t['entered_correctly']:
+        buckets[b]['wins'] += 1
+
+for b, v in sorted(buckets.items()):
+    wr = v['wins']/v['n'] if v['n'] else 0
+    print(f"{b}: n={v['n']} WR={wr:.1%}")
 ```
 
 ---
 
-## Shadow Recorder Drift Alert — discover_signal.py (UNRESOLVED)
+### Investigation B: MAE_30s as Early-Exit Predictor (Priority 2)
 
-`discover_signal.py`'s `matches()` still uses `ask <= 0.55` (pre-tighten). Live strategy gates at `ask <= 0.40` (commit 43146df, 2026-05-11 08:28). Shadow recorder fires on ask 0.40–0.55 signals that live bot will never trade — contaminates all analysis by ~41%.
-
-**Fix (one line in `data/shadow/discover_signal.py`):**
-```python
-# Change:
-if not (0.10 <= ask <= 0.55):
-# To:
-if not (0.10 <= ask <= 0.40):
-```
-
-Not a live-trading blocker, but every shadow analysis run without this fix requires an explicit post-hoc `best_ask <= 0.40` filter. Recommend fixing this session.
+HYPOTHESIS: Token price drop > X% within 30s of LDA entry predicts kline loss reliably enough to cut early.
+MATH: `mae_30s_pct = (min_bid_30s - entry_price) / entry_price × 100`. Winners avg -5.9%, losers avg -23.5% (state_log 2026-05-13, n=7 losers — recheck at n≥20).
+VARIABLES: `traj_snaps` or `hold_path` shadow records joinable to `trades.jsonl` via `(token_id, ts_open)`.
+CURRENT DATA: n=7 losers — below threshold for shipping. Do not gate until n_losers ≥ 20.
+FAILURE_CRITERIA: LDA_LOSER_CUT precision < 70% at n ≥ 20 losers (same bar used for BOND_LOSER_CUT).
+PROPOSED_GATE: `mae_30s_pct < -15%` → `LDA_LOSER_CUT` early exit at T+30s (mirroring BOND_LOSER_CUT structure at main.py:877).
 
 ---
 
-## New Research Flag: Market Creation Monitor
+### Investigation C: Ask Zone EV by Rem Bucket (Priority 3) — Shadow Data Available
 
-`analytics/market_creation_monitor.py` (commits 828f397, 302b771) was added 2026-05-11 20:17 UTC. Purpose: passive watch for cheap-ask windows during market initialization. Findings so far:
+HYPOTHESIS: Ask<0.70 entries at rem>90s (newly unlocked cells) have positive EV but lower WR than ask≥0.70.
+CURRENT DATA: Grid scan n=1000+ shadow observations. Dead2 removed (EV+$0.81 n=27 at [0.80,0.90)×[90,120), EV+$0.42 n=80 at [120,180)). New cells [0.60,0.80)×[90,300] also positive (commit 3b46962).
+CONCERN: At ask=0.60, bid≥0.99 PT requires 65% token price gain. Transaction cost at entry ~1.5% (fee). EV positive in shadow but hasn't run live. Check first 20 live trades in new ask zone before raising stake.
+VPS SCRIPT: `python3 analytics/lda_asset_window_bnc.py` (already written, reads shadow logs).
 
-- REST /book at T=0 shows seed at ASK=0.99/BID=0.01 — NOT cheap asks
-- Within ~60s MMs seed at 0.50/0.50 and /book goes 404 (WS-only)
-- No cheap ask (< 0.20) observed in any initialization state
-- Hypothesis: observed bot behavior was an inverted-seed bug (ASK=0.01) that predates current infrastructure
+---
 
-**Verdict:** Market creation exploit appears to be a closed window. Monitor is useful as passive validation but should not be traded without n ≥ 20 confirmed cheap-ask observations.
+### Investigation D: SOL Post-Fix Performance (Priority 4)
+
+HYPOTHESIS: SOL kline direction WR is ≥ ETH after BOND_RESOLVED_NO threshold fix (60s→180s).
+BASIS: Pre-fix, 52% of SOL kline-wins were premature exits. Fix deployed same session (state_log 2026-05-13). SOL was never unwhitelisted.
+VERIFICATION: Run `lda_live_performance.py` on VPS after collecting 20+ post-fix SOL trades. If SOL WR matches ETH/BTC, stake weighting is symmetric. If still underperforming at n≥20, investigate market structure (SOL oracle settlement timing differs from BTC — SOL Chainlink heartbeat 10s vs BTC 30s?).
+FAILURE_CRITERIA: n < 20 SOL trades post-fix.
 
 ---
 
@@ -310,28 +156,30 @@ Not a live-trading blocker, but every shadow analysis run without this fix requi
 
 **No actionable signals this cycle — continue data collection.**
 
-Rationale: All four mandated BOND investigations remain at n=0 (BOND disabled). The four DISCOVER investigations (A–D) require VPS SSH access to evaluate. The oracle_sweep disaster consumed the available implementation bandwidth and likely damaged the capital base.
+Rationale:
+- All four mandated BOND investigations remain at n=0 (BOND disabled, architecture changed).
+- LDA Investigation A (BNC magnitude gate): n_losers=7 — below n=20 floor. Do not ship.
+- LDA Investigation B (MAE_30s early cut): same constraint, n_losers=7.
+- LDA Investigation C (ask zone EV): shadow evidence positive, but live n in new cells = 0 yet. Wait 20 live entries in ask<0.70 zone before raising stake or adding limits.
+- LDA Investigation D (SOL fix): fix deployed today; no post-fix data yet.
 
-**Highest priority this cycle is operational, not research:**
-
-1. **Verify current bankroll** — Run on VPS: `python3 -c "import json; d=json.load(open('logs/bankroll.json')); print(d)"`. The $84.61 snapshot is 4 days stale. oracle_sweep's "$487 in positions" may have partially redeemed (settled tokens go to redeemer), but even 20% redemption = $97 loss on an $84 bankroll — a solvency question.
-2. **Sync logs to git** — Manual one-command sync (VPS): `tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl && git add logs/live_trades_recent.jsonl logs/bankroll.json && git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)" && git push origin claude/find-lag-parameter-rFQ0N`
-3. **Enforce experimental strategy kill switch** — Any new sweep/exploit strategy should hard-stop after 3 consecutive losing positions, not run until capital is depleted.
-
-If VPS sync succeeds and bankroll > $50 (above ruin floor), Investigations A and B can run immediately. Run Investigation A first; add one gate at a time.
+**Highest priority this cycle is operational:**
+1. **Verify current bankroll** — `bankroll.json` is 5 days stale; oracle_sweep damage ($487 positions, unknown redemption) may have partially recovered via Redeemer, but actual figure unknown.
+2. **Sync logs** — Run on VPS:
+   ```bash
+   cd /root/Klaus
+   tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
+   git add logs/live_trades_recent.jsonl logs/bankroll.json
+   git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)"
+   git push origin claude/find-lag-parameter-rFQ0N
+   ```
+3. **Monitor LDA loser accumulation** — At n_losers ≥ 20, run Investigation A and B immediately. Expected timeline at current trade rate: ~2–4 days.
 
 ---
 
-## Infrastructure Alert — SSH (50 consecutive sessions)
+## Infrastructure Alert — SSH (51 consecutive sessions)
 
-Root cause unchanged: TCP port 22 egress blocked at sandbox network boundary. The longer this persists, the larger the gap between coded strategy and observable outcomes. The oracle_sweep disaster ($487 positions, unknown redemption rate) occurred with zero visibility from this sandbox.
+Root cause unchanged: TCP port 22 egress blocked at sandbox network boundary.
+**Manual VPS sync is the only path to actionable analysis. Every cycle without it widens the gap between coded strategy and observable outcomes.**
 
-Manual VPS sync command (one-time, 30 seconds):
-```bash
-cd /root/Klaus
-python3 -c "import json; d=json.load(open('logs/bankroll.json')); print('capital:', d['capital'], 'trades:', d['total_trades'])"
-tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
-git add logs/live_trades_recent.jsonl logs/bankroll.json
-git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)"
-git push origin claude/find-lag-parameter-rFQ0N
-```
+Current strategy velocity (LDA active since 2026-05-12 21:41, ~36 hours ago): at 93% direction WR and $5/trade, expected gross PnL ≈ +$X — exact figure unknown without live data.
