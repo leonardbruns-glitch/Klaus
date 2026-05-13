@@ -30,7 +30,7 @@ BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 300.0   # extended from 90s; ask-conditional ceiling still blocks ask≥0.90 + rem>60s
 STAKE_USD    = 5.00
-BLOCKED_HOURS_UTC = {1}  # H01 WR=88.6% n=79 wrong=9 (shadow); only flagged hour
+BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
 
 # Adaptive BNC floor by ask zone (shadow n=27-80, vol=normal, May 8-12):
 #   [0.60,0.70): raise 0.07→0.10 — 0.05-0.10% moves are noise at low ask
