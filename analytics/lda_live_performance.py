@@ -1,18 +1,22 @@
 """
 LDA live performance: win/loss determined by kline direction vs bet direction.
-Rule: WIN = kline moved in same direction as bond_outcome_direction.
 
-Uses entered_correctly (kline-based) when available; falls back to
-window_resolution.jsonl lookup for trades where resolution didn't fire.
+kline_pnl (patched into trades.jsonl at resolution) is ground truth:
+  WIN  = (1 - entry_price) * shares - fee  (guaranteed redemption at $1)
+  LOSE = -stake - fee
+
+net_pnl = actual realized exit price (may differ from kline_pnl due to exit timing).
+
+Primary win/loss source: window_resolution.jsonl (binance_kline).
+Fallback: entered_correctly field (also kline-patched at resolution time).
 """
 import json, glob, os, math
 from collections import Counter
 
-TRADES_FILE   = os.path.join(os.path.dirname(__file__), "..", "logs", "trades.jsonl")
-SHADOW_ROOT   = os.path.join(os.path.dirname(__file__), "..", "logs", "shadow", "hot")
-STAKE_USD     = 5.0
+TRADES_FILE = os.path.join(os.path.dirname(__file__), "..", "logs", "trades.jsonl")
+SHADOW_ROOT = os.path.join(os.path.dirname(__file__), "..", "logs", "shadow", "hot")
 
-# ── 1. Window resolutions (asset, window_end_ts, window_size_s) → moved_up ──
+# ── 1. Window resolutions → moved_up ────────────────────────────────────────
 resolutions = {}
 for wr_path in sorted(glob.glob(os.path.join(SHADOW_ROOT, "*/window_resolution.jsonl"))):
     with open(wr_path) as f:
@@ -29,18 +33,22 @@ with open(TRADES_FILE) as f:
         if t.get("bond_entry_class") == "LDA" and t.get("is_live"):
             lda.append(t)
 
-# ── 3. Determine kline win for each trade ────────────────────────────────────
+# ── 3. Resolve win/loss — kline primary, field fallback ─────────────────────
 wins, losses, unknown = [], [], []
+src_kline = src_field = src_unknown = 0
 for t in lda:
-    ec = t.get("entered_correctly")
-    if ec is None:
-        wsz   = t.get("window_size_s", 300)
-        wend  = math.ceil(t["ts_open"] / wsz) * wsz
-        asset = t["asset"].upper()
-        moved_up = resolutions.get((asset, wend, wsz))
-        if moved_up is not None:
-            bet_up = t.get("bond_outcome_direction") == "up"
-            ec = (bet_up == moved_up)
+    wsz   = t.get("window_size_s", 300)
+    wend  = math.ceil(t["ts_open"] / wsz) * wsz
+    moved_up = resolutions.get((t["asset"].upper(), wend, wsz))
+    if moved_up is not None:
+        ec = ((t.get("bond_outcome_direction") == "up") == moved_up)
+        src_kline += 1
+    else:
+        ec = t.get("entered_correctly")
+        if ec is not None:
+            src_field += 1
+        else:
+            src_unknown += 1
     if ec is True:
         wins.append(t)
     elif ec is False:
@@ -50,63 +58,65 @@ for t in lda:
 
 n = len(wins) + len(losses)
 
-# ── 4. Report ─────────────────────────────────────────────────────────────────
-print(f"=== LDA LIVE PERFORMANCE (kline-based win/loss) ===")
+# ── 4. PnL summary using kline_pnl (ground truth) ───────────────────────────
+kpnl_wins   = sum(t["kline_pnl"] for t in wins   if t.get("kline_pnl") is not None)
+kpnl_losses = sum(t["kline_pnl"] for t in losses if t.get("kline_pnl") is not None)
+kpnl_total  = kpnl_wins + kpnl_losses
+apnl_total  = sum(t["net_pnl"] for t in wins + losses)
+
+print("=== LDA LIVE PERFORMANCE ===")
 print(f"Total live trades : {len(lda)}")
 print(f"Resolved          : {n}  |  Unknown: {len(unknown)}")
+print(f"  Source: kline={src_kline}  field_fallback={src_field}  unresolved={src_unknown}")
 print(f"Direction WR      : {len(wins)}/{n} = {len(wins)/n:.1%}")
 print()
-
-win_pnl  = sum(t["net_pnl"] for t in wins)
-loss_pnl = sum(t["net_pnl"] for t in losses)
-
-# Expected PnL: if every kline-win had been held and redeemed at $1/share
-expected_wins = sum((t["shares"] - t["stake"]) for t in wins)  # payoff = shares - cost
-actual_wins   = sum(t["net_pnl"] for t in wins if t["net_pnl"] > 0)
-
-print(f"Kline WIN  n={len(wins):>3}  actual_net_pnl=${win_pnl:+.2f}  expected_net=${expected_wins:+.2f}")
-print(f"Kline LOSE n={len(losses):>3}  actual_net_pnl=${loss_pnl:+.2f}")
-print(f"Total actual PnL  : ${win_pnl + loss_pnl:+.2f}")
+print(f"kline_pnl total   : ${kpnl_total:+.2f}  (ground truth: WIN=sell@1, LOSE=lose stake)")
+print(f"net_pnl total     : ${apnl_total:+.2f}  (actual realized exits)")
+print(f"Exit drag         : ${apnl_total - kpnl_total:+.2f}  (negative = exits cost us vs ideal)")
 print()
 
-# Win exits breakdown
-print("Kline WIN exit reasons:", dict(Counter(t["exit_reason"] for t in wins)))
+print("Kline WIN  exit reasons:", dict(Counter(t["exit_reason"] for t in wins)))
 print("Kline LOSE exit reasons:", dict(Counter(t["exit_reason"] for t in losses)))
 print()
 
-# Cases where we won by kline but booked as BOND_RESOLVED_NO (lost prematurely)
-rno_wins = [t for t in wins if t["exit_reason"] == "BOND_RESOLVED_NO"]
+# Premature losses: kline-WIN but exited as loss
+rno_wins = [t for t in wins if t["net_pnl"] < 0]
 if rno_wins:
-    rno_pnl = sum(t["net_pnl"] for t in rno_wins)
-    rno_exp = sum((t["shares"] - t["stake"]) for t in rno_wins)
-    print(f"Kline-WIN booked as BOND_RESOLVED_NO (premature loss): {len(rno_wins)}")
-    print(f"  Actual logged PnL : ${rno_pnl:+.2f}  (booked as full losses)")
-    print(f"  Expected PnL      : ${rno_exp:+.2f}  (if held to redemption)")
-    print(f"  Gap (recoverable) : ${rno_exp - rno_pnl:+.2f}")
+    rno_kpnl = sum(t["kline_pnl"] for t in rno_wins if t.get("kline_pnl") is not None)
+    rno_apnl = sum(t["net_pnl"] for t in rno_wins)
+    exits = dict(Counter(t["exit_reason"] for t in rno_wins))
+    print(f"Kline-WIN booked as loss ({len(rno_wins)} trades, exits={exits}):")
+    print(f"  actual net_pnl  : ${rno_apnl:+.2f}")
+    print(f"  kline_pnl       : ${rno_kpnl:+.2f}")
+    print(f"  recoverable gap : ${rno_kpnl - rno_apnl:+.2f}")
     print()
 
-# By asset
+# ── 5. By asset ──────────────────────────────────────────────────────────────
 print("=== BY ASSET ===")
-print(f"{'asset':>6} {'n':>5} {'wins':>5} {'wr':>7}  exits(wins)")
+print(f"{'asset':>6} {'n':>4} {'WR':>6} {'kline_pnl':>10} {'net_pnl':>9}  exits(wins)")
 for asset in ["BTC", "ETH", "SOL"]:
     w = [t for t in wins   if t["asset"] == asset]
     l = [t for t in losses if t["asset"] == asset]
     tot = len(w) + len(l)
     if tot == 0:
         continue
+    kp = sum(t.get("kline_pnl", 0) for t in w + l)
+    ap = sum(t["net_pnl"] for t in w + l)
     exits = dict(Counter(t["exit_reason"] for t in w))
-    print(f"{asset:>6} {tot:>5} {len(w):>5} {len(w)/tot:>7.1%}  {exits}")
+    print(f"{asset:>6} {tot:>4} {len(w)/tot:>5.1%} ${kp:>+9.2f} ${ap:>+8.2f}  {exits}")
 
 print()
 print("=== BY WINDOW SIZE ===")
-print(f"{'wsz':>6} {'n':>5} {'wins':>5} {'wr':>7}")
+print(f"{'wsz':>6} {'n':>4} {'WR':>6} {'kline_pnl':>10} {'net_pnl':>9}")
 for wsz, label in [(300, "5m"), (900, "15m")]:
     w = [t for t in wins   if t.get("window_size_s") == wsz]
     l = [t for t in losses if t.get("window_size_s") == wsz]
     tot = len(w) + len(l)
     if tot == 0:
         continue
-    print(f"{label:>6} {tot:>5} {len(w):>5} {len(w)/tot:>7.1%}")
+    kp = sum(t.get("kline_pnl", 0) for t in w + l)
+    ap = sum(t["net_pnl"] for t in w + l)
+    print(f"{label:>6} {tot:>4} {len(w)/tot:>5.1%} ${kp:>+9.2f} ${ap:>+8.2f}")
 
 if unknown:
     print(f"\nUnresolved trades ({len(unknown)}):")

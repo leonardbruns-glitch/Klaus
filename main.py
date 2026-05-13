@@ -5694,14 +5694,24 @@ class KlausBot:
                                     if _tr.get("trade_id") == trade_id:
                                         _tr["window_outcome_price"] = _wop
                                         _tr["entered_correctly"] = _entered_correctly
+                                        # kline_pnl: canonical ground-truth PnL if held to resolution.
+                                        # WIN = guaranteed redemption at $1/share; LOSE = token worthless.
+                                        # net_pnl stays as actual realized; kline_pnl is the analysis truth.
+                                        _tr_shares = _tr.get("shares", 0.0)
+                                        _tr_ep     = _tr.get("entry_price", 0.0)
+                                        _tr_stake  = _tr.get("stake", _tr_ep * _tr_shares)
+                                        _tr_fee    = _tr.get("fee_paid", 0.0)
+                                        if _entered_correctly:
+                                            _tr["kline_pnl"] = round(_tr_shares * (1.0 - _tr_ep) - _tr_fee, 4)
+                                        else:
+                                            _tr["kline_pnl"] = round(-_tr_stake - _tr_fee, 4)
                                         if _tr.get("exit_price_uncertain"):
                                             # Correct exit_price and net_pnl using resolution.
                                             # exit_price was a live-bid fallback; wop is authoritative.
                                             _corr_ep = 0.99 if _entered_correctly else 0.01
                                             _old_ep = _tr.get("exit_price", 0.0)
                                             _old_pnl = _tr.get("net_pnl", 0.0)
-                                            _shares = _tr.get("shares", 0.0)
-                                            _pnl_delta = (_corr_ep - _old_ep) * _shares
+                                            _pnl_delta = (_corr_ep - _old_ep) * _tr_shares
                                             _tr["exit_price"] = round(_corr_ep, 4)
                                             _tr["gross_pnl"] = round(_tr.get("gross_pnl", 0.0) + _pnl_delta, 4)
                                             _tr["net_pnl"] = round(_old_pnl + _pnl_delta, 4)
