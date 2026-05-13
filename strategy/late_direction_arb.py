@@ -2,8 +2,9 @@
 Late-window directional arb (LDA).
 
 Signal: Binance 5m-return direction (spot vs open_5m).
-Gate  : predicted-winner token ask in [0.70, 0.994] + bid > 0.50.
-Timing: one entry per window, fired the first eligible tick in T-8 to T-90s.
+Gate  : predicted-winner token ask in [0.60, 0.98] + bid > 0.50 + vol_regime==normal.
+Timing: one entry per window in T-8 to T-300s with ask-dependent rem ceiling:
+          ask≥0.90 → rem≤60s; ask≥0.80 → rem≤90s; ask<0.80 → rem≤300s
 Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
         Losing tokens resolve NO and are booked by BOND_RESOLVED_NO.
 
@@ -22,11 +23,11 @@ from strategy.momentum import Direction, TPSLLevels
 
 logger = logging.getLogger(__name__)
 
-ASK_FLOOR    = 0.70
+ASK_FLOOR    = 0.60
 ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
-REM_MAX_S    = 90.0    # don't enter >90s before close (signal less reliable)
+REM_MAX_S    = 300.0   # extended from 90s; dead zones filtered by ask-conditional rem ceiling below
 BNC_MOVE_MIN = 0.07    # |5m return %| floor; all reversals were at <0.056%; 0.07→99.8% acc +66% trades
 STAKE_USD    = 5.00
 BLOCKED_HOURS_UTC = {1}  # H01 WR=88.6% n=79 wrong=9 (shadow); only flagged hour
@@ -72,6 +73,19 @@ class LateDirectionArb:
         ask = rec.get("best_ask", 0.0)
         bid = rec.get("best_bid", 0.0)
         if not (ASK_FLOOR <= ask <= ASK_CEIL) or bid < BID_MIN:
+            return
+
+        # Ask-conditional rem ceiling (grid scan, n=1000+):
+        #   ask≥0.90 + rem>60s → EV -0.03 to -0.14 (dead zone)
+        #   ask≥0.80 + rem>90s → EV -0.04 (dead zone)
+        if remaining > 60 and ask >= 0.90:
+            return
+        if remaining > 90 and ask >= 0.80:
+            return
+
+        # Vol regime: volatile/extreme destroy edge (WR 54%/43% vs 71% normal).
+        # Critical gate for ask<0.80 where volatile EV=-1.64 vs normal EV=+0.58.
+        if rec.get("vol_regime", "normal") != "normal":
             return
 
         feed = self.bot.feed
