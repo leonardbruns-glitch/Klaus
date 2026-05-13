@@ -89,10 +89,21 @@ class LateDirectionArb:
         if not (ASK_FLOOR <= ask <= ASK_CEIL) or bid < BID_MIN:
             return
 
-        # Ask-conditional rem ceiling:
-        #   ask≥0.90 + rem>60s → EV -0.14 to -0.22 (dead zone 1, kept)
-        #   ask≥0.80 + rem>90s → removed: [90,120) EV=+0.81 n=27, [120,180) EV=+0.42 n=80 (shadow, vol=normal)
+        # Ask-conditional rem ceiling (shadow-validated, 5m, vol=normal, n≥100):
+        #   ask≥0.90 + rem>60s   → dead zone 1 (EV -0.14 to -0.22)
+        #   ask≥0.80 + rem>120s  → dead zone 2 partial: [90,120) EV+0.22 kept; [120,300s) EV -0.06 to -0.11
+        #   ask<0.70 + rem>180s  → WR=63%, EV=-0.23 (n=130)
         if remaining > 60 and ask >= 0.90:
+            return
+        if remaining > 120 and ask >= 0.80:
+            return
+        if remaining > 180 and ask < 0.70:
+            return
+
+        # Hour blocks for early-rem low-ask zone (shadow n=99/123):
+        #   [0.70,0.80) × rem>120s: H12 WR=65% EV=-0.70, H16 WR=65% EV=-0.61
+        #   vs all other hours WR=77% EV=+0.15
+        if remaining > 120 and 0.70 <= ask < 0.80 and hour_utc in (12, 16):
             return
 
         # Vol regime: volatile/extreme destroy edge (WR 54%/43% vs 71% normal).
