@@ -29,8 +29,26 @@ ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 300.0   # extended from 90s; ask-conditional ceiling still blocks ask≥0.90 + rem>60s
-STAKE_USD    = 5.00
+STAKE_USD         = 5.00
+STAKE_USD_REDUCED = 2.00   # trending-weak hour×bucket cells, pending n≥100 per cell
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
+
+# [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
+_SOL_BLOCKED_LATE = frozenset({6, 22})   # WR=63%/57%, CI<77.3% baseline (n=38/28)
+
+# [120,300s) bucket — per-asset trending-weak, reduce stake pending n≥100:
+_SOL_WATCH_LATE   = frozenset({3, 13})   # WR=68%/66%, n=40/47 — inconsistent days
+_ETH_WATCH_LATE   = frozenset({8, 9, 22})  # WR=63%/69%/65%, n=24/16/17
+
+
+def _entry_stake(asset: str, hour_utc: int, remaining: float) -> float:
+    """Full stake normally; $2 for trending-weak hour×bucket cells."""
+    if remaining > 120:
+        if asset == "SOL" and hour_utc in _SOL_WATCH_LATE:
+            return STAKE_USD_REDUCED
+        if asset == "ETH" and hour_utc in _ETH_WATCH_LATE:
+            return STAKE_USD_REDUCED
+    return STAKE_USD
 
 # Adaptive BNC floor by ask zone (shadow n=27-80, vol=normal, May 8-12):
 #   [0.60,0.70): raise 0.07→0.10 — 0.05-0.10% moves are noise at low ask
@@ -138,16 +156,22 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
+        # SOL [120,300s): H06+H22 CI fully below 77.3% baseline (shadow n=38/28, May8-12)
+        if remaining > 120 and asset == "SOL" and hour_utc in _SOL_BLOCKED_LATE:
+            return
+
         bnc_dir = "up" if bnc_move_pct > 0 else "down"
         if bnc_dir != rec.get("outcome_dir"):
             return  # this token is NOT on the predicted winning side
+
+        stake_usd = _entry_stake(asset, hour_utc, remaining)
 
         # Mark fired BEFORE creating task to prevent a second tick from double-firing.
         self._fired.add(key)
         self.entries_attempted += 1
 
         task = asyncio.create_task(
-            self._fire(dict(rec), bnc_dir, spot, open_5m, bnc_move_pct),
+            self._fire(dict(rec), bnc_dir, spot, open_5m, bnc_move_pct, stake_usd),
             name=f"lda_{cid[:8]}_{wend}",
         )
         self._tasks.append(task)
@@ -170,10 +194,11 @@ class LateDirectionArb:
         spot: float,
         open_5m: float,
         bnc_move_pct: float,
+        stake_usd: float = STAKE_USD,
     ) -> None:
         """Execute the buy and register the position. Never raises."""
         try:
-            await self._fire_inner(rec, bnc_dir, spot, bnc_move_pct)
+            await self._fire_inner(rec, bnc_dir, spot, bnc_move_pct, stake_usd)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -185,6 +210,7 @@ class LateDirectionArb:
         bnc_dir: str,
         spot: float,
         bnc_move_pct: float,
+        stake_usd: float = STAKE_USD,
     ) -> None:
         from execution.order_manager import OrderStatus
 
@@ -196,14 +222,14 @@ class LateDirectionArb:
         wend     = rec["window_end_ts"]
 
         logger.info(
-            "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%%",
-            asset, bnc_dir, ask, rem, bnc_move_pct,
+            "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%% stake=$%.2f",
+            asset, bnc_dir, ask, rem, bnc_move_pct, stake_usd,
         )
 
         fill = await self.bot.orders.limit_buy(
             token_id=token_id,
             intended_price=ask,
-            stake_usd=STAKE_USD,
+            stake_usd=stake_usd,
             direction=Direction.BUY_YES,
         )
 
