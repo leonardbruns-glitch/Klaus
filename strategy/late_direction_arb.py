@@ -33,6 +33,9 @@ STAKE_USD         = 5.00
 STAKE_USD_REDUCED = 2.00   # trending-weak hour×bucket cells, pending n≥100 per cell
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
 
+# [120,300s) bucket — all-asset structural blocks:
+_ALL_BLOCKED_LATE = frozenset({13})       # WR=70% all-asset n=87; volatile, user-confirmed
+
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
 _SOL_BLOCKED_LATE = frozenset({6, 22})   # WR=63%/57%, CI<77.3% baseline (n=38/28)
 
@@ -154,6 +157,10 @@ class LateDirectionArb:
             if asset == "BTC" and bnc_abs < 0.10:
                 return
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
+            return
+
+        # All assets [120,300s): H13 WR=70% n=87 — volatile, user-confirmed block
+        if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
             return
 
         # SOL [120,300s): H06+H22 CI fully below 77.3% baseline (shadow n=38/28, May8-12)
