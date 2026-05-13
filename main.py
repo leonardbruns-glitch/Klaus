@@ -1451,19 +1451,46 @@ class KlausBot:
                 if bond_remaining == 0.0 and token_id not in self._exit_in_progress:
                     if current_price < 0.90:
                         elapsed_post = time.time() - pos.window_end_ts if pos.window_end_ts > 0 else 0
-                        # LDA positions: oracle settles ~35s post-window, bid recovers 35-90s later.
-                        # Give LDA winners 3 min before conceding loss (BOND uses 60s).
-                        _rno_threshold = 180 if getattr(pos, "bond_entry_class", "") == "LDA" else 60
-                        if current_price < 0.05 and elapsed_post > _rno_threshold:
-                            # Bid at ~0 for >threshold post-window: resolved NO, book total loss now.
+                        if current_price < 0.05 and elapsed_post > 60:
+                            # LDA: bid=0 post-window for BOTH win and loss (MMs withdraw).
+                            # Check kline open vs close to determine actual outcome.
+                            _wo_exit_price  = 0.0
+                            _wo_exit_reason = "BOND_RESOLVED_NO"
+                            if getattr(pos, "bond_entry_class", "") == "LDA" and pos.window_end_ts > 0:
+                                try:
+                                    import aiohttp as _aiohttp
+                                    _sym_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+                                    _sym = _sym_map.get(pos.asset.upper())
+                                    _wsz_s = pos.window_seconds or 300
+                                    _kl_int = "5m" if _wsz_s == 300 else "15m"
+                                    _wstart_ms = int((pos.window_end_ts - _wsz_s) * 1000)
+                                    async with self.feed._session.get(
+                                        "https://api.binance.com/api/v3/klines",
+                                        params={"symbol": _sym, "interval": _kl_int,
+                                                "startTime": _wstart_ms, "limit": 1},
+                                        timeout=_aiohttp.ClientTimeout(total=5),
+                                    ) as _kr:
+                                        if _kr.status == 200:
+                                            _kl = await _kr.json()
+                                            if _kl and len(_kl[0]) >= 5:
+                                                _kl_up  = float(_kl[0][4]) >= float(_kl[0][1])
+                                                _bet_up = getattr(pos, "bond_outcome_direction", "up") == "up"
+                                                if _bet_up == _kl_up:
+                                                    _wo_exit_price  = 0.99
+                                                    _wo_exit_reason = "LDA_KLINE_WIN"
+                                except Exception:
+                                    pass  # fetch failed — default to BOND_RESOLVED_NO
                             logger.info(
-                                'WINDOW_OUTCOME %s/%s | bid=%.4f elapsed=%.0fs — resolved NO, booking loss',
+                                'WINDOW_OUTCOME %s/%s | bid=%.4f elapsed=%.0fs — %s',
                                 pos.asset, pos.direction.name, current_price, elapsed_post,
+                                "kline win, booking redemption" if _wo_exit_reason == "LDA_KLINE_WIN"
+                                else "resolved NO, booking loss",
                             )
                             _wo_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
-                            _wo_pnl = self.risk.close_position(token_id, 0.0, "BOND_RESOLVED_NO")
-                            self._mark_bond_total_loss(pos.asset)
+                            _wo_pnl = self.risk.close_position(token_id, _wo_exit_price, _wo_exit_reason)
+                            if _wo_exit_reason == "BOND_RESOLVED_NO":
+                                self._mark_bond_total_loss(pos.asset)
                             if _wo_pnl is not None:
                                 _wo_sig = _wo_meta.get("signal") or SignalBreakdown(
                                     direction=pos.direction, entry_price=pos.entry_price,
@@ -1484,7 +1511,7 @@ class KlausBot:
                                 _hold_s_wo = time.time() - _wo_meta.get("ts_open", pos.open_ts)
                                 _path_class_wo, _path_conf_wo, _path_reason_wo = _classify_path(
                                     r30=_r30_wo, r60=_r60_wo, max_adv_pct=_max_adv_wo, hold_s=_hold_s_wo,
-                                    exit_reason="BOND_RESOLVED_NO", exit_price=0.0, entry_price=_ep_wo,
+                                    exit_reason=_wo_exit_reason, exit_price=_wo_exit_price, entry_price=_ep_wo,
                                 )
                                 _bounce_pct_wo = 0.0
                                 if (pos.entry_price > 0 and pos.mae_bounce_peak > 0
@@ -1496,10 +1523,10 @@ class KlausBot:
                                 try:
                                     self.analytics.record_trade(
                                         token_id=token_id, asset=pos.asset, direction=pos.direction,
-                                        entry_price=pos.entry_price, exit_price=0.0,
+                                        entry_price=pos.entry_price, exit_price=_wo_exit_price,
                                         stake=pos.stake, shares=pos.shares,
                                         entry_fill=_wo_meta.get("entry_fill"), exit_fills=[],
-                                        exit_reason="BOND_RESOLVED_NO", signal=_wo_sig,
+                                        exit_reason=_wo_exit_reason, signal=_wo_sig,
                                         ts_open=_wo_meta.get("ts_open", pos.open_ts), ts_close=time.time(),
                                         capital_before=self.risk.bankroll.capital - _wo_pnl,
                                         heat_check_active=_wo_meta.get("heat_check", False),
