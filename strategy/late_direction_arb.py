@@ -3,13 +3,14 @@ Late-window directional arb (LDA).
 
 Signal: Binance 5m-return direction (spot vs open_5m).
 Gate  : predicted-winner token ask in [0.60, 0.98] + bid > 0.50 + vol_regime==normal.
-Timing: one entry per window in T-8 to T-300s with ask-dependent rem ceiling:
-          ask≥0.90 → rem≤60s; ask≥0.80 → rem≤90s; ask<0.80 → rem≤300s
+Timing: up to 3 entries per window (one per rem bucket), T-8 to T-300s.
+          ask≥0.90 → rem≤60s (dead1 kept); ask[0.80,0.90) → rem≤300s (dead2 removed).
+BNC   : adaptive floor — 0.10% at ask<0.70, 0.05% at ask<0.90, 0.07% else.
 Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
-        Losing tokens resolve NO and are booked by BOND_RESOLVED_NO.
+        Multi-entry: uses add_to_position for 2nd/3rd fill on same window.
 
-Accuracy baseline (n=85 windows, 2 days): 96.6% direction accuracy, PF≈6.3.
-Stake: $5 per window during validation (raise after n≥100, WR>55%).
+Live: n=69 direction WR=89.7%; dead2 removal evidence n=27/80 (shadow vol=normal).
+Stake: $5 per entry. Raise after n≥100 direction WR and WR>55%.
 """
 from __future__ import annotations
 
@@ -27,10 +28,20 @@ ASK_FLOOR    = 0.60
 ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
-REM_MAX_S    = 300.0   # extended from 90s; dead zones filtered by ask-conditional rem ceiling below
-BNC_MOVE_MIN = 0.07    # |5m return %| floor; all reversals were at <0.056%; 0.07→99.8% acc +66% trades
+REM_MAX_S    = 300.0   # extended from 90s; ask-conditional ceiling still blocks ask≥0.90 + rem>60s
 STAKE_USD    = 5.00
 BLOCKED_HOURS_UTC = {1}  # H01 WR=88.6% n=79 wrong=9 (shadow); only flagged hour
+
+# Adaptive BNC floor by ask zone (shadow n=27-80, vol=normal, May 8-12):
+#   [0.60,0.70): raise 0.07→0.10 — 0.05-0.10% moves are noise at low ask
+#   [0.70,0.90): lower 0.07→0.05 — 0.05-0.07% moves are valid; EV improves
+#   [0.90,0.98): keep 0.07 — insufficient data to move
+def _bnc_floor(ask: float) -> float:
+    if ask < 0.70:
+        return 0.10
+    if ask < 0.90:
+        return 0.05
+    return 0.07
 
 
 class LateDirectionArb:
@@ -40,7 +51,7 @@ class LateDirectionArb:
         self.bot = bot
         self.enabled: bool = True
 
-        self._fired: Set[Tuple[str, int]] = set()  # (cid, wend) already entered
+        self._fired: Set[Tuple[str, int, int]] = set()  # (cid, wend, rem_bucket) dedup per bucket
         self._tasks = []
 
         self.entries_attempted: int = 0
@@ -62,7 +73,10 @@ class LateDirectionArb:
         if not cid or not wend:
             return
 
-        key = (cid, wend)
+        # Multi-entry: one entry per rem bucket per window.
+        # Buckets: [0,60s)=0, [60,120s)=1, [120,300s)=2.
+        rem_bucket = 0 if remaining < 60 else (1 if remaining < 120 else 2)
+        key = (cid, wend, rem_bucket)
         if key in self._fired:
             return
 
@@ -75,12 +89,10 @@ class LateDirectionArb:
         if not (ASK_FLOOR <= ask <= ASK_CEIL) or bid < BID_MIN:
             return
 
-        # Ask-conditional rem ceiling (grid scan, n=1000+):
-        #   ask≥0.90 + rem>60s → EV -0.03 to -0.14 (dead zone)
-        #   ask≥0.80 + rem>90s → EV -0.04 (dead zone)
+        # Ask-conditional rem ceiling:
+        #   ask≥0.90 + rem>60s → EV -0.14 to -0.22 (dead zone 1, kept)
+        #   ask≥0.80 + rem>90s → removed: [90,120) EV=+0.81 n=27, [120,180) EV=+0.42 n=80 (shadow, vol=normal)
         if remaining > 60 and ask >= 0.90:
-            return
-        if remaining > 90 and ask >= 0.80:
             return
 
         # Vol regime: volatile/extreme destroy edge (WR 54%/43% vs 71% normal).
@@ -96,8 +108,9 @@ class LateDirectionArb:
             return
 
         bnc_move_pct = (spot - open_5m) / open_5m * 100.0
-        if abs(bnc_move_pct) < BNC_MOVE_MIN:
-            return  # move too small; all known reversals were at <0.056%
+        bnc_abs = abs(bnc_move_pct)
+        if bnc_abs < _bnc_floor(ask):
+            return  # adaptive floor: 0.10% at ask<0.70, 0.05% at ask<0.90, 0.07% else
 
         # Per-asset / per-window-size bnc gates (shadow data, n=1631, May 8-12):
         #   ETH 15m: all bnc zones NEG EV or LOW WR → block entirely
@@ -106,7 +119,6 @@ class LateDirectionArb:
         #   SOL 5m:  0.10-0.15% and 0.15%+ NEG EV (ask too high by then) → cap at 0.10%
         wsz   = rec.get("window_size_s", 300)
         asset = rec.get("asset", "").upper()
-        bnc_abs = abs(bnc_move_pct)
         if wsz == 900:  # 15m window
             if asset in ("ETH", "SOL"):
                 return
@@ -186,8 +198,8 @@ class LateDirectionArb:
 
         if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
             logger.info("[LDA] fill failed %s: %s", asset, getattr(fill, "error", "?"))
-            key = (cid, wend)
-            self._fired.discard(key)  # allow retry on next tick
+            rem_bucket = 0 if rec.get("seconds_to_resolution", 0) < 60 else (1 if rec.get("seconds_to_resolution", 0) < 120 else 2)
+            self._fired.discard((cid, wend, rem_bucket))
             self.entries_attempted -= 1
             return
 
@@ -200,41 +212,46 @@ class LateDirectionArb:
             actual_stake, fill.total_size, fill.total_size - actual_stake,
         )
 
-        tpsl = TPSLLevels(
-            take_profit=0.0, stop_loss=0.0,
-            tp_pct=0.0, sl_pct=0.0, risk_reward=0.0,
-        )
-
-        class _Sig:
-            signal_source = "LDA"
-            entry_price = fill.avg_fill_price
-            direction = Direction.BUY_YES
+        import time as _time
 
         try:
-            self.bot.risk.open_position(
-                token_id=token_id,
-                asset=asset,
-                direction=Direction.BUY_YES,
-                stake=actual_stake,
-                entry_price=fill.avg_fill_price,
-                tpsl=tpsl,
-                condition_id=cid,
-                window_end_ts=wend,
-                window_seconds=rec.get("window_size_s", 300),
-                quality_score=0,
-                binance_price_at_entry=spot,
-                is_bond=True,
-                bond_outcome_direction=bnc_dir,
-                bond_entry_class="LDA",
-            )
-            import time as _time
-            self.bot._open_meta[token_id] = {
-                "signal_source": "LDA",
-                "ts_open": _time.time(),
-                "spot_at_entry": spot,
-                "pre_entry_momentum_pct": bnc_move_pct,
-                "window_size_s": rec.get("window_size_s", 300),
-                "capital_before": self.bot.risk.bankroll.capital,
-            }
+            if token_id in self.bot.risk.open_positions:
+                # Scale into existing position (multi-entry, different rem bucket)
+                self.bot.risk.add_to_position(
+                    token_id=token_id,
+                    add_shares=fill.total_size,
+                    add_fill_price=fill.avg_fill_price,
+                    add_stake=actual_stake,
+                )
+                logger.info("[LDA] SCALE %s/%s +%.4f @ %.4f", asset, bnc_dir, fill.total_size, fill.avg_fill_price)
+            else:
+                tpsl = TPSLLevels(
+                    take_profit=0.0, stop_loss=0.0,
+                    tp_pct=0.0, sl_pct=0.0, risk_reward=0.0,
+                )
+                self.bot.risk.open_position(
+                    token_id=token_id,
+                    asset=asset,
+                    direction=Direction.BUY_YES,
+                    stake=actual_stake,
+                    entry_price=fill.avg_fill_price,
+                    tpsl=tpsl,
+                    condition_id=cid,
+                    window_end_ts=wend,
+                    window_seconds=rec.get("window_size_s", 300),
+                    quality_score=0,
+                    binance_price_at_entry=spot,
+                    is_bond=True,
+                    bond_outcome_direction=bnc_dir,
+                    bond_entry_class="LDA",
+                )
+                self.bot._open_meta[token_id] = {
+                    "signal_source": "LDA",
+                    "ts_open": _time.time(),
+                    "spot_at_entry": spot,
+                    "pre_entry_momentum_pct": bnc_move_pct,
+                    "window_size_s": rec.get("window_size_s", 300),
+                    "capital_before": self.bot.risk.bankroll.capital,
+                }
         except Exception:
-            logger.exception("[LDA] risk.open_position failed %s", asset)
+            logger.exception("[LDA] risk position update failed %s", asset)
