@@ -188,6 +188,10 @@ class LateDirectionArb:
         if asset == "SOL" and (remaining < 60 or remaining >= 180):
             return
 
+        # SOL bucket 3 (120-180s): tighter ask ceiling 0.97 (user instruction 2026-05-14)
+        if asset == "SOL" and remaining >= 120 and ask > 0.97:
+            return
+
         # Elevated BNC floors for structurally weak hour×bucket cells (shadow May8-13):
         #   H02 B2: raise floor 0.05→0.07 — EV=-3.1% at 0.05, EV=+1.2% at 0.07 (n=41)
         #   H03 B1: require 0.06% — partial uplift; full block deferred to n≥100
