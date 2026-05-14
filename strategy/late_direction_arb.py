@@ -270,6 +270,59 @@ class LateDirectionArb:
                 # Keep _fired marker — signal is degraded, don't retry this bucket.
                 return
 
+        # ── Flip exit: sell opposite-direction LDA position in same window ────────
+        # Strategy D: when BNC reverses and fires the complementary token, sell
+        # the first position at its current bid rather than holding to resolution.
+        # Shadow n=194: first-dir WR=13.4%; selling at bid_avg=0.18 + holding the
+        # flip token saves $0.99/window vs holding both. ~$14/day at current volume.
+        flip_token_id: str = ""
+        for _tid, _pos in list(self.bot.risk.open_positions.items()):
+            if (
+                _pos.condition_id == cid
+                and _pos.bond_outcome_direction != bnc_dir
+                and _pos.bond_entry_class == "LDA"
+                and _pos.remaining_shares > 0
+            ):
+                flip_token_id = _tid
+                break
+
+        if flip_token_id:
+            _flip = self.bot.risk.open_positions.get(flip_token_id)
+            if _flip is not None:
+                _peer_bid = rec.get("peer_bid", 0.0)
+                if _peer_bid <= 0:
+                    _peer_bid = max(0.01, 1.0 - ask)  # complementary token pricing fallback
+                _flip_shares = _flip.remaining_shares
+                logger.info(
+                    "[LDA] FLIP_EXIT %s/%s→%s %.4f shr @ ~%.4f bid (entry=%.4f)",
+                    asset, _flip.bond_outcome_direction, bnc_dir,
+                    _flip_shares, _peer_bid, _flip.entry_price,
+                )
+                _flip_results = await self.bot.orders.cascade_sell(
+                    token_id=flip_token_id,
+                    total_shares=_flip_shares,
+                    current_price=_peer_bid,
+                    reason="LDA_FLIP_EXIT",
+                    force_exit=True,
+                )
+                _filled = [
+                    r for r in _flip_results
+                    if getattr(r, "status", None) == OrderStatus.FILLED
+                    and getattr(r, "total_size", 0) > 0
+                ]
+                if _filled:
+                    _exit_px = (
+                        sum(r.avg_fill_price * r.total_size for r in _filled)
+                        / sum(r.total_size for r in _filled)
+                    )
+                    self.bot.risk.close_position(flip_token_id, _exit_px, "LDA_FLIP_EXIT")
+                    logger.info(
+                        "[LDA] FLIP_EXIT done %.4f shr @ %.4f",
+                        sum(r.total_size for r in _filled), _exit_px,
+                    )
+                else:
+                    logger.warning("[LDA] FLIP_EXIT sell returned no fills — position stays open")
+
         logger.info(
             "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%% stake=$%.2f",
             asset, bnc_dir, ask, rem, bnc_move_pct, stake_usd,
