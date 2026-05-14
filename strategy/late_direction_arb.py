@@ -52,6 +52,12 @@ _BNC_TIER_HIGH_FRAC = 0.10   # bnc [0.10%, ∞)
 # B0 [8,60s): ask near resolution; Kelly≈0 at ask>0.90 (73% of B0 volume); keep flat
 _STAKE_B0 = 3.0
 
+# Cumulative Kelly targets per rem-bucket (fraction of full tier target).
+# B3 fires first at 50%; B2 tops up to 75%; B1 tops up to 100%.
+# Total across all 3 buckets = 1× Kelly — same cap, distributed across entries.
+# If only B1 fires (no prior buckets): gets full 100% immediately.
+_BUCKET_KELLY_CUM = {3: 0.50, 2: 0.75, 1: 1.00}
+
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
@@ -292,14 +298,16 @@ class LateDirectionArb:
         scale    = bankroll / 100.0
         target   = _KELLY_TARGET[n_co] * scale
 
-        # BNC-tiered half-Kelly — B0 flat $3; B1/B2/B3 share one Kelly budget per asset+window
-        # Multi-bucket entries (B3→B2→B1) are adds to the same binary outcome — not fresh bets
+        # BNC-tiered half-Kelly — B0 flat $3; B1/B2/B3 use cumulative targets
+        # B3→B2→B1 each top up to their cumulative fraction of the full Kelly target:
+        #   B3: 50%  B2: 75%  B1: 100% — total capped at 1× Kelly regardless of buckets fired
         if remaining < 60:
             stake_usd = _STAKE_B0
         elif asset in ("BTC", "ETH", "SOL"):
-            kelly_target = _bnc_tier_stake(bnc_abs, bankroll)
+            full_target = _bnc_tier_stake(bnc_abs, bankroll)
+            bucket_target = full_target * _BUCKET_KELLY_CUM.get(rem_bucket, 1.0)
             _aws_key = (cid, wend, asset, bnc_dir)
-            remaining_budget = kelly_target - self._asset_window_staked.get(_aws_key, 0.0)
+            remaining_budget = bucket_target - self._asset_window_staked.get(_aws_key, 0.0)
             if remaining_budget < 5.0:
                 self._fired.add(key)  # suppress future ticks in this bucket
                 return
