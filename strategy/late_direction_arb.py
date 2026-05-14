@@ -162,10 +162,6 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
-        # BTC [60,120s): EV=-2.2% structural (n=132, shadow May8-13) — ask≈0.83 WR=81.1% is break-even
-        if rem_bucket == 1 and asset == "BTC":
-            return
-
         # All assets [120,300s): EV-negative hours, shadow May8-13
         if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
             return
