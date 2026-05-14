@@ -41,7 +41,7 @@ STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket 
 
 # BTC — strong threshold 0.08%
 _BTC_STRONG_BNC     = 0.08
-_BTC_STAKE_B3       = 10.0   # WR=79%  n=802, Kelly=20%, ½K=$15
+_BTC_STAKE_B3       = 10.0   # B2+B3: WR=79% EV=+0.35 (5m-only n=551 B3; n=283 B2), ½K≈$10
 _BTC_STAKE_B1       = 10.0   # WR=94%  n=198, Kelly=22%, ½K=$17  (base BNC<0.08%)
 _BTC_STAKE_B1_STRONG= 20.0   # WR=97%  n=36,  Kelly=76%, ½K=$59  (BNC≥0.08%, n≥20)
 _BTC_STAKE_B2       = 15.0   # WR=90%  n=127, Kelly=15%, ½K=$12  (base BNC<0.08%)
@@ -86,8 +86,13 @@ _ETH_BLOCKED_B1 = frozenset({1})            # H01 n=34 EV=-0.71
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
 _SOL_BLOCKED_LATE = frozenset({10, 13, 22})  # H10 WR=72% n=18; H13 WR=61% n=28; H22 WR=57% n=28
 
-# [120,300s) bucket — ETH structural blocks (shadow May8-14):
-_ETH_BLOCKED_LATE = frozenset({16})          # H16 WR=72% n=18, ask-validated structural
+# [120,300s) bucket — ETH structural blocks:
+_ETH_BLOCKED_LATE = frozenset({16, 0, 17, 21})
+# H16 WR=72% n=18 ask-validated; H00 EV=-1.24 n=32 3/5d bad; H17 EV=-0.26 n=56 5/7d bad; H21 EV=-1.18 n=19 3/5d bad
+
+# [180,300s) bucket — BTC structural blocks (5m first-fire 2026-05-14):
+_BTC_BLOCKED_B3 = frozenset({1, 17, 18, 23})
+# H01 EV=-0.28 n=33; H17 EV=-0.30 n=44 4/7d bad; H18 EV=-0.27 n=21; H23 EV=-0.58 n=18
 
 # SOL — all buckets: user instruction 2026-05-14 (H07/H09 draining live capital)
 _SOL_BLOCKED_ALL  = frozenset({7, 9})
@@ -198,9 +203,12 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
-        # ETH B3 ask[0.70,0.80) unblocked: n=130 EV=+0.39 CI_lo=74% (5m-only audit 2026-05-14)
-        # All other assets B4 (rem>=180s): Kelly=0% — BNC is noise this early (market_timeline May8-14)
-        if remaining >= 180 and asset != "ETH":
+        # B3 [180,300s) ask[0.70,0.80): ETH live (n=789 EV=-0.02 mixed hours); BTC unblocked
+        # 5m-only: BTC B3 n=551 WR=79% EV=+0.35 CI_lo=77% (was blocked on mixed 5m+15m data)
+        # SOL blocked by SOL rem-restriction below; other assets blocked here
+        if remaining >= 180 and asset not in ("ETH", "BTC"):
+            return
+        if remaining >= 180 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B3:
             return
 
         # All assets [120,300s): EV-negative hours, shadow May8-13
