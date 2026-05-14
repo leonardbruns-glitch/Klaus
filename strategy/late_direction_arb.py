@@ -90,7 +90,7 @@ _BTC_BLOCKED_B1 = frozenset({13})           # H13 n=26 EV=-0.274 4/6d bad
 _BTC_BLOCKED_LATE = frozenset({17})         # H17: B2 EV=-0.252 n=20 4/6d; B3 EV=-0.298 n=44 3/7d
 
 # [180,300s) bucket — BTC structural blocks (B3-only; B2 is positive at these hours):
-_BTC_BLOCKED_B3 = frozenset({1, 4, 18, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H23 EV=-0.58 n=18
+_BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18
 
 # SOL — all buckets: user instruction 2026-05-14 (H07/H09 draining live capital)
 _SOL_BLOCKED_ALL  = frozenset({7, 9})
