@@ -181,17 +181,12 @@ class LateDirectionArb:
             return  # adaptive floor: 0.07 at B0; 0.10/0.05/0.07 by ask zone at B1/B2
 
         # Per-asset / per-window-size bnc gates (shadow data, n=1631, May 8-12):
-        #   ETH 15m: all bnc zones NEG EV or LOW WR → block entirely
-        #   SOL 15m: 0.07-0.10% NEG EV (dominant bucket), rest too small → block entirely
-        #   BTC 15m: 0.07-0.10% LOW WR (87.5%) → require bnc >= 0.10%
+        #   15m windows: block all assets — user directive 2026-05-14
         #   SOL 5m:  0.10-0.15% and 0.15%+ NEG EV (ask too high by then) → cap at 0.10%
         wsz   = rec.get("window_size_s", 300)
         asset = rec.get("asset", "").upper()
-        if wsz == 900:  # 15m window
-            if asset in ("ETH", "SOL"):
-                return
-            if asset == "BTC" and bnc_abs < 0.10:
-                return
+        if wsz == 900:  # 15m window — block all assets
+            return
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
