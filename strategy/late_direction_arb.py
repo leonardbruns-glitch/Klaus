@@ -130,6 +130,7 @@ class LateDirectionArb:
         self._fired: Set[Tuple[str, int, int]] = set()  # (cid, wend, rem_bucket) dedup per bucket
         self._window_assets: Dict[Tuple[int, str], Set[str]] = {}  # (wend, odir) → assets fired
         self._window_staked: Dict[Tuple[str, int, str], float] = {}  # (cid, wend, odir) → $ staked
+        self._asset_window_staked: Dict[Tuple[str, int, str, str], float] = {}  # (cid, wend, asset, odir) → $ staked
         self._tasks = []
 
         self.entries_attempted: int = 0
@@ -291,11 +292,18 @@ class LateDirectionArb:
         scale    = bankroll / 100.0
         target   = _KELLY_TARGET[n_co] * scale
 
-        # BNC-tiered half-Kelly — B0 flat $3; B1/B2/B3 scale with live bankroll
+        # BNC-tiered half-Kelly — B0 flat $3; B1/B2/B3 share one Kelly budget per asset+window
+        # Multi-bucket entries (B3→B2→B1) are adds to the same binary outcome — not fresh bets
         if remaining < 60:
             stake_usd = _STAKE_B0
         elif asset in ("BTC", "ETH", "SOL"):
-            stake_usd = _bnc_tier_stake(bnc_abs, bankroll)
+            kelly_target = _bnc_tier_stake(bnc_abs, bankroll)
+            _aws_key = (cid, wend, asset, bnc_dir)
+            remaining_budget = kelly_target - self._asset_window_staked.get(_aws_key, 0.0)
+            if remaining_budget < 5.0:
+                self._fired.add(key)  # suppress future ticks in this bucket
+                return
+            stake_usd = remaining_budget
         else:
             already = self._window_staked.get((cid, wend, bnc_dir), 0.0)
             stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
@@ -441,6 +449,9 @@ class LateDirectionArb:
         # compute the correct incremental Kelly gap.
         _wk = (cid, wend, bnc_dir)
         self._window_staked[_wk] = self._window_staked.get(_wk, 0.0) + actual_stake
+        # Per-asset Kelly budget tracker (multi-bucket cap)
+        _awk = (cid, wend, asset.upper(), bnc_dir)
+        self._asset_window_staked[_awk] = self._asset_window_staked.get(_awk, 0.0) + actual_stake
 
         logger.info(
             "[LDA] FILLED %s/%s %.4f shares @ %.4f | cost=$%.2f expect=$%.2f (+$%.2f) "
