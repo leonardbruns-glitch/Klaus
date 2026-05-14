@@ -76,7 +76,10 @@ _ALL_BLOCKED_LATE_B1 = frozenset({4, 15})
 # H04 EV=-12.4% n=44; H13 unblocked user instruction 2026-05-14; H15 EV=-5.6% n=29
 
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
-_SOL_BLOCKED_LATE = frozenset({22})      # H22 WR=57% n=28; H06 promoted to _ALL_BLOCKED_LATE
+_SOL_BLOCKED_LATE = frozenset({10, 13, 22})  # H10 WR=72% n=18; H13 WR=61% n=28; H22 WR=57% n=28
+
+# [120,300s) bucket — ETH structural blocks (shadow May8-14):
+_ETH_BLOCKED_LATE = frozenset({16})          # H16 WR=72% n=18, ask-validated structural
 
 # SOL — all buckets: user instruction 2026-05-14 (H07/H09 draining live capital)
 _SOL_BLOCKED_ALL  = frozenset({7, 9})
@@ -204,8 +207,16 @@ class LateDirectionArb:
         if rem_bucket == 1 and hour_utc in _ALL_BLOCKED_LATE_B1:
             return
 
-        # SOL [120,300s): H22 CI fully below 77.3% baseline (shadow n=28, May8-13)
+        # SOL [120,300s): H10/H13/H22 CI fully below 77.3% baseline (shadow May8-14)
         if remaining > 120 and asset == "SOL" and hour_utc in _SOL_BLOCKED_LATE:
+            return
+
+        # ETH [120,300s): H16 WR=72% n=18, ask-validated structural (shadow May8-14)
+        if remaining > 120 and asset == "ETH" and hour_utc in _ETH_BLOCKED_LATE:
+            return
+
+        # ETH [60,120s) H16: [0.70,0.80) ask band is bad; [0.80,0.90) positive — raise floor
+        if rem_bucket == 1 and asset == "ETH" and hour_utc == 16 and ask < 0.80:
             return
 
         # SOL all-bucket hour blocks (user instruction 2026-05-14)
