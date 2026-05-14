@@ -63,6 +63,9 @@ _SOL_STAKE_B3       = 10.0   # WR=78%  n=422, Kelly=19%, ½K=$15
 _SOL_STAKE_B1       = 10.0   # WR=89%  n=440, Kelly=20%, ½K=$16  (base BNC<0.08%)
 _SOL_STAKE_B1_STRONG= 15.0   # WR=93%  n=124, Kelly=41%, ½K=$32  (BNC≥0.08%, n≥20)
 
+# B0 [8,60s): reduced to $3 — high ask at near-resolution makes EV negative at larger size
+_STAKE_B0 = 3.0
+
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
@@ -72,9 +75,13 @@ _ALL_BLOCKED_LATE = frozenset({3, 6, 12, 15})
 # H03 EV=-30.6% n=33; H06 EV=-11.8% n=29; H12 EV=-29.2% n=46;
 # H13 unblocked user instruction 2026-05-14; H15 EV=-0.74% n=100 — BNC cannot fix
 
-# [60,120s) bucket — all-asset structural blocks (shadow May8-13):
-_ALL_BLOCKED_LATE_B1 = frozenset({4, 15})
-# H04 EV=-12.4% n=44; H13 unblocked user instruction 2026-05-14; H15 EV=-5.6% n=29
+# [60,120s) bucket — all-asset structural blocks:
+_ALL_BLOCKED_LATE_B1 = frozenset({4, 12, 15})
+# H04 EV=-12.4% n=44; H12 ETH n=30 EV=-0.57 SOL n=44 EV=-0.49; H15 EV=-5.6% n=29
+
+# [60,120s) bucket — per-asset structural blocks (5m first-fire analysis 2026-05-14):
+_SOL_BLOCKED_B1 = frozenset({1, 10, 13})   # H01 n=41 EV=-0.46; H10 n=35 EV=-0.39; H13 n=42 EV=-0.52
+_ETH_BLOCKED_B1 = frozenset({1})            # H01 n=34 EV=-0.71
 
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
 _SOL_BLOCKED_LATE = frozenset({10, 13, 22})  # H10 WR=72% n=18; H13 WR=61% n=28; H22 WR=57% n=28
@@ -200,8 +207,16 @@ class LateDirectionArb:
         if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
             return
 
-        # All assets [60,120s): EV-negative hours, shadow May8-13
+        # All assets [60,120s): EV-negative hours
         if rem_bucket == 1 and hour_utc in _ALL_BLOCKED_LATE_B1:
+            return
+
+        # SOL [60,120s): per-asset EV-negative hours (5m first-fire 2026-05-14)
+        if rem_bucket == 1 and asset == "SOL" and hour_utc in _SOL_BLOCKED_B1:
+            return
+
+        # ETH [60,120s): per-asset EV-negative hours (5m first-fire 2026-05-14)
+        if rem_bucket == 1 and asset == "ETH" and hour_utc in _ETH_BLOCKED_B1:
             return
 
         # SOL [120,300s): H10/H13/H22 CI fully below 77.3% baseline (shadow May8-14)
@@ -257,20 +272,19 @@ class LateDirectionArb:
         target   = _KELLY_TARGET[n_co] * scale
 
         # Flat two-tier stakes per asset — B4 blocked above, only B1/B2/B3 reach here
+        # B0 [8,60s) capped at $3: ask near resolution is high, EV negative at larger size
         if asset == "BTC":
-            strong = bnc_abs >= _BTC_STRONG_BNC
             if remaining < 60:
-                stake_usd = _BTC_STAKE_B2_STRONG if strong else _BTC_STAKE_B2
+                stake_usd = _STAKE_B0
             elif remaining < 120:
-                stake_usd = _BTC_STAKE_B1_STRONG if strong else _BTC_STAKE_B1
+                stake_usd = _BTC_STAKE_B1_STRONG if bnc_abs >= _BTC_STRONG_BNC else _BTC_STAKE_B1
             else:
                 stake_usd = _BTC_STAKE_B3
         elif asset == "ETH":
-            strong = bnc_abs >= _ETH_STRONG_BNC
             if remaining < 60:
-                stake_usd = _ETH_STAKE_B2_STRONG if strong else _ETH_STAKE_B2
+                stake_usd = _STAKE_B0
             elif remaining < 120:
-                stake_usd = _ETH_STAKE_B1_STRONG if strong else _ETH_STAKE_B1
+                stake_usd = _ETH_STAKE_B1_STRONG if bnc_abs >= _ETH_STRONG_BNC else _ETH_STAKE_B1
             elif remaining < 180:
                 stake_usd = _ETH_STAKE_B3
             else:
