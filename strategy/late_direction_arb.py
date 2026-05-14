@@ -37,9 +37,10 @@ STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket 
 
 # BTC bucket-based flat stakes (user instruction 2026-05-14; BTC only)
 # B4 (rem>=180s) disabled: Kelly=0% at all BNC thresholds — signal not formed at 180-300s
-_BTC_STAKE_B3 = 20.0   # rem 120-180s: shadow WR=82%, n=34
-_BTC_STAKE_B1 = 10.0   # rem  60-120s: core bucket, shadow WR=89%
-_BTC_STAKE_B2 =  5.0   # rem    0-60s: high ask, lowest EV
+# Stakes rebalanced 2026-05-14 toward close: B3 Kelly=19% (was over-staked); B2 Kelly=63% (was under-staked)
+_BTC_STAKE_B3 = 10.0   # rem 120-180s: WR=79%, Kelly=19%, half-K=$15 at $156 → $10 (conservative)
+_BTC_STAKE_B1 = 10.0   # rem  60-120s: WR=97%, Kelly=74% → unchanged
+_BTC_STAKE_B2 = 15.0   # rem    0-60s: WR=97%, Kelly=63%, half-K=$49 → $15 (3× raise, adj for concurrency)
 
 # Incremental Kelly targets per binary outcome per window (half-Kelly, ρ=0.75 corr-adj):
 # shadow May8-14 n=5575: 1A EV=-3.2% Kelly=0%; 2A EV=-0.6% Kelly≈0%; 3A EV=+3.5% Kelly=18%
