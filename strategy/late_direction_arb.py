@@ -254,7 +254,7 @@ class LateDirectionArb:
         spot: float,
         open_5m: float,
         bnc_move_pct: float,
-        stake_usd: float = STAKE_USD,
+        stake_usd: float = STAKE_MAX_USD,
     ) -> None:
         """Execute the buy and register the position. Never raises."""
         try:
@@ -270,7 +270,7 @@ class LateDirectionArb:
         bnc_dir: str,
         spot: float,
         bnc_move_pct: float,
-        stake_usd: float = STAKE_USD,
+        stake_usd: float = STAKE_MAX_USD,
     ) -> None:
         from execution.order_manager import OrderStatus
 
