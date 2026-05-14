@@ -116,7 +116,7 @@ class LateDirectionArb:
 
         # Multi-entry: one entry per rem bucket per window.
         # Buckets: [0,60s)=0, [60,120s)=1, [120,300s)=2.
-        rem_bucket = 0 if remaining < 60 else (1 if remaining < 120 else 2)
+        rem_bucket = 0 if remaining < 60 else (1 if remaining < 120 else (2 if remaining < 180 else 3))
         key = (cid, wend, rem_bucket)
         if key in self._fired:
             return
@@ -369,7 +369,7 @@ class LateDirectionArb:
 
         if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
             logger.info("[LDA] fill failed %s: %s", asset, getattr(fill, "error", "?"))
-            rem_bucket = 0 if rec.get("seconds_to_resolution", 0) < 60 else (1 if rec.get("seconds_to_resolution", 0) < 120 else 2)
+            rem_bucket = 0 if rec.get("seconds_to_resolution", 0) < 60 else (1 if rec.get("seconds_to_resolution", 0) < 120 else (2 if rec.get("seconds_to_resolution", 0) < 180 else 3))
             self._fired.discard((cid, wend, rem_bucket))
             self.entries_attempted -= 1
             return
