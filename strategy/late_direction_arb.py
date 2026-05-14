@@ -206,12 +206,8 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
-        # B3 [180,300s) ask[0.70,0.80): ETH live (n=789 EV=-0.02 mixed hours); BTC unblocked
-        # 5m-only: BTC B3 n=551 WR=79% EV=+0.35 CI_lo=77% (was blocked on mixed 5m+15m data)
-        # SOL blocked by SOL rem-restriction below; other assets blocked here
-        if remaining >= 180 and asset not in ("ETH", "BTC"):
-            return
-        if remaining >= 180 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B3:
+        # B3 [180,300s): blocked for all assets — user instruction 2026-05-14 (too risky)
+        if remaining >= 180:
             return
 
         # All assets [120,300s): EV-negative hours, shadow May8-13
