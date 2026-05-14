@@ -80,11 +80,11 @@ _ALL_BLOCKED_LATE_B1 = frozenset({4, 12, 15})
 # H04 EV=-12.4% n=44; H12 ETH n=30 EV=-0.57 SOL n=44 EV=-0.49; H15 EV=-5.6% n=29
 
 # [60,120s) bucket — per-asset structural blocks (5m first-fire analysis 2026-05-14):
-_SOL_BLOCKED_B1 = frozenset({1, 10, 13})   # H01 n=41 EV=-0.46; H10 n=35 EV=-0.39; H13 n=42 EV=-0.52
+_SOL_BLOCKED_B1 = frozenset({1, 10, 13, 22})  # H01 n=41 EV=-0.46; H10 n=35 EV=-0.39; H13 n=42 EV=-0.52; H22 n=40 EV=-0.21 4/6d bad
 _ETH_BLOCKED_B1 = frozenset({1})            # H01 n=34 EV=-0.71
 
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
-_SOL_BLOCKED_LATE = frozenset({10, 13, 22})  # H10 WR=72% n=18; H13 WR=61% n=28; H22 WR=57% n=28
+_SOL_BLOCKED_LATE = frozenset({10, 13, 20, 21, 22})  # H10 WR=72% n=18; H13 WR=61% n=28; H20 EV=-0.20 4/6d; H21 EV=-0.26 4/6d; H22 WR=57% n=28
 
 # [120,300s) bucket — ETH structural blocks:
 _ETH_BLOCKED_LATE = frozenset({16, 0, 17, 21})
@@ -243,8 +243,8 @@ class LateDirectionArb:
         if asset == "SOL" and hour_utc in _SOL_BLOCKED_ALL:
             return
 
-        # SOL rem restriction: B1 only [60,120s) — B2 ask[0.70,0.80) EV=-0.35 n=24 (5m-only 2026-05-14)
-        if asset == "SOL" and (remaining < 60 or remaining >= 120):
+        # SOL rem restriction: B1+B2 [60,180s) — B3 [180,300s) EV=-0.35 (5m-only 2026-05-14)
+        if asset == "SOL" and (remaining < 60 or remaining >= 180):
             return
 
         # SOL bucket 3 (120-180s): tighter ask ceiling 0.97 (user instruction 2026-05-14)
@@ -298,12 +298,12 @@ class LateDirectionArb:
             else:
                 stake_usd = _ETH_STAKE_B4
         elif asset == "SOL":
-            # B2 (rem<60) already blocked above; only B1 and B3 reach here
+            # B0 (rem<60) and B3 (rem>=180) blocked above; B1+B2 reach here
             strong = bnc_abs >= _SOL_STRONG_BNC
             if remaining < 120:
                 stake_usd = _SOL_STAKE_B1_STRONG if strong else _SOL_STAKE_B1
             else:
-                stake_usd = _SOL_STAKE_B3
+                stake_usd = _SOL_STAKE_B3  # B2 [120,180s): $10 flat (EV=+0.139 n=220)
         else:
             already = self._window_staked.get((cid, wend, bnc_dir), 0.0)
             stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
