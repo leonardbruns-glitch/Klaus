@@ -10,7 +10,9 @@ Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
         Multi-entry: uses add_to_position for 2nd/3rd fill on same window.
 
 Live: n=69 direction WR=89.7%; dead2 removal evidence n=27/80 (shadow vol=normal).
-Stake: $5 per entry. Raise after n≥100 direction WR and WR>55%.
+Stake: incremental Kelly per binary outcome, scaled with bankroll.
+  1 asset co-firing: target $3/outcome; 2 assets: $5.50; 3 assets: $9.
+  Each bucket entry stakes the gap to target (max $7/entry, min $1).
 """
 from __future__ import annotations
 
@@ -29,8 +31,14 @@ ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 
 BID_MIN      = 0.50    # safeguard: both tokens on wrong side if bid < 0.50
 REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 300.0   # extended from 90s; ask-conditional ceiling still blocks ask≥0.90 + rem>60s
-STAKE_USD         = 5.00
-STAKE_USD_REDUCED = 2.00   # trending-weak hour×bucket cells, pending n≥100 per cell
+STAKE_USD_REDUCED = 2.00   # watch-cell cap per entry (ETH/SOL weak hours, pending n≥100)
+STAKE_MIN_USD     = 1.00   # floor per entry — always enter even when target already met
+STAKE_MAX_USD     = 7.00   # ceiling per entry — no single bucket stakes more than this
+
+# Incremental Kelly targets per binary outcome per window (half-Kelly, ρ=0.75 corr-adj):
+# shadow May8-14 n=5575: 1A EV=-3.2% Kelly=0%; 2A EV=-0.6% Kelly≈0%; 3A EV=+3.5% Kelly=18%
+# Scaled by bankroll/100 at runtime so stakes grow with capital automatically.
+_KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
 
 # [120,300s) bucket — all-asset structural blocks (shadow May8-13, n≥29 per hour):
@@ -45,19 +53,14 @@ _ALL_BLOCKED_LATE_B1 = frozenset({4, 13, 15})
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
 _SOL_BLOCKED_LATE = frozenset({22})      # H22 WR=57% n=28; H06 promoted to _ALL_BLOCKED_LATE
 
+# SOL — all buckets: user instruction 2026-05-14 (H07/H09 draining live capital)
+_SOL_BLOCKED_ALL  = frozenset({7, 9})
+
 # [120,300s) bucket — per-asset trending-weak, reduce stake pending n≥100:
 _SOL_WATCH_LATE   = frozenset()          # H03/H13 promoted to _ALL_BLOCKED_LATE
 _ETH_WATCH_LATE   = frozenset({8, 9, 22})  # WR=63%/69%/65%, n=24/16/17
 
 
-def _entry_stake(asset: str, hour_utc: int, remaining: float) -> float:
-    """Full stake normally; $2 for trending-weak hour×bucket cells."""
-    if remaining > 120:
-        if asset == "SOL" and hour_utc in _SOL_WATCH_LATE:
-            return STAKE_USD_REDUCED
-        if asset == "ETH" and hour_utc in _ETH_WATCH_LATE:
-            return STAKE_USD_REDUCED
-    return STAKE_USD
 
 # Adaptive BNC floor by ask zone and rem bucket (shadow May8-13):
 #   B0 (<60s): flat 0.07 — ask-zone split not needed; low-ask signals at B0 are structurally clean
@@ -82,6 +85,8 @@ class LateDirectionArb:
         self.enabled: bool = True
 
         self._fired: Set[Tuple[str, int, int]] = set()  # (cid, wend, rem_bucket) dedup per bucket
+        self._window_assets: Dict[Tuple[int, str], Set[str]] = {}  # (wend, odir) → assets fired
+        self._window_staked: Dict[Tuple[str, int, str], float] = {}  # (cid, wend, odir) → $ staked
         self._tasks = []
 
         self.entries_attempted: int = 0
@@ -174,6 +179,15 @@ class LateDirectionArb:
         if remaining > 120 and asset == "SOL" and hour_utc in _SOL_BLOCKED_LATE:
             return
 
+        # SOL all-bucket hour blocks (user instruction 2026-05-14)
+        if asset == "SOL" and hour_utc in _SOL_BLOCKED_ALL:
+            return
+
+        # SOL rem restriction: only buckets 2-3 (user instruction 2026-05-14)
+        # 0-60s WR=0% n=7; 180-300s worst by $ (-$210 today) — cut both extremes
+        if asset == "SOL" and (remaining < 60 or remaining >= 180):
+            return
+
         # Elevated BNC floors for structurally weak hour×bucket cells (shadow May8-13):
         #   H02 B2: raise floor 0.05→0.07 — EV=-3.1% at 0.05, EV=+1.2% at 0.07 (n=41)
         #   H03 B1: require 0.06% — partial uplift; full block deferred to n≥100
@@ -189,7 +203,28 @@ class LateDirectionArb:
         if bnc_dir != rec.get("outcome_dir"):
             return  # this token is NOT on the predicted winning side
 
-        stake_usd = _entry_stake(asset, hour_utc, remaining)
+        # ── Incremental Kelly sizing ──────────────────────────────────────────
+        # Count assets that have already fired all_pass this window+direction.
+        # More co-firing assets → higher conditional WR → higher Kelly target.
+        wa_key = (wend, bnc_dir)
+        if wa_key not in self._window_assets:
+            self._window_assets[wa_key] = set()
+        self._window_assets[wa_key].add(asset)
+        n_co = len(self._window_assets[wa_key])
+
+        bankroll = max(10.0, getattr(self.bot.risk.bankroll, "capital", 100.0))
+        scale    = bankroll / 100.0
+        target   = _KELLY_TARGET[n_co] * scale
+
+        already   = self._window_staked.get((cid, wend, bnc_dir), 0.0)
+        stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
+
+        # Watch-cell cap: trending-weak hour×bucket cells remain reduced
+        if remaining > 120 and (
+            (asset == "SOL" and hour_utc in _SOL_WATCH_LATE)
+            or (asset == "ETH" and hour_utc in _ETH_WATCH_LATE)
+        ):
+            stake_usd = min(stake_usd, STAKE_USD_REDUCED * scale)
 
         # Mark fired BEFORE creating task to prevent a second tick from double-firing.
         self._fired.add(key)
@@ -245,30 +280,6 @@ class LateDirectionArb:
         rem      = rec["seconds_to_resolution"]
         cid      = rec["condition_id"]
         wend     = rec["window_end_ts"]
-
-        # ── BNC-decay freshness re-check ─────────────────────────────────────
-        # Re-read Binance spot ~500ms after signal eval. If the 5m return has
-        # reversed by more than 0.03% against bet direction, skip — the
-        # underlying momentum that justified the signal has died.
-        # Shadow (May 9-13, n=2643): blocks 6.7%, kill ratio 1.77:1 (113L/64W),
-        # lifts kept WR 81.1% → 84.3%. Holds in every cell.
-        await asyncio.sleep(0.5)
-        feed = self.bot.feed
-        asset_up = asset.upper()
-        spot_now    = feed._spot_price.get(asset_up, 0.0)
-        open_5m_now = feed._spot_open_5m.get(asset_up, 0.0)
-        if spot_now > 0 and open_5m_now > 0:
-            bnc_now_pct = (spot_now - open_5m_now) / open_5m_now * 100.0
-            sign        = 1.0 if bnc_dir == "up" else -1.0
-            s_bnc_now   = sign * bnc_now_pct
-            if s_bnc_now < -0.03:
-                logger.info(
-                    "[LDA] BNC_DECAY skip %s/%s ask=%.4f rem=%.1fs: signed_bnc %+.4f%% (was %+.4f%%)",
-                    asset, bnc_dir, ask, rem, s_bnc_now, sign * bnc_move_pct,
-                )
-                self.entries_attempted -= 1
-                # Keep _fired marker — signal is degraded, don't retry this bucket.
-                return
 
         # ── Flip exit: sell opposite-direction LDA position in same window ────────
         # Strategy D: when BNC reverses and fires the complementary token, sell
@@ -345,10 +356,18 @@ class LateDirectionArb:
         self.entries_filled += 1
         actual_stake = fill.avg_fill_price * fill.total_size
 
+        # Track total staked on this binary outcome so subsequent bucket entries
+        # compute the correct incremental Kelly gap.
+        _wk = (cid, wend, bnc_dir)
+        self._window_staked[_wk] = self._window_staked.get(_wk, 0.0) + actual_stake
+
         logger.info(
-            "[LDA] FILLED %s/%s %.4f shares @ %.4f | cost=$%.2f expect=$%.2f (+$%.2f)",
+            "[LDA] FILLED %s/%s %.4f shares @ %.4f | cost=$%.2f expect=$%.2f (+$%.2f) "
+            "[outcome_staked=$%.2f n_assets=%d]",
             asset, bnc_dir, fill.total_size, fill.avg_fill_price,
             actual_stake, fill.total_size, fill.total_size - actual_stake,
+            self._window_staked[_wk],
+            len(self._window_assets.get((wend, bnc_dir), {asset})),
         )
 
         import time as _time
