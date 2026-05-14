@@ -35,22 +35,34 @@ STAKE_USD_REDUCED = 2.00   # watch-cell cap per entry (ETH/SOL weak hours, pendi
 STAKE_MIN_USD     = 1.00   # floor per entry — always enter even when target already met
 STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket stakes below
 
-# BTC bucket-based flat stakes (user instruction 2026-05-14; BTC only)
-# B4 (rem>=180s) disabled: Kelly=0% at all BNC thresholds — signal not formed at 180-300s
-# Two-tier stakes: base (BNC < 0.08%) and strong (BNC >= 0.08%) — shadow May8-14
-#   B1 strong: WR=97.2% n=36 Kelly=76% ½K=$59 → actionable (n≥20)
-#   B2 strong: WR=100% n=17 Kelly=100%         → trending (n<20, conservative sizing)
-_BTC_STRONG_BNC     = 0.08   # threshold separating base from strong-signal tier
+# All assets B4 (rem>=180s) disabled: Kelly=0% at all BNC thresholds (market_timeline May8-14)
+# Two-tier flat stakes per asset: base (BNC < strong threshold) vs strong (BNC >= threshold)
+# Strong threshold chosen where WR peaks and n≥20; B3 gets no strong tier (WR flat vs BNC)
 
-_BTC_STAKE_B3       = 10.0   # rem 120-180s: WR flat at all BNC levels → no strong tier
-_BTC_STAKE_B1       = 10.0   # rem  60-120s: base tier (BNC < 0.08%)
-_BTC_STAKE_B1_STRONG= 20.0   # rem  60-120s: strong tier — BNC≥0.08%, WR=97.2% n=36, ½K=$59
-_BTC_STAKE_B2       = 15.0   # rem    0-60s: base tier (BNC < 0.08%)
-_BTC_STAKE_B2_STRONG= 20.0   # rem    0-60s: strong tier — BNC≥0.08%, WR=100% n=17, trending
+# BTC — strong threshold 0.08%
+_BTC_STRONG_BNC     = 0.08
+_BTC_STAKE_B3       = 10.0   # WR=79%  n=802, Kelly=20%, ½K=$15
+_BTC_STAKE_B1       = 10.0   # WR=94%  n=198, Kelly=22%, ½K=$17  (base BNC<0.08%)
+_BTC_STAKE_B1_STRONG= 20.0   # WR=97%  n=36,  Kelly=76%, ½K=$59  (BNC≥0.08%, n≥20)
+_BTC_STAKE_B2       = 15.0   # WR=90%  n=127, Kelly=15%, ½K=$12  (base BNC<0.08%)
+_BTC_STAKE_B2_STRONG= 20.0   # WR=100% n=17,  Kelly=100%,½K=$78  (BNC≥0.08%, trending n<20)
 
-# Incremental Kelly targets per binary outcome per window (half-Kelly, ρ=0.75 corr-adj):
-# shadow May8-14 n=5575: 1A EV=-3.2% Kelly=0%; 2A EV=-0.6% Kelly≈0%; 3A EV=+3.5% Kelly=18%
-# Scaled by bankroll/100 at runtime so stakes grow with capital automatically.
+# ETH — strong threshold 0.07% (WR peaks at 0.07%; drops at 0.10%)
+_ETH_STRONG_BNC     = 0.07
+_ETH_STAKE_B3       = 10.0   # WR=79%  n=237, Kelly=20%, ½K=$16
+_ETH_STAKE_B1       = 10.0   # WR=93%  n=342, Kelly=40%, ½K=$31  (base BNC<0.07%)
+_ETH_STAKE_B1_STRONG= 20.0   # WR=96%  n=97,  Kelly=62%, ½K=$49  (BNC≥0.07%, n≥20)
+_ETH_STAKE_B2       = 10.0   # WR=93%  n=204, Kelly=35%, ½K=$27  (base BNC<0.07%)
+_ETH_STAKE_B2_STRONG= 20.0   # WR=94%  n=49,  Kelly=48%, ½K=$38  (BNC≥0.07%, n≥20)
+
+# SOL — strong threshold 0.08% (B2 rem<60 and B4 rem>=180 already blocked above)
+# BNC capped <0.10% by existing gate; strong tier is [0.08%, 0.10%)
+_SOL_STRONG_BNC     = 0.08
+_SOL_STAKE_B3       = 10.0   # WR=78%  n=422, Kelly=19%, ½K=$15
+_SOL_STAKE_B1       = 10.0   # WR=89%  n=440, Kelly=20%, ½K=$16  (base BNC<0.08%)
+_SOL_STAKE_B1_STRONG= 15.0   # WR=93%  n=124, Kelly=41%, ½K=$32  (BNC≥0.08%, n≥20)
+
+# Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
 
@@ -180,8 +192,8 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
-        # BTC B4 (rem>=180s): Kelly=0% at all BNC thresholds — BNC is noise this early (2026-05-14)
-        if asset == "BTC" and remaining >= 180:
+        # All assets B4 (rem>=180s): Kelly=0% — BNC is noise this early (market_timeline May8-14)
+        if remaining >= 180:
             return
 
         # All assets [120,300s): EV-negative hours, shadow May8-13
@@ -237,10 +249,8 @@ class LateDirectionArb:
         scale    = bankroll / 100.0
         target   = _KELLY_TARGET[n_co] * scale
 
-        already   = self._window_staked.get((cid, wend, bnc_dir), 0.0)
+        # Flat two-tier stakes per asset — B4 blocked above, only B1/B2/B3 reach here
         if asset == "BTC":
-            # Two-tier flat stakes: base vs strong-BNC (BNC≥0.08%)
-            # B4 (rem>=180s) is blocked above; only B1/B2/B3 reach here
             strong = bnc_abs >= _BTC_STRONG_BNC
             if remaining < 60:
                 stake_usd = _BTC_STAKE_B2_STRONG if strong else _BTC_STAKE_B2
@@ -248,7 +258,23 @@ class LateDirectionArb:
                 stake_usd = _BTC_STAKE_B1_STRONG if strong else _BTC_STAKE_B1
             else:
                 stake_usd = _BTC_STAKE_B3
+        elif asset == "ETH":
+            strong = bnc_abs >= _ETH_STRONG_BNC
+            if remaining < 60:
+                stake_usd = _ETH_STAKE_B2_STRONG if strong else _ETH_STAKE_B2
+            elif remaining < 120:
+                stake_usd = _ETH_STAKE_B1_STRONG if strong else _ETH_STAKE_B1
+            else:
+                stake_usd = _ETH_STAKE_B3
+        elif asset == "SOL":
+            # B2 (rem<60) already blocked above; only B1 and B3 reach here
+            strong = bnc_abs >= _SOL_STRONG_BNC
+            if remaining < 120:
+                stake_usd = _SOL_STAKE_B1_STRONG if strong else _SOL_STAKE_B1
+            else:
+                stake_usd = _SOL_STAKE_B3
         else:
+            already = self._window_staked.get((cid, wend, bnc_dir), 0.0)
             stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
 
         # Watch-cell cap: trending-weak hour×bucket cells remain reduced
