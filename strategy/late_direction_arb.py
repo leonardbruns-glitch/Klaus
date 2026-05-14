@@ -162,6 +162,8 @@ class LateDirectionArb:
         # Multi-entry: one entry per rem bucket per window.
         # Buckets: [0,60s)=0, [60,120s)=1, [120,300s)=2.
         rem_bucket = 0 if remaining < 60 else (1 if remaining < 120 else (2 if remaining < 180 else 3))
+        if rem_bucket == 3:  # B3 [180,300s) blocked all assets all hours — user instruction 2026-05-14
+            return
         key = (cid, wend, rem_bucket)
         if key in self._fired:
             return
