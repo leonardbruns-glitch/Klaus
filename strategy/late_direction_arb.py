@@ -10,9 +10,9 @@ Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
         Multi-entry: uses add_to_position for 2nd/3rd fill on same window.
 
 Live: n=69 direction WR=89.7%; dead2 removal evidence n=27/80 (shadow vol=normal).
-Stake: incremental Kelly per binary outcome, scaled with bankroll.
-  1 asset co-firing: target $3/outcome; 2 assets: $5.50; 3 assets: $9.
-  Each bucket entry stakes the gap to target (max $7/entry, min $1).
+Stake: BNC-tiered half-Kelly scaled with live bankroll.
+  [0.05,0.07%): 10% bankroll; [0.07,0.10%): 12%; [0.10%,∞): 10%. B0 flat $3.
+  Portfolio-adjusted for expected 1.4 simultaneous assets/window. Cap $100.
 """
 from __future__ import annotations
 
@@ -39,31 +39,17 @@ STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket 
 # Two-tier flat stakes per asset: base (BNC < strong threshold) vs strong (BNC >= threshold)
 # Strong threshold chosen where WR peaks and n≥20; B3 gets no strong tier (WR flat vs BNC)
 
-# BTC — strong threshold 0.08%
-_BTC_STRONG_BNC     = 0.08
-_BTC_STAKE_B3       = 10.0   # B2+B3: WR=79% EV=+0.35 (5m-only n=551 B3; n=283 B2), ½K≈$10
-_BTC_STAKE_B1       = 10.0   # WR=94%  n=198, Kelly=22%, ½K=$17  (base BNC<0.08%)
-_BTC_STAKE_B1_STRONG= 20.0   # WR=97%  n=36,  Kelly=76%, ½K=$59  (BNC≥0.08%, n≥20)
-_BTC_STAKE_B2       = 15.0   # WR=90%  n=127, Kelly=15%, ½K=$12  (base BNC<0.08%)
-_BTC_STAKE_B2_STRONG= 20.0   # WR=100% n=17,  Kelly=100%,½K=$78  (BNC≥0.08%, trending n<20)
+# BNC-tiered half-Kelly (portfolio-adjusted for ~1.4 simultaneous assets/window).
+# 3 tiers from 5m first-fire WR vs BNC analysis 2026-05-14 (n=2688 post-gate):
+#   [0.05,0.07%): WR 82-92% across cells, sweet spot in all assets
+#   [0.07,0.10%): WR 88-97%, peak Kelly zone
+#   [0.10%,∞):    thin n; hold at same fraction until n≥100 per bin
+# 0.08-0.09% sub-bin dip (WR<adjacent bins in 4/6 cells) real but n=12-40, not actionable yet.
+_BNC_TIER_LOW_FRAC  = 0.10   # bnc [0.05, 0.07%)
+_BNC_TIER_MID_FRAC  = 0.12   # bnc [0.07, 0.10%)
+_BNC_TIER_HIGH_FRAC = 0.10   # bnc [0.10%, ∞)
 
-# ETH — strong threshold 0.07% (WR peaks at 0.07%; drops at 0.10%)
-_ETH_STRONG_BNC     = 0.07
-_ETH_STAKE_B3       = 10.0   # WR=79%  n=237, Kelly=20%, ½K=$16
-_ETH_STAKE_B1       = 10.0   # WR=93%  n=342, Kelly=40%, ½K=$31  (base BNC<0.07%)
-_ETH_STAKE_B1_STRONG= 20.0   # WR=96%  n=97,  Kelly=62%, ½K=$49  (BNC≥0.07%, n≥20)
-_ETH_STAKE_B2       = 10.0   # WR=93%  n=204, Kelly=35%, ½K=$27  (base BNC<0.07%)
-_ETH_STAKE_B2_STRONG= 20.0   # WR=94%  n=49,  Kelly=48%, ½K=$38  (BNC≥0.07%, n≥20)
-_ETH_STAKE_B4       =  5.0   # B3[180,300s) ask[0.70,0.80): WR=81% n=130 EV=+0.39 ½K=12% (5m-only 2026-05-14)
-
-# SOL — strong threshold 0.08% (B2 rem<60 and B4 rem>=180 already blocked above)
-# BNC capped <0.10% by existing gate; strong tier is [0.08%, 0.10%)
-_SOL_STRONG_BNC     = 0.08
-_SOL_STAKE_B3       = 10.0   # WR=78%  n=422, Kelly=19%, ½K=$15
-_SOL_STAKE_B1       = 10.0   # WR=89%  n=440, Kelly=20%, ½K=$16  (base BNC<0.08%)
-_SOL_STAKE_B1_STRONG= 15.0   # WR=93%  n=124, Kelly=41%, ½K=$32  (BNC≥0.08%, n≥20)
-
-# B0 [8,60s): reduced to $3 — high ask at near-resolution makes EV negative at larger size
+# B0 [8,60s): ask near resolution; Kelly≈0 at ask>0.90 (73% of B0 volume); keep flat
 _STAKE_B0 = 3.0
 
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
@@ -121,6 +107,17 @@ def _bnc_floor(ask: float, remaining: float = 999.0) -> float:
     if ask < 0.90:
         return 0.05
     return 0.07
+
+
+def _bnc_tier_stake(bnc_abs: float, bankroll: float) -> float:
+    """Half-Kelly stake for B1/B2/B3 by BNC magnitude tier."""
+    if bnc_abs < 0.07:
+        frac = _BNC_TIER_LOW_FRAC
+    elif bnc_abs < 0.10:
+        frac = _BNC_TIER_MID_FRAC
+    else:
+        frac = _BNC_TIER_HIGH_FRAC
+    return max(5.0, min(100.0, bankroll * frac))
 
 
 class LateDirectionArb:
@@ -294,31 +291,11 @@ class LateDirectionArb:
         scale    = bankroll / 100.0
         target   = _KELLY_TARGET[n_co] * scale
 
-        # Flat two-tier stakes per asset — B4 blocked above, only B1/B2/B3 reach here
-        # B0 [8,60s) capped at $3: ask near resolution is high, EV negative at larger size
-        if asset == "BTC":
-            if remaining < 60:
-                stake_usd = _STAKE_B0
-            elif remaining < 120:
-                stake_usd = _BTC_STAKE_B1_STRONG if bnc_abs >= _BTC_STRONG_BNC else _BTC_STAKE_B1
-            else:
-                stake_usd = _BTC_STAKE_B3
-        elif asset == "ETH":
-            if remaining < 60:
-                stake_usd = _STAKE_B0
-            elif remaining < 120:
-                stake_usd = _ETH_STAKE_B1_STRONG if bnc_abs >= _ETH_STRONG_BNC else _ETH_STAKE_B1
-            elif remaining < 180:
-                stake_usd = _ETH_STAKE_B3
-            else:
-                stake_usd = _ETH_STAKE_B4
-        elif asset == "SOL":
-            # B0 (rem<60) and B3 (rem>=180) blocked above; B1+B2 reach here
-            strong = bnc_abs >= _SOL_STRONG_BNC
-            if remaining < 120:
-                stake_usd = _SOL_STAKE_B1_STRONG if strong else _SOL_STAKE_B1
-            else:
-                stake_usd = _SOL_STAKE_B3  # B2 [120,180s): $10 flat (EV=+0.139 n=220)
+        # BNC-tiered half-Kelly — B0 flat $3; B1/B2/B3 scale with live bankroll
+        if remaining < 60:
+            stake_usd = _STAKE_B0
+        elif asset in ("BTC", "ETH", "SOL"):
+            stake_usd = _bnc_tier_stake(bnc_abs, bankroll)
         else:
             already = self._window_staked.get((cid, wend, bnc_dir), 0.0)
             stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
