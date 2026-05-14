@@ -54,6 +54,7 @@ _ETH_STAKE_B1       = 10.0   # WR=93%  n=342, Kelly=40%, ½K=$31  (base BNC<0.07
 _ETH_STAKE_B1_STRONG= 20.0   # WR=96%  n=97,  Kelly=62%, ½K=$49  (BNC≥0.07%, n≥20)
 _ETH_STAKE_B2       = 10.0   # WR=93%  n=204, Kelly=35%, ½K=$27  (base BNC<0.07%)
 _ETH_STAKE_B2_STRONG= 20.0   # WR=94%  n=49,  Kelly=48%, ½K=$38  (BNC≥0.07%, n≥20)
+_ETH_STAKE_B4       =  5.0   # B3[180,300s) ask[0.70,0.80): WR=81% n=130 EV=+0.39 ½K=12% (5m-only 2026-05-14)
 
 # SOL — strong threshold 0.08% (B2 rem<60 and B4 rem>=180 already blocked above)
 # BNC capped <0.10% by existing gate; strong tier is [0.08%, 0.10%)
@@ -190,8 +191,9 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
-        # All assets B4 (rem>=180s): Kelly=0% — BNC is noise this early (market_timeline May8-14)
-        if remaining >= 180:
+        # ETH B3 ask[0.70,0.80) unblocked: n=130 EV=+0.39 CI_lo=74% (5m-only audit 2026-05-14)
+        # All other assets B4 (rem>=180s): Kelly=0% — BNC is noise this early (market_timeline May8-14)
+        if remaining >= 180 and asset != "ETH":
             return
 
         # All assets [120,300s): EV-negative hours, shadow May8-13
@@ -218,9 +220,8 @@ class LateDirectionArb:
         if asset == "SOL" and hour_utc in _SOL_BLOCKED_ALL:
             return
 
-        # SOL rem restriction: only buckets 2-3 (user instruction 2026-05-14)
-        # 0-60s WR=0% n=7; 180-300s worst by $ (-$210 today) — cut both extremes
-        if asset == "SOL" and (remaining < 60 or remaining >= 180):
+        # SOL rem restriction: B1 only [60,120s) — B2 ask[0.70,0.80) EV=-0.35 n=24 (5m-only 2026-05-14)
+        if asset == "SOL" and (remaining < 60 or remaining >= 120):
             return
 
         # SOL bucket 3 (120-180s): tighter ask ceiling 0.97 (user instruction 2026-05-14)
@@ -270,8 +271,10 @@ class LateDirectionArb:
                 stake_usd = _ETH_STAKE_B2_STRONG if strong else _ETH_STAKE_B2
             elif remaining < 120:
                 stake_usd = _ETH_STAKE_B1_STRONG if strong else _ETH_STAKE_B1
-            else:
+            elif remaining < 180:
                 stake_usd = _ETH_STAKE_B3
+            else:
+                stake_usd = _ETH_STAKE_B4
         elif asset == "SOL":
             # B2 (rem<60) already blocked above; only B1 and B3 reach here
             strong = bnc_abs >= _SOL_STRONG_BNC
