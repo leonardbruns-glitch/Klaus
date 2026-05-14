@@ -36,7 +36,7 @@ STAKE_MIN_USD     = 1.00   # floor per entry — always enter even when target a
 STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket stakes below
 
 # BTC bucket-based flat stakes (user instruction 2026-05-14; BTC only)
-_BTC_STAKE_B4 =  5.0   # rem 180-300s: early entry, low certainty
+# B4 (rem>=180s) disabled: Kelly=0% at all BNC thresholds — signal not formed at 180-300s
 _BTC_STAKE_B3 = 20.0   # rem 120-180s: shadow WR=82%, n=34
 _BTC_STAKE_B1 = 10.0   # rem  60-120s: core bucket, shadow WR=89%
 _BTC_STAKE_B2 =  5.0   # rem    0-60s: high ask, lowest EV
@@ -173,6 +173,10 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
+        # BTC B4 (rem>=180s): Kelly=0% at all BNC thresholds — BNC is noise this early (2026-05-14)
+        if asset == "BTC" and remaining >= 180:
+            return
+
         # All assets [120,300s): EV-negative hours, shadow May8-13
         if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
             return
@@ -229,14 +233,13 @@ class LateDirectionArb:
         already   = self._window_staked.get((cid, wend, bnc_dir), 0.0)
         if asset == "BTC":
             # Bucket-based flat stakes — bypass Kelly for BTC (user instruction 2026-05-14)
+            # B4 (rem>=180s) is blocked above; only B1/B2/B3 reach here
             if remaining < 60:
                 stake_usd = _BTC_STAKE_B2
             elif remaining < 120:
                 stake_usd = _BTC_STAKE_B1
-            elif remaining < 180:
-                stake_usd = _BTC_STAKE_B3
             else:
-                stake_usd = _BTC_STAKE_B4
+                stake_usd = _BTC_STAKE_B3
         else:
             stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
 
