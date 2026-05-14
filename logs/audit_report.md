@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-13 18:10 UTC
+# Quantitative Audit — 2026-05-14 00:15 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (55th consecutive session)**
+**FAILED — VPS UNREACHABLE (56th consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -9,20 +9,20 @@
 | /tmp/trades.jsonl | 0 real lines — SSH pull failed |
 | /tmp/post_exit.jsonl | 0 lines — not retrieved |
 | logs/trades.jsonl (git-tracked) | Not present — VPS has not synced to repo |
-| logs/bankroll.json (local snapshot) | Readable — **UNCHANGED since 2026-05-08 19:26 UTC (118.7h stale)** |
+| logs/bankroll.json (local snapshot) | Readable — **UNCHANGED since 2026-05-08 19:26 UTC (124.8h stale)** |
 
-**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 4.9 days stale):
+**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 5.2 days stale):
 - capital: $84.61
 - total_trades: 2,605
 - total_pnl: +$87.87
 - consecutive_wins: 0
 
-> Bankroll snapshot **UNCHANGED** for 55 consecutive audit sessions. Actual live capital unknown.
+> Bankroll snapshot **UNCHANGED** for 56 consecutive audit sessions. Actual live capital unknown.
 > No new trade-level records accessible from this sandbox.
 
 ---
 
-## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (55th session)
+## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (56th session)
 
 **CRITICAL: This audit framework targets `signal_source=='BOND'` trades exclusively.**
 
@@ -38,29 +38,46 @@ Even if VPS SSH were restored, the BOND audit filter (`signal_source=='BOND'`, `
 
 ---
 
-## Active Strategy Parameters (ground truth from codebase)
+## Active Strategy Parameters (ground truth from codebase — as of 2026-05-14 00:15 UTC)
 
-### LDA — Late Direction Arb (deployed 2026-05-12 21:41 UTC)
+### LDA — Late Direction Arb
 Source: `strategy/late_direction_arb.py`
 
 | Parameter | Value | Notes |
 |---|---|---|
-| ASK_FLOOR | 0.70 | line 25 |
+| ASK_FLOOR | 0.60 | expanded from 0.70 (2026-05-13) |
 | ASK_CEIL | 0.98 | line 26 |
+| BID_MIN | 0.50 | line 27 |
 | REM_MIN_S | 8.0s | line 28 |
-| REM_MAX_S | 90.0s | line 29 |
-| BNC_MOVE_MIN | 0.07% | line 30 |
+| REM_MAX_S | 300.0s | extended; ask-conditional dead zones enforce tighter per-bucket |
 | STAKE_USD | $5.00 | line 31 |
-| BLOCKED_HOURS_UTC | {1} | line 32 — H01 shadow WR=88.6% wrong=9, n=79 |
+| STAKE_USD_REDUCED | $2.00 | trending-weak hour×bucket cells |
+| BLOCKED_HOURS_UTC | {0, 1} | H00: WR=66% n=106; H01: WR=88.6% wrong=9 n=79 |
+| _ALL_BLOCKED_LATE | {13} | WR=70% all-asset n=87, volatile ([120,300s) zone) |
+| _SOL_BLOCKED_LATE | {6, 22} | WR=63%/57%, CI<77.3% baseline ([120,300s) zone) |
+| _SOL_WATCH_LATE | {3, 13} | WR=68%/66% — $2 stake |
+| _ETH_WATCH_LATE | {8, 9, 22} | WR=63%/69%/65% — $2 stake |
+| BNC_DECAY_THRESHOLD | −0.03% | freshness re-check added 2026-05-13 20:52 UTC (fc5a87d) |
 
 Signal: Binance 5m-return direction. Shadow accuracy baseline: 96.6% (n=85 windows).
 
-Recent LDA git changes (last 5 commits):
-- `99411b6` lda: block H13 [120,300s) all assets — WR=70% n=87, volatile
-- `b52690d` lda: block SOL H06/H22 [120,300s); reduce stake $2 for watch cells
-- `4be747c` lda: block H00 — WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12)
-- `8426702` lda: tighten [120,300s) zone — block negative-EV ask×rem×hour cells
-- `07cc945` Audit 20260513-1249 — no patch required
+### Changes Since Last Audit (2026-05-13 18:10 UTC)
+
+**commit fc5a87d — BNC-decay freshness re-check**
+- Added 500ms async re-fetch at order time; skip if signed bnc_ret < −0.03%
+- Shadow validation (n=2,643 signal-windows, May 9-13):
+  - Blocked cohort: WR=36% (113 losers, 64 winners killed) — 1.77:1 loser-to-winner kill ratio
+  - Kept cohort WR lifted: **81.1% → 84.3%** (−17% relative loss-rate)
+  - Holds in every cell: 3 assets, 2 directions, 4 ask buckets, 3 rem buckets, 5 days
+- No parameters added; gate operates at order-send time inside `_fire_inner`
+
+**commit 04e288a — kline_pnl ground-truth field**
+- At resolution time, patch `kline_pnl` into every trade record:
+  - WIN: `(1 − entry_price) × shares − fee`
+  - LOSE: `−stake − fee`
+- Analytical field only; `net_pnl` unchanged
+- `lda_live_performance.py` updated to report kline_pnl vs net_pnl with exit drag
+- 2,327 existing trades backfilled
 
 ### BOND Parameters (audit reference — BOND disabled since 2026-05-10)
 
@@ -78,7 +95,7 @@ Recent LDA git changes (last 5 commits):
 ## 6h Summary
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
 
-6h window: 2026-05-13 12:10 UTC → 2026-05-13 18:10 UTC
+6h window: 2026-05-13 18:15 UTC → 2026-05-14 00:15 UTC
 
 0.80-0.84: n=0 WR=N/A E=N/A
 0.84-0.88: n=0 WR=N/A E=N/A
@@ -102,9 +119,9 @@ No data accessible. n=0 for all hours. No block/unblock decisions possible.
 ---
 
 ## Flags
-INSUFFICIENT_DATA — 55th consecutive session with no VPS connectivity.
+INSUFFICIENT_DATA — 56th consecutive session with no VPS connectivity.
 AUDIT_SCOPE_CONFLICT — BOND disabled 2026-05-10; audit framework targets non-active strategy.
-NO_CHANGE — no parameter changes without data.
+NO_CHANGE — no BOND parameter changes without data.
 
 ---
 
@@ -118,13 +135,23 @@ NO_CHANGE — no parameter changes without data.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable (55th consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
+  "reason": "INSUFFICIENT_DATA — VPS unreachable (56th consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
 }
 ```
 
 ---
 
-## Infrastructure Alert — Critical (55 consecutive sessions)
+## LDA Quality Signal (codebase-only, no live data)
+
+The two commits since the last audit (04e288a, fc5a87d) represent qualitative improvements:
+- BNC-decay re-check lifts kept-cohort WR by +3.2pp on n=2,643 shadow observations — statistically material (improvement is consistent across all asset/direction/ask/rem cells).
+- kline_pnl field is a pure analytical improvement; no effect on live behavior.
+
+No live performance regression observable from codebase alone. The BNC-decay change is additive (new gate, doesn't remove existing edge) and well-validated.
+
+---
+
+## Infrastructure Alert — Critical (56 consecutive sessions)
 
 **Required action — run ONE of these on the VPS to unblock future audits:**
 
@@ -149,4 +176,4 @@ EOF
 chmod 644 /etc/cron.d/push-logs
 ```
 
-**Note on audit framework**: With BOND disabled and LDA+DISCOVER active, a new audit framework targeting `signal_source=='LDA'` and `signal_source=='DISCOVER'` is needed. Key LDA fields: `entry_price`, `exit_price`, `exit_reason`, `hold_s`, `net_pnl`, `asset`, `bnc_move_pct`.
+**Note on audit framework**: With BOND disabled and LDA+DISCOVER active, a new audit framework targeting `signal_source=='LDA'` and `signal_source=='DISCOVER'` is needed. Key LDA fields: `entry_price`, `exit_price`, `exit_reason`, `hold_s`, `net_pnl`, `kline_pnl`, `asset`, `bnc_move_pct`, `bnc_decay_skip`.
