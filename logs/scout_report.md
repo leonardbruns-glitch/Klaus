@@ -1,185 +1,281 @@
-# Alpha Scout Report — 2026-05-13 UTC
+# Alpha Scout Report — 2026-05-14 00:13 UTC
 
-**Method:** Codebase audit — VPS SSH unreachable (51st consecutive scout session)
-**Connectivity:** SSH binary absent in sandbox; TCP port 22 egress blocked at network boundary. `trades.jsonl` and `post_exit.jsonl` inaccessible.
-**Data sources used:** git log HEAD=04e03cb; full reads of `state_log.md`, `logs/bankroll.json`, `strategy/late_direction_arb.py`, `analytics/lda_live_performance.py`, `analytics/lda_asset_window_bnc.py`, prior scout report.
-**Bankroll snapshot:** $84.61 (ts=2026-05-08 19:26 UTC, 5 days stale). Current capital unknown pending VPS sync.
+**Method:** Codebase audit — VPS SSH unreachable (≥56th consecutive session, confirmed by e3396a6 "session 55")
+**Connectivity:** SSH binary absent in sandbox; TCP port 22 egress blocked. `trades.jsonl` and shadow JSONL inaccessible.
+**Data sources used:** git log HEAD=fc5a87d; state_log.md; strategy/late_direction_arb.py; analytics/lda_loss_analysis.py; data/shadow/timeline.py; prior scout report 2026-05-13.
+**Bankroll snapshot:** $84.61 (bankroll.json, ts=2026-05-08, 6 days stale). Actual USDC was $132.84 as of 2026-05-13 19:30 per state_log (CLOB get-balance-allowance).
 
 ---
 
-## STRATEGY CONTEXT MISMATCH — READ FIRST
+## STRATEGY CONTEXT — READ FIRST
 
-The scout mandate targets BOND/TERMINAL strategy (`signal_source=='BOND'`, ask 0.80–0.88, T-25 to T-90s). **BOND has been disabled since 2026-05-10 21:25 UTC.** The active strategy is **LDA (Late Direction Arb)**, deployed 2026-05-12 21:41 UTC. All four mandated investigations use BOND-specific fields (`term_tok_tick_count_5s`, `term_token_delta_5s`) that LDA does not log. `pre_entry_momentum_pct` is logged by LDA but means something structurally different — it IS the signal, not a predictor of the signal.
+Active strategy: **LDA (Late Direction Arb)**, deployed 2026-05-12 21:41 UTC.
+BOND has been disabled since 2026-05-10. All four mandated investigations use BOND-specific fields
+(`term_tok_tick_count_5s`, `term_token_delta_5s` as raw price delta, `signal_source=='BOND'`).
 
-All four mandated investigations are INCONCLUSIVE. Pivot sections below address LDA-native equivalents.
+**All four mandated investigations are INCONCLUSIVE on their original BOND framing (n=0).**
+Pivot sections below remap each to its LDA-native equivalent using fields that DO exist in shadow data.
+
+**Critical undeployed finding from 2026-05-13 19:30 (state_log):**
+`ASK_FLOOR 0.60 → 0.80 + block SOL_UP = +$15.71 over n=83 vs −$131.32 baseline (n=172 total).`
+Marked "NO DEPLOY pending user review." ASK_FLOOR still = 0.60 in live code as of HEAD (fc5a87d).
+This is the most actionable existing signal. It is NOT a new discovery — it requires user authorization.
 
 ---
 
 ## Investigation 1: Cross-Exchange Lead-Lag
 
-HYPOTHESIS: Positive Binance spot velocity in 5s before entry (`pre_entry_momentum_pct`) predicts YES resolution.
-RESULT:
+**HYPOTHESIS:** Positive Binance 5s spot velocity at entry (`binance_vel_5s_pct`) predicts YES direction above
+the baseline set by the 5m candle return alone.
 
-| Metric | Value | Source |
-|---|---|---|
-| LDA live direction WR | 93% (53/57 kline-resolved) | state_log 2026-05-13 |
-| n_trades available | 0 locally | VPS SSH blocked |
-| BOND field `pre_entry_momentum_pct` | Logged by LDA as `bnc_move_pct` | late_direction_arb.py:252 |
+**RESULT:**
+`binance_vel_5s_pct` accumulated in shadow since commit 0f3fc21 (2026-05-10). The feature separation
+analysis underlying the BNC-decay deployment (n=2,643 shadow windows, 2026-05-13 ~19:30) ranked features:
 
-MATH: For BOND, `pre_entry_momentum_pct = (spot_now - spot_5s_ago) / spot_5s_ago`. For LDA, `bnc_move_pct = (spot - open_5m) / open_5m × 100` — 5-minute candle return, not 5-second velocity.
-CONCLUSION: **INCONCLUSIVE**
-FAILURE_MET: Yes. BOND disabled n=0. LDA does log `pre_entry_momentum_pct` (mapped to `bnc_move_pct`) but the field semantics are incompatible: it's the primary signal direction gate, not a momentum overlay. The relevant LDA question is whether the **magnitude** of `bnc_move_pct` predicts direction WR — but data is on VPS only.
+| Rank | Feature | Separation |
+|------|---------|------------|
+| 1 | `signed_binance_ret_5m` at entry tick | 0.661 |
+| 2 | `ob_book_depth_size` | 0.125 |
+| 3+ | All others (including `binance_vel_5s_pct`) | < 0.125 |
 
-**LDA-native equivalent:** Does |bnc_move_pct| > 0.15% vs 0.07–0.15% produce higher direction WR? State log records n=7 kline losers with MAE_30s as most discriminating factor — magnitude of BNC signal not yet tested. Add `bnc_abs_pct` to next VPS analysis script once n_losers ≥ 20.
+`binance_vel_5s_pct` was included in the analysis but did not rank in the top 2. Separation < 0.125.
+
+**MATH:** `binance_vel_5s_pct = (spot_now - spot_5s_ago) / spot_5s_ago × 100` (percentage, 5-second window).
+This is distinct from `binance_ret_5m_pct` (5-minute candle since open). Both measure direction but at
+different time horizons. The 5m return is the primary signal AND the deployed BNC-decay filter — it subsumes
+the directional information in vel_5s at the current threshold architecture.
+
+**CONCLUSION:** INCONCLUSIVE — feature separation < 0.125 means weak signal, but WR bucket analysis
+(vel_5s_signed > 0 vs < 0 within the already-confirmed bnc_5m > 0 population) has NOT been run.
+Bucketed analysis may reveal a residual effect even at low separation. VPS script needed.
+
+**FAILURE_MET:** Yes — WR difference across momentum direction buckets unknown; feature separation < 0.125
+suggests it is likely < 5pp net of the primary bnc_5m filter, but this is not confirmed.
+
+VPS analysis script (run at `/root/Klaus`):
+```python
+import json, glob, os, math
+from collections import defaultdict
+
+SHADOW_ROOT = "logs/shadow/hot"
+STAKE = 5.0
+
+resolutions = {}
+for p in sorted(glob.glob(f"{SHADOW_ROOT}/*/window_resolution.jsonl")):
+    with open(p) as f:
+        for line in f:
+            r = json.loads(line)
+            resolutions[(r["condition_id"], r["window_end_ts"], r.get("window_size_s", 300))] = r["moved_up"]
+
+first_fire = {}
+for p in sorted(glob.glob(f"{SHADOW_ROOT}/*/market_timeline.jsonl")):
+    with open(p) as f:
+        for line in f:
+            try: r = json.loads(line)
+            except: continue
+            if r.get("record_type") != "market_timeline": continue
+            wsz = r.get("window_size_s", 300)
+            if wsz != 300: continue
+            rem = r.get("seconds_to_resolution", 0.0)
+            ask = r.get("best_ask", 0.0)
+            bnc = r.get("binance_ret_5m_pct")
+            vel = r.get("binance_vel_5s_pct")
+            if not (8 <= rem <= 300) or not (0.60 <= ask <= 0.98): continue
+            if bnc is None or abs(bnc) < 0.05: continue
+            odir = r.get("outcome_dir", "")
+            if ("up" if bnc > 0 else "down") != odir: continue
+            cid = r.get("condition_id", ""); wend = r.get("window_end_ts", 0)
+            key = (cid, wend, wsz)
+            if key not in resolutions: continue
+            if key not in first_fire or rem > first_fire[key]["rem"]:
+                first_fire[key] = {"rem": rem, "odir": odir, "bnc": bnc, "vel": vel,
+                                   "ask": ask, "correct": (odir == "up") == resolutions[key]}
+
+rows = list(first_fire.values())
+# Bucket by SIGNED vel_5s (sign = bet direction)
+buckets = defaultdict(lambda: {"n": 0, "w": 0})
+for r in rows:
+    v = r["vel"]
+    if v is None: continue
+    sv = v if r["odir"] == "up" else -v
+    b = "<-0.03%" if sv < -0.03 else ("-0.03 to 0%" if sv < 0 else ("0 to +0.03%" if sv < 0.03 else "+0.03%+"))
+    buckets[b]["n"] += 1
+    if r["correct"]: buckets[b]["w"] += 1
+for b in ["<-0.03%", "-0.03 to 0%", "0 to +0.03%", "+0.03%+"]:
+    v = buckets[b]
+    wr = v["w"]/v["n"] if v["n"] else 0
+    print(f"{b:>20}: n={v['n']:4d} WR={wr:.1%}")
+```
 
 ---
 
-## Investigation 2: Tick Count Filter
+## Investigation 2: OB Depth as Toxicity Filter
 
-HYPOTHESIS: Low `term_tok_tick_count_5s` predicts lower YES resolution rate.
-RESULT:
+**HYPOTHESIS (mandate: tick count; LDA proxy: `ob_book_depth_size`):**
+Thin orderbooks (low top-3 depth) predict lower direction WR. Deep OBs signal liquid, informed-flow-aligned markets.
 
-| Bucket | n | WR | PF |
-|---|---|---|---|
-| 0–2 ticks | 0 | N/A | N/A |
-| 3–5 ticks | 0 | N/A | N/A |
-| 6–10 ticks | 0 | N/A | N/A |
-| 11+ ticks | 0 | N/A | N/A |
+**RESULT:**
+`ob_book_depth_size` = #2 feature in the full feature separation analysis (0.125). This is the single
+most discriminating undeployed signal. No WR bucket breakdown has been published.
 
-PROPOSED_GATE: Cannot set — n=0.
-CONCLUSION: **INCONCLUSIVE**
-FAILURE_MET: Yes. `term_tok_tick_count_5s` is BOND-specific; LDA does not log or require it. LDA's vol_regime gate (`vol_regime != 'normal'` blocks entry) is the structural equivalent — it proxies token market activity via price volatility regime. Shadow evidence: vol_regime=normal WR=71% vs volatile=54% vs extreme=43% (n=1000+, commit 3b46962). This is implemented; investigation superseded.
+| Feature | Separation | Status |
+|---------|------------|--------|
+| signed_binance_ret_5m | 0.661 | DEPLOYED (BNC-decay) |
+| ob_book_depth_size | 0.125 | **NOT deployed, no gate** |
+| All others | < 0.125 | Not deployed |
+
+Existing depth gates: SOL depth<100 block (state_log 2026-05-07), ETH depth<100, BTC depth<500
+— but these are BOND-era (window_sniper.py/main.py), not LDA. LDA has NO depth gate currently.
+
+**PROPOSED_GATE:** If bucket analysis shows WR difference ≥ 5pp between depth<100 and depth≥200:
+add `ob_book_depth_size < 100 → skip` in `strategy/late_direction_arb.py` `schedule_if_ready()`.
+
+**FAILURE_MET:** Unknown — bucket analysis not yet run.
+
+VPS analysis script:
+```python
+# (load first_fire as above, add "depth": r.get("ob_book_depth_size") to first_fire dict)
+from collections import defaultdict
+buckets = defaultdict(lambda: {"n": 0, "w": 0})
+for r in rows:
+    d = r.get("depth") or 0
+    b = "<100" if d < 100 else ("100-200" if d < 200 else ("200-500" if d < 500 else "500+"))
+    buckets[b]["n"] += 1
+    if r["correct"]: buckets[b]["w"] += 1
+for b in ["<100", "100-200", "200-500", "500+"]:
+    v = buckets[b]
+    wr = v["w"]/v["n"] if v["n"] else 0
+    avg_ask = sum(r["ask"] for r in rows if r.get("depth",0) < (100 if b=="<100" else 999)) / max(1, v["n"])
+    ev = wr * STAKE * (1 - avg_ask) / avg_ask - (1 - wr) * STAKE
+    print(f"{b:>8}: n={v['n']:4d} WR={wr:.1%} EV/trade={ev:+.3f}")
+```
+
+**CONCLUSION:** INCONCLUSIVE (bucket WR unknown). Promoted to **Priority 1** based on feature separation rank.
 
 ---
 
 ## Investigation 3: Dead Drift Signature
 
-HYPOTHESIS: Dead market entries (`|term_token_delta_5s| < 0.005`) underperform active entries.
-RESULT:
+**HYPOTHESIS:** Token ask flat in the 5s before LDA entry (`tok_delta_5s` near zero) underperforms active
+(moving) entries due to thin/uninformed order flow.
 
-| Group | n | WR |
-|---|---|---|
-| Dead drift (|delta_5s| < 0.005) | 0 | N/A |
-| Active (|delta_5s| ≥ 0.005) | 0 | N/A |
+**RESULT:**
+`tok_delta_5s` is logged in shadow as percentage change (commit 61ac630, 2026-05-09). The mandate's
+`|term_token_delta_5s| < 0.005` raw-price threshold ≈ `|tok_delta_5s| < 0.6%` in percentage terms
+(at avg ask ~0.83: 0.005/0.83 = 0.60%).
 
-CONCLUSION: **INCONCLUSIVE**
-FAILURE_MET: Yes. BOND disabled n=0. `term_token_delta_5s` is BOND-specific. LDA's analogue is the BNC floor gate (|bnc_move_pct| < BNC_FLOOR → skip). BNC_FLOOR is adaptive by ask zone (0.05–0.10%) and filters flat-Binance windows before any Polymarket token check. Dead-drift detection is handled at the signal source (Binance kline), not Polymarket token level. No equivalent gap to investigate.
+| Group | n | WR | Source |
+|-------|---|----|--------|
+| Dead drift (|tok_delta_5s| < 0.6%) | Unknown (VPS) | Unknown | shadow JSONL |
+| Active (|tok_delta_5s| ≥ 0.6%) | Unknown (VPS) | Unknown | shadow JSONL |
+
+`tok_delta_5s` was included in the feature separation analysis (n=2643) but did not rank in top 2.
+Separation < 0.125 — directional difference likely small but bucket analysis not confirmed.
+
+**CONCLUSION:** INCONCLUSIVE
+**FAILURE_MET:** Unknown — WR difference across dead-drift buckets not yet run. Feature separation
+< 0.125 suggests WR spread is likely < 5pp, but the mandate criterion requires explicit confirmation.
+
+VPS analysis script:
+```python
+# (load first_fire as above, add "tok_d5": r.get("tok_delta_5s") to first_fire dict)
+dead  = [r for r in rows if abs(r.get("tok_d5") or 0) < 0.6]
+active = [r for r in rows if abs(r.get("tok_d5") or 0) >= 0.6]
+for label, subset in [("dead_drift |d5|<0.6%", dead), ("active |d5|>=0.6%", active)]:
+    if not subset: print(f"{label}: n=0"); continue
+    wr = sum(1 for r in subset if r["correct"]) / len(subset)
+    print(f"{label}: n={len(subset):4d} WR={wr:.1%}")
+```
 
 ---
 
 ## Investigation 4: Asset-Specific Edge
 
-HYPOTHESIS: One asset consistently outperforms others in the last 48h.
-RESULT:
+**HYPOTHESIS:** One asset consistently outperforms others; SOL_UP is the dominant loser.
 
-| Asset | n_live (48h) | Direction WR | BOND_RNO_premature | Notes |
-|---|---|---|---|---|
-| BTC | Unknown (VPS) | Unknown | 0/8 (0%) | Cleanest exit timing |
-| ETH | Unknown (VPS) | Unknown | Unknown | Active; DISCOVER S2 co-running |
-| SOL | Unknown (VPS) | Unknown | 13/25 (52%) | Worst premature exit rate |
+**RESULT (from state_log 2026-05-13 19:30):**
 
-Source: state_log 2026-05-13 (BOND_RESOLVED_NO threshold analysis, n=57 total kline-resolved trades).
+| Asset/Dir | kline_pnl (n=172 total) | Notes |
+|-----------|--------------------------|-------|
+| ALL combined | -$131.32 total | WR=72.8% per-trade, 73.9% per-window |
+| SOL_UP (blocked) | Dominant loser | Best filter: +block SOL_UP = +$15.71 improvement over n=83 |
+| BTC | Unknown (VPS) | n=8 only in prior BOND_RNO analysis |
+| ETH | Unknown (VPS) | Active |
+| SOL | Unknown (VPS) | Post-fix (BOND_RNO 60→180s) data accumulating |
 
-CONCLUSION: **INCONCLUSIVE** (n per asset unknown; full breakdown on VPS only)
-FAILURE_MET: Yes — n < 20 verified per asset within 48h window (exact split unavailable).
+n=172 total across 3 assets (expected ~57 per asset) — n≥20 threshold likely met per asset,
+but exact breakdown unknown.
 
-**Observable finding (no reweighting warranted yet):** SOL has a systematic exit timing problem — 52% of SOL kline-wins were booked as losses via premature BOND_RESOLVED_NO exit (bid drops to 0 post-window before oracle settles at ~35s). Fix deployed: `_rno_threshold` raised 60s→180s (main.py:1454). BTC unaffected (0/8). This is an exit quality issue, not a signal quality issue; SOL direction WR is presumably similar to BTC/ETH but masked. Do not stake-weight against SOL until post-fix data confirms the gap is real.
+**CONCLUSION:** PARTIAL SIGNAL — SOL_UP identified as dominant loser at n=83. INCONCLUSIVE on
+per-asset WR breakdown (exact split on VPS only).
 
----
+**FAILURE_MET:** No for SOL_UP finding (n=83 ≥ 20). Yes for full per-asset breakdown (exact split unknown).
 
-## LDA-Native Investigations (Active Research Agenda)
-
-These replace the obsolete BOND investigations for the current strategy epoch.
-
-### Investigation A: BNC Magnitude as Conviction Gate (Priority 1)
-
-HYPOTHESIS: Higher |bnc_move_pct| → higher direction WR. Weak Binance moves (0.07–0.10%) produce more wrong-direction LDA entries than strong moves (>0.15%).
-MATH: `bnc_abs_pct = abs(bnc_move_pct)`. Buckets: [0.07, 0.10%), [0.10, 0.15%), [0.15%+].
-VARIABLES: `pre_entry_momentum_pct` in `trades.jsonl` for `bond_entry_class == 'LDA'`.
-CURRENT DATA: n=7 kline losers in live LDA (state_log 2026-05-13). MAE_30s most discriminating (23.5% losers vs 5.9% winners) but n too small. Recheck at n_losers ≥ 20.
-FAILURE_CRITERIA: WR spread < 5pp across magnitude buckets, or n < 20 per bucket.
-PROPOSED_GATE: `abs(bnc_move_pct) >= X%` floor in `strategy/late_direction_arb.py` `schedule_if_ready()`.
-
-VPS analysis snippet:
-```python
-import json
-from collections import defaultdict
-
-trades = [json.loads(l) for l in open('/root/Klaus/logs/trades.jsonl') if l.strip()]
-lda = [t for t in trades if t.get('bond_entry_class') == 'LDA' and t.get('is_live') and t.get('entered_correctly') is not None]
-
-buckets = defaultdict(lambda: {'n': 0, 'wins': 0})
-for t in lda:
-    bnc_abs = abs(t.get('pre_entry_momentum_pct', 0.0) or 0.0)
-    b = '<0.10%' if bnc_abs < 0.10 else ('<0.15%' if bnc_abs < 0.15 else '0.15%+')
-    buckets[b]['n'] += 1
-    if t['entered_correctly']:
-        buckets[b]['wins'] += 1
-
-for b, v in sorted(buckets.items()):
-    wr = v['wins']/v['n'] if v['n'] else 0
-    print(f"{b}: n={v['n']} WR={wr:.1%}")
+VPS script:
+```bash
+cd /root/Klaus && python3 analytics/lda_live_performance.py
 ```
 
 ---
 
-### Investigation B: MAE_30s as Early-Exit Predictor (Priority 2)
+## Novel Variables — Not Yet Bucket-Analyzed
 
-HYPOTHESIS: Token price drop > X% within 30s of LDA entry predicts kline loss reliably enough to cut early.
-MATH: `mae_30s_pct = (min_bid_30s - entry_price) / entry_price × 100`. Winners avg -5.9%, losers avg -23.5% (state_log 2026-05-13, n=7 losers — recheck at n≥20).
-VARIABLES: `traj_snaps` or `hold_path` shadow records joinable to `trades.jsonl` via `(token_id, ts_open)`.
-CURRENT DATA: n=7 losers — below threshold for shipping. Do not gate until n_losers ≥ 20.
-FAILURE_CRITERIA: LDA_LOSER_CUT precision < 70% at n ≥ 20 losers (same bar used for BOND_LOSER_CUT).
-PROPOSED_GATE: `mae_30s_pct < -15%` → `LDA_LOSER_CUT` early exit at T+30s (mirroring BOND_LOSER_CUT structure at main.py:877).
+The following fields are logged in shadow JSONL since May 8-10 and were included in the full
+feature comparison in `lda_loss_analysis.py`, but no bucket WR table has been published.
+All had feature separation < 0.125 (below ob_depth) based on the BNC-decay analysis output.
 
----
+| Variable | Shadow field | First logged | Hypothesis | Status |
+|----------|-------------|--------------|------------|--------|
+| `arb_sum_yes_no` | `arb_sum_yes_no` | 2026-05-08 (eba3c8c) | sum<1.0 = MM retreat = thin market → lower WR | **Unanalyzed at bucket level** |
+| `tok_decel_ratio` | `tok_decel_ratio` | 2026-05-09 (61ac630) | decel<0.5 = momentum fading → lower WR | **Unanalyzed at bucket level** |
+| `ask_stale_s` | `ask_stale_s` | 2026-05-09 (61ac630) | stale>5s = MM not tracking price → lower WR | **Unanalyzed at bucket level** |
+| `vpin_score` | `vpin_score` | 2026-05-09 (61ac630) | high VPIN = informed flow = ambiguous WR direction | **Unanalyzed at bucket level** |
 
-### Investigation C: Ask Zone EV by Rem Bucket (Priority 3) — Shadow Data Available
-
-HYPOTHESIS: Ask<0.70 entries at rem>90s (newly unlocked cells) have positive EV but lower WR than ask≥0.70.
-CURRENT DATA: Grid scan n=1000+ shadow observations. Dead2 removed (EV+$0.81 n=27 at [0.80,0.90)×[90,120), EV+$0.42 n=80 at [120,180)). New cells [0.60,0.80)×[90,300] also positive (commit 3b46962).
-CONCERN: At ask=0.60, bid≥0.99 PT requires 65% token price gain. Transaction cost at entry ~1.5% (fee). EV positive in shadow but hasn't run live. Check first 20 live trades in new ask zone before raising stake.
-VPS SCRIPT: `python3 analytics/lda_asset_window_bnc.py` (already written, reads shadow logs).
-
----
-
-### Investigation D: SOL Post-Fix Performance (Priority 4)
-
-HYPOTHESIS: SOL kline direction WR is ≥ ETH after BOND_RESOLVED_NO threshold fix (60s→180s).
-BASIS: Pre-fix, 52% of SOL kline-wins were premature exits. Fix deployed same session (state_log 2026-05-13). SOL was never unwhitelisted.
-VERIFICATION: Run `lda_live_performance.py` on VPS after collecting 20+ post-fix SOL trades. If SOL WR matches ETH/BTC, stake weighting is symmetric. If still underperforming at n≥20, investigate market structure (SOL oracle settlement timing differs from BTC — SOL Chainlink heartbeat 10s vs BTC 30s?).
-FAILURE_CRITERIA: n < 20 SOL trades post-fix.
+To analyze all at once on VPS: `python3 analytics/lda_loss_analysis.py` (reads shadow, compares all
+features WIN vs LOSS, prints WR by ask×rem zone, per-asset breakdown).
 
 ---
 
 ## Priority Signal for Next Implementation
 
-**No actionable signals this cycle — continue data collection.**
+**Primary: Deploy OB Depth gate for LDA (if VPS bucket analysis confirms ≥ 5pp WR spread)**
 
-Rationale:
-- All four mandated BOND investigations remain at n=0 (BOND disabled, architecture changed).
-- LDA Investigation A (BNC magnitude gate): n_losers=7 — below n=20 floor. Do not ship.
-- LDA Investigation B (MAE_30s early cut): same constraint, n_losers=7.
-- LDA Investigation C (ask zone EV): shadow evidence positive, but live n in new cells = 0 yet. Wait 20 live entries in ask<0.70 zone before raising stake or adding limits.
-- LDA Investigation D (SOL fix): fix deployed today; no post-fix data yet.
+`ob_book_depth_size` was the #2 discriminating feature (separation 0.125) in the n=2,643 shadow analysis.
+No LDA gate exists for depth today. The BOND-era depth gates (SOL<100, ETH<100, BTC<500 in window_sniper.py)
+do NOT apply to LDA. This is an implementable gate if data confirms.
 
-**Highest priority this cycle is operational:**
-1. **Verify current bankroll** — `bankroll.json` is 5 days stale; oracle_sweep damage ($487 positions, unknown redemption) may have partially recovered via Redeemer, but actual figure unknown.
-2. **Sync logs** — Run on VPS:
-   ```bash
-   cd /root/Klaus
-   tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
-   git add logs/live_trades_recent.jsonl logs/bankroll.json
-   git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)"
-   git push origin claude/find-lag-parameter-rFQ0N
-   ```
-3. **Monitor LDA loser accumulation** — At n_losers ≥ 20, run Investigation A and B immediately. Expected timeline at current trade rate: ~2–4 days.
+**Variable name:** `ob_book_depth_size` (b3 + a3: sum of top-3 bid and ask quantity in shadow records)
+**Math:** `ob_book_depth_size = sum(q for _,q in ob.bids[:3]) + sum(q for _,q in ob.asks[:3])`
+
+Python gate (add to `late_direction_arb.py` `schedule_if_ready()` after the rem/ask checks):
+```python
+# OB depth gate — thin books suppress direction WR (feature_separation=0.125, n=2643)
+ob_depth = rec.get("ob_book_depth_size", 999.0)
+if ob_depth < 100:  # ~X% of signals; confirm threshold from bucket analysis
+    return
+```
+
+**Failure criteria:** n<20 per depth bucket, or WR spread < 5pp between thin (<100) and normal (≥200).
+Do NOT ship until VPS bucket analysis confirms.
 
 ---
 
-## Infrastructure Alert — SSH (51 consecutive sessions)
+**Secondary (user authorization required — NOT scout territory):**
+`ASK_FLOOR 0.60 → 0.80 + block SOL_UP` was proposed 2026-05-13 19:30 (state_log). n=83. Impact: +$15.71
+vs -$131 baseline (n=172). Still pending user review. ASK_FLOOR = 0.60 in live code.
 
-Root cause unchanged: TCP port 22 egress blocked at sandbox network boundary.
-**Manual VPS sync is the only path to actionable analysis. Every cycle without it widens the gap between coded strategy and observable outcomes.**
+---
 
-Current strategy velocity (LDA active since 2026-05-12 21:41, ~36 hours ago): at 93% direction WR and $5/trade, expected gross PnL ≈ +$X — exact figure unknown without live data.
+## Infrastructure Alert — SSH (≥56 consecutive sessions)
+
+Root cause: TCP port 22 egress blocked at sandbox network boundary. SSH binary absent.
+**Required action (manual, on VPS):**
+```bash
+cd /root/Klaus
+python3 analytics/lda_loss_analysis.py > /tmp/lda_loss_$(date +%H%M).txt
+python3 analytics/lda_live_performance.py >> /tmp/lda_loss_$(date +%H%M).txt
+cat /tmp/lda_loss_*.txt
+# Then: git add logs/ && git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)" && git push
+```
+Every cycle without VPS sync delays actionable gate decisions by ~24h. The ob_depth gate, arb_sum bucket,
+and asset-level WR split cannot be confirmed until this runs.
