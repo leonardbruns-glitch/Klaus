@@ -33,7 +33,13 @@ REM_MIN_S    = 8.0     # don't enter if <8s left (can't fill reliably)
 REM_MAX_S    = 300.0   # extended from 90s; ask-conditional ceiling still blocks ask≥0.90 + rem>60s
 STAKE_USD_REDUCED = 2.00   # watch-cell cap per entry (ETH/SOL weak hours, pending n≥100)
 STAKE_MIN_USD     = 1.00   # floor per entry — always enter even when target already met
-STAKE_MAX_USD     = 7.00   # ceiling per entry — no single bucket stakes more than this
+STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket stakes below
+
+# BTC bucket-based flat stakes (user instruction 2026-05-14; BTC only)
+_BTC_STAKE_B4 =  5.0   # rem 180-300s: early entry, low certainty
+_BTC_STAKE_B3 = 20.0   # rem 120-180s: shadow WR=82%, n=34
+_BTC_STAKE_B1 = 10.0   # rem  60-120s: core bucket, shadow WR=89%
+_BTC_STAKE_B2 =  5.0   # rem    0-60s: high ask, lowest EV
 
 # Incremental Kelly targets per binary outcome per window (half-Kelly, ρ=0.75 corr-adj):
 # shadow May8-14 n=5575: 1A EV=-3.2% Kelly=0%; 2A EV=-0.6% Kelly≈0%; 3A EV=+3.5% Kelly=18%
@@ -221,7 +227,18 @@ class LateDirectionArb:
         target   = _KELLY_TARGET[n_co] * scale
 
         already   = self._window_staked.get((cid, wend, bnc_dir), 0.0)
-        stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
+        if asset == "BTC":
+            # Bucket-based flat stakes — bypass Kelly for BTC (user instruction 2026-05-14)
+            if remaining < 60:
+                stake_usd = _BTC_STAKE_B2
+            elif remaining < 120:
+                stake_usd = _BTC_STAKE_B1
+            elif remaining < 180:
+                stake_usd = _BTC_STAKE_B3
+            else:
+                stake_usd = _BTC_STAKE_B4
+        else:
+            stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
 
         # Watch-cell cap: trending-weak hour×bucket cells remain reduced
         if remaining > 120 and (
