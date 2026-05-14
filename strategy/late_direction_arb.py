@@ -5,7 +5,7 @@ Signal: Binance 5m-return direction (spot vs open_5m).
 Gate  : predicted-winner token ask in [0.60, 0.98] + bid > 0.50 + vol_regime==normal.
 Timing: up to 3 entries per window (one per rem bucket), T-8 to T-300s.
           ask≥0.90 → rem≤60s (dead1 kept); ask[0.80,0.90) → rem≤300s (dead2 removed).
-BNC   : adaptive floor — 0.10% at ask<0.70, 0.05% at ask<0.90, 0.07% else.
+BNC   : adaptive floor — 0.07% at rem<60s (B0); 0.10% at ask<0.70; 0.05% at ask<0.90; 0.07% else.
 Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
         Multi-entry: uses add_to_position for 2nd/3rd fill on same window.
 
@@ -33,14 +33,20 @@ STAKE_USD         = 5.00
 STAKE_USD_REDUCED = 2.00   # trending-weak hour×bucket cells, pending n≥100 per cell
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
 
-# [120,300s) bucket — all-asset structural blocks:
-_ALL_BLOCKED_LATE = frozenset({13})       # WR=70% all-asset n=87; volatile, user-confirmed
+# [120,300s) bucket — all-asset structural blocks (shadow May8-13, n≥29 per hour):
+_ALL_BLOCKED_LATE = frozenset({3, 6, 12, 13, 15})
+# H03 EV=-30.6% n=33; H06 EV=-11.8% n=29; H12 EV=-29.2% n=46;
+# H13 WR=70% n=87 user-confirmed; H15 EV=-0.74% n=100 — BNC cannot fix
+
+# [60,120s) bucket — all-asset structural blocks (shadow May8-13):
+_ALL_BLOCKED_LATE_B1 = frozenset({4, 13, 15})
+# H04 EV=-12.4% n=44; H13 EV=-8.3% n=34; H15 EV=-5.6% n=29
 
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
-_SOL_BLOCKED_LATE = frozenset({6, 22})   # WR=63%/57%, CI<77.3% baseline (n=38/28)
+_SOL_BLOCKED_LATE = frozenset({22})      # H22 WR=57% n=28; H06 promoted to _ALL_BLOCKED_LATE
 
 # [120,300s) bucket — per-asset trending-weak, reduce stake pending n≥100:
-_SOL_WATCH_LATE   = frozenset({3, 13})   # WR=68%/66%, n=40/47 — inconsistent days
+_SOL_WATCH_LATE   = frozenset()          # H03/H13 promoted to _ALL_BLOCKED_LATE
 _ETH_WATCH_LATE   = frozenset({8, 9, 22})  # WR=63%/69%/65%, n=24/16/17
 
 
@@ -53,11 +59,14 @@ def _entry_stake(asset: str, hour_utc: int, remaining: float) -> float:
             return STAKE_USD_REDUCED
     return STAKE_USD
 
-# Adaptive BNC floor by ask zone (shadow n=27-80, vol=normal, May 8-12):
-#   [0.60,0.70): raise 0.07→0.10 — 0.05-0.10% moves are noise at low ask
-#   [0.70,0.90): lower 0.07→0.05 — 0.05-0.07% moves are valid; EV improves
-#   [0.90,0.98): keep 0.07 — insufficient data to move
-def _bnc_floor(ask: float) -> float:
+# Adaptive BNC floor by ask zone and rem bucket (shadow May8-13):
+#   B0 (<60s): flat 0.07 — ask-zone split not needed; low-ask signals at B0 are structurally clean
+#   B1/B2 [0.60,0.70): raise 0.07→0.10 — 0.05-0.10% moves are noise at low ask
+#   B1/B2 [0.70,0.90): lower 0.07→0.05 — 0.05-0.07% moves are valid; EV improves
+#   B1/B2 [0.90,0.98): keep 0.07 — insufficient data to move
+def _bnc_floor(ask: float, remaining: float = 999.0) -> float:
+    if remaining < 60:
+        return 0.07
     if ask < 0.70:
         return 0.10
     if ask < 0.90:
@@ -121,12 +130,6 @@ class LateDirectionArb:
         if remaining > 180 and ask < 0.70:
             return
 
-        # Hour blocks for early-rem low-ask zone (shadow n=99/123):
-        #   [0.70,0.80) × rem>120s: H12 WR=65% EV=-0.70, H16 WR=65% EV=-0.61
-        #   vs all other hours WR=77% EV=+0.15
-        if remaining > 120 and 0.70 <= ask < 0.80 and hour_utc in (12, 16):
-            return
-
         # Vol regime: volatile/extreme destroy edge (WR 54%/43% vs 71% normal).
         # Critical gate for ask<0.80 where volatile EV=-1.64 vs normal EV=+0.58.
         if rec.get("vol_regime", "normal") != "normal":
@@ -141,8 +144,8 @@ class LateDirectionArb:
 
         bnc_move_pct = (spot - open_5m) / open_5m * 100.0
         bnc_abs = abs(bnc_move_pct)
-        if bnc_abs < _bnc_floor(ask):
-            return  # adaptive floor: 0.10% at ask<0.70, 0.05% at ask<0.90, 0.07% else
+        if bnc_abs < _bnc_floor(ask, remaining):
+            return  # adaptive floor: 0.07 at B0; 0.10/0.05/0.07 by ask zone at B1/B2
 
         # Per-asset / per-window-size bnc gates (shadow data, n=1631, May 8-12):
         #   ETH 15m: all bnc zones NEG EV or LOW WR → block entirely
@@ -159,12 +162,31 @@ class LateDirectionArb:
         elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
             return
 
-        # All assets [120,300s): H13 WR=70% n=87 — volatile, user-confirmed block
+        # BTC [60,120s): EV=-2.2% structural (n=132, shadow May8-13) — ask≈0.83 WR=81.1% is break-even
+        if rem_bucket == 1 and asset == "BTC":
+            return
+
+        # All assets [120,300s): EV-negative hours, shadow May8-13
         if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
             return
 
-        # SOL [120,300s): H06+H22 CI fully below 77.3% baseline (shadow n=38/28, May8-12)
+        # All assets [60,120s): EV-negative hours, shadow May8-13
+        if rem_bucket == 1 and hour_utc in _ALL_BLOCKED_LATE_B1:
+            return
+
+        # SOL [120,300s): H22 CI fully below 77.3% baseline (shadow n=28, May8-13)
         if remaining > 120 and asset == "SOL" and hour_utc in _SOL_BLOCKED_LATE:
+            return
+
+        # Elevated BNC floors for structurally weak hour×bucket cells (shadow May8-13):
+        #   H02 B2: raise floor 0.05→0.07 — EV=-3.1% at 0.05, EV=+1.2% at 0.07 (n=41)
+        #   H03 B1: require 0.06% — partial uplift; full block deferred to n≥100
+        #   H20 B2: raise floor 0.05→0.06 — EV=-1.8% at 0.05; moderate improvement (n=38)
+        if remaining > 120 and hour_utc == 2 and bnc_abs < 0.07:
+            return
+        if rem_bucket == 1 and hour_utc == 3 and bnc_abs < 0.06:
+            return
+        if remaining > 120 and hour_utc == 20 and bnc_abs < 0.06:
             return
 
         bnc_dir = "up" if bnc_move_pct > 0 else "down"
