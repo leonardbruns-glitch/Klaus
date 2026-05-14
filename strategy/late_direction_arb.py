@@ -37,10 +37,16 @@ STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket 
 
 # BTC bucket-based flat stakes (user instruction 2026-05-14; BTC only)
 # B4 (rem>=180s) disabled: Kelly=0% at all BNC thresholds — signal not formed at 180-300s
-# Stakes rebalanced 2026-05-14 toward close: B3 Kelly=19% (was over-staked); B2 Kelly=63% (was under-staked)
-_BTC_STAKE_B3 = 10.0   # rem 120-180s: WR=79%, Kelly=19%, half-K=$15 at $156 → $10 (conservative)
-_BTC_STAKE_B1 = 10.0   # rem  60-120s: WR=97%, Kelly=74% → unchanged
-_BTC_STAKE_B2 = 15.0   # rem    0-60s: WR=97%, Kelly=63%, half-K=$49 → $15 (3× raise, adj for concurrency)
+# Two-tier stakes: base (BNC < 0.08%) and strong (BNC >= 0.08%) — shadow May8-14
+#   B1 strong: WR=97.2% n=36 Kelly=76% ½K=$59 → actionable (n≥20)
+#   B2 strong: WR=100% n=17 Kelly=100%         → trending (n<20, conservative sizing)
+_BTC_STRONG_BNC     = 0.08   # threshold separating base from strong-signal tier
+
+_BTC_STAKE_B3       = 10.0   # rem 120-180s: WR flat at all BNC levels → no strong tier
+_BTC_STAKE_B1       = 10.0   # rem  60-120s: base tier (BNC < 0.08%)
+_BTC_STAKE_B1_STRONG= 20.0   # rem  60-120s: strong tier — BNC≥0.08%, WR=97.2% n=36, ½K=$59
+_BTC_STAKE_B2       = 15.0   # rem    0-60s: base tier (BNC < 0.08%)
+_BTC_STAKE_B2_STRONG= 20.0   # rem    0-60s: strong tier — BNC≥0.08%, WR=100% n=17, trending
 
 # Incremental Kelly targets per binary outcome per window (half-Kelly, ρ=0.75 corr-adj):
 # shadow May8-14 n=5575: 1A EV=-3.2% Kelly=0%; 2A EV=-0.6% Kelly≈0%; 3A EV=+3.5% Kelly=18%
@@ -233,12 +239,13 @@ class LateDirectionArb:
 
         already   = self._window_staked.get((cid, wend, bnc_dir), 0.0)
         if asset == "BTC":
-            # Bucket-based flat stakes — bypass Kelly for BTC (user instruction 2026-05-14)
+            # Two-tier flat stakes: base vs strong-BNC (BNC≥0.08%)
             # B4 (rem>=180s) is blocked above; only B1/B2/B3 reach here
+            strong = bnc_abs >= _BTC_STRONG_BNC
             if remaining < 60:
-                stake_usd = _BTC_STAKE_B2
+                stake_usd = _BTC_STAKE_B2_STRONG if strong else _BTC_STAKE_B2
             elif remaining < 120:
-                stake_usd = _BTC_STAKE_B1
+                stake_usd = _BTC_STAKE_B1_STRONG if strong else _BTC_STAKE_B1
             else:
                 stake_usd = _BTC_STAKE_B3
         else:
