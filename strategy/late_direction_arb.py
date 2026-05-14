@@ -42,13 +42,13 @@ _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
 BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
 
 # [120,300s) bucket — all-asset structural blocks (shadow May8-13, n≥29 per hour):
-_ALL_BLOCKED_LATE = frozenset({3, 6, 12, 13, 15})
+_ALL_BLOCKED_LATE = frozenset({3, 6, 12, 15})
 # H03 EV=-30.6% n=33; H06 EV=-11.8% n=29; H12 EV=-29.2% n=46;
-# H13 WR=70% n=87 user-confirmed; H15 EV=-0.74% n=100 — BNC cannot fix
+# H13 unblocked user instruction 2026-05-14; H15 EV=-0.74% n=100 — BNC cannot fix
 
 # [60,120s) bucket — all-asset structural blocks (shadow May8-13):
-_ALL_BLOCKED_LATE_B1 = frozenset({4, 13, 15})
-# H04 EV=-12.4% n=44; H13 EV=-8.3% n=34; H15 EV=-5.6% n=29
+_ALL_BLOCKED_LATE_B1 = frozenset({4, 15})
+# H04 EV=-12.4% n=44; H13 unblocked user instruction 2026-05-14; H15 EV=-5.6% n=29
 
 # [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
 _SOL_BLOCKED_LATE = frozenset({22})      # H22 WR=57% n=28; H06 promoted to _ALL_BLOCKED_LATE
