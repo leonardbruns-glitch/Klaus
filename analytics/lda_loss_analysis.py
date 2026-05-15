@@ -133,6 +133,7 @@ for mt_path in sorted(glob.glob(os.path.join(SHADOW_ROOT, "*/market_timeline.jso
                 "bnc_60s":    r.get("binance_ret_60s_pct"),
                 "bnc_vel_5s": r.get("binance_vel_5s_pct"),
                 "bnc_60m":    r.get("binance_ret_60m_pct"),
+                "bnc_15m":    r.get("binance_ret_15m_pct"),
                 "ob_imb":     r.get("ob_imb_top3"),
                 "ob_depth":   r.get("ob_book_depth_size"),
                 "spread_bps": r.get("spread_bps"),
@@ -236,6 +237,7 @@ FEAT_LABELS = [
     ("bnc_60s",    "BNC 60s %"),
     ("bnc_vel_5s", "BNC velocity 5s"),
     ("bnc_60m",    "BNC 60m %"),
+    ("bnc_15m",    "BNC 15m %"),
     ("ob_imb",     "OB imb top3"),
     ("ob_depth",   "OB depth"),
     ("spread_bps", "Spread (bps)"),
@@ -501,7 +503,7 @@ print("=" * W)
 print("  Rationale: if 5m is up but 1m/30s is fading → momentum exhausted → loss?")
 print(f"  {'Feature':<20} | {'WIN mean':>10} | {'LOSS mean':>10} | {'Δ':>8}")
 print("  " + "-"*55)
-for key, lbl in [("bnc_1m","bnc_1m %"),("bnc_30s","bnc_30s %"),("bnc_vel_5s","bnc_vel_5s")]:
+for key, lbl in [("bnc_1m","bnc_1m %"),("bnc_30s","bnc_30s %"),("bnc_vel_5s","bnc_vel_5s"),("bnc_15m","bnc_15m %")]:
     w_m, _, w_n = safe_stats(wins, key)
     l_m, _, l_n = safe_stats(losses, key)
     if w_n == 0: continue
@@ -512,6 +514,52 @@ for key, lbl in [("bnc_1m","bnc_1m %"),("bnc_30s","bnc_30s %"),("bnc_vel_5s","bn
     d_s = f"{delta:+.1f}%{flag}" if not np.isnan(delta) else "    n/a"
     print(f"  {lbl:<20} | {w_s:>10} ({w_n}) | {l_s:>10} ({l_n}) | {d_s}")
 
+
+# ── 4h. BNC LOW tier hour breakdown ──────────────────────────────────────────
+# LOW tier = BNC [0.05, 0.07%). Now at 1.5% bankroll stake (near break-even avg).
+# Check if specific hours within LOW tier are systematically negative.
+print()
+print("=" * W)
+print("BNC LOW TIER [0.05,0.07%) — WR BY HOUR (gate candidates if WR<70% n≥10)")
+print("=" * W)
+low_tier = [v for v in all_rows if 0.05 <= v["bnc_abs"] < 0.07]
+print(f"  LOW tier total: n={len(low_tier)}  WR={sum(1 for v in low_tier if v['correct'])/len(low_tier):.1%}" if low_tier else "  LOW tier: n=0")
+low_by_hour: dict = {}
+for v in low_tier:
+    h = v["hour"]
+    low_by_hour.setdefault(h, {"n": 0, "w": 0})
+    low_by_hour[h]["n"] += 1
+    if v["correct"]:
+        low_by_hour[h]["w"] += 1
+for h in sorted(low_by_hour):
+    d = low_by_hour[h]
+    wr = d["w"] / d["n"] if d["n"] else 0.0
+    flag = " ⚠" if wr < 0.70 and d["n"] >= 10 else ""
+    print(f"  H{h:02d}: n={d['n']:3d} WR={wr:.1%}{flag}")
+
+# ── 4i. 15m/5m alignment analysis ────────────────────────────────────────────
+# binance_ret_15m_pct added 2026-05-15; will be None for older shadow data.
+print()
+print("=" * W)
+print("BNC 15m/5m ALIGNMENT (hypothesis: divergent = counter-trend noise = lower WR)")
+print("= Field added 2026-05-15; expect n=0 on older shadow. Run again after 7+ days.")
+print("=" * W)
+has_15m = [v for v in all_rows if v.get("bnc_15m") is not None and v["bnc_15m"] != 0.0]
+print(f"  Windows with bnc_15m populated: {len(has_15m)} / {len(all_rows)}")
+if has_15m:
+    aligned   = [v for v in has_15m if (v["bnc_15m"] > 0) == (v.get("bnc_abs", 0) > 0 and True)]
+    # bnc_abs is absolute; reconstruct direction from odir field
+    def _bnc_dir_up(v):
+        return v.get("odir", "up") == "up"  # first_fire only has bnc_dir==odir entries
+    aligned   = [v for v in has_15m if (v["bnc_15m"] > 0) == _bnc_dir_up(v)]
+    divergent = [v for v in has_15m if v not in aligned]
+    for label, sub in [("15m ALIGNED", aligned), ("15m DIVERGENT", divergent)]:
+        if not sub:
+            print(f"  {label}: n=0")
+            continue
+        wr = sum(1 for v in sub if v["correct"]) / len(sub)
+        flag = " ⚠" if wr < 0.80 and len(sub) >= 20 else (" (n<20)" if len(sub) < 20 else "")
+        print(f"  {label}: n={len(sub):4d} WR={wr:.1%}{flag}")
 
 print()
 print("=" * W)

@@ -1,129 +1,145 @@
-# Alpha Scout Report — 2026-05-15 00:16 UTC
+# Alpha Scout Report — 2026-05-15 12:10 UTC
 
-**Method:** Codebase audit — VPS SSH unreachable (59th consecutive session).
-**Connectivity:** `ssh` binary absent in sandbox; TCP port 22 egress blocked. `trades.jsonl` and shadow JSONL inaccessible.
-**Data sources:** git log HEAD=51c95cf; late_direction_arb.py; data/shadow/_schema/v1.json; analytics/multi_exit_replay.py; analytics/lda_loss_analysis.py; analytics/lda_snap60_scan.py; prior scout reports.
-**Bankroll snapshot:** $84.61 (bankroll.json, ts=2026-05-08 19:26 UTC — 148.8h stale). Actual capital unknown. LDA code header: n=69 live direction WR=89.7%.
+**Method:** Codebase audit — VPS SSH unreachable (61st consecutive session).
+**Connectivity:** `ssh` binary re-installed but TCP port 22 egress blocked. `trades.jsonl` and shadow JSONL inaccessible.
+**Data sources:** git log HEAD=df77a3b (13 commits since last report at 00:16 UTC); strategy/late_direction_arb.py; data/shadow/timeline.py; analytics/lda_loss_analysis.py; analytics/lda_exit_optimizer.py; data/shadow/exit_policy.py.
+**Bankroll snapshot:** $84.61 (bankroll.json, ts=2026-05-08 19:26 UTC — 160.7h stale). Actual capital unknown. LDA code header: n=69 live direction WR=89.7%.
 
 ---
 
-## STRATEGY CONTEXT — READ FIRST
+## STRATEGY STATE — READ FIRST
 
-Active strategy: **LDA (Late Direction Arb)**, running since 2026-05-12. **BOND disabled since 2026-05-10.**
+Active strategy: **LDA (Late Direction Arb)**. All four mandate investigations target `signal_source=='BOND'` fields. **BOND disabled since 2026-05-10 — all four investigations yield n=0 by mandate definition.**
 
-All four mandated investigations target `signal_source=='BOND'` fields. **All four yield n=0.** This is the 59th consecutive session with this conflict; it will continue until BOND is re-enabled or the mandate is updated.
+This report reframes each investigation for the live LDA strategy and focuses on **new signals introduced since the last report** at 00:16 UTC.
 
-Since the last scout report (2026-05-14 00:13 UTC), 9 LDA commits landed:
+### Structural Changes Since Last Report (13 commits, 2026-05-15 00:16→12:10 UTC)
 
-| Commit | Change |
-|---|---|
-| 4a750a6 | lda: block B3 [180,300s) all assets all hours — user instruction |
-| b554350 | lda: block BTC B3 H21 — shadow n=15, thin |
-| 040251c | lda: cumulative bucket Kelly targets — B3=50% B2=75% B1=100% |
-| 25d0d11 | lda: re-enable B3 ETH+BTC with new hour blocks; add SOL B1/B2 blocks |
-| d02d7c8 | lda: block H05+H07 all assets B1+B2 — EV negative |
-| 3076e41 | lda: block B3 [180,300s) all assets — user instruction |
-| 12a700a | lda: per-asset window Kelly cap |
-| 9774288 | lda: BNC-tiered half-Kelly replaces flat two-tier stakes |
-| 6eabbac | lda: ETH B1/B3 + BTC B1/B2/B3 hour gates |
-
-B3 [180-300s) is now **fully blocked all assets all hours** (user instruction 2026-05-14). This is the largest structural gate change since LDA launch.
+| Commit | Change | Scout relevance |
+|---|---|---|
+| df77a3b | B1 ask floor 0.75; BNC LOW tier 10%→1.5%, MID 12%→15%, HIGH 10%→22% | **Major staking re-tier. LOW tier now near-zero.** |
+| af34ce4 | Per-hour exits: PT95 H08/H22, PT97 H16, CUT60 H06/H21; H04 B2 entry block | Reveals H06/H21 structural weakness — entry filter opportunity |
+| d08101a | Revert Trail-5% trailing stop | Trail-5% harmed EV on hold_path sim n=840; removed |
+| b8da3a0 | **NEW FIELD: `binance_ret_15m_pct` added to shadow** | Entirely new, unanalyzed — see Investigation 1 |
+| fea73a8 | SOL fully blocked | Asset universe now BTC + ETH only |
+| de3d830 | B3 [180,300s) re-enabled; B2 ask floor raised to 0.69 | B3 is now active; dead-drift in B3 entries newly relevant |
+| 65793a2 | H07 unblocked from _ALL_BLOCKED_LATE_B1 | Small scope change |
+| 160b293 | H02 all assets all buckets blocked | n=18 WR=22% -$249 on live |
+| fe59556 | H03+H23 all assets all buckets blocked | n=7 WR=29% -$186 |
 
 ---
 
 ## Investigation 1: Cross-Exchange Lead-Lag
 
-**HYPOTHESIS:** Positive Binance 5s spot velocity at entry (`binance_vel_5s_pct`) predicts YES direction above the baseline set by the 5m candle return alone.
+**HYPOTHESIS (LDA framing):** `binance_ret_15m_pct` alignment with `binance_ret_5m_pct` predicts direction WR. When the 15m trend and the 5m entry signal agree, the move is durable. When they disagree (5m up, 15m down), the 5m spike is counter-trend noise and more likely to revert before window close.
 
-**RESULT:**
-n=0 for `signal_source=='BOND'` (BOND disabled 2026-05-10). LDA analog: `binance_ret_30s_pct` and `binance_ret_60s_pct` are logged in shadow (schema v1 fields 41-42) and loaded in `lda_loss_analysis.py` (lines 131-132). These shorter-horizon returns offer a finer-grained view of momentum at entry. No WR bucket analysis has been published for either.
+**RESULT:** n=0 for `signal_source=='BOND'` (mandate framing). For LDA:
 
-A specific cross-signal hypothesis (not in prior reports): if `binance_ret_5m_pct > 0` but `binance_ret_1m_pct < 0`, the 1m trend is already reversing against the 5m direction bet. This 5m/1m **divergence flag** could identify entries where the price momentum has already peaked.
+`binance_ret_15m_pct` was added to shadow 4 hours ago (commit b8da3a0). It is **not yet loaded in `lda_loss_analysis.py`** — the feature dict at lines 125–159 includes `bnc_1m`, `bnc_30s`, `bnc_60s`, `bnc_vel_5s`, `bnc_60m` but does NOT include `bnc_15m`. No bucket WR analysis exists for this field.
 
 **MATH:**
-```
-binance_1m_divergence = (sign(binance_ret_5m_pct) != sign(binance_ret_1m_pct))
-```
-`binance_ret_1m_pct` is logged in shadow at every market_timeline tick (schema v1 field 53, loaded in lda_loss_analysis.py line 131).
-
-**CONCLUSION:** INCONCLUSIVE
-**FAILURE_MET:** Yes — no bucket WR data. `binance_vel_5s_pct` had feature separation < 0.125 in n=2,643 shadow analysis (prior report). `binance_1m_divergence` is a new candidate, not yet analyzed. VPS required.
-
-VPS analysis script (add to lda_loss_analysis.py first_fire loop):
 ```python
-# In first_fire dict, add:
-# "bnc_1m": r.get("binance_ret_1m_pct"),
-# "bnc_5m": r.get("binance_ret_5m_pct"),
+bnc_15m_aligned = (
+    rec.get("binance_ret_15m_pct", 0.0) * rec.get("binance_ret_5m_pct", 0.0) > 0
+)
+# True = both signals same direction (durable momentum)
+# False = counter-trend entry (5m move against 15m trend)
+```
 
-divergent = [r for r in rows if r.get("bnc_1m") is not None and
-             (r["bnc_5m"] > 0) != (r["bnc_1m"] > 0)]
-aligned   = [r for r in rows if r.get("bnc_1m") is not None and
-             (r["bnc_5m"] > 0) == (r["bnc_1m"] > 0)]
-for label, subset in [("5m/1m ALIGNED", aligned), ("5m/1m DIVERGENT", divergent)]:
-    if not subset: print(f"{label}: n=0"); continue
-    wr = sum(1 for r in subset if r["correct"]) / len(subset)
+**VPS analysis script (add to lda_loss_analysis.py first_fire dict, then bucket):**
+```python
+# In first_fires dict (after existing bnc_60m line):
+"bnc_15m": r.get("binance_ret_15m_pct"),
+
+# After Pass 2, bucket analysis:
+aligned   = [v for v in all_rows if v.get("bnc_15m") is not None
+             and (v["bnc_15m"] * v["bnc_abs"]) > 0]  # bnc_abs is already abs; reconstruct sign
+# Better approach using bnc_dir:
+aligned   = [v for v in all_rows if v.get("bnc_15m") is not None
+             and ((v.get("bnc_15m", 0) > 0) == (v.get("bnc_abs", 0) > 0))]
+divergent = [v for v in all_rows if v.get("bnc_15m") is not None
+             and v not in aligned]
+for label, subset in [("5m/15m ALIGNED", aligned), ("5m/15m DIVERGENT", divergent)]:
+    if not subset:
+        print(f"{label}: n=0"); continue
+    wr = sum(1 for v in subset if v["correct"]) / len(subset)
     print(f"{label}: n={len(subset):4d} WR={wr:.1%}")
 ```
 
+**NOTE:** The correct aligned check must reconstruct 5m direction from `bnc_abs` + `odir` (since `bnc_abs` = |bnc_5m_pct| and direction is in `odir`). Full implementation:
+```python
+def is_aligned(v):
+    bnc15 = v.get("bnc_15m")
+    if bnc15 is None: return None
+    odir = "up"  # first_fire only loads bnc_dir==odir entries; odir=up ↔ bnc>0
+    bnc15_dir = "up" if bnc15 > 0 else "down"
+    return bnc15_dir == v.get("odir_implied", "up")
+```
+
+**CONCLUSION:** INCONCLUSIVE
+**FAILURE_MET:** Yes — no bucket WR data. Field is new (4h old); zero shadow data accumulated at this time. VPS required for first analysis. This is the **highest-priority new signal this cycle**.
+
 ---
 
-## Investigation 2: Tick Count as Toxicity Filter
+## Investigation 2: Tick Count as Toxicity Filter (LDA: `spread_bps` / `liquidity_regime`)
 
-**HYPOTHESIS:** Thin/dead markets (low tick count before entry) predict lower direction WR. LDA proxy: `ob_book_depth_size` (absolute depth) and the new `ob_depth_delta_1s` (depth rate of change at entry).
+**HYPOTHESIS:** Thin markets at entry time predict lower LDA direction WR. LDA proxy: `spread_bps` (wider spread = thinner book) and `liquidity_regime` (categorical: thin/normal/deep, computed from OB depth ≤150/150–500/>500).
 
-**RESULT:**
-n=0 for `signal_source=='BOND'` (`term_tok_tick_count_5s` not logged in LDA). LDA proxies:
+**RESULT:** n=0 for `signal_source=='BOND'` (`term_tok_tick_count_5s` not logged in LDA shadow). LDA proxies:
 
-| Signal | Shadow field | Feature rank (n=2,643) | LDA deployed? |
+| Signal | Shadow field | In lda_loss_analysis? | Live gate? |
 |---|---|---|---|
-| OB depth level | `ob_book_depth_size` | **#2 (sep=0.125)** | No gate |
-| Depth rate-of-change | `ob_depth_delta_1s` | Not yet ranked | No gate |
+| Spread at entry | `spread_bps` | Yes (line 140) | No gate |
+| Liquidity regime | `liquidity_regime` | Yes (as `liq_reg`, line 148) | No gate |
+| OB depth level | `ob_depth` (`ob_book_depth_size`) | Yes (line 138) | No gate — was #2 feature sep=0.125 in n=2,643 |
 
-`ob_depth_delta_1s` is a **new candidate** not covered in prior reports. It measures `ob_book_depth_size - prev_depth` (logged in holdpath.py line 116; schema v1.json line 198). Currently used only as an **exit** signal in `multi_exit_replay.py` (depth_collapse < -50 for 2 consecutive ticks). The **entry-time** value of this field has never been analyzed as a filter. A negative delta at the moment of entry means market makers are actively pulling liquidity — a potential adverse selection signal distinct from absolute depth.
+`liquidity_regime` = "thin" when OB depth < 150. This is a precomputed categorical that maps directly to the tick-count hypothesis: thin books = few active market makers = low tick rate = dead market.
 
-**PROPOSED_GATE (entry filter, requires VPS confirmation):**
+**PROPOSED_GATE (requires VPS bucket analysis first):**
 ```python
-# In late_direction_arb.py schedule_if_ready(), after existing rem/ask checks:
-depth_delta = rec.get("ob_depth_delta_1s", 0.0)
-if depth_delta < -50.0:  # depth actively collapsing at entry — MM retreat signal
-    return  # skip; threshold from bucket analysis
+# In late_direction_arb.py schedule_if_ready(), after vol_regime check:
+liq_reg = rec.get("liquidity_regime", "normal")
+if liq_reg == "thin":
+    return  # OB depth < 150 at entry; threshold requires WR bucket confirmation
 ```
 
 **CONCLUSION:** INCONCLUSIVE (no live bucket data)
-**FAILURE_MET:** Yes for BOND framing (n=0). Unknown for LDA proxies — bucket WR split requires VPS.
+**FAILURE_MET:** Yes — WR difference across liquidity buckets unknown without VPS. `ob_depth` feature separation = 0.125 (n=2,643 prior analysis) suggests WR spread is likely ≥5pp between "thin" and "deep", but not confirmed at live gate thresholds.
 
-VPS analysis script (`ob_depth_delta_1s` at first-fire):
+**VPS analysis (run after lda_loss_analysis.py):**
 ```python
-# Add to first_fire dict: "ddelta": r.get("ob_depth_delta_1s", 0.0)
-from collections import defaultdict
-buckets = defaultdict(lambda: {"n": 0, "w": 0})
-for r in rows:
-    d = r.get("ddelta", 0.0) or 0.0
-    b = "collapse(<-50)" if d < -50 else ("shrinking(-50 to -10)" if d < -10 else
-        ("flat(-10 to +10)" if d < 10 else "growing(10+)"))
-    buckets[b]["n"] += 1
-    if r["correct"]: buckets[b]["w"] += 1
-for b in ["collapse(<-50)", "shrinking(-50 to -10)", "flat(-10 to +10)", "growing(10+)"]:
-    v = buckets[b]
-    wr = v["w"]/v["n"] if v["n"] else 0.0
-    print(f"{b:>30}: n={v['n']:4d} WR={wr:.1%}")
+# Bucket by liquidity_regime (already in first_fires as "liq_reg"):
+for regime in ["thin", "normal", "deep"]:
+    sub = [v for v in all_rows if v.get("liq_reg") == regime]
+    if not sub: print(f"{regime}: n=0"); continue
+    wr = sum(1 for v in sub if v["correct"]) / len(sub)
+    print(f"{regime:>8}: n={len(sub):4d} WR={wr:.1%}")
 ```
 
 ---
 
-## Investigation 3: Dead Drift Signature
+## Investigation 3: DEAD_DRIFT Signature (LDA: `tok_delta_5s` / B3 re-entry relevance)
 
-**HYPOTHESIS:** Token ask flat in the 5s before entry (`term_token_delta_5s` near zero) underperforms active entries due to thin/uninformed order flow.
+**HYPOTHESIS:** Token ask flat in the 5s before entry (`tok_delta_5s` near zero) underperforms active entries due to thin/uninformed order flow.
 
-**RESULT:**
-n=0 for `signal_source=='BOND'`. LDA proxy: `tok_delta_5s` logged in shadow (schema field 56). Feature separation < 0.125 in prior n=2,643 analysis — not in top 2.
+**RESULT:** n=0 for `signal_source=='BOND'`. LDA proxy: `tok_delta5` (tok_delta_5s) in lda_loss_analysis line 144. **Prior n=2,643 shadow analysis: feature separation < 0.125 — not in top 2.**
 
-**Partially deployed** (new finding this cycle): LDA code header states "dead2 removed" — `ask[0.80,0.90)` entries with `rem>60s` are blocked (commit history, 2026-05-09). Evidence basis: n=27/80 shadow entries in this zone. This is a structural proxy for the dead-drift gate (no momentum → overpriced entries in the 0.80-0.90 band). The explicit `tok_delta_5s` bucket gate remains undeployed and unanalyzed.
+**NEW THIS CYCLE:** B3 [180,300s) was re-enabled as of commit de3d830 (2026-05-15, user instruction). B3 entries are at rem=180–300s with ask range 0.70–0.80 (structural ask gates apply). These are the *earliest* entries in each window, where token prices have had the least time to reflect the BNC move. Dead drift is structurally more likely at B3 than at B1/B0, because the Binance-to-Polymarket lag may still be propagating. The question of whether `tok_delta_5s` near zero predicts loss is therefore **more acute for B3 than for earlier reports** when B3 was blocked.
 
-Additional note: `tok_snap_60s` (token ask % change vs 60s ago) was analyzed in an ablation (main.py:2777) on n=499 and found to be r=0.71 correlated with `tok_delta_5s`, deemed redundant, and removed. The dedicated scan script `analytics/lda_snap60_scan.py` exists to re-analyze this for LDA specifically (ablation was BOND-era).
+**PROPOSED ANALYSIS (B3-specific dead-drift gate):**
+```python
+# In lda_loss_analysis.py, add B3-specific dead drift analysis:
+b3_rows = [v for v in all_rows if v["rem"] >= 180]
+dead = [v for v in b3_rows if abs(v.get("tok_delta5", 0.0) or 0.0) < 0.005]
+live = [v for v in b3_rows if abs(v.get("tok_delta5", 0.0) or 0.0) >= 0.005]
+for label, sub in [("B3 dead-drift", dead), ("B3 active", live)]:
+    if not sub: print(f"{label}: n=0"); continue
+    wr = sum(1 for v in sub if v["correct"]) / len(sub)
+    print(f"{label}: n={len(sub):4d} WR={wr:.1%}")
+```
 
 **CONCLUSION:** INCONCLUSIVE
-**FAILURE_MET:** Yes — WR difference across dead-drift buckets unknown. Feature separation < 0.125 suggests WR spread is likely < 5pp, but not confirmed at bucket level. "Dead2 removal" covers the structural case; explicit `|tok_delta_5s|` threshold gate is a marginal refinement at best.
+**FAILURE_MET:** Yes — WR difference <5pp expected based on prior feature separation analysis, but B3-specific sub-bucket has not been run. B3 was blocked at time of the n=2,643 analysis; the B3 dead-drift question is genuinely new.
 
 ---
 
@@ -131,50 +147,79 @@ Additional note: `tok_snap_60s` (token ask % change vs 60s ago) was analyzed in 
 
 **HYPOTHESIS:** One asset consistently outperforms; stake weighting should differ by asset.
 
-**RESULT (code-derived):**
+**RESULT (code-derived, post-SOL-block):**
 - LDA code header: n=69 live direction WR=89.7% (all assets combined, as of last VPS sync)
-- Per-asset breakdown not accessible; expected ~23 trades per asset if uniform — below n=20 threshold individually
-- Prior finding (state_log 2026-05-13 19:30, n=172 shadow): SOL_UP identified as dominant loser; blocking SOL_UP showed +$15.71 improvement over n=83
-- Current code: `_SOL_BLOCKED_ALL = frozenset({7, 9})` plus extensive per-asset/hour gates — differential treatment already partially deployed
+- SOL fully blocked as of 2026-05-15 (fea73a8) — live data: n=178 WR=53.4% net=-$791
+- Active assets: **BTC + ETH only**
+- Per-asset live n: unknown; expected ~34-35 each if uniform across n=69
 
-**CONCLUSION:** INCONCLUSIVE — n per asset below the n≥20 floor required by the mandate.
-**FAILURE_MET:** Yes for 48h window (n<20 per asset likely). No for all-time shadow analysis (n≥20 per asset likely in shadow, but exact split unavailable without VPS).
+Current stake structure post-df77a3b:
+- BTC/ETH: BNC-tiered half-Kelly (LOW 1.5%, MID 15%, HIGH 22% of bankroll)
+- Differential treatment: `_ETH_BLOCKED_LATE`, `_ETH_BLOCKED_B1`, `_BTC_BLOCKED_LATE`, `_BTC_BLOCKED_B1` — already per-asset tuned
+
+**New question this cycle:** The BNC LOW tier (0.05–0.07%) was cut to 1.5% bankroll (~$1.27 at current capital). At that stake size, the EV per trade is close to break-even pre-fee. If LOW-tier BTC/ETH has systematic hours with negative WR, the 1.5% floor may still generate losses. This requires VPS bucket analysis.
+
+**CONCLUSION:** INCONCLUSIVE — n per asset below n≥20 floor for live 48h window.
+**FAILURE_MET:** Yes. Shadow per-asset n likely ≥20 in all-time shadow, but exact split unavailable without VPS. SOL result (n=178 WR=53.4%) was sufficient for action and has been acted on.
 
 ---
 
 ## Novel Signals — New This Cycle
 
-Two **new, unanalyzed candidates** identified from codebase audit. Neither was covered in prior reports.
+### Novel 1: `binance_ret_15m_pct` as Multi-Timeframe Alignment Filter (PRIORITY)
 
-### Novel 1: `ob_depth_delta_1s` as Entry Filter
+**Field:** `binance_ret_15m_pct` = `(spot_now - open_15m) / open_15m * 100`
+**Schema:** Added in commit b8da3a0 (2026-05-15 08:21 UTC) to `data/shadow/timeline.py` line 353.
+**Current use:** Logged in shadow market_timeline only — not loaded in any analysis script.
+**Hypothesis:** When 5m return direction and 15m return direction disagree, the 5m entry is a short-term noise spike against the dominant 15m trend. These entries should resolve against direction at higher rates.
+**Why non-obvious:** The 5m return is the deployed entry signal. The 15m return is a *context* signal — it tells us whether the 5m move represents trend participation or counter-trend noise. The two are orthogonal: a 5m up move can be on-trend (15m also up) or counter-trend (15m down / mean-reversion). Only the former has clean momentum behind it.
+**Why new:** Prior reports identified `binance_ret_1m_pct` divergence from 5m. This is the *opposite* timeframe — longer, not shorter. A 1m divergence tests "is momentum already fading?"; a 15m divergence tests "is this entire move against the trend?". These are complementary hypotheses with different failure modes.
+**Status:** Field added 4h ago. Zero shadow data accumulated yet. First analysis requires VPS after ≥24h of data accumulation.
 
-**Field:** `ob_depth_delta_1s` = `ob_book_depth_size(t) - ob_book_depth_size(t-1s)`
-**Schema:** shadow v1.json line 198; logged in data/shadow/holdpath.py line 116
-**Current use:** Exit-only, in `multi_exit_replay.py` (depth_collapse = delta < -50 for 2 consecutive ticks)
-**Proposed use:** Entry gate — skip if depth actively collapsing at the entry tick
-**Hypothesis:** Negative depth delta at entry = MM pulling quotes = adverse selection in progress = lower WR
-**Why non-obvious:** `ob_book_depth_size` (absolute level) already ranked #2 in feature analysis. `ob_depth_delta_1s` (rate of change) is orthogonal to it — a market can have high absolute depth but still be losing liquidity rapidly. The rate of change may predict short-horizon WR better than the level.
-**Why not yet analyzed:** The field is logged in hold_path.jsonl (post-entry) but NOT in market_timeline.jsonl (pre-entry). The first-fire analysis scripts read market_timeline only. A VPS script would need to join hold_path.jsonl at the entry tick (first tick within the entry rem window) to market_timeline.jsonl. This is a schema gap, not a data gap.
-
-**VPS feasibility check:**
+**Math:**
 ```python
-# Join hold_path first tick to market_timeline first-fire:
-# hold_path.jsonl has (condition_id, window_end_ts, ts_s, ob_depth_delta_1s)
-# Match on (cid, wend) where hold_path ts_s is within 2s of first_fire ts_s
+# Gate: only enter when 5m and 15m agree on direction
+bnc_15m = rec.get("binance_ret_15m_pct", 0.0)
+bnc_5m  = rec.get("binance_ret_5m_pct",  0.0)  # same as bnc_move_pct in LDA
+if bnc_5m * bnc_15m < 0:
+    return  # divergent timeframes — skip entry
+# Note: if either is 0.0 (missing), product = 0 → gate triggers — add null check
+if bnc_15m == 0.0:
+    pass  # field may be 0.0 legitimately (flat 15m); don't gate on missing data
 ```
 
-**Failure criteria:** n<20 per depth-delta bucket, or WR spread <5pp between collapse (<-50) and stable.
+**Failure criteria:** n<20 per group (aligned vs divergent) after ≥7 days of shadow; or WR difference <5pp.
+**Do NOT ship without VPS bucket confirmation. Data collection starts now.**
 
-### Novel 2: `binance_ret_5m` vs `binance_ret_1m` Divergence Flag
+### Novel 2: BNC LOW Tier Hour Gate (NEW)
 
-**Fields:** `binance_ret_5m_pct` (deployed signal) + `binance_ret_1m_pct` (logged, unused)
-**Schema:** shadow v1.json lines 43 and 53; both loaded in lda_loss_analysis.py lines 131-132
-**Hypothesis:** When the 5m return is positive (BET_UP) but the 1m return is negative, the momentum that created the signal has already reversed. These "stale momentum" entries may resolve against direction at higher rates.
-**Why non-obvious:** The 5m return is the primary deployed signal. A 1m divergence check is a *time-decay* test of that signal — it measures whether the signal is still valid at entry time, not just at window open.
-**Status:** `binance_ret_1m_pct` is collected in shadow and loaded in lda_loss_analysis.py but no bucket WR table has been published. The lda_wrong_cases.py script (on VPS) may have already examined it; unknown.
-**Math:** `divergence = sign(bnc_5m) != sign(bnc_1m)`
+**Context:** Commit df77a3b cut the LOW tier (BNC 0.05–0.07%) stake from 10% to 1.5% bankroll. This effectively quarantines the LOW tier while leaving it active. The rationale: "EV≈+0.010 pre-fee, near break-even". The open question is whether this near-break-even average conceals systematic negative-EV hours within the LOW tier.
 
-**Failure criteria:** n<20 per group (aligned vs divergent), or WR difference <5pp.
+**Hypothesis:** Within BNC [0.05,0.07%), specific hours have negative EV even on shadow data. Those hours should be blocked at the BNC floor level (raise floor to 0.07% at those hours) rather than traded at near-zero stake.
+
+**Why non-obvious:** The BNC floor is currently applied as a global ask-zone rule (0.07 at B0; 0.10/0.05/0.07 by ask zone at B1/B2). The LOW tier exists within the 0.05–0.07% band specifically for B1/B2 entries with ask 0.70–0.90 (where floor is 0.05%). Three hours already have their BNC floor raised: H02 B2 (→0.07), H03 B1 (→0.06), H20 B2 (→0.06). The question is whether the remaining hours in this band are uniformly near-break-even or whether some are significantly negative.
+
+**Analysis script (for VPS lda_loss_analysis.py):**
+```python
+# After first_fires load, bucket by BNC tier × hour for EV analysis:
+from collections import defaultdict
+low_tier = [v for v in all_rows if 0.05 <= v["bnc_abs"] < 0.07]
+print(f"\nBNC LOW tier [0.05,0.07%): n={len(low_tier)}")
+hour_buckets = defaultdict(lambda: {"n": 0, "w": 0})
+for v in low_tier:
+    h = v["hour"]
+    hour_buckets[h]["n"] += 1
+    if v["correct"]:
+        hour_buckets[h]["w"] += 1
+for h in sorted(hour_buckets):
+    d = hour_buckets[h]
+    wr = d["w"] / d["n"] if d["n"] else 0.0
+    flag = " ⚠" if wr < 0.70 and d["n"] >= 10 else ""
+    print(f"  H{h:02d}: n={d['n']:3d} WR={wr:.1%}{flag}")
+```
+
+**Failure criteria:** All hours WR >70% in LOW tier (no negative-hour gate needed); or n<10 per hour (insufficient data).
+**Do NOT ship without VPS bucket confirmation.**
 
 ---
 
@@ -184,110 +229,59 @@ All from prior reports; none promoted to SIGNAL_FOUND yet (VPS required):
 
 | Variable | Shadow field | First logged | Hypothesis | Priority |
 |---|---|---|---|---|
-| `ob_book_depth_size` | market_timeline | 2026-05-08 | #2 feature (sep=0.125); thin books → lower WR | **P1** |
-| `arb_sum_yes_no` | market_timeline | 2026-05-08 | sum<1.0 = MM retreat → thin market | P2 |
+| `binance_ret_15m_pct` | market_timeline | **2026-05-15 NEW** | 15m/5m misalignment = noise spike = lower WR | **P1 (new)** |
+| `ob_book_depth_size` | market_timeline | 2026-05-08 | #2 feature (sep=0.125); thin books → lower WR | P2 |
+| `bnc_low_hour` | (derived from bnc_abs + hour) | 2026-05-08 | some hours within LOW tier are negative EV | **P2 (new)** |
+| `ob_depth_delta_1s` | hold_path | 2026-05-09 | depth collapsing at entry = MM retreat = lower WR | P3 |
 | `tok_decel_ratio` | market_timeline | 2026-05-09 | decel<0.5 = momentum fading → lower WR | P3 |
-| `ask_stale_s` | market_timeline | 2026-05-09 | stale>5s = MM not tracking price → lower WR | P3 |
-| `vpin_score` | market_timeline | 2026-05-09 | high VPIN = informed flow = mixed direction for WR | P4 |
+| `binance_ret_1m_pct` divergence | market_timeline | 2026-05-09 | 5m/1m divergence = stale signal → lower WR | P3 |
+| `arb_sum_yes_no` | market_timeline | 2026-05-08 | sum<1.0 = MM retreat → thin market | P4 |
+| `ask_stale_s` | market_timeline | 2026-05-09 | stale>5s = MM not tracking price → lower WR | P4 |
 
 ---
 
 ## Priority Signal for Next Implementation
 
-**ob_book_depth_size gate for LDA** remains the highest-priority unimplemented signal from prior analysis. Separation=0.125 (n=2,643), no LDA gate exists.
+**`binance_ret_15m_pct` alignment gate** is the highest-priority NEW signal this cycle. It was just added to shadow 4 hours ago and has zero prior analysis. No gate exists. Data collection starts now.
 
-**NEW this cycle:** Before implementing the depth *level* gate, first check `ob_depth_delta_1s` at entry time. If depth is actively collapsing (delta < -50), it is a stronger signal than the level alone. The two filters are complementary:
-- Level gate (ob_book_depth_size < 100): skip thin markets
-- Delta gate (ob_depth_delta_1s < -50): skip markets losing liquidity regardless of current level
+**Implementation path:**
+1. Allow ≥7 days of shadow data to accumulate with `binance_ret_15m_pct` logged.
+2. Add `"bnc_15m": r.get("binance_ret_15m_pct")` to lda_loss_analysis.py first_fires dict.
+3. Run VPS bucket analysis. Check: aligned (n≥20?) vs divergent (n≥20?). WR spread ≥5pp?
+4. If confirmed: add gate to `late_direction_arb.py` schedule_if_ready after BNC floor check.
+5. If divergent n<20 after 14 days: downgrade to P3, continue collecting.
 
-**Python gate (add to late_direction_arb.py schedule_if_ready() after rem/ask checks):**
+**Secondary (existing P1 — unchanged):** `ob_book_depth_size` gate. Separation=0.125 on n=2,643. Add to lda_loss_analysis.py and run `liquidity_regime` bucket WR on VPS.
+
+**Codebase-ready gate snippet (DO NOT SHIP — no VPS confirmation):**
 ```python
-# OB depth gates — skip thin or collapsing markets (feature_sep=0.125, n=2643 for level)
-ob_depth = rec.get("ob_book_depth_size", 999.0)
-ob_depth_delta = rec.get("ob_depth_delta_1s", 0.0)
-if ob_depth < 100 or ob_depth_delta < -50:
-    return  # confirm thresholds from bucket analysis first — do NOT ship without VPS confirmation
+# After vol_regime gate in late_direction_arb.py schedule_if_ready():
+# 15m/5m alignment gate (hypothesis: misaligned = counter-trend noise)
+bnc_15m = rec.get("binance_ret_15m_pct", 0.0)
+if bnc_15m != 0.0 and (bnc_15m * bnc_move_pct) < 0:
+    return  # 5m up but 15m down (or vice versa) — skip
 ```
 
-**Failure criteria:** n<20 per bucket; or WR spread <5pp between thin/collapsing and normal/stable.
-**Do NOT ship without VPS bucket confirmation.**
-
-**Secondary (requires VPS bucket analysis):** `binance_1m_divergence` — run lda_loss_analysis.py with the snippet from Investigation 1, check if WR difference between aligned and divergent groups reaches 5pp threshold on n≥20 per group.
+**If nothing reaches SIGNAL_FOUND this cycle:** This is correct. `binance_ret_15m_pct` was added 4h ago — there is no shadow data to analyze. The honest conclusion is: data collection is underway; first analysis window opens in ~7 days.
 
 ---
 
-## Infrastructure Alert — SSH (59 consecutive sessions)
+## Infrastructure Alert — SSH (61 consecutive sessions)
 
-Root cause: `ssh` binary unavailable in sandbox; port 22 egress blocked.
+Root cause: `ssh` binary re-installed successfully but TCP port 22 egress is blocked by the container network policy.
 
-**The ob_depth_delta_1s entry analysis requires an additional join step** (hold_path.jsonl not currently queried by market_timeline-based scripts). Run this on the VPS before deploying:
-
+**Required action — run on VPS to unblock future analysis:**
 ```bash
 cd /root/Klaus
-
-# Step 1: standard feature analysis (covers ob_depth level + arb_sum + tok_decel + vpin)
-python3 analytics/lda_loss_analysis.py > /tmp/lda_loss_$(date +%H%M).txt
-
-# Step 2: new — depth delta at entry (hold_path join)
-python3 - << 'EOF' >> /tmp/lda_loss_$(date +%H%M).txt
-import json, glob, os
-from collections import defaultdict
-SHADOW_ROOT = "logs/shadow/hot"
-resolutions = {}
-for p in sorted(glob.glob(f"{SHADOW_ROOT}/*/window_resolution.jsonl")):
-    with open(p) as f:
-        for line in f:
-            r = json.loads(line)
-            resolutions[(r["condition_id"], r["window_end_ts"])] = r["moved_up"]
-first_fire = {}
-for p in sorted(glob.glob(f"{SHADOW_ROOT}/*/market_timeline.jsonl")):
-    with open(p) as f:
-        for line in f:
-            try: r = json.loads(line)
-            except: continue
-            if r.get("record_type") != "market_timeline": continue
-            rem = r.get("seconds_to_resolution", 0.0)
-            ask = r.get("best_ask", 0.0)
-            bnc = r.get("binance_ret_5m_pct")
-            if not (8 <= rem <= 300) or not (0.60 <= ask <= 0.98): continue
-            if bnc is None or abs(bnc) < 0.05: continue
-            odir = r.get("outcome_dir", "")
-            if ("up" if bnc > 0 else "down") != odir: continue
-            cid = r.get("condition_id", ""); wend = r.get("window_end_ts", 0)
-            key = (cid, wend)
-            if key not in resolutions: continue
-            if key not in first_fire or rem > first_fire[key]["rem"]:
-                first_fire[key] = {"rem": rem, "odir": odir, "ts": r.get("ts_s", 0),
-                                   "correct": (odir=="up") == resolutions[key]}
-# Join hold_path at entry tick
-for p in sorted(glob.glob(f"{SHADOW_ROOT}/*/hold_path.jsonl")):
-    with open(p) as f:
-        for line in f:
-            try: r = json.loads(line)
-            except: continue
-            cid = r.get("condition_id", ""); wend = r.get("window_end_ts", 0)
-            key = (cid, wend)
-            if key not in first_fire: continue
-            if "ddelta" in first_fire[key]: continue  # already joined
-            if abs(r.get("ts_s", 0) - first_fire[key]["ts"]) <= 3:
-                first_fire[key]["ddelta"] = r.get("ob_depth_delta_1s", None)
-rows = [v for v in first_fire.values() if v.get("ddelta") is not None]
-print(f"\nob_depth_delta_1s at entry — n with joined hold_path: {len(rows)}")
-buckets = defaultdict(lambda: {"n": 0, "w": 0})
-for r in rows:
-    d = r["ddelta"]
-    b = "collapse(<-50)" if d < -50 else ("shrink(-50:-10)" if d < -10 else ("flat" if d < 10 else "grow(10+)"))
-    buckets[b]["n"] += 1
-    if r["correct"]: buckets[b]["w"] += 1
-for b in ["collapse(<-50)", "shrink(-50:-10)", "flat", "grow(10+)"]:
-    v = buckets[b]
-    wr = v["w"]/v["n"] if v["n"] else 0.0
-    print(f"{b:>25}: n={v['n']:4d} WR={wr:.1%}")
-EOF
-
-# Step 3: push logs to repo
 tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
 git add logs/live_trades_recent.jsonl logs/bankroll.json
 git commit -m "log sync $(date -u +%Y-%m-%dT%H:%M)"
 git push origin claude/find-lag-parameter-rFQ0N
 ```
+
+**Also required — add bnc_15m to lda_loss_analysis.py first_fires dict (one line):**
+```python
+# Line 136 in analytics/lda_loss_analysis.py, after bnc_60m:
+"bnc_15m": r.get("binance_ret_15m_pct"),
+```
+This is safe to ship now (just adds a new key; no logic change). The field will be `None` for shadow data predating today.
