@@ -185,7 +185,9 @@ class LateDirectionArb:
         #   Re-eval: B1 H09+H06 ask[0.80,0.90) at n>=20 (4 wins each, 100% WR, small n).
         if remaining > 60 and ask >= 0.90:
             return
-        if remaining > 120 and ask >= 0.80:
+        if rem_bucket == 3 and ask >= 0.80:
+            return
+        if rem_bucket == 2 and ask >= 0.85:   # user instruction 2026-05-15
             return
         if remaining > 120 and ask < 0.55:   # B2/B3 floor lowered 0.75→0.55 (user instruction 2026-05-15)
             return
