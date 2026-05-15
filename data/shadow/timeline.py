@@ -134,7 +134,11 @@ class TimelineSampler:
             if wend <= 0:
                 continue
             remaining = wend - now
-            if remaining < 5 or remaining > (self.eligibility_remaining_s + 60):
+            wsz = int(getattr(token, "window_seconds", 300))
+            # Cover the full window for each size so early-stage entries are captured.
+            # 5m → max rem 300s; 15m → max rem 900s. Floor +60s is an existing grace period.
+            _max_rem = wsz + 60
+            if remaining < 5 or remaining > _max_rem:
                 continue
             # 1Hz dedup — multiple loop iterations within the same second emit once.
             if self._last_emit_ts.get(token_id) == now_s:
@@ -218,6 +222,7 @@ class TimelineSampler:
         binance_ret_30s = self._binance_ret(asset_up, now, 30)
         binance_ret_60s = self._binance_ret(asset_up, now, 60)
         binance_ret_5m  = self._binance_ret_5m(asset_up)
+        binance_ret_15m = self._binance_ret_15m(asset_up)
 
         utc = datetime.now(timezone.utc)
         wend = int(getattr(token, "window_end_ts", 0))
@@ -345,6 +350,7 @@ class TimelineSampler:
             "binance_ret_30s_pct": round(binance_ret_30s, 4),
             "binance_ret_60s_pct": round(binance_ret_60s, 4),
             "binance_ret_5m_pct":  round(binance_ret_5m, 4),
+            "binance_ret_15m_pct": round(binance_ret_15m, 4),
             # peer-token link (YES↔NO sister of same condition_id)
             "peer_token_id": peer_token_id,
             "peer_bid": round(peer_bid, 4),
@@ -400,6 +406,14 @@ class TimelineSampler:
         if not spot_now or not open_5m:
             return 0.0
         return (spot_now - open_5m) / open_5m * 100.0
+
+    def _binance_ret_15m(self, asset_up: str) -> float:
+        feed = self.bot.feed
+        spot_now = feed._spot_price.get(asset_up, 0.0)
+        open_15m = feed._spot_open_15m.get(asset_up, 0.0)
+        if not spot_now or not open_15m:
+            return 0.0
+        return (spot_now - open_15m) / open_15m * 100.0
 
     def _build_gate_trace(self, tl: dict) -> Optional[dict]:
         ask = tl["best_ask"]
