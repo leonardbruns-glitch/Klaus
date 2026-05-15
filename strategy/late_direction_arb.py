@@ -53,10 +53,10 @@ _BNC_TIER_HIGH_FRAC = 0.22   # bnc [0.10%,∞):    WR=96.6% EV=+0.091 hK=0.36 (n
 _STAKE_B0 = 3.0
 
 # Cumulative Kelly targets per rem-bucket (fraction of full tier target).
-# B3 fires first at 50%; B2 tops up to 75%; B1 tops up to 100%.
-# Total across all 3 buckets = 1× Kelly — same cap, distributed across entries.
-# If only B1 fires (no prior buckets): gets full 100% immediately.
-_BUCKET_KELLY_CUM = {3: 0.50, 2: 0.75, 1: 1.00}
+# B3 fires first at 90%; B2 tops up to 95% (+5%); B1 tops up to 100% (+5%).
+# Grid-opt n=1303 shadow windows: EV/trade +1.41→+1.98 (+40%). B2/B1 top-ups
+# typically fall below MIN_BUDGET ($5) so capital naturally concentrates in B3.
+_BUCKET_KELLY_CUM = {3: 0.90, 2: 0.95, 1: 1.00}
 
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
