@@ -686,6 +686,7 @@ class KlausBot:
                                         is_live=not CONFIG.dry_run,
                                         signal_source=_bs_meta.get("signal_source", "BOND"),
                                         window_size_s=_bs_meta.get("window_size_s") or pos.window_seconds or 0,
+                                        pre_entry_momentum_pct=_bs_meta.get("pre_entry_momentum_pct", 0.0),
                                         bond_outcome_direction=pos.bond_outcome_direction,
                                         bond_delta_accel_30s=float(getattr(_bs_sig, "bond_delta_accel_30s", 0.0) or 0.0),
                                         bond_edge_drift_30s=float(getattr(_bs_sig, "bond_edge_drift_30s", 0.0) or 0.0),

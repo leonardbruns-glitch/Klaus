@@ -175,20 +175,25 @@ class LateDirectionArb:
             return
 
         # Ask-conditional rem ceiling (shadow-validated, 5m, vol=normal, n≥100):
-        #   ask≥0.90 + rem>60s   → dead zone 1 (EV -0.14 to -0.22)
-        #   ask≥0.80 + rem>120s  → dead zone 2 partial: [90,120) EV+0.22 kept; [120,300s) EV -0.06 to -0.11
-        #   ask<0.69 + rem>120s  → B2 floor 0.69 (user instruction 2026-05-15)
-        #   ask<0.70 + rem>180s  → WR=63%, EV=-0.23 (n=130); B3 floor 0.70
+        # Ask zone gates — live backtest May15 (n=379 reliable, post-fix):
+        #   B2/B3: unified floor 0.75. ask[0.70,0.75) B3: WR=44.7% n=38 net=-$75; B2 same zone: -$25.
+        #   B1: ceiling lowered 0.90→0.80. ask[0.80,0.90) B1: 42W/14L, avg_win=+$2 avg_loss=-$10 net=-$60.
+        #   B0: ceiling 0.90. ask[0.90+] B0: 56W/11L avg_win=+$0.21 avg_loss=-$5.66 net=-$50.
+        #   All cuts combined: saves $212 by blocking 48 losses at cost of 122 small wins.
+        #   Re-eval: B1 H09+H06 ask[0.80,0.90) at n>=20 (4 wins each, 100% WR, small n).
         if remaining > 60 and ask >= 0.90:
             return
         if remaining > 120 and ask >= 0.80:
             return
-        if remaining > 120 and ask < 0.69:
+        if remaining > 120 and ask < 0.75:   # unified B2/B3 floor (was 0.69/0.70)
             return
-        if remaining > 180 and ask < 0.70:
-            return
-        # B1 [60,120s): ask[0.70,0.75) EV=-0.127 (n=132 May15 shadow). Floor raised to 0.75.
+        # B1 [60,120s): floor 0.75; ceiling 0.80 (ask[0.80,0.90) net=-$60, payoff compression)
         if rem_bucket == 1 and ask < 0.75:
+            return
+        if rem_bucket == 1 and ask >= 0.80:
+            return
+        # B0 [8,60s): ceiling 0.90 (ask[0.90+]: avg_win=$0.21 vs avg_loss=$5.66, net=-$50 n=67)
+        if remaining < 60 and ask >= 0.90:
             return
 
         # Vol regime: volatile/extreme destroy edge (WR 54%/43% vs 71% normal).
