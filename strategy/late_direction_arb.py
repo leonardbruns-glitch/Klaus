@@ -35,7 +35,7 @@ STAKE_USD_REDUCED = 2.00   # watch-cell cap per entry (ETH/SOL weak hours, pendi
 STAKE_MIN_USD     = 1.00   # floor per entry — always enter even when target already met
 STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket stakes below
 
-# All assets B4 (rem>=180s) disabled: Kelly=0% at all BNC thresholds (market_timeline May8-14)
+# B3 [180,300s) re-enabled 2026-05-15: user instruction. Ask range 0.70-<0.80 (existing dead zones apply).
 # Two-tier flat stakes per asset: base (BNC < strong threshold) vs strong (BNC >= threshold)
 # Strong threshold chosen where WR peaks and n≥20; B3 gets no strong tier (WR flat vs BNC)
 
@@ -160,10 +160,8 @@ class LateDirectionArb:
             return
 
         # Multi-entry: one entry per rem bucket per window.
-        # Buckets: [0,60s)=0, [60,120s)=1, [120,300s)=2.
+        # Buckets: [0,60s)=0, [60,120s)=1, [120,180s)=2, [180,300s)=3.
         rem_bucket = 0 if remaining < 60 else (1 if remaining < 120 else (2 if remaining < 180 else 3))
-        if rem_bucket == 3:  # B3 [180,300s) blocked all assets all hours — user instruction 2026-05-14
-            return
         key = (cid, wend, rem_bucket)
         if key in self._fired:
             return
@@ -180,10 +178,13 @@ class LateDirectionArb:
         # Ask-conditional rem ceiling (shadow-validated, 5m, vol=normal, n≥100):
         #   ask≥0.90 + rem>60s   → dead zone 1 (EV -0.14 to -0.22)
         #   ask≥0.80 + rem>120s  → dead zone 2 partial: [90,120) EV+0.22 kept; [120,300s) EV -0.06 to -0.11
-        #   ask<0.70 + rem>180s  → WR=63%, EV=-0.23 (n=130)
+        #   ask<0.69 + rem>120s  → B2 floor 0.69 (user instruction 2026-05-15)
+        #   ask<0.70 + rem>180s  → WR=63%, EV=-0.23 (n=130); B3 floor 0.70
         if remaining > 60 and ask >= 0.90:
             return
         if remaining > 120 and ask >= 0.80:
+            return
+        if remaining > 120 and ask < 0.69:
             return
         if remaining > 180 and ask < 0.70:
             return
