@@ -634,8 +634,31 @@ class KlausBot:
                             _bs_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
                             _is_redeemed_win = token_id in self.redeemer.confirmed_winners
+                            # LDA: Redeemer doesn't track these — use kline to determine outcome
+                            if not _is_redeemed_win and getattr(pos, "bond_entry_class", "") == "LDA" and pos.window_end_ts > 0:
+                                try:
+                                    import aiohttp as _aiohttp_bs
+                                    _bs_sym_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+                                    _bs_sym = _bs_sym_map.get(pos.asset.upper())
+                                    _bs_wsz = pos.window_seconds or 300
+                                    _bs_kl_int = "5m" if _bs_wsz == 300 else "15m"
+                                    _bs_wstart_ms = int((pos.window_end_ts - _bs_wsz) * 1000)
+                                    async with self.feed._session.get(
+                                        "https://api.binance.com/api/v3/klines",
+                                        params={"symbol": _bs_sym, "interval": _bs_kl_int,
+                                                "startTime": _bs_wstart_ms, "limit": 1},
+                                        timeout=_aiohttp_bs.ClientTimeout(total=5),
+                                    ) as _bs_kr:
+                                        if _bs_kr.status == 200:
+                                            _bs_kl = await _bs_kr.json()
+                                            if _bs_kl and len(_bs_kl[0]) >= 5:
+                                                _bs_kl_up  = float(_bs_kl[0][4]) >= float(_bs_kl[0][1])
+                                                _bs_bet_up = getattr(pos, "bond_outcome_direction", "up") == "up"
+                                                _is_redeemed_win = (_bs_bet_up == _bs_kl_up)
+                                except Exception as _bs_kl_exc:
+                                    logger.debug("BOND_SETTLED LDA kline check failed: %s", _bs_kl_exc)
                             _bs_exit_price = 1.0 if _is_redeemed_win else 0.0
-                            _bs_reason = "REDEEMED" if _is_redeemed_win else "BOND_SETTLED"
+                            _bs_reason = "LDA_KLINE_WIN" if (_is_redeemed_win and getattr(pos, "bond_entry_class", "") == "LDA") else ("REDEEMED" if _is_redeemed_win else "BOND_SETTLED")
                             _pnl = self.risk.close_position(token_id, _bs_exit_price, _bs_reason)
                             if not _is_redeemed_win:
                                 self._mark_bond_total_loss(pos.asset)
@@ -1510,7 +1533,7 @@ class KlausBot:
                                                 _kl_up  = float(_kl[0][4]) >= float(_kl[0][1])
                                                 _bet_up = getattr(pos, "bond_outcome_direction", "up") == "up"
                                                 if _bet_up == _kl_up:
-                                                    _wo_exit_price  = 0.99
+                                                    _wo_exit_price  = 1.0  # token auto-redeems at $1.00
                                                     _wo_exit_reason = "LDA_KLINE_WIN"
                                 except Exception:
                                     pass  # fetch failed — default to BOND_RESOLVED_NO
@@ -1691,13 +1714,10 @@ class KlausBot:
                             pos.asset, pos.direction.name, current_price,
                         )
                         continue
-                    # LDA: sell via CLOB if bid ≥ 0.999 — captures near-full value at resolution.
-                    # Polymarket supports 0.001 tick so 0.999 is a valid bid.
-                    # If bid hasn't reached 0.999 yet, hold (Redeemer will catch it at 60s).
+                    # LDA: always hold — token auto-redeems at $1.00 (win) or $0 (loss).
+                    # Never sell via CLOB; BOND_SETTLED kline-check path handles resolution.
                     if getattr(pos, "bond_entry_class", "") == "LDA":
-                        if current_price < 0.999:
-                            continue
-                        # Fall through to CLOB sell below
+                        continue
                     self._exit_in_progress.add(token_id)
                     logger.info(
                         'WINDOW_OUTCOME %s/%s | window closed bid=%.4f — selling at resolution',
