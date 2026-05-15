@@ -1441,12 +1441,12 @@ class KlausBot:
                 # hold_path sim n=840: saves 90.5% of losses, EV +0.0166 vs hold.
                 # Peak initialized at entry; trail fires when bid < peak * 0.95.
                 # Grace: require ≥30s held so normal early-window oscillation doesn't fire.
-                # H16/H17 exempt: WR=89/98%, trail cuts winners early (-0.042/-0.118 delta).
+                # H14/H16/H17 exempt: hold-to-res preferred (user instruction).
                 _lda_trail_hour = int(time.gmtime(pos.window_end_ts).tm_hour) if pos.window_end_ts > 0 else -1
                 if (getattr(pos, "bond_entry_class", "") == "LDA"
                         and token_id not in self._exit_in_progress
                         and _held_s >= 30.0
-                        and _lda_trail_hour not in (16, 17)):
+                        and _lda_trail_hour not in (14, 16, 17)):
                     _lda_peak = self._lda_peak_bid.get(token_id, pos.entry_price)
                     if _lda_peak > 0 and current_price < _lda_peak * 0.95:
                         self._exit_in_progress.add(token_id)
