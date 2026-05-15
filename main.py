@@ -1436,8 +1436,27 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
+                # ── LDA universal PT0.95 (May 15 hold-path analysis) ────────────
+                # 39 losses peaked ≥0.95 before reversing → save $312 net of $45 win cost.
+                # Fires at bid≥0.95 with >15s remaining (last 15s: auto-redemption imminent).
+                if (getattr(pos, "bond_entry_class", "") == "LDA"
+                        and current_price >= 0.95
+                        and bond_remaining > 15.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'LDA_PT95 %s/%s | bid=%.4f ep=%.4f rem=%.1fs',
+                        pos.asset, pos.direction.name,
+                        current_price, pos.entry_price, bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'LDA_PT95')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
                 # ── LDA per-hour exits (per-hour×bucket analysis 2026-05-15) ────────
-                # PT exits: H08+H22 → bid≥0.95; H16 → bid≥0.97
+                # PT exits: H08+H22 → bid≥0.95; H16 → bid≥0.97 (superseded by universal PT above)
                 # Cut exits: H06+H21 → at rem≤60s, bid < entry×0.95 (i.e. down >5%)
                 if getattr(pos, "bond_entry_class", "") == "LDA" and pos.window_end_ts > 0:
                     _lda_hour = datetime.fromtimestamp(pos.window_end_ts, tz=timezone.utc).hour
@@ -4466,6 +4485,20 @@ class KlausBot:
     async def _exit_position(self, token_id: str, live_price: float, reason: str) -> None:
         pos = self.risk.open_positions.get(token_id)
         if not pos:
+            return
+
+        # LDA never sells via CLOB for WINDOW_OUTCOME — token auto-redeems at resolution.
+        # Guard at line ~1720 should catch this, but bond_entry_class can be "" on restart.
+        # Defensive fallback: skip the cascade_sell entirely; BOND_SETTLED kline path closes it.
+        _meta_src = self._open_meta.get(token_id, {}).get("signal_source", "")
+        if reason == "WINDOW_OUTCOME" and (
+            getattr(pos, "bond_entry_class", "") == "LDA" or _meta_src == "LDA"
+        ):
+            logger.warning(
+                "LDA WINDOW_OUTCOME blocked: %s/%s — skipping CLOB sell, "
+                "BOND_SETTLED kline path will record outcome",
+                pos.asset, pos.direction.name,
+            )
             return
 
         meta = self._open_meta.get(token_id, {})
