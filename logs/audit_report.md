@@ -1,27 +1,27 @@
-# Quantitative Audit — 2026-05-14 18:09 UTC
+# Quantitative Audit — 2026-05-15 00:05 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (57th consecutive session)**
+**FAILED — VPS UNREACHABLE (58th consecutive session)**
 
 | Method | Result |
 |---|---|
-| SSH to root@85.137.174.86:22 | Connection timed out (30s) |
-| /tmp/trades.jsonl | 1 line = SSH error string; 0 real lines |
+| SSH to root@85.137.174.86:22 | `ssh` binary not found in environment |
+| /tmp/trades.jsonl | 1 line = shell error string; 0 real trade lines |
 | /tmp/post_exit.jsonl | 0 lines — not retrieved |
 | logs/trades.jsonl (git-tracked) | Not present — VPS has not synced to repo |
-| logs/bankroll.json (local snapshot) | **UNCHANGED since 2026-05-08 19:26 UTC (142.7h stale)** |
+| logs/bankroll.json (local snapshot) | **UNCHANGED since 2026-05-08 19:26 UTC (148.6h stale)** |
 
-**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 5.9 days stale):
+**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 6.2 days stale):
 - capital: $84.61
 - total_trades: 2,605
 - total_pnl: +$87.87
 - consecutive_wins: 0
 
-> Bankroll snapshot **UNCHANGED** for 57 consecutive audit sessions. Actual live capital unknown.
+> Bankroll snapshot **UNCHANGED** for 58 consecutive audit sessions. Actual live capital unknown.
 
 ---
 
-## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (57th session)
+## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (58th session)
 
 **This audit framework targets `signal_source=='BOND'` trades exclusively.**
 
@@ -40,7 +40,7 @@ BOND audit filter (`signal_source=='BOND'`, `0.80<=entry_price<=0.88`) would ret
 ## 6h Summary
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
 
-6h window: 2026-05-14 12:09 UTC → 2026-05-14 18:09 UTC
+6h window: 2026-05-14 18:05 UTC → 2026-05-15 00:05 UTC
 
 0.80-0.84: n=0 WR=N/A E=N/A
 0.84-0.88: n=0 WR=N/A E=N/A
@@ -64,7 +64,7 @@ No data accessible. n=0 for all hours. No block/unblock decisions possible.
 ---
 
 ## Flags
-INSUFFICIENT_DATA — 57th consecutive session with no VPS connectivity.
+INSUFFICIENT_DATA — 58th consecutive session with no VPS connectivity.
 AUDIT_SCOPE_CONFLICT — BOND disabled 2026-05-10; audit framework targets non-active strategy.
 NO_CHANGE — no BOND parameter changes without data.
 
@@ -80,16 +80,15 @@ NO_CHANGE — no BOND parameter changes without data.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable (57th consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
+  "reason": "INSUFFICIENT_DATA — VPS unreachable (58th consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
 }
 ```
 
 ---
 
-## Active Strategy Parameters (ground truth from codebase — 2026-05-14 18:09 UTC)
+## Active Strategy Parameters (ground truth from codebase — 2026-05-15 00:05 UTC)
 
-### LDA — Late Direction Arb
-Source: `strategy/late_direction_arb.py`
+### LDA — Late Direction Arb (strategy/late_direction_arb.py)
 
 | Parameter | Value | Notes |
 |---|---|---|
@@ -97,55 +96,32 @@ Source: `strategy/late_direction_arb.py`
 | ASK_CEIL | 0.98 | |
 | BID_MIN | 0.50 | |
 | REM_MIN_S | 8.0s | |
-| REM_MAX_S | 300.0s | ask-conditional dead zones enforce per-bucket |
+| B3 [180,300s) | **FULLY BLOCKED — all assets all hours** | user instruction 2026-05-14 |
 | BLOCKED_HOURS_UTC | {0, 1} | H00 WR=66% n=106; H01 WR=88.6% n=79 (CI below baseline) |
-| _ALL_BLOCKED_LATE | {3, 6, 12, 15} | [120,300s) bucket — EV negative all assets |
-| _ALL_BLOCKED_LATE_B1 | {4, 15} | [60,120s) bucket — EV negative all assets |
-| _SOL_BLOCKED_LATE | {10, 13, 22} | [120,300s) SOL-specific |
-| _SOL_BLOCKED_ALL | {7, 9} | all buckets — user instruction 2026-05-14 |
-| _ETH_BLOCKED_LATE | {16} | [120,300s) ETH-specific |
-| _ETH_WATCH_LATE | {8, 9, 22} | $2 stake pending n≥100 |
-| BTC B3 stake | $10 | rem [120,180s), WR=79% n=802 |
-| BTC B1 base stake | $10 | rem [60,120s) BNC<0.08%, WR=94% n=198 |
-| BTC B1 strong stake | $20 | BNC≥0.08%, WR=97% n=36 |
-| BTC B2 base stake | $15 | rem [8,60s) BNC<0.08%, WR=90% n=127 |
-| BTC B2 strong stake | $20 | BNC≥0.08%, WR=100% n=17 (trending) |
-| ETH B3/B1/B2 base | $10 | strong tier at $20 (BNC≥0.07%) |
-| SOL B3/B1 base | $10 | B1 strong $15 (BNC≥0.08%) |
-| BNC_DECAY_THRESHOLD | −0.03% | freshness re-check at order time |
+| _ALL_BLOCKED_LATE | {3, 5, 6, 7, 12, 15} | [120,300s) bucket — EV negative all assets |
+| _ALL_BLOCKED_LATE_B1 | {4, 5, 7, 12, 15} | [60,120s) bucket — EV negative all assets |
+| _SOL_BLOCKED_B1 | {1, 10, 13, 14, 22} | SOL [60,120s) bad hours |
+| _ETH_BLOCKED_B1 | {1, 2} | ETH [60,120s) bad hours |
+| _BTC_BLOCKED_B1 | {13} | BTC [60,120s) bad hour |
+| _SOL_BLOCKED_LATE | {10, 13, 16, 20, 21, 22} | SOL [120,300s) |
+| _ETH_BLOCKED_LATE | {0, 8, 9, 13, 16, 17, 21, 22} | ETH [120,300s) |
+| _BTC_BLOCKED_LATE | {17} | BTC B2+B3 bad |
+| _BTC_BLOCKED_B3 | {1, 4, 18, 21, 23} | BTC B3-only bad hours |
+| _SOL_BLOCKED_ALL | {7, 9} | SOL all buckets |
 
-### Changes Since Last Audit (2026-05-14 00:15 UTC — 10 commits)
+### Changes Since Last Audit (2026-05-14 18:09 UTC — 9 commits)
 
-**6e24a05 — block all 15m windows**
-- BTC 15m bnc>=0.10 partial-allow logic removed: 15m windows fully blocked
-
-**64a90b7 — SOL H10/H13 + ETH H16 B3 blocks; ETH B1 H16 ask floor 0.80**
-- SOL [120,300s): H10 WR=72% n=18, H13 WR=61% n=28 — both added to _SOL_BLOCKED_LATE
-- ETH [120,300s): H16 WR=72% n=18 — added to _ETH_BLOCKED_LATE
-- ETH [60,120s) H16: ask floor raised 0.60→0.80
-
-**c5ce1c9 — flat two-tier stakes for ETH and SOL**
-- Removed $7 Kelly cap; ETH and SOL each get asset-specific base/strong flat stakes
-
-**19e8f11 — BTC two-tier stakes raise B1/B2 on BNC≥0.08%**
-- B1 strong: $17→$20 (WR=97% n=36); B2 strong: trending, $20
-
-**776484b — BTC rebalance: B3 $20→$10, B2 $5→$15**
-- B3 Kelly lower than earlier estimate (WR=79%); B2 closer to $15 half-Kelly
-
-**acd7241 — block BTC B4 (rem>=180s)**
-- Kelly=0% at all BNC thresholds from market_timeline data
-
-**0454bcc — 4-bucket dedup**
-- One entry per rem zone (B4/B3/B1/B2) per window; prevents double-filling same zone
-
-**7dfac11 — BTC bucket-based stakes**
-- Initial stake differentiation: B4=$5, B3=$20, B1=$10, B2=$5
-
-**855473b — unblock H13 from B1 and B2 (user instruction)**
-- H13 removed from _ALL_BLOCKED_LATE and _ALL_BLOCKED_LATE_B1
-
-**ad6da58 — SOL B3 ask ceiling 0.98→0.97**
+| Commit | Change |
+|---|---|
+| 4a750a6 | lda: block B3 [180,300s) all assets all hours — user instruction |
+| b554350 | lda: block BTC B3 H21 — shadow n=15, thin |
+| 040251c | lda: cumulative bucket Kelly targets — B3=50% B2=75% B1=100% of full fraction |
+| 25d0d11 | lda: re-enable B3 ETH+BTC with new hour blocks; add SOL B1/B2 blocks |
+| d02d7c8 | lda: block H05+H07 all assets B1+B2 — EV negative |
+| 3076e41 | lda: block B3 [180,300s) for all assets — user instruction |
+| 12a700a | lda: per-asset window Kelly cap |
+| 9774288 | lda: BNC-tiered half-Kelly replaces flat two-tier stakes |
+| 6eabbac | lda: ETH B1/B3 + BTC B1/B2/B3 hour gates |
 
 ### BOND Parameters (audit reference — BOND disabled since 2026-05-10)
 
@@ -154,13 +130,15 @@ Source: `strategy/late_direction_arb.py`
 | min_ask (_ask_floor) | main.py:2521 | **0.78** | 0.80 | −0.02 |
 | max_ask (_ask_max) | main.py:2519 | **0.93** | 0.88 | +0.05 |
 | min_imbalance | main.py:2578 | **0.0 (gate inactive)** | 0.20 | — |
-| _BLOCKED_HOURS | config.py:151 | **[] (bond_blocked_hours_utc=[])** | [] | none |
+| _BLOCKED_HOURS | config.py | **[] (bond_blocked_hours_utc=[])** | [] | none |
 | stop_loss | main.py | **−15%** | −15% | none |
 | BOND_ENABLED | window_sniper.py | **False** | (assumed True) | — |
 
 ---
 
-## Infrastructure Alert — Critical (57 consecutive sessions)
+## Infrastructure Alert — Critical (58 consecutive sessions)
+
+**Root cause**: `ssh` binary unavailable in audit agent environment; cannot reach VPS at 85.137.174.86.
 
 **Required action — run ONE of these on the VPS to unblock future audits:**
 
