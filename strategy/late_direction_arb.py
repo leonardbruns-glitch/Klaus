@@ -60,7 +60,7 @@ _BUCKET_KELLY_CUM = {3: 0.90, 2: 0.95, 1: 1.00}
 
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
-BLOCKED_HOURS_UTC = {0, 1, 2, 3, 23}  # H00/H01 shadow May8-12; H02 user block 2026-05-15 (n=18 WR=22% -$249); H03 B2 gap; H23 user block 2026-05-15 (n=7 WR=29% -$186)
+BLOCKED_HOURS_UTC = {0, 1, 2, 3, 19, 23}  # H00/H01 shadow May8-12; H02 user block 2026-05-15 (n=18 WR=22% -$249); H03 B2 gap; H19 n=18 WR=72% net=-$50 (avg loss outsized); H23 user block 2026-05-15 (n=7 WR=29% -$186)
 
 # [120,300s) bucket — all-asset structural blocks (shadow May8-13, n≥29 per hour):
 _ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15})
@@ -74,15 +74,17 @@ _ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 15})  # H07 unblocked user instructi
 _ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
 
 # [120,300s) bucket — ETH structural blocks:
-_ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 17, 21, 22})
-# H00 EV=-1.24 n=32 3/5d; H08 EV=-0.754 n=25 2/5d; H09 EV=-0.304 n=24 3/6d; H16 WR=72% n=18; H17 EV=-0.26 n=56 5/7d; H21 EV=-1.18 n=19
+_ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 21, 22})
+# H00 EV=-1.24 n=32 3/5d; H08 EV=-0.754 n=25 2/5d; H09 EV=-0.304 n=24 3/6d; H16 WR=72% n=18; H21 EV=-1.18 n=19
 # H13 B3 EV=-0.155 n=43; H22 B3 EV=-0.354 n=25 (B2 H13/H22 near-zero n<10, acceptable loss)
+# H17 unblocked 2026-05-15: live n=7 WR=71% net=+$13; combined with BTC H17 n=14 WR=78% net=+$30
 
 # [60,120s) bucket — BTC structural blocks (5m first-fire 2026-05-14):
 _BTC_BLOCKED_B1 = frozenset({13})           # H13 n=26 EV=-0.274 4/6d bad
 
 # [120,180s)+[180,300s) bucket — BTC structural blocks (bad at both B2 and B3):
-_BTC_BLOCKED_LATE = frozenset({17})         # H17: B2 EV=-0.252 n=20 4/6d; B3 EV=-0.298 n=44 3/7d
+_BTC_BLOCKED_LATE = frozenset({8})          # H08: live n=15 WR=47% net=-$32 (ETH B2/B3 already blocked; BTC was open)
+# H17 unblocked 2026-05-15: live n=7 WR=86% net=+$17; combined H17 B2/B3 n=14 WR=78% net=+$30
 
 # [180,300s) bucket — BTC structural blocks (B3-only; B2 is positive at these hours):
 _BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18
@@ -247,7 +249,7 @@ class LateDirectionArb:
         if remaining > 120 and asset == "ETH" and hour_utc in _ETH_BLOCKED_LATE:
             return
 
-        # BTC [120,300s): H17 bad at both B2+B3 (shadow 2026-05-14)
+        # BTC [120,300s): H08 bad at B2+B3 (live n=15 WR=47%); H17 unblocked 2026-05-15
         if remaining > 120 and asset == "BTC" and hour_utc in _BTC_BLOCKED_LATE:
             return
 
