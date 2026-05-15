@@ -30,7 +30,7 @@ class BankrollConfig:
     max_open_positions: int = 2       # 2026-05-07 user instruction: 1→2 BOND positions max concurrent
     max_daily_loss_pct: float = 0.25   # halt if daily loss > 25% of start-of-day capital
     weekly_floor: float = 0.0         # disabled
-    ruin_floor: float = 30.0          # shut down if capital < $30 (lowered 2026-05-15: user instruction)
+    ruin_floor: float = 0.0           # disabled (user instruction 2026-05-15)
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
