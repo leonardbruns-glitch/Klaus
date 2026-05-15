@@ -11,8 +11,8 @@ Exit  : PROFIT_TARGET fires at bid≥0.99; BOND_DEADLINE T-3s catches the rest.
 
 Live: n=69 direction WR=89.7%; dead2 removal evidence n=27/80 (shadow vol=normal).
 Stake: BNC-tiered half-Kelly scaled with live bankroll.
-  [0.05,0.07%): 10% bankroll; [0.07,0.10%): 12%; [0.10%,∞): 10%. B0 flat $3.
-  Portfolio-adjusted for expected 1.4 simultaneous assets/window. Cap $100.
+  [0.05,0.07%): 1.5% bankroll; [0.07,0.10%): 15%; [0.10%,∞): 22%. B0 flat $3.
+  Portfolio-adjusted for 3-slot correlated window (1/√3 ≈ 0.577). Cap $100.
 """
 from __future__ import annotations
 
@@ -45,9 +45,9 @@ STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket 
 #   [0.07,0.10%): WR 88-97%, peak Kelly zone
 #   [0.10%,∞):    thin n; hold at same fraction until n≥100 per bin
 # 0.08-0.09% sub-bin dip (WR<adjacent bins in 4/6 cells) real but n=12-40, not actionable yet.
-_BNC_TIER_LOW_FRAC  = 0.10   # bnc [0.05, 0.07%)
-_BNC_TIER_MID_FRAC  = 0.12   # bnc [0.07, 0.10%)
-_BNC_TIER_HIGH_FRAC = 0.10   # bnc [0.10%, ∞)
+_BNC_TIER_LOW_FRAC  = 0.015  # bnc [0.05, 0.07%): EV≈+0.010 pre-fee, near break-even — minimal stake
+_BNC_TIER_MID_FRAC  = 0.15   # bnc [0.07, 0.10%): WR=95.3% EV=+0.055 hK=0.27 (n=2166 May15)
+_BNC_TIER_HIGH_FRAC = 0.22   # bnc [0.10%,∞):    WR=96.6% EV=+0.091 hK=0.36 (n=621 May15)
 
 # B0 [8,60s): ask near resolution; Kelly≈0 at ask>0.90 (73% of B0 volume); keep flat
 _STAKE_B0 = 3.0
@@ -141,6 +141,10 @@ class LateDirectionArb:
         if not self.enabled:
             return
 
+        bankroll = self.bot.risk.bankroll
+        if bankroll.is_ruined or bankroll.is_halted:
+            return
+
         remaining = rec.get("seconds_to_resolution", 0.0)
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             return
@@ -182,6 +186,9 @@ class LateDirectionArb:
         if remaining > 120 and ask < 0.69:
             return
         if remaining > 180 and ask < 0.70:
+            return
+        # B1 [60,120s): ask[0.70,0.75) EV=-0.127 (n=132 May15 shadow). Floor raised to 0.75.
+        if rem_bucket == 1 and ask < 0.75:
             return
 
         # Vol regime: volatile/extreme destroy edge (WR 54%/43% vs 71% normal).
