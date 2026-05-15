@@ -337,9 +337,6 @@ class KlausBot:
         # Joinable to trades.jsonl via (token_id, ts_open) → logs/exit_shadow.jsonl.
         self._shadow_fired: Dict[str, bool] = {}
         self._shadow_velocity_buf: Dict[str, list] = {}
-        # LDA trailing stop: track peak bid per position.
-        # Trail-5% from peak: hold_path sim n=840, saves 90.5% of losses, EV +0.0166 vs hold.
-        self._lda_peak_bid: Dict[str, float] = {}
         # Shadow market observation engine (Phase 2).
         # Runs parallel to live trading; reads only from feed caches.
         # Logs to logs/shadow/hot/<date>/{market_timeline,gate_trace,window_resolution}.jsonl.
@@ -817,10 +814,6 @@ class KlausBot:
                 if current_price > pos.highest_price:
                     pos.highest_price = current_price
                     pos.highest_price_ts = now - pos.open_ts
-                # LDA peak bid for trailing stop
-                if getattr(pos, "bond_entry_class", "") == "LDA":
-                    if current_price > self._lda_peak_bid.get(token_id, 0.0):
-                        self._lda_peak_bid[token_id] = current_price
                 if current_price < pos.lowest_price:
                     pos.lowest_price = current_price
                     pos.lowest_price_ts = now - pos.open_ts
@@ -1437,30 +1430,6 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
-                # ── LDA Trail-5%: exit when bid drops 5% below peak ──────────────
-                # hold_path sim n=840: saves 90.5% of losses, EV +0.0166 vs hold.
-                # Peak initialized at entry; trail fires when bid < peak * 0.95.
-                # Grace: require ≥30s held so normal early-window oscillation doesn't fire.
-                # H14/H16/H17 exempt: hold-to-res preferred (user instruction).
-                _lda_trail_hour = int(time.gmtime(pos.window_end_ts).tm_hour) if pos.window_end_ts > 0 else -1
-                if (getattr(pos, "bond_entry_class", "") == "LDA"
-                        and token_id not in self._exit_in_progress
-                        and _held_s >= 30.0
-                        and _lda_trail_hour not in (14, 16, 17)):
-                    _lda_peak = self._lda_peak_bid.get(token_id, pos.entry_price)
-                    if _lda_peak > 0 and current_price < _lda_peak * 0.95:
-                        self._exit_in_progress.add(token_id)
-                        logger.info(
-                            'LDA_TRAIL_STOP %s/%s | bid=%.4f peak=%.4f drop=%.1f%% ep=%.4f rem=%.1fs',
-                            pos.asset, pos.direction.name, current_price, _lda_peak,
-                            (1 - current_price / _lda_peak) * 100, pos.entry_price, bond_remaining,
-                        )
-                        try:
-                            await self._exit_position(token_id, current_price, 'LDA_TRAIL_STOP')
-                        finally:
-                            self._exit_in_progress.discard(token_id)
-                        continue
-
                 # ── T-3s hard gate: unconditional sell ───────────────────────────
                 # LDA excluded: holds to resolution, Redeemer collects $1.00.
                 if (bond_remaining <= 3.0
@@ -1684,7 +1653,6 @@ class KlausBot:
                             self._pae_above_since.pop(token_id, None)
                             self._bc_arm_tracker.pop(token_id, None)
                             self._terminal_tp_touched.discard(token_id)
-                            self._lda_peak_bid.pop(token_id, None)
                             continue
                         logger.info(
                             'WINDOW_OUTCOME %s/%s | bid=%.4f < 0.90 — likely NO resolution, '
@@ -4538,7 +4506,6 @@ class KlausBot:
                 self._price_at_t10s.pop(token_id, None)
                 self._traj_snap_next.pop(token_id, None)
                 self._terminal_tp_touched.discard(token_id)
-                self._lda_peak_bid.pop(token_id, None)
                 if ghost_pnl is not None:
                     _ghost_signal = _ghost_meta.get("signal") or SignalBreakdown(
                         direction=pos.direction, entry_price=pos.entry_price,
@@ -5567,7 +5534,6 @@ class KlausBot:
         self._pae_above_since.pop(token_id, None)
         self._shadow_fired.pop(token_id, None)
         self._shadow_velocity_buf.pop(token_id, None)
-        self._lda_peak_bid.pop(token_id, None)
         # Log outcome for BC-armed positions that never fully reversed
         _arm_exit = self._bc_arm_tracker.pop(token_id, None)
         if _arm_exit:
