@@ -271,40 +271,8 @@ class LateDirectionArb:
         if bnc_dir != rec.get("outcome_dir"):
             return  # this token is NOT on the predicted winning side
 
-        # ── Incremental Kelly sizing ──────────────────────────────────────────
-        # Count assets that have already fired all_pass this window+direction.
-        # More co-firing assets → higher conditional WR → higher Kelly target.
-        wa_key = (wend, bnc_dir)
-        if wa_key not in self._window_assets:
-            self._window_assets[wa_key] = set()
-        self._window_assets[wa_key].add(asset)
-        n_co = len(self._window_assets[wa_key])
-
-        bankroll = max(10.0, getattr(self.bot.risk.bankroll, "capital", 100.0))
-        scale    = bankroll / 100.0
-        target   = _KELLY_TARGET[n_co] * scale
-
-        # BNC-tiered half-Kelly — B0 flat $3; B1/B2/B3 use cumulative targets
-        # B3→B2→B1 each top up to their cumulative fraction of the full Kelly target:
-        #   B3: 50%  B2: 75%  B1: 100% — total capped at 1× Kelly regardless of buckets fired
-        if remaining < 60:
-            stake_usd = _STAKE_B0
-        elif asset in ("BTC", "ETH"):
-            full_target = _bnc_tier_stake(bnc_abs, bankroll)
-            bucket_target = full_target * _BUCKET_KELLY_CUM.get(rem_bucket, 1.0)
-            _aws_key = (cid, wend, asset, bnc_dir)
-            remaining_budget = bucket_target - self._asset_window_staked.get(_aws_key, 0.0)
-            if remaining_budget < 5.0:
-                self._fired.add(key)  # suppress future ticks in this bucket
-                return
-            stake_usd = remaining_budget
-        else:
-            already = self._window_staked.get((cid, wend, bnc_dir), 0.0)
-            stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
-
-        # Watch-cell cap: trending-weak hour×bucket cells remain reduced
-        if remaining > 120 and asset == "ETH" and hour_utc in _ETH_WATCH_LATE:
-            stake_usd = min(stake_usd, STAKE_USD_REDUCED * scale)
+        # Flat $5 per entry — Kelly disabled (user instruction 2026-05-15)
+        stake_usd = 5.0
 
         # Mark fired BEFORE creating task to prevent a second tick from double-firing.
         self._fired.add(key)
