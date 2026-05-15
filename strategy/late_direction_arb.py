@@ -239,6 +239,10 @@ class LateDirectionArb:
         if remaining > 120 and asset == "BTC" and hour_utc in _BTC_BLOCKED_LATE:
             return
 
+        # H04 [120,180s): all assets — EV=-0.102 n=21 (per-hour×bucket analysis 2026-05-15)
+        if rem_bucket == 2 and hour_utc == 4:
+            return
+
         # ETH [60,120s) H16: [0.70,0.80) ask band is bad; [0.80,0.90) positive — raise floor
         if rem_bucket == 1 and asset == "ETH" and hour_utc == 16 and ask < 0.80:
             return

@@ -71,10 +71,29 @@ def _policy_be_trail_5_3(state: dict, tick: dict) -> Optional[tuple]:
     return None
 
 
+def _policy_gate_died(state: dict, tick: dict) -> Optional[tuple]:
+    """PT0.95 + gate-degradation exit + 30s fallback.
+
+    Fires GATE_DIED when the entry gates that approved this fire stop passing
+    on subsequent ticks. `gate_all_pass_now` is updated by evaluate_tick from
+    the live gate_trace record. Default-None means we lack a fresh gate_trace
+    for this tick — do not fire on missing data.
+    """
+    bid = float(tick["best_bid"])
+    if bid >= 0.95:
+        return ("PT", bid)
+    if state.get("gate_all_pass_now") is False:
+        return ("GATE_DIED", bid)
+    if (tick["ts_s"] - state["fire_ts"]) >= 30.0:
+        return ("FALLBACK_30s", bid)
+    return None
+
+
 _POLICIES = {
     "PT0.95+30s":     _policy_pt95_plus_30s,
     "PT0.93+30s":     _policy_pt93_plus_30s,
     "BE_trail_5_3":   _policy_be_trail_5_3,
+    "gate_died":      _policy_gate_died,
 }
 
 # Reference share-count for fill-realism check. A first-fire under live's $7
@@ -129,10 +148,14 @@ class ExitPolicyShadow:
         except Exception:
             logger.debug("exit_policy register_first_fire failed", exc_info=True)
 
-    def evaluate_tick(self, tl_rec: dict) -> None:
+    def evaluate_tick(self, tl_rec: dict, gt_rec: Optional[dict] = None) -> None:
         """Called from TimelineSampler every market_timeline emission.
         Evaluates active position for this (token, window) against all
-        remaining policies; emits records when policies fire."""
+        remaining policies; emits records when policies fire.
+
+        `gt_rec` is the same-tick gate_trace record (may be None if not
+        built); gate-degradation policy reads `all_pass` from it.
+        """
         try:
             wend = int(tl_rec["window_end_ts"])
         except (KeyError, TypeError, ValueError):
@@ -146,6 +169,9 @@ class ExitPolicyShadow:
             state["mfe_bid"] = max(state.get("mfe_bid", 0.0), float(tl_rec.get("best_bid", 0.0)))
         except Exception:
             pass
+        # Update gate-degradation signal from current tick's gate_trace.
+        if gt_rec is not None:
+            state["gate_all_pass_now"] = bool(gt_rec.get("all_pass"))
         # Evaluate each remaining policy at this tick.
         for pid in list(state["remaining_policies"]):
             pol = _POLICIES.get(pid)

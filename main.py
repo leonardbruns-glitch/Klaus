@@ -1412,6 +1412,37 @@ class KlausBot:
                         self._exit_in_progress.discard(token_id)
                     continue
 
+                # ── LDA per-hour exits (per-hour×bucket analysis 2026-05-15) ────────
+                # PT exits: H08+H22 → bid≥0.95; H16 → bid≥0.97
+                # Cut exits: H06+H21 → at rem≤60s, bid < entry×0.95 (i.e. down >5%)
+                if getattr(pos, "bond_entry_class", "") == "LDA" and pos.window_end_ts > 0:
+                    _lda_hour = datetime.fromtimestamp(pos.window_end_ts, tz=timezone.utc).hour
+                    _lda_pt   = (
+                        (_lda_hour in (8, 22) and current_price >= 0.95)
+                        or (_lda_hour == 16    and current_price >= 0.97)
+                    )
+                    _lda_cut  = (
+                        _lda_hour in (6, 21)
+                        and bond_remaining <= 60.0
+                        and current_price < pos.entry_price * 0.95
+                    )
+                    if (_lda_pt or _lda_cut) and token_id not in self._exit_in_progress:
+                        _lda_exit_reason = (
+                            ("LDA_PT97" if _lda_hour == 16 else "LDA_PT95")
+                            if _lda_pt else "LDA_CUT60"
+                        )
+                        self._exit_in_progress.add(token_id)
+                        logger.info(
+                            '%s %s/%s | bid=%.4f ep=%.4f rem=%.1fs H%02d',
+                            _lda_exit_reason, pos.asset, pos.direction.name,
+                            current_price, pos.entry_price, bond_remaining, _lda_hour,
+                        )
+                        try:
+                            await self._exit_position(token_id, current_price, _lda_exit_reason)
+                        finally:
+                            self._exit_in_progress.discard(token_id)
+                        continue
+
                 # ── DISCOVER T-5 deadline backup ─────────────────────────────────
                 # Primary exit is the T-15 asyncio task in discover_strategy.py.
                 # This is a safety net if that task dies (exception, restart).
