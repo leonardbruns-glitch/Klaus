@@ -28,9 +28,9 @@ class BankrollConfig:
     scaled_stake: float = 50.0        # flat — heat-check disabled
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
     max_open_positions: int = 2       # 2026-05-07 user instruction: 1→2 BOND positions max concurrent
-    max_daily_loss: float = 9999.0    # disabled — no intraday halt
+    max_daily_loss_pct: float = 0.25   # halt if daily loss > 25% of start-of-day capital
     weekly_floor: float = 0.0         # disabled
-    ruin_floor: float = 0.0           # disabled
+    ruin_floor: float = 30.0          # shut down if capital < $30 (lowered 2026-05-15: user instruction)
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
