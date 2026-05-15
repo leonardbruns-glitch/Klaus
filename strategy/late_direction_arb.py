@@ -71,12 +71,7 @@ _ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15})
 _ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 15})  # H07 unblocked user instruction 2026-05-15
 # H04 EV=-12.4% n=44; H12 ETH n=30 EV=-0.57 SOL n=44 EV=-0.49; H15 EV=-5.6% n=29
 
-# [60,120s) bucket — per-asset structural blocks (5m first-fire analysis 2026-05-14):
-_SOL_BLOCKED_B1 = frozenset({1, 10, 13, 14, 22})  # H01 n=41 EV=-0.46; H10 n=35 EV=-0.39; H13 n=42 EV=-0.52; H14 n=40 EV=-0.70; H22 n=40 EV=-0.21 4/6d bad
 _ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
-
-# [120,300s) bucket — per-asset structural blocks (CI fully below asset baseline):
-_SOL_BLOCKED_LATE = frozenset({10, 13, 16, 20, 21, 22})  # H10 WR=72% n=18; H13 WR=61% n=28; H16 n=46 EV=-0.37; H20 EV=-0.20 4/6d; H21 EV=-0.26 4/6d; H22 WR=57% n=28
 
 # [120,300s) bucket — ETH structural blocks:
 _ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 17, 21, 22})
@@ -92,11 +87,7 @@ _BTC_BLOCKED_LATE = frozenset({17})         # H17: B2 EV=-0.252 n=20 4/6d; B3 EV
 # [180,300s) bucket — BTC structural blocks (B3-only; B2 is positive at these hours):
 _BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18
 
-# SOL — all buckets: user instruction 2026-05-14 (H07/H09 draining live capital)
-_SOL_BLOCKED_ALL  = frozenset({7, 9})
-
 # [120,300s) bucket — per-asset trending-weak, reduce stake pending n≥100:
-_SOL_WATCH_LATE   = frozenset()          # H03/H13 promoted to _ALL_BLOCKED_LATE
 _ETH_WATCH_LATE   = frozenset({22})      # WR=65% n=17; H08/H09 promoted to _ETH_BLOCKED_LATE
 
 
@@ -170,6 +161,10 @@ class LateDirectionArb:
         if hour_utc in BLOCKED_HOURS_UTC:
             return
 
+        asset = rec.get("asset", "").upper()
+        if asset == "SOL":  # user instruction 2026-05-15: full block (n=178 WR=53.4% net=-$791)
+            return
+
         ask = rec.get("best_ask", 0.0)
         bid = rec.get("best_bid", 0.0)
         if not (ASK_FLOOR <= ask <= ASK_CEIL) or bid < BID_MIN:
@@ -195,7 +190,7 @@ class LateDirectionArb:
             return
 
         feed = self.bot.feed
-        asset_up = rec.get("asset", "").upper()
+        asset_up = asset
         spot    = feed._spot_price.get(asset_up, 0.0)
         open_5m = feed._spot_open_5m.get(asset_up, 0.0)
         if spot <= 0 or open_5m <= 0:
@@ -206,18 +201,13 @@ class LateDirectionArb:
         if bnc_abs < _bnc_floor(ask, remaining):
             return  # adaptive floor: 0.07 at B0; 0.10/0.05/0.07 by ask zone at B1/B2
 
-        # Per-asset / per-window-size bnc gates (shadow data, n=1631, May 8-12):
-        #   15m windows: block all assets — user directive 2026-05-14
-        #   SOL 5m:  0.10-0.15% and 0.15%+ NEG EV (ask too high by then) → cap at 0.10%
-        wsz   = rec.get("window_size_s", 300)
-        asset = rec.get("asset", "").upper()
-        if wsz == 900:  # 15m window — block all assets
-            return
-        elif wsz == 300 and asset == "SOL" and bnc_abs >= 0.10:
+        # Per-asset / per-window-size bnc gates:
+        wsz = rec.get("window_size_s", 300)
+        if wsz == 900:  # 15m window — block all assets (user directive 2026-05-14)
             return
 
-        # B3 [180,300s): ETH+BTC only; SOL blocked by rem-restriction below
-        # ETH B3 bad hours via _ETH_BLOCKED_LATE (H13/H22 added 2026-05-14); BTC B3 via _BTC_BLOCKED_B3
+        # B3 [180,300s): ETH+BTC only
+        # ETH B3 bad hours via _ETH_BLOCKED_LATE; BTC B3 via _BTC_BLOCKED_B3
         if remaining >= 180 and asset not in ("ETH", "BTC"):
             return
         if remaining >= 180 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B3:
@@ -233,10 +223,6 @@ class LateDirectionArb:
         if rem_bucket == 1 and hour_utc in _ALL_BLOCKED_LATE_B1:
             return
 
-        # SOL [60,120s): per-asset EV-negative hours (5m first-fire 2026-05-14)
-        if rem_bucket == 1 and asset == "SOL" and hour_utc in _SOL_BLOCKED_B1:
-            return
-
         # ETH [60,120s): per-asset EV-negative hours (5m first-fire 2026-05-14)
         if rem_bucket == 1 and asset == "ETH" and hour_utc in _ETH_BLOCKED_B1:
             return
@@ -245,11 +231,7 @@ class LateDirectionArb:
         if rem_bucket == 1 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B1:
             return
 
-        # SOL [120,300s): H10/H13/H22 CI fully below 77.3% baseline (shadow May8-14)
-        if remaining > 120 and asset == "SOL" and hour_utc in _SOL_BLOCKED_LATE:
-            return
-
-        # ETH [120,300s): H16 WR=72% n=18, ask-validated structural (shadow May8-14)
+        # ETH [120,300s): structural bad hours (shadow May8-14)
         if remaining > 120 and asset == "ETH" and hour_utc in _ETH_BLOCKED_LATE:
             return
 
@@ -259,18 +241,6 @@ class LateDirectionArb:
 
         # ETH [60,120s) H16: [0.70,0.80) ask band is bad; [0.80,0.90) positive — raise floor
         if rem_bucket == 1 and asset == "ETH" and hour_utc == 16 and ask < 0.80:
-            return
-
-        # SOL all-bucket hour blocks (user instruction 2026-05-14)
-        if asset == "SOL" and hour_utc in _SOL_BLOCKED_ALL:
-            return
-
-        # SOL rem restriction: B1+B2 [60,180s) — B3 [180,300s) EV=-0.35 (5m-only 2026-05-14)
-        if asset == "SOL" and (remaining < 60 or remaining >= 180):
-            return
-
-        # SOL bucket 3 (120-180s): tighter ask ceiling 0.97 (user instruction 2026-05-14)
-        if asset == "SOL" and remaining >= 120 and ask > 0.97:
             return
 
         # Elevated BNC floors for structurally weak hour×bucket cells (shadow May8-13):
@@ -306,7 +276,7 @@ class LateDirectionArb:
         #   B3: 50%  B2: 75%  B1: 100% — total capped at 1× Kelly regardless of buckets fired
         if remaining < 60:
             stake_usd = _STAKE_B0
-        elif asset in ("BTC", "ETH", "SOL"):
+        elif asset in ("BTC", "ETH"):
             full_target = _bnc_tier_stake(bnc_abs, bankroll)
             bucket_target = full_target * _BUCKET_KELLY_CUM.get(rem_bucket, 1.0)
             _aws_key = (cid, wend, asset, bnc_dir)
@@ -320,10 +290,7 @@ class LateDirectionArb:
             stake_usd = max(STAKE_MIN_USD, min(STAKE_MAX_USD, target - already))
 
         # Watch-cell cap: trending-weak hour×bucket cells remain reduced
-        if remaining > 120 and (
-            (asset == "SOL" and hour_utc in _SOL_WATCH_LATE)
-            or (asset == "ETH" and hour_utc in _ETH_WATCH_LATE)
-        ):
+        if remaining > 120 and asset == "ETH" and hour_utc in _ETH_WATCH_LATE:
             stake_usd = min(stake_usd, STAKE_USD_REDUCED * scale)
 
         # Mark fired BEFORE creating task to prevent a second tick from double-firing.
