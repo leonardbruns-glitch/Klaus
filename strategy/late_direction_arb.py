@@ -412,7 +412,8 @@ class LateDirectionArb:
                         sum(r.total_size for r in _filled), _exit_px,
                     )
                 else:
-                    logger.warning("[LDA] FLIP_EXIT sell returned no fills — position stays open")
+                    logger.warning("[LDA] FLIP_EXIT sell returned no fills — skipping new entry to avoid double-position")
+                    return
 
         logger.info(
             "[LDA] ENTER %s/%s ask=%.4f rem=%.1fs bnc_move=%+.4f%% stake=$%.2f",
