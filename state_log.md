@@ -240,3 +240,7 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-15 UTC | ENTRY / LDA | Block H02 all assets all buckets | User instruction. n=18 WR=22% kline_pnl=-$249 in tonight's session. BLOCKED_HOURS_UTC now {0,1,2,3,23}.
 
 ## 2026-05-15 UTC | ENTRY / LDA | B3 unblocked + B2 ask floor 0.69 | User instruction. (1) B3 [180,300s) re-enabled — blanket block from 2026-05-14 removed; all existing hour blocks remain (_ALL_BLOCKED_LATE, _BTC_BLOCKED_B3, _ETH_BLOCKED_LATE, _SOL_BLOCKED_LATE, BLOCKED_HOURS_UTC). Effective B3 ask range: 0.70–<0.80 (dead zones unchanged). (2) B2 ask floor raised 0.60→0.69 — added dead zone: ask<0.69 + rem>120s. Effective B2 ask range: 0.69–<0.80.
+
+## 2026-05-15 UTC | EXIT / LDA | Trail-5% stop added | hold_path sim n=840 (5m, gate_pass): Trail-5% from peak bid saves 90.5% of losses (avg MAE -61.64%), EV +0.0166 vs hold-to-resolution. 63.7% winners cut early (avg MFE +12.97% but avg MAE -13.28% — normal oscillation fires trail). 30s grace period before trail activates. Best of 25 strategies tested. All strategies remain EV-negative; Trail-5% improves from -0.0229 to -0.0063 per trade. Implementation: _lda_peak_bid track in scan loop, LDA_TRAIL_STOP exit at bid < peak * 0.95. SOL fully blocked (n=178, WR=53.4%, net=-$791.64).
+
+## 2026-05-15 UTC | ENTRY / LDA | SOL fully blocked | n=178 live, WR=53.4%, net_pnl=-$791.64. All SOL code paths removed from late_direction_arb.py.
