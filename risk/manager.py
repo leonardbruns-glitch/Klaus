@@ -167,6 +167,7 @@ class BankrollTracker:
         self.total_trades = 0
         self.total_pnl = 0.0
         self.session_start_ts = time.time()
+        self._last_utc_day: int = -1
         self._load()
 
     def _load(self) -> None:
@@ -227,10 +228,34 @@ class BankrollTracker:
 
     @property
     def is_halted(self) -> bool:
-        return self.daily_loss >= self.cfg.max_daily_loss
+        if self.cfg.max_daily_loss_pct <= 0:
+            return False
+        if self.daily_start_capital <= 0:
+            return False
+        return self.daily_loss >= self.daily_start_capital * self.cfg.max_daily_loss_pct
+
+    @property
+    def is_ruined(self) -> bool:
+        return self.cfg.ruin_floor > 0 and self.capital < self.cfg.ruin_floor
 
     def reset_daily(self) -> None:
         self.daily_start_capital = self.capital
+
+    def maybe_reset_daily(self) -> bool:
+        """Reset daily_start_capital at UTC midnight. Returns True if reset occurred."""
+        today = int(time.time() // 86400)
+        if self._last_utc_day < 0:
+            self._last_utc_day = today
+            return False
+        if today != self._last_utc_day:
+            self._last_utc_day = today
+            self.daily_start_capital = self.capital
+            self._save()
+            logger.info(
+                "DAILY_RESET: new UTC day — daily_start_capital=%.2f", self.capital
+            )
+            return True
+        return False
 
     def summary(self) -> dict:
         return {

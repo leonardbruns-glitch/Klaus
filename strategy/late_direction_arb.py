@@ -187,7 +187,7 @@ class LateDirectionArb:
             return
         if remaining > 120 and ask >= 0.80:
             return
-        if remaining > 120 and ask < 0.75:   # unified B2/B3 floor (was 0.69/0.70)
+        if remaining > 120 and ask < 0.55:   # B2/B3 floor lowered 0.75→0.55 (user instruction 2026-05-15)
             return
         # B1 [60,120s): floor 0.75; ceiling 0.80 (ask[0.80,0.90) net=-$60, payoff compression)
         if rem_bucket == 1 and ask < 0.75:
@@ -220,10 +220,6 @@ class LateDirectionArb:
         if wsz == 900:  # 15m window — block all assets (user directive 2026-05-14)
             return
 
-        # B3 [180,300s): blocked universally — user instruction 2026-05-15
-        if remaining >= 180:
-            return
-
         # All assets [120,300s): EV-negative hours, shadow May8-13
         if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
             return
@@ -246,6 +242,10 @@ class LateDirectionArb:
 
         # BTC [120,300s): H08 bad at B2+B3 (live n=15 WR=47%); H17 unblocked 2026-05-15
         if remaining > 120 and asset == "BTC" and hour_utc in _BTC_BLOCKED_LATE:
+            return
+
+        # BTC [180,300s): B3-specific structural blocks
+        if rem_bucket == 3 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B3:
             return
 
         # H04 [120,180s): all assets — EV=-0.102 n=21 (per-hour×bucket analysis 2026-05-15)
