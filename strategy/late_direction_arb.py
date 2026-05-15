@@ -60,7 +60,7 @@ _BUCKET_KELLY_CUM = {3: 0.50, 2: 0.75, 1: 1.00}
 
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
-BLOCKED_HOURS_UTC = {0, 1}  # H00 WR=66% n=106 CI=[56.6%,74.4%] (shadow May8-12); H01 WR=88.6% n=79
+BLOCKED_HOURS_UTC = {0, 1, 3, 23}  # H00/H01 shadow May8-12; H03 B2 gap (n=13 losses tonight, WR=0% B2); H23 user block 2026-05-15 (n=6 WR=33% but -$163 incl $78 single loss)
 
 # [120,300s) bucket — all-asset structural blocks (shadow May8-13, n≥29 per hour):
 _ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15})
