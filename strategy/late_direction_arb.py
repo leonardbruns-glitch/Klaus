@@ -220,18 +220,13 @@ class LateDirectionArb:
         if wsz == 900:  # 15m window — block all assets (user directive 2026-05-14)
             return
 
-        # B3 [180,300s): ETH+BTC only
-        # ETH B3 bad hours via _ETH_BLOCKED_LATE; BTC B3 via _BTC_BLOCKED_B3
-        if remaining >= 180 and asset not in ("ETH", "BTC"):
-            return
-        if remaining >= 180 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B3:
+        # B3 [180,300s): blocked universally — user instruction 2026-05-15
+        if remaining >= 180:
             return
 
         # All assets [120,300s): EV-negative hours, shadow May8-13
-        # Exception: BTC B3 H15 EV=+0.238 n=47 5/7d — positive despite all-late block
         if remaining > 120 and hour_utc in _ALL_BLOCKED_LATE:
-            if not (asset == "BTC" and remaining >= 180 and hour_utc == 15):
-                return
+            return
 
         # All assets [60,120s): EV-negative hours
         if rem_bucket == 1 and hour_utc in _ALL_BLOCKED_LATE_B1:
