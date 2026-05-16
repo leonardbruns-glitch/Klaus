@@ -1,51 +1,52 @@
-WEEK-1 STATUS  (2026-05-15T15:02:00+00:00 → 2026-05-16T10:11:27.040550+00:00)
+WEEK-1 STATUS  (2026-05-15T15:02:00+00:00 → 2026-05-16T10:26:26.894213+00:00)
 ==============================================================================
 
 ## OVERALL
-  all LDA fires: n=  72  net_total=$  +50.11  avg_stake=$ 6.99  WR= 87.5%  net%/fire= +9.96%  CI95=[-0.55, +15.97]  big_loss(<-$10)=1
+  all LDA fires: n=  78  net_total=$  +16.87  avg_stake=$ 7.03  WR= 83.3%  net%/fire= +3.08%  CI95=[-7.03, +11.89]  big_loss(<-$10)=2
 
 ## BY DAY (UTC)
-  day 05-15: n=  51  net_total=$  +40.98  avg_stake=$ 6.87  WR= 90.2%  net%/fire=+11.70%  CI95=[+2.56, +18.40]  big_loss(<-$10)=1
-  day 05-16: n=  21  net_total=$   +9.13  avg_stake=$ 7.29  WR= 81.0%  net%/fire= +5.97%  CI95=[-23.59, +18.15]  big_loss(<-$10)=0
+  day 05-15: n=  51  net_total=$  +40.98  avg_stake=$ 6.87  WR= 90.2%  net%/fire=+11.70%  CI95=[+2.79, +18.81]  big_loss(<-$10)=1
+  day 05-16: n=  27  net_total=$  -24.11  avg_stake=$ 7.33  WR= 70.4%  net%/fire=-12.18%  CI95=[-36.92, +5.78]  big_loss(<-$10)=1
 
 ## BY ASK BAND  (target: confirm +EV in 0.60-0.75 band)
-  ask [.70,.75): n=   8  net_total=$   +0.58  avg_stake=$ 5.60  WR= 75.0%  net%/fire= +1.30%  CI95=[-50.70, +31.74]  big_loss(<-$10)=0
-  ask [.75,.80): n=  38  net_total=$  +29.91  avg_stake=$ 7.46  WR= 89.5%  net%/fire=+10.55%  CI95=[-3.59, +19.48]  big_loss(<-$10)=1
-  ask [.80,.85): n=  24  net_total=$  +18.49  avg_stake=$ 6.87  WR= 87.5%  net%/fire=+11.21%  CI95=[-1.14, +16.34]  big_loss(<-$10)=0
+  ask [.65,.70): n=   1  net_total=$  -14.72  avg_stake=$14.65  WR=  0.0%  net%/fire=-100.50%  CI95=[-100.50, -100.50]  big_loss(<-$10)=1
+  ask [.70,.75): n=  10  net_total=$  -14.29  avg_stake=$ 5.96  WR= 60.0%  net%/fire=-23.97%  CI95=[-61.61, +18.11]  big_loss(<-$10)=0
+  ask [.75,.80): n=  39  net_total=$  +24.35  avg_stake=$ 7.41  WR= 87.2%  net%/fire= +8.42%  CI95=[-6.82, +18.46]  big_loss(<-$10)=1
+  ask [.80,.85): n=  26  net_total=$  +20.41  avg_stake=$ 6.72  WR= 88.5%  net%/fire=+11.68%  CI95=[-0.08, +16.63]  big_loss(<-$10)=0
   ask [.85,.90): n=   2  net_total=$   +1.13  avg_stake=$ 5.05  WR=100.0%  net%/fire=+11.14%  CI95=[+10.57, +11.73]  big_loss(<-$10)=0
 
 ## BY DIRECTION
-  dir down: n=  36  net_total=$  +21.40  avg_stake=$ 6.65  WR= 88.9%  net%/fire= +8.94%  CI95=[-2.97, +18.70]  big_loss(<-$10)=1
-  dir up: n=  36  net_total=$  +28.71  avg_stake=$ 7.33  WR= 86.1%  net%/fire=+10.87%  CI95=[-6.23, +18.15]  big_loss(<-$10)=0
+  dir down: n=  41  net_total=$   -6.92  avg_stake=$ 6.81  WR= 82.9%  net%/fire= -2.48%  CI95=[-12.32, +14.06]  big_loss(<-$10)=2
+  dir up: n=  37  net_total=$  +23.79  avg_stake=$ 7.27  WR= 83.8%  net%/fire= +8.85%  CI95=[-9.96, +16.90]  big_loss(<-$10)=0
 
 ## BY ASSET
-  asset BTC: n=  40  net_total=$  +33.43  avg_stake=$ 7.48  WR= 90.0%  net%/fire=+11.18%  CI95=[-1.17, +18.77]  big_loss(<-$10)=1
-  asset ETH: n=  32  net_total=$  +16.67  avg_stake=$ 6.38  WR= 84.4%  net%/fire= +8.16%  CI95=[-9.43, +18.45]  big_loss(<-$10)=0
+  asset BTC: n=  43  net_total=$  +18.82  avg_stake=$ 7.43  WR= 86.0%  net%/fire= +5.89%  CI95=[-7.45, +15.80]  big_loss(<-$10)=1
+  asset ETH: n=  35  net_total=$   -1.95  avg_stake=$ 6.54  WR= 80.0%  net%/fire= -0.85%  CI95=[-16.27, +14.28]  big_loss(<-$10)=1
 
 ## BY UTC HOUR
   H04: n=   1  net_total=$   +0.89  avg_stake=$ 5.02  WR=100.0%  net%/fire=+17.66%  CI95=[+17.66, +17.66]  big_loss(<-$10)=0
   H06: n=   2  net_total=$   +3.09  avg_stake=$ 7.96  WR=100.0%  net%/fire=+19.44%  CI95=[+17.09, +24.21]  big_loss(<-$10)=0
-  H07: n=   6  net_total=$   -3.97  avg_stake=$ 6.88  WR= 66.7%  net%/fire= -9.62%  CI95=[-60.07, +24.61]  big_loss(<-$10)=0
+  H07: n=   6  net_total=$   -3.97  avg_stake=$ 6.88  WR= 66.7%  net%/fire= -9.62%  CI95=[-60.07, +24.43]  big_loss(<-$10)=0
   H08: n=   1  net_total=$   +1.49  avg_stake=$10.27  WR=100.0%  net%/fire=+14.55%  CI95=[+14.55, +14.55]  big_loss(<-$10)=0
-  H09: n=   9  net_total=$   +3.61  avg_stake=$ 7.32  WR= 77.8%  net%/fire= +5.49%  CI95=[-44.06, +25.56]  big_loss(<-$10)=0
-  H10: n=   2  net_total=$   +4.02  avg_stake=$ 7.38  WR=100.0%  net%/fire=+27.22%  CI95=[+23.58, +34.54]  big_loss(<-$10)=0
+  H09: n=   9  net_total=$   +3.61  avg_stake=$ 7.32  WR= 77.8%  net%/fire= +5.49%  CI95=[-44.46, +25.36]  big_loss(<-$10)=0
+  H10: n=   8  net_total=$  -29.22  avg_stake=$ 7.46  WR= 50.0%  net%/fire=-48.98%  CI95=[-83.62, +6.97]  big_loss(<-$10)=1
   H15: n=   3  net_total=$   +2.78  avg_stake=$ 5.15  WR=100.0%  net%/fire=+18.00%  CI95=[+10.57, +32.17]  big_loss(<-$10)=0
-  H16: n=   9  net_total=$   +1.93  avg_stake=$ 7.52  WR= 88.9%  net%/fire= +2.85%  CI95=[-19.80, +25.76]  big_loss(<-$10)=1
-  H17: n=  15  net_total=$   +7.32  avg_stake=$ 7.38  WR= 80.0%  net%/fire= +6.62%  CI95=[-23.23, +18.79]  big_loss(<-$10)=0
-  H18: n=  11  net_total=$  +14.92  avg_stake=$ 6.36  WR=100.0%  net%/fire=+21.33%  CI95=[+18.00, +23.07]  big_loss(<-$10)=0
-  H20: n=   8  net_total=$   +8.76  avg_stake=$ 7.00  WR= 87.5%  net%/fire=+15.64%  CI95=[+10.51, +20.63]  big_loss(<-$10)=0
+  H16: n=   9  net_total=$   +1.93  avg_stake=$ 7.52  WR= 88.9%  net%/fire= +2.85%  CI95=[-19.83, +25.81]  big_loss(<-$10)=1
+  H17: n=  15  net_total=$   +7.32  avg_stake=$ 7.38  WR= 80.0%  net%/fire= +6.62%  CI95=[-22.06, +19.09]  big_loss(<-$10)=0
+  H18: n=  11  net_total=$  +14.92  avg_stake=$ 6.36  WR=100.0%  net%/fire=+21.33%  CI95=[+18.03, +23.00]  big_loss(<-$10)=0
+  H20: n=   8  net_total=$   +8.76  avg_stake=$ 7.00  WR= 87.5%  net%/fire=+15.64%  CI95=[+10.68, +20.54]  big_loss(<-$10)=0
   H21: n=   3  net_total=$   +2.11  avg_stake=$ 4.86  WR=100.0%  net%/fire=+14.50%  CI95=[+11.73, +18.64]  big_loss(<-$10)=0
   H22: n=   2  net_total=$   +3.14  avg_stake=$ 7.93  WR=100.0%  net%/fire=+19.82%  CI95=[+18.29, +22.63]  big_loss(<-$10)=0
 
 ## ROLLING 20-TRADE NET
-  worst rolling-20: None  net=$+0.00
-  current rolling-20 (last 20 trades): $+8.25
+  worst rolling-20: T05195_BTC_1778926657  net=$-27.10
+  current rolling-20 (last 20 trades): $-20.95
 
 ==============================================================================
 DECISION
 ==============================================================================
-  STATUS: COLLECTING  (n=72/100)
-  Current EV/fire estimate: +8.14%  CI95=[-1.04, +16.13]
+  STATUS: COLLECTING  (n=78/100)
+  Current EV/fire estimate: +2.85%  CI95=[-6.88, +11.77]
   Shadow predicts:          +3.5%/fire
   Read again when n>=100.
 
