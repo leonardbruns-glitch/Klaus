@@ -1359,7 +1359,7 @@ class KlausBot:
                 # post-window kline check; entry×1.5 fires too early at low ask (0.63→0.945).
                 _inv_tp = pos.entry_price * 1.50
                 if (current_price >= _inv_tp
-                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA")
+                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -1422,7 +1422,7 @@ class KlausBot:
                     pos.open_ts > 0
                     and pos.window_end_ts > 0
                     and (pos.window_end_ts - pos.open_ts) > 180.0
-                    and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA")
+                    and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB")
                 )
                 if (_is_early_entry
                         and bond_remaining <= 60.0
@@ -1521,9 +1521,9 @@ class KlausBot:
                     continue
 
                 # ── T-3s hard gate: unconditional sell ───────────────────────────
-                # LDA excluded: holds to resolution, Redeemer collects $1.00.
+                # LDA + VOLARB excluded: both hold to resolution, Redeemer/kline collect $1.00.
                 if (bond_remaining <= 3.0
-                        and getattr(pos, "bond_entry_class", "") != "LDA"
+                        and getattr(pos, "bond_entry_class", "") not in ("LDA", "VOLARB")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -5003,7 +5003,11 @@ class KlausBot:
             # accept another sell — retrying is pointless. Resolve the position now
             # using OB bid to determine if token went to $1 (win) or $0 (loss).
             _now_g1 = time.time()
-            if pos.window_end_ts > 0 and _now_g1 > pos.window_end_ts + 5.0:
+            # VOLARB skips this immediate-force-close: VOLARB holds to redemption
+            # (the kline-decision path at WINDOW_OUTCOME catches the actual outcome
+            # after 60s post-window). Force-closing at $0 here would zero out winners.
+            _g1_skip_volarb = getattr(pos, "bond_entry_class", "") == "VOLARB"
+            if pos.window_end_ts > 0 and _now_g1 > pos.window_end_ts + 5.0 and not _g1_skip_volarb:
                 _g1_ob   = self.feed.get_order_book(token_id)
                 _g1_bid  = _g1_ob.bids[0][0] if (_g1_ob and _g1_ob.bids) else 0.0
                 _g1_ask  = _g1_ob.asks[0][0] if (_g1_ob and _g1_ob.asks) else 0.0
