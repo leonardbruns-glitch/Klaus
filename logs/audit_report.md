@@ -1,7 +1,7 @@
-# Quantitative Audit — 2026-05-16 00:16 UTC
+# Quantitative Audit — 2026-05-16 06:07 UTC
 
 ## Data Collection Status
-**FAILED — VPS UNREACHABLE (62nd consecutive session)**
+**FAILED — VPS UNREACHABLE (63rd consecutive session)**
 
 | Method | Result |
 |---|---|
@@ -9,19 +9,19 @@
 | /tmp/trades.jsonl | 0 real trade lines — SSH transfer not possible |
 | /tmp/post_exit.jsonl | 0 lines — not retrieved |
 | logs/trades.jsonl (git-tracked) | Not present — VPS has not synced to repo |
-| logs/bankroll.json (local snapshot) | **UNCHANGED since 2026-05-08 19:26 UTC (174.8h stale)** |
+| logs/bankroll.json (local snapshot) | **UNCHANGED since 2026-05-08 19:26 UTC (178.7h stale)** |
 
-**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 7.3 days stale):
+**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 7.4 days stale):
 - capital: $84.61
 - total_trades: 2,605
 - total_pnl: +$87.87
 - consecutive_wins: 0
 
-> Bankroll snapshot **UNCHANGED** for 62 consecutive audit sessions. Actual live capital unknown.
+> Bankroll snapshot **UNCHANGED** for 63 consecutive audit sessions. Actual live capital unknown.
 
 ---
 
-## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (62nd session)
+## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (63rd session)
 
 **This audit framework targets `signal_source=='BOND'` trades exclusively.**
 
@@ -43,13 +43,14 @@ BOND audit filter (`signal_source=='BOND'`, `0.80<=entry_price<=0.88`) returns 0
 | `min_imbalance` | **0.0 (gate inactive)** | 0.20 | — |
 | `bond_blocked_hours_utc` | **[]** | [] | none |
 | `stop_loss` | **−15%** | −15% | none |
+| `BOND_ENABLED` | **False** | (assumed True) | — |
 
 ---
 
 ## 6h Summary
 n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
 
-6h window: 2026-05-15 18:16 UTC → 2026-05-16 00:16 UTC
+6h window: 2026-05-16 00:07 UTC → 2026-05-16 06:07 UTC
 
 0.80-0.84: n=0 WR=N/A E=N/A
 0.84-0.88: n=0 WR=N/A E=N/A
@@ -73,7 +74,7 @@ No data accessible. n=0 for all hours — BOND disabled 2026-05-10; filter retur
 ---
 
 ## Flags
-INSUFFICIENT_DATA — 62nd consecutive session with no VPS connectivity.
+INSUFFICIENT_DATA — 63rd consecutive session with no VPS connectivity.
 AUDIT_SCOPE_CONFLICT — BOND disabled 2026-05-10; audit framework targets non-active strategy.
 NO_CHANGE — no BOND parameter changes without data.
 
@@ -89,13 +90,13 @@ NO_CHANGE — no BOND parameter changes without data.
   "stop_loss": -0.15,
   "blocked_hours": [],
   "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable (62nd consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
+  "reason": "INSUFFICIENT_DATA — VPS unreachable (63rd consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
 }
 ```
 
 ---
 
-## Active Strategy Parameters (ground truth from codebase — 2026-05-16 00:16 UTC)
+## Active Strategy Parameters (ground truth from codebase — 2026-05-16 06:07 UTC)
 
 ### LDA — Late Direction Arb (strategy/late_direction_arb.py)
 Latest commits: B2 ask ceiling raised 0.80→0.85; flat $5 stake; H03+H23 globally blocked; SOL fully blocked; B3 re-enabled with ask floor 0.55; all kill switches disabled per user instruction.
@@ -130,7 +131,7 @@ Latest commits: B2 ask ceiling raised 0.80→0.85; flat $5 stake; H03+H23 global
 
 ---
 
-## Infrastructure Alert — Critical (62 consecutive sessions)
+## Infrastructure Alert — Critical (63 consecutive sessions)
 
 **Root cause**: TCP port 22 egress is blocked from the cloud audit environment. SSH binary is not installed and cannot be used. Cannot reach VPS at 85.137.174.86.
 
