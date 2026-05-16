@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional
@@ -1984,7 +1985,7 @@ class OrderManager:
         if CONFIG.dry_run or self._client is None:
             return
         try:
-            self._client.post_heartbeat()
+            self._client.post_heartbeat(str(uuid.uuid4()))
         except Exception as exc:
             logger.debug("Heartbeat failed: %s", exc)
 
