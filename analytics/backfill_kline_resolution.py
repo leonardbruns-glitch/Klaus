@@ -174,12 +174,26 @@ def main() -> None:
     bak = TRADES_PATH + ".bak"
     shutil.copy2(TRADES_PATH, bak)
     print(f"backup written: {bak}")
-    with open(TRADES_PATH, "w") as f:
+
+    # Atomic rewrite: bot may be appending. Read trailing lines after our
+    # initial slurp, append them unchanged, then rename into place.
+    initial_size = os.path.getsize(bak)
+    tmp = TRADES_PATH + ".tmp"
+    with open(tmp, "w") as f:
         for i, t in enumerate(parsed):
             if t is None:
                 f.write(lines[i])
             else:
                 f.write(json.dumps(t) + "\n")
+        # Append any new lines the bot wrote while we were processing
+        current_size = os.path.getsize(TRADES_PATH)
+        if current_size > initial_size:
+            with open(TRADES_PATH, "rb") as src:
+                src.seek(initial_size)
+                tail = src.read()
+                f.write(tail.decode("utf-8", errors="replace"))
+                print(f"appended {len(tail)} bytes written during backfill")
+    os.replace(tmp, TRADES_PATH)
     print(f"rewrote {TRADES_PATH}")
 
 
