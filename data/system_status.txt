@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+5922cb7 mirror: add data_integrity_check call + integrity_report.json in SNAPSHOT
 63640e0 agent_context: rewrite research_status for data-mirror fetch + LDA mandate
 f3a8248 LDA: 2x stake at highest-EV hours H14/H18
 c878f5e LDA: per-bucket hour-block refresh + H23 B2 partial unblock
@@ -11,7 +12,6 @@ ad52d60 fix: atomic rewrite in backfill_kline_resolution to coexist with live bo
 881600d fix: skip ts_open<=0 and future windows in backfill_kline_resolution
 401a2a8 add: one-shot Binance-kline backfill for unresolved trades.jsonl rows
 758f8a6 fix: schedule resolution backfill for BOND_RESOLVED_NO and LDA_KLINE_WIN exits
-d4a9625 Watchdog 2026-05-16T07:17:50Z: OK — 0 alerts
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   43G       50G  47% /
