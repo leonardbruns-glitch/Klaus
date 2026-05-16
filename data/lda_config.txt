@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-16T11:56:19Z
+# Snapshot: 2026-05-16T12:11:19Z
 # Latest commit on klaus:
-ec59efe mirror: filter shadow copy to <10MB + use wc -l for index
+cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LDA_KLINE_WIN)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

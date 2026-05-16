@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LDA_KLINE_WIN)
+ad52d60 fix: atomic rewrite in backfill_kline_resolution to coexist with live bot
+122260c fix: treat empty bond_outcome_direction as unresolved in backfill
+881600d fix: skip ts_open<=0 and future windows in backfill_kline_resolution
+401a2a8 add: one-shot Binance-kline backfill for unresolved trades.jsonl rows
+758f8a6 fix: schedule resolution backfill for BOND_RESOLVED_NO and LDA_KLINE_WIN exits
+d4a9625 Watchdog 2026-05-16T07:17:50Z: OK — 0 alerts
 ec59efe mirror: filter shadow copy to <10MB + use wc -l for index
 b414fd4 agent context: extend data-mirror with shadow + research status
 3368a86 Audit 20260516-0607 — no patch required (VPS unreachable 63rd session, BOND disabled)
-5b2f4f1 Scout report 2026-05-16 06:00 UTC
-7f831f0 Audit 20260516-0016 — no patch required (VPS unreachable 62nd session, BOND disabled)
-d0b7a18 Audit 20260515-1814 — no patch required (VPS unreachable, BOND disabled)
-8cff3e0 lda: raise B2 ask ceiling 0.80→0.85 — user instruction 2026-05-15
-94946da lda: flat $5 stake per entry, Kelly disabled — user instruction 2026-05-15
-b8aca4a risk+lda: disable all kill switches; re-enable B3 with ask floor 0.55; stop tennis arb
-9b22f15 risk: disable ruin_floor — user instruction
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   43G       50G  47% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-15 15:02:46 UTC
+ActiveEnterTimestamp=Sat 2026-05-16 11:59:00 UTC
 
 ## Open positions (count):
 0

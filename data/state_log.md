@@ -252,3 +252,19 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-15 UTC | EXIT / LDA | Trail-5% stop added | hold_path sim n=840 (5m, gate_pass): Trail-5% from peak bid saves 90.5% of losses (avg MAE -61.64%), EV +0.0166 vs hold-to-resolution. 63.7% winners cut early (avg MFE +12.97% but avg MAE -13.28% — normal oscillation fires trail). 30s grace period before trail activates. Best of 25 strategies tested. All strategies remain EV-negative; Trail-5% improves from -0.0229 to -0.0063 per trade. Implementation: _lda_peak_bid track in scan loop, LDA_TRAIL_STOP exit at bid < peak * 0.95. SOL fully blocked (n=178, WR=53.4%, net=-$791.64).
 
 ## 2026-05-15 UTC | ENTRY / LDA | SOL fully blocked | n=178 live, WR=53.4%, net_pnl=-$791.64. All SOL code paths removed from late_direction_arb.py.
+
+## 2026-05-16 12:05 UTC | LOGGING / RESOLUTION | Fix BOND_RESOLVED_NO + LDA_KLINE_WIN resolution backfill | Audit (1):
+H10 review surfaced that BOND_RESOLVED_NO and LDA_KLINE_WIN exit paths (main.py:1528–1730) never scheduled
+_track_post_exit, so trades.jsonl rows from these exits had entered_correctly=None and kline_pnl=0. Analytics
+that treated kline_pnl=0 as "flat outcome" silently double-counted real losses as phantoms — today's H10 was
+reported as 100% WR +$21.14 when the actual outcome was 65% WR, −$30.02 realized (all 7 BOND_RESOLVED_NO
+resolved AGAINST the bet, verified via Binance 5m klines).
+Fix (2): commit 758f8a6 schedules _track_post_exit for BOND_RESOLVED_NO and LDA_KLINE_WIN exits (mirrors
+standard path at main.py:5666); deployed via systemctl restart klaus, active. Commit ad52d60 adds a
+Binance-kline backfill script (analytics/backfill_kline_resolution.py) with atomic rewrite. Backfill run
+patched 866 historical trades; 1617 older rows have missing bond_outcome_direction (pre-LDA era) and were
+skipped. trades.jsonl.bak retained.
+Reference memory updated (reference_lda_wr_calculation): BOND_RESOLVED_NO is REAL OR PHANTOM depending on
+kline_dir vs bet_dir (was previously framed as universally phantom); kline_pnl=0 + entered_correctly=None
+means UNPATCHED, not "flat outcome"; canonical resolution lookup order = post_exit.jsonl → Binance kline
+fallback, never infer from trades.jsonl kline_pnl/window_outcome_price alone.
