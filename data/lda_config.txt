@@ -1,5 +1,5 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-16T12:11:19Z
+# Snapshot: 2026-05-16T12:26:43Z
 # Latest commit on klaus:
 cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LDA_KLINE_WIN)
 
@@ -11,11 +11,12 @@ cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LD
 34:STAKE_USD_REDUCED = 2.00   # watch-cell cap per entry (ETH/SOL weak hours, pending n≥100)
 35:STAKE_MIN_USD     = 1.00   # floor per entry — always enter even when target already met
 36:STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket stakes below
-63:BLOCKED_HOURS_UTC = {0, 1, 2, 3, 19, 23}  # H00/H01 shadow May8-12; H02 user block 2026-05-15 (n=18 WR=22% -$249); H03 B2 gap; H19 n=18 WR=72% net=-$50 (avg loss outsized); H23 user block 2026-05-15 (n=7 WR=29% -$186)
-66:_ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15})
-71:_ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 15})  # H07 unblocked user instruction 2026-05-15
-74:_ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
-77:_ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 21, 22})
-83:_BTC_BLOCKED_B1 = frozenset({13})           # H13 n=26 EV=-0.274 4/6d bad
-86:_BTC_BLOCKED_LATE = frozenset({8})          # H08: live n=15 WR=47% net=-$32 (ETH B2/B3 already blocked; BTC was open)
-90:_BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18
+63:BLOCKED_HOURS_UTC = {0, 1, 2, 3, 19}  # H23 partial-unblock 2026-05-16 — see _ALL_BLOCKED_LATE / H23-B0 inline
+67:_ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15, 23})
+73:_ALL_BLOCKED_B3 = frozenset({9, 10, 11})
+77:_ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 15})  # H07 unblocked user instruction 2026-05-15
+80:_ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
+83:_ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 21, 22})
+89:_BTC_BLOCKED_B1 = frozenset({13})           # H13 n=26 EV=-0.274 4/6d bad
+92:_BTC_BLOCKED_LATE = frozenset({8})          # H08: live n=15 WR=47% net=-$32 (ETH B2/B3 already blocked; BTC was open)
+96:_BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18

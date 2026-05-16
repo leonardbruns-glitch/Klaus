@@ -2,7 +2,7 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-05-16T12:11:19Z |
+| snapshot_ts (UTC) | 2026-05-16T12:26:43Z |
 | klaus HEAD | cba459a |
 | trades.jsonl rows | 5706 |
 | live rows | 5706 |
