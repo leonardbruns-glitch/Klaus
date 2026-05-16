@@ -87,19 +87,22 @@ def main() -> None:
     # Identify rows that need patching
     needed = defaultdict(set)  # (asset, ws) -> set(window_end_ts)
     candidate_idx = []
+    now = time.time()
     for i, t in enumerate(parsed):
         if t is None:
             continue
         if t.get("is_live") is not True:
             continue
         ts = t.get("ts_open")
-        if not isinstance(ts, (int, float)):
+        if not isinstance(ts, (int, float)) or ts <= 0:
             continue
         # need patch if entered_correctly is missing/None
         if t.get("entered_correctly") is not None:
             continue
         ws = int(t.get("window_size_s") or 300)
         we = int(math.ceil(ts / ws) * ws)
+        if we <= 0 or we > now + 60:
+            continue  # invalid or window still open
         needed[(t.get("asset"), ws)].add(we)
         candidate_idx.append((i, ws, we))
 
