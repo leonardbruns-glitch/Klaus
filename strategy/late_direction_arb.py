@@ -60,16 +60,24 @@ _BUCKET_KELLY_CUM = {3: 0.90, 2: 0.95, 1: 1.00}
 
 # Kelly targets retained for any future non-BTC/ETH/SOL asset
 _KELLY_TARGET = {1: 3.00, 2: 5.50, 3: 9.00}
-BLOCKED_HOURS_UTC = {0, 1, 2, 3, 19, 23}  # H00/H01 shadow May8-12; H02 user block 2026-05-15 (n=18 WR=22% -$249); H03 B2 gap; H19 n=18 WR=72% net=-$50 (avg loss outsized); H23 user block 2026-05-15 (n=7 WR=29% -$186)
+BLOCKED_HOURS_UTC = {0, 1, 2, 3, 19}  # H23 partial-unblock 2026-05-16 — see _ALL_BLOCKED_LATE / H23-B0 inline
+# H00/H01 shadow May8-12; H02 user block 2026-05-15 (n=18 WR=22% -$249); H03 B2 gap; H19 n=18 WR=72% net=-$50 (avg loss outsized)
 
 # [120,300s) bucket — all-asset structural blocks (shadow May8-13, n≥29 per hour):
-_ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15})
+_ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15, 23})
 # H03 EV=-30.6% n=33; H06 EV=-11.8% n=29; H12 EV=-29.2% n=46;
 # H13 unblocked user instruction 2026-05-14; H15 EV=-0.74% n=100 — BNC cannot fix
+# H23 added 2026-05-16: B3 n=2 +$0.08 (small), B4 n=7 WR=43% EV=-$2.38 — keep blocked; B2 enabled separately
+
+# [180,300s) bucket — all-asset structural blocks (LDA-era block validation 2026-05-16):
+_ALL_BLOCKED_B3 = frozenset({4, 9, 10, 11, 13, 21})
+# H09 n=13 WR=31% EV=-$3.79; H10 n=22 WR=59% EV=-$1.57; H11 n=19 WR=53% EV=-$1.69
+# H04 n=11 WR=36% EV=-$3.71; H13 n=13 WR=62% EV=-$1.31; H21 n=5 WR=20% EV=-$6.54 (small n but consistent)
 
 # [60,120s) bucket — all-asset structural blocks:
-_ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 15})  # H07 unblocked user instruction 2026-05-15
+_ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 13, 15, 16, 18, 20, 21})  # H07 unblocked user instruction 2026-05-15
 # H04 EV=-12.4% n=44; H12 ETH n=30 EV=-0.57 SOL n=44 EV=-0.49; H15 EV=-5.6% n=29
+# H13/H16/H18/H20/H21 added 2026-05-16 (LDA-era per-bucket audit, n=5-7 each, EV -$1.29 to -$15.04)
 
 _ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
 
@@ -248,6 +256,15 @@ class LateDirectionArb:
 
         # BTC [180,300s): B3-specific structural blocks
         if rem_bucket == 3 and asset == "BTC" and hour_utc in _BTC_BLOCKED_B3:
+            return
+
+        # All assets [180,300s): EV-negative hours (LDA-era audit 2026-05-16)
+        if rem_bucket == 3 and hour_utc in _ALL_BLOCKED_B3:
+            return
+
+        # H23 partial unblock 2026-05-16: B1 (60-120s) only — block B0/B2/B3 at H23
+        # B0 [0,60s) n=7 WR=71% EV=-$1.15; B2/B3 covered by _ALL_BLOCKED_LATE above
+        if hour_utc == 23 and rem_bucket == 0:
             return
 
         # H04 [120,180s): all assets — EV=-0.102 n=21 (per-hour×bucket analysis 2026-05-15)
