@@ -362,6 +362,11 @@ class KlausBot:
         self.oracle_sweeper = None  # permanently off; replaced by LDA
         from strategy.late_direction_arb import LateDirectionArb
         self.lda_strategy = LateDirectionArb(self)
+        # VOLARB Phase 1 ($1 stake, edge>=0.15, ask [0.10,0.60], max 3 concurrent).
+        # Hold-to-resolution; reuses LDA's kline-win + BOND_RESOLVED_NO exit paths
+        # (the VOLARB tag is included in those checks).
+        from strategy.volarb import Volarb
+        self.volarb_strategy = Volarb(self)
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
         self.redeemer = Redeemer(
@@ -490,6 +495,9 @@ class KlausBot:
             _lda = getattr(self, "lda_strategy", None)
             if _lda is not None:
                 await _lda.stop()
+            _volarb = getattr(self, "volarb_strategy", None)
+            if _volarb is not None:
+                await _volarb.stop()
             _gap = getattr(self, "gap_sweeper", None)
             if _gap is not None:
                 await _gap.stop()
@@ -634,8 +642,8 @@ class KlausBot:
                             _bs_meta = self._open_meta.pop(token_id, {})
                             self._pos_log_ts.pop(token_id, None)
                             _is_redeemed_win = token_id in self.redeemer.confirmed_winners
-                            # LDA: Redeemer doesn't track these — use kline to determine outcome
-                            if not _is_redeemed_win and getattr(pos, "bond_entry_class", "") == "LDA" and pos.window_end_ts > 0:
+                            # LDA + VOLARB: Redeemer doesn't track these — use kline to determine outcome
+                            if not _is_redeemed_win and getattr(pos, "bond_entry_class", "") in ("LDA", "VOLARB") and pos.window_end_ts > 0:
                                 try:
                                     import aiohttp as _aiohttp_bs
                                     _bs_sym_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
@@ -658,7 +666,15 @@ class KlausBot:
                                 except Exception as _bs_kl_exc:
                                     logger.debug("BOND_SETTLED LDA kline check failed: %s", _bs_kl_exc)
                             _bs_exit_price = 1.0 if _is_redeemed_win else 0.0
-                            _bs_reason = "LDA_KLINE_WIN" if (_is_redeemed_win and getattr(pos, "bond_entry_class", "") == "LDA") else ("REDEEMED" if _is_redeemed_win else "BOND_SETTLED")
+                            _bs_class = getattr(pos, "bond_entry_class", "")
+                            if _is_redeemed_win and _bs_class == "LDA":
+                                _bs_reason = "LDA_KLINE_WIN"
+                            elif _is_redeemed_win and _bs_class == "VOLARB":
+                                _bs_reason = "VOLARB_KLINE_WIN"
+                            elif _is_redeemed_win:
+                                _bs_reason = "REDEEMED"
+                            else:
+                                _bs_reason = "BOND_SETTLED"
                             _pnl = self.risk.close_position(token_id, _bs_exit_price, _bs_reason)
                             if not _is_redeemed_win:
                                 self._mark_bond_total_loss(pos.asset)
@@ -1533,7 +1549,8 @@ class KlausBot:
                             # Check kline open vs close to determine actual outcome.
                             _wo_exit_price  = 0.0
                             _wo_exit_reason = "BOND_RESOLVED_NO"
-                            if getattr(pos, "bond_entry_class", "") == "LDA" and pos.window_end_ts > 0:
+                            _wo_class = getattr(pos, "bond_entry_class", "")
+                            if _wo_class in ("LDA", "VOLARB") and pos.window_end_ts > 0:
                                 try:
                                     import aiohttp as _aiohttp
                                     _sym_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
@@ -1554,7 +1571,7 @@ class KlausBot:
                                                 _bet_up = getattr(pos, "bond_outcome_direction", "up") == "up"
                                                 if _bet_up == _kl_up:
                                                     _wo_exit_price  = 1.0  # token auto-redeems at $1.00
-                                                    _wo_exit_reason = "LDA_KLINE_WIN"
+                                                    _wo_exit_reason = "VOLARB_KLINE_WIN" if _wo_class == "VOLARB" else "LDA_KLINE_WIN"
                                 except Exception:
                                     pass  # fetch failed — default to BOND_RESOLVED_NO
                             logger.info(
