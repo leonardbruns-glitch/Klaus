@@ -291,7 +291,11 @@ class LateDirectionArb:
             return  # this token is NOT on the predicted winning side
 
         # Flat $5 per entry — Kelly disabled (user instruction 2026-05-15)
-        stake_usd = 5.0
+        # 2x stake in highest-EV hours per LDA-era audit 2026-05-16:
+        #   H14 mean EV +$1.50/trade (n=19, 79% WR, 75/60/100% WR daily)
+        #   H18 mean EV +$1.87/trade (n=19, 95% WR, 75/100/100% WR daily)
+        _HIGH_EV_HOURS = (14, 18)
+        stake_usd = 10.0 if hour_utc in _HIGH_EV_HOURS else 5.0
 
         # Mark fired BEFORE creating task to prevent a second tick from double-firing.
         self._fired.add(key)
