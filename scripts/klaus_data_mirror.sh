@@ -58,15 +58,20 @@ if [ -d "$KLAUS/agent_context" ]; then
     cp -rf "$KLAUS/agent_context/"* data/agent_context/ 2>/dev/null || true
 fi
 
-# ── Shadow loggers: today's hot files + summary index ──────────────────────
+# ── Shadow loggers: today's *small* hot files + summary index ──────────────
+# Some loggers (market_timeline, gate_trace) are 100s of MB/day — only copy
+# files < 10MB into the mirror. The summary indexes ALL active loggers.
 SHADOW_DIR="$KLAUS/logs/shadow"
 TODAY=$(date -u +%Y-%m-%d)
 if [ -d "$SHADOW_DIR/hot/$TODAY" ]; then
-    cp -f "$SHADOW_DIR/hot/$TODAY"/*.jsonl data/shadow/ 2>/dev/null || true
+    find "$SHADOW_DIR/hot/$TODAY" -maxdepth 1 -name "*.jsonl" -size -10M \
+        -exec cp -f {} data/shadow/ \; 2>/dev/null || true
 fi
 
+# Fast summary: wc -l for count (no Python iteration over GB files),
+# head/tail for excerpts. Filter to last 7 days OR hot/, skip backfill.
 python3 - <<'PYEOF' > data/shadow_summary.json 2>/dev/null || echo '{"loggers":{},"error":"index failed"}' > data/shadow_summary.json
-import json, time
+import json, subprocess, time
 from pathlib import Path
 
 shadow = Path("/root/Klaus/logs/shadow")
@@ -80,40 +85,29 @@ now = time.time()
 if shadow.exists():
     for jf in shadow.rglob("*.jsonl"):
         rel = jf.relative_to(shadow).as_posix()
-        # Skip backfill / historical re-runs
         if rel.startswith("backfill/"):
             continue
         try:
             st = jf.stat()
         except OSError:
             continue
-        # Skip files not touched in the last 7 days unless under hot/
         if (now - st.st_mtime) > SEVEN_DAYS and not rel.startswith("hot/"):
             continue
         try:
-            with jf.open() as fh:
-                first = fh.readline().rstrip()
-                n = 1 if first else 0
-                for _ in fh:
-                    n += 1
-            tail = ""
-            with jf.open("rb") as fh:
-                fh.seek(0, 2)
-                size = fh.tell()
-                back = min(4096, size)
-                if back:
-                    fh.seek(-back, 2)
-                    chunk = fh.read().decode("utf-8", errors="ignore").rstrip()
-                    tail = chunk.split("\n")[-1] if chunk else ""
+            n = int(subprocess.check_output(["wc", "-l", str(jf)], timeout=10).split()[0])
+            first = subprocess.check_output(["head", "-c", "400", str(jf)], timeout=5)
+            first = first.decode("utf-8", errors="ignore").split("\n", 1)[0]
+            last_raw = subprocess.check_output(["tail", "-c", "2048", str(jf)], timeout=5)
+            last = last_raw.decode("utf-8", errors="ignore").rstrip().rsplit("\n", 1)[-1]
             out["loggers"][rel] = {
                 "n_rows": n,
                 "size_bytes": st.st_size,
                 "mtime_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(st.st_mtime)),
                 "first_excerpt": first[:300],
-                "last_excerpt": tail[:300],
+                "last_excerpt": last[:300],
             }
         except Exception as e:
-            out["loggers"][rel] = {"error": str(e)}
+            out["loggers"][rel] = {"error": str(e)[:200]}
 print(json.dumps(out, indent=2, sort_keys=True))
 PYEOF
 
