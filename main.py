@@ -1702,6 +1702,31 @@ class KlausBot:
                                     )
                                 except Exception as _woe:
                                     logger.error("record_trade BOND_RESOLVED_NO failed: %s", _woe)
+                            # Schedule resolution backfill so trades.jsonl gets
+                            # entered_correctly + kline_pnl patched. Other exit
+                            # paths do this; without it, BOND_RESOLVED_NO and
+                            # LDA_KLINE_WIN rows stay unresolved and break WR.
+                            _wo_post_kwargs = dict(
+                                token_id=token_id,
+                                trade_id=self.analytics.last_trade_id,
+                                asset=pos.asset,
+                                direction=pos.direction.name,
+                                exit_price=_wo_exit_price,
+                                exit_reason=_wo_exit_reason,
+                                entry_price=pos.entry_price,
+                                window_end_ts=pos.window_end_ts,
+                                binance_price_at_entry=pos.binance_price_at_entry,
+                                condition_id=getattr(pos, "condition_id", ""),
+                                outcome_direction=getattr(pos, "bond_outcome_direction", "up") or "up",
+                            )
+                            if pos.window_end_ts > 0:
+                                try:
+                                    os.makedirs("logs", exist_ok=True)
+                                    with open(os.path.join("logs", "pending_resolutions.jsonl"), "a") as _pf:
+                                        _pf.write(json.dumps(_wo_post_kwargs) + "\n")
+                                except Exception:
+                                    pass
+                            asyncio.create_task(self._track_post_exit(**_wo_post_kwargs))
                             # Full cleanup — mirrors _exit_position
                             self._dir_rev_count.pop(token_id, None)
                             self._term_pre_snap_refs.pop(token_id, None)
