@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-16T21:00:42Z
+# Snapshot: 2026-05-16T21:15:42Z
 # Latest commit on klaus:
-80b5c17 VOLARB Phase 1 — new strategy live deploy ($1 stake, edge>=0.15)
+b0f62de VOLARB: hold-to-resolution — exclude from INVERTED_TP / BOND_TIME_EXIT / BOND_DEADLINE / BOND_EXPIRED_UNSOLD-force-close
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
