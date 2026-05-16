@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+80b5c17 VOLARB Phase 1 — new strategy live deploy ($1 stake, edge>=0.15)
+f7ed703 Watchdog 2026-05-16T20:18:16Z: OK (CAPITAL_DROP+SHADOW_LOGGER_STALLED cleared)
 4596f2e order_manager: pass uuid4 to CLOB post_heartbeat to fix Invalid Heartbeat ID 400s
 c0f2477 Watchdog 2026-05-16T19:18:13Z: HIGH 2 alerts (CAPITAL_DROP, SHADOW_LOGGER_STALLED)
 78000d3 Watchdog 2026-05-16T18:18:00Z: OK
@@ -10,14 +12,12 @@ c0f2477 Watchdog 2026-05-16T19:18:13Z: HIGH 2 alerts (CAPITAL_DROP, SHADOW_LOGGE
 f3a8248 LDA: 2x stake at highest-EV hours H14/H18
 c878f5e LDA: per-bucket hour-block refresh + H23 B2 partial unblock
 cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LDA_KLINE_WIN)
-ad52d60 fix: atomic rewrite in backfill_kline_resolution to coexist with live bot
-122260c fix: treat empty bond_outcome_direction as unresolved in backfill
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   44G       49G  48% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sat 2026-05-16 20:10:56 UTC
+ActiveEnterTimestamp=Sat 2026-05-16 21:00:33 UTC
 
 ## Open positions (count):
 0
