@@ -3,6 +3,12 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-15 UTC | STAKE / LDA | Flat $5 per entry, Kelly disabled — user instruction | All bucket/BNC/asset sizing logic removed. Every qualifying entry (B0/B1/B2/B3) gets exactly $5. Commit 94946da.
+
+## 2026-05-15 UTC | RISK+GATE+OPS / ALL | Disable all kill switches; re-enable B3 ask floor 0.55; stop tennis arb — user instruction | (1) max_daily_loss_pct=0.0 (daily halt disabled); ruin_floor already 0.0; is_halted returns False when max_daily_loss_pct<=0. (2) Universal B3 block removed; B2/B3 ask floor 0.75→0.55; _BTC_BLOCKED_B3 now enforced for B3. (3) Tennis arb executor (PID 1407107) killed on VPS — open May-12 position (ATP Piros/Forejtek, cost $6.06, status BOTH_FILLED) left to resolve naturally. Commit b8aca4a.
+
+## 2026-05-15 UTC | GATE / LDA | Block B3 universally ([180,300s)) — user instruction | All B3 entries disabled. Previously only non-ETH/BTC B3 was blocked; ETH and BTC had per-hour exceptions. Now `remaining >= 180 → return` unconditionally. Also simplified `_ALL_BLOCKED_LATE` check (removed BTC B3 H15 exception, now redundant). Commit eeba9eb.
+
 ## 2026-05-15 UTC | EXIT+GATE / LDA | Per-hour exits + H04/B2 block (per-hour×bucket analysis 2026-05-15) | Raw market_timeline reconstruction, n=1946 positions, 8 days. Hold-to-resolution is positive EV for all buckets (WR 81-89%). Per-hour analysis found 6 hours where alternative exits dominate: (1) H08+H22: LDA_PT95 (bid≥0.95) — delta +0.037 n=82, +0.035 n=68; (2) H16: LDA_PT97 (bid≥0.97) — delta +0.022 n=180 (highest confidence); (3) H06+H21: LDA_CUT60 (rem≤60s and bid<entry×0.95) — delta +0.018 n=53, +0.028 n=51; (4) H04/B2 entry block (rem 120-180s) — EV=-0.102 n=21. All implemented. main.py: new LDA per-hour exit block before DISCOVER_DEADLINE. late_direction_arb.py: rem_bucket==2 and hour_utc==4 → return.
 
 ## 2026-05-15 ~11:00 UTC | GATE / ALL | Block H03 + H23 — user instruction | BLOCKED_HOURS_UTC {0,1} → {0,1,3,23}. Session 2026-05-14 22:05 → 2026-05-15 05:58: capital $300.60 → $98.72 (-$202). H23 unblocked ETH/SOL all buckets — $78 single ETH/down loss at 23:52 (92sh B2), total H23 -$163. H03 B3 was blocked but B2 ([60,120s)) was open — n=13 B2 losses WR=0%, EV=-30.6% n=33 shadow. Commit fe59556.
@@ -246,3 +252,19 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 ## 2026-05-15 UTC | EXIT / LDA | Trail-5% stop added | hold_path sim n=840 (5m, gate_pass): Trail-5% from peak bid saves 90.5% of losses (avg MAE -61.64%), EV +0.0166 vs hold-to-resolution. 63.7% winners cut early (avg MFE +12.97% but avg MAE -13.28% — normal oscillation fires trail). 30s grace period before trail activates. Best of 25 strategies tested. All strategies remain EV-negative; Trail-5% improves from -0.0229 to -0.0063 per trade. Implementation: _lda_peak_bid track in scan loop, LDA_TRAIL_STOP exit at bid < peak * 0.95. SOL fully blocked (n=178, WR=53.4%, net=-$791.64).
 
 ## 2026-05-15 UTC | ENTRY / LDA | SOL fully blocked | n=178 live, WR=53.4%, net_pnl=-$791.64. All SOL code paths removed from late_direction_arb.py.
+
+## 2026-05-16 12:05 UTC | LOGGING / RESOLUTION | Fix BOND_RESOLVED_NO + LDA_KLINE_WIN resolution backfill | Audit (1):
+H10 review surfaced that BOND_RESOLVED_NO and LDA_KLINE_WIN exit paths (main.py:1528–1730) never scheduled
+_track_post_exit, so trades.jsonl rows from these exits had entered_correctly=None and kline_pnl=0. Analytics
+that treated kline_pnl=0 as "flat outcome" silently double-counted real losses as phantoms — today's H10 was
+reported as 100% WR +$21.14 when the actual outcome was 65% WR, −$30.02 realized (all 7 BOND_RESOLVED_NO
+resolved AGAINST the bet, verified via Binance 5m klines).
+Fix (2): commit 758f8a6 schedules _track_post_exit for BOND_RESOLVED_NO and LDA_KLINE_WIN exits (mirrors
+standard path at main.py:5666); deployed via systemctl restart klaus, active. Commit ad52d60 adds a
+Binance-kline backfill script (analytics/backfill_kline_resolution.py) with atomic rewrite. Backfill run
+patched 866 historical trades; 1617 older rows have missing bond_outcome_direction (pre-LDA era) and were
+skipped. trades.jsonl.bak retained.
+Reference memory updated (reference_lda_wr_calculation): BOND_RESOLVED_NO is REAL OR PHANTOM depending on
+kline_dir vs bet_dir (was previously framed as universally phantom); kline_pnl=0 + entered_correctly=None
+means UNPATCHED, not "flat outcome"; canonical resolution lookup order = post_exit.jsonl → Binance kline
+fallback, never infer from trades.jsonl kline_pnl/window_outcome_price alone.
