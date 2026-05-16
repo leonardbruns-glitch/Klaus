@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-16T12:26:43Z
+# Snapshot: 2026-05-16T12:41:44Z
 # Latest commit on klaus:
-cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LDA_KLINE_WIN)
+f3a8248 LDA: 2x stake at highest-EV hours H14/H18
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
@@ -13,10 +13,10 @@ cba459a state_log: WR-logging fix (resolution backfill for BOND_RESOLVED_NO + LD
 36:STAKE_MAX_USD     = 7.00   # ceiling per entry (ETH/SOL Kelly); BTC uses bucket stakes below
 63:BLOCKED_HOURS_UTC = {0, 1, 2, 3, 19}  # H23 partial-unblock 2026-05-16 — see _ALL_BLOCKED_LATE / H23-B0 inline
 67:_ALL_BLOCKED_LATE = frozenset({3, 5, 6, 7, 12, 15, 23})
-73:_ALL_BLOCKED_B3 = frozenset({9, 10, 11})
-77:_ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 15})  # H07 unblocked user instruction 2026-05-15
-80:_ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
-83:_ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 21, 22})
-89:_BTC_BLOCKED_B1 = frozenset({13})           # H13 n=26 EV=-0.274 4/6d bad
-92:_BTC_BLOCKED_LATE = frozenset({8})          # H08: live n=15 WR=47% net=-$32 (ETH B2/B3 already blocked; BTC was open)
-96:_BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18
+73:_ALL_BLOCKED_B3 = frozenset({4, 9, 10, 11, 13, 21})
+78:_ALL_BLOCKED_LATE_B1 = frozenset({4, 5, 12, 13, 15, 16, 18, 20, 21})  # H07 unblocked user instruction 2026-05-15
+82:_ETH_BLOCKED_B1 = frozenset({1, 2})         # H01 n=34 EV=-0.71; H02 n=20 EV=-0.291 3/4d bad
+85:_ETH_BLOCKED_LATE = frozenset({0, 8, 9, 13, 16, 21, 22})
+91:_BTC_BLOCKED_B1 = frozenset({13})           # H13 n=26 EV=-0.274 4/6d bad
+94:_BTC_BLOCKED_LATE = frozenset({8})          # H08: live n=15 WR=47% net=-$32 (ETH B2/B3 already blocked; BTC was open)
+98:_BTC_BLOCKED_B3 = frozenset({1, 4, 18, 21, 23})   # H01 EV=-0.28 n=33; H04 EV=-1.15 n=12; H18 EV=-0.27 n=21 (B2 H18=+0.94); H21 shadow+0.43 n=15 user block; H23 EV=-0.58 n=18
