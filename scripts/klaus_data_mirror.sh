@@ -119,6 +119,17 @@ else
     echo "(week1_status.py not present at $SNAPSHOT_TS)" > data/lda_status.txt
 fi
 
+# ── Data integrity check (agents pre-flight against this) ──────────────────
+# Exit 0=clean, 1=warn, 2=blocking. Never let a non-zero rc fail the snapshot.
+if [ -x "$KLAUS/scripts/data_integrity_check.py" ]; then
+    python3 "$KLAUS/scripts/data_integrity_check.py" \
+        --trades "$KLAUS/logs/trades.jsonl" \
+        --output data/integrity_report.json \
+        --quiet || true
+else
+    echo '{"issues":{"INTEGRITY_SCRIPT_MISSING":{"severity":"HIGH","msg":"scripts/data_integrity_check.py not present"}},"blocks_agent_run":false,"highest_severity":"HIGH"}' > data/integrity_report.json
+fi
+
 # ── LDA config snapshot from source ────────────────────────────────────────
 {
     echo "# Current LDA config (live, from late_direction_arb.py)"
@@ -181,6 +192,7 @@ Single-commit rolling snapshot — do NOT merge or rebase from this branch.
 - \`data/lda_config.txt\`     — current LDA strategy parameters (from source)
 - \`data/state_log.md\`       — append-only user-decision log
 - \`data/system_status.txt\`  — klaus systemd, commits, disk, open positions
+- \`data/integrity_report.json\` — pre-flight data quality (read FIRST in agents)
 - \`data/CLAUDE.md\`          — repo CLAUDE.md (action tiers, rules)
 - \`data/agent_context/\`     — agent-readable ground truth (research_status.md, ...)
 - \`data/shadow_summary.json\`— per-logger index (n_rows, mtime, head/tail)
