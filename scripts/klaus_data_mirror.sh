@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+# /usr/local/bin/klaus_data_mirror.sh
+#
+# Pushes fresh trade + analytics data to the `data-mirror` branch on GitHub.
+# Scheduled scout/audit/watchdog/validator routines fetch from this branch —
+# they cannot SSH to the VPS (TCP/22 egress blocked), but they have git access.
+#
+# The branch is a single-rolling-commit force-push (orphan).
+# Don't merge from it; don't fetch its history.
+#
+# Deploy:
+#   sudo install -m 755 scripts/klaus_data_mirror.sh /usr/local/bin/
+#   sudo systemctl restart klaus_data_mirror.timer
+#   sudo systemctl start klaus_data_mirror.service    # manual run
+#   journalctl -u klaus_data_mirror.service -n 50
+#
+# Verify from any other machine:
+#   git fetch origin data-mirror
+#   git show origin/data-mirror:data/SNAPSHOT.md
+set -euo pipefail
+exec 2>&1
+
+KLAUS=/root/Klaus
+WORK=/var/lib/klaus_data_mirror
+REMOTE_URL=$(git -C "$KLAUS" remote get-url origin)
+SNAPSHOT_TS="$(date -u +%FT%TZ)"
+
+log() { echo "[klaus_data_mirror] $*"; }
+
+# ── Initialise / refresh the standalone working repo ───────────────────────
+if [ ! -d "$WORK/.git" ]; then
+    rm -rf "$WORK"
+    mkdir -p "$WORK"
+    git -C "$WORK" init -q -b data-mirror
+    git -C "$WORK" remote add origin "$REMOTE_URL"
+fi
+cd "$WORK"
+
+# Drop the working tree completely between runs so removed files don't linger.
+git rm -rf . >/dev/null 2>&1 || true
+rm -rf data
+mkdir -p data data/shadow
+
+# ── Copy live data ─────────────────────────────────────────────────────────
+cp -f "$KLAUS/logs/trades.jsonl"   data/trades.jsonl
+cp -f "$KLAUS/logs/bankroll.json"  data/bankroll.json
+[ -f "$KLAUS/state_log.md" ] && cp -f "$KLAUS/state_log.md" data/state_log.md
+
+# Optional: latest research artifacts if present (regenerated outside this script)
+for f in paths.parquet entries.parquet; do
+    [ -f "/tmp/research/$f" ] && cp -f "/tmp/research/$f" "data/$f" || true
+done
+
+# ── Agent context: CLAUDE.md + research_status.md ──────────────────────────
+[ -f "$KLAUS/CLAUDE.md" ] && cp -f "$KLAUS/CLAUDE.md" data/CLAUDE.md
+if [ -d "$KLAUS/agent_context" ]; then
+    mkdir -p data/agent_context
+    cp -rf "$KLAUS/agent_context/"* data/agent_context/ 2>/dev/null || true
+fi
+
+# ── Shadow loggers: today's hot files + summary index ──────────────────────
+SHADOW_DIR="$KLAUS/logs/shadow"
+TODAY=$(date -u +%Y-%m-%d)
+if [ -d "$SHADOW_DIR/hot/$TODAY" ]; then
+    cp -f "$SHADOW_DIR/hot/$TODAY"/*.jsonl data/shadow/ 2>/dev/null || true
+fi
+
+python3 - <<'PYEOF' > data/shadow_summary.json 2>/dev/null || echo '{"loggers":{},"error":"index failed"}' > data/shadow_summary.json
+import json, time
+from pathlib import Path
+
+shadow = Path("/root/Klaus/logs/shadow")
+out = {
+    "snapshot_ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "loggers": {},
+}
+SEVEN_DAYS = 7 * 86400
+now = time.time()
+
+if shadow.exists():
+    for jf in shadow.rglob("*.jsonl"):
+        rel = jf.relative_to(shadow).as_posix()
+        # Skip backfill / historical re-runs
+        if rel.startswith("backfill/"):
+            continue
+        try:
+            st = jf.stat()
+        except OSError:
+            continue
+        # Skip files not touched in the last 7 days unless under hot/
+        if (now - st.st_mtime) > SEVEN_DAYS and not rel.startswith("hot/"):
+            continue
+        try:
+            with jf.open() as fh:
+                first = fh.readline().rstrip()
+                n = 1 if first else 0
+                for _ in fh:
+                    n += 1
+            tail = ""
+            with jf.open("rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                back = min(4096, size)
+                if back:
+                    fh.seek(-back, 2)
+                    chunk = fh.read().decode("utf-8", errors="ignore").rstrip()
+                    tail = chunk.split("\n")[-1] if chunk else ""
+            out["loggers"][rel] = {
+                "n_rows": n,
+                "size_bytes": st.st_size,
+                "mtime_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(st.st_mtime)),
+                "first_excerpt": first[:300],
+                "last_excerpt": tail[:300],
+            }
+        except Exception as e:
+            out["loggers"][rel] = {"error": str(e)}
+print(json.dumps(out, indent=2, sort_keys=True))
+PYEOF
+
+# ── Compute fresh LDA status (uses /tmp/research/week1_status.py) ──────────
+if [ -f /tmp/research/week1_status.py ]; then
+    python3 /tmp/research/week1_status.py > data/lda_status.txt 2>&1 || \
+        echo "(week1_status.py failed at $SNAPSHOT_TS)" > data/lda_status.txt
+else
+    echo "(week1_status.py not present at $SNAPSHOT_TS)" > data/lda_status.txt
+fi
+
+# ── LDA config snapshot from source ────────────────────────────────────────
+{
+    echo "# Current LDA config (live, from late_direction_arb.py)"
+    echo "# Snapshot: $SNAPSHOT_TS"
+    echo "# Latest commit on klaus:"
+    git -C "$KLAUS" log --oneline -1
+    echo
+    grep -nE "^(ASK_FLOOR|ASK_CEIL|BID_MIN|REM_MIN_S|REM_MAX_S|BLOCKED_HOURS_UTC|_ALL_BLOCKED|_ETH_BLOCKED|_BTC_BLOCKED|_SOL_BLOCKED|STAKE_)" \
+        "$KLAUS/strategy/late_direction_arb.py" | head -40
+} > data/lda_config.txt
+
+# ── System health ──────────────────────────────────────────────────────────
+{
+    echo "## klaus systemd:"; systemctl is-active klaus 2>/dev/null || echo "unknown"
+    echo
+    echo "## Last 10 commits on klaus:"
+    git -C "$KLAUS" log --oneline -10 2>/dev/null
+    echo
+    echo "## Disk (GB):"; df -BG /root | tail -1
+    echo
+    echo "## Bot uptime:"
+    systemctl show klaus --property=ActiveEnterTimestamp 2>/dev/null
+    echo
+    echo "## Open positions (count):"
+    if [ -f "$KLAUS/logs/positions.json" ]; then
+        python3 -c "import json; print(len(json.load(open('$KLAUS/logs/positions.json')).get('positions', {})))" 2>/dev/null || echo "?"
+    else
+        echo "n/a"
+    fi
+} > data/system_status.txt
+
+# ── Snapshot metadata ──────────────────────────────────────────────────────
+CAPITAL=$(python3 -c "import json; print(json.load(open('data/bankroll.json')).get('capital','?'))" 2>/dev/null || echo "?")
+N_TRADES=$(wc -l < data/trades.jsonl)
+N_LIVE=$(grep -c '"is_live": *true' data/trades.jsonl 2>/dev/null || echo 0)
+KLAUS_HEAD=$(git -C "$KLAUS" rev-parse --short HEAD 2>/dev/null || echo "?")
+N_SHADOW_FILES=$(ls data/shadow/*.jsonl 2>/dev/null | wc -l)
+
+cat > data/SNAPSHOT.md <<EOF
+# Klaus data mirror
+
+| field | value |
+|---|---|
+| snapshot_ts (UTC) | $SNAPSHOT_TS |
+| klaus HEAD | $KLAUS_HEAD |
+| trades.jsonl rows | $N_TRADES |
+| live rows | $N_LIVE |
+| bankroll capital | \$$CAPITAL |
+| klaus service | $(systemctl is-active klaus 2>/dev/null || echo unknown) |
+| shadow files | $N_SHADOW_FILES |
+
+This branch is force-pushed by \`klaus_data_mirror.timer\` every 15 minutes.
+Single-commit rolling snapshot — do NOT merge or rebase from this branch.
+
+## Files
+
+- \`data/trades.jsonl\`       — live trade log (canonical analytics source)
+- \`data/bankroll.json\`      — current capital + cumulative pnl
+- \`data/lda_status.txt\`     — week-1 status (live EV/fire, CI, decision rule)
+- \`data/lda_config.txt\`     — current LDA strategy parameters (from source)
+- \`data/state_log.md\`       — append-only user-decision log
+- \`data/system_status.txt\`  — klaus systemd, commits, disk, open positions
+- \`data/CLAUDE.md\`          — repo CLAUDE.md (action tiers, rules)
+- \`data/agent_context/\`     — agent-readable ground truth (research_status.md, ...)
+- \`data/shadow_summary.json\`— per-logger index (n_rows, mtime, head/tail)
+- \`data/shadow/*.jsonl\`     — today's hot shadow logger files
+- \`data/paths.parquet\`      — hold-path data (7d, if regen'd)
+- \`data/entries.parquet\`    — entry-state + outcomes (if regen'd)
+
+## How a scheduled routine should consume this
+
+\`\`\`bash
+git fetch origin data-mirror
+mkdir -p /tmp/k && cd /tmp/k
+for f in SNAPSHOT.md trades.jsonl bankroll.json state_log.md \\
+         lda_status.txt lda_config.txt system_status.txt \\
+         CLAUDE.md shadow_summary.json; do
+    git show origin/data-mirror:data/\$f > \$f 2>/dev/null || true
+done
+git show origin/data-mirror:data/agent_context/research_status.md > research_status.md 2>/dev/null
+\`\`\`
+EOF
+
+# ── Commit + force-push ────────────────────────────────────────────────────
+git add data/
+git -c user.name="klaus-data-mirror" -c user.email="bot@klaus.local" \
+    commit -q --allow-empty -m "snapshot $SNAPSHOT_TS"
+
+# force-push (overwrite remote single-commit branch)
+git push --force origin HEAD:data-mirror >/dev/null
+
+# Reset our local branch back to a clean state for the next run
+LATEST=$(git rev-parse HEAD)
+git update-ref -d refs/heads/data-mirror >/dev/null 2>&1 || true
+git checkout -q --orphan data-mirror
+git reset -q --hard "$LATEST"
+
+log "pushed snapshot $SNAPSHOT_TS  trades=$N_TRADES  live=$N_LIVE  cap=\$$CAPITAL  klaus=$KLAUS_HEAD  shadow_files=$N_SHADOW_FILES"
