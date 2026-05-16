@@ -141,7 +141,7 @@ def main() -> None:
         kline_dir = "up" if k["close"] > k["open"] else (
             "down" if k["close"] < k["open"] else "flat")
         bet = t.get("bond_outcome_direction")
-        if bet is None:
+        if not bet:  # None or empty string — unknowable direction
             unresolved += 1
             continue
         correct = (bet == kline_dir)
