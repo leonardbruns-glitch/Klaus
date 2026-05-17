@@ -30,7 +30,7 @@ import json
 import logging
 import math
 import time
-from typing import Any, Dict, Set
+from typing import Any, Dict, Set, Tuple
 
 from strategy.momentum import Direction, TPSLLevels
 
@@ -162,6 +162,10 @@ class Volarb:
         self.bot = bot
         self.enabled: bool = True
         self._fired_tokens: Set[str] = set()  # one entry per token lifetime
+        # No re-entries per window: one VOLARB fire per (asset, window_end_ts).
+        # Blocks firing BTC-up and BTC-down in the same 5m window, and blocks
+        # any re-fire after TP exit within the same window.
+        self._fired_asset_windows: Set[Tuple[str, int]] = set()
         self._tasks: list = []
         self.entries_attempted: int = 0
         self.entries_filled: int = 0
@@ -183,6 +187,12 @@ class Volarb:
 
         # Per-token dedup
         if token_id in self._fired_tokens:
+            return
+
+        # Per-(asset, window) dedup — no re-entries per window
+        asset_upper = rec.get("asset", "").upper()
+        aw_key = (asset_upper, int(wend))
+        if aw_key in self._fired_asset_windows:
             return
 
         # Per-strategy concurrency cap
@@ -244,6 +254,7 @@ class Volarb:
 
         # Mark + fire
         self._fired_tokens.add(token_id)
+        self._fired_asset_windows.add(aw_key)
         self.entries_attempted += 1
         task = asyncio.create_task(self._fire(rec, model_p, edge))
         self._tasks.append(task)
@@ -319,6 +330,7 @@ class Volarb:
         if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
             logger.info("[VOLARB] fill failed %s: %s", asset, getattr(fill, "error", "?"))
             self._fired_tokens.discard(token_id)
+            self._fired_asset_windows.discard((asset.upper(), int(wend)))
             return
 
         self.entries_filled += 1
