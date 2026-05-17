@@ -36,12 +36,14 @@ from strategy.momentum import Direction, TPSLLevels
 logger = logging.getLogger(__name__)
 
 # ── Phase 1 gates ─────────────────────────────────────────────────────────────
-# Per-asset edge floor. SOL tightened 0.15 → 0.25 on 2026-05-17:
-#   backtest 05-14→16 at edge≥0.25: n=113, WR 54.9%, EV +$3.56/$5-trade, PF 2.58
-#   vs edge≥0.15:                   n=275, WR 53.1%, EV +$1.62,          PF 1.69
-# BTC/ETH stay at 0.15 (already on efficient frontier; tighter drops n<100).
-EDGE_FLOOR_BY_ASSET = {"BTC": 0.15, "ETH": 0.15, "SOL": 0.25}
-EDGE_FLOOR_DEFAULT  = 0.15
+# Per-asset edge floor. Globally tightened to 0.30 on 2026-05-17 (user instruction):
+#   live 10h observation showed 100% window saturation (362/360 cells) at floor 0.15
+#   — model finds edge≥0.15 on essentially every (asset×window×side); the floor
+#   was filtering noise but not constraining fire rate. Cumulative live distribution
+#   at edge≥0.30: BTC 7% of fires kept, ETH 11%, SOL 17%. Backtest at 0.30 has
+#   small n (BTC n=36, ETH n=22, SOL n=72) — Tier 2 evidence + live-frequency.
+EDGE_FLOOR_BY_ASSET = {"BTC": 0.30, "ETH": 0.30, "SOL": 0.30}
+EDGE_FLOOR_DEFAULT  = 0.30
 # ASK_FLOOR lowered 0.10 → 0.00 2026-05-17 (user instruction). Activates the
 # backtest "longshot" bucket: n=95 OOS, WR 50.5%, +$90.32/trade ($5 stake) —
 # 88% of total backtest PnL. Variance is high; single drought can wipe gains.
