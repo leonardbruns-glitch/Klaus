@@ -26,6 +26,7 @@ Phase 1 gates:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import time
@@ -54,6 +55,23 @@ REM_MAX_S      = 280.0   # avoid the wild [280, 300) window-open noise
 STAKE_USD      = 1.00    # Phase 1 conservative
 MAX_CONCURRENT = 3
 ASK_DEPTH_MULT = 3.0     # require top-1 ask_size >= 3x our shares
+
+# Microstructure shadow logger (added 2026-05-17):
+#   Records ob_quote_age_ms + binance_ret_15m_pct + R1/R3 decisions for every VOLARB
+#   fire, without affecting live behavior. Goal: validate the in-sample R1+R3 rule on
+#   forward data.
+#     R1: ob_quote_age_ms in [200, 1313)  — avoid adverse selection on fresh quotes
+#         and stale quotes; live in-sample $90 sum spread between quintiles.
+#     R3: binance_ret_15m_pct NOT in (-0.04, -0.001) — avoid the mild-drift regime
+#         where live in-sample lost $30 in the matching quintile.
+#   Live in-sample R1+R3: n=206/596 retained, sum +$104 vs baseline +$81 (+$23).
+#   OOS backtest May 14-16: R1+R3 was -$67 — failure. Shadow-only deploy to test
+#   whether the live finding reproduces on forward data without committing capital.
+MICROSHADOW_PATH = "logs/volarb_microshadow.jsonl"
+MICROSHADOW_R1_AGE_MIN_MS = 200.0
+MICROSHADOW_R1_AGE_MAX_MS = 1313.0
+MICROSHADOW_R3_DRIFT_MIN  = -0.04
+MICROSHADOW_R3_DRIFT_MAX  = -0.001
 
 # ── Baked-in model (extracted from /tmp/volarb_train_export.py on 2026-05-16) ─
 # Features (in order): r5s, r30s, r60s, r60m, vel5s, sec_to_res, vol_reg, trend_reg, liq_reg, ob_imb, vpin, tok_snap_30s
@@ -216,12 +234,55 @@ class Volarb:
         if token_id in self.bot.risk.open_positions:
             return
 
+        # Microstructure shadow logger — NON-BLOCKING. Records what an R1+R3 filter
+        # would have decided, so we can validate the in-sample finding on forward data
+        # without changing live behavior. See MICROSHADOW_* constants above.
+        try:
+            self._microshadow_log(rec, model_p, edge)
+        except Exception:
+            logger.debug("[VOLARB] microshadow log failed", exc_info=True)
+
         # Mark + fire
         self._fired_tokens.add(token_id)
         self.entries_attempted += 1
         task = asyncio.create_task(self._fire(rec, model_p, edge))
         self._tasks.append(task)
         task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
+
+    def _microshadow_log(self, rec: dict, model_p: float, edge: float) -> None:
+        """Append one row per VOLARB fire with R1/R3 decision + features. NON-BLOCKING."""
+        age = rec.get("ob_quote_age_ms")
+        r15 = rec.get("binance_ret_15m_pct")
+        r1_pass = (age is not None
+                   and MICROSHADOW_R1_AGE_MIN_MS <= float(age) < MICROSHADOW_R1_AGE_MAX_MS)
+        r3_pass = (r15 is not None
+                   and not (MICROSHADOW_R3_DRIFT_MIN < float(r15) < MICROSHADOW_R3_DRIFT_MAX))
+        record = {
+            "ts_s": time.time(),
+            "token_id": rec.get("token_id"),
+            "condition_id": rec.get("condition_id"),
+            "asset": rec.get("asset"),
+            "outcome_side": rec.get("outcome_side"),
+            "outcome_dir": rec.get("outcome_dir"),
+            "ask": rec.get("best_ask"),
+            "mid": rec.get("mid"),
+            "model_p": model_p,
+            "edge": edge,
+            "ob_quote_age_ms": age,
+            "binance_ret_15m_pct": r15,
+            "spread_bps": rec.get("spread_bps"),
+            "arb_sum_yes_no": rec.get("arb_sum_yes_no"),
+            "vol_regime": rec.get("vol_regime"),
+            "trend_regime": rec.get("trend_regime"),
+            "liquidity_regime": rec.get("liquidity_regime"),
+            "ob_imb_top3": rec.get("ob_imb_top3"),
+            "ob_top1_ask_size": rec.get("ob_top1_ask_size"),
+            "r1_pass": r1_pass,
+            "r3_pass": r3_pass,
+            "r1r3_pass": r1_pass and r3_pass,
+        }
+        with open(MICROSHADOW_PATH, "a") as f:
+            f.write(json.dumps(record) + "\n")
 
     async def _fire(self, rec: dict, model_p: float, edge: float) -> None:
         try:
