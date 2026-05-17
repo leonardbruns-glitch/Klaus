@@ -362,6 +362,8 @@ class KlausBot:
         self.oracle_sweeper = None  # permanently off; replaced by LDA
         from strategy.late_direction_arb import LateDirectionArb
         self.lda_strategy = LateDirectionArb(self)
+        # LDA disabled 2026-05-17 (user instruction): VOLARB runs solo with +20% TP.
+        self.lda_strategy.enabled = False
         # VOLARB Phase 1 ($1 stake, edge>=0.15, ask [0.10,0.60], max 3 concurrent).
         # Hold-to-resolution; reuses LDA's kline-win + BOND_RESOLVED_NO exit paths
         # (the VOLARB tag is included in those checks).
@@ -1448,6 +1450,27 @@ class KlausBot:
                     )
                     try:
                         await self._exit_position(token_id, current_price, 'BOND_TIME_EXIT')
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    continue
+
+                # ── VOLARB entry+20% TP (user instruction 2026-05-17) ───────────
+                # Take profit when bid >= entry × 1.20. Holds to resolution otherwise.
+                if (getattr(pos, "bond_entry_class", "") == "VOLARB"
+                        and pos.entry_price > 0
+                        and current_price >= pos.entry_price * 1.20
+                        and bond_remaining > 3.0
+                        and token_id not in self._exit_in_progress):
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        'VOLARB_TP20 %s/%s | bid=%.4f ep=%.4f gain=%.1f%% rem=%.1fs',
+                        pos.asset, pos.direction.name,
+                        current_price, pos.entry_price,
+                        (current_price / pos.entry_price - 1.0) * 100.0,
+                        bond_remaining,
+                    )
+                    try:
+                        await self._exit_position(token_id, current_price, 'VOLARB_TP20')
                     finally:
                         self._exit_in_progress.discard(token_id)
                     continue
