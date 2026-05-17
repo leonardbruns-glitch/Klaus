@@ -1,8 +1,10 @@
 ## klaus systemd:
-failed
-unknown
+active
 
 ## Last 10 commits on klaus:
+dc9fba9 Disable VOLARB +20% profit target — revert to hold-to-resolution.
+bf70c0b VOLARB: one entry per (asset, window) — no re-entries per window
+1bd06b0 LDA off; VOLARB +20% TP vs entry
 e8b9592 LDA: re-enable entries (runs alongside VOLARB)
 f52ed09 VOLARB: microstructure shadow logger (R1+R3 decision recording)
 fdaae28 Watchdog 2026-05-17T14:19:34Z: OK
@@ -10,15 +12,12 @@ fdaae28 Watchdog 2026-05-17T14:19:34Z: OK
 304568c VOLARB Scout 2026-05-17T1242Z — H5 [220-280s) SIGNAL:BELOW_CI n=362; H6 bod=down SIGNAL:BELOW_CI n=315
 16ef779 VOLARB Audit 20260517-1226 — NO_PATCH (n=528, EV=+$0.160, PF=1.169 — lever conditions not met)
 cf5b858 Watchdog 2026-05-17T12:17:56Z: OK
-a1a2446 Watchdog 2026-05-17T11:17:56Z: OK (CAPITAL_DROP resolved)
-46d6b1b VOLARB: EDGE_FLOOR 0.30 -> 0.10 globally (user instruction)
-d964662 Watchdog 2026-05-17T10:17:46Z: HIGH 1 alert (CAPITAL_DROP)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   45G       49G  48% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-17 16:58:49 UTC
+ActiveEnterTimestamp=Sun 2026-05-17 18:04:54 UTC
 
 ## Open positions (count):
 0
