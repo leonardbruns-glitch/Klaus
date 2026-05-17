@@ -193,6 +193,11 @@ class OrderManager:
         # Measures round-trip time from order submission to CLOB response.
         # High latency (>500ms) = network is the bottleneck.
         self._order_latencies_ms: List[float] = []  # all order RTTs this session
+        # ── Smart allowance refresh: avoid redundant HTTP per order ──────────
+        # CLOB allowance persists 30s+ after refresh. Cache last refresh ts and
+        # skip if recent. Reduces per-order latency by ~500ms-1s.
+        self._last_allowance_refresh_ts: float = 0.0
+        self._allowance_refresh_ttl_s: float = 30.0
         # _session_lock: guards the module-level _CffiSession (not thread-safe).
         # Held only for the duration of a single HTTP call — released between calls
         # so other tokens can interleave. Narrower than the old _clob_http_lock which
@@ -275,6 +280,7 @@ class OrderManager:
         direction: Direction,
         neg_risk: bool = False,
         tick_size: str = TICK_SIZE,
+        fast_fail: bool = False,
     ) -> OrderResult:
         """
         Place a limit buy at price * (1 + buffer), hard-capped at MAX_ENTRY_PRICE.
@@ -298,18 +304,22 @@ class OrderManager:
 
         # Refresh USDC allowance before buy — CLOB allowance depletes with each order
         # and must be reset or buys fail with "not enough balance / allowance".
-        # Wrapped in to_thread + lock to avoid blocking the event loop during the HTTP call.
-        try:
-            async with self._session_lock:
-                await asyncio.to_thread(
-                    self._client.update_balance_allowance,
-                    BalanceAllowanceParams(
-                        asset_type=AssetType.COLLATERAL,
-                        signature_type=CONFIG.signature_type,
+        # Smart TTL: skip if we refreshed within the last 30s (allowance is still valid).
+        # Saves ~500ms-1s HTTP call per order in the common case.
+        _now_ts = time.time()
+        if _now_ts - self._last_allowance_refresh_ts >= self._allowance_refresh_ttl_s:
+            try:
+                async with self._session_lock:
+                    await asyncio.to_thread(
+                        self._client.update_balance_allowance,
+                        BalanceAllowanceParams(
+                            asset_type=AssetType.COLLATERAL,
+                            signature_type=CONFIG.signature_type,
+                        )
                     )
-                )
-        except Exception as _exc:
-            logger.warning("USDC allowance refresh failed: %s", _exc)
+                self._last_allowance_refresh_ts = _now_ts
+            except Exception as _exc:
+                logger.warning("USDC allowance refresh failed: %s", _exc)
 
         # Single attempt only for 5-min window entries.
         # Retrying a resting BUY wastes 3s × N attempts = up to 15s of a 240s window.
@@ -337,7 +347,12 @@ class OrderManager:
         # 3s+5s confirmed insufficient — SOL fills appearing after 5s repeatedly.
         # asyncio.sleep is non-blocking so other coroutines run during waits.
         _cumulative = 0.0
-        for _wait_s in (1.0, 2.0, 3.0):  # checks at 1s, 3s, 6s total — fast fail for terminal entries
+        # fast_fail mode (CAS-LowAsk re-entry friendly): cuts the orphan recovery
+        # window from 6s to 1.5s. Worst-case cost: a real fill arriving 2-6s after
+        # the FAILED response is mistaken as an orphan. For CAS the cheap re-entry
+        # is a better trade than waiting 6s on a failed terminal-zone order.
+        _wait_schedule = (0.5, 1.0) if fast_fail else (1.0, 2.0, 3.0)
+        for _wait_s in _wait_schedule:  # checks at 1s, 3s, 6s total — fast fail for terminal entries
             await asyncio.sleep(_wait_s)
             _cumulative += _wait_s
             _orphan_balance = self.fetch_token_balance(token_id)

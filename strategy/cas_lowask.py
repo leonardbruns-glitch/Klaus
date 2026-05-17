@@ -191,6 +191,7 @@ class CASLowAsk:
             intended_price=ask,
             stake_usd=stake,
             direction=Direction.BUY_YES,
+            fast_fail=True,
         )
 
         if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
