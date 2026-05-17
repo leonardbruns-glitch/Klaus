@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-17T21:44:14Z
+# Snapshot: 2026-05-17T21:59:21Z
 # Latest commit on klaus:
-a340557 CAS-LowAsk: partial-fill mode (5 sh / $1 notional minimums)
+dbba10b Smart allowance refresh + fast-fail orphan recovery for CAS
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

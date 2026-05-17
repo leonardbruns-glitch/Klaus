@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+dbba10b Smart allowance refresh + fast-fail orphan recovery for CAS
+cf873f8 Watchdog 2026-05-17T21:18:10Z: OK (BOT_DOWN→OK, CAPITAL_RUIN→OK)
 a340557 CAS-LowAsk: partial-fill mode (5 sh / $1 notional minimums)
 66823a1 CAS-LowAsk strategy: cross-asset synchrony × cheap-tail entry
 536f877 Watchdog 2026-05-17T19:18:00Z: CRITICAL 1 alert (BOT_DOWN)
@@ -10,14 +12,12 @@ a00b7c5 Disable VOLARB +20% profit target — revert to hold-to-resolution.
 bf70c0b VOLARB: one entry per (asset, window) — no re-entries per window
 1bd06b0 LDA off; VOLARB +20% TP vs entry
 e8b9592 LDA: re-enable entries (runs alongside VOLARB)
-f52ed09 VOLARB: microstructure shadow logger (R1+R3 decision recording)
-fdaae28 Watchdog 2026-05-17T14:19:34Z: OK
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   44G       49G  48% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-17 21:18:56 UTC
+ActiveEnterTimestamp=Sun 2026-05-17 21:59:09 UTC
 
 ## Open positions (count):
 0
