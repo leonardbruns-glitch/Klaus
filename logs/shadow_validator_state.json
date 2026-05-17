@@ -1,0 +1,40 @@
+{
+  "exit_policy_shadow": {
+    "n_seen": 18255,
+    "status": "SCHEMA_DRIFT",
+    "last_uplift": null,
+    "last_ci95": null,
+    "schema_adapted_uplift_BE_trail_5_3": 7.2743,
+    "schema_adapted_ci95_BE_trail_5_3": [5.6962, 8.8525],
+    "schema_adapted_uplift_PT0_93": 4.7053,
+    "schema_adapted_ci95_PT0_93": [3.1522, 6.2585],
+    "schema_adapted_uplift_PT0_95": 4.4237,
+    "schema_adapted_ci95_PT0_95": [2.6188, 6.2286],
+    "ts": "2026-05-17T09:15:00Z",
+    "note": "Manifest schema mismatch. Actual schema is per-policy-per-trade with policy_id+clean_pnl_pct. All 3 candidates clear CI>0 in schema-adapted analysis (n=216 paired groups today). Formal READY blocked pending manifest update."
+  },
+  "volarb_longshot_shadow": {
+    "n_seen": 0,
+    "status": "NOT_DEPLOYED",
+    "last_uplift": null,
+    "last_ci95": null,
+    "ts": "2026-05-17T09:15:00Z",
+    "note": "Phase 2 gate not yet deployed. No file in data-mirror."
+  },
+  "order_lifecycle": {
+    "n_seen": 2470,
+    "status": "INFORMATIONAL",
+    "last_uplift": null,
+    "last_ci95": null,
+    "ts": "2026-05-17T09:15:00Z",
+    "note": "Fill-only events. mean_latency_ms=1893.6 median=1500.1. No promotion criteria."
+  },
+  "window_resolution": {
+    "n_seen": 10248,
+    "status": "JOIN_SOURCE",
+    "last_uplift": null,
+    "last_ci95": null,
+    "ts": "2026-05-17T09:15:00Z",
+    "note": "Join source only. No analysis performed."
+  }
+}
