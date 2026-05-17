@@ -1,161 +1,130 @@
-# Quantitative Audit — 2026-05-16 06:07 UTC
+# LDA Quantitative Audit — 2026-05-17 00:16 UTC
 
-## Data Collection Status
-**FAILED — VPS UNREACHABLE (63rd consecutive session)**
+## Snapshot
 
-| Method | Result |
+| field | value |
 |---|---|
-| SSH to root@85.137.174.86:22 | `ssh` binary not found — TCP port 22 egress blocked from this container environment |
-| /tmp/trades.jsonl | 0 real trade lines — SSH transfer not possible |
-| /tmp/post_exit.jsonl | 0 lines — not retrieved |
-| logs/trades.jsonl (git-tracked) | Not present — VPS has not synced to repo |
-| logs/bankroll.json (local snapshot) | **UNCHANGED since 2026-05-08 19:26 UTC (178.7h stale)** |
+| snapshot_ts | 2026-05-17T00:02:11Z (14 min old — FRESH) |
+| Klaus state | active (VOLARB Phase 1 live since 2026-05-16 21:14 UTC) |
+| Capital | $67.03 (prior usable audit was BOND-era at $84.61 — -$17.58 since) |
+| LDA n live era | 111 (lda_status.txt canonical) / 116 kpnl-resolved (this audit, dedup diff below) |
+| drift_status | OK — constants match lda_config.txt (cosmetic blank-line difference only) |
+| VOLARB notice | LDA superseded by VOLARB Phase 1 2026-05-16 21:00 UTC; last LDA fill 20:00 UTC — n growth STOPPED |
 
-**Bankroll snapshot** (ts=1778268412 / 2026-05-08 19:26 UTC — 7.4 days stale):
-- capital: $84.61
-- total_trades: 2,605
-- total_pnl: +$87.87
-- consecutive_wins: 0
+**Data window:** 2026-05-15T15:02:00Z (Kelly-disable boundary) → 2026-05-17T00:02:11Z (snapshot)
 
-> Bankroll snapshot **UNCHANGED** for 63 consecutive audit sessions. Actual live capital unknown.
+**Overall LDA (lda_status.txt canonical):** n=111 WR=82.0% Net=+$7.01 Avg_EV=+$0.84%/fire CI95=[-7.89,+9.37]
+
+**Dedup note:** canonical key is (condition_id, window_end_ts, rem_bucket); audit used (asset, direction, 5m-window) proxy → yields n=116 vs n=111. All analysis below uses canonical n=111 for overall-EV baseline. Per-cell n from proxy dedup.
 
 ---
 
-## AUDIT SCOPE CONFLICT — BOND Strategy Disabled (63rd session)
+## Data Integrity Flags
 
-**This audit framework targets `signal_source=='BOND'` trades exclusively.**
-
-| Strategy | Status | Since |
+| field | problem | impact |
 |---|---|---|
-| BOND_ENABLED | **False** | 2026-05-10 |
-| SNIPER_ENABLED | **False** | 2026-04-16 |
-| MOM_ENABLED | **False** | 2026-04-22 |
-| DISCOVER (active) | **True** | 2026-05-10 |
-| LDA (active, newest) | **True** | 2026-05-12 21:41 UTC |
+| `term_remaining_s` | all 0.0 in trades.jsonl | rem_bucket indeterminate; bucket-level analysis BLOCKED |
+| `binance_ret_5m_pct` | field absent from trade records | BNC floor uplift analysis BLOCKED |
+| `term_binance_5m_pct` | all 0.0 | same |
+| `term_spot_delta_5m/30s/60s/5s` | all 0.0 | feature analysis blocked |
 
-BOND audit filter (`signal_source=='BOND'`, `0.80<=entry_price<=0.88`) returns 0 trades for any window after 2026-05-10. This framework is **structurally inapplicable** to the current live state.
-
-**Actual BOND parameters in codebase** (ground truth from main.py, differs from audit prompt assumptions):
-| Parameter | Actual code value | Audit prompt assumed | Delta |
-|---|---|---|---|
-| `_ask_floor` | **0.78** | 0.80 | −0.02 |
-| `_ask_max` | **0.93** | 0.88 | +0.05 |
-| `min_imbalance` | **0.0 (gate inactive)** | 0.20 | — |
-| `bond_blocked_hours_utc` | **[]** | [] | none |
-| `stop_loss` | **−15%** | −15% | none |
-| `BOND_ENABLED` | **False** | (assumed True) | — |
+These fields appear populated at runtime (lda_status.txt computes correctly) but are not flushed to trades.jsonl. Fix required in LDA trade logger before bucket or BNC analysis can run.
 
 ---
 
-## 6h Summary
-n_trades=0 (no trades.jsonl retrieved) | WR=N/A | E=N/A | Kelly=N/A
+## 6h Recency Cells (n≥10 flag threshold)
 
-6h window: 2026-05-16 00:07 UTC → 2026-05-16 06:07 UTC
+Window: 2026-05-16T18:02 → 2026-05-17T00:02 UTC
 
-0.80-0.84: n=0 WR=N/A E=N/A
-0.84-0.88: n=0 WR=N/A E=N/A
-
-## Loss Signatures
-None in window — no data accessible.
-
-## OB Imbalance
-No data accessible. Buckets all empty.
-
-## Slippage
-avg_slippage_entry=N/A
-
-## Hour Analysis (all-time, 0.80-0.88 BOND filter)
-No data accessible. n=0 for all hours — BOND disabled 2026-05-10; filter returns zero. No block/unblock decisions possible.
-
-| H | n | WR | PF | status |
+| cell | n | WR | kline_sum | flag |
 |---|---|---|---|---|
-| all | 0 | — | — | collecting data (VPS unreachable + BOND disabled) |
+| H18×B?×BTC | 1 | 0% | -$20.03 | n<10, no flag |
+| H20×B?×ETH | 1 | pending | — | kline_pnl unresolved |
+
+No cell reaches n≥10 in the 6h window. VOLARB deployment at 21:00 UTC truncated LDA fills.
 
 ---
 
-## Flags
-INSUFFICIENT_DATA — 63rd consecutive session with no VPS connectivity.
-AUDIT_SCOPE_CONFLICT — BOND disabled 2026-05-10; audit framework targets non-active strategy.
-NO_CHANGE — no BOND parameter changes without data.
+## All-Time Cell Scan (data window: 2026-05-15T15:02Z .. 2026-05-17T00:02Z)
+
+Overall EV baseline from lda_status.txt: $7.01 / 111 = **$0.063/fire**.
+Bucket dim indeterminate (term_remaining_s logging bug); reported as hour×B?×asset.
+
+| hour×bucket×asset | n | WR | PF | sum($) | uplift_vs_baseline | status |
+|---|---|---|---|---|---|---|
+| H07×B?×ETH | 6 | 67% | 0.421 | -6.44 | -1.14/fire | too_small |
+| H09×B?×ETH | 4 | 75% | 0.966 | -0.17 | -0.31/fire | too_small |
+| H10×B?×BTC | 10 | 60% | 0.364 | -16.37 | -1.70/fire | **collect** |
+| H10×B?×ETH | 10 | 70% | 0.617 | -9.32 | -1.00/fire | **collect** |
+| H14×B?×ETH | 3 | 33% | 0.172 | -16.27 | -5.55/fire | too_small |
+| H16×B?×BTC | 12 | 75% | 0.715 | -7.51 | -0.69/fire | **collect** |
+| H18×B?×BTC | 4 | 75% | 0.181 | -16.41 | -4.17/fire | too_small |
+| H06×B?×BTC | 2 | 100% | inf | +3.90 | +1.84/fire | too_small |
+| H07×B?×BTC | 3 | 100% | inf | +5.97 | +1.93/fire | too_small |
+| H09×B?×BTC | 6 | 67% | 1.495 | +4.95 | +0.76/fire | too_small |
+| H14×B?×BTC | 5 | 80% | 2.123 | +11.33 | +2.20/fire | too_small |
+| H16×B?×ETH | 2 | 100% | inf | +4.19 | +2.04/fire | too_small |
+| H17×B?×BTC | 10 | 90% | 3.448 | +13.11 | +1.25/fire | collect (positive) |
+| H17×B?×ETH | 6 | 83% | 1.877 | +4.44 | +0.68/fire | too_small |
+| H18×B?×ETH | 9 | 100% | inf | +16.96 | +1.82/fire | too_small |
+| H20×B?×ETH | 6 | 100% | inf | +9.75 | +1.56/fire | too_small |
+
+Max n per cell: 12 (H16×BTC). Patch threshold n≥100 not reached by any cell.
+
+lda_status.txt confirms H10 as worst hour (n=19 WR=63.2% Net=-$32.20) — consistent with cell scan.
+Rolling-20 net: -$8.81 (current). Worst rolling-20: -$36.39 (T05206_BTC). lda_status STATUS: STOP.
 
 ---
 
-## SYSTEM_PATCH
-```json
-{
-  "min_ask": 0.78,
-  "max_ask": 0.93,
-  "min_imbalance": 0.0,
-  "stake": 4.00,
-  "stop_loss": -0.15,
-  "blocked_hours": [],
-  "change": false,
-  "reason": "INSUFFICIENT_DATA — VPS unreachable (63rd consecutive session). BOND disabled 2026-05-10; audit filter inapplicable. Active strategies: LDA + DISCOVER. No parameter changes without data."
-}
-```
+## BNC Floor Analysis
+
+**BLOCKED: `binance_ret_5m_pct` all 0.0 in trades.jsonl** — cannot validate whether current floors (0.10% at ask<0.70, 0.05% at ask<0.90, 0.07% at ask≥0.90) are correctly sized.
+
+Ask-zone distribution (n counts only, without BNC signal):
+
+| ask zone | n | WR | PF | net($) | BNC floor change eligible |
+|---|---|---|---|---|---|
+| <0.70 | 3 | 33% | 0.113 | -17.20 | NO (n=3<100) |
+| [0.70,0.90) | 111 | 83% | 1.318 | +45.58 | n≥100 — but BNC field unavailable |
+| ≥0.90 | 2 | 100% | inf | +0.94 | NO (n=2<100) |
+
+No BNC floor change warranted. [0.70,0.90) is positive-EV at n=111 — existing floor not causing visible bleed.
 
 ---
 
-## Active Strategy Parameters (ground truth from codebase — 2026-05-16 06:07 UTC)
+## Proposed Patch
 
-### LDA — Late Direction Arb (strategy/late_direction_arb.py)
-Latest commits: B2 ask ceiling raised 0.80→0.85; flat $5 stake; H03+H23 globally blocked; SOL fully blocked; B3 re-enabled with ask floor 0.55; all kill switches disabled per user instruction.
+**No patch.** Decision: COLLECTING.
 
-| Parameter | Value | Notes |
+- All cells n<40 → collect (no watchlist entries, no block/unblock candidates)
+- BLOCK condition requires n≥100: not met
+- UNBLOCK condition requires n≥100: not met
+- BNC floor requires uplift>+$15 net at n≥100: not met (field unavailable)
+- VOLARB deployment means LDA n is frozen at ~111 unless strategy resumes
+
+---
+
+## Watchlist (40≤n<100)
+
+None. No cell reaches n=40. Pre-watchlist cells if LDA resumes:
+
+| cell | n | WR | PF | sum | trend | delta vs prior watchlist |
+|---|---|---|---|---|---|---|
+| H10×B?×BTC | 10 | 60% | 0.364 | -$16.37 | negative | prior audit BOND-era: N/A |
+| H10×B?×ETH | 10 | 70% | 0.617 | -$9.32 | negative | prior audit BOND-era: N/A |
+| H16×B?×BTC | 12 | 75% | 0.715 | -$7.51 | negative | prior audit BOND-era: N/A |
+| H17×B?×BTC | 10 | 90% | 3.448 | +$13.11 | positive | prior audit BOND-era: N/A |
+
+Prior audit report was BOND-era (all data stale/inapplicable) — no delta comparison possible.
+
+---
+
+## Skipped — User Override (state_log)
+
+No block/unblock decisions reached threshold. For reference, cells state_log shows user explicitly handled (do not re-block without instruction):
+
+| cell | state_log action | date |
 |---|---|---|
-| ASK_FLOOR | 0.60 | |
-| ASK_CEIL | 0.98 | 0.994→0.98 |
-| BID_MIN | 0.50 | |
-| REM_MIN_S | 8.0s | |
-| BLOCKED_HOURS_UTC | {0, 1, 2, 3, 19, 23} | |
-| _ALL_BLOCKED_LATE [120-300s) | {3, 5, 6, 7, 12, 15} | |
-| _ALL_BLOCKED_LATE_B1 [60-120s) | {4, 5, 12, 15} | H07 unblocked 2026-05-15 |
-| _ETH_BLOCKED_LATE | {0, 8, 9, 13, 16, 21, 22} | |
-| _BTC_BLOCKED_LATE [120-300s) | {8} | |
-| _BTC_BLOCKED_B3 [180-300s) | {1, 4, 18, 21, 23} | |
-| B3 [180-300s) | re-enabled 2026-05-15 | ask range 0.55–<0.80 |
-| Kill switches | **disabled** | per user instruction |
-| Stake | flat $5 per entry | Kelly disabled |
-| Asset universe | BTC + ETH | SOL fully blocked 2026-05-15 |
-
-### BOND Parameters (audit reference — BOND disabled since 2026-05-10)
-
-| Parameter | Code Location | Current Value | Audit Prompt Assumed | Delta |
-|---|---|---|---|---|
-| min_ask (_ask_floor) | main.py:2592 | **0.78** | 0.80 | −0.02 |
-| max_ask (_ask_max) | main.py:2590 | **0.93** | 0.88 | +0.05 |
-| min_imbalance | main.py | **0.0 (gate inactive)** | 0.20 | — |
-| bond_blocked_hours_utc | config.py:151 | **[]** | [] | none |
-| stop_loss | main.py | **−15%** | −15% | none |
-| BOND_ENABLED | window_sniper.py:133 | **False** | (assumed True) | — |
-
----
-
-## Infrastructure Alert — Critical (63 consecutive sessions)
-
-**Root cause**: TCP port 22 egress is blocked from the cloud audit environment. SSH binary is not installed and cannot be used. Cannot reach VPS at 85.137.174.86.
-
-**Required action — run ONE of these on the VPS to unblock future audits:**
-
-**Option A: Manual one-time sync (30 seconds)**
-```bash
-cd /root/Klaus
-tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl
-git add logs/live_trades_recent.jsonl logs/bankroll.json
-git commit -m "manual log sync $(date -u)"
-git push origin claude/find-lag-parameter-rFQ0N
-```
-
-**Option B: Deploy cron sync (every 30 minutes, permanent fix)**
-```bash
-cat > /etc/cron.d/push-logs << 'EOF'
-*/30 * * * * root cd /root/Klaus && \
-  tail -5000 logs/trades.jsonl > logs/live_trades_recent.jsonl && \
-  git add logs/live_trades_recent.jsonl logs/bankroll.json && \
-  git commit --allow-empty -m "log sync $(date -u +%%Y-%%m-%%dT%%H:%%M)" && \
-  git push origin claude/find-lag-parameter-rFQ0N 2>/dev/null
-EOF
-chmod 644 /etc/cron.d/push-logs
-```
-
-**Note on audit framework conflict**: BOND has been disabled for 6 days; LDA+DISCOVER are live. A new audit framework targeting `signal_source=='LDA'` is needed. Key LDA fields: `entry_price`, `exit_price`, `exit_reason`, `hold_s`, `net_pnl`, `asset`, `bnc_move_pct`, `rem_bucket`.
+| H23 B1 | partial unblock (H23 B2 only enabled, B0/B2/B3 remain blocked) | 2026-05-16 |
+| H07 B1 | unblocked from `_ALL_BLOCKED_LATE_B1` | 2026-05-15 |
+| H21 BTC B3 | user-blocked ("shadow+0.43 n=15 user block") | in _BTC_BLOCKED_B3 |
