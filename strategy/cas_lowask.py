@@ -38,7 +38,11 @@ REM_MIN_S        = 50.0
 REM_MAX_S        = 70.0
 STAKE_USD        = 5.00
 MAX_CONCURRENT   = 2       # tight: caps simultaneous risk at $10 given ~$13 capital
-ASK_DEPTH_MIN_SH = 25      # need at least 25 shares at top of book (covers $5 at ask $0.20)
+# Partial-fill mode: take up to STAKE_USD worth, but accept smaller fills down to CLOB
+# minimums (5 shares / $1 notional). WR is determined by token resolution not stake
+# size, so smaller fills preserve EV per dollar while capturing more opportunities.
+ASK_DEPTH_MIN_SH = 5       # CLOB minimum order size
+MIN_NOTIONAL_USD = 1.00    # CLOB minimum maker amount
 
 
 class CASLowAsk:
@@ -100,8 +104,11 @@ class CASLowAsk:
         ask_size = rec.get("ob_top1_ask_size") or 0.0
         if ask_size < ASK_DEPTH_MIN_SH:
             return
-        shares_wanted = STAKE_USD / ask
-        if shares_wanted > ask_size:
+        # Partial-fill sizing: take up to $5 worth, but cap at top-1 size to avoid
+        # walking the book. Skip if the resulting notional is below CLOB $1 minimum.
+        shares_to_buy = min(STAKE_USD / ask, ask_size)
+        actual_stake = shares_to_buy * ask
+        if actual_stake < MIN_NOTIONAL_USD:
             return
 
         # Canonical bet token: ('up','YES') = bet UP, ('down','NO') = bet DOWN
@@ -145,19 +152,19 @@ class CASLowAsk:
         self._fired_tokens.add(token_id)
         self._fired_asset_windows.add(aw_key)
         self.entries_attempted += 1
-        task = asyncio.create_task(self._fire(rec, partials, bet_dir))
+        task = asyncio.create_task(self._fire(rec, partials, bet_dir, actual_stake))
         self._tasks.append(task)
         task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
 
-    async def _fire(self, rec: dict, partials: dict, bet_dir: str) -> None:
+    async def _fire(self, rec: dict, partials: dict, bet_dir: str, stake: float) -> None:
         try:
-            await self._fire_inner(rec, partials, bet_dir)
+            await self._fire_inner(rec, partials, bet_dir, stake)
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("[CAS] unhandled error %s/%s", rec.get("asset"), rec.get("window_end_ts"))
 
-    async def _fire_inner(self, rec: dict, partials: dict, bet_dir: str) -> None:
+    async def _fire_inner(self, rec: dict, partials: dict, bet_dir: str, stake: float) -> None:
         from execution.order_manager import OrderStatus
 
         token_id = rec["token_id"]
@@ -176,13 +183,13 @@ class CASLowAsk:
             "[CAS] ENTER %s/%s/%s ask=%.4f rem=%.1fs bet=%s partials: %s=%+.3f%% %s=%+.3f%% %s=%+.3f%% stake=$%.2f",
             asset, outcome_dir, side, ask, rem, bet_dir,
             pair[0], partials[pair[0]], pair[1], partials[pair[1]], c, partials[c],
-            STAKE_USD,
+            stake,
         )
 
         fill = await self.bot.orders.limit_buy(
             token_id=token_id,
             intended_price=ask,
-            stake_usd=STAKE_USD,
+            stake_usd=stake,
             direction=Direction.BUY_YES,
         )
 
