@@ -36,7 +36,12 @@ from strategy.momentum import Direction, TPSLLevels
 logger = logging.getLogger(__name__)
 
 # ── Phase 1 gates ─────────────────────────────────────────────────────────────
-EDGE_FLOOR     = 0.15
+# Per-asset edge floor. SOL tightened 0.15 → 0.25 on 2026-05-17:
+#   backtest 05-14→16 at edge≥0.25: n=113, WR 54.9%, EV +$3.56/$5-trade, PF 2.58
+#   vs edge≥0.15:                   n=275, WR 53.1%, EV +$1.62,          PF 1.69
+# BTC/ETH stay at 0.15 (already on efficient frontier; tighter drops n<100).
+EDGE_FLOOR_BY_ASSET = {"BTC": 0.15, "ETH": 0.15, "SOL": 0.25}
+EDGE_FLOOR_DEFAULT  = 0.15
 # ASK_FLOOR lowered 0.10 → 0.00 2026-05-17 (user instruction). Activates the
 # backtest "longshot" bucket: n=95 OOS, WR 50.5%, +$90.32/trade ($5 stake) —
 # 88% of total backtest PnL. Variance is high; single drought can wipe gains.
@@ -201,7 +206,8 @@ class Volarb:
             return
         market_p = rec.get("mid", (rec.get("best_bid", 0.0) + ask) / 2.0)
         edge = model_p - market_p
-        if edge < EDGE_FLOOR:
+        edge_floor = EDGE_FLOOR_BY_ASSET.get(rec.get("asset", "").upper(), EDGE_FLOOR_DEFAULT)
+        if edge < edge_floor:
             return  # Phase 1: only take LONG edge on THIS token
 
         # Block double-take: skip if LDA already entered this exact token this window
