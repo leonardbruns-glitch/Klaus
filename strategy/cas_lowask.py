@@ -31,9 +31,14 @@ from strategy.momentum import Direction, TPSLLevels
 logger = logging.getLogger(__name__)
 
 # ── Gates ────────────────────────────────────────────────────────────────────
-THR_PCT          = 0.01    # 0.01% partial-return threshold (matches backtest THR=0.0001)
+# THR_PCT lowered 0.01 → 0.001 and ASK_MAX raised 0.50 → 0.65 on 2026-05-17 after
+# broader-ASK sweep. Same expected $/day (~$214 vs $209) but 2× the trade count
+# (65/d vs 30/d), WR up to 53% (from 48%), much smoother daily PnL. Variance
+# reduction makes the -$10 daily kill switch less likely to fire.
+# Backtest 9.4 days shadow at this config: n=613, WR=52.7%, EV/$1=+$0.747, +$214.65/d.
+THR_PCT          = 0.001   # 0.001% partial-return threshold (loose; was 0.01%)
 ASK_MIN          = 0.05
-ASK_MAX          = 0.50
+ASK_MAX          = 0.65    # was 0.50
 REM_MIN_S        = 50.0
 REM_MAX_S        = 70.0
 STAKE_USD        = 5.00
