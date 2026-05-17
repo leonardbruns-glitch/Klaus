@@ -369,6 +369,11 @@ class KlausBot:
         # (the VOLARB tag is included in those checks).
         from strategy.volarb import Volarb
         self.volarb_strategy = Volarb(self)
+        # VOLARB disabled 2026-05-17: switching to CAS-LowAsk as sole strategy.
+        self.volarb_strategy.enabled = False
+        # CAS-LowAsk — cross-asset synchrony × cheap-ask cheap-tail. $5 stake, max 2 concurrent.
+        from strategy.cas_lowask import CASLowAsk
+        self.cas_lowask_strategy = CASLowAsk(self)
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
         self.redeemer = Redeemer(
@@ -500,6 +505,9 @@ class KlausBot:
             _volarb = getattr(self, "volarb_strategy", None)
             if _volarb is not None:
                 await _volarb.stop()
+            _cas = getattr(self, "cas_lowask_strategy", None)
+            if _cas is not None:
+                await _cas.stop()
             _gap = getattr(self, "gap_sweeper", None)
             if _gap is not None:
                 await _gap.stop()
@@ -645,7 +653,7 @@ class KlausBot:
                             self._pos_log_ts.pop(token_id, None)
                             _is_redeemed_win = token_id in self.redeemer.confirmed_winners
                             # LDA + VOLARB: Redeemer doesn't track these — use kline to determine outcome
-                            if not _is_redeemed_win and getattr(pos, "bond_entry_class", "") in ("LDA", "VOLARB") and pos.window_end_ts > 0:
+                            if not _is_redeemed_win and getattr(pos, "bond_entry_class", "") in ("LDA", "VOLARB", "CAS_LOWASK") and pos.window_end_ts > 0:
                                 try:
                                     import aiohttp as _aiohttp_bs
                                     _bs_sym_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
@@ -673,6 +681,8 @@ class KlausBot:
                                 _bs_reason = "LDA_KLINE_WIN"
                             elif _is_redeemed_win and _bs_class == "VOLARB":
                                 _bs_reason = "VOLARB_KLINE_WIN"
+                            elif _is_redeemed_win and _bs_class == "CAS_LOWASK":
+                                _bs_reason = "CAS_KLINE_WIN"
                             elif _is_redeemed_win:
                                 _bs_reason = "REDEEMED"
                             else:
@@ -1361,7 +1371,7 @@ class KlausBot:
                 # post-window kline check; entry×1.5 fires too early at low ask (0.63→0.945).
                 _inv_tp = pos.entry_price * 1.50
                 if (current_price >= _inv_tp
-                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB")
+                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB", "CAS_LOWASK")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -1523,9 +1533,9 @@ class KlausBot:
                     continue
 
                 # ── T-3s hard gate: unconditional sell ───────────────────────────
-                # LDA + VOLARB excluded: both hold to resolution, Redeemer/kline collect $1.00.
+                # LDA + VOLARB + CAS_LOWASK excluded: all hold to resolution, Redeemer/kline collect $1.00.
                 if (bond_remaining <= 3.0
-                        and getattr(pos, "bond_entry_class", "") not in ("LDA", "VOLARB")
+                        and getattr(pos, "bond_entry_class", "") not in ("LDA", "VOLARB", "CAS_LOWASK")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -1552,7 +1562,7 @@ class KlausBot:
                             _wo_exit_price  = 0.0
                             _wo_exit_reason = "BOND_RESOLVED_NO"
                             _wo_class = getattr(pos, "bond_entry_class", "")
-                            if _wo_class in ("LDA", "VOLARB") and pos.window_end_ts > 0:
+                            if _wo_class in ("LDA", "VOLARB", "CAS_LOWASK") and pos.window_end_ts > 0:
                                 try:
                                     import aiohttp as _aiohttp
                                     _sym_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
@@ -1573,7 +1583,12 @@ class KlausBot:
                                                 _bet_up = getattr(pos, "bond_outcome_direction", "up") == "up"
                                                 if _bet_up == _kl_up:
                                                     _wo_exit_price  = 1.0  # token auto-redeems at $1.00
-                                                    _wo_exit_reason = "VOLARB_KLINE_WIN" if _wo_class == "VOLARB" else "LDA_KLINE_WIN"
+                                                    if _wo_class == "VOLARB":
+                                                        _wo_exit_reason = "VOLARB_KLINE_WIN"
+                                                    elif _wo_class == "CAS_LOWASK":
+                                                        _wo_exit_reason = "CAS_KLINE_WIN"
+                                                    else:
+                                                        _wo_exit_reason = "LDA_KLINE_WIN"
                                 except Exception:
                                     pass  # fetch failed — default to BOND_RESOLVED_NO
                             logger.info(
