@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 #   was filtering noise but not constraining fire rate. Cumulative live distribution
 #   at edge≥0.30: BTC 7% of fires kept, ETH 11%, SOL 17%. Backtest at 0.30 has
 #   small n (BTC n=36, ETH n=22, SOL n=72) — Tier 2 evidence + live-frequency.
-EDGE_FLOOR_BY_ASSET = {"BTC": 0.30, "ETH": 0.30, "SOL": 0.30}
-EDGE_FLOOR_DEFAULT  = 0.30
+EDGE_FLOOR_BY_ASSET = {"BTC": 0.10, "ETH": 0.10, "SOL": 0.10}
+EDGE_FLOOR_DEFAULT  = 0.10
 # ASK_FLOOR lowered 0.10 → 0.00 2026-05-17 (user instruction). Activates the
 # backtest "longshot" bucket: n=95 OOS, WR 50.5%, +$90.32/trade ($5 stake) —
 # 88% of total backtest PnL. Variance is high; single drought can wipe gains.
