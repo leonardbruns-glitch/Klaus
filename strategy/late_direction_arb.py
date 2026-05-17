@@ -133,7 +133,10 @@ class LateDirectionArb:
 
     def __init__(self, bot: Any) -> None:
         self.bot = bot
-        self.enabled: bool = True
+        # Disabled 2026-05-17: VOLARB-only per user instruction. Class kept loaded
+        # because shared exit paths (kline-win, BOND_RESOLVED_NO) still need it
+        # for any restored LDA positions; new entries are suppressed.
+        self.enabled: bool = False
 
         self._fired: Set[Tuple[str, int, int]] = set()  # (cid, wend, rem_bucket) dedup per bucket
         self._window_assets: Dict[Tuple[int, str], Set[str]] = {}  # (wend, odir) → assets fired
