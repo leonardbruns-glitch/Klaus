@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-17 10:20 UTC | GATE / VOLARB | EDGE_FLOOR 0.30 → 0.10 globally — user instruction | Live perf 13h since Phase 1 deploy: n=465 cum, WR 30.9%, net +$6.67, EV +$0.014/tr (vs band-matched backtest +$0.30/tr — ~5% of expectation). Raising floor 0.15 → 0.30 produced no EV/tr improvement (E1 +$0.115, E5 +$0.047). Entry-price bands all hover near PF 1.0 / EV ±$0.05/tr. User directive after this analysis: lower to 0.10. strategy/volarb.py:45-46.
+
 ## 2026-05-15 UTC | STAKE / LDA | Flat $5 per entry, Kelly disabled — user instruction | All bucket/BNC/asset sizing logic removed. Every qualifying entry (B0/B1/B2/B3) gets exactly $5. Commit 94946da.
 
 ## 2026-05-15 UTC | RISK+GATE+OPS / ALL | Disable all kill switches; re-enable B3 ask floor 0.55; stop tennis arb — user instruction | (1) max_daily_loss_pct=0.0 (daily halt disabled); ruin_floor already 0.0; is_halted returns False when max_daily_loss_pct<=0. (2) Universal B3 block removed; B2/B3 ask floor 0.75→0.55; _BTC_BLOCKED_B3 now enforced for B3. (3) Tennis arb executor (PID 1407107) killed on VPS — open May-12 position (ATP Piros/Forejtek, cost $6.06, status BOTH_FILLED) left to resolve naturally. Commit b8aca4a.
