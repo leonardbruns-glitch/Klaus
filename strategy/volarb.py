@@ -37,7 +37,10 @@ logger = logging.getLogger(__name__)
 
 # ── Phase 1 gates ─────────────────────────────────────────────────────────────
 EDGE_FLOOR     = 0.15
-ASK_FLOOR      = 0.10
+# ASK_FLOOR lowered 0.10 → 0.00 2026-05-17 (user instruction). Activates the
+# backtest "longshot" bucket: n=95 OOS, WR 50.5%, +$90.32/trade ($5 stake) —
+# 88% of total backtest PnL. Variance is high; single drought can wipe gains.
+ASK_FLOOR      = 0.00
 ASK_CEIL       = 0.60
 REM_MIN_S      = 60.0    # leak guard (training also gated at sec_to_res>=60)
 REM_MAX_S      = 280.0   # avoid the wild [280, 300) window-open noise
