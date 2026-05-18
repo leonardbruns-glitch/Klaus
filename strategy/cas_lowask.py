@@ -40,9 +40,9 @@ logger = logging.getLogger(__name__)
 THR_PCT          = 0.001   # 0.001% partial-return threshold (loose; was 0.01%)
 ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
-REM_MIN_S        = 35.0    # lowered 50→35: shadow [35,45) EV=+0.322 and [25,35) EV=+0.368 are best buckets
-REM_MAX_S        = 105.0   # raised 80→105: shadow [85,95) EV=+0.032 and [95,105) EV=+0.211 add volume
-REM_BLOCK_LO     = 65.0    # shadow [65,75) EV=-0.041 and [85,95) EV=+0.032 blocked
+REM_MIN_S        = 35.0    # lowered 50→35: shadow [35,45) EV=+0.162 [45,55) EV=+0.304
+REM_MAX_S        = 95.0    # lowered 105→95: [95,105) EV=-0.025 (n=251, corrected shadow)
+REM_BLOCK_LO     = 65.0    # [65,75) blocked
 REM_BLOCK_HI     = 75.0
 REM_BLOCK2_LO    = 85.0
 REM_BLOCK2_HI    = 95.0
