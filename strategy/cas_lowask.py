@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 THR_PCT          = 0.001   # 0.001% partial-return threshold (loose; was 0.01%)
 ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
-REM_MIN_S        = 35.0    # lowered 50→35: shadow [35,45) EV=+0.162 [45,55) EV=+0.304
+REM_MIN_S        = 10.0    # lowered 35→10: shadow [10,15) EV=+0.394, [15,35) all positive
 REM_MAX_S        = 95.0    # lowered 105→95: [95,105) EV=-0.025 (n=251, corrected shadow)
 REM_BLOCK_LO     = 65.0    # [65,75) blocked
 REM_BLOCK_HI     = 75.0
@@ -116,9 +116,11 @@ class CASLowAsk:
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
-        # Block CAS at H01, H02, H03, H08, H11, H14, H21 (H23 unblocked 2026-05-18; H14 re-blocked 2026-05-18 n=4 WR=25%)
+        # H01 pending live validation (shadow EV=+0.117 n=46 but holding for live n≥20)
+        # H12 blocked 2026-05-18: shadow EV=-0.093 n=56; H16 blocked: EV=-0.157 n=45
+        # H11/H14/H21 unblocked 2026-05-18: shadow EV=+0.169/+0.057/+0.110
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 8, 11, 14, 21]:
+        if hour_utc in [1, 2, 3, 8, 12, 16]:
             return
 
         ask = rec.get("best_ask", 0.0)
