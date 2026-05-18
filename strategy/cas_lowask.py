@@ -146,9 +146,7 @@ class CASLowAsk:
         else:
             return
 
-        # ETH/down blocked: n=10 WR=30%, well below 52% breakeven at ask≤0.50
-        if asset == "ETH" and bet_dir == "DOWN":
-            return
+
 
         # ob_imb gate: shadow-only until n>=100. Sweet spot [0.1,0.5): WR=67%, EV=+0.499.
         # [0,0.1) is a trap (WR=33%, EV=-0.339); <0 = mildly ok (WR=52%, EV=+0.115).
