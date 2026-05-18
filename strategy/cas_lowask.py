@@ -116,11 +116,11 @@ class CASLowAsk:
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
-        # H01 pending live validation (shadow EV=+0.117 n=46 but holding for live n≥20)
-        # H12 blocked 2026-05-18: shadow EV=-0.093 n=56; H16 blocked: EV=-0.157 n=45
-        # H11/H14/H21 unblocked 2026-05-18: shadow EV=+0.169/+0.057/+0.110
+        # H11/H21 unblocked 2026-05-18: shadow EV=+0.169/+0.110; H14 re-kept blocked (user)
+        # H01 unblocked 2026-05-18: shadow EV=+0.117 n=46
+        # H12 blocked: EV=-0.093 n=56; H16 blocked: EV=-0.157 n=45
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 8, 12, 16]:
+        if hour_utc in [2, 3, 8, 12, 14, 16]:
             return
 
         ask = rec.get("best_ask", 0.0)
