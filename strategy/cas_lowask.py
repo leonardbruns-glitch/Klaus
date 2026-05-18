@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Set, Tuple
 
 from strategy.momentum import Direction, TPSLLevels
@@ -100,6 +101,11 @@ class CASLowAsk:
 
         remaining = rec.get("seconds_to_resolution", 0.0)
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
+            return
+
+        # Block CAS at H01-H02 (reserved for VOLARB, which has 50%+ WR there)
+        hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
+        if hour_utc in [1, 2]:
             return
 
         ask = rec.get("best_ask", 0.0)
