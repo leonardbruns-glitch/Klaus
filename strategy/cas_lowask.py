@@ -138,10 +138,10 @@ class CASLowAsk:
         else:
             return
 
-        # Momentum gate: reject entries with negative 30s momentum (2026-05-18 deployment)
+        # Momentum gate: shadow-only (gate analysis was lookahead-contaminated; collecting OOS data)
         snap_30s_pct = rec.get("tok_snap_30s", 0.0)
         if snap_30s_pct < 0.0:
-            return
+            logger.info("[CAS] snap_shadow WOULD_BLOCK %s tok_snap_30s=%.2f%%", asset, snap_30s_pct)
 
         # Cross-asset partial state
         feed = self.bot.feed
