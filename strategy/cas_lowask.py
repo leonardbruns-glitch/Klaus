@@ -139,7 +139,7 @@ class CASLowAsk:
             return
 
         # Momentum gate: reject entries with negative 30s momentum (2026-05-18 deployment)
-        snap_30s_pct = rec.get("entry_snap_30s_pct", 0.0)
+        snap_30s_pct = rec.get("tok_snap_30s", 0.0)
         if snap_30s_pct < 0.0:
             return
 
