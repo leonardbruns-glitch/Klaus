@@ -140,6 +140,7 @@ class CASLowAsk:
 
         # Momentum gate: shadow-only (gate analysis was lookahead-contaminated; collecting OOS data)
         snap_30s_pct = rec.get("tok_snap_30s", 0.0)
+        logger.info("[CAS] snap_check %s tok_snap_30s=%.2f%%", asset, snap_30s_pct)
         if snap_30s_pct < 0.0:
             logger.info("[CAS] snap_shadow WOULD_BLOCK %s tok_snap_30s=%.2f%%", asset, snap_30s_pct)
 
