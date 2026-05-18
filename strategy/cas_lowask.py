@@ -103,9 +103,10 @@ class CASLowAsk:
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             return
 
-        # Block CAS at H01-H02 (reserved for VOLARB, which has 50%+ WR there)
+        # Block CAS at H01, H02, H11, H21 (reserved for VOLARB's strongest hours)
+        # VOLARB WR: H01 50%, H02 51.4%, H11 44.7%, H21 48.6% — all profitable
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2]:
+        if hour_utc in [1, 2, 11, 21]:
             return
 
         ask = rec.get("best_ask", 0.0)
