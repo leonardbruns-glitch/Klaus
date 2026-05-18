@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+e62467e CAS: block H14 — n=4 WR=25%, below 54% breakeven
+1e1894e Watchdog 2026-05-18T17:18Z: OK (CAPITAL_DROP resolved; VOLARB drawdown backoff)
+5c6dc88 Watchdog 2026-05-18T16:18Z: HIGH CAPITAL_DROP + MEDIUM VOLARB_ROLLING_DRAWDOWN
 54e74d4 CAS: fixed $20 stake (floor=cap=20) — user instruction
 03d3a7c CAS: lower ASK_MAX 0.65→0.50 — live ask[0.55,0.65) is negative EV
 6dead5d CAS: log ask_age_ms + ask_delta_30s for BBO stability analysis
@@ -9,15 +12,12 @@ b705c32 CAS: wire pop_cas_presigned into _fire_inner — eliminates sign latency
 9f109ae shadow: preseed directional agreement logger at rem=90s
 e16e5a7 execution: dynamic entry buffer by ask (5%/10%/15%)
 09a4274 execution: background allowance keeper + per-order timing
-2d228a6 CAS: evaluate on WS BBO update — eliminates 1s scan lag
-62cdcde CAS: log tok_snap_30s at every entry (verify gate input)
-177b8c3 VOLARB: block H14 (WR=29.5% n=44); CAS: unblock H14
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   48G       46G  52% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 16:15:06 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 18:02:36 UTC
 
 ## Open positions (count):
 0
