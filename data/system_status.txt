@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+e2943dc CAS: re-block H08 (unblock was based on invalid snap gate analysis)
+512236d CAS snap gate: shadow-only (revert live block)
+5fa7b70 CAS: fast retry with 2× ask-drift ceiling (cuts retry latency 8s→<2s)
 662e49c Fix CAS momentum gate: wrong key entry_snap_30s_pct → tok_snap_30s
 df4a3e7 state_log: CAS_LOWASK Kelly sizing deploy
 2b64b90 CAS_LOWASK: Kelly sizing (quarter Wilson-LCB) replaces fixed $5 stake
@@ -9,15 +12,12 @@ b549ee3 Deploy CAS_LOWASK momentum gate + selective hour unblock
 35caf8b Block CAS from H03; add to VOLARB-reserved hours
 b50fe44 Restrict VOLARB to H01, H02, H08, H11, H21, H23; block CAS from those hours
 d59f77e Allow VOLARB at H03 and H21; block CAS from those hours.
-92bbeef Allow VOLARB at H08; block CAS from H08.
-ddae313 Restrict VOLARB to H01, H02, H11, H18 only; block CAS in those hours
-3329501 Activate VOLARB in hours H01, H02, H11, H18
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   47G       47G  51% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 14:00:04 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 14:21:12 UTC
 
 ## Open positions (count):
 0
