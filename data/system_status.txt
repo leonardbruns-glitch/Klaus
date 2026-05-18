@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+2d40bce CAS: block [85,95) rem — EV=+0.032 near noise, $10/day not worth variance
+63d1a2b CAS: cap limit_price at ASK_MAX — prevent fills above 0.50
+42fbd63 CAS: ob_imb shadow gate — sweet spot [0.1,0.5) WR=67%, EV=+0.499
+0dbfdd2 Watchdog 2026-05-18T19:18Z: CRITICAL 3 alerts (CAPITAL_RUIN + CAPITAL_DROP + VOLARB_TRADE_LOOP_SILENT)
 fc069c4 CAS: REM_MIN 50→35, REM_MAX 80→105, block [65,75)
 0525ecb CAS: widen REM_MAX 70→80s — upper bound only
 9510eb6 CAS: T+30s abort (snap<-5%) + block ETH/down
 e62467e CAS: block H14 — n=4 WR=25%, below 54% breakeven
 1e1894e Watchdog 2026-05-18T17:18Z: OK (CAPITAL_DROP resolved; VOLARB drawdown backoff)
 5c6dc88 Watchdog 2026-05-18T16:18Z: HIGH CAPITAL_DROP + MEDIUM VOLARB_ROLLING_DRAWDOWN
-54e74d4 CAS: fixed $20 stake (floor=cap=20) — user instruction
-03d3a7c CAS: lower ASK_MAX 0.65→0.50 — live ask[0.55,0.65) is negative EV
-6dead5d CAS: log ask_age_ms + ask_delta_30s for BBO stability analysis
-b705c32 CAS: wire pop_cas_presigned into _fire_inner — eliminates sign latency on hot path
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   48G       45G  52% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 19:08:00 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 19:32:25 UTC
 
 ## Open positions (count):
 0
