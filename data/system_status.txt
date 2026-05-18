@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+6b78349 CAS: extend ASK_MAX 0.50→0.60 when range_pos>0.8 (6m: WR=75% n=64, EV=+0.295)
+9a112cf Watchdog 2026-05-18T22:19Z: HIGH 1 alert (CAPITAL_DROP)
 dd2a2c5 CAS: SOL stake $10→$3
 dd45478 CAS: reduce BTC/ETH stake $30→$15, SOL stays $10
 ff1a44c H18 swap: block CAS, unblock VOLARB
@@ -10,14 +12,12 @@ ff1a44c H18 swap: block CAS, unblock VOLARB
 d0211b1 CAS: block H01 (user instruction — shadow EV=+0.024 too thin, n=16)
 e2cf6d0 VOLARB: block H21 (user instruction)
 4f5d1ae CAS: block H04/H05, relax THR to 0.001 for H06/H21
-8e79d0a CAS: THR 0.001→0.02, stakes BTC/ETH $30 SOL $10
-f5de1d3 CAS: fix fast-retry to use per-asset stake (was still using Kelly)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   49G       45G  53% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 21:30:27 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 22:49:04 UTC
 
 ## Open positions (count):
 0
