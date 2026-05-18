@@ -42,9 +42,14 @@ ASK_MIN          = 0.05
 ASK_MAX          = 0.65    # was 0.50
 REM_MIN_S        = 50.0
 REM_MAX_S        = 70.0
-STAKE_USD        = 5.00
-MAX_CONCURRENT   = 2       # tight: caps simultaneous risk at $10 given ~$13 capital
-# Partial-fill mode: take up to STAKE_USD worth, but accept smaller fills down to CLOB
+# Quarter-Kelly on Wilson-LCB of n=31 gated cohort (WR 90.3%, LCB 81.4%, b=0.70 → f*_lcb=54.8%).
+# Cap protects against CLOB depth limits and correlated concurrent bets (MAX_CONCURRENT=2).
+# Revisit at n>=50 live post-gate; if WR holds >=85%, consider half-Kelly (~27%).
+KELLY_FRACTION   = 0.137
+STAKE_CAP_USD    = 25.00
+STAKE_FLOOR_USD  = 1.00
+MAX_CONCURRENT   = 2
+# Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
 # size, so smaller fills preserve EV per dollar while capturing more opportunities.
 ASK_DEPTH_MIN_SH = 5       # CLOB minimum order size
@@ -115,9 +120,10 @@ class CASLowAsk:
         ask_size = rec.get("ob_top1_ask_size") or 0.0
         if ask_size < ASK_DEPTH_MIN_SH:
             return
-        # Partial-fill sizing: take up to $5 worth, but cap at top-1 size to avoid
-        # walking the book. Skip if the resulting notional is below CLOB $1 minimum.
-        shares_to_buy = min(STAKE_USD / ask, ask_size)
+        # Kelly-sized target stake, capped by depth and per-bet ceiling.
+        bankroll_cap = self.bot.risk.bankroll.capital
+        target_stake = max(STAKE_FLOOR_USD, min(STAKE_CAP_USD, bankroll_cap * KELLY_FRACTION))
+        shares_to_buy = min(target_stake / ask, ask_size)
         actual_stake = shares_to_buy * ask
         if actual_stake < MIN_NOTIONAL_USD:
             return
