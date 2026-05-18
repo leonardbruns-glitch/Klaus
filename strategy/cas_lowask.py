@@ -48,11 +48,11 @@ REM_BLOCK_HI     = 75.0
 REM_BLOCK2_LO    = 85.0
 REM_BLOCK2_HI    = 95.0
 KELLY_FRACTION   = 0.137
-STAKE_CAP_USD    = 30.00
-STAKE_FLOOR_USD  = 30.00
+STAKE_CAP_USD    = 15.00
+STAKE_FLOOR_USD  = 15.00
 # Per-asset stakes raised 2026-05-18 with THR=0.02 (EV=+0.247, all assets positive)
 # Shadow: BTC EV=+0.220, ETH EV=+0.195, SOL EV=+0.365 at this threshold
-ASSET_STAKE: dict = {"BTC": 30.00, "ETH": 30.00, "SOL": 10.00}
+ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 10.00}
 MAX_CONCURRENT   = 2
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
