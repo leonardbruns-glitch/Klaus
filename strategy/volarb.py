@@ -49,6 +49,10 @@ EDGE_FLOOR_DEFAULT  = 0.10
 # edge[0.30+)=0.0% catastrophic. Counterintuitive inverse relationship: model is most wrong
 # when most confident. Cap at 0.20 to keep the positive-EV range only.
 EDGE_CEIL          = 0.20
+# Microshadow spread gate: [200,300bps) WR=53.5% EV=+0.277 n=71 (sweet spot);
+# [300,500bps) WR=24.3% EV=-0.225 n=70 (bad). User-instructed deploy at n=70 (Tier 2).
+SPREAD_MIN_BPS     = 200.0
+SPREAD_MAX_BPS     = 300.0
 # ASK_FLOOR lowered 0.10 → 0.00 2026-05-17 (user instruction). Activates the
 # backtest "longshot" bucket: n=95 OOS, WR 50.5%, +$90.32/trade ($5 stake) —
 # 88% of total backtest PnL. Variance is high; single drought can wipe gains.
@@ -227,6 +231,11 @@ class Volarb:
         # Vol regime: extreme + volatile excluded. Microshadow: volatile WR=0% n=6,
         # normal WR=18.8% n=32 (flag only, below n<40 threshold). Calm WR=42% EV=+0.119.
         if rec.get("vol_regime") in ("extreme", "volatile"):
+            return
+
+        # Spread gate: [200,300bps) is sweet spot; outside = adverse selection or thin book
+        spread_bps = rec.get("spread_bps") or 0.0
+        if not (SPREAD_MIN_BPS <= spread_bps < SPREAD_MAX_BPS):
             return
 
         # Price gates (ask in [0.10, 0.60])
