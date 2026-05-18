@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T22:53:31Z
+# Snapshot: 2026-05-18T23:08:34Z
 # Latest commit on klaus:
-6b78349 CAS: extend ASK_MAX 0.50→0.60 when range_pos>0.8 (6m: WR=75% n=64, EV=+0.295)
+6e4c960 VOLARB: add EDGE_CEIL=0.20 + block vol_regime=volatile — microshadow data
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
