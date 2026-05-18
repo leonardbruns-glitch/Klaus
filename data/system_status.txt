@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+d0211b1 CAS: block H01 (user instruction — shadow EV=+0.024 too thin, n=16)
+e2cf6d0 VOLARB: block H21 (user instruction)
+4f5d1ae CAS: block H04/H05, relax THR to 0.001 for H06/H21
 8e79d0a CAS: THR 0.001→0.02, stakes BTC/ETH $30 SOL $10
 f5de1d3 CAS: fix fast-retry to use per-asset stake (was still using Kelly)
 5546925 CAS: per-asset stakes — BTC/ETH $15, SOL $3 (user instruction)
@@ -9,15 +12,12 @@ f66d47b CAS: block SOL at H05/11/13/18/22/23 — all negative EV in 11-day shado
 ed4a19b Watchdog 2026-05-18T20:18Z: OK 0 alerts (4 anomalies in backoff)
 6b6da69 CAS: unblock H01, re-block H14, keep H11/H21 open
 f092710 CAS: rem→10s, unblock H11/H14/H21, block H12/H16, H01 pending live
-a2c95e2 CAS: block rem [95,105) — corrected shadow EV=-0.025 (n=251, both directions)
-9c26571 CAS: unblock ETH/DOWN — corrected shadow shows UP/DOWN symmetric (~50% WR both)
-2d40bce CAS: block [85,95) rem — EV=+0.032 near noise, $10/day not worth variance
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   48G       45G  52% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 20:46:27 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 21:06:34 UTC
 
 ## Open positions (count):
 0
