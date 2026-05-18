@@ -110,7 +110,7 @@ class CASLowAsk:
 
         # Block CAS at H01, H02, H03, H11, H21 (H08, H23 unblocked 2026-05-18 with snap30 gate)
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 11, 21]:
+        if hour_utc in [1, 2, 3, 8, 11, 21]:
             return
 
         ask = rec.get("best_ask", 0.0)
