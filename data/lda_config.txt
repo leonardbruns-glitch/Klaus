@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T16:06:53Z
+# Snapshot: 2026-05-18T16:21:55Z
 # Latest commit on klaus:
-6dead5d CAS: log ask_age_ms + ask_delta_30s for BBO stability analysis
+54e74d4 CAS: fixed $20 stake (floor=cap=20) — user instruction
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+54e74d4 CAS: fixed $20 stake (floor=cap=20) — user instruction
+03d3a7c CAS: lower ASK_MAX 0.65→0.50 — live ask[0.55,0.65) is negative EV
 6dead5d CAS: log ask_age_ms + ask_delta_30s for BBO stability analysis
 b705c32 CAS: wire pop_cas_presigned into _fire_inner — eliminates sign latency on hot path
 9f109ae shadow: preseed directional agreement logger at rem=90s
@@ -10,14 +12,12 @@ e16e5a7 execution: dynamic entry buffer by ask (5%/10%/15%)
 2d228a6 CAS: evaluate on WS BBO update — eliminates 1s scan lag
 62cdcde CAS: log tok_snap_30s at every entry (verify gate input)
 177b8c3 VOLARB: block H14 (WR=29.5% n=44); CAS: unblock H14
-d3e1338 Revert FOK for fast_fail buys — GTC preserves partial fills
-cf6d672 CAS: block H14, FOK for fast_fail buys; VOLARB: allow H14
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   47G       46G  51% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 16:01:15 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 16:15:06 UTC
 
 ## Open positions (count):
 0
