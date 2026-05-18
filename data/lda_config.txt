@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T06:32:56Z
+# Snapshot: 2026-05-18T06:48:02Z
 # Latest commit on klaus:
-deabb92 CAS: block H01-H02 (VOLARB reserved hours, 50%+ WR)
+8cbde35 CAS: expand block to H01, H02, H11, H21 (VOLARB's strongest hours)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
