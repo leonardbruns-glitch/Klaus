@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T14:36:43Z
+# Snapshot: 2026-05-18T14:51:46Z
 # Latest commit on klaus:
-cf6d672 CAS: block H14, FOK for fast_fail buys; VOLARB: allow H14
+177b8c3 VOLARB: block H14 (WR=29.5% n=44); CAS: unblock H14
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
