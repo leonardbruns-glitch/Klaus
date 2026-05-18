@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 #   small n (BTC n=36, ETH n=22, SOL n=72) — Tier 2 evidence + live-frequency.
 EDGE_FLOOR_BY_ASSET = {"BTC": 0.10, "ETH": 0.10, "SOL": 0.10}
 EDGE_FLOOR_DEFAULT  = 0.10
+# Microshadow (n=214 matched): edge[0.10,0.15) WR=48.1% EV=+0.252; edge[0.20,0.30)=29.6%;
+# edge[0.30+)=0.0% catastrophic. Counterintuitive inverse relationship: model is most wrong
+# when most confident. Cap at 0.20 to keep the positive-EV range only.
+EDGE_CEIL          = 0.20
 # ASK_FLOOR lowered 0.10 → 0.00 2026-05-17 (user instruction). Activates the
 # backtest "longshot" bucket: n=95 OOS, WR 50.5%, +$90.32/trade ($5 stake) —
 # 88% of total backtest PnL. Variance is high; single drought can wipe gains.
@@ -220,8 +224,9 @@ class Volarb:
         if hour_utc not in [1, 2, 11, 18, 23]:
             return
 
-        # Vol regime: extreme is excluded (training had it sparse; live-eval safety)
-        if rec.get("vol_regime") == "extreme":
+        # Vol regime: extreme + volatile excluded. Microshadow: volatile WR=0% n=6,
+        # normal WR=18.8% n=32 (flag only, below n<40 threshold). Calm WR=42% EV=+0.119.
+        if rec.get("vol_regime") in ("extreme", "volatile"):
             return
 
         # Price gates (ask in [0.10, 0.60])
@@ -247,6 +252,8 @@ class Volarb:
         edge_floor = EDGE_FLOOR_BY_ASSET.get(rec.get("asset", "").upper(), EDGE_FLOOR_DEFAULT)
         if edge < edge_floor:
             return  # Phase 1: only take LONG edge on THIS token
+        if edge >= EDGE_CEIL:
+            return  # model overconfident above 0.20 — microshadow WR→0%
 
         # Block double-take: skip if LDA already entered this exact token this window
         if token_id in self.bot.risk.open_positions:
