@@ -46,8 +46,8 @@ REM_MAX_S        = 70.0
 # Cap protects against CLOB depth limits and correlated concurrent bets (MAX_CONCURRENT=2).
 # Revisit at n>=50 live post-gate; if WR holds >=85%, consider half-Kelly (~27%).
 KELLY_FRACTION   = 0.137
-STAKE_CAP_USD    = 25.00
-STAKE_FLOOR_USD  = 1.00
+STAKE_CAP_USD    = 20.00
+STAKE_FLOOR_USD  = 20.00
 MAX_CONCURRENT   = 2
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
