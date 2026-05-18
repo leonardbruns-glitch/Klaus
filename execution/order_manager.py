@@ -321,14 +321,10 @@ class OrderManager:
             except Exception as _exc:
                 logger.warning("USDC allowance refresh failed: %s", _exc)
 
-        # fast_fail: use FOK so a stale ask returns FAILED immediately instead of
-        # resting on book and waiting up to 1s for a WS fill confirmation.
-        # This saves ~1s per missed entry, letting the CAS fast-retry fire sooner.
-        _otype = OrderType.FOK if fast_fail else OrderType.GTC
         try:
             result = await self._submit_limit_order(
                 token_id, OrderSide.BUY, limit_price, size,
-                neg_risk=neg_risk, tick_size=tick_size, order_type=_otype,
+                neg_risk=neg_risk, tick_size=tick_size,
             )
             if result.status == OrderStatus.FILLED:
                 return result
@@ -1062,10 +1058,6 @@ class OrderManager:
                 tick_size=tick_size or "0.01",
                 neg_risk=neg_risk if neg_risk else None,
             )
-            # FOK (fast_fail BUY): fills immediately or returns FAILED — never rests.
-            # Eliminates the 1s WS wait when ask has moved above our limit, saving
-            # ~1s per failed attempt vs GTC "live" path.
-            # GTC (default): stays on book up to 1s waiting for a fill.
             if order_type is None:
                 order_type = OrderType.GTC
 
