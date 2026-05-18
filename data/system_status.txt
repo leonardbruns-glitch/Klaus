@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+f5de1d3 CAS: fix fast-retry to use per-asset stake (was still using Kelly)
+5546925 CAS: per-asset stakes — BTC/ETH $15, SOL $3 (user instruction)
+f66d47b CAS: block SOL at H05/11/13/18/22/23 — all negative EV in 11-day shadow
+ed4a19b Watchdog 2026-05-18T20:18Z: OK 0 alerts (4 anomalies in backoff)
 6b6da69 CAS: unblock H01, re-block H14, keep H11/H21 open
 f092710 CAS: rem→10s, unblock H11/H14/H21, block H12/H16, H01 pending live
 a2c95e2 CAS: block rem [95,105) — corrected shadow EV=-0.025 (n=251, both directions)
 9c26571 CAS: unblock ETH/DOWN — corrected shadow shows UP/DOWN symmetric (~50% WR both)
 2d40bce CAS: block [85,95) rem — EV=+0.032 near noise, $10/day not worth variance
 63d1a2b CAS: cap limit_price at ASK_MAX — prevent fills above 0.50
-42fbd63 CAS: ob_imb shadow gate — sweet spot [0.1,0.5) WR=67%, EV=+0.499
-0dbfdd2 Watchdog 2026-05-18T19:18Z: CRITICAL 3 alerts (CAPITAL_RUIN + CAPITAL_DROP + VOLARB_TRADE_LOOP_SILENT)
-fc069c4 CAS: REM_MIN 50→35, REM_MAX 80→105, block [65,75)
-0525ecb CAS: widen REM_MAX 70→80s — upper bound only
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   48G       45G  52% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 20:18:42 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 20:32:06 UTC
 
 ## Open positions (count):
 0
