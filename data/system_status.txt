@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+0525ecb CAS: widen REM_MAX 70→80s — upper bound only
 9510eb6 CAS: T+30s abort (snap<-5%) + block ETH/down
 e62467e CAS: block H14 — n=4 WR=25%, below 54% breakeven
 1e1894e Watchdog 2026-05-18T17:18Z: OK (CAPITAL_DROP resolved; VOLARB drawdown backoff)
@@ -11,7 +12,6 @@ e62467e CAS: block H14 — n=4 WR=25%, below 54% breakeven
 6dead5d CAS: log ask_age_ms + ask_delta_30s for BBO stability analysis
 b705c32 CAS: wire pop_cas_presigned into _fire_inner — eliminates sign latency on hot path
 9f109ae shadow: preseed directional agreement logger at rem=90s
-e16e5a7 execution: dynamic entry buffer by ask (5%/10%/15%)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   48G       46G  52% /

@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T18:37:35Z
+# Snapshot: 2026-05-18T18:52:40Z
 # Latest commit on klaus:
-9510eb6 CAS: T+30s abort (snap<-5%) + block ETH/down
+0525ecb CAS: widen REM_MAX 70→80s — upper bound only
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
