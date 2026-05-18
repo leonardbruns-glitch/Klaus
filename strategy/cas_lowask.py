@@ -216,6 +216,30 @@ class CASLowAsk:
             fast_fail=True,
         )
 
+        # Fast retry: if fill failed, check cached OB immediately (no scan-cycle wait).
+        # Only retry if ask hasn't drifted beyond 2× original — prevents chasing rips.
+        if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
+            _ob = self.bot.feed.get_order_book(token_id)
+            _new_ask = _ob.asks[0][0] if (_ob and _ob.asks) else None
+            if (
+                _new_ask is not None
+                and _new_ask <= ask * 2.0
+                and ASK_MIN <= _new_ask <= ASK_MAX
+                and (wend - time.time()) >= REM_MIN_S
+            ):
+                _target = max(STAKE_FLOOR_USD, min(STAKE_CAP_USD, self.bot.risk.bankroll.capital * KELLY_FRACTION))
+                _sh = min(_target / _new_ask, _ob.asks[0][1])
+                _retry_stake = _sh * _new_ask
+                if _retry_stake >= MIN_NOTIONAL_USD:
+                    logger.info("[CAS] fast-retry %s ask %.4f→%.4f", asset, ask, _new_ask)
+                    fill = await self.bot.orders.limit_buy(
+                        token_id=token_id,
+                        intended_price=_new_ask,
+                        stake_usd=_retry_stake,
+                        direction=Direction.BUY_YES,
+                        fast_fail=True,
+                    )
+
         if fill.status != OrderStatus.FILLED or fill.total_size <= 0:
             logger.info("[CAS] fill failed %s: %s", asset, getattr(fill, "error", "?"))
             self._fired_tokens.discard(token_id)
