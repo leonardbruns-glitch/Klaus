@@ -109,6 +109,12 @@ def cascade_detected(
     if not snap30 or snap30 == 0.0:
         return False, ""
 
+    # CAS_LOWASK: abort at T+30s on snap30 < -5% — no snap60 needed.
+    # CAS enters at T-60s; T+60s is at resolution, too late for snap60 gate.
+    # Simulation n=71: snap<-5 → 26 correct aborts / 10 false, net +$77.
+    if bond_entry_class == "CAS_LOWASK" and snap30 < -5.0:
+        return True, f"BOND_ABORT_CASCADE: CAS_LOWASK snap30={snap30:.1f}%"
+
     # CORE/COLD: no need to wait for continuation — recovery less likely here
     if bond_entry_class == "CORE/COLD" and snap30 < -5.0:
         return True, f"BOND_ABORT_CASCADE: CORE/COLD snap30={snap30:.1f}%"

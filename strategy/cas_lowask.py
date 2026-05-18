@@ -138,6 +138,10 @@ class CASLowAsk:
         else:
             return
 
+        # ETH/down blocked: n=10 WR=30%, well below 52% breakeven at ask≤0.50
+        if asset == "ETH" and bet_dir == "DOWN":
+            return
+
         # Momentum gate: shadow-only (gate analysis was lookahead-contaminated; collecting OOS data)
         snap_30s_pct = rec.get("tok_snap_30s", 0.0)
         if snap_30s_pct < 0.0:

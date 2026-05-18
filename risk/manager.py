@@ -1075,7 +1075,26 @@ class RiskManager:
         if pos.is_bond:
             time_held = now - pos.open_ts
 
-            # snap30 abort removed: n=66, below n=100 threshold. Accumulating data.
+            # CAS_LOWASK: fire cascade check at T+30s (T+60s = resolution, too late).
+            # cascade_detected() handles the CAS_LOWASK snap30 < -5% rule internally.
+            if (pos.bond_entry_class == "CAS_LOWASK"
+                    and pos.cascade_state == "UNKNOWN"
+                    and time_held >= 30
+                    and pos.entry_snap_30s_pct != 0.0):
+                from analytics.regime_filter import cascade_detected
+                _abort, _abort_reason = cascade_detected(
+                    pos.entry_snap_30s_pct,
+                    None,
+                    "CAS_LOWASK",
+                )
+                pos.cascade_state = "CASCADING" if _abort else "RECOVERING"
+                if _abort:
+                    logger.info(
+                        "CAS ABORT snap30 %s/%s @ %.4f | held=%.0fs | snap30=%.1f%%",
+                        pos.asset, pos.direction.name, current_price, time_held,
+                        pos.entry_snap_30s_pct,
+                    )
+                    return ExitDecision(True, _abort_reason, urgency="immediate")
 
             if pos.cascade_state == "CASCADING":
                 return ExitDecision(
