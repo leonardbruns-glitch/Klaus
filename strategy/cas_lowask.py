@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 # (65/d vs 30/d), WR up to 53% (from 48%), much smoother daily PnL. Variance
 # reduction makes the -$10 daily kill switch less likely to fire.
 # Backtest 9.4 days shadow at this config: n=613, WR=52.7%, EV/$1=+$0.747, +$214.65/d.
-THR_PCT          = 0.020   # raised 0.001→0.02: shadow WR 48.4%→55.7%, EV +0.023→+0.247, $112→$237/day
+THR_PCT          = 0.020   # raised 0.001→0.02: shadow WR 48.4%→55.7%, EV +0.023→+0.247
+THR_PCT_RELAXED  = 0.001   # H06/H21: tighter THR kills edge there; use original threshold
 ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
 REM_MIN_S        = 10.0    # lowered 35→10: shadow [10,15) EV=+0.394, [15,35) all positive
@@ -116,9 +117,10 @@ class CASLowAsk:
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
-        # Global blocks: H02/03/08 negative; H12 EV=-0.093; H14 user; H16 EV=-0.157
+        # Global blocks: H02/03/04/05/08 negative; H12 EV=-0.093; H14 user; H16 EV=-0.157
+        # H04/05 added 2026-05-18: still negative at THR=0.02 (-0.056/-0.485)
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [2, 3, 8, 12, 14, 16]:
+        if hour_utc in [2, 3, 4, 5, 8, 12, 14, 16]:
             return
         # SOL-specific blocks: H05/11/13/18/22/23 all negative EV in shadow
         if asset == "SOL" and hour_utc in {5, 11, 13, 18, 22, 23}:
@@ -172,13 +174,14 @@ class CASLowAsk:
         pair = [a for a in ("BTC", "ETH", "SOL") if a != c]
         pa, pb = pair[0], pair[1]
 
+        thr = THR_PCT_RELAXED if hour_utc in {6, 21} else THR_PCT
         if bet_dir == "UP":
-            if not (partials[pa] >= THR_PCT and partials[pb] >= THR_PCT):
+            if not (partials[pa] >= thr and partials[pb] >= thr):
                 return
             if partials[c] < 0.0:
                 return
         else:
-            if not (partials[pa] <= -THR_PCT and partials[pb] <= -THR_PCT):
+            if not (partials[pa] <= -thr and partials[pb] <= -thr):
                 return
             if partials[c] > 0.0:
                 return
