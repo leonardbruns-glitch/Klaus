@@ -319,9 +319,14 @@ class OrderManager:
         # (0.27) before calling here; applying MAX_ENTRY_PRICE (0.30) here created ghost
         # orders at wrong prices for updown YES tokens trading at 0.50–0.92.
         price_ceil = 0.99
-        limit_price = round(
-            min(intended_price * (1 + self.cfg.entry_price_buffer), price_ceil), 4
-        )
+        # Dynamic buffer: thin low-ask books move fast — bid more aggressively to cross immediately.
+        if intended_price < 0.35:
+            _buf = 0.15
+        elif intended_price < 0.55:
+            _buf = 0.10
+        else:
+            _buf = self.cfg.entry_price_buffer  # 0.05 default
+        limit_price = round(min(intended_price * (1 + _buf), price_ceil), 4)
         size = round(stake_usd / limit_price, 2)
 
         # Refresh USDC allowance before buy — CLOB allowance depletes with each order
