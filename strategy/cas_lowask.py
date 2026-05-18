@@ -103,6 +103,11 @@ class CASLowAsk:
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             return
 
+        # Block CAS at H01, H02, H11, H18 (reserved for VOLARB)
+        hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
+        if hour_utc in [1, 2, 11, 18]:
+            return
+
         ask = rec.get("best_ask", 0.0)
         if not (ASK_MIN <= ask <= ASK_MAX):
             return
