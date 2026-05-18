@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+a2c95e2 CAS: block rem [95,105) — corrected shadow EV=-0.025 (n=251, both directions)
 9c26571 CAS: unblock ETH/DOWN — corrected shadow shows UP/DOWN symmetric (~50% WR both)
 2d40bce CAS: block [85,95) rem — EV=+0.032 near noise, $10/day not worth variance
 63d1a2b CAS: cap limit_price at ASK_MAX — prevent fills above 0.50
@@ -11,13 +12,12 @@ fc069c4 CAS: REM_MIN 50→35, REM_MAX 80→105, block [65,75)
 0525ecb CAS: widen REM_MAX 70→80s — upper bound only
 9510eb6 CAS: T+30s abort (snap<-5%) + block ETH/down
 e62467e CAS: block H14 — n=4 WR=25%, below 54% breakeven
-1e1894e Watchdog 2026-05-18T17:18Z: OK (CAPITAL_DROP resolved; VOLARB drawdown backoff)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   48G       45G  52% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 19:53:18 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 20:06:47 UTC
 
 ## Open positions (count):
 0

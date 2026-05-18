@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T19:52:53Z
+# Snapshot: 2026-05-18T20:08:11Z
 # Latest commit on klaus:
-9c26571 CAS: unblock ETH/DOWN — corrected shadow shows UP/DOWN symmetric (~50% WR both)
+a2c95e2 CAS: block rem [95,105) — corrected shadow EV=-0.025 (n=251, both directions)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
