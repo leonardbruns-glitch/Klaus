@@ -212,11 +212,11 @@ class Volarb:
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             return
 
-        # Hour gate: trade H01, H02, H08, H11, H18 (VOLARB's strongest hours)
+        # Hour gate: trade H01, H02, H03, H08, H11, H18, H21 (VOLARB's profitable hours)
         from datetime import datetime as dt, timezone
         wend = rec.get("window_end_ts", 0)
         hour_utc = dt.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc not in [1, 2, 8, 11, 18]:
+        if hour_utc not in [1, 2, 3, 8, 11, 18, 21]:
             return
 
         # Vol regime: extreme is excluded (training had it sparse; live-eval safety)
