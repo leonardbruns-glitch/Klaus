@@ -389,9 +389,11 @@ class KlausBot:
         await self.feed.start()
         _bond_tp = self._ws_bond_tp_check
         _carb = self.crypto_arb.on_book_update
+        _cas_bbo = self._cas_on_bbo
         async def _bbo_chain(tid: str, bid: float) -> None:
             await _bond_tp(tid, bid)
             await _carb(tid, bid)
+            await _cas_bbo(tid)
         self.feed._on_bbo_update = _bbo_chain
         await self.orders.start()
         self._running = True
@@ -594,6 +596,37 @@ class KlausBot:
             "BOND_TOTAL_LOSS_COOLDOWN armed %s — %dm cooldown starts now (asset key=%r)",
             asset, _BOND_TOTAL_LOSS_COOLDOWN_S // 60, asset,
         )
+
+    async def _cas_on_bbo(self, token_id: str) -> None:
+        """CAS evaluation triggered by WS BBO update — replaces 1s scan lag."""
+        try:
+            _cas = getattr(self, "cas_lowask_strategy", None)
+            if _cas is None:
+                return
+            token = self.feed.tokens.get(token_id)
+            if token is None or token.window_seconds != 300:
+                return
+            ob = self.feed.order_books.get(token_id)
+            if ob is None or not ob.asks:
+                return
+            import time as _time
+            remaining = token.window_end_ts - _time.time()
+            rec = {
+                "token_id":              token_id,
+                "condition_id":          token.condition_id,
+                "asset":                 token.asset,
+                "window_end_ts":         token.window_end_ts,
+                "window_size_s":         token.window_seconds,
+                "seconds_to_resolution": remaining,
+                "outcome_dir":           token.outcome_direction,
+                "outcome_side":          token.side,
+                "best_ask":              ob.asks[0][0],
+                "ob_top1_ask_size":      ob.asks[0][1],
+                "tok_snap_30s":          0.0,
+            }
+            _cas.schedule_if_ready(rec)
+        except Exception:
+            pass
 
     async def _ws_bond_tp_check(self, token_id: str, bid_price: float) -> None:
         """Instant BOND TP triggered by WS BBO update — no 1s scan delay."""
