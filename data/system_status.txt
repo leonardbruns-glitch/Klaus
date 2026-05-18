@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+e16e5a7 execution: dynamic entry buffer by ask (5%/10%/15%)
+09a4274 execution: background allowance keeper + per-order timing
 2d228a6 CAS: evaluate on WS BBO update — eliminates 1s scan lag
 62cdcde CAS: log tok_snap_30s at every entry (verify gate input)
 177b8c3 VOLARB: block H14 (WR=29.5% n=44); CAS: unblock H14
@@ -10,14 +12,12 @@ cf6d672 CAS: block H14, FOK for fast_fail buys; VOLARB: allow H14
 e2943dc CAS: re-block H08 (unblock was based on invalid snap gate analysis)
 512236d CAS snap gate: shadow-only (revert live block)
 5fa7b70 CAS: fast retry with 2× ask-drift ceiling (cuts retry latency 8s→<2s)
-662e49c Fix CAS momentum gate: wrong key entry_snap_30s_pct → tok_snap_30s
-df4a3e7 state_log: CAS_LOWASK Kelly sizing deploy
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   47G       46G  51% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 15:20:33 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 15:36:05 UTC
 
 ## Open positions (count):
 0
