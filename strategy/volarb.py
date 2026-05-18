@@ -216,7 +216,7 @@ class Volarb:
         from datetime import datetime as dt, timezone
         wend = rec.get("window_end_ts", 0)
         hour_utc = dt.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc not in [1, 2, 8, 11, 21, 23]:
+        if hour_utc not in [1, 2, 8, 11, 14, 21, 23]:
             return
 
         # Vol regime: extreme is excluded (training had it sparse; live-eval safety)

@@ -321,13 +321,14 @@ class OrderManager:
             except Exception as _exc:
                 logger.warning("USDC allowance refresh failed: %s", _exc)
 
-        # Single attempt only for 5-min window entries.
-        # Retrying a resting BUY wastes 3s × N attempts = up to 15s of a 240s window.
-        # If the order doesn't fill in 3s, the price has moved — abort cleanly.
+        # fast_fail: use FOK so a stale ask returns FAILED immediately instead of
+        # resting on book and waiting up to 1s for a WS fill confirmation.
+        # This saves ~1s per missed entry, letting the CAS fast-retry fire sooner.
+        _otype = OrderType.FOK if fast_fail else OrderType.GTC
         try:
             result = await self._submit_limit_order(
                 token_id, OrderSide.BUY, limit_price, size,
-                neg_risk=neg_risk, tick_size=tick_size,
+                neg_risk=neg_risk, tick_size=tick_size, order_type=_otype,
             )
             if result.status == OrderStatus.FILLED:
                 return result
@@ -990,6 +991,7 @@ class OrderManager:
         size: float,
         neg_risk: bool = False,
         tick_size: str = TICK_SIZE,
+        order_type: "OrderType" = None,
     ) -> OrderResult:
         if self._client is None:
             return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
@@ -1060,11 +1062,12 @@ class OrderManager:
                 tick_size=tick_size or "0.01",
                 neg_risk=neg_risk if neg_risk else None,
             )
-            # GTC for all orders. FAK has an unsatisfiable integer maker-amount
-            # constraint (maker_micro must be multiple of 10000) for any non-trivial
-            # price. GTC limit orders have no such constraint and fill immediately
-            # when our +5% buffer limit price crosses the best ask.
-            order_type = OrderType.GTC
+            # FOK (fast_fail BUY): fills immediately or returns FAILED — never rests.
+            # Eliminates the 1s WS wait when ask has moved above our limit, saving
+            # ~1s per failed attempt vs GTC "live" path.
+            # GTC (default): stays on book up to 1s waiting for a fill.
+            if order_type is None:
+                order_type = OrderType.GTC
 
             # Cloudflare WAF blocks datacenter IPs on POST /order ~30-50% of the time.
             # CLOB also returns transient 5xx (e.g. 'could not run the execution') under
