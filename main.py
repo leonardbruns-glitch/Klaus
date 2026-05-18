@@ -624,7 +624,60 @@ class KlausBot:
                 "ob_top1_ask_size":      ob.asks[0][1],
                 "tok_snap_30s":          0.0,
             }
+            # Pre-seed shadow: log Binance signal at rem=85-95s, once per (asset, window)
+            if 85.0 <= remaining <= 95.0:
+                self._cas_preseed_shadow(token, ob.asks[0][0], remaining)
             _cas.schedule_if_ready(rec)
+        except Exception:
+            pass
+
+    def _cas_preseed_shadow(self, token, ask: float, remaining: float) -> None:
+        """Log Binance signal state at rem≈90s for pre-seed directional agreement analysis."""
+        try:
+            import time as _time, json as _json, os as _os
+            key = (token.asset, int(token.window_end_ts))
+            if not hasattr(self, "_preseed_logged"):
+                self._preseed_logged: set = set()
+            if key in self._preseed_logged:
+                return
+            self._preseed_logged.add(key)
+
+            feed = self.feed
+            now = _time.time()
+            asset = token.asset.upper()
+
+            def _bnc_ret(secs):
+                hist = feed._price_history.get(asset)
+                spot = feed._spot_price.get(asset, 0.0)
+                if not hist or not spot:
+                    return 0.0
+                cutoff = now - secs
+                ref = next((p for ts, p in hist if ts <= cutoff), None)
+                return (spot - ref) / ref * 100.0 if ref else 0.0
+
+            partial_5m = 0.0
+            spot = feed._spot_price.get(asset, 0.0)
+            o5m = feed._spot_open_5m.get(asset, 0.0)
+            if spot and o5m:
+                partial_5m = (spot - o5m) / o5m * 100.0
+
+            rec = {
+                "record_type":    "preseed_shadow",
+                "ts":             now,
+                "asset":          asset,
+                "window_end_ts":  token.window_end_ts,
+                "outcome_dir":    token.outcome_direction,
+                "outcome_side":   token.side,
+                "rem":            round(remaining, 1),
+                "ask":            ask,
+                "bnc_ret_30s":    round(_bnc_ret(30), 4),
+                "bnc_ret_60s":    round(_bnc_ret(60), 4),
+                "bnc_partial_5m": round(partial_5m, 4),
+            }
+            log_dir = "logs/shadow"
+            _os.makedirs(log_dir, exist_ok=True)
+            with open(f"{log_dir}/preseed_shadow.jsonl", "a") as f:
+                f.write(_json.dumps(rec) + "\n")
         except Exception:
             pass
 

@@ -174,9 +174,30 @@ class CASLowAsk:
         self._fired_tokens.add(token_id)
         self._fired_asset_windows.add(aw_key)
         self.entries_attempted += 1
+        self._log_preseed_fire(rec, bet_dir)
         task = asyncio.create_task(self._fire(rec, partials, bet_dir, actual_stake))
         self._tasks.append(task)
         task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
+
+    def _log_preseed_fire(self, rec: dict, bet_dir: str) -> None:
+        try:
+            import time as _time, json as _json, os as _os
+            entry = {
+                "record_type":   "cas_fire",
+                "ts":            _time.time(),
+                "asset":         rec.get("asset"),
+                "window_end_ts": rec.get("window_end_ts"),
+                "outcome_dir":   rec.get("outcome_dir"),
+                "bet_dir":       bet_dir,
+                "rem":           round(rec.get("seconds_to_resolution", 0), 1),
+                "ask":           rec.get("best_ask"),
+            }
+            log_dir = "logs/shadow"
+            _os.makedirs(log_dir, exist_ok=True)
+            with open(f"{log_dir}/preseed_shadow.jsonl", "a") as f:
+                f.write(_json.dumps(entry) + "\n")
+        except Exception:
+            pass
 
     async def _fire(self, rec: dict, partials: dict, bet_dir: str, stake: float) -> None:
         try:
