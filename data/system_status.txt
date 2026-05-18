@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+deabb92 CAS: block H01-H02 (VOLARB reserved hours, 50%+ WR)
 d2709ff CAS-LowAsk: widen ASK 0.50→0.65, loosen THR 0.01→0.001%
 dbba10b Smart allowance refresh + fast-fail orphan recovery for CAS
 cf873f8 Watchdog 2026-05-17T21:18:10Z: OK (BOT_DOWN→OK, CAPITAL_RUIN→OK)
@@ -11,10 +12,9 @@ a340557 CAS-LowAsk: partial-fill mode (5 sh / $1 notional minimums)
 58c6fae Watchdog 2026-05-17T18:18:11Z: CRITICAL 2 alerts (CAPITAL_RUIN, CAPITAL_DROP)
 a00b7c5 Disable VOLARB +20% profit target — revert to hold-to-resolution.
 bf70c0b VOLARB: one entry per (asset, window) — no re-entries per window
-1bd06b0 LDA off; VOLARB +20% TP vs entry
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   46G       48G  49% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   45G       48G  49% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Sun 2026-05-17 22:17:45 UTC

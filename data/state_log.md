@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-18 | GATE / CAS | Block H01-H02 (VOLARB reserved hours) — user instruction | CAS analysis revealed inverted direction signals at H01-H02 (0% WR, -$47.67 total loss). Same hours: VOLARB 50-51% WR, +$79.78 cumulative (carries entire VOLARB strategy). Root cause: CAS uses intra-candle live price vs feed._spot_open_5m, causing false signals in low-liquidity midnight hours. VOLARB uses Binance 5m direction + OB imbalance (works well in Asian session trending). Block CAS H01-H02 only (preserve VOLARB edge). strategy/cas_lowask.py: added hour check after remaining-seconds gate, returns if hour in [1, 2]. VOLARB remains disabled (no change to enabled flag).
+
 ## 2026-05-17 10:20 UTC | GATE / VOLARB | EDGE_FLOOR 0.30 → 0.10 globally — user instruction | Live perf 13h since Phase 1 deploy: n=465 cum, WR 30.9%, net +$6.67, EV +$0.014/tr (vs band-matched backtest +$0.30/tr — ~5% of expectation). Raising floor 0.15 → 0.30 produced no EV/tr improvement (E1 +$0.115, E5 +$0.047). Entry-price bands all hover near PF 1.0 / EV ±$0.05/tr. User directive after this analysis: lower to 0.10. strategy/volarb.py:45-46.
 
 ## 2026-05-15 UTC | STAKE / LDA | Flat $5 per entry, Kelly disabled — user instruction | All bucket/BNC/asset sizing logic removed. Every qualifying entry (B0/B1/B2/B3) gets exactly $5. Commit 94946da.
