@@ -369,8 +369,7 @@ class KlausBot:
         # (the VOLARB tag is included in those checks).
         from strategy.volarb import Volarb
         self.volarb_strategy = Volarb(self)
-        # VOLARB disabled 2026-05-17: switching to CAS-LowAsk as sole strategy.
-        self.volarb_strategy.enabled = False
+        # VOLARB re-enabled 2026-05-18 to trade hours H01, H02, H11, H18
         # CAS-LowAsk — cross-asset synchrony × cheap-ask cheap-tail. $5 stake, max 2 concurrent.
         from strategy.cas_lowask import CASLowAsk
         self.cas_lowask_strategy = CASLowAsk(self)
