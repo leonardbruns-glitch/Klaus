@@ -221,11 +221,11 @@ class Volarb:
             return
 
         # H18 unblocked 2026-05-18: live WR=60% n=25 +$15.33; CAS blocked there (swap)
-        # H08 blocked: live WR=25.7% n=35; H21/H14 blocked earlier
+        # H08 blocked: live WR=25.7% n=35; H21/H14 blocked earlier; H23 blocked 2026-05-18
         from datetime import datetime as dt, timezone
         wend = rec.get("window_end_ts", 0)
         hour_utc = dt.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc not in [1, 2, 11, 18, 23]:
+        if hour_utc not in [1, 2, 11, 18]:
             return
 
         # Vol regime: extreme + volatile excluded. Microshadow: volatile WR=0% n=6,
