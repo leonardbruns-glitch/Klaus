@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+2d228a6 CAS: evaluate on WS BBO update — eliminates 1s scan lag
 62cdcde CAS: log tok_snap_30s at every entry (verify gate input)
 177b8c3 VOLARB: block H14 (WR=29.5% n=44); CAS: unblock H14
 d3e1338 Revert FOK for fast_fail buys — GTC preserves partial fills
@@ -11,13 +12,12 @@ e2943dc CAS: re-block H08 (unblock was based on invalid snap gate analysis)
 5fa7b70 CAS: fast retry with 2× ask-drift ceiling (cuts retry latency 8s→<2s)
 662e49c Fix CAS momentum gate: wrong key entry_snap_30s_pct → tok_snap_30s
 df4a3e7 state_log: CAS_LOWASK Kelly sizing deploy
-2b64b90 CAS_LOWASK: Kelly sizing (quarter Wilson-LCB) replaces fixed $5 stake
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   47G       46G  51% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 14:59:07 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 15:20:33 UTC
 
 ## Open positions (count):
 0
