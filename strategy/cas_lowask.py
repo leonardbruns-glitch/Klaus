@@ -42,8 +42,10 @@ ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
 REM_MIN_S        = 35.0    # lowered 50→35: shadow [35,45) EV=+0.322 and [25,35) EV=+0.368 are best buckets
 REM_MAX_S        = 105.0   # raised 80→105: shadow [85,95) EV=+0.032 and [95,105) EV=+0.211 add volume
-REM_BLOCK_LO     = 65.0    # shadow [65,75) only negative-EV bucket (WR=41.8%, EV=-0.041)
+REM_BLOCK_LO     = 65.0    # shadow [65,75) EV=-0.041 and [85,95) EV=+0.032 blocked
 REM_BLOCK_HI     = 75.0
+REM_BLOCK2_LO    = 85.0
+REM_BLOCK2_HI    = 95.0
 # Quarter-Kelly on Wilson-LCB of n=31 gated cohort (WR 90.3%, LCB 81.4%, b=0.70 → f*_lcb=54.8%).
 # Cap protects against CLOB depth limits and correlated concurrent bets (MAX_CONCURRENT=2).
 # Revisit at n>=50 live post-gate; if WR holds >=85%, consider half-Kelly (~27%).
@@ -110,6 +112,8 @@ class CASLowAsk:
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             return
         if REM_BLOCK_LO <= remaining < REM_BLOCK_HI:
+            return
+        if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
         # Block CAS at H01, H02, H03, H08, H11, H14, H21 (H23 unblocked 2026-05-18; H14 re-blocked 2026-05-18 n=4 WR=25%)
