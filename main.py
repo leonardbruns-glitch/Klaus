@@ -610,7 +610,23 @@ class KlausBot:
             if ob is None or not ob.asks:
                 return
             import time as _time
-            remaining = token.window_end_ts - _time.time()
+            now = _time.time()
+            remaining = token.window_end_ts - now
+            ask = ob.asks[0][0]
+
+            # Track ask change history for age/velocity metrics (change events only)
+            if not hasattr(self, "_cas_ask_changes"):
+                self._cas_ask_changes: dict = {}
+            changes = self._cas_ask_changes.setdefault(token_id, [])
+            if not changes or changes[-1][1] != ask:
+                changes.append((now, ask))
+                cutoff = now - 35.0
+                self._cas_ask_changes[token_id] = [(t, a) for t, a in changes if t >= cutoff]
+                changes = self._cas_ask_changes[token_id]
+            ask_age_ms = round((now - changes[-1][0]) * 1000)
+            _ref_30 = next((a for t, a in reversed(changes) if t <= now - 30.0), None)
+            ask_delta_30s = round(ask - _ref_30, 4) if _ref_30 is not None else 0.0
+
             rec = {
                 "token_id":              token_id,
                 "condition_id":          token.condition_id,
@@ -620,13 +636,21 @@ class KlausBot:
                 "seconds_to_resolution": remaining,
                 "outcome_dir":           token.outcome_direction,
                 "outcome_side":          token.side,
-                "best_ask":              ob.asks[0][0],
+                "best_ask":              ask,
                 "ob_top1_ask_size":      ob.asks[0][1],
                 "tok_snap_30s":          0.0,
+                "ask_age_ms":            ask_age_ms,
+                "ask_delta_30s":         ask_delta_30s,
             }
-            # Pre-seed shadow: log Binance signal at rem=85-95s, once per (asset, window)
+            # Pre-seed shadow + pre-signing at rem=85-95s, once per (asset, window)
             if 85.0 <= remaining <= 95.0:
                 self._cas_preseed_shadow(token, ob.asks[0][0], remaining)
+                asyncio.create_task(self.orders.presign_for_cas(
+                    token_id, ob.asks[0][0],
+                    stake_usd=5.0,
+                    neg_risk=token.neg_risk,
+                    tick_size=token.tick_size,
+                ))
             _cas.schedule_if_ready(rec)
         except Exception:
             pass

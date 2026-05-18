@@ -191,6 +191,8 @@ class CASLowAsk:
                 "bet_dir":       bet_dir,
                 "rem":           round(rec.get("seconds_to_resolution", 0), 1),
                 "ask":           rec.get("best_ask"),
+                "ask_age_ms":    rec.get("ask_age_ms", 0),
+                "ask_delta_30s": rec.get("ask_delta_30s", 0.0),
             }
             log_dir = "logs/shadow"
             _os.makedirs(log_dir, exist_ok=True)
