@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+b705c32 CAS: wire pop_cas_presigned into _fire_inner — eliminates sign latency on hot path
+9f109ae shadow: preseed directional agreement logger at rem=90s
 e16e5a7 execution: dynamic entry buffer by ask (5%/10%/15%)
 09a4274 execution: background allowance keeper + per-order timing
 2d228a6 CAS: evaluate on WS BBO update — eliminates 1s scan lag
@@ -10,14 +12,12 @@ e16e5a7 execution: dynamic entry buffer by ask (5%/10%/15%)
 d3e1338 Revert FOK for fast_fail buys — GTC preserves partial fills
 cf6d672 CAS: block H14, FOK for fast_fail buys; VOLARB: allow H14
 e2943dc CAS: re-block H08 (unblock was based on invalid snap gate analysis)
-512236d CAS snap gate: shadow-only (revert live block)
-5fa7b70 CAS: fast retry with 2× ask-drift ceiling (cuts retry latency 8s→<2s)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   47G       46G  51% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 15:36:05 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 15:51:14 UTC
 
 ## Open positions (count):
 0
