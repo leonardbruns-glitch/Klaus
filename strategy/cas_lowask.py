@@ -108,9 +108,9 @@ class CASLowAsk:
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             return
 
-        # Block CAS at H01, H02, H03, H11, H21 (H08, H23 unblocked 2026-05-18; H14 unblocked 2026-05-18)
+        # Block CAS at H01, H02, H03, H08, H11, H14, H21 (H23 unblocked 2026-05-18; H14 re-blocked 2026-05-18 n=4 WR=25%)
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 8, 11, 21]:
+        if hour_utc in [1, 2, 3, 8, 11, 14, 21]:
             return
 
         ask = rec.get("best_ask", 0.0)
