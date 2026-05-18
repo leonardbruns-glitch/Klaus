@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+ddae313 Restrict VOLARB to H01, H02, H11, H18 only; block CAS in those hours
+3329501 Activate VOLARB in hours H01, H02, H11, H18
 8cbde35 CAS: expand block to H01, H02, H11, H21 (VOLARB's strongest hours)
 b57ca1f CAS: block H01-H02 (VOLARB reserved hours, 50%+ WR)
 edb0a7e Watchdog 2026-05-17T22:17:57Z: MEDIUM 1 alert (VOLARB_TRADE_LOOP_SILENT)
@@ -10,14 +12,12 @@ dbba10b Smart allowance refresh + fast-fail orphan recovery for CAS
 cf873f8 Watchdog 2026-05-17T21:18:10Z: OK (BOT_DOWN→OK, CAPITAL_RUIN→OK)
 a340557 CAS-LowAsk: partial-fill mode (5 sh / $1 notional minimums)
 66823a1 CAS-LowAsk strategy: cross-asset synchrony × cheap-tail entry
-536f877 Watchdog 2026-05-17T19:18:00Z: CRITICAL 1 alert (BOT_DOWN)
-58c6fae Watchdog 2026-05-17T18:18:11Z: CRITICAL 2 alerts (CAPITAL_RUIN, CAPITAL_DROP)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   46G       48G  50% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   46G       47G  50% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 06:39:58 UTC
+ActiveEnterTimestamp=Mon 2026-05-18 08:22:06 UTC
 
 ## Open positions (count):
 0
