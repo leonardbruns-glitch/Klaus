@@ -116,11 +116,12 @@ class CASLowAsk:
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
-        # H11/H21 unblocked 2026-05-18: shadow EV=+0.169/+0.110; H14 re-kept blocked (user)
-        # H01 unblocked 2026-05-18: shadow EV=+0.117 n=46
-        # H12 blocked: EV=-0.093 n=56; H16 blocked: EV=-0.157 n=45
+        # Global blocks: H02/03/08 negative; H12 EV=-0.093; H14 user; H16 EV=-0.157
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
         if hour_utc in [2, 3, 8, 12, 14, 16]:
+            return
+        # SOL-specific blocks: H05/11/13/18/22/23 all negative EV in shadow
+        if asset == "SOL" and hour_utc in {5, 11, 13, 18, 22, 23}:
             return
 
         ask = rec.get("best_ask", 0.0)
