@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # Backtest 9.4 days shadow at this config: n=613, WR=52.7%, EV/$1=+$0.747, +$214.65/d.
 THR_PCT          = 0.001   # 0.001% partial-return threshold (loose; was 0.01%)
 ASK_MIN          = 0.05
-ASK_MAX          = 0.65    # was 0.50
+ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
 REM_MIN_S        = 50.0
 REM_MAX_S        = 70.0
 # Quarter-Kelly on Wilson-LCB of n=31 gated cohort (WR 90.3%, LCB 81.4%, b=0.70 → f*_lcb=54.8%).
