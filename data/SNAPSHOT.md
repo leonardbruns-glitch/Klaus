@@ -2,11 +2,11 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-05-18T08:33:43Z |
+| snapshot_ts (UTC) | 2026-05-18T08:48:49Z |
 | klaus HEAD | ddae313 |
-| trades.jsonl rows | 6577 |
-| live rows | 6577 |
-| bankroll capital | $106.141443 |
+| trades.jsonl rows | 6580 |
+| live rows | 6580 |
+| bankroll capital | $91.568943 |
 | klaus service | active |
 | shadow files | 6 |
 
