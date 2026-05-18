@@ -244,7 +244,7 @@ class CASLowAsk:
         )
 
         _buf = 0.15 if ask < 0.35 else (0.10 if ask < 0.55 else 0.05)
-        _limit_price = round(min(ask * (1 + _buf), 0.99), 4)
+        _limit_price = round(min(ask * (1 + _buf), ASK_MAX), 4)
         _presigned = self.bot.orders.pop_cas_presigned(token_id, _limit_price)
         if _presigned:
             logger.info("[CAS] using presigned order %s limit_price=%.4f", asset, _limit_price)
