@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # (65/d vs 30/d), WR up to 53% (from 48%), much smoother daily PnL. Variance
 # reduction makes the -$10 daily kill switch less likely to fire.
 # Backtest 9.4 days shadow at this config: n=613, WR=52.7%, EV/$1=+$0.747, +$214.65/d.
-THR_PCT          = 0.001   # 0.001% partial-return threshold (loose; was 0.01%)
+THR_PCT          = 0.020   # raised 0.001→0.02: shadow WR 48.4%→55.7%, EV +0.023→+0.247, $112→$237/day
 ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
 REM_MIN_S        = 10.0    # lowered 35→10: shadow [10,15) EV=+0.394, [15,35) all positive
@@ -46,14 +46,12 @@ REM_BLOCK_LO     = 65.0    # [65,75) blocked
 REM_BLOCK_HI     = 75.0
 REM_BLOCK2_LO    = 85.0
 REM_BLOCK2_HI    = 95.0
-# Quarter-Kelly on Wilson-LCB of n=31 gated cohort (WR 90.3%, LCB 81.4%, b=0.70 → f*_lcb=54.8%).
-# Cap protects against CLOB depth limits and correlated concurrent bets (MAX_CONCURRENT=2).
-# Revisit at n>=50 live post-gate; if WR holds >=85%, consider half-Kelly (~27%).
 KELLY_FRACTION   = 0.137
-STAKE_CAP_USD    = 20.00
-STAKE_FLOOR_USD  = 20.00
-# Per-asset stake override (user instruction 2026-05-18): SOL reduced, BTC/ETH capped
-ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 3.00}
+STAKE_CAP_USD    = 30.00
+STAKE_FLOOR_USD  = 30.00
+# Per-asset stakes raised 2026-05-18 with THR=0.02 (EV=+0.247, all assets positive)
+# Shadow: BTC EV=+0.220, ETH EV=+0.195, SOL EV=+0.365 at this threshold
+ASSET_STAKE: dict = {"BTC": 30.00, "ETH": 30.00, "SOL": 10.00}
 MAX_CONCURRENT   = 2
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
