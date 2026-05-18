@@ -52,6 +52,8 @@ REM_BLOCK2_HI    = 95.0
 KELLY_FRACTION   = 0.137
 STAKE_CAP_USD    = 20.00
 STAKE_FLOOR_USD  = 20.00
+# Per-asset stake override (user instruction 2026-05-18): SOL reduced, BTC/ETH capped
+ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 3.00}
 MAX_CONCURRENT   = 2
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
@@ -131,9 +133,8 @@ class CASLowAsk:
         ask_size = rec.get("ob_top1_ask_size") or 0.0
         if ask_size < ASK_DEPTH_MIN_SH:
             return
-        # Kelly-sized target stake, capped by depth and per-bet ceiling.
-        bankroll_cap = self.bot.risk.bankroll.capital
-        target_stake = max(STAKE_FLOOR_USD, min(STAKE_CAP_USD, bankroll_cap * KELLY_FRACTION))
+        # Per-asset fixed stake (overrides Kelly).
+        target_stake = ASSET_STAKE.get(asset, STAKE_CAP_USD)
         shares_to_buy = min(target_stake / ask, ask_size)
         actual_stake = shares_to_buy * ask
         if actual_stake < MIN_NOTIONAL_USD:
