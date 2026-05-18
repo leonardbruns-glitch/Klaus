@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-18T09:19:03Z
+# Snapshot: 2026-05-18T09:34:08Z
 # Latest commit on klaus:
-d59f77e Allow VOLARB at H03 and H21; block CAS from those hours.
+35caf8b Block CAS from H03; add to VOLARB-reserved hours
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
