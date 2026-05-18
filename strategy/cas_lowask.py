@@ -146,10 +146,13 @@ class CASLowAsk:
         if asset == "ETH" and bet_dir == "DOWN":
             return
 
-        # Momentum gate: shadow-only (gate analysis was lookahead-contaminated; collecting OOS data)
+        # ob_imb gate: shadow-only until n>=100. Sweet spot [0.1,0.5): WR=67%, EV=+0.499.
+        # [0,0.1) is a trap (WR=33%, EV=-0.339); <0 = mildly ok (WR=52%, EV=+0.115).
+        ob_imb = rec.get("ob_imb_top3", None)
+        if ob_imb is not None and not (0.1 <= ob_imb < 0.5):
+            logger.info("[CAS] imb_shadow WOULD_BLOCK %s ob_imb=%.3f", asset, ob_imb)
+
         snap_30s_pct = rec.get("tok_snap_30s", 0.0)
-        if snap_30s_pct < 0.0:
-            logger.info("[CAS] snap_shadow WOULD_BLOCK %s tok_snap_30s=%.2f%%", asset, snap_30s_pct)
 
         # Cross-asset partial state
         feed = self.bot.feed
@@ -201,6 +204,7 @@ class CASLowAsk:
                 "ask":           rec.get("best_ask"),
                 "ask_age_ms":    rec.get("ask_age_ms", 0),
                 "ask_delta_30s": rec.get("ask_delta_30s", 0.0),
+                "ob_imb":        rec.get("ob_imb_top3", None),
             }
             log_dir = "logs/shadow"
             _os.makedirs(log_dir, exist_ok=True)
