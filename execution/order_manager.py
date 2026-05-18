@@ -198,6 +198,7 @@ class OrderManager:
         # skip if recent. Reduces per-order latency by ~500ms-1s.
         self._last_allowance_refresh_ts: float = 0.0
         self._allowance_refresh_ttl_s: float = 30.0
+        self._allowance_keeper_task: Optional[asyncio.Task] = None
         # _session_lock: guards the module-level _CffiSession (not thread-safe).
         # Held only for the duration of a single HTTP call — released between calls
         # so other tokens can interleave. Narrower than the old _clob_http_lock which
@@ -244,6 +245,27 @@ class OrderManager:
             except Exception as exc:
                 logger.debug("Startup cancel_all failed (may be none): %s", exc)
         await self._fill_tracker.start()
+        if self._client is not None:
+            self._allowance_keeper_task = asyncio.create_task(self._run_allowance_keeper())
+
+    async def _run_allowance_keeper(self) -> None:
+        """Refresh USDC allowance every 25s in background so the order hot-path never blocks."""
+        while True:
+            await asyncio.sleep(25.0)
+            try:
+                async with self._session_lock:
+                    await asyncio.to_thread(
+                        self._client.update_balance_allowance,
+                        BalanceAllowanceParams(
+                            asset_type=AssetType.COLLATERAL,
+                            signature_type=CONFIG.signature_type,
+                        ),
+                    )
+                self._last_allowance_refresh_ts = time.time()
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.debug("allowance keeper refresh failed: %s", exc)
 
     def prewarm_token_caches(self, tokens: dict) -> None:
         """
@@ -1070,10 +1092,14 @@ class OrderManager:
             _transient_exc = None
             _order_t0 = time.time()
             _attempted_order_ids: list = []   # track ALL order IDs placed this call
+            _sign_ms = 0.0
+            _post_ms = 0.0
             for _cf_attempt in range(3):
                 # create_order: EIP-712 signing (CPU-only, no HTTP).
                 # Wrapped in to_thread so secp256k1 signing doesn't block the event loop.
+                _t_sign = time.time()
                 signed = await asyncio.to_thread(self._client.create_order, order_args, options=opts)
+                _sign_ms = (time.time() - _t_sign) * 1000
                 # Capture order ID from signed order BEFORE posting — the ID is
                 # deterministic (hash of parameters + signature) and available even
                 # if CF blocks the POST response. Used to cancel stale resting orders
@@ -1108,8 +1134,10 @@ class OrderManager:
                     # post_order: HTTP POST via curl_cffi (synchronous, would block event loop).
                     # _session_lock serializes concurrent CLOB submissions — curl_cffi Session
                     # is not thread-safe. Lock held only for this single HTTP call.
+                    _t_post = time.time()
                     async with self._session_lock:
                         resp = await asyncio.to_thread(self._client.post_order, signed, order_type)
+                    _post_ms = (time.time() - _t_post) * 1000
                     _transient_exc = None
                 except Exception as _post_exc:
                     # PolyApiException: status_code=500 with 'could not run the execution'
@@ -1184,6 +1212,8 @@ class OrderManager:
                             )
             _order_ms = (time.time() - _order_t0) * 1000
             self._order_latencies_ms.append(_order_ms)
+            logger.info("ORDER timing: sign=%.0fms post=%.0fms total=%.0fms cf_attempts=%d",
+                        _sign_ms, _post_ms, _order_ms, _cf_attempt + 1)
             if _order_ms > 500:
                 logger.warning("SLOW ORDER: %.0fms round-trip (cf_attempts=%d) — VPS may help",
                                _order_ms, _cf_attempt + 1)
