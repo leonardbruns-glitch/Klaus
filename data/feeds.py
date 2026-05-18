@@ -336,6 +336,8 @@ class PolymarketFeed:
         self._spot_prev_5m: Dict[str, float] = {}     # asset → last CLOSED 5m close
         self._spot_prev_15m: Dict[str, float] = {}    # asset → last CLOSED 15m close
         self._spot_open_5m: Dict[str, float] = {}     # asset → current 5m candle open
+        self._spot_5m_high: Dict[str, float] = {}     # asset → running 5m candle high
+        self._spot_5m_low: Dict[str, float] = {}      # asset → running 5m candle low
         self._spot_open_15m: Dict[str, float] = {}    # asset → current 15m candle open
         self._kline_ts: Dict[str, float] = {}         # asset → last aggTrade/spot price update ts
         self._kline_open_ts: Dict[str, float] = {}    # asset → last time kline OPEN was updated (separate from spot)
@@ -965,6 +967,11 @@ class PolymarketFeed:
                                     elif interval == "5m":
                                         self._spot_open_5m[asset] = open_
                                         self._kline_open_ts[asset] = now_ts
+                                        _h5_live = float(k.get("h", 0) or 0)
+                                        _l5_live = float(k.get("l", 0) or 0)
+                                        if _h5_live > 0 and _l5_live > 0:
+                                            self._spot_5m_high[asset] = _h5_live
+                                            self._spot_5m_low[asset] = _l5_live
                                         if is_closed:
                                             self._spot_prev_5m[asset] = close
                                             _h5 = float(k.get("h", 0) or 0)

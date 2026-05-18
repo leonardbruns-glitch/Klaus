@@ -41,6 +41,7 @@ THR_PCT          = 0.020   # raised 0.001→0.02: shadow WR 48.4%→55.7%, EV +0
 THR_PCT_RELAXED  = 0.001   # H06/H21: tighter THR kills edge there; use original threshold
 ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
+ASK_MAX_HIGH_CONV = 0.60   # extended ceiling only when range_pos>0.8 (6m: WR=75% n=64, EV=+0.295)
 REM_MIN_S        = 10.0    # lowered 35→10: shadow [10,15) EV=+0.394, [15,35) all positive
 REM_MAX_S        = 95.0    # lowered 105→95: [95,105) EV=-0.025 (n=251, corrected shadow)
 REM_BLOCK_LO     = 65.0    # [65,75) blocked
@@ -127,7 +128,7 @@ class CASLowAsk:
             return
 
         ask = rec.get("best_ask", 0.0)
-        if not (ASK_MIN <= ask <= ASK_MAX):
+        if not (ASK_MIN <= ask <= ASK_MAX_HIGH_CONV):
             return
 
         ask_size = rec.get("ob_top1_ask_size") or 0.0
@@ -185,6 +186,20 @@ class CASLowAsk:
                 return
             if partials[c] > 0.0:
                 return
+
+        # Extended ask gate [ASK_MAX, ASK_MAX_HIGH_CONV]: only allow when range_pos > 0.8.
+        # range_pos = price position within 5m high-low range at T-60s (1=at extreme).
+        if ask > ASK_MAX:
+            h5m = feed._spot_5m_high.get(c, 0.0)
+            l5m = feed._spot_5m_low.get(c, 0.0)
+            cur = feed._spot_price.get(c, 0.0)
+            rng = h5m - l5m
+            if not rng or not h5m or not l5m or not cur:
+                return
+            range_pos = (cur - l5m) / rng if bet_dir == "UP" else (h5m - cur) / rng
+            if range_pos <= 0.8:
+                return
+            logger.info("[CAS] high-conv ask=%.4f range_pos=%.3f %s", ask, range_pos, c)
 
         if token_id in self.bot.risk.open_positions:
             return
@@ -251,7 +266,7 @@ class CASLowAsk:
         )
 
         _buf = 0.15 if ask < 0.35 else (0.10 if ask < 0.55 else 0.05)
-        _limit_price = round(min(ask * (1 + _buf), ASK_MAX), 4)
+        _limit_price = round(min(ask * (1 + _buf), ASK_MAX_HIGH_CONV), 4)
         _presigned = self.bot.orders.pop_cas_presigned(token_id, _limit_price)
         if _presigned:
             logger.info("[CAS] using presigned order %s limit_price=%.4f", asset, _limit_price)
@@ -272,7 +287,7 @@ class CASLowAsk:
             if (
                 _new_ask is not None
                 and _new_ask <= ask * 2.0
-                and ASK_MIN <= _new_ask <= ASK_MAX
+                and ASK_MIN <= _new_ask <= ASK_MAX_HIGH_CONV
                 and (wend - time.time()) >= REM_MIN_S
             ):
                 _target = ASSET_STAKE.get(asset.upper(), STAKE_CAP_USD)
