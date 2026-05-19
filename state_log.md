@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H11 for live testing — user instruction | VOLARB (H11's original blocker, 44.7% WR, +$18.83 PnL) is now retired as of 2026-05-19. Reason to preserve VOLARB's hours no longer applies. Unblock H11 to collect CAS live data and validate whether the "intra-candle pricing broken" claim actually manifests there. Zero CAS trades yet at H11 (has been blocked), so no live evidence. Commit f1c6e6e.
+
 ## 2026-05-18 | GATE / CAS | Block H01, H02, H11, H21 (VOLARB's 4 strongest hours) — user instruction | CAS analysis: H01-H02 inverted signals (0% WR, -$47.67 loss); VOLARB same hours 50-51% WR, +$79.78 cumulative. Expanded to H11 + H21 (VOLARB 44.7% + 48.6% WR, +$18.83 + $18.19 PnL). Root cause: CAS uses intra-candle live price vs feed._spot_open_5m, broken in low-liquidity hours. VOLARB uses Binance 5m direction + OB imbalance (works in trending). Block CAS H01/H02/H11/H21, preserve VOLARB's $94.33 edge (top 4 hours). strategy/cas_lowask.py: hour check updated to [1, 2, 11, 21]. VOLARB remains disabled.
 
 ## 2026-05-17 10:20 UTC | GATE / VOLARB | EDGE_FLOOR 0.30 → 0.10 globally — user instruction | Live perf 13h since Phase 1 deploy: n=465 cum, WR 30.9%, net +$6.67, EV +$0.014/tr (vs band-matched backtest +$0.30/tr — ~5% of expectation). Raising floor 0.15 → 0.30 produced no EV/tr improvement (E1 +$0.115, E5 +$0.047). Entry-price bands all hover near PF 1.0 / EV ±$0.05/tr. User directive after this analysis: lower to 0.10. strategy/volarb.py:45-46.
@@ -308,3 +310,13 @@ Both `max_daily_loss_pct=0.0` and `ruin_floor=0.0` in config.py per 2026-05-15 i
 
 ## 2026-05-18 13:18 UTC | CAS_LOWASK / SIZING | Kelly sizing replaces fixed $5 stake | Quarter-Kelly on Wilson-LCB of n=31 gated cohort.
 Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $1. Derivation: gated cohort (snap30>=0 deployed earlier today) n=31 WR 90.3% LCB80 81.4%, avg_win $3.53 / avg_loss $5.04 → b=0.70 → f*_lcb 54.8% → quarter-Kelly 13.7%. At current $115 bankroll: ~$16 stake vs prior $5. Auto-deleverages on drawdown. Cap protects against CLOB depth + MAX_CONCURRENT=2 correlation. Commit 2b64b90 deployed; klaus service active. Revisit at n>=50 live post-gate; if WR holds >=85% consider half-Kelly (~27%).
+
+## 2026-05-19 09:30 UTC | BUG / ALL | PositionMeta crash-loop — sl field missing default after best_ask added | best_ask: float = 0.0 inserted before sl: float (no default), violating Python dataclass ordering rules. Bot crash-looped from startup (restart counter hit 156). Fix: sl: float = 0.0. risk/manager.py. Commit 5344a55.
+
+## 2026-05-19 | EXIT / CAS | Disable PROFIT_TARGET for CAS_LOWASK — hold to resolution | User instruction. Analysis of 11 trades showed 4 EXPIRED_UNSOLD were correct-direction entries (kline confirmed); sell-mechanism failures cost $75.55. No PT, no SL. Token resolves 1.0 or 0.0 in wallet. main.py: PT check now excludes CAS_LOWASK in both WS callback and scan loop. Commit f94560e.
+
+## 2026-05-19 | LOGGING / CAS | PnL convention: exit_price=1.0 when entered_correctly=True | User instruction. At resolution, EXPIRED_UNSOLD CAS trades are patched in trades.jsonl: exit_price=1.0/0.0, exit_reason→BOND_RESOLVED_YES/NO, net_pnl corrected. kline_pnl is canonical analysis truth. BANKROLL_AUTO_CORRECT handles wallet reconciliation; resolution patch does NOT touch bankroll.capital. Commit f94560e.
+
+## 2026-05-19 | DOCS / ALL | CLAUDE.md fully rewritten for CAS_LOWASK — TERMINAL and VOLARB removed | User instruction. All TERMINAL/VOLARB references removed. Strategy section, parameters table, data integrity rules, key design decisions all updated to reflect CAS_LOWASK as the only live strategy. Commit 4c6fa0a.
+
+## 2026-05-19 | STRATEGY / VOLARB | VOLARB fully disabled — volarb_strategy=None | User instruction. Was already not entering trades (schedule_if_ready never called from main.py). Import and instantiation removed. Exit-path checks for bond_entry_class=="VOLARB" kept for residual wallet positions. Commit 3203629.
