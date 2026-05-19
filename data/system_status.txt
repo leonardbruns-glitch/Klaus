@@ -1,8 +1,9 @@
 ## klaus systemd:
-activating
-unknown
+active
 
 ## Last 10 commits on klaus:
+f94560e CAS: hold to resolution — disable PT, patch EXPIRED_UNSOLD at resolution
+5344a55 fix: PositionMeta dataclass crash — sl needs default after best_ask was added with default
 5ab0b46 Add best_ask field to TradeRecord and all record_trade call sites
 16e8694 CAS: capture best_ask in trade records
 c56dca8 CAS: clean up tokens on orphan recovery failure
@@ -11,14 +12,12 @@ a2dcb0f CAS: increase order submission timeout 0.5s→3.0s
 ea0c83d CAS: eliminate async task queue latency, make order submission synchronous
 a87e934 Add Chainlink oracle price logging as authoritative resolution source
 1c211c8 CAS: block H21 (33.3% WR, n=3, -$0.84)
-407f2fc CAS: unblock H08 (60% WR, n=10, +$1.54) and H12 (66.7% WR, n=3, +$4.21)
-0232061 CAS: unblock H04 (100% WR, n=2 on 2026-05-18)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  54% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 09:25:25 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 09:31:52 UTC
 
 ## Open positions (count):
 0
