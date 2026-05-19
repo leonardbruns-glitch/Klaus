@@ -713,7 +713,7 @@ class KlausBot:
                 return
             if pos.entry_price <= 0:
                 return
-            if bid_price >= 0.99 and getattr(pos, "bond_entry_class", "") != "LDA":
+            if bid_price >= 0.99 and getattr(pos, "bond_entry_class", "") not in ("LDA", "CAS_LOWASK"):
                 self._exit_in_progress.add(token_id)
                 logger.info(
                     "PROFIT_TARGET(WS) %s/%s | bid=%.4f ep=%.4f",
@@ -1500,7 +1500,7 @@ class KlausBot:
                 # Raised 0.95→0.99 on 2026-05-11 (user instruction: DISCOVER hold to
                 # near-certainty, otherwise time exit only).
                 if (current_price >= 0.99
-                        and getattr(pos, "bond_entry_class", "") != "LDA"
+                        and getattr(pos, "bond_entry_class", "") not in ("LDA", "CAS_LOWASK")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -6044,7 +6044,21 @@ class KlausBot:
                                             _tr["kline_pnl"] = round(_tr_shares * (1.0 - _tr_ep) - _tr_fee, 4)
                                         else:
                                             _tr["kline_pnl"] = round(-_tr_stake - _tr_fee, 4)
-                                        if _tr.get("exit_price_uncertain"):
+                                        # CAS_LOWASK holds to resolution — patch exit_price and net_pnl
+                                        # to reflect actual resolution (1.0 win / 0.0 loss).
+                                        # _pnl_delta intentionally left 0: BANKROLL_AUTO_CORRECT already
+                                        # reconciles the wallet after expiry; patching bankroll here
+                                        # would double-count.
+                                        if (_tr.get("bond_entry_class") == "CAS_LOWASK"
+                                                and _tr.get("exit_reason") == "BOND_EXPIRED_UNSOLD"):
+                                            _corr_exit = 1.0 if _entered_correctly else 0.0
+                                            _cas_delta = (_corr_exit - _tr.get("exit_price", 0.0)) * _tr_shares
+                                            _tr["exit_price"] = _corr_exit
+                                            _tr["exit_reason"] = "BOND_RESOLVED_YES" if _entered_correctly else "BOND_RESOLVED_NO"
+                                            _tr["gross_pnl"] = round(_tr_shares * _corr_exit - _tr_stake, 4)
+                                            _tr["net_pnl"] = round(_tr.get("net_pnl", 0.0) + _cas_delta, 4)
+                                            _tr["capital_after"] = round(_tr.get("capital_after", 0.0) + _cas_delta, 4)
+                                        elif _tr.get("exit_price_uncertain"):
                                             # Correct exit_price and net_pnl using resolution.
                                             # exit_price was a live-bid fallback; wop is authoritative.
                                             _corr_ep = 0.99 if _entered_correctly else 0.01
