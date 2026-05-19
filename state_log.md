@@ -11,6 +11,8 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-05-19 23:XX UTC | SYSTEM / CAS | MAX_CONCURRENT 2→3 (one per asset) | Capital $151 supports 3× concurrent ($33 worst-case), 22% utilization vs 44% at n=2. Constraint was multi-strategy brake (TERMINAL/VOLARB/BOND era). CAS-only + growth goal → unlock one BTC, one ETH, one SOL position per window. Removes false scarcity. Deployed cas_lowask.py:57. Tier 1 autonomous.
 
+## 2026-05-19 23:XX UTC | SIGNAL / CAS_HOUR_BLOCK | H14 unblocked with $5 stake cap (validation mode) | Shadow EV=+0.057 (n=45) contradicts live (n=4 WR=25%, EV=-$7.146). Discrepancy unresolved: shadow noise, market regime shift, or live too small? Unblock at reduced stakes to accumulate live data safely. New CAUTIOUS_HOURS={14} category caps BTC/ETH/SOL at $5 (vs $15/$15/$3 baseline). Accumulate to n≥20 before re-evaluating. Deployed cas_lowask.py:59-68,145. Tier 2 (cite data).
+
 ## 2026-05-19 20:XX UTC | STAKE / CAS | Deploy hour-based stake sizing (strong $20/$10, medium $10/$4) | 100-trade WR analysis: uniform $5 = -$5.52 PnL, hour-Kelly = +$110.99 (+$116.51 swing). Strong hours (WR≥55%): {0,4,7,8,9,10,12,15,20,23}. Medium (45-55%): {5,6,13,19,22}. Weak (<45%): blocked. Sizing: BTC/ETH $20/$10, SOL $10/$4 (depth-constrained). Commit d253306.
 
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H05 — marginal live performance, test at larger n | Live H05: 50% WR (n=10) — weak but consistent, below 45% kill-switch floor by only 5pp. Block justified on weakness, but decent sample size + no catastrophic failure → worth collecting more data. Commit b613095.
