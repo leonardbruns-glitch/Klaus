@@ -211,9 +211,8 @@ class CASLowAsk:
         try:
             await asyncio.wait_for(self._fire(rec, partials, bet_dir, actual_stake), timeout=0.5)
         except asyncio.TimeoutError:
-            logger.warning("[CAS] order submission timeout %s", token_id)
-            self._fired_tokens.discard(token_id)
-            self._fired_asset_windows.discard((asset.upper(), int(wend)))
+            logger.warning("[CAS] order submission timeout %s, attempting recovery", token_id)
+            await self._recover_orphan(rec, bet_dir, cid, wend)
         except Exception as e:
             logger.exception("[CAS] order submission error %s: %s", token_id, e)
             self._fired_tokens.discard(token_id)
@@ -341,6 +340,65 @@ class CASLowAsk:
             )
         except Exception:
             logger.exception("[CAS] open_position error")
+
+    async def _recover_orphan(self, rec: dict, bet_dir: str, cid: str, wend: float) -> None:
+        """Recover orphaned position that timed out before logging entry."""
+        token_id = rec["token_id"]
+        asset = rec["asset"]
+        outcome_dir = rec.get("outcome_dir", "up")
+        side = rec.get("outcome_side", "YES")
+
+        try:
+            pos = await self.bot.clob_client.get_position(token_id)
+            if not pos or pos.get("balance", 0) <= 0:
+                logger.warning("[CAS] orphan recovery: no position found for %s", asset)
+                self._fired_tokens.discard(token_id)
+                self._fired_asset_windows.discard((asset.upper(), int(wend)))
+                return
+
+            shares = pos.get("balance", 0)
+            entry_price = pos.get("average_buy_price", 0.0)
+            if not entry_price or entry_price <= 0:
+                logger.warning("[CAS] orphan recovery: invalid entry price %s for %s shares", entry_price, shares)
+                self._fired_tokens.discard(token_id)
+                self._fired_asset_windows.discard((asset.upper(), int(wend)))
+                return
+
+            actual_stake = shares * entry_price
+            logger.info("[CAS] orphan recovery FOUND %s: %s shares @ %.4f = $%.2f", asset, shares, entry_price, actual_stake)
+
+            try:
+                tpsl = TPSLLevels(
+                    take_profit=0.0, stop_loss=0.0,
+                    tp_pct=0.0, sl_pct=0.0, risk_reward=0.0,
+                )
+                spot = self.bot.feed._spot_price.get(asset.upper(), 0.0)
+                self.bot.risk.open_position(
+                    token_id=token_id,
+                    asset=asset,
+                    direction=Direction.BUY_YES,
+                    stake=actual_stake,
+                    entry_price=entry_price,
+                    tpsl=tpsl,
+                    condition_id=cid,
+                    window_end_ts=wend,
+                    window_seconds=rec.get("window_size_s", 300),
+                    quality_score=0,
+                    binance_price_at_entry=spot,
+                    is_bond=True,
+                    bond_outcome_direction=outcome_dir,
+                    bond_entry_class="CAS_LOWASK",
+                )
+                self.entries_filled += 1
+                logger.info("[CAS] orphan recovery: position tracking restored")
+            except Exception:
+                logger.exception("[CAS] orphan recovery: open_position error")
+                self._fired_tokens.discard(token_id)
+                self._fired_asset_windows.discard((asset.upper(), int(wend)))
+        except Exception:
+            logger.exception("[CAS] orphan recovery failed for %s", asset)
+            self._fired_tokens.discard(token_id)
+            self._fired_asset_windows.discard((asset.upper(), int(wend)))
 
     async def stop(self) -> None:
         self.enabled = False
