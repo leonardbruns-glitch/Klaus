@@ -140,6 +140,8 @@ class TradeRecord:
     # Signal 4: Cross-exchange divergence at entry
     coinbase_price: float = 0.0   # Coinbase spot price (0 = not available)
     cross_exchange_div_pct: float = 0.0  # (binance-coinbase)/coinbase*100
+    # Resolution oracle: Chainlink price at window end (Polymarket's authoritative source)
+    chainlink_price: float = 0.0   # Chainlink oracle price at resolution (0 = not fetched)
     # Signal 5: 5-second Binance velocity at entry (data collection only)
     velocity_5s_pct: float = 0.0   # % Binance price change in last 5s (positive=up, negative=down)
     move_age_s: float = 999.0      # seconds since last >0.02% Binance tick (999=no recent move)
@@ -474,6 +476,7 @@ class FeedbackEngine:
         traj_mae_30s: float = 0.0,
         price_at_t10s: Optional[float] = None,
         window_outcome_price: float = 0.0,
+        chainlink_price: float = 0.0,
         exit_price_uncertain: bool = False,
     ) -> TradeRecord:
 
@@ -718,6 +721,7 @@ class FeedbackEngine:
             bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
             bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
             window_outcome_price=round(window_outcome_price, 4),
+            chainlink_price=round(chainlink_price, 4),
             exit_price_uncertain=exit_price_uncertain,
         )
 

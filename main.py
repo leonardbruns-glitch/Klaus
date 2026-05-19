@@ -5881,6 +5881,67 @@ class KlausBot:
                 (_b_exit - binance_price_at_entry) / binance_price_at_entry * 100, 4
             )
 
+        async def _fetch_chainlink_oracle_price(asset: str) -> float | None:
+            """Fetch authoritative Chainlink oracle price (source of truth for Polymarket resolution).
+            Uses Chainlink Data Feeds JSON RPC interface via Ethereum mainnet.
+            Falls back to None if unavailable."""
+            if not hasattr(self.feed, "_session"):
+                return None
+
+            # Chainlink oracle addresses for Ethereum mainnet
+            _chainlink_feeds = {
+                "BTC": "0xf4030086522a99af011f1890a0d02786031b67f7",
+                "ETH": "0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
+                "SOL": "0x24379f51d3147dafbc5ddfb4b1e07b25e47fafea",
+            }
+
+            _feed_addr = _chainlink_feeds.get(asset.upper())
+            if not _feed_addr:
+                return None
+
+            try:
+                # Query latest Chainlink oracle round data
+                # Using Alchemy RPC (public endpoint, no key required for basic queries)
+                _rpc_url = "https://eth-mainnet.alchemyapi.io/v2/demo"
+
+                # Chainlink AggregatorV3 latestRoundData() call
+                _contract_abi = [{"inputs":[],"name":"latestRoundData","outputs":[{"name":"roundId","type":"uint80"},{"name":"answer","type":"int256"},{"name":"startedAt","type":"uint256"},{"name":"updatedAt","type":"uint256"},{"name":"answeredInRound","type":"uint80"}],"stateMutability":"view","type":"function"}]
+
+                # Simple JSON-RPC eth_call to get price
+                _payload = {
+                    "jsonrpc": "2.0",
+                    "method": "eth_call",
+                    "params": [
+                        {
+                            "to": _feed_addr,
+                            "data": "0xfeaf968c",  # latestRoundData() function selector
+                        },
+                        "latest"
+                    ],
+                    "id": 1,
+                }
+
+                import aiohttp as _aiohttp
+                async with self.feed._session.post(
+                    _rpc_url,
+                    json=_payload,
+                    timeout=_aiohttp.ClientTimeout(total=5),
+                ) as _resp:
+                    if _resp.status == 200:
+                        _data = await _resp.json()
+                        if "result" in _data and _data["result"] != "0x":
+                            # Parse the returned uint256 (scaled by 1e8 for crypto pairs)
+                            _hex_result = _data["result"]
+                            if len(_hex_result) >= 66:  # 0x + 64 hex chars for answer (second return value)
+                                _answer_hex = "0x" + _hex_result[66:130]  # Extract answer field
+                                _answer_raw = int(_answer_hex, 16)
+                                _oracle_price = _answer_raw / 1e8  # Chainlink returns prices scaled by 10^8
+                                return round(_oracle_price, 8)
+            except Exception as _e:
+                logger.debug("CHAINLINK oracle fetch %s: %s", asset, _e)
+
+            return None
+
         # Resolution task: polls Gamma API starting at window_end+10s.
         # Runs concurrently with the T+30/60/120 price sampling loop.
         async def _capture_resolution() -> None:
@@ -5899,7 +5960,13 @@ class KlausBot:
                 await asyncio.sleep(_wait)
             try:
                 _wop: float | None = None
+                _chainlink_price: float | None = None
                 _resolution_method = "unknown"
+
+                # Fetch Chainlink oracle price (Polymarket's authoritative source)
+                _chainlink_price = await _fetch_chainlink_oracle_price(asset)
+                if _chainlink_price is not None:
+                    logger.debug("RESOLUTION chainlink %s: $%.8f", trade_id[:12], _chainlink_price)
 
                 # Primary: Binance 5m kline open vs close for the exact window.
                 _symbol_map = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
@@ -5921,6 +5988,8 @@ class KlausBot:
                                     _close = float(_klines[0][4])
                                     _wop = 1.0 if _close >= _open else 0.0
                                     _resolution_method = f"kline:{_open:.2f}->{_close:.2f}"
+                                    if _chainlink_price is not None:
+                                        _resolution_method += f" (chainlink: ${_chainlink_price:.8f})"
                     except Exception as _ke:
                         logger.debug("RESOLUTION kline fetch %s: %s", trade_id[:12], _ke)
 
@@ -5933,6 +6002,7 @@ class KlausBot:
                         "trade_id": trade_id,
                         "record_type": "resolution",
                         "window_outcome_price": _wop,
+                        "chainlink_price": _chainlink_price if _chainlink_price is not None else 0.0,
                         "entered_correctly": _entered_correctly,
                         "resolution_delay_s": round(time.time() - window_end_ts),
                         "exit_reason": exit_reason,
@@ -5952,6 +6022,7 @@ class KlausBot:
                                     _tr = _json.loads(_tl.strip())
                                     if _tr.get("trade_id") == trade_id:
                                         _tr["window_outcome_price"] = _wop
+                                        _tr["chainlink_price"] = _chainlink_price if _chainlink_price is not None else 0.0
                                         _tr["entered_correctly"] = _entered_correctly
                                         # kline_pnl: canonical ground-truth PnL if held to resolution.
                                         # WIN = guaranteed redemption at $1/share; LOSE = token worthless.
