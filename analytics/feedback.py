@@ -46,6 +46,7 @@ class TradeRecord:
     gross_pnl: float
     fee_paid: float          # derived: gross_pnl - net_pnl (always matches bankroll)
     net_pnl: float           # authoritative: from risk manager (same number that updates bankroll)
+    best_ask: float          # market ask at entry — execution quality
     slippage_entry: float
     slippage_exit: float
     exit_reason: str         # TAKE_PROFIT / STOP_LOSS / HARD_EXIT / MANUAL
@@ -384,6 +385,7 @@ class FeedbackEngine:
         capital_before: float,
         heat_check_active: bool,
         consecutive_wins: int,
+        best_ask: float = 0.0,
         net_pnl_actual: Optional[float] = None,
         market_type: str = "unknown",
         is_live: bool = False,
@@ -582,6 +584,7 @@ class FeedbackEngine:
             gross_pnl=round(gross_pnl, 4),
             fee_paid=round(fee_paid, 4),
             net_pnl=round(net_pnl, 4),
+            best_ask=round(best_ask, 4),
             slippage_entry=round(slippage_entry, 5),
             slippage_exit=round(slippage_exit, 5),
             exit_reason=exit_reason,
