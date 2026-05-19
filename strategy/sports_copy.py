@@ -66,6 +66,17 @@ WATCHED_WALLETS: dict = {
     "0xd91a972191b5d08671f38a0439214c49947f211c": "W23_d91a97_R102_n17_87sp",
     "0x75f3b857f3c66f8307418e64df6b49d1b0150e78": "W24_75f3b8_R85_n28_92sp_robust",
     "0xfdeada41afd6a2d91698f29a90e8017c31276951": "W25_fdeada_R121_n9_74td_86sp",
+    # ── Night-window focus (22-08 UTC) — 60+% of trades in user's preferred window ──
+    "0x2509c7d1a0fee8c32ef5f639848bddcf43e5e4db": "W26_2509c7_PnL13k_R55_n28_78night",
+    "0xe6a5fdb6f4e749c4e841d0077bc9314f5878e95d": "W27_e6a5fd_PnL2k_R77_n31_62night",
+    "0xad187142b45594f3f24d36b4e7f966d96e520b4f": "W28_ad1871_PnL4k_R58_n28_90night",
+    "0x4f6a5fd36018a812c1fb01e858064faab72304eb": "W29_4f6a5f_PnL5k_R57_n18_74night",
+    "0xd43fb4a122de3bf97fbea546e772c34542a10bb0": "W30_d43fb4_PnL1k_R52_n24_85night",
+    "0x81804300d6b3f3a59424ca86b3d461b9a1b7f4da": "W31_818043_PnL3k_R60_n18_82night",
+    "0xcdf37e8bcdafeed20e0e603fc71bc556708e1bb5": "W32_cdf37e_PnL3k_R67_n14_85night",
+    "0x5e59a357ec4cea49061cb4b265f393d410211520": "W33_5e59a3_PnL2k_R74_n8_96night",
+    "0x725fb97a677317e0f55a49d596f11afbf5ec06c2": "W34_725fb9_R121_n12_78night",
+    "0x3b435dfada20eb449385ddb4db56a97da5fefae9": "W35_3b435d_R127_n8_79night",
 }
 
 # ── Knobs ────────────────────────────────────────────────────────────────────
