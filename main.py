@@ -369,6 +369,12 @@ class KlausBot:
         # CAS-LowAsk — cross-asset synchrony × cheap-ask cheap-tail. $5 stake, max 2 concurrent.
         from strategy.cas_lowask import CASLowAsk
         self.cas_lowask_strategy = CASLowAsk(self)
+        # SPORTS_COPY — slippage-tolerant wallet copy-trade. Shadow mode on first deploy.
+        # 5 wallets selected from 1.06M-wallet harvest (2026-05-19); combined 157 cycles, 539 trades/30d.
+        from strategy.sports_copy import SportsCopy
+        self.sports_copy = SportsCopy(self)
+        self.sports_copy.live_mode = True    # LIVE — real capital on wallet signals
+        # Safety guards: $40 ring-fenced sub-bankroll, $10/trade cap, -$10/day kill
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
         self.redeemer = Redeemer(
@@ -505,6 +511,9 @@ class KlausBot:
             _cas = getattr(self, "cas_lowask_strategy", None)
             if _cas is not None:
                 await _cas.stop()
+            _scp = getattr(self, "sports_copy", None)
+            if _scp is not None:
+                await _scp.stop()
             _gap = getattr(self, "gap_sweeper", None)
             if _gap is not None:
                 await _gap.stop()
@@ -549,6 +558,12 @@ class KlausBot:
         # previous sessions. Delayed 10s to let the feed populate token list first.
         asyncio.create_task(self._startup_orphan_sweep())
 
+        # SPORTS_COPY wallet poller starts here (shadow or live based on .live_mode)
+        try:
+            await self.sports_copy.start()
+        except Exception:
+            logger.exception("sports_copy start failed")
+
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
         report_task = asyncio.create_task(self._report_loop())
@@ -577,11 +592,22 @@ class KlausBot:
     # ── 1-second OB scan: monitor open positions ──────────────────────────────
 
     async def _ob_scan_loop(self) -> None:
+        _scp_tick = 0
         while self._running:
             try:
                 await self._check_open_positions()
             except Exception as exc:
                 logger.error("OB scan error: %s", exc)
+            # SPORTS_COPY stop/take check every ~5s
+            _scp_tick += 1
+            if _scp_tick >= 5:
+                _scp_tick = 0
+                try:
+                    _scp = getattr(self, "sports_copy", None)
+                    if _scp is not None and _scp.enabled:
+                        await _scp.check_stop_take()
+                except Exception:
+                    logger.exception("sports_copy stop/take check failed")
             await asyncio.sleep(CONFIG.execution.ob_scan_interval)
 
     def _mark_bond_total_loss(self, asset: str) -> None:
