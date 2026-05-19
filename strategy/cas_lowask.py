@@ -118,8 +118,8 @@ class CASLowAsk:
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
-        # Global blocks: H01-05/08 negative; H12 EV=-0.093; H14 user; H16 EV=-0.157
-        # H18 blocked 2026-05-18: shadow EV=-0.305; VOLARB WR=60% there (swapped)
+        # Global blocks: H01-03/05 negative; H14 user instruction; H16 EV=-0.157
+        # H18 blocked 2026-05-18: shadow EV=-0.305; H21 blocked 2026-05-19
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
         if hour_utc in [1, 2, 3, 5, 14, 16, 18, 21]:
             return
@@ -209,7 +209,7 @@ class CASLowAsk:
         self.entries_attempted += 1
         self._log_preseed_fire(rec, bet_dir)
         try:
-            await asyncio.wait_for(self._fire(rec, partials, bet_dir, actual_stake), timeout=0.5)
+            await asyncio.wait_for(self._fire(rec, partials, bet_dir, actual_stake), timeout=3.0)
         except asyncio.TimeoutError:
             logger.warning("[CAS] order submission timeout %s, attempting recovery", token_id)
             await self._recover_orphan(rec, bet_dir, cid, wend)
