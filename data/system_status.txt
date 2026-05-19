@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+b660b06 fix(sports_copy): fall back to REST fetch_order_book for sports tokens
 e3e9e5e feat(sports_copy): +10 night-active wallets (22-08 UTC focus)
 32fc0fb fix(sports_copy): percentage stop-loss, remove take-profit — trust wallet exit
 4a3570f fix: CAS hour_utc UnboundLocalError + SPORTS_COPY expand to 25 wallets
@@ -11,13 +12,12 @@ a86989a feat: SPORTS_COPY LIVE — 15-wallet copy trader, $40 sub-bankroll
 01f803b CAS: raise MAX_CONCURRENT 2→3 for capital growth
 cc0001f state_log: update to reflect analysis-only (no deploy) for test 3
 b1e1e84 Revert: undo BTC-only test — all assets can trade
-628440a state_log: document BTC-only test deployment 2026-05-19 22:XX
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   58G       36G  62% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 23:16:43 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 23:39:06 UTC
 
 ## Open positions (count):
 0
