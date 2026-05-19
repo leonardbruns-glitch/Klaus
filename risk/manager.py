@@ -76,7 +76,8 @@ class PositionMeta:
     direction: Direction
     stake: float
     entry_price: float
-    tp: float                          # ATR-based TP (still used as fallback)
+    best_ask: float = 0.0              # market ask at entry — captures execution quality
+    tp: float = 0.0                    # ATR-based TP (still used as fallback)
     sl: float                          # ATR-based SL (overridden by time-aware SL)
     open_ts: float = field(default_factory=time.time)
     window_end_ts: float = 0.0         # unix ts when the window closes
@@ -769,6 +770,7 @@ class RiskManager:
         stake: float,
         entry_price: float,
         tpsl: TPSLLevels,
+        best_ask: float = 0.0,
         condition_id: str = "",
         window_end_ts: float = 0.0,
         window_seconds: int = 0,
@@ -790,6 +792,7 @@ class RiskManager:
             direction=direction,
             stake=stake,
             entry_price=entry_price,
+            best_ask=best_ask,
             tp=tpsl.take_profit,
             sl=tpsl.stop_loss,
             shares=shares,

@@ -334,6 +334,7 @@ class CASLowAsk:
                 stake=actual_stake,
                 entry_price=fill.avg_fill_price,
                 tpsl=tpsl,
+                best_ask=ask,
                 condition_id=cid,
                 window_end_ts=wend,
                 window_seconds=rec.get("window_size_s", 300),
