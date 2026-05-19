@@ -79,9 +79,15 @@ SLIP_SELL            = 0.05      # we get 5c less when selling
 ASK_FLOOR            = 0.05      # don't chase below 5c (no fill depth)
 ASK_CEIL             = 0.85      # don't chase above 85c (poor R:R)
 TRADE_AGE_MAX_S      = 120.0     # ignore wallet trades older than 2 min
-STOP_LOSS_USD        = 0.10      # exit if current bid drops 10c below entry
-TAKE_PROFIT_USD      = 0.05      # take 5c profit if wallet hasn't sold within 30min
-TP_WAIT_S            = 30 * 60
+
+# Exit policy (revised 2026-05-19 23:15):
+# - Primary exit: MIRROR WALLET'S SELL. The wallet is the truth signal — if it
+#   hasn't sold, it sees more upside than we do. Don't pre-empt it.
+# - Stop loss as catastrophe brake only. Percentage-based so it scales: a 50%
+#   drawdown from entry. Absolute floor of $0.20 so micro-bets ride to res.
+# - No take profit. Trust the wallet's exit timing.
+STOP_LOSS_PCT        = 0.50      # exit if bid <= entry * (1 - 0.50)
+STOP_LOSS_MIN_USD    = 0.20      # only fire if loss-per-share absolute is ≥ 20c
 
 # ── CAS protection — sub-bankroll model ────────────────────────────────────
 # CAS uses up to ~$60 (3 concurrent × $20). We reserve the rest for CAS and
@@ -403,9 +409,10 @@ class SportsCopy:
         except Exception:
             logger.exception("[copy] mirror sell error")
 
-    # ── Stop / take-profit (called periodically from main bot tick) ──────────
+    # ── Catastrophe stop-loss only (called periodically from main bot tick) ──
+    # No take-profit — wallet's SELL is the truth signal.
     async def check_stop_take(self) -> None:
-        """Called by main bot loop ~every 5s. Apply stop-loss and take-profit to all SPORTS_COPY positions."""
+        """Called by main bot loop ~every 5s. Percentage stop-loss only."""
         for token_id, pos in list(self.bot.risk.open_positions.items()):
             if getattr(pos, "bond_entry_class", "") != "SPORTS_COPY":
                 continue
@@ -419,35 +426,26 @@ class SportsCopy:
             entry = float(getattr(pos, "entry_price", 0.0))
             if entry <= 0:
                 continue
-            change = cur_bid - entry
-            origin = self._position_origin.get(token_id)
-            age = time.time() - (origin[1] if origin else time.time())
+            # Percentage drawdown from entry
+            dd_pct = (entry - cur_bid) / entry
+            shares = float(getattr(pos, "shares", 0.0))
+            loss_per_share_usd = entry - cur_bid
 
-            # Stop loss
-            if change <= -STOP_LOSS_USD:
+            # Only fire stop if BOTH %dd is large AND absolute loss is meaningful
+            # (so a 50% drop on a $0.04 token = $0.02/share doesn't trigger)
+            if dd_pct >= STOP_LOSS_PCT and loss_per_share_usd >= STOP_LOSS_MIN_USD:
                 if not self.live_mode:
                     self._log_shadow({"event": "SHADOW_WOULD_STOP", "token_id": token_id,
-                                       "entry": entry, "cur_bid": cur_bid, "change": change})
+                                       "entry": entry, "cur_bid": cur_bid,
+                                       "dd_pct": dd_pct, "loss_per_sh": loss_per_share_usd})
                     continue
                 try:
                     await self.bot._exit_position(token_id, cur_bid, "SPORTS_COPY_STOP")
                     self._log_shadow({"event": "STOP_FIRED", "token_id": token_id,
-                                       "entry": entry, "exit_bid": cur_bid})
+                                       "entry": entry, "exit_bid": cur_bid,
+                                       "dd_pct": dd_pct})
                 except Exception:
                     logger.exception("[copy] stop-loss exit failed")
-
-            # Take profit (only if wallet hasn't sold and we've held >30min)
-            elif change >= TAKE_PROFIT_USD and age >= TP_WAIT_S:
-                if not self.live_mode:
-                    self._log_shadow({"event": "SHADOW_WOULD_TP", "token_id": token_id,
-                                       "entry": entry, "cur_bid": cur_bid, "age_s": age})
-                    continue
-                try:
-                    await self.bot._exit_position(token_id, cur_bid, "SPORTS_COPY_TP")
-                    self._log_shadow({"event": "TP_FIRED", "token_id": token_id,
-                                       "entry": entry, "exit_bid": cur_bid})
-                except Exception:
-                    logger.exception("[copy] take-profit exit failed")
 
     # ── Shadow logging ───────────────────────────────────────────────────────
     def _log_shadow(self, entry: dict) -> None:
