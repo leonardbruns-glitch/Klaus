@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+1c211c8 CAS: block H21 (33.3% WR, n=3, -$0.84)
+407f2fc CAS: unblock H08 (60% WR, n=10, +$1.54) and H12 (66.7% WR, n=3, +$4.21)
+0232061 CAS: unblock H04 (100% WR, n=2 on 2026-05-18)
+417557a VOLARB Audit 20260519-0016 — NO_PATCH (n=825, EV=+$0.06, current-config EV=+$0.53)
 86dacd9 VOLARB: block H23 UTC
 1951d4e Watchdog 2026-05-18T23:18Z: OK 0 alerts (1 recovery: CAPITAL_DROP)
 d5ced4e VOLARB: add spread gate [200,300bps) — microshadow sweet spot
 6e4c960 VOLARB: add EDGE_CEIL=0.20 + block vol_regime=volatile — microshadow data
 6b78349 CAS: extend ASK_MAX 0.50→0.60 when range_pos>0.8 (6m: WR=75% n=64, EV=+0.295)
 9a112cf Watchdog 2026-05-18T22:19Z: HIGH 1 alert (CAPITAL_DROP)
-dd2a2c5 CAS: SOL stake $10→$3
-dd45478 CAS: reduce BTC/ETH stake $30→$15, SOL stays $10
-ff1a44c H18 swap: block CAS, unblock VOLARB
-5420aa5 Watchdog 2026-05-18T21:18Z: OK 0 alerts (4 recoveries: CAPITAL_DROP CAPITAL_RUIN VOLARB_ROLLING_DRAWDOWN VOLARB_TRADE_LOOP_SILENT)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       44G  54% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  54% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-18 23:38:14 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 06:06:14 UTC
 
 ## Open positions (count):
 0
