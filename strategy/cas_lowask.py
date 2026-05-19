@@ -123,8 +123,8 @@ class CASLowAsk:
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
         if hour_utc in [1, 2, 3, 5, 14, 16, 18, 21]:
             return
-        # SOL-specific blocks: H05/13/18/22/23 all negative EV in shadow
-        if asset == "SOL" and hour_utc in {5, 13, 18, 22, 23}:
+        # SOL-specific blocks: H05/13/18/22 all negative EV in shadow
+        if asset == "SOL" and hour_utc in {5, 13, 18, 22}:
             return
 
         ask = rec.get("best_ask", 0.0)
