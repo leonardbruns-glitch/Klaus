@@ -261,6 +261,11 @@ class OrderManager:
         # session ends, so repeat exits skip both allowance HTTP calls + the
         # propagation sleep, saving ~650ms per exit at 128ms RTT.
         self._approved_tokens: set = set()
+        # ── Cloudflare block rate monitoring ──────────────────────────────────
+        # Track HTTP/2 + header evasion effectiveness. Target: 30-50% → 10-20%.
+        self._cf_block_attempts: int = 0      # orders that hit 403/timeout/CF block
+        self._cf_total_attempts: int = 0      # total order submission attempts
+        self._cf_block_last_log_ts: float = 0.0  # suppress spam, log every 10+ blocks
 
     def _setup_fill_tracker(self) -> None:
         """Extract API creds from the CLOB client and give them to FillTracker."""
@@ -1270,19 +1275,33 @@ class OrderManager:
                     _is_5xx = any(f"status_code={c}" in _exc_str for c in (500, 502, 503, 504))
                     _is_exec_err = "could not run the execution" in _exc_str
                     _is_timeout = "timeout" in _exc_str.lower() or "timed out" in _exc_str.lower()
-                    if _is_5xx or _is_exec_err or _is_timeout:
+                    _is_cf_403 = "status_code=403" in _exc_str or "cloudflare" in _exc_str.lower()
+                    if _is_5xx or _is_exec_err or _is_timeout or _is_cf_403:
                         _transient_exc = _post_exc
                         resp = None
                     else:
                         raise
                 err_str = str(resp) if resp else (str(_transient_exc) if _transient_exc else "")
+                _is_blocked = resp is None and ("cloudflare" in err_str.lower() or "403" in err_str)
                 if resp and "cloudflare" not in err_str.lower() and "403" not in err_str:
+                    # Successful response (not blocked)
+                    self._cf_total_attempts += 1
                     break
+                if _cf_attempt == 0:
+                    # Track block on first attempt only (retries are retries of same block)
+                    self._cf_total_attempts += 1
+                    if _is_blocked:
+                        self._cf_block_attempts += 1
                 if _cf_attempt < 2:
                     wait = 0.5 * (2 ** _cf_attempt)  # 0.5s, 1s
                     _reason = "CLOB 5xx/exec error" if _transient_exc else "Cloudflare block"
                     logger.warning("%s on order POST (attempt %d) — retry in %.1fs: %s",
                                    _reason, _cf_attempt + 1, wait, err_str[:140])
+                    # Log block rate periodically (every 10+ blocks)
+                    if _is_blocked and (self._cf_block_attempts % 10 == 0):
+                        _block_rate = 100.0 * self._cf_block_attempts / max(1, self._cf_total_attempts)
+                        logger.info("CF_BLOCK_RATE: %d/%d (%.1f%%) — target 10-20%% post-HTTP/2",
+                                    self._cf_block_attempts, self._cf_total_attempts, _block_rate)
                     await asyncio.sleep(wait)
                     # Before retrying, check if the previous attempt actually filled
                     # despite the error response. If the WS buffered a fill for this
