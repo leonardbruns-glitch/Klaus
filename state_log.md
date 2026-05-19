@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H13, H22 SOL — shadow falsified, insufficient live n | H13 (n=2, 50% WR) and H22 (n=4, 50% WR) were blocked by shadow's "all negative EV" prediction for SOL hours. Shadow just failed on H23 (predicted negative, actual 62.5% WR). Live samples for H13/H22 too small to defend blocks. Remove to collect real data instead of trusting falsified shadow model. Commit 61d7b3b.
+
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H23 SOL — shadow falsified | Live data H23 SOL: 62.5% WR (n=8), +$15.54 PnL. Shadow predicted "all negative EV" for H23. Live contradicts shadow. Remove block to capture edge. Commit eae1d81.
 
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H11 for live testing — user instruction | VOLARB (H11's original blocker, 44.7% WR, +$18.83 PnL) is now retired as of 2026-05-19. Reason to preserve VOLARB's hours no longer applies. Unblock H11 to collect CAS live data and validate whether the "intra-candle pricing broken" claim actually manifests there. Zero CAS trades yet at H11 (has been blocked), so no live evidence. Commit f1c6e6e.
