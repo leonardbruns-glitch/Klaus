@@ -17,7 +17,7 @@ cheap-tail mispricing — when 2 of 3 are aligned and the third's matching-direc
 token is quoted <$0.50, market is underpricing. WR is coin-flip-ish (46%) but the
 asymmetric payout (~$0.80 win vs -$0.20 loss) makes it +EV.
 
-Hold to resolution. PROFIT_TARGET 0.95 in bond monitor handles upside exit.
+Hold to resolution. No PROFIT_TARGET — token resolves 1.0 (win) or 0.0 (loss).
 """
 from __future__ import annotations
 
