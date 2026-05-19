@@ -362,14 +362,10 @@ class KlausBot:
         self.oracle_sweeper = None  # permanently off; replaced by LDA
         from strategy.late_direction_arb import LateDirectionArb
         self.lda_strategy = LateDirectionArb(self)
-        # LDA disabled 2026-05-17 (user instruction): VOLARB runs solo with +20% TP.
+        # LDA disabled 2026-05-17 (user instruction).
         self.lda_strategy.enabled = False
-        # VOLARB Phase 1 ($1 stake, edge>=0.15, ask [0.10,0.60], max 3 concurrent).
-        # Hold-to-resolution; reuses LDA's kline-win + BOND_RESOLVED_NO exit paths
-        # (the VOLARB tag is included in those checks).
-        from strategy.volarb import Volarb
-        self.volarb_strategy = Volarb(self)
-        # VOLARB re-enabled 2026-05-18 to trade hours H01, H02, H11, H18
+        # VOLARB disabled 2026-05-19 (user instruction).
+        self.volarb_strategy = None
         # CAS-LowAsk — cross-asset synchrony × cheap-ask cheap-tail. $5 stake, max 2 concurrent.
         from strategy.cas_lowask import CASLowAsk
         self.cas_lowask_strategy = CASLowAsk(self)
