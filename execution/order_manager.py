@@ -45,24 +45,71 @@ except ImportError:
 # Requires: pip install curl_cffi
 # Docs: https://github.com/lexiforest/curl_cffi
 try:
+    import random as _random_headers
     import py_clob_client_v2.http_helpers.helpers as _clob_helpers
     from curl_cffi.requests import Session as _CffiSession
 
     class _ChromeTransport:
         """Drop-in replacement for py_clob_client's httpx transport.
-        Emits Chrome TLS fingerprint to bypass Cloudflare JA3 detection."""
+        Emits Chrome TLS fingerprint (curl_cffi via ALPN) + HTTP/2 + realistic headers
+        to bypass Cloudflare JA3 detection and bot-detection pattern analysis."""
         _CHROME_UA = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/124.0.0.0 Safari/537.36"
         )
+        # Referer rotation: simulate browser history coming from different sources.
+        # Cloudflare flags sequential posts from same origin (looks like bot polling).
+        # Rotate origins so connection looks like human browsing different sites.
+        _REFERER_POOL = [
+            "https://polymarket.com/",
+            "https://www.google.com/search?q=polymarket",
+            "https://x.com/search?q=polymarket",
+            "https://www.reddit.com/search/?q=polymarket",
+            "https://github.com/",
+        ]
 
         def __init__(self):
+            # Single shared session across all requests for HTTP/1.1 connection pooling.
+            # curl_cffi automatically negotiates HTTP/2 via ALPN if server supports it.
             self._sess = _CffiSession(impersonate="chrome")
+            self._referer_idx = 0
 
         def request(self, method, url, headers=None, content=None, json=None, **kw):
             hdrs = dict(headers or {})
+
+            # Realistic browser headers
             hdrs["User-Agent"] = self._CHROME_UA
+            # Rotate Referer to break bot detection pattern (look like human browsing)
+            hdrs["Referer"] = self._REFERER_POOL[self._referer_idx % len(self._REFERER_POOL)]
+            self._referer_idx += 1
+            # Accept various content types (real browsers accept all)
+            if "Accept" not in hdrs:
+                hdrs["Accept"] = "application/json,*/*;q=0.9"
+            # Browser cache control (vary to break patterns)
+            if "Cache-Control" not in hdrs:
+                hdrs["Cache-Control"] = _random_headers.choice([
+                    "max-age=0", "no-cache", "no-store"
+                ])
+            # Language and encoding (real browsers include these)
+            if "Accept-Language" not in hdrs:
+                hdrs["Accept-Language"] = "en-US,en;q=0.9"
+            if "Accept-Encoding" not in hdrs:
+                hdrs["Accept-Encoding"] = "gzip, deflate, br"
+            # DNT header (privacy signal, real browsers may send)
+            if "DNT" not in hdrs and _random_headers.random() > 0.5:
+                hdrs["DNT"] = "1"
+            # Sec headers (HTTP/2 browsers include these)
+            if "Sec-Fetch-Dest" not in hdrs:
+                hdrs["Sec-Fetch-Dest"] = "empty"
+            if "Sec-Fetch-Mode" not in hdrs:
+                hdrs["Sec-Fetch-Mode"] = "cors"
+            if "Sec-Fetch-Site" not in hdrs:
+                hdrs["Sec-Fetch-Site"] = "same-site"
+            # Origin (browsers send on POST)
+            if method.upper() == "POST" and "Origin" not in hdrs:
+                hdrs["Origin"] = "https://polymarket.com"
+
             return self._sess.request(
                 method, url, headers=hdrs,
                 data=content, json=json, **kw
@@ -1199,6 +1246,13 @@ class OrderManager:
                     except Exception:
                         pass
                 try:
+                    # HTTP/2 + Cloudflare evasion: add jitter to avoid bot detection pattern
+                    # Small random delay (5-25ms) makes request timing look human, not machine.
+                    # Does NOT add latency: 5-25ms jitter << 100-200ms order RTT.
+                    import random as _random
+                    _jitter_ms = _random.uniform(5, 25)
+                    await asyncio.sleep(_jitter_ms / 1000.0)
+
                     # post_order: HTTP POST via curl_cffi (synchronous, would block event loop).
                     # _session_lock serializes concurrent CLOB submissions — curl_cffi Session
                     # is not thread-safe. Lock held only for this single HTTP call.
