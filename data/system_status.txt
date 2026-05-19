@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+3203629 CAS: disable VOLARB — set volarb_strategy=None
+4c6fa0a docs: rewrite CLAUDE.md for CAS_LOWASK — remove TERMINAL/VOLARB
 f94560e CAS: hold to resolution — disable PT, patch EXPIRED_UNSOLD at resolution
 5344a55 fix: PositionMeta dataclass crash — sl needs default after best_ask was added with default
 5ab0b46 Add best_ask field to TradeRecord and all record_trade call sites
@@ -10,14 +12,12 @@ c56dca8 CAS: clean up tokens on orphan recovery failure
 a2dcb0f CAS: increase order submission timeout 0.5s→3.0s
 9ef9433 CAS: orphan recovery on timeout — query Polymarket position and restore tracking
 ea0c83d CAS: eliminate async task queue latency, make order submission synchronous
-a87e934 Add Chainlink oracle price logging as authoritative resolution source
-1c211c8 CAS: block H21 (33.3% WR, n=3, -$0.84)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  54% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  55% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 09:31:52 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 09:49:43 UTC
 
 ## Open positions (count):
 0

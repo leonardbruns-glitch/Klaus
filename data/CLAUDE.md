@@ -1,7 +1,15 @@
 # Klaus — Persistent Context for Claude Code
 
 ## WHAT THE BOT IS DOING RIGHT NOW
-**Strategy: TERMINAL** — buy YES tokens at ask 0.80–0.92 in the final 25–90s of 5m updown windows. Hold to TIME_EXIT at T-1s. Edge: high-probability tokens walking to 1.0 at resolution.
+**Strategy: CAS_LOWASK (Cross-Asset Synchrony × Low-Ask)**
+
+Signal: at T-60s remaining, check Binance 5m partial return for BTC/ETH/SOL. If 2 of 3 assets align (all ≥ THR_PCT in same direction) and the third confirms (same sign), buy the third asset's matching-direction token — but only if ask is cheap (0.05–0.50, extended to 0.60 with range_pos>0.8).
+
+Edge: structural cheap-tail mispricing. When 2-of-3 are aligned, the lagging token is underpriced. WR ~52%, but payout asymmetry (+$0.80 win vs −$0.20 loss at avg ask $0.21) makes it +EV.
+
+Exit: **hold to resolution**. No PROFIT_TARGET, no SL. Token resolves 1.0 (win) or 0.0 (loss) at window close.
+
+PnL truth: if kline direction matches entry direction → `exit_price=1.0`, `net_pnl = shares × (1−ep)`. This is patched into trades.jsonl at resolution. BANKROLL_AUTO_CORRECT reconciles the wallet.
 
 This is not a simulation. Capital is real. Every parameter change has a dollar cost.
 
@@ -40,29 +48,27 @@ Run before any analysis or code change:
 ```
 
 **Data integrity rules:**
-- Zero values may mean "not computed" not "actually zero" — verify before acting
-- n<100 per bucket = no conclusion for parameter changes. Block/unblock hours only at n≥100
-- n=40–99 per bucket = flag as potential trend, highlight for monitoring, do not act
+- Use `kline_pnl` (not `net_pnl`) as truth for CAS trades — it reflects resolution at 1.0/0.0
+- `entered_correctly=True` → win; `entered_correctly=False` → loss; `null` → unresolved, fetch kline
 - Orphan sells (entry=0.0) are logging bugs — exclude from WR
+- EXPIRED_UNSOLD with `entered_correctly=null` must be backfilled via Binance kline before analysis
 - Cross-check reports against raw trades.jsonl before drawing conclusions
 
 ---
 
-## CURRENT PARAMETERS (updated 2026-04-27, n=1160 terminal era Apr24+)
-| Parameter | Value | Evidence |
+## CURRENT PARAMETERS (updated 2026-05-19)
+| Parameter | Value | Notes |
 |---|---|---|
-| Strategy | TERMINAL only | 5m windows, ask 0.84–0.88, 25–90s remaining |
-| BOND_CATASTROPHIC SL | -15% | Executes at avg -27% due to slippage; 97% of triggering positions resolve NO |
-| Ask range | 0.80–0.92 (all assets) | Floor raised 0.70→0.75 2026-05-02, 0.75→0.80 2026-05-03 (user instruction). Ceiling extended 0.88→0.92 2026-04-30. |
-| Blocked hours BOND | {0,2,3,4,5,6,7,17,19,23} UTC | Re-enabled 2026-05-03 (user instruction). All of today's losses were in these hours. Applied via bond_blocked_hours_utc in config; non-BOND was already blocked. |
-| BOND stake cap | $10.00 min 5 shares | Raised 4→10 2026-04-29: gates now filter weak entries; worst-case 3-asset window = -$30 |
-| OB imbalance gate | imb ≥ 0.20 | imb>=0.20: PF=1.27 Net=+$24.18 (n=234) vs imb>=0.10: PF=1.01 Net=+$1.67; 66 marginal-imbalance trades lost $22.51 |
-| BOND_CATASTROPHIC wick | 8s confirmation | 34% of BC exits are flash crashes (token recovers in 30s); cancel if price returns above -12% within 8s; bypass at <15s remaining |
-| Windows | 5m only | 15m disabled |
-| PROFIT_TARGET | entry×1.12 | +12% TP: converts 13 big losses to wins (+$21.60) net +$7.26 vs actual; 2-day sim Apr28-29 |
-| snap60 gate | ≥ 12% (skip if lower) | Raised from 5%: 5-12% bucket WR=55%, still net-negative; user-authorised Tier 2 |
-| Exit primary | BOND_TIME_EXIT T-4s | asyncio precise timer (moved from T-1s to beat DEADLINE) |
-| Exit fallback | BOND_DEADLINE T-3s | scan loop safety net |
+| Strategy | CAS_LOWASK only | Cross-asset synchrony, 5m windows |
+| Entry window | rem 10–95s | Blocks [65,75) and [85,95) |
+| Ask range | 0.05–0.50 | Extended to 0.60 when range_pos>0.8 |
+| Synchrony threshold | THR=0.005 | Relaxed to 0.001 for H06/H21 |
+| Stakes | BTC $15, ETH $15, SOL $3 | Fixed per-asset; partial fills accepted |
+| Max concurrent | 2 | Across all assets |
+| Blocked hours (global) | {1,2,3,5,14,16,18,21} UTC | Negative EV in shadow/live |
+| Blocked hours (SOL) | {5,11,13,18,22,23} UTC | Additional SOL-specific blocks |
+| Exit | Hold to resolution | No PT, no SL — token resolves 1.0 or 0.0 |
+| PnL convention | exit_price=1.0 if correct direction | Patched at resolution via kline |
 
 ---
 
@@ -103,17 +109,16 @@ ssh root@85.137.174.86 "bash -c 'git -C /root/Klaus pull && systemctl restart kl
 ---
 
 ## KEY DESIGN DECISIONS
-- TERMINAL entries: one per asset per window (`_terminal_traded_windows` dedup)
-- `current_price` in position monitor = bid (sell-side) — SL fires vs bid, not mid
-- `window_outcome_price` logged to `logs/post_exit.jsonl` (record_type="resolution"), not trades.jsonl — join by trade_id for resolution analysis
-- ETH cap removed: 0.82→0.88 because ETH avg_ep was stuck at 0.7941 below the profitable zone
-- SL payoff asymmetry: at entry 0.84, win=+$0.86, loss=-$4.50 → need 84% YES resolution to justify holding through -15% drawdown
+- CAS entries: one per asset per 5m window (`_fired_asset_windows` dedup)
+- `bond_entry_class = "CAS_LOWASK"` on all CAS positions — filter by this, not `signal_source`
+- `bond_outcome_direction` = "up" or "down" — the kline direction that makes this token win
+- Resolution patching: EXPIRED_UNSOLD → exit_price corrected to 1.0/0.0 at kline resolution; bankroll NOT touched (BANKROLL_AUTO_CORRECT handles wallet)
+- `current_price` in position monitor = bid (sell-side)
+- Orphan recovery: timeout → query Polymarket position → restore tracking
 
 ---
 
 ## ANALYSIS SCRIPTS
 ```bash
-python3 analytics/check_catastrophic.py   # BOND_CATASTROPHIC breakdown by asset/hour
-python3 analytics/sl_simulation.py        # SL threshold optimisation + recovery analysis
 python3 analytics/feedback.py             # 30-min diagnostic report
 ```

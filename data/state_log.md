@@ -308,3 +308,13 @@ Both `max_daily_loss_pct=0.0` and `ruin_floor=0.0` in config.py per 2026-05-15 i
 
 ## 2026-05-18 13:18 UTC | CAS_LOWASK / SIZING | Kelly sizing replaces fixed $5 stake | Quarter-Kelly on Wilson-LCB of n=31 gated cohort.
 Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $1. Derivation: gated cohort (snap30>=0 deployed earlier today) n=31 WR 90.3% LCB80 81.4%, avg_win $3.53 / avg_loss $5.04 → b=0.70 → f*_lcb 54.8% → quarter-Kelly 13.7%. At current $115 bankroll: ~$16 stake vs prior $5. Auto-deleverages on drawdown. Cap protects against CLOB depth + MAX_CONCURRENT=2 correlation. Commit 2b64b90 deployed; klaus service active. Revisit at n>=50 live post-gate; if WR holds >=85% consider half-Kelly (~27%).
+
+## 2026-05-19 09:30 UTC | BUG / ALL | PositionMeta crash-loop — sl field missing default after best_ask added | best_ask: float = 0.0 inserted before sl: float (no default), violating Python dataclass ordering rules. Bot crash-looped from startup (restart counter hit 156). Fix: sl: float = 0.0. risk/manager.py. Commit 5344a55.
+
+## 2026-05-19 | EXIT / CAS | Disable PROFIT_TARGET for CAS_LOWASK — hold to resolution | User instruction. Analysis of 11 trades showed 4 EXPIRED_UNSOLD were correct-direction entries (kline confirmed); sell-mechanism failures cost $75.55. No PT, no SL. Token resolves 1.0 or 0.0 in wallet. main.py: PT check now excludes CAS_LOWASK in both WS callback and scan loop. Commit f94560e.
+
+## 2026-05-19 | LOGGING / CAS | PnL convention: exit_price=1.0 when entered_correctly=True | User instruction. At resolution, EXPIRED_UNSOLD CAS trades are patched in trades.jsonl: exit_price=1.0/0.0, exit_reason→BOND_RESOLVED_YES/NO, net_pnl corrected. kline_pnl is canonical analysis truth. BANKROLL_AUTO_CORRECT handles wallet reconciliation; resolution patch does NOT touch bankroll.capital. Commit f94560e.
+
+## 2026-05-19 | DOCS / ALL | CLAUDE.md fully rewritten for CAS_LOWASK — TERMINAL and VOLARB removed | User instruction. All TERMINAL/VOLARB references removed. Strategy section, parameters table, data integrity rules, key design decisions all updated to reflect CAS_LOWASK as the only live strategy. Commit 4c6fa0a.
+
+## 2026-05-19 | STRATEGY / VOLARB | VOLARB fully disabled — volarb_strategy=None | User instruction. Was already not entering trades (schedule_if_ready never called from main.py). Import and instantiation removed. Exit-path checks for bond_entry_class=="VOLARB" kept for residual wallet positions. Commit 3203629.
