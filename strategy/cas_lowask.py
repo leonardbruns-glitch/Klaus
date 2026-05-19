@@ -59,11 +59,13 @@ MAX_CONCURRENT   = 3
 # Hour-based stake sizing (deployed 2026-05-19 after WR analysis)
 # Strong hours (WR ≥ 55%): {0,4,7,8,9,10,12,15,20,23}
 # Medium hours (45% ≤ WR < 55%): {5,6,13,19,22}
+# Cautious hours (shadow +EV but live poor): {14} — reduced stakes for validation
 # Weak hours (WR < 45%): blocked globally
 STRONG_HOURS = {0, 4, 7, 8, 9, 10, 12, 15, 20, 23}
 MEDIUM_HOURS = {5, 6, 13, 19, 22}
-HOUR_STAKE_BTCETH = {"strong": 20.00, "medium": 10.00}  # BTC/ETH
-HOUR_STAKE_SOL = {"strong": 10.00, "medium": 4.00}      # SOL (smaller due to depth)
+CAUTIOUS_HOURS = {14}  # H14: shadow EV=+0.057 but live shows poor performance; validate with $5 cap
+HOUR_STAKE_BTCETH = {"strong": 20.00, "medium": 10.00, "cautious": 5.00}  # BTC/ETH
+HOUR_STAKE_SOL = {"strong": 10.00, "medium": 4.00, "cautious": 5.00}      # SOL
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
 # size, so smaller fills preserve EV per dollar while capturing more opportunities.
@@ -133,11 +135,11 @@ class CASLowAsk:
                 logger.info("[CAS_REM_BLOCK] H%02d %s remaining %.1fs in block [%.1f,%.1f]", hour_utc, asset, remaining, REM_BLOCK2_LO, REM_BLOCK2_HI)
             return
 
-        # Global blocks: H01-03 negative; H14 user instruction; H16 EV=-0.157
-        # H18 blocked 2026-05-18: shadow EV=-0.305; H21 blocked 2026-05-19
-        # H05 unblocked 2026-05-19: 50% WR (n=10) marginal, below kill-switch floor but worth testing
+        # Global blocks: H01-03 negative; H16 EV=-0.157; H18 EV=-0.305; H21 blocked
+        # H14 unblocked 2026-05-19 with $5 cap: shadow EV=+0.057 n=45, live shows poor (n=4 WR=25%)
+        # Validation mode: accumulate live data at reduced risk to resolve shadow vs live discrepancy
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 14, 16, 18, 21]:
+        if hour_utc in [1, 2, 3, 16, 18, 21]:
             return
         # SOL-specific blocks: H05/18 (H05 redundant with global, H18 redundant with global)
         if asset == "SOL" and hour_utc in {5, 18}:
@@ -155,11 +157,13 @@ class CASLowAsk:
                 logger.info("[CAS_DEPTH_BLOCK] H%02d %s depth=%.1f < %.1f shares", hour_utc, asset, ask_size, ASK_DEPTH_MIN_SH)
             return
 
-        # Hour-based stake sizing: strong hours $20/$10 (BTC/ETH/SOL), medium $10/$4
+        # Hour-based stake sizing: strong $20/$10, medium $10/$4, cautious $5/$5 (H14 validation)
         if hour_utc in STRONG_HOURS:
             hour_category = "strong"
         elif hour_utc in MEDIUM_HOURS:
             hour_category = "medium"
+        elif hour_utc in CAUTIOUS_HOURS:
+            hour_category = "cautious"
         else:
             # Should not reach here (weak hours blocked above), but fallback to baseline
             hour_category = "medium"
