@@ -118,10 +118,11 @@ class CASLowAsk:
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
             return
 
-        # Global blocks: H01-03/05 negative; H14 user instruction; H16 EV=-0.157
+        # Global blocks: H01-03 negative; H14 user instruction; H16 EV=-0.157
         # H18 blocked 2026-05-18: shadow EV=-0.305; H21 blocked 2026-05-19
+        # H05 unblocked 2026-05-19: 50% WR (n=10) marginal, below kill-switch floor but worth testing
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 5, 14, 16, 18, 21]:
+        if hour_utc in [1, 2, 3, 14, 16, 18, 21]:
             return
         # SOL-specific blocks: H05/18 (H05 redundant with global, H18 redundant with global)
         if asset == "SOL" and hour_utc in {5, 18}:
