@@ -298,9 +298,12 @@ class SportsCopy:
             return
 
         # Fetch current book to confirm fillability
+        # Sports tokens aren't in the WS cache — fall back to REST fetch.
         book = None
         try:
             book = self.bot.feed.get_order_book(token_id)
+            if book is None:
+                book = await self.bot.feed.fetch_order_book(token_id)
         except Exception:
             pass
         if book is None or not book.asks:
