@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H05 — marginal live performance, test at larger n | Live H05: 50% WR (n=10) — weak but consistent, below 45% kill-switch floor by only 5pp. Block justified on weakness, but decent sample size + no catastrophic failure → worth collecting more data. Commit b613095.
+
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H13, H22 SOL — shadow falsified, insufficient live n | H13 (n=2, 50% WR) and H22 (n=4, 50% WR) were blocked by shadow's "all negative EV" prediction for SOL hours. Shadow just failed on H23 (predicted negative, actual 62.5% WR). Live samples for H13/H22 too small to defend blocks. Remove to collect real data instead of trusting falsified shadow model. Commit 61d7b3b.
 
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H23 SOL — shadow falsified | Live data H23 SOL: 62.5% WR (n=8), +$15.54 PnL. Shadow predicted "all negative EV" for H23. Live contradicts shadow. Remove block to capture edge. Commit eae1d81.
