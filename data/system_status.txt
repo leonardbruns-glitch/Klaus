@@ -2,16 +2,16 @@
 active
 
 ## Last 10 commits on klaus:
+f342554 docs: state log — deploy hour-based stake sizing
+d253306 CAS: deploy hour-based stake sizing (strong $20/$10, medium $10/$4)
+b05aa2c docs: state log — unblock H05
+b613095 CAS: unblock H05 — marginal live performance, worth testing
+d31ed6e docs: state log — unblock H13, H22 SOL
+61d7b3b CAS: unblock H13, H22 SOL — shadow falsified, insufficient live evidence
+ca60e38 docs: state log — unblock H23 SOL
+eae1d81 CAS: unblock H23 for SOL — shadow prediction falsified
 c7dfa4c docs: state log — unblock H11 CAS
 f1c6e6e CAS: unblock H11 for live testing
-3203629 CAS: disable VOLARB — set volarb_strategy=None
-4c6fa0a docs: rewrite CLAUDE.md for CAS_LOWASK — remove TERMINAL/VOLARB
-f94560e CAS: hold to resolution — disable PT, patch EXPIRED_UNSOLD at resolution
-5344a55 fix: PositionMeta dataclass crash — sl needs default after best_ask was added with default
-5ab0b46 Add best_ask field to TradeRecord and all record_trade call sites
-16e8694 CAS: capture best_ask in trade records
-c56dca8 CAS: clean up tokens on orphan recovery failure
-a2dcb0f CAS: increase order submission timeout 0.5s→3.0s
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  55% /

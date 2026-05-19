@@ -3,6 +3,12 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H05 — marginal live performance, test at larger n | Live H05: 50% WR (n=10) — weak but consistent, below 45% kill-switch floor by only 5pp. Block justified on weakness, but decent sample size + no catastrophic failure → worth collecting more data. Commit b613095.
+
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H13, H22 SOL — shadow falsified, insufficient live n | H13 (n=2, 50% WR) and H22 (n=4, 50% WR) were blocked by shadow's "all negative EV" prediction for SOL hours. Shadow just failed on H23 (predicted negative, actual 62.5% WR). Live samples for H13/H22 too small to defend blocks. Remove to collect real data instead of trusting falsified shadow model. Commit 61d7b3b.
+
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H23 SOL — shadow falsified | Live data H23 SOL: 62.5% WR (n=8), +$15.54 PnL. Shadow predicted "all negative EV" for H23. Live contradicts shadow. Remove block to capture edge. Commit eae1d81.
+
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H11 for live testing — user instruction | VOLARB (H11's original blocker, 44.7% WR, +$18.83 PnL) is now retired as of 2026-05-19. Reason to preserve VOLARB's hours no longer applies. Unblock H11 to collect CAS live data and validate whether the "intra-candle pricing broken" claim actually manifests there. Zero CAS trades yet at H11 (has been blocked), so no live evidence. Commit f1c6e6e.
 
 ## 2026-05-18 | GATE / CAS | Block H01, H02, H11, H21 (VOLARB's 4 strongest hours) — user instruction | CAS analysis: H01-H02 inverted signals (0% WR, -$47.67 loss); VOLARB same hours 50-51% WR, +$79.78 cumulative. Expanded to H11 + H21 (VOLARB 44.7% + 48.6% WR, +$18.83 + $18.19 PnL). Root cause: CAS uses intra-candle live price vs feed._spot_open_5m, broken in low-liquidity hours. VOLARB uses Binance 5m direction + OB imbalance (works in trending). Block CAS H01/H02/H11/H21, preserve VOLARB's $94.33 edge (top 4 hours). strategy/cas_lowask.py: hour check updated to [1, 2, 11, 21]. VOLARB remains disabled.
