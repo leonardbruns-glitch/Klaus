@@ -1,7 +1,10 @@
 ## klaus systemd:
-active
+activating
+unknown
 
 ## Last 10 commits on klaus:
+5ab0b46 Add best_ask field to TradeRecord and all record_trade call sites
+16e8694 CAS: capture best_ask in trade records
 c56dca8 CAS: clean up tokens on orphan recovery failure
 a2dcb0f CAS: increase order submission timeout 0.5s→3.0s
 9ef9433 CAS: orphan recovery on timeout — query Polymarket position and restore tracking
@@ -10,14 +13,12 @@ a87e934 Add Chainlink oracle price logging as authoritative resolution source
 1c211c8 CAS: block H21 (33.3% WR, n=3, -$0.84)
 407f2fc CAS: unblock H08 (60% WR, n=10, +$1.54) and H12 (66.7% WR, n=3, +$4.21)
 0232061 CAS: unblock H04 (100% WR, n=2 on 2026-05-18)
-417557a VOLARB Audit 20260519-0016 — NO_PATCH (n=825, EV=+$0.06, current-config EV=+$0.53)
-86dacd9 VOLARB: block H23 UTC
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  54% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 09:06:21 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 09:25:25 UTC
 
 ## Open positions (count):
 0
