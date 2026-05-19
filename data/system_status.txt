@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+09c1510 state_log: H14 validation mode logged
+47bea38 CAS: unblock H14 with $5 max stake (validation mode)
+e1608c1 CAS: raise MAX_CONCURRENT 2→3 for capital growth
 35ff487 state_log: update to reflect analysis-only (no deploy) for test 3
 e294f7b Revert: undo BTC-only test — all assets can trade
 531af50 state_log: document BTC-only test deployment 2026-05-19 22:XX
@@ -9,15 +12,12 @@ e294f7b Revert: undo BTC-only test — all assets can trade
 f2ae3b4 state_log: document Cloudflare block rate monitoring + H11 discovery
 c80be46 Add Cloudflare block rate monitoring for HTTP/2 effectiveness measurement
 2cf9187 state_log: document HTTP/2 + header evasion layer deployment 2026-05-19 21:XX UTC
-15fc6c4 HTTP/2: enable connection pooling + realistic headers + referer rotation
-fdcdae7 feat: CAS detailed gate tracing for signal diagnostics
-c649cb5 fix: CAS coroutine not awaited — use asyncio.create_task
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   51G       42G  55% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 11:49:55 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 13:48:21 UTC
 
 ## Open positions (count):
 0
