@@ -54,6 +54,18 @@ WATCHED_WALLETS: dict = {
     "0x412fe1a101554f0b382181c3af932e4b2d8030fa": "W13_412fe1_PnL33k_R172_n10_TOP_PNL",
     "0xe2160eb837cd17de5915d460b1d69b5ba2ac7448": "W14_e2160e_PnL25k_R83_n64_TOP_ROBUST",
     "0x18957f220cc100740b7e511b589aa6850380efd2": "W15_18957f_PnL4k_R51_n26",
+    # ── Crazy-consistent-ROI expansion (ranks 16-25) ──
+    # ROI×log(n_closed) ranking — high ROI weighted by robustness
+    "0xd08e8f5efb47d9ff61c30e9c8546f82f7f2a2f7c": "W16_d08e8f_PnL10k_R287_n12",
+    "0x338c97a8b46d22ee7c5e41f1f6276ac91e6cbef7": "W17_338c97_R260_n12_113td_BUSY",
+    "0x74cde94b1c38800647dd77f52020325dfc272319": "W18_74cde9_R255_n12_micro12",
+    "0xd33459882d3c1d7d4a3e100e1572d1ef4ac1fcc2": "W19_d33459_R224_n11_micro19_88sp",
+    "0x1fc8b33bba54c22972a1b5786a567ae5ff45f45b": "W20_1fc8b3_R182_n14_micro20",
+    "0xc8649c1893aded2f12472b44a9aaa911b6dc97df": "W21_c8649c_R152_n8",
+    "0xb14cde67552e838e1a3a789995f65ab3c2887355": "W22_b14cde_R118_n14_87sp",
+    "0xd91a972191b5d08671f38a0439214c49947f211c": "W23_d91a97_R102_n17_87sp",
+    "0x75f3b857f3c66f8307418e64df6b49d1b0150e78": "W24_75f3b8_R85_n28_92sp_robust",
+    "0xfdeada41afd6a2d91698f29a90e8017c31276951": "W25_fdeada_R121_n9_74td_86sp",
 }
 
 # ── Knobs ────────────────────────────────────────────────────────────────────

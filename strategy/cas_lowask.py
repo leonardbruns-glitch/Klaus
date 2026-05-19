@@ -121,6 +121,11 @@ class CASLowAsk:
         if (rec.get("window_size_s") or 0) != 300:
             return
 
+        # Compute hour_utc up-front — used in REM-gate diagnostic logs below.
+        # Was previously assigned after REM checks, causing UnboundLocalError
+        # whenever a window failed the rem-band gate (2026-05-19 prod crash).
+        hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
+
         remaining = rec.get("seconds_to_resolution", 0.0)
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
             if hour_utc in {11, 17}:
@@ -138,7 +143,6 @@ class CASLowAsk:
         # Global blocks: H01-03 negative; H16 EV=-0.157; H18 EV=-0.305; H21 blocked
         # H14 unblocked 2026-05-19 with $5 cap: shadow EV=+0.057 n=45, live shows poor (n=4 WR=25%)
         # Validation mode: accumulate live data at reduced risk to resolve shadow vs live discrepancy
-        hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
         if hour_utc in [1, 2, 3, 16, 18, 21]:
             return
         # SOL-specific blocks: H05/18 (H05 redundant with global, H18 redundant with global)
