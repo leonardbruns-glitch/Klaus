@@ -78,7 +78,7 @@ class PositionMeta:
     entry_price: float
     best_ask: float = 0.0              # market ask at entry — captures execution quality
     tp: float = 0.0                    # ATR-based TP (still used as fallback)
-    sl: float                          # ATR-based SL (overridden by time-aware SL)
+    sl: float = 0.0                    # ATR-based SL (overridden by time-aware SL)
     open_ts: float = field(default_factory=time.time)
     window_end_ts: float = 0.0         # unix ts when the window closes
     window_seconds: int = 0            # actual window duration (300=5m, 900=15m) — DO NOT use window_end_ts - open_ts (late entries skew this)
