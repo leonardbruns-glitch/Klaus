@@ -104,11 +104,6 @@ class CASLowAsk:
         if asset not in ("BTC", "ETH", "SOL"):
             return
 
-        # TEST: BTC-only signal (skip ETH/SOL). Live audit showed ETH/SOL weak (-$11.23/-$10.64),
-        # BTC strong (+$30.85, 57.5% WR). Disabling other assets to test if BTC signal alone is cleaner.
-        if asset != "BTC":
-            return
-
         aw_key = (asset, int(wend))
         if aw_key in self._fired_asset_windows:
             return
