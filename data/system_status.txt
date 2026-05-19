@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+9bbcaf3 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
+357dfe7 fix(risk): exempt SPORTS_COPY from 210s hard-exit timer
+77043c6 fix(sports_copy): skip wallets that buy both sides of the same market
 b660b06 fix(sports_copy): fall back to REST fetch_order_book for sports tokens
 e3e9e5e feat(sports_copy): +10 night-active wallets (22-08 UTC focus)
 32fc0fb fix(sports_copy): percentage stop-loss, remove take-profit — trust wallet exit
@@ -9,15 +12,12 @@ e3e9e5e feat(sports_copy): +10 night-active wallets (22-08 UTC focus)
 a86989a feat: SPORTS_COPY LIVE — 15-wallet copy trader, $40 sub-bankroll
 683845e state_log: H14 validation mode logged
 2a9619e CAS: unblock H14 with $5 max stake (validation mode)
-01f803b CAS: raise MAX_CONCURRENT 2→3 for capital growth
-cc0001f state_log: update to reflect analysis-only (no deploy) for test 3
-b1e1e84 Revert: undo BTC-only test — all assets can trade
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   58G       36G  62% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   58G       35G  63% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 23:39:06 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 23:52:21 UTC
 
 ## Open positions (count):
 0

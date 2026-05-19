@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-19T23:42:42Z
+# Snapshot: 2026-05-19T23:57:43Z
 # Latest commit on klaus:
-b660b06 fix(sports_copy): fall back to REST fetch_order_book for sports tokens
+9bbcaf3 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
