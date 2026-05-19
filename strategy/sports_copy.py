@@ -142,6 +142,8 @@ class SportsCopy:
         # Position tracking: token_id → wallet that triggered
         self._position_origin: dict = {}
         self._pending_buys: Set[str] = set()
+        # Both-sides filter: wallet → conditionId → set of token_ids bought
+        self._wallet_condition_tokens: dict = {w: {} for w in WATCHED_WALLETS}
         # PnL tracking for kill switch
         self.daily_pnl: float = 0.0
         self._daily_pnl_day: str = time.strftime("%Y-%m-%d", time.gmtime())
@@ -192,6 +194,11 @@ class SportsCopy:
                     tx = t.get("transactionHash")
                     if tx:
                         self._seen_tx[wallet].add(tx)
+                    if t.get("side") == "BUY":
+                        cid = t.get("conditionId", "")
+                        asset = str(t.get("asset", ""))
+                        if cid and asset:
+                            self._wallet_condition_tokens[wallet].setdefault(cid, set()).add(asset)
         logger.info("[copy] primed seen-tx counts: %s",
                     {w[:10]: len(s) for w, s in self._seen_tx.items()})
 
@@ -253,6 +260,15 @@ class SportsCopy:
         wallet_px = float(trade["price"])
         wallet_sz = float(trade["size"])
         wallet_notional = wallet_px * wallet_sz
+
+        # Both-sides filter: skip if wallet has bought a different token in this market
+        condition_id = trade.get("conditionId", "")
+        if condition_id:
+            prior = self._wallet_condition_tokens[wallet].get(condition_id, set())
+            if prior and token_id not in prior:
+                self._log_shadow({**log_base, "event": "skip_both_sides", "condition_id": condition_id})
+                return
+            self._wallet_condition_tokens[wallet].setdefault(condition_id, set()).add(token_id)
 
         # Skip if already holding this token (don't double-up)
         if token_id in self.bot.risk.open_positions:
