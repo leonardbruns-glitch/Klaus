@@ -212,7 +212,12 @@ class CASLowAsk:
             await asyncio.wait_for(self._fire(rec, partials, bet_dir, actual_stake), timeout=3.0)
         except asyncio.TimeoutError:
             logger.warning("[CAS] order submission timeout %s, attempting recovery", token_id)
-            await self._recover_orphan(rec, bet_dir, cid, wend)
+            try:
+                await self._recover_orphan(rec, bet_dir, cid, wend)
+            except Exception as e:
+                logger.exception("[CAS] orphan recovery failed %s: %s", token_id, e)
+                self._fired_tokens.discard(token_id)
+                self._fired_asset_windows.discard((asset.upper(), int(wend)))
         except Exception as e:
             logger.exception("[CAS] order submission error %s: %s", token_id, e)
             self._fired_tokens.discard(token_id)
