@@ -1041,7 +1041,11 @@ class RiskManager:
             720 if pos.window_seconds >= 900 and not pos.is_bond
             else self.exec_cfg.max_trade_duration
         )
-        if time_held >= _hard_exit_limit and not pos.hard_exit_triggered:
+        if (
+            time_held >= _hard_exit_limit
+            and not pos.hard_exit_triggered
+            and getattr(pos, "bond_entry_class", "") != "SPORTS_COPY"
+        ):
             pos.hard_exit_triggered = True
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")
 
