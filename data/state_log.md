@@ -3,6 +3,8 @@
 Session-altering decisions only. Read last 10 entries at the start of every session before any analysis.
 Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
+## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H11 for live testing — user instruction | VOLARB (H11's original blocker, 44.7% WR, +$18.83 PnL) is now retired as of 2026-05-19. Reason to preserve VOLARB's hours no longer applies. Unblock H11 to collect CAS live data and validate whether the "intra-candle pricing broken" claim actually manifests there. Zero CAS trades yet at H11 (has been blocked), so no live evidence. Commit f1c6e6e.
+
 ## 2026-05-18 | GATE / CAS | Block H01, H02, H11, H21 (VOLARB's 4 strongest hours) — user instruction | CAS analysis: H01-H02 inverted signals (0% WR, -$47.67 loss); VOLARB same hours 50-51% WR, +$79.78 cumulative. Expanded to H11 + H21 (VOLARB 44.7% + 48.6% WR, +$18.83 + $18.19 PnL). Root cause: CAS uses intra-candle live price vs feed._spot_open_5m, broken in low-liquidity hours. VOLARB uses Binance 5m direction + OB imbalance (works in trending). Block CAS H01/H02/H11/H21, preserve VOLARB's $94.33 edge (top 4 hours). strategy/cas_lowask.py: hour check updated to [1, 2, 11, 21]. VOLARB remains disabled.
 
 ## 2026-05-17 10:20 UTC | GATE / VOLARB | EDGE_FLOOR 0.30 → 0.10 globally — user instruction | Live perf 13h since Phase 1 deploy: n=465 cum, WR 30.9%, net +$6.67, EV +$0.014/tr (vs band-matched backtest +$0.30/tr — ~5% of expectation). Raising floor 0.15 → 0.30 produced no EV/tr improvement (E1 +$0.115, E5 +$0.047). Entry-price bands all hover near PF 1.0 / EV ±$0.05/tr. User directive after this analysis: lower to 0.10. strategy/volarb.py:45-46.

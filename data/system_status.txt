@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+c7dfa4c docs: state log — unblock H11 CAS
+f1c6e6e CAS: unblock H11 for live testing
 3203629 CAS: disable VOLARB — set volarb_strategy=None
 4c6fa0a docs: rewrite CLAUDE.md for CAS_LOWASK — remove TERMINAL/VOLARB
 f94560e CAS: hold to resolution — disable PT, patch EXPIRED_UNSOLD at resolution
@@ -10,8 +12,6 @@ f94560e CAS: hold to resolution — disable PT, patch EXPIRED_UNSOLD at resoluti
 16e8694 CAS: capture best_ask in trade records
 c56dca8 CAS: clean up tokens on orphan recovery failure
 a2dcb0f CAS: increase order submission timeout 0.5s→3.0s
-9ef9433 CAS: orphan recovery on timeout — query Polymarket position and restore tracking
-ea0c83d CAS: eliminate async task queue latency, make order submission synchronous
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  55% /
