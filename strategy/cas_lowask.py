@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # (65/d vs 30/d), WR up to 53% (from 48%), much smoother daily PnL. Variance
 # reduction makes the -$10 daily kill switch less likely to fire.
 # Backtest 9.4 days shadow at this config: n=613, WR=52.7%, EV/$1=+$0.747, +$214.65/d.
-THR_PCT          = 0.020   # raised 0.001→0.02: shadow WR 48.4%→55.7%, EV +0.023→+0.247
+THR_PCT          = 0.005   # lowered 0.020→0.005: broader gate acceptance
 THR_PCT_RELAXED  = 0.001   # H06/H21: tighter THR kills edge there; use original threshold
 ASK_MIN          = 0.05
 ASK_MAX          = 0.50    # reverted from 0.65: live ask[0.55,0.65) EV=-$1.22 (n=26 clean); ask<0.55 EV=+$3.75 (n=13)
@@ -74,7 +74,7 @@ class CASLowAsk:
         self.entries_attempted: int = 0
         self.entries_filled: int = 0
 
-    def schedule_if_ready(self, rec: dict) -> None:
+    async def schedule_if_ready(self, rec: dict) -> None:
         if not self.enabled:
             return
 
@@ -208,9 +208,16 @@ class CASLowAsk:
         self._fired_asset_windows.add(aw_key)
         self.entries_attempted += 1
         self._log_preseed_fire(rec, bet_dir)
-        task = asyncio.create_task(self._fire(rec, partials, bet_dir, actual_stake))
-        self._tasks.append(task)
-        task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
+        try:
+            await asyncio.wait_for(self._fire(rec, partials, bet_dir, actual_stake), timeout=0.5)
+        except asyncio.TimeoutError:
+            logger.warning("[CAS] order submission timeout %s", token_id)
+            self._fired_tokens.discard(token_id)
+            self._fired_asset_windows.discard((asset.upper(), int(wend)))
+        except Exception as e:
+            logger.exception("[CAS] order submission error %s: %s", token_id, e)
+            self._fired_tokens.discard(token_id)
+            self._fired_asset_windows.discard((asset.upper(), int(wend)))
 
     def _log_preseed_fire(self, rec: dict, bet_dir: str) -> None:
         try:
@@ -265,18 +272,12 @@ class CASLowAsk:
             stake,
         )
 
-        _buf = 0.15 if ask < 0.35 else (0.10 if ask < 0.55 else 0.05)
-        _limit_price = round(min(ask * (1 + _buf), ASK_MAX_HIGH_CONV), 4)
-        _presigned = self.bot.orders.pop_cas_presigned(token_id, _limit_price)
-        if _presigned:
-            logger.info("[CAS] using presigned order %s limit_price=%.4f", asset, _limit_price)
         fill = await self.bot.orders.limit_buy(
             token_id=token_id,
             intended_price=ask,
             stake_usd=stake,
             direction=Direction.BUY_YES,
             fast_fail=True,
-            presigned=_presigned,
         )
 
         # Fast retry: if fill failed, check cached OB immediately (no scan-cycle wait).

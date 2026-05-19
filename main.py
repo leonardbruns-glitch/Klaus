@@ -651,7 +651,7 @@ class KlausBot:
                     neg_risk=token.neg_risk,
                     tick_size=token.tick_size,
                 ))
-            _cas.schedule_if_ready(rec)
+            await _cas.schedule_if_ready(rec)
         except Exception:
             pass
 
