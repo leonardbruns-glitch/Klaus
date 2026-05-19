@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+c56dca8 CAS: clean up tokens on orphan recovery failure
+a2dcb0f CAS: increase order submission timeout 0.5s→3.0s
 9ef9433 CAS: orphan recovery on timeout — query Polymarket position and restore tracking
 ea0c83d CAS: eliminate async task queue latency, make order submission synchronous
 a87e934 Add Chainlink oracle price logging as authoritative resolution source
@@ -10,14 +12,12 @@ a87e934 Add Chainlink oracle price logging as authoritative resolution source
 0232061 CAS: unblock H04 (100% WR, n=2 on 2026-05-18)
 417557a VOLARB Audit 20260519-0016 — NO_PATCH (n=825, EV=+$0.06, current-config EV=+$0.53)
 86dacd9 VOLARB: block H23 UTC
-1951d4e Watchdog 2026-05-18T23:18Z: OK 0 alerts (1 recovery: CAPITAL_DROP)
-d5ced4e VOLARB: add spread gate [200,300bps) — microshadow sweet spot
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   50G       43G  54% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-19 07:49:36 UTC
+ActiveEnterTimestamp=Tue 2026-05-19 09:06:21 UTC
 
 ## Open positions (count):
 0
