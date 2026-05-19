@@ -55,6 +55,15 @@ STAKE_FLOOR_USD  = 15.00
 # Shadow: BTC EV=+0.220, ETH EV=+0.195, SOL EV=+0.365 at this threshold
 ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 3.00}
 MAX_CONCURRENT   = 2
+
+# Hour-based stake sizing (deployed 2026-05-19 after WR analysis)
+# Strong hours (WR ≥ 55%): {0,4,7,8,9,10,12,15,20,23}
+# Medium hours (45% ≤ WR < 55%): {5,6,13,19,22}
+# Weak hours (WR < 45%): blocked globally
+STRONG_HOURS = {0, 4, 7, 8, 9, 10, 12, 15, 20, 23}
+MEDIUM_HOURS = {5, 6, 13, 19, 22}
+HOUR_STAKE_BTCETH = {"strong": 20.00, "medium": 10.00}  # BTC/ETH
+HOUR_STAKE_SOL = {"strong": 10.00, "medium": 4.00}      # SOL (smaller due to depth)
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
 # size, so smaller fills preserve EV per dollar while capturing more opportunities.
@@ -135,8 +144,21 @@ class CASLowAsk:
         ask_size = rec.get("ob_top1_ask_size") or 0.0
         if ask_size < ASK_DEPTH_MIN_SH:
             return
-        # Per-asset fixed stake (overrides Kelly).
-        target_stake = ASSET_STAKE.get(asset, STAKE_CAP_USD)
+
+        # Hour-based stake sizing: strong hours $20/$10 (BTC/ETH/SOL), medium $10/$4
+        if hour_utc in STRONG_HOURS:
+            hour_category = "strong"
+        elif hour_utc in MEDIUM_HOURS:
+            hour_category = "medium"
+        else:
+            # Should not reach here (weak hours blocked above), but fallback to baseline
+            hour_category = "medium"
+
+        if asset == "SOL":
+            target_stake = HOUR_STAKE_SOL[hour_category]
+        else:  # BTC, ETH
+            target_stake = HOUR_STAKE_BTCETH[hour_category]
+
         shares_to_buy = min(target_stake / ask, ask_size)
         actual_stake = shares_to_buy * ask
         if actual_stake < MIN_NOTIONAL_USD:
