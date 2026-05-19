@@ -54,7 +54,7 @@ STAKE_FLOOR_USD  = 15.00
 # Per-asset stakes raised 2026-05-18 with THR=0.02 (EV=+0.247, all assets positive)
 # Shadow: BTC EV=+0.220, ETH EV=+0.195, SOL EV=+0.365 at this threshold
 ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 3.00}
-MAX_CONCURRENT   = 2
+MAX_CONCURRENT   = 3
 
 # Hour-based stake sizing (deployed 2026-05-19 after WR analysis)
 # Strong hours (WR ≥ 55%): {0,4,7,8,9,10,12,15,20,23}

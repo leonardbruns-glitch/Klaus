@@ -9,6 +9,8 @@ Format: `YYYY-MM-DD HH:MM UTC | SYSTEM/ASSET | exact change | reason + evidence`
 
 ## 2026-05-19 21:XX UTC | DISCOVERY / CAS_ASK_BLOCK | H11 zero trades = no liquidity, not speed | Gate trace logs show CAS signals firing at H11 continuously (CAS_ASK_BLOCK messages) but all asks=1.0000 (dead market, no buyers). Root cause: market depth insufficient at H11, not Cloudflare blocks or signal generation failure. HTTP/2 + headers deployment won't help H11 — problem is buyable liquidity, not submission speed. Awaiting H10 gate traces to determine if H10 has same market-depth issue or if signals never fire there.
 
+## 2026-05-19 23:XX UTC | SYSTEM / CAS | MAX_CONCURRENT 2→3 (one per asset) | Capital $151 supports 3× concurrent ($33 worst-case), 22% utilization vs 44% at n=2. Constraint was multi-strategy brake (TERMINAL/VOLARB/BOND era). CAS-only + growth goal → unlock one BTC, one ETH, one SOL position per window. Removes false scarcity. Deployed cas_lowask.py:57. Tier 1 autonomous.
+
 ## 2026-05-19 20:XX UTC | STAKE / CAS | Deploy hour-based stake sizing (strong $20/$10, medium $10/$4) | 100-trade WR analysis: uniform $5 = -$5.52 PnL, hour-Kelly = +$110.99 (+$116.51 swing). Strong hours (WR≥55%): {0,4,7,8,9,10,12,15,20,23}. Medium (45-55%): {5,6,13,19,22}. Weak (<45%): blocked. Sizing: BTC/ETH $20/$10, SOL $10/$4 (depth-constrained). Commit d253306.
 
 ## 2026-05-19 19:XX UTC | GATE / CAS | Unblock H05 — marginal live performance, test at larger n | Live H05: 50% WR (n=10) — weak but consistent, below 45% kill-switch floor by only 5pp. Block justified on weakness, but decent sample size + no catastrophic failure → worth collecting more data. Commit b613095.
