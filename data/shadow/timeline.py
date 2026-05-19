@@ -183,10 +183,10 @@ class TimelineSampler:
                     _lda.schedule_if_ready(rec)
                 _volarb = getattr(self.bot, "volarb_strategy", None)
                 if _volarb is not None and rec["condition_id"] and rec["window_end_ts"] > 0:
-                    _volarb.schedule_if_ready(rec)
+                    asyncio.create_task(_volarb.schedule_if_ready(rec))
                 _cas = getattr(self.bot, "cas_lowask_strategy", None)
                 if _cas is not None and rec["condition_id"] and rec["window_end_ts"] > 0:
-                    _cas.schedule_if_ready(rec)
+                    asyncio.create_task(_cas.schedule_if_ready(rec))
                 # Phase 2: hold-path evolution (per-second trajectory of virtual positions).
                 self.hold_path.on_tick(rec, gt)
                 self._last_emit_ts[token_id] = now_s
