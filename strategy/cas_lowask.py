@@ -121,7 +121,7 @@ class CASLowAsk:
         # Global blocks: H01-05/08 negative; H12 EV=-0.093; H14 user; H16 EV=-0.157
         # H18 blocked 2026-05-18: shadow EV=-0.305; VOLARB WR=60% there (swapped)
         hour_utc = datetime.fromtimestamp(wend, tz=timezone.utc).hour
-        if hour_utc in [1, 2, 3, 4, 5, 8, 12, 14, 16, 18]:
+        if hour_utc in [1, 2, 3, 5, 8, 12, 14, 16, 18]:
             return
         # SOL-specific blocks: H05/11/13/18/22/23 all negative EV in shadow
         if asset == "SOL" and hour_utc in {5, 11, 13, 18, 22, 23}:

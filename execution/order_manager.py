@@ -199,6 +199,7 @@ class OrderManager:
         self._last_allowance_refresh_ts: float = 0.0
         self._allowance_refresh_ttl_s: float = 30.0
         self._allowance_keeper_task: Optional[asyncio.Task] = None
+        self._cas_presigned: Dict[str, dict] = {}   # token_id → {signed, limit_price, size, ts}
         # _session_lock: guards the module-level _CffiSession (not thread-safe).
         # Held only for the duration of a single HTTP call — released between calls
         # so other tokens can interleave. Narrower than the old _clob_http_lock which
@@ -267,6 +268,58 @@ class OrderManager:
             except Exception as exc:
                 logger.debug("allowance keeper refresh failed: %s", exc)
 
+    async def presign_for_cas(self, token_id: str, intended_price: float, stake_usd: float,
+                              neg_risk: bool = False, tick_size: str = TICK_SIZE) -> None:
+        """Pre-sign a CAS BUY order so _submit_limit_order can skip signing on fire."""
+        if self._client is None or CONFIG.dry_run:
+            return
+        try:
+            import math as _math
+            from py_clob_client_v2.clob_types import OrderArgs, PartialCreateOrderOptions
+            from py_clob_client_v2.order_builder.constants import BUY as _BUY
+
+            if intended_price < 0.35:
+                _buf = 0.15
+            elif intended_price < 0.55:
+                _buf = 0.10
+            else:
+                _buf = self.cfg.entry_price_buffer
+            limit_price = round(min(intended_price * (1 + _buf), 0.99), 4)
+
+            cached = self._cas_presigned.get(token_id)
+            if cached and abs(cached["limit_price"] - limit_price) < 1e-4:
+                return  # already valid
+
+            tick_f = float(tick_size) if tick_size else 0.01
+            price_cents = round(limit_price * 100)
+            if price_cents <= 0:
+                return
+            step = _math.gcd(price_cents, 10000)
+            step = 10000 // (_math.gcd(price_cents, 10000))
+            min_ticks = max(_math.ceil(1_000_000 / price_cents), 50_000)
+            req_ticks = round(stake_usd / limit_price * 10000)
+            snapped = _math.ceil(max(req_ticks, min_ticks) / step) * step / 10000
+
+            opts = PartialCreateOrderOptions(tick_size=tick_size or "0.01",
+                                             neg_risk=neg_risk if neg_risk else None)
+            args = OrderArgs(token_id=token_id, price=limit_price, size=snapped, side=_BUY)
+            signed = await asyncio.to_thread(self._client.create_order, args, options=opts)
+            self._cas_presigned[token_id] = {
+                "signed": signed, "limit_price": limit_price,
+                "size": snapped, "ts": time.time(),
+            }
+            logger.debug("CAS presign %s @ %.4f size=%.2f", token_id[:12], limit_price, snapped)
+        except Exception as exc:
+            logger.debug("CAS presign failed %s: %s", token_id[:12], exc)
+
+    def pop_cas_presigned(self, token_id: str, limit_price: float) -> Optional[dict]:
+        """Return and remove a presigned order if price still matches (within 1 tick)."""
+        cached = self._cas_presigned.pop(token_id, None)
+        if cached and abs(cached["limit_price"] - limit_price) < 0.011:
+            if time.time() - cached["ts"] < 120.0:  # discard if >2min old
+                return cached
+        return None
+
     def prewarm_token_caches(self, tokens: dict) -> None:
         """
         Pre-populate py_clob_client's internal neg_risk and fee_rate caches
@@ -303,6 +356,7 @@ class OrderManager:
         neg_risk: bool = False,
         tick_size: str = TICK_SIZE,
         fast_fail: bool = False,
+        presigned: Optional[dict] = None,
     ) -> OrderResult:
         """
         Place a limit buy at price * (1 + buffer), hard-capped at MAX_ENTRY_PRICE.
@@ -352,6 +406,7 @@ class OrderManager:
             result = await self._submit_limit_order(
                 token_id, OrderSide.BUY, limit_price, size,
                 neg_risk=neg_risk, tick_size=tick_size,
+                presigned=presigned,
             )
             if result.status == OrderStatus.FILLED:
                 return result
@@ -1015,6 +1070,7 @@ class OrderManager:
         neg_risk: bool = False,
         tick_size: str = TICK_SIZE,
         order_type: "OrderType" = None,
+        presigned: Optional[dict] = None,
     ) -> OrderResult:
         if self._client is None:
             return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
@@ -1099,12 +1155,19 @@ class OrderManager:
             _attempted_order_ids: list = []   # track ALL order IDs placed this call
             _sign_ms = 0.0
             _post_ms = 0.0
+            # Use pre-signed order on first attempt only — retries must re-sign (duplicate nonce)
+            _presigned_used = presigned is not None and presigned.get("signed") is not None
             for _cf_attempt in range(3):
-                # create_order: EIP-712 signing (CPU-only, no HTTP).
-                # Wrapped in to_thread so secp256k1 signing doesn't block the event loop.
-                _t_sign = time.time()
-                signed = await asyncio.to_thread(self._client.create_order, order_args, options=opts)
-                _sign_ms = (time.time() - _t_sign) * 1000
+                if _cf_attempt == 0 and _presigned_used:
+                    signed = presigned["signed"]
+                    size = presigned.get("size", size)
+                    _sign_ms = 0.0
+                else:
+                    # create_order: EIP-712 signing (CPU-only, no HTTP).
+                    _t_sign = time.time()
+                    signed = await asyncio.to_thread(self._client.create_order, order_args, options=opts)
+                    _sign_ms = (time.time() - _t_sign) * 1000
+                    _presigned_used = False  # subsequent retries always re-sign
                 # Capture order ID from signed order BEFORE posting — the ID is
                 # deterministic (hash of parameters + signature) and available even
                 # if CF blocks the POST response. Used to cancel stale resting orders
