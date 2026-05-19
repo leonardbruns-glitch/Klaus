@@ -121,10 +121,16 @@ class CASLowAsk:
 
         remaining = rec.get("seconds_to_resolution", 0.0)
         if not (REM_MIN_S <= remaining <= REM_MAX_S):
+            if hour_utc in {11, 17}:
+                logger.info("[CAS_EARLY_EXIT] H%02d %s remaining %.1fs outside [%.1f,%.1f]", hour_utc, asset, remaining, REM_MIN_S, REM_MAX_S)
             return
         if REM_BLOCK_LO <= remaining < REM_BLOCK_HI:
+            if hour_utc in {11, 17}:
+                logger.info("[CAS_REM_BLOCK] H%02d %s remaining %.1fs in block [%.1f,%.1f]", hour_utc, asset, remaining, REM_BLOCK_LO, REM_BLOCK_HI)
             return
         if REM_BLOCK2_LO <= remaining < REM_BLOCK2_HI:
+            if hour_utc in {11, 17}:
+                logger.info("[CAS_REM_BLOCK] H%02d %s remaining %.1fs in block [%.1f,%.1f]", hour_utc, asset, remaining, REM_BLOCK2_LO, REM_BLOCK2_HI)
             return
 
         # Global blocks: H01-03 negative; H14 user instruction; H16 EV=-0.157
@@ -139,10 +145,14 @@ class CASLowAsk:
 
         ask = rec.get("best_ask", 0.0)
         if not (ASK_MIN <= ask <= ASK_MAX_HIGH_CONV):
+            if hour_utc in {11, 17}:
+                logger.info("[CAS_ASK_BLOCK] H%02d %s ask=%.4f outside [%.2f,%.2f]", hour_utc, asset, ask, ASK_MIN, ASK_MAX_HIGH_CONV)
             return
 
         ask_size = rec.get("ob_top1_ask_size") or 0.0
         if ask_size < ASK_DEPTH_MIN_SH:
+            if hour_utc in {11, 17}:
+                logger.info("[CAS_DEPTH_BLOCK] H%02d %s depth=%.1f < %.1f shares", hour_utc, asset, ask_size, ASK_DEPTH_MIN_SH)
             return
 
         # Hour-based stake sizing: strong hours $20/$10 (BTC/ETH/SOL), medium $10/$4
@@ -199,15 +209,34 @@ class CASLowAsk:
         pa, pb = pair[0], pair[1]
 
         thr = THR_PCT_RELAXED if hour_utc in {6, 21} else THR_PCT
+
+        # Gate trace: log signal evaluation for H11, H17 and all zero-trade hours
+        if hour_utc in {11, 17} or True:  # Log all for now to diagnose
+            logger.info("[CAS_GATE_TRACE] H%02d %s rem=%.1fs ask=%.3f | partials BTC=%.2f ETH=%.2f SOL=%.2f | eval_dir=%s thr=%.3f",
+                hour_utc, asset, remaining, ask, partials.get("BTC", 0), partials.get("ETH", 0), partials.get("SOL", 0),
+                bet_dir, thr)
+
         if bet_dir == "UP":
             if not (partials[pa] >= thr and partials[pb] >= thr):
+                if hour_utc in {11, 17}:
+                    logger.info("[CAS_GATE] H%02d %s UP blocked: %s=%.2f<%s or %s=%.2f<%s",
+                        hour_utc, asset, pa, partials[pa], thr, pb, partials[pb], thr)
                 return
             if partials[c] < 0.0:
+                if hour_utc in {11, 17}:
+                    logger.info("[CAS_GATE] H%02d %s UP blocked: own=%s is %.2f < 0",
+                        hour_utc, asset, c, partials[c])
                 return
         else:
             if not (partials[pa] <= -thr and partials[pb] <= -thr):
+                if hour_utc in {11, 17}:
+                    logger.info("[CAS_GATE] H%02d %s DOWN blocked: %s=%.2f>-%s or %s=%.2f>-%s",
+                        hour_utc, asset, pa, partials[pa], thr, pb, partials[pb], thr)
                 return
             if partials[c] > 0.0:
+                if hour_utc in {11, 17}:
+                    logger.info("[CAS_GATE] H%02d %s DOWN blocked: own=%s is %.2f > 0",
+                        hour_utc, asset, c, partials[c])
                 return
 
         # Extended ask gate [ASK_MAX, ASK_MAX_HIGH_CONV]: only allow when range_pos > 0.8.
