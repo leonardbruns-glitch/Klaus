@@ -6729,7 +6729,14 @@ class KlausBot:
                     self._open_meta.pop(token_id, None)
                 else:
                     _token_in_feed = token_id in self.feed.tokens
-                    if not _token_in_feed:
+                    if not _token_in_feed and getattr(pos, "bond_entry_class", "") == "SPORTS_COPY":
+                        # Sports tokens are never subscribed to the WS feed — that's expected.
+                        # Keep the position; it will be managed by sports_copy exit logic.
+                        logger.info(
+                            "STARTUP: %s/%s is SPORTS_COPY, not in WS feed — keeping position",
+                            pos.asset, pos.direction.name,
+                        )
+                    elif not _token_in_feed:
                         # Shares confirmed on CLOB but token is no longer in the feed
                         # (window expired and was removed). The normal exit loop iterates
                         # self.feed.tokens only — it will never fire for this token.
