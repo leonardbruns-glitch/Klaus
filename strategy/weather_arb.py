@@ -690,10 +690,12 @@ class WeatherArb:
             return
         tracked: dict[str, list[str]] = {}  # icao → [token_id, ...]
         for token_id, meta in self.bot._open_meta.items():
+            if not isinstance(meta, dict):
+                continue
             icao = meta.get("icao")
             if not icao:
                 continue
-            if token_id not in self.bot.risk._positions:
+            if token_id not in self.bot.risk.open_positions:
                 continue
             tracked.setdefault(icao, []).append(token_id)
         if not tracked:
