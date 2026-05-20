@@ -145,6 +145,9 @@ class CASLowAsk:
         # Validation mode: accumulate live data at reduced risk to resolve shadow vs live discrepancy
         if hour_utc in [1, 2, 3, 16, 18, 21]:
             return
+        # BTC-specific blocks: H05 (25% WR, -$13.46), H13 (33% WR, -$23.92) — 2026-05-20
+        if asset == "BTC" and hour_utc in {5, 13}:
+            return
         # SOL-specific blocks: H05/18 (H05 redundant with global, H18 redundant with global)
         if asset == "SOL" and hour_utc in {5, 18}:
             return

@@ -66,6 +66,7 @@ Run before any analysis or code change:
 | Stakes | BTC $15, ETH $15, SOL $3 | Fixed per-asset; partial fills accepted |
 | Max concurrent | 2 | Across all assets |
 | Blocked hours (global) | {1,2,3,5,14,16,18,21} UTC | Negative EV in shadow/live |
+| Blocked hours (BTC) | {5,13} UTC | H05 25% WR -$13.46, H13 33% WR -$23.92 |
 | Blocked hours (SOL) | {5,11,13,18,22,23} UTC | Additional SOL-specific blocks |
 | Exit | Hold to resolution | No PT, no SL — token resolves 1.0 or 0.0 |
 | PnL convention | exit_price=1.0 if correct direction | Patched at resolution via kline |
