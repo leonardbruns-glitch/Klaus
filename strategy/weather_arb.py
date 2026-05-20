@@ -184,6 +184,39 @@ CITY_ELEVATION_M: dict[str, float] = {
     "Bogota": 2640, "Lima": 505, "Santiago": 570, "Chongqing": 257,
 }
 
+# ICAO station codes — used for live METAR polling via AWC.
+CITY_ICAO: dict[str, str] = {
+    "London": "EGLC", "Paris": "LFPB", "Seoul": "RKSI", "Seattle": "KSEA",
+    "Sao Paulo": "SBGR", "Buenos Aires": "SAEZ", "Ankara": "LTAC",
+    "Wellington": "NZWN", "Lucknow": "VILK", "Munich": "EDDM",
+    "New York City": "KLGA", "Dallas": "KDAL", "Miami": "KMIA",
+    "Chicago": "KORD", "Singapore": "WSSS", "Milan": "LIMC",
+    "Madrid": "LEMD", "Warsaw": "EPWA", "Taipei": "RCSS",
+    "Beijing": "ZBAA", "Wuhan": "ZHHH", "Chengdu": "ZUUU",
+    "Shenzhen": "ZGSZ", "Austin": "KAUS", "Denver": "KBKF",
+    "Houston": "KHOU", "Los Angeles": "KLAX", "San Francisco": "KSFO",
+    "Mexico City": "MMMX", "Busan": "RKPK", "Amsterdam": "EHAM",
+    "Helsinki": "EFHK", "Panama City": "MPHO", "Jakarta": "WIHH",
+    "Jeddah": "OEJN", "Cape Town": "FACT", "Guangzhou": "ZGGG",
+    "Jinan": "ZSJN", "Qingdao": "ZSQD", "Karachi": "OPKC",
+    "Manila": "RPLL", "Toronto": "CYYZ", "Shanghai": "ZSPD",
+    "Tokyo": "RJTT", "Hong Kong": "VHHH", "Dubai": "OMDB",
+    "Sydney": "YSSY", "Phoenix": "KPHX", "Atlanta": "KATL",
+    "Berlin": "EDDB", "Stockholm": "ESSA", "Oslo": "ENGM",
+    "Copenhagen": "EKCH", "Vienna": "LOWW", "Zurich": "LSZH",
+    "Brussels": "EBBR", "Barcelona": "LEBL", "Rome": "LIRF",
+    "Prague": "LKPR", "Budapest": "LHBP", "Bucharest": "LROP",
+    "Athens": "LGAV", "Istanbul": "LTFJ", "Moscow": "UUEE",
+    "Riyadh": "OERK", "Cairo": "HECA", "Lagos": "DNMM",
+    "Nairobi": "HKJK", "Johannesburg": "FAOR", "Mumbai": "VABB",
+    "Delhi": "VIDP", "Dhaka": "VGHS", "Bangkok": "VTBS",
+    "Kuala Lumpur": "WMKK", "Bogota": "SKBO", "Lima": "SPJC",
+    "Santiago": "SCEL", "Chongqing": "ZUCK", "Dallas": "KDAL",
+}
+
+AWC_METAR_URL = "https://aviationweather.gov/api/data/metar?ids={icao}&format=json&hours=1"
+METAR_POLL_INTERVAL = 60  # METARs post every ~30 min; poll every 60s to catch within 60s
+
 
 def _norm_cdf(x: float) -> float:
     """Standard normal CDF via erf approximation."""
@@ -276,11 +309,13 @@ class WeatherArb:
         self.bot = bot
         self._fired_tokens: set[str] = set()
         self._task: Optional[asyncio.Task] = None
+        self._metar_task: Optional[asyncio.Task] = None
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop(), name="weather_arb_loop")
+        self._metar_task = asyncio.create_task(self._metar_loop(), name="weather_metar_loop")
 
     async def _loop(self) -> None:
         # First run after 60s (allow bot to initialize), then every 30 min
@@ -341,7 +376,8 @@ class WeatherArb:
                     break
                 entry = await self._evaluate_market(city, mkt, forecast)
                 if entry:
-                    if await self._enter(mkt, entry["fair_prob"], entry["poly_price"], city):
+                    if await self._enter(mkt, entry["fair_prob"], entry["poly_price"], city,
+                                     entry.get("lo_c"), entry.get("hi_c")):
                         entries_made += 1
 
         logger.info("[WA] scan done: %d entries made", entries_made)
@@ -398,10 +434,13 @@ class WeatherArb:
             "edge":       edge,
             "question":   question,
             "end_date":   end_date,
+            "lo_c":       lo_c,
+            "hi_c":       hi_c,
         }
 
     async def _enter(self, mkt: dict, fair_prob: float, poly_price: float,
-                     city: str) -> bool:
+                     city: str, bucket_lo_c: Optional[float] = None,
+                     bucket_hi_c: Optional[float] = None) -> bool:
         token_id  = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
         cid       = mkt.get("conditionId", "")
         question  = mkt.get("question", "")
@@ -452,6 +491,11 @@ class WeatherArb:
                 _meta = self.bot._open_meta.setdefault(token_id, {})
                 _meta["scalp_tp"] = _scalp_tp
                 _meta["fair_prob"] = fair_prob
+                _meta["bucket_lo_c"] = bucket_lo_c
+                _meta["bucket_hi_c"] = bucket_hi_c
+                _meta["icao"] = CITY_ICAO.get(city)
+                _meta["running_max_c"] = None
+                _meta["last_obs_time"] = 0
                 # Register the token with the feed so the CLOB WS subscribes to its
                 # BBO updates. Without this, weather positions get only REST-poll prices
                 # and the BBO scalp callback never fires.
@@ -493,6 +537,99 @@ class WeatherArb:
             self._fired_tokens.discard(token_id)
             logger.exception("[WA] enter error %s", city)
             return False
+
+    async def _metar_loop(self) -> None:
+        await asyncio.sleep(30)
+        while True:
+            try:
+                await self._poll_metars()
+            except Exception:
+                logger.exception("[WA] metar loop error")
+            await asyncio.sleep(METAR_POLL_INTERVAL)
+
+    async def _poll_metars(self) -> None:
+        # Collect all open WEATHER_ARB positions that have an ICAO code
+        if not hasattr(self.bot, "_open_meta") or not hasattr(self.bot, "risk"):
+            return
+        tracked: dict[str, list[str]] = {}  # icao → [token_id, ...]
+        for token_id, meta in self.bot._open_meta.items():
+            icao = meta.get("icao")
+            if not icao:
+                continue
+            if token_id not in self.bot.risk._positions:
+                continue
+            tracked.setdefault(icao, []).append(token_id)
+        if not tracked:
+            return
+
+        # Batch fetch: comma-separate all unique ICAOs in one request
+        icao_list = ",".join(tracked.keys())
+        url = f"https://aviationweather.gov/api/data/metar?ids={icao_list}&format=json&hours=1"
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                    headers={"User-Agent": "Klaus-WeatherBot/1.0"},
+                ) as resp:
+                    if resp.status != 200:
+                        return
+                    records = await resp.json()
+        except Exception as e:
+            logger.debug("[WA] metar fetch error: %s", e)
+            return
+
+        # Group records by station, keep most recent per station
+        latest_by_icao: dict[str, dict] = {}
+        for rec in records:
+            icao = rec.get("icaoId") or rec.get("stationId", "")
+            if not icao:
+                continue
+            if icao not in latest_by_icao or rec.get("obsTime", 0) > latest_by_icao[icao].get("obsTime", 0):
+                latest_by_icao[icao] = rec
+
+        from datetime import datetime, timezone
+        for icao, token_ids in tracked.items():
+            rec = latest_by_icao.get(icao)
+            if not rec:
+                continue
+            obs_time = rec.get("obsTime", 0)
+            temp_c = rec.get("temp")
+            if temp_c is None:
+                continue
+
+            for token_id in token_ids:
+                meta = self.bot._open_meta.get(token_id, {})
+                if obs_time <= meta.get("last_obs_time", 0):
+                    continue  # no new METAR since last poll
+
+                meta["last_obs_time"] = obs_time
+                prev_max = meta.get("running_max_c")
+                new_max = temp_c if (prev_max is None or temp_c > prev_max) else prev_max
+                meta["running_max_c"] = new_max
+
+                lo = meta.get("bucket_lo_c")
+                hi = meta.get("bucket_hi_c")
+                # Actual bucket bounds (exact °C → ±0.5)
+                lo_bound = (lo - 0.5) if lo is not None else None
+                hi_bound = (hi + 0.5) if hi is not None else None
+
+                if hi_bound is not None and new_max >= hi_bound:
+                    status = "ABOVE BUCKET"
+                elif lo_bound is not None and new_max >= lo_bound:
+                    status = "IN BUCKET"
+                else:
+                    gap = (lo_bound - new_max) if lo_bound is not None else 0
+                    status = f"BELOW BUCKET gap={gap:+.1f}°C"
+
+                obs_dt = datetime.fromtimestamp(obs_time, tz=timezone.utc).strftime("%H:%M UTC")
+                logger.info(
+                    "[WA] METAR %s %s | temp=%.1f°C running_max=%.1f°C | bucket=[%.1f,%.1f) | %s",
+                    icao, obs_dt, temp_c, new_max,
+                    lo_bound if lo_bound is not None else -99.0,
+                    hi_bound if hi_bound is not None else 99.0,
+                    status,
+                )
 
     async def _fetch_weather_events(self) -> list[dict]:
         url = f"{GAMMA_BASE}/events?closed=false&limit=200&tag_slug=weather"
