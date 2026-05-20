@@ -40,8 +40,8 @@ METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
 MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket — rejects cities where
                        # σ is too wide relative to bucket width (e.g. London May mode=35%)
-ASK_BAND_LO  = 0.20    # min entry price (London 30d backtest: <0.20 is calibration-mirage)
-ASK_BAND_HI  = 0.40    # max entry price (London 30d backtest: <3 obs above 0.40, unsupported)
+ASK_BAND_LO  = 0.01    # min entry price
+ASK_BAND_HI  = 0.27    # max entry price (60d 7-city calibration: WR 26.8% at 0.30+ = unprofitable)
 STAKE_USD    = 25.0    # per market position
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
