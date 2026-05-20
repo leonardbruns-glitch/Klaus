@@ -45,6 +45,26 @@ SCAN_INTERVAL_S = 1800 # scan every 30 minutes
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
 
+# Hold-favourites / scalp-mids policy (London 30d backtest 2026-05-20).
+# Favourites: entry in [SCALP_BAND_HI, 1.0) — hold to PROFIT_TARGET=0.99 or resolution.
+# Mids:       entry in [SCALP_BAND_LO, SCALP_BAND_HI) — scalp on WS BBO at scalp_tp.
+# Below SCALP_BAND_LO: hold to resolution (scalp fill rate too low to matter).
+SCALP_BAND_LO = 0.05
+SCALP_BAND_HI = 0.20
+SCALP_TARGET_ABS       = 0.03   # min absolute profit per share on a scalp
+SCALP_TARGET_EDGE_FRAC = 0.50   # capture this fraction of (fair - entry)
+SCALP_DISCOUNT         = 0.90   # TP ≤ fair × this (executability buffer)
+
+
+def _compute_scalp_tp(entry: float, fair: float) -> float:
+    """Take-profit price for mid-band entries; 0.0 means hold-to-resolution."""
+    if not (SCALP_BAND_LO <= entry < SCALP_BAND_HI):
+        return 0.0
+    edge = max(0.0, fair - entry)
+    target = entry + max(SCALP_TARGET_ABS, SCALP_TARGET_EDGE_FRAC * edge)
+    ceiling = fair * SCALP_DISCOUNT
+    return round(min(target, ceiling), 4)
+
 # 2026-05-20: Elevation-aware sigma tuning. Mountains (>1500m) have 2-3x higher forecast error
 # than coastal cities. Prevents edge-hunting in unwinnable high-altitude markets.
 ELEVATION_THRESHOLD_M = 1500
@@ -416,8 +436,44 @@ class WeatherArb:
                     bond_outcome_direction="up",
                     bond_entry_class="WEATHER_ARB",
                 )
-                logger.info("[WA] FILLED %s shares=%.1f @ %.4f",
-                            question[:45], fill.total_size, fill.avg_fill_price)
+                # Hold-favourites / scalp-mids: store scalp_tp on the position meta
+                # so the WS BBO callback (_ws_bond_tp_check) can fire instantly when
+                # the bid touches it. scalp_tp=0.0 means hold to PROFIT_TARGET / resolution.
+                _scalp_tp = _compute_scalp_tp(fill.avg_fill_price, fair_prob)
+                _meta = self.bot._open_meta.setdefault(token_id, {})
+                _meta["scalp_tp"] = _scalp_tp
+                _meta["fair_prob"] = fair_prob
+                # Register the token with the feed so the CLOB WS subscribes to its
+                # BBO updates. Without this, weather positions get only REST-poll prices
+                # and the BBO scalp callback never fires.
+                try:
+                    from data.feeds import MarketToken as _MT
+                    if token_id not in self.bot.feed.tokens:
+                        self.bot.feed.tokens[token_id] = _MT(
+                            token_id=token_id,
+                            condition_id=cid,
+                            asset="WEATHER",
+                            side="YES",
+                            question=question,
+                            end_date_iso=mkt.get("endDate", "") or "",
+                            active=True,
+                            market_type="weather",
+                            window_end_ts=0.0,      # disables window-based exits
+                            window_seconds=0,
+                            neg_risk=neg_risk,
+                            tick_size=str(mkt.get("orderPriceMinTickSize") or "0.01"),
+                            outcome_direction="up",
+                        )
+                    try:
+                        self.bot.feed._clob_ws_sub_queue.put_nowait([token_id])
+                    except Exception:
+                        logger.debug("[WA] WS subscribe queue full for %s", token_id[:12])
+                except Exception:
+                    logger.exception("[WA] failed to register %s with feed", token_id[:12])
+                logger.info("[WA] FILLED %s shares=%.1f @ %.4f scalp_tp=%.4f%s",
+                            question[:45], fill.total_size, fill.avg_fill_price,
+                            _scalp_tp,
+                            "" if _scalp_tp > 0 else " (hold-to-resolution)")
                 return True
             else:
                 self._fired_tokens.discard(token_id)

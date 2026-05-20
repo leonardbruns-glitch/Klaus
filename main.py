@@ -753,6 +753,23 @@ class KlausBot:
                 return
             if pos.entry_price <= 0:
                 return
+            # WEATHER_ARB instant scalp on BBO: mid-band entries get a custom TP
+            # equal to entry + max($0.03, 0.5 × edge), capped at fair × 0.9.
+            # Favourite-band entries store scalp_tp=0.0 and skip this — they hold
+            # until PROFIT_TARGET at 0.99 or natural resolution.
+            if getattr(pos, "bond_entry_class", "") == "WEATHER_ARB":
+                _scalp_tp = float(self._open_meta.get(token_id, {}).get("scalp_tp", 0.0))
+                if _scalp_tp > 0 and bid_price >= _scalp_tp:
+                    self._exit_in_progress.add(token_id)
+                    logger.info(
+                        "WEATHER_SCALP_TP(WS) %s | bid=%.4f tp=%.4f ep=%.4f",
+                        token_id[:12], bid_price, _scalp_tp, pos.entry_price,
+                    )
+                    try:
+                        await self._exit_position(token_id, bid_price, "WEATHER_SCALP_TP")
+                    finally:
+                        self._exit_in_progress.discard(token_id)
+                    return
             if bid_price >= 0.99 and getattr(pos, "bond_entry_class", "") not in ("LDA", "CAS_LOWASK"):
                 self._exit_in_progress.add(token_id)
                 logger.info(
@@ -1187,7 +1204,7 @@ class KlausBot:
                     self.macro_engine._enabled
                     and token_id not in self._llm_exit_pending
                     and (now - _last_eval) >= _poll_interval
-                    and getattr(pos, "bond_entry_class", "") != "TERMINAL"
+                    and getattr(pos, "bond_entry_class", "") not in ("TERMINAL", "WEATHER_ARB")
                 )
                 if _due_for_eval:
                     _ext_pos = self._last_ext_signals.get(pos.asset)
@@ -1522,7 +1539,7 @@ class KlausBot:
                 # post-window kline check; entry×1.5 fires too early at low ask (0.63→0.945).
                 _inv_tp = pos.entry_price * 1.50
                 if (current_price >= _inv_tp
-                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB", "CAS_LOWASK")
+                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB", "CAS_LOWASK", "WEATHER_ARB")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -6747,12 +6764,13 @@ class KlausBot:
                     self._open_meta.pop(token_id, None)
                 else:
                     _token_in_feed = token_id in self.feed.tokens
-                    if not _token_in_feed and getattr(pos, "bond_entry_class", "") == "SPORTS_COPY":
-                        # Sports tokens are never subscribed to the WS feed — that's expected.
-                        # Keep the position; it will be managed by sports_copy exit logic.
+                    if not _token_in_feed and getattr(pos, "bond_entry_class", "") in ("SPORTS_COPY", "WEATHER_ARB"):
+                        # Sports + Weather tokens are never subscribed to the WS feed — that's
+                        # expected. Their own strategy modules manage exits over REST polling.
                         logger.info(
-                            "STARTUP: %s/%s is SPORTS_COPY, not in WS feed — keeping position",
+                            "STARTUP: %s/%s is %s, not in WS feed — keeping position",
                             pos.asset, pos.direction.name,
+                            getattr(pos, "bond_entry_class", ""),
                         )
                     elif not _token_in_feed:
                         # Shares confirmed on CLOB but token is no longer in the feed
