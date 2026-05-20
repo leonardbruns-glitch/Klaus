@@ -38,6 +38,8 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
+ASK_BAND_LO  = 0.20    # min entry price (London 30d backtest: <0.20 is calibration-mirage)
+ASK_BAND_HI  = 0.40    # max entry price (London 30d backtest: <3 obs above 0.40, unsupported)
 STAKE_USD    = 25.0    # per market position
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
@@ -376,6 +378,13 @@ class WeatherArb:
 
         edge = fair_prob - poly_yes
         if edge < EDGE_MIN:
+            return None
+
+        # Ask-band filter (London 30d calibration backtest, 2026-05-20):
+        # <$0.20 is the calibration-mirage zone where Gaussian σ=1.2°C
+        # overpredicts and post-edge-filter realized WR ≈ 0%. >$0.40 has
+        # too few historical obs (n=3) to validate.
+        if not (ASK_BAND_LO <= poly_yes < ASK_BAND_HI):
             return None
 
         logger.info("[WA] CANDIDATE %s %s poly=%.3f fair=%.3f edge=%.3f %s",
