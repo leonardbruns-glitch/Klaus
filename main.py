@@ -374,6 +374,12 @@ class KlausBot:
         from strategy.sports_copy import SportsCopy
         self.sports_copy = SportsCopy(self)
         self.sports_copy.live_mode = False   # PAUSED — shadow only
+        # CryptoUpDown — 15-min BTC/ETH/SOL Up-or-Down markets, CAS synchrony signal
+        from strategy.updown import CryptoUpDown
+        self.updown_strategy = CryptoUpDown(self)
+        # WeatherArb — daily city temperature prediction market arb vs Open-Meteo forecasts
+        from strategy.weather_arb import WeatherArb
+        self.weather_arb = WeatherArb(self)
         # Safety guards: $40 ring-fenced sub-bankroll, $10/trade cap, -$10/day kill
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
@@ -563,6 +569,18 @@ class KlausBot:
             await self.sports_copy.start()
         except Exception:
             logger.exception("sports_copy start failed")
+
+        # CryptoUpDown — 15-min Up/Down prediction markets (DRY_RUN_LOG=True initially)
+        try:
+            self.updown_strategy.start()
+        except Exception:
+            logger.exception("updown_strategy start failed")
+
+        # WeatherArb — daily temperature prediction arb (DRY_RUN_LOG=True initially)
+        try:
+            self.weather_arb.start()
+        except Exception:
+            logger.exception("weather_arb start failed")
 
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
