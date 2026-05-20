@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-eb43941d weather: add --no-clob flag to validation script
-fb8c274c weather: 7-model ensemble + NWS NDFD for US cities
+da3f00ad weather: ASK_BAND 0.20-0.40 → 0.01-0.27
+0963f942 weather: fix --no-clob path to record model accuracy without prices
+f839b021 weather: add --no-clob flag to validation script
+446741d7 weather: 7-model ensemble + NWS NDFD for US cities
+45b802dc Watchdog 2026-05-20T19:18:49Z: OK 0 new alerts (2 MEDIUM in backoff)
+7bee8ac8 Watchdog 2026-05-20T18:18:48Z: MEDIUM 2 alerts (backoff)
+d15eb62d VOLARB Audit 20260520-1817 — NO_PATCH (n=885, Δ=0, retired; watch=7)
+28fcb022 Watchdog 2026-05-20T17:19:05Z: MEDIUM 2 alerts
+2d53483a Watchdog 2026-05-20T16:18:16Z: OK 0 alerts
 a97ca5a1 weather: enter only highest-conviction bucket per city, add MIN_FAIR_PROB=0.35
-2e2e67d5 weather: fix metar loop crash — guard non-dict meta + correct positions attr
-72968de3 weather: calibrate nowcast + sigma from 5yr ASOS diurnal analysis
-1e6ff563 weather: nowcast formula — bias-correct forecast with live METAR + sky cover
-81f944b1 Watchdog 2026-05-20T15:19:03Z: MEDIUM 2 alerts
-b8ba3504 weather: live METAR tracker — poll AWC every 60s for all open positions
-e51497c1 weather: exclude WEATHER_ARB from cascade abort
-cca17465 weather: fix broken FORECAST_MODELS — replace deprecated names with working ones
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   59G       34G  64% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 16:06:54 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 19:53:25 UTC
 
 ## Open positions (count):
 0
