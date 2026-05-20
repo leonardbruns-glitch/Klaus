@@ -1364,6 +1364,10 @@ class RiskManager:
         else:
             pos.binance_reversal_count = 0
 
+        # Hold-to-resolution strategies: no intraday exits apply at all
+        if getattr(pos, "bond_entry_class", "") in ("WEATHER_ARB", "UPDOWN"):
+            return None
+
         # -2. Phase 1 immunity zone — soft exits disabled, catastrophic stop only
         # All SIGNAL_FLIPPED / VELOCITY_EXIT / SL_15S are below this return None,
         # so they are structurally unreachable during Phase 1.
