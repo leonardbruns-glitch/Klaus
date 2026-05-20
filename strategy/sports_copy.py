@@ -420,6 +420,11 @@ class SportsCopy:
         if not origin or origin[0] != wallet:
             self._log_shadow({**log_base, "event": "sell_wallet_mismatch", "origin": origin})
             return
+        # Ignore instant flips — wallet may scalp in/out; require 60s min hold
+        hold_s = time.time() - float(getattr(pos, "open_time", 0) or 0)
+        if hold_s < 60:
+            self._log_shadow({**log_base, "event": "skip_mirror_too_soon", "hold_s": hold_s})
+            return
         wallet_sell_px = float(trade["price"])
         target_sell_px = max(wallet_sell_px - SLIP_SELL, 0.01)
 

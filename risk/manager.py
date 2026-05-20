@@ -1455,6 +1455,10 @@ class RiskManager:
                              pos.asset, pos.direction.name, now - pos.signal_flip_ts)
             pos.signal_flip_ts = 0.0
 
+        # SPORTS_COPY exits via mirror-sell + 50% stop only — skip all price-action SLs.
+        if getattr(pos, "bond_entry_class", "") == "SPORTS_COPY":
+            return None
+
         # 1. -25% emergency brake: reversed=6, flat=32, confirmed=10 cycles
         # Sole owner of exit logic when price is below -25%. SL_15S is suspended here.
         _below_25pct = current_price <= pos.entry_price * 0.75
