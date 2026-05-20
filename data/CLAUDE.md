@@ -61,7 +61,7 @@ Run before any analysis or code change:
 |---|---|---|
 | Strategy | CAS_LOWASK only | Cross-asset synchrony, 5m windows |
 | Entry window | rem 10–95s | Blocks [65,75) and [85,95) |
-| Ask range | 0.05–0.50 | Extended to 0.60 when range_pos>0.8 |
+| Ask range | 0.05–0.55 | No extended ceiling; live [0.55,0.60) is lossy |
 | Synchrony threshold | THR=0.005 | Relaxed to 0.001 for H06/H21 |
 | Stakes | BTC $15, ETH $15, SOL $3 | Fixed per-asset; partial fills accepted |
 | Max concurrent | 2 | Across all assets |

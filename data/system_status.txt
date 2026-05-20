@@ -2,19 +2,19 @@
 active
 
 ## Last 10 commits on klaus:
+10c46ff Log: THR shadow recorder deployment + ASK_MAX tightening
+6a4c4e4 Add CAS THR shadow analysis script
+48a06f9 CAS: add THR shadow recorder — log signals that would fire at 10× looser threshold
+81ba645 CAS: tighten ASK_MAX 0.50→0.55; remove extended convexity ceiling
 bf98052 chore(sports_copy): disable live mode — shadow only
 4fa7505 revert(sports_copy): remove 60s mirror-sell hold — copy wallet exits immediately
 35eda88 fix(sports_copy): exempt from SL_15S/VELOCITY_EXIT; min 60s hold before mirror-sell
 9bbcaf3 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
 357dfe7 fix(risk): exempt SPORTS_COPY from 210s hard-exit timer
 77043c6 fix(sports_copy): skip wallets that buy both sides of the same market
-b660b06 fix(sports_copy): fall back to REST fetch_order_book for sports tokens
-e3e9e5e feat(sports_copy): +10 night-active wallets (22-08 UTC focus)
-32fc0fb fix(sports_copy): percentage stop-loss, remove take-profit — trust wallet exit
-4a3570f fix: CAS hour_utc UnboundLocalError + SPORTS_COPY expand to 25 wallets
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   60G       34G  64% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Wed 2026-05-20 00:27:38 UTC
