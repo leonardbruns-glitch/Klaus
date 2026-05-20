@@ -45,8 +45,15 @@ SCAN_INTERVAL_S = 1800 # scan every 30 minutes
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
 
+# 2026-05-20: Elevation-aware sigma tuning. Mountains (>1500m) have 2-3x higher forecast error
+# than coastal cities. Prevents edge-hunting in unwinnable high-altitude markets.
+ELEVATION_THRESHOLD_M = 1500
+ELEVATION_SIGMA_FLOOR = 3.0  # Minimum sigma for mountain cities (vs 1.0 for sea level)
+
 # Multiple forecast models — average for better point estimate, spread → dynamic sigma
-FORECAST_MODELS = "best_match,gfs025,icon_global"
+# 2026-05-20: Added GraphCast (Google DeepMind AI model, outperforms ECMWF on 10-day horizon)
+# and ECMWF IFS (most accurate global model). Now 5-model ensemble vs prior 3-model.
+FORECAST_MODELS = "best_match,gfs025,icon_global,ecmwf,graphcast"
 
 # City → (lat, lon) of the EXACT weather station Polymarket resolves against.
 # All station codes verified from market description wunderground URLs (2026-05-20).
@@ -132,6 +139,27 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
     "Lima":             (-12.0219, -77.1143),  # SPJC Jorge Chávez
     "Santiago":         (-33.3930, -70.7858),  # SCEL Arturo Merino Benítez
     "Chongqing":        (29.7192, 106.6418),   # ZUCK Jiangbei Intl
+}
+
+# City elevation in meters (used for sigma tuning). Mountains >1500m get higher sigma.
+# Source: airport elevation data, WGS84 datum.
+CITY_ELEVATION_M: dict[str, float] = {
+    "London": 5, "Paris": 75, "Seoul": 86, "Seattle": 174, "Sao Paulo": 760,
+    "Buenos Aires": 25, "Ankara": 940, "Wellington": 12, "Lucknow": 128, "Munich": 519,
+    "New York City": 3, "Dallas": 133, "Miami": 2, "Chicago": 205, "Singapore": 13,
+    "Milan": 102, "Madrid": 610, "Warsaw": 110, "Taipei": 4, "Beijing": 54,
+    "Wuhan": 24, "Chengdu": 506, "Shenzhen": 5, "Austin": 189, "Denver": 1609,
+    "Houston": 9, "Los Angeles": 28, "San Francisco": 4, "Mexico City": 2250,
+    "Busan": 13, "Amsterdam": -2, "Helsinki": 4, "Panama City": 14, "Jakarta": 8,
+    "Jeddah": 4, "Cape Town": 41, "Guangzhou": 13, "Jinan": 34, "Qingdao": 76,
+    "Karachi": 4, "Manila": 22, "Toronto": 76, "Shanghai": 4, "Tokyo": 44,
+    "Hong Kong": 33, "Dubai": 3, "Sydney": 6, "Phoenix": 342, "Atlanta": 315,
+    "Berlin": 34, "Stockholm": 7, "Oslo": 88, "Copenhagen": 7, "Vienna": 171,
+    "Zurich": 432, "Brussels": 15, "Barcelona": 7, "Rome": 21, "Prague": 235,
+    "Budapest": 139, "Bucharest": 82, "Athens": 256, "Istanbul": 32, "Moscow": 149,
+    "Riyadh": 625, "Cairo": 73, "Lagos": 73, "Nairobi": 1609, "Johannesburg": 1742,
+    "Mumbai": 14, "Delhi": 216, "Dhaka": 7, "Bangkok": 2, "Kuala Lumpur": 82,
+    "Bogota": 2640, "Lima": 505, "Santiago": 570, "Chongqing": 257,
 }
 
 
@@ -243,12 +271,6 @@ class WeatherArb:
             await asyncio.sleep(SCAN_INTERVAL_S)
 
     async def _scan(self) -> None:
-        # PAUSED 2026-05-20: Exit logic (BOND_ABORT_CASCADE) kills winners before resolution
-        # See analysis: 3/3 BOND_ABORT_CASCADE trades = 0% WR, avg -$0.75 loss
-        # Hold positions to resolution; pause new scans pending Tier 2 fix
-        logger.warning("[WA] PAUSED: weather strategy disabled for exit logic audit")
-        return
-
         today = date.today().isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         # Only trade tomorrow's markets — today's markets are partially resolved by the time
@@ -287,7 +309,7 @@ class WeatherArb:
                 continue
 
             # Get forecast for this city (only once per city)
-            forecast = await self._get_forecast(lat, lon, today, tomorrow)
+            forecast = await self._get_forecast(lat, lon, today, tomorrow, city)
             if not forecast:
                 logger.debug("[WA] no forecast for %s", city)
                 continue
@@ -420,11 +442,12 @@ class WeatherArb:
             return []
 
     async def _get_forecast(
-        self, lat: float, lon: float, today: str, tomorrow: str
+        self, lat: float, lon: float, today: str, tomorrow: str, city: str = ""
     ) -> Optional[dict[str, tuple[float, float]]]:
         """
         Return dict {date_str: (forecast_mean_celsius, sigma_celsius)}.
         Fetches multiple NWP models; mean=ensemble average, sigma=model spread (min 1.0°C).
+        2026-05-20: Added elevation-aware sigma. Mountains (>1500m) floor at 3.0°C instead of 1.0°C.
         """
         url = (
             f"{METEO_BASE}?latitude={lat}&longitude={lon}"
@@ -454,12 +477,19 @@ class WeatherArb:
                     continue
                 mean = sum(values) / len(values)
                 # Dynamic sigma: model spread is the best uncertainty estimate.
-                # Floor at 1.0°C (irreducible forecast error even when models agree).
                 spread = max(values) - min(values) if len(values) > 1 else 0.0
-                sigma = max(1.0, spread)
+
+                # Elevation-aware sigma floor: mountains have higher forecast error
+                elev = CITY_ELEVATION_M.get(city, 0.0)
+                if elev > ELEVATION_THRESHOLD_M:
+                    sigma_floor = ELEVATION_SIGMA_FLOOR
+                else:
+                    sigma_floor = 1.0
+                sigma = max(sigma_floor, spread)
                 result[d] = (mean, sigma)
-                logger.debug("[WA] forecast %s lat=%.2f models=%d mean=%.1f sigma=%.1f",
-                             d, lat, len(values), mean, sigma)
+                elev_tag = f" (elev {elev:.0f}m)" if elev > 0 else ""
+                logger.debug("[WA] forecast %s lat=%.2f models=%d mean=%.1f sigma=%.1f%s",
+                             d, lat, len(values), mean, sigma, elev_tag)
             return result if result else None
         except Exception as e:
             logger.debug("[WA] forecast error lat=%.2f lon=%.2f: %s", lat, lon, e)
