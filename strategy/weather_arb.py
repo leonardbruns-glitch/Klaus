@@ -310,6 +310,7 @@ class WeatherArb:
         self._fired_tokens: set[str] = set()
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
+        self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
 
@@ -494,6 +495,7 @@ class WeatherArb:
                 _meta["bucket_lo_c"] = bucket_lo_c
                 _meta["bucket_hi_c"] = bucket_hi_c
                 _meta["icao"] = CITY_ICAO.get(city)
+                _meta["city"] = city
                 _meta["running_max_c"] = None
                 _meta["last_obs_time"] = 0
                 # Register the token with the feed so the CLOB WS subscribes to its
@@ -597,6 +599,7 @@ class WeatherArb:
             temp_c = rec.get("temp")
             if temp_c is None:
                 continue
+            sky_cover = self._parse_sky_cover(rec.get("rawOb", ""))
 
             for token_id in token_ids:
                 meta = self.bot._open_meta.get(token_id, {})
@@ -610,26 +613,144 @@ class WeatherArb:
 
                 lo = meta.get("bucket_lo_c")
                 hi = meta.get("bucket_hi_c")
-                # Actual bucket bounds (exact °C → ±0.5)
                 lo_bound = (lo - 0.5) if lo is not None else None
                 hi_bound = (hi + 0.5) if hi is not None else None
 
+                # Nowcast: estimated daily max given current conditions
+                city = meta.get("city", "")
+                coords = CITY_COORDS.get(city)
+                est_max, nc_sigma = None, None
+                if coords:
+                    try:
+                        est_max, nc_sigma = await self._nowcast_max(
+                            coords[0], coords[1], new_max, temp_c, sky_cover
+                        )
+                        meta["est_daily_max_c"] = est_max
+                        meta["nc_sigma"] = nc_sigma
+                    except Exception:
+                        pass
+
+                # Running-max hard check
                 if hi_bound is not None and new_max >= hi_bound:
-                    status = "ABOVE BUCKET"
+                    status = "ABOVE BUCKET ✗"
                 elif lo_bound is not None and new_max >= lo_bound:
                     status = "IN BUCKET"
                 else:
-                    gap = (lo_bound - new_max) if lo_bound is not None else 0
+                    gap = (lo_bound - new_max) if lo_bound is not None else 0.0
                     status = f"BELOW BUCKET gap={gap:+.1f}°C"
+
+                # Nowcast probability
+                p_str = ""
+                if est_max is not None and lo is not None and nc_sigma is not None:
+                    p_nc = _outcome_prob(est_max, lo, hi, nc_sigma)
+                    p_str = f" | nowcast_max={est_max:.1f}°C σ={nc_sigma:.1f} P(bucket)={p_nc:.3f}"
 
                 obs_dt = datetime.fromtimestamp(obs_time, tz=timezone.utc).strftime("%H:%M UTC")
                 logger.info(
-                    "[WA] METAR %s %s | temp=%.1f°C running_max=%.1f°C | bucket=[%.1f,%.1f) | %s",
-                    icao, obs_dt, temp_c, new_max,
+                    "[WA] METAR %s %s | sky=%s temp=%.1f°C run_max=%.1f°C | bucket=[%.1f,%.1f) | %s%s",
+                    icao, obs_dt, sky_cover, temp_c, new_max,
                     lo_bound if lo_bound is not None else -99.0,
                     hi_bound if hi_bound is not None else 99.0,
-                    status,
+                    status, p_str,
                 )
+
+    @staticmethod
+    def _parse_sky_cover(raw_ob: str) -> str:
+        """Extract worst sky cover from METAR raw string → CLR/FEW/SCT/BKN/OVC."""
+        # METAR sky groups: CLR, SKC, FEW0xx, SCT0xx, BKN0xx, OVC0xx
+        import re as _re
+        rank = {"CLR": 0, "SKC": 0, "FEW": 1, "SCT": 2, "BKN": 3, "OVC": 4}
+        best = "CLR"
+        for token in raw_ob.split():
+            code = _re.match(r"(CLR|SKC|FEW|SCT|BKN|OVC)\d{0,3}", token)
+            if code:
+                key = code.group(1) if code.group(1) != "SKC" else "CLR"
+                if rank.get(key, 0) > rank.get(best, 0):
+                    best = key
+        return best
+
+    async def _get_hourly_forecast(self, lat: float, lon: float) -> dict[int, float]:
+        """Fetch today's hourly max-2m-temp forecast in UTC. Cached per station per day."""
+        from datetime import date, datetime, timezone
+        today = date.today().isoformat()
+        key = (round(lat, 2), round(lon, 2), today)
+        if key in self._hourly_cache:
+            return self._hourly_cache[key]
+
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat:.4f}&longitude={lon:.4f}"
+            f"&hourly=temperature_2m&temperature_unit=celsius"
+            f"&forecast_days=1&timezone=UTC"
+        )
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                    if resp.status != 200:
+                        return {}
+                    data = await resp.json()
+            hourly = data.get("hourly", {})
+            times = hourly.get("time", [])
+            temps = hourly.get("temperature_2m", [])
+            result = {
+                datetime.fromisoformat(t).hour: float(v)
+                for t, v in zip(times, temps)
+                if v is not None
+            }
+            self._hourly_cache[key] = result
+            return result
+        except Exception as e:
+            logger.debug("[WA] hourly forecast error lat=%.2f: %s", lat, e)
+            return {}
+
+    async def _nowcast_max(
+        self, lat: float, lon: float,
+        running_max_c: float, temp_c: float, sky_cover: str,
+    ) -> tuple[float, float]:
+        """
+        Estimate final daily max given current observed conditions.
+
+        Formula:
+          remaining_rise = max(0, forecast_peak - forecast_now) × sky_factor
+          est_max        = max(running_max, temp_obs + remaining_rise)
+          sigma          = max(0.2, 1.2 × sqrt(hours_to_peak / 8))
+
+        sky_factor maps cloud cover to fraction of forecast rise expected:
+          CLR=1.0 FEW=0.85 SCT=0.60 BKN=0.30 OVC=0.08
+        The sky_factor captures that overcast days rarely achieve the modelled
+        peak (solar heating is suppressed) while clear days often overshoot.
+        """
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        current_hour = now_utc.hour
+
+        hourly = await self._get_hourly_forecast(lat, lon)
+        if not hourly:
+            return running_max_c, 1.2
+
+        fcst_now = hourly.get(current_hour, temp_c)
+        # Remaining forecast hours (current hour onward)
+        remaining = {h: t for h, t in hourly.items() if h >= current_hour}
+        if remaining:
+            peak_hour = max(remaining, key=remaining.get)
+            fcst_peak = remaining[peak_hour]
+        else:
+            peak_hour = current_hour
+            fcst_peak = fcst_now
+
+        # Expected additional rise from current temp, adjusted for cloud cover
+        sky_factors = {"CLR": 1.0, "FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
+        f_sky = sky_factors.get(sky_cover, 0.60)
+        forecast_remaining_rise = max(0.0, fcst_peak - fcst_now)
+        est_peak = temp_c + forecast_remaining_rise * f_sky
+
+        est_max = max(running_max_c, est_peak)
+
+        # Sigma shrinks as we approach the predicted peak hour
+        hours_to_peak = max(0.0, peak_hour - current_hour)
+        sigma = max(0.2, 1.2 * (hours_to_peak / 8.0) ** 0.5)
+
+        return round(est_max, 2), round(sigma, 2)
 
     async def _fetch_weather_events(self) -> list[dict]:
         url = f"{GAMMA_BASE}/events?closed=false&limit=200&tag_slug=weather"
