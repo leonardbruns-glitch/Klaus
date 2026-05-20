@@ -74,10 +74,19 @@ def _compute_scalp_tp(entry: float, fair: float) -> float:
 ELEVATION_THRESHOLD_M = 1500
 ELEVATION_SIGMA_FLOOR = 3.0  # Minimum sigma for mountain cities (vs 1.0 for sea level)
 
-# Multiple forecast models — average for better point estimate, spread → dynamic sigma
-# 2026-05-20: Added GraphCast (Google DeepMind AI model, outperforms ECMWF on 10-day horizon)
-# and ECMWF IFS (most accurate global model). Now 5-model ensemble vs prior 3-model.
-FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025"
+# 7-model global ensemble. All models confirmed returning data for all validated cities
+# via Open-Meteo live + historical APIs (2026-05-20 probe).
+# GFS (NOAA), ICON (DWD), ECMWF IFS, GEM (CMC/Canada), JMA, UKMO, Météo-France.
+# Models that lack coverage for a region return null and are silently excluded.
+FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025,gem_seamless,jma_seamless,ukmo_seamless,meteofrance_seamless"
+
+# US cities where we also fetch NWS NDFD as an additional source.
+# NWS NDFD incorporates HRRR (3km) and NAM internally — equivalent to adding
+# those models without parsing GRIB2 files directly.
+_US_CITIES = {
+    "New York City", "Chicago", "Los Angeles", "Miami", "San Francisco",
+    "Dallas", "Houston", "Austin", "Denver", "Phoenix", "Atlanta", "Seattle",
+}
 
 # City → (lat, lon) of the EXACT weather station Polymarket resolves against.
 # All station codes verified from market description wunderground URLs (2026-05-20).
@@ -921,6 +930,41 @@ class WeatherArb:
 
         return round(est_max, 2), round(sigma, 2)
 
+    async def _fetch_nws_daily_max(self, lat: float, lon: float,
+                                     target_date: str) -> Optional[float]:
+        """NWS NDFD hourly forecast → daily max temp (°C) for target_date.
+        NWS internally blends HRRR (3km), NAM, and GFS — practical equivalent
+        of adding those models without parsing GRIB2 files."""
+        NWS_POINTS = f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}"
+        UA = "Klaus-WeatherBot/1.0 (leonard.bruns@gmail.com)"
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(
+                    NWS_POINTS, timeout=aiohttp.ClientTimeout(total=8),
+                    headers={"User-Agent": UA, "Accept": "application/geo+json"},
+                ) as r:
+                    if r.status != 200:
+                        return None
+                    pts = await r.json()
+                hourly_url = pts["properties"]["forecastHourly"]
+                async with sess.get(
+                    hourly_url, timeout=aiohttp.ClientTimeout(total=8),
+                    headers={"User-Agent": UA, "Accept": "application/geo+json"},
+                ) as r:
+                    if r.status != 200:
+                        return None
+                    fc = await r.json()
+            temps = []
+            for p in fc["properties"]["periods"]:
+                if p.get("startTime", "")[:10] == target_date:
+                    t = p["temperature"]
+                    unit = p.get("temperatureUnit", "F")
+                    temps.append((t - 32.0) * 5.0 / 9.0 if unit == "F" else float(t))
+            return max(temps) if temps else None
+        except Exception as e:
+            logger.debug("[WA] NWS fetch error: %s", e)
+            return None
+
     async def _fetch_weather_events(self) -> list[dict]:
         url = f"{GAMMA_BASE}/events?closed=false&limit=200&tag_slug=weather"
         try:
@@ -967,6 +1011,14 @@ class WeatherArb:
                         values.append(float(arr[i]))
                 if not values:
                     continue
+
+                # For US cities: add NWS NDFD (blends HRRR + NAM + GFS internally)
+                if d == tomorrow and city in _US_CITIES:
+                    nws_val = await self._fetch_nws_daily_max(lat, lon, tomorrow)
+                    if nws_val is not None:
+                        values.append(nws_val)
+                        logger.debug("[WA] NWS added %.1f°C for %s %s", nws_val, city, d)
+
                 mean = sum(values) / len(values)
                 # Dynamic sigma: model spread is the best uncertainty estimate.
                 spread = max(values) - min(values) if len(values) > 1 else 0.0
