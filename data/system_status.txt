@@ -2,16 +2,16 @@
 active
 
 ## Last 10 commits on klaus:
+a9f58a71 Update state_log with Tier 1A+1B deployment (2026-05-20)
+02fde431 2026-05-20 21:00 UTC | WEATHER / TIER 1A+1B | Add GraphCast, elevation-aware sigma
+7152dde1 Add weather exit audit analysis (2026-05-20)
+a3d803d8 2026-05-20 20:45 UTC | WEATHER / DIAGNOSTICS | Pause weather strategy, exit logic audit complete
 8cb88728 risk: exempt WEATHER_ARB and UPDOWN from all intraday exits
 bc88df24 Watchdog 2026-05-20T10:17:56Z: MEDIUM 2 alerts (backoff: VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
 24aba813 fix open_position call signature in weather_arb and updown
 4c243eea fix avg_fill_price attribute in weather_arb and updown
 2156839b weather_arb: fix clobTokenIds JSON-string parsing bug
 746874c0 updown: fix IndexError when market returns <2 outcomePrices
-848ed08d weather_arb: fix station coords + multi-model forecast with dynamic sigma
-10747157 Go live: CryptoUpDown and WeatherArb DRY_RUN_LOG=False
-8ae399cb Add CryptoUpDown and WeatherArb strategies (DRY_RUN mode)
-e9a026b3 Watchdog 2026-05-20T09:18:15Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   57G       37G  61% /
