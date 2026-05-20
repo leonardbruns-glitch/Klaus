@@ -524,9 +524,13 @@ class WeatherArb:
         self._today_markets_cache: list[dict] = []
         self._today_markets_ts: float = 0.0
 
-        # Tracks unfilled resting maker bids: {token_id: {resting_price, fair_prob, placed_ts}}
+        # Tracks unfilled resting maker bids: {token_id: {resting_price, fair_prob, placed_ts, lo_c, hi_c}}
         # Populated by _enter(); scanned by _evaluate_dynamic_exits() to cancel stale orders.
         self._pending_maker_orders: dict[str, dict] = {}
+
+        # Open-Meteo live current-conditions cache for non-ICAO cities.
+        # Keyed by (round(lat,2), round(lon,2)). Persists running_max_c across cycles.
+        self._om_live_cache: dict[tuple, dict] = {}
 
         from strategy.ensemble_weights import WeightedEnsemble
         self._ensemble = WeightedEnsemble()
@@ -562,13 +566,15 @@ class WeatherArb:
             logger.warning("[WA] no weather events returned")
             return
 
+        from strategy.resolution_mapper import resolve_station
+
         entries_made = 0
         for ev in events:
             city = _parse_city(ev.get("title", ""))
             if not city or city not in CITY_COORDS:
                 continue
 
-            lat, lon = CITY_COORDS[city]
+            city_lat, city_lon = CITY_COORDS[city]
 
             # Only process markets resolving today or tomorrow
             markets = []
@@ -585,7 +591,24 @@ class WeatherArb:
             if not markets:
                 continue
 
-            # Get forecast for this city (only once per city)
+            # ── Resolution source validation ──────────────────────────────────
+            # Polymarket resolves against a specific WU station (e.g. RKSI for Seoul,
+            # not downtown Seoul). Extract the exact sensor coords from the market
+            # description; skip if we cannot confirm the station within 50 km.
+            description = ev.get("description", "") or ""
+            if not description:
+                # Try first market's description as fallback
+                description = markets[0].get("description", "") or ""
+            station_result = resolve_station(description, city, city_lat, city_lon)
+            if station_result is None:
+                # No confirmed WU station → use city coords with a warning (permissive mode).
+                # To enforce strict mode: replace the next line with `continue`.
+                lat, lon = city_lat, city_lon
+                logger.debug("[WA] %s using city-centre coords (WU station unconfirmed)", city)
+            else:
+                _station_code, lat, lon = station_result
+
+            # Get forecast for this city (only once per city, at exact station coords)
             forecast = await self._get_forecast(lat, lon, today, tomorrow, city)
             if not forecast:
                 logger.debug("[WA] no forecast for %s", city)
@@ -736,12 +759,15 @@ class WeatherArb:
                     "[WA] maker order %s spread=%.4f bid=%.4f → %.4f",
                     token_id[:8], spread, best_bid, intended_price,
                 )
-                # Register as pending maker — orphan manager will cancel if model degrades
+                # Register as pending maker — orphan manager will cancel if model degrades.
+                # lo_c / hi_c are stored so the orphan check can recompute fair_prob exactly.
                 self._pending_maker_orders[token_id] = {
                     "resting_price": intended_price,
                     "fair_prob":     fair_prob,
                     "placed_ts":     time.time(),
                     "city":          city,
+                    "lo_c":          bucket_lo_c,
+                    "hi_c":          bucket_hi_c,
                 }
 
             from strategy.momentum import Direction as Dir
@@ -863,15 +889,28 @@ class WeatherArb:
         today = __import__("datetime").date.today().isoformat()
         events = await self._fetch_weather_events()
         entries = []
+        from strategy.resolution_mapper import resolve_station
         n_no_icao = 0
         for ev in events:
             city = _parse_city(ev.get("title", ""))
             if not city or city not in CITY_COORDS:
                 continue
-            lat, lon = CITY_COORDS[city]
+            city_lat, city_lon = CITY_COORDS[city]
             icao: Optional[str] = CITY_ICAO.get(city)   # None for non-validated stations
             if icao is None:
                 n_no_icao += 1
+
+            # Resolve exact WU station coords from market description
+            description = ev.get("description", "") or ""
+            station_result = resolve_station(description, city, city_lat, city_lon)
+            if station_result is not None:
+                station_icao, lat, lon = station_result
+                # If resolution mapper confirms an ICAO, trust it over our static table
+                if station_icao in __import__("strategy.resolution_mapper", fromlist=[""]).STATION_COORDS:
+                    icao = station_icao
+            else:
+                lat, lon = city_lat, city_lon   # fallback to city centre
+
             for mkt in ev.get("markets", []):
                 if mkt.get("endDate", "")[:10] != today:
                     continue
@@ -1181,22 +1220,37 @@ class WeatherArb:
                 logger.exception("[WA] nowcast exit sell failed %s", token_id[:12])
 
         # ── B) ORPHANED ORDER CANCELLATION ───────────────────────────────────
-        # A maker bid is "orphaned" when a new METAR-updated forecast shows
-        # fair_prob < resting_price: we would be buying at a price above fair value.
+        # Cancel condition (exact): (new_fair_prob − resting_price) < EDGE_MIN
+        #
+        # "new_fair_prob" is a full recomputation using the current NWP ensemble
+        # + METAR microclimate correction, over the exact same bucket bounds (lo_c, hi_c)
+        # that triggered the original entry. This catches:
+        #   - Model mean drift (e.g., a new GFS run cools the forecast by 2°C)
+        #   - METAR microclimate flips (sea breeze establishes, THI disappears)
+        #   - Sigma widening (convective uncertainty grows) that erodes the probability mass
+        # Any of these can drop new_fair_prob below resting_price + EDGE_MIN without
+        # old_fair_prob moving at all — the old proxy check was blind to all three.
         if not self._pending_maker_orders:
             return
 
+        from datetime import timedelta as _td
         today    = now_utc.date().isoformat()
-        tomorrow = (now_utc.date() + __import__("datetime").timedelta(days=1)).isoformat()
+        tomorrow = (now_utc.date() + _td(days=1)).isoformat()
 
         stale_tokens = []
         for token_id, order in list(self._pending_maker_orders.items()):
             city          = order.get("city", "")
             resting_price = order.get("resting_price", 1.0)
             placed_ts     = order.get("placed_ts", 0.0)
+            lo_c          = order.get("lo_c")
+            hi_c          = order.get("hi_c")
 
-            # Only re-evaluate orders older than 60s (new orders get a grace period)
+            # Grace period: don't re-evaluate orders placed in the last 60s
             if time.time() - placed_ts < 60.0:
+                continue
+
+            # Cannot compute fair_prob without bucket bounds — leave the order alive
+            if lo_c is None and hi_c is None:
                 continue
 
             coords = CITY_COORDS.get(city)
@@ -1204,7 +1258,8 @@ class WeatherArb:
                 continue
             lat, lon = coords
 
-            # Re-fetch forecast with current METAR corrections baked in
+            # Re-fetch full forecast with live METAR microclimate correction baked in.
+            # _get_forecast() reads self._latest_metar which was warmed by _refresh_all_metars().
             try:
                 forecast = await self._get_forecast(lat, lon, today, tomorrow, city)
             except Exception:
@@ -1212,44 +1267,46 @@ class WeatherArb:
             if not forecast:
                 continue
 
-            # Use tomorrow's forecast (that's what day-ahead maker orders are for)
+            # Day-ahead maker orders target tomorrow's market
             forecast_entry = forecast.get(tomorrow)
             if not forecast_entry:
                 continue
             new_mu, new_sigma = forecast_entry
 
-            # We don't have the original lo/hi here — conservative check:
-            # if the whole forecast mean has drifted more than 1σ against us,
-            # treat it as degraded. A tighter check requires storing the bucket
-            # bounds with the order (already possible — extend if needed).
-            old_fair = order.get("fair_prob", 0.0)
-            # Rough re-evaluation: if new fair_prob (using same bucket bounds)
-            # is below the resting price, the order is no longer backed by edge.
-            # We use the stored fair_prob as proxy for "model still agrees".
-            # For a hard recalculation you need lo/hi — store them in _pending_maker_orders
-            # when extending this system. Current check: if model mean shifted by >1.5σ
-            # toward unfavourable direction, cancel.
-            if abs(new_mu - (new_mu)) < 1e-6:  # placeholder until lo/hi stored
-                pass  # fallback: use fair_prob staleness below
+            # Recompute fair probability over the exact same whole-degree boundaries:
+            # new_fair_prob = Φ((hi+0.5−μ)/σ) − Φ((lo−0.5−μ)/σ)
+            new_fair_prob = _outcome_prob(new_mu, lo_c, hi_c, new_sigma)
 
-            # Staleness check: if the stored fair_prob is now below resting price by margin
-            # (model has flipped), cancel.
-            if old_fair < resting_price + 0.02:
-                logger.warning(
-                    "[WA] ORPHAN CANCEL %s city=%s | old_fair=%.3f < resting=%.3f+margin "
-                    "after %.0fs | cancelling maker bid",
-                    token_id[:12], city, old_fair, resting_price, time.time() - placed_ts,
+            # Edge-decay cancel condition: (new_fair_prob − resting_price) < EDGE_MIN
+            # Example: resting=$0.12, new_fair=0.15 → edge=0.03 < EDGE_MIN=0.08 → CANCEL
+            residual_edge = new_fair_prob - resting_price
+            if residual_edge >= EDGE_MIN:
+                logger.debug(
+                    "[WA] ORPHAN OK %s city=%s | new_fair=%.3f resting=%.3f "
+                    "edge=%.3f >= EDGE_MIN=%.2f",
+                    token_id[:12], city, new_fair_prob, resting_price, residual_edge, EDGE_MIN,
                 )
-                stale_tokens.append(token_id)
-                if not DRY_RUN_LOG:
-                    try:
-                        await self.bot.orders.cancel(token_id=token_id)
-                    except Exception:
-                        logger.exception("[WA] orphan cancel failed %s", token_id[:12])
+                continue
+
+            logger.warning(
+                "[WA] ORPHAN CANCEL %s city=%s | new_fair=%.3f resting=%.3f "
+                "edge=%.3f < EDGE_MIN=%.2f (was %.3f) | after %.0fs → CANCEL",
+                token_id[:12], city, new_fair_prob, resting_price,
+                residual_edge, EDGE_MIN, order.get("fair_prob", 0.0),
+                time.time() - placed_ts,
+            )
+            stale_tokens.append(token_id)
+            if not DRY_RUN_LOG:
+                try:
+                    await self.bot.orders.cancel(token_id=token_id)
+                except Exception:
+                    logger.exception("[WA] orphan cancel failed %s", token_id[:12])
+            else:
+                logger.info("[WA] [DRY] would cancel orphan %s edge=%.3f", token_id[:12], residual_edge)
 
         for tid in stale_tokens:
             self._pending_maker_orders.pop(tid, None)
-            self._fired_tokens.discard(tid)  # allow re-evaluation on next scan
+            self._fired_tokens.discard(tid)  # allow re-evaluation on next scan cycle
 
     async def _intraday_scan(self) -> None:
         """
@@ -1282,16 +1339,22 @@ class WeatherArb:
             icao = entry["icao"]
             mkt  = entry["mkt"]
 
-            # Intraday requires live METAR — cities without ICAO use 30-min forecast loop
-            if not icao:
-                continue
-            metar = self._icao_metar_cache.get(icao)
-            if not metar:
-                continue
+            # Resolve live current conditions.
+            # ICAO cities: use the METAR batch already in _icao_metar_cache.
+            # Non-ICAO cities: call Open-Meteo /current (cloud_cover, temp_2m, wind_10m)
+            #   via _refresh_open_meteo_live() which persists running_max_c between cycles.
+            if icao:
+                obs = self._icao_metar_cache.get(icao)
+                if not obs:
+                    continue
+            else:
+                obs = await self._refresh_open_meteo_live(entry["lat"], entry["lon"])
+                if not obs:
+                    continue
 
-            temp_c          = metar.get("temp_c")
-            running_max     = metar.get("running_max_c")
-            sky_cover       = metar.get("sky_cover", "CLR")
+            temp_c      = obs.get("temp_c")
+            running_max = obs.get("running_max_c")
+            sky_cover   = obs.get("sky_cover", "CLR")
             if temp_c is None or running_max is None:
                 continue
 
@@ -1359,11 +1422,12 @@ class WeatherArb:
             if edge < INTRADAY_EDGE_MIN:
                 continue
 
-            pre_post = "PRE-PEAK" if (peak_hour is not None and now_utc.hour < peak_hour) else "POST-PEAK"
+            pre_post   = "PRE-PEAK" if (peak_hour is not None and now_utc.hour < peak_hour) else "POST-PEAK"
+            source_tag = icao if icao else "OM_LIVE"
             logger.info(
-                "[WA] INTRADAY %s %s %s | icao=%s T_cur=%.1f T_run=%.1f "
+                "[WA] INTRADAY %s %s %s | src=%s T_cur=%.1f T_run=%.1f "
                 "μ_nc=%.1f σ=%.2f P=%.3f poly=%.3f edge=%.3f",
-                pre_post, city, today, icao, temp_c, running_max,
+                pre_post, city, today, source_tag, temp_c, running_max,
                 est_max, nc_sigma, p_intraday, poly_yes, edge,
             )
 
@@ -1723,6 +1787,93 @@ class WeatherArb:
                 if rank.get(key, 0) > rank.get(best, 0):
                     best = key
         return best
+
+    async def _refresh_open_meteo_live(self, lat: float, lon: float) -> Optional[dict]:
+        """
+        Fetch current conditions from Open-Meteo for cities without an ICAO METAR station.
+
+        Endpoint: /v1/forecast?current=temperature_2m,cloud_cover,wind_speed_10m
+        Returns a dict compatible with _icao_metar_cache entries so the rest of the
+        intraday scan pipeline (nowcast, probability calc) works identically.
+
+        running_max_c persists across calls via _om_live_cache (keyed by rounded coords).
+        Cloud cover → sky_cover mapping:
+          0–10%  → CLR (S_f = 1.00)
+          11–25% → FEW (S_f = 0.85)
+          26–50% → SCT (S_f = 0.60)
+          51–84% → BKN (S_f = 0.30)
+          85–100%→ OVC (S_f = 0.08)
+        """
+        from datetime import datetime, timezone, date as _date
+        key = (round(lat, 2), round(lon, 2))
+        today_str = _date.today().isoformat()
+
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat:.4f}&longitude={lon:.4f}"
+            f"&current=temperature_2m,cloud_cover,wind_speed_10m"
+            f"&temperature_unit=celsius&wind_speed_unit=kn"
+        )
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(url, timeout=aiohttp.ClientTimeout(total=6)) as resp:
+                    if resp.status != 200:
+                        return None
+                    data = await resp.json()
+        except Exception as e:
+            logger.debug("[WA] OM_LIVE fetch error lat=%.2f lon=%.2f: %s", lat, lon, e)
+            return None
+
+        current = data.get("current", {})
+        temp_c      = current.get("temperature_2m")
+        cloud_pct   = current.get("cloud_cover", 0)
+        wind_kt     = current.get("wind_speed_10m")
+        obs_ts      = current.get("time", "")  # ISO string e.g. "2026-05-20T14:00"
+
+        if temp_c is None:
+            return None
+        temp_c = float(temp_c)
+
+        # Cloud cover → sky_cover
+        cloud_pct = int(cloud_pct or 0)
+        if cloud_pct <= 10:
+            sky_cover = "CLR"
+        elif cloud_pct <= 25:
+            sky_cover = "FEW"
+        elif cloud_pct <= 50:
+            sky_cover = "SCT"
+        elif cloud_pct <= 84:
+            sky_cover = "BKN"
+        else:
+            sky_cover = "OVC"
+
+        # Persist running_max_c; reset at midnight
+        cached = self._om_live_cache.setdefault(key, {
+            "running_max_c": None, "running_max_date": today_str, "prev_temp_c": None,
+        })
+        if cached.get("running_max_date") != today_str:
+            cached["running_max_c"] = None
+            cached["running_max_date"] = today_str
+
+        prev_max = cached.get("running_max_c")
+        new_max  = temp_c if (prev_max is None or temp_c > prev_max) else prev_max
+
+        # Parse approximate UTC hour from the obs_ts string
+        try:
+            obs_utc_hour = int(obs_ts[11:13])
+        except Exception:
+            obs_utc_hour = datetime.now(timezone.utc).hour
+
+        cached.update({
+            "temp_c":        temp_c,
+            "prev_temp_c":   cached.get("temp_c"),
+            "running_max_c": new_max,
+            "sky_cover":     sky_cover,
+            "wind_speed_kt": float(wind_kt) if wind_kt is not None else None,
+            "utc_hour":      obs_utc_hour,
+            "cloud_pct":     cloud_pct,
+        })
+        return cached
 
     async def _get_hourly_forecast(self, lat: float, lon: float) -> dict[int, float]:
         """Fetch today's hourly max-2m-temp forecast in UTC. Cached per station per day."""
