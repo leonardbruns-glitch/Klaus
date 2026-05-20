@@ -226,7 +226,7 @@ class TradeRecord:
 # ── Main validation ───────────────────────────────────────────────────────────
 
 def run_validation(cities: list[str], days_back: int, verbose: bool = False,
-                   use_wu: bool = True) -> tuple[list[TradeRecord], str]:
+                   use_wu: bool = True, fetch_clob: bool = True) -> tuple[list[TradeRecord], str]:
     """
     Returns (records, temp_source) where temp_source is 'wu' or 'archive'.
     The WU source matches Polymarket's resolution (whole-°C rounding, exact station).
@@ -247,9 +247,12 @@ def run_validation(cities: list[str], days_back: int, verbose: bool = False,
             continue
         print(f"  found {len(markets)} resolved market-days")
 
-        # Attach realistic CLOB entry prices
-        print("  fetching CLOB price history...", flush=True)
-        attach_entry_prices(markets)
+        # Attach realistic CLOB entry prices (slow: ~1 HTTP req per bucket)
+        if fetch_clob:
+            print("  fetching CLOB price history...", flush=True)
+            attach_entry_prices(markets)
+        else:
+            print("  skipping CLOB (--no-clob): strategy sim disabled, model accuracy only")
 
         # Attach actual temperatures from WU (resolution source) or archive (fallback)
         wu_ok = False
@@ -519,6 +522,8 @@ def main() -> None:
     p.add_argument("--verbose", action="store_true", help="Print per-market details")
     p.add_argument("--no-wu", action="store_true",
                    help="Skip WU Playwright scraper, use Open-Meteo archive instead")
+    p.add_argument("--no-clob", action="store_true",
+                   help="Skip CLOB price history (fast, model accuracy only — no strategy sim)")
     args = p.parse_args()
 
     cities = [c.strip() for c in args.cities.split(",") if c.strip()] if args.cities else ALL_CITIES
@@ -528,9 +533,11 @@ def main() -> None:
         sys.exit(1)
 
     use_wu = not args.no_wu
+    fetch_clob = not args.no_clob
     print(f"Weather signal validation — last {args.days} days, cities: {cities}")
     print(f"Temperature source: {'WU scraper (Playwright)' if use_wu else 'Open-Meteo archive'}")
-    records, temp_source = run_validation(cities, args.days, verbose=args.verbose, use_wu=use_wu)
+    records, temp_source = run_validation(cities, args.days, verbose=args.verbose,
+                                          use_wu=use_wu, fetch_clob=fetch_clob)
     report(records, temp_source)
 
 
