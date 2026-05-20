@@ -65,8 +65,8 @@ Run before any analysis or code change:
 | Synchrony threshold | THR=0.005 | Relaxed to 0.001 for H06/H21 |
 | Stakes | BTC $15, ETH $15, SOL $3 | Fixed per-asset; partial fills accepted |
 | Max concurrent | 2 | Across all assets |
-| Blocked hours (global) | {1,2,3,5,14,16,18,21} UTC | Negative EV in shadow/live |
-| Blocked hours (SOL) | {5,11,13,18,22,23} UTC | Additional SOL-specific blocks |
+| Blocked hours (global) | {1,2,3,14,16,18,21} UTC | Negative EV in shadow/live |
+| Blocked hours (SOL) | {11,13,18,22,23} UTC | Additional SOL-specific blocks |
 | Exit | Hold to resolution | No PT, no SL — token resolves 1.0 or 0.0 |
 | PnL convention | exit_price=1.0 if correct direction | Patched at resolution via kline |
 
