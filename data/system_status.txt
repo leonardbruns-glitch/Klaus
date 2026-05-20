@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+1e6ff563 weather: nowcast formula — bias-correct forecast with live METAR + sky cover
+81f944b1 Watchdog 2026-05-20T15:19:03Z: MEDIUM 2 alerts
 b8ba3504 weather: live METAR tracker — poll AWC every 60s for all open positions
 e51497c1 weather: exclude WEATHER_ARB from cascade abort
 cca17465 weather: fix broken FORECAST_MODELS — replace deprecated names with working ones
@@ -10,14 +12,12 @@ bebe2f1a weather: exclude WEATHER_ARB from HARD_EXIT timer
 5bb0b4f4 weather: hold-favourites scalp-mids policy + WS exit, orphan-safe
 7df4595e weather: honest assessment - real data validation gaps identified
 8da31369 state: log CRITICAL model validation finding (100% win rate 27/27 when forecaster contradicts market)
-e57b92d2 weather: model validation framework + CRITICAL FINDING: 100% win rate when forecaster contradicts market
-b03a03e6 state: log WEATHER_REPRICING strategy finalized (comprehensive backtest, AROME 146% ROI 100% WR)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   58G       35G  63% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 15:18:15 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 15:24:05 UTC
 
 ## Open positions (count):
 0
