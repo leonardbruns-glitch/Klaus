@@ -801,8 +801,12 @@ class WeatherArb:
         if not (ASK_BAND_LO <= poly_yes < ask_hi):
             return None
 
-        logger.info("[WA] CANDIDATE %s %s poly=%.3f fair=%.3f edge=%.3f %s",
-                    city, end_date, poly_yes, fair_prob, edge, question[:55])
+        logger.info("[WA] CANDIDATE %s %s poly=%.3f fair=%.3f edge=%.3f mu=%.2f°C sigma=%.2f°C bucket=[%.1f,%.1f] %s",
+                    city, end_date, poly_yes, fair_prob, edge,
+                    forecast_mean, effective_sigma_c,
+                    lo_c if lo_c is not None else float("-inf"),
+                    hi_c if hi_c is not None else float("inf"),
+                    question[:55])
 
         return {
             "token_id":      token_id,
@@ -952,10 +956,13 @@ class WeatherArb:
                         logger.debug("[WA] WS subscribe queue full for %s", token_id[:12])
                 except Exception:
                     logger.exception("[WA] failed to register %s with feed", token_id[:12])
-                logger.info("[WA] FILLED %s shares=%.1f @ %.4f scalp_tp=%.4f%s",
-                            question[:45], fill.total_size, fill.avg_fill_price,
-                            _scalp_tp,
-                            "" if _scalp_tp > 0 else " (hold-to-resolution)")
+                _mu_log = expected_max_c if expected_max_c is not None else float("nan")
+                logger.info(
+                    "[WA] FILLED %s shares=%.1f @ %.4f fair=%.3f mu=%.2f°C scalp_tp=%.4f%s",
+                    question[:45], fill.total_size, fill.avg_fill_price,
+                    fair_prob, _mu_log, _scalp_tp,
+                    "" if _scalp_tp > 0 else " (hold-to-resolution)",
+                )
                 return True
             else:
                 self._close_position(token_id)
