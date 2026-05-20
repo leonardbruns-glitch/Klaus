@@ -72,6 +72,33 @@ INTRADAY_MIN_PROB   = 0.80   # minimum nowcast P(bucket) to enter today's market
 INTRADAY_EDGE_MIN   = 0.06   # lower edge threshold (harder signal, less spread required)
 INTRADAY_ASK_CAP    = 0.92   # upper price cap for intraday entries (near-certainty buys)
 INTRADAY_STAKE_FRAC = 0.60   # fractional Kelly multiplier for intraday (higher certainty → less fractional)
+TODAY_MARKETS_TTL   = 1800   # seconds between today's-market list refreshes (30 min)
+
+# ── CLOB / VWAP execution layer ───────────────────────────────────────────────
+CLOB_BASE        = "https://clob.polymarket.com"
+MAKER_FIRST      = True      # default: rest at best_bid+tick (passive fill)
+TAKER_EDGE_MIN   = 0.15      # override to taker when edge this large (captures before repricing)
+CLOB_TICK        = 0.01      # minimum price increment for weather markets
+
+# ── Tail-risk sniper ($0.01–$0.04 tokens) ────────────────────────────────────
+TAIL_SNIPER_ENABLED  = True
+TAIL_PRICE_LO        = 0.01   # minimum token price for tail sniper
+TAIL_PRICE_HI        = 0.04   # maximum token price for tail sniper
+TAIL_STAKE_TOKENS    = 500    # flat share count (= $5–$20 total risk, max loss clearly bounded)
+FOEHN_TEMP_RISE_C    = 1.5    # °C rapid rise in one 30-min METAR cycle → anomaly trigger
+FOEHN_DEW_SPREAD_C   = 10.0   # temp − dewpoint > this → dry air, Foehn-consistent
+FOEHN_WIND_MIN_KT    = 12.0   # minimum wind speed for directional Foehn trigger
+FOEHN_MAX_GAP_C      = 3.0    # bucket_lo − running_max must be ≤ this to fire (reachable target)
+
+# Foehn / downslope wind directions per ICAO (bearing FROM which warm dry air descends).
+# Only stations with meaningful downslope exposure are listed.
+FOEHN_WIND_SECTORS: dict[str, tuple[float, float]] = {
+    "KLAX": (30.0,  90.0),   # Santa Ana: NE–E, descends from San Gabriel/Santa Monica Mtns
+    "KSFO": (30.0,  80.0),   # Diablo wind: NE–ENE, descends from Diablo Range
+    "KSEA": (30.0,  80.0),   # E–Cascade downslope
+    "KBKF": (270.0, 330.0),  # Denver Chinook: W–NW off Front Range
+    "RJTT": (300.0, 360.0),  # NW downslope from Japanese Alps in winter
+}
 
 # Hold-favourites / scalp-mids policy (London 30d backtest 2026-05-20).
 # Favourites: entry in [SCALP_BAND_HI, 1.0) — hold to PROFIT_TARGET=0.99 or resolution.
@@ -481,7 +508,20 @@ class WeatherArb:
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
-        self._latest_metar: dict[str, dict] = {}     # icao → {wind_speed_kt, wind_dir_deg, sky_cover, utc_hour}
+
+        # Universal per-ICAO METAR cache — populated by _refresh_all_metars(),
+        # shared by _poll_metars(), _intraday_scan(), and _tail_sniper_check().
+        # Keyed by ICAO; persists running_max_c across poll cycles.
+        self._icao_metar_cache: dict[str, dict] = {}
+
+        # Alias kept for forecast-correction path (reads same dict by a different name).
+        self._latest_metar = self._icao_metar_cache
+
+        # Today's active weather markets, refreshed every TODAY_MARKETS_TTL seconds.
+        # Each entry: {city, icao, lat, lon, mkt} for every open bucket today.
+        self._today_markets_cache: list[dict] = []
+        self._today_markets_ts: float = 0.0
+
         from strategy.ensemble_weights import WeightedEnsemble
         self._ensemble = WeightedEnsemble()
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
@@ -661,7 +701,7 @@ class WeatherArb:
         self._fired_tokens.add(token_id)
 
         logger.info("[WA] ENTER city=%s date=%s poly=%.3f fair=%.3f stake=$%.0f%s",
-                    city, end_date, poly_price, fair_prob, STAKE_USD,
+                    city, end_date, poly_price, fair_prob, stake,
                     " [DRY]" if DRY_RUN_LOG else "")
         logger.info("[WA]   q=%s", question[:70])
 
@@ -669,10 +709,21 @@ class WeatherArb:
             return True
 
         try:
+            # CLOB pre-flight: fetch book to decide maker vs taker price
+            best_bid, best_ask, vwap, has_depth = await self._fetch_book_and_vwap(token_id, stake)
+            edge = fair_prob - poly_price
+            use_taker = (not MAKER_FIRST) or (edge >= TAKER_EDGE_MIN) or (not has_depth)
+            if use_taker:
+                intended_price = vwap if has_depth else best_ask
+                logger.debug("[WA] taker order %s edge=%.3f vwap=%.4f", token_id[:8], edge, intended_price)
+            else:
+                intended_price = round(best_bid + CLOB_TICK, 4)
+                logger.debug("[WA] maker order %s bid=%.4f → %.4f", token_id[:8], best_bid, intended_price)
+
             from strategy.momentum import Direction as Dir
             fill = await self.bot.orders.limit_buy(
                 token_id=token_id,
-                intended_price=poly_price,
+                intended_price=intended_price,
                 stake_usd=stake,
                 direction=Dir.BUY_YES,
                 neg_risk=neg_risk,
@@ -754,184 +805,32 @@ class WeatherArb:
         await asyncio.sleep(30)
         while True:
             try:
+                # 1. Refresh universal METAR cache for ALL relevant ICAOs in one batch
+                await self._refresh_all_metars()
+                # 2. Monitor open positions (nowcast + dynamic exits) from cache
                 await self._poll_metars()
+                # 3. Scan ALL today's markets for intraday arb (not just positions we hold)
                 if INTRADAY_ENABLED:
                     await self._intraday_scan()
+                # 4. Tail sniper on $0.01–$0.04 tokens
+                if TAIL_SNIPER_ENABLED:
+                    await self._tail_sniper_check()
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
 
-    async def _poll_metars(self) -> None:
-        # Collect all open WEATHER_ARB positions that have an ICAO code
-        if not hasattr(self.bot, "_open_meta") or not hasattr(self.bot, "risk"):
-            return
-        tracked: dict[str, list[str]] = {}  # icao → [token_id, ...]
-        for token_id, meta in self.bot._open_meta.items():
-            if not isinstance(meta, dict):
-                continue
-            icao = meta.get("icao")
-            if not icao:
-                continue
-            if token_id not in self.bot.risk.open_positions:
-                continue
-            tracked.setdefault(icao, []).append(token_id)
-        if not tracked:
-            return
-
-        # Batch fetch: comma-separate all unique ICAOs in one request
-        icao_list = ",".join(tracked.keys())
-        url = f"https://aviationweather.gov/api/data/metar?ids={icao_list}&format=json&hours=1"
-        try:
-            async with aiohttp.ClientSession() as sess:
-                async with sess.get(
-                    url,
-                    timeout=aiohttp.ClientTimeout(total=10),
-                    headers={"User-Agent": "Klaus-WeatherBot/1.0"},
-                ) as resp:
-                    if resp.status != 200:
-                        return
-                    records = await resp.json()
-        except Exception as e:
-            logger.debug("[WA] metar fetch error: %s", e)
-            return
-
-        # Group records by station, keep most recent per station
-        latest_by_icao: dict[str, dict] = {}
-        for rec in records:
-            icao = rec.get("icaoId") or rec.get("stationId", "")
-            if not icao:
-                continue
-            if icao not in latest_by_icao or rec.get("obsTime", 0) > latest_by_icao[icao].get("obsTime", 0):
-                latest_by_icao[icao] = rec
-
-        from datetime import datetime, timezone
-        for icao, token_ids in tracked.items():
-            rec = latest_by_icao.get(icao)
-            if not rec:
-                continue
-            obs_time = rec.get("obsTime", 0)
-            temp_c = rec.get("temp")
-            if temp_c is None:
-                continue
-            sky_cover = self._parse_sky_cover(rec.get("rawOb", ""))
-            wind_speed_kt = rec.get("wspd")   # knots
-            wind_dir_deg  = rec.get("wdir")   # degrees
-
-            # Cache latest METAR per station for use in forecast corrections
-            _obs_utc_hour = datetime.fromtimestamp(obs_time, tz=timezone.utc).hour if obs_time else None
-            self._latest_metar[icao] = {
-                "wind_speed_kt": float(wind_speed_kt) if wind_speed_kt is not None else None,
-                "wind_dir_deg":  float(wind_dir_deg)  if wind_dir_deg  is not None else None,
-                "sky_cover":     sky_cover,
-                "utc_hour":      _obs_utc_hour,
-            }
-
-            for token_id in token_ids:
-                meta = self.bot._open_meta.get(token_id, {})
-                if obs_time <= meta.get("last_obs_time", 0):
-                    continue  # no new METAR since last poll
-
-                meta["last_obs_time"] = obs_time
-                prev_max = meta.get("running_max_c")
-                new_max = temp_c if (prev_max is None or temp_c > prev_max) else prev_max
-                meta["running_max_c"] = new_max
-
-                lo = meta.get("bucket_lo_c")
-                hi = meta.get("bucket_hi_c")
-                lo_bound = (lo - 0.5) if lo is not None else None
-                hi_bound = (hi + 0.5) if hi is not None else None
-
-                # Nowcast: estimated daily max given current conditions
-                city = meta.get("city", "")
-                coords = CITY_COORDS.get(city)
-                est_max, nc_sigma = None, None
-                if coords:
-                    try:
-                        est_max, nc_sigma = await self._nowcast_max(
-                            coords[0], coords[1], new_max, temp_c, sky_cover, city
-                        )
-                        meta["est_daily_max_c"] = est_max
-                        meta["nc_sigma"] = nc_sigma
-                    except Exception:
-                        pass
-
-                # Running-max hard check
-                if hi_bound is not None and new_max >= hi_bound:
-                    status = "ABOVE BUCKET ✗"
-                elif lo_bound is not None and new_max >= lo_bound:
-                    status = "IN BUCKET"
-                else:
-                    gap = (lo_bound - new_max) if lo_bound is not None else 0.0
-                    status = f"BELOW BUCKET gap={gap:+.1f}°C"
-
-                # Nowcast probability
-                p_nc: Optional[float] = None
-                p_str = ""
-                if est_max is not None and lo is not None and nc_sigma is not None:
-                    p_nc = _outcome_prob(est_max, lo, hi, nc_sigma)
-                    p_str = f" | nowcast_max={est_max:.1f}°C σ={nc_sigma:.1f} P(bucket)={p_nc:.3f}"
-
-                obs_dt = datetime.fromtimestamp(obs_time, tz=timezone.utc).strftime("%H:%M UTC")
-                logger.info(
-                    "[WA] METAR %s %s | sky=%s temp=%.1f°C run_max=%.1f°C | bucket=[%.1f,%.1f) | %s%s",
-                    icao, obs_dt, sky_cover, temp_c, new_max,
-                    lo_bound if lo_bound is not None else -99.0,
-                    hi_bound if hi_bound is not None else 99.0,
-                    status, p_str,
-                )
-
-                # ── Dynamic exit: nowcast collapsed, salvage remaining bid value ──
-                if (
-                    p_nc is not None
-                    and p_nc < NOWCAST_EXIT_FLOOR
-                    and token_id in self.bot.risk.open_positions
-                ):
-                    pos = self.bot.risk.open_positions[token_id]
-                    current_bid = getattr(pos, "current_price", 0.0) or 0.0
-                    if current_bid > SALVAGE_MIN_BID and not DRY_RUN_LOG:
-                        logger.warning(
-                            "[WA] NOWCAST EXIT %s | P(bucket)=%.3f < floor %.2f | bid=%.3f — salvaging",
-                            icao, p_nc, NOWCAST_EXIT_FLOOR, current_bid,
-                        )
-                        try:
-                            await self.bot.orders.limit_sell(
-                                token_id=token_id,
-                                price=round(current_bid - 0.01, 4),  # undercut bid by 1 tick
-                                size=pos.shares,
-                                condition_id=pos.condition_id,
-                            )
-                        except Exception:
-                            logger.exception("[WA] nowcast exit sell failed %s", token_id[:12])
-                    elif current_bid > SALVAGE_MIN_BID:
-                        logger.info("[WA] [DRY] would nowcast-exit %s bid=%.3f", icao, current_bid)
-
-    async def _intraday_scan(self) -> None:
+    async def _refresh_today_markets(self) -> None:
         """
-        Front-run the WU→Polymarket publication lag using live METAR running_max.
-
-        Signal class: observational arb (hard), NOT forecast arb (soft).
-        Fires only when:
-          1. Current UTC hour >= city's historical peak hour + 1 (daily max has passed)
-          2. running_max_c >= bucket_lo_c  (METAR confirms temperature hit this bucket)
-          3. Nowcast P(bucket) >= INTRADAY_MIN_PROB (0.80)
-          4. Polymarket is still pricing the token below INTRADAY_ASK_CAP
-          5. Edge >= INTRADAY_EDGE_MIN
-
-        This is a different trade class: we know the answer from METAR; we are buying
-        before WU posts and Polymarket reprices. Stake uses INTRADAY_STAKE_FRAC Kelly.
+        Fetch the full list of today's open weather market buckets from Gamma API.
+        Cached for TODAY_MARKETS_TTL seconds (30 min) — markets don't open/close rapidly.
+        Populates self._today_markets_cache: [{city, icao, lat, lon, mkt}, ...]
         """
-        from datetime import datetime, timezone
-        now_utc = datetime.now(timezone.utc)
-        today = now_utc.date().isoformat()
-
-        # Only run during window where daily max is likely settled (9am–5pm local is
-        # approximated by checking past the ASOS peak hour per city).
-        # We check per city below using CITY_PEAK_HOUR_UTC.
-
+        import time as _time
+        if _time.time() - self._today_markets_ts < TODAY_MARKETS_TTL:
+            return
+        today = __import__("datetime").date.today().isoformat()
         events = await self._fetch_weather_events()
-        if not events:
-            return
-
+        entries = []
         for ev in events:
             city = _parse_city(ev.get("title", ""))
             if not city or city not in CITY_COORDS:
@@ -939,32 +838,7 @@ class WeatherArb:
             icao = CITY_ICAO.get(city)
             if not icao:
                 continue
-
-            # Check we have a recent METAR for this station
-            metar = self._latest_metar.get(icao)
-            if not metar:
-                continue
-            running_max = metar.get("running_max_c")  # cached by _poll_metars per position
-            # running_max lives in _open_meta, not _latest_metar. Use the per-icao cache instead.
-            # For intraday we need the actual per-station running max from existing positions.
-            station_running_max: Optional[float] = None
-            for token_id, meta in self.bot._open_meta.items():
-                if isinstance(meta, dict) and meta.get("icao") == icao:
-                    rmax = meta.get("running_max_c")
-                    if rmax is not None:
-                        station_running_max = rmax if station_running_max is None else max(station_running_max, rmax)
-            if station_running_max is None:
-                continue  # no tracked position for this station → no running_max
-
-            slug = CITY_NAME_TO_SLUG.get(city, "")
-            peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
-            if peak_hour is None:
-                continue
-            if now_utc.hour < peak_hour + 1:
-                continue  # daily max may not have occurred yet — wait
-
             lat, lon = CITY_COORDS[city]
-
             for mkt in ev.get("markets", []):
                 if mkt.get("endDate", "")[:10] != today:
                     continue
@@ -973,53 +847,291 @@ class WeatherArb:
                 token_ids_raw = _parse_token_ids(mkt.get("clobTokenIds", []))
                 if not token_ids_raw:
                     continue
-                token_id = token_ids_raw[0]
-                if token_id in self._fired_tokens:
-                    continue
+                entries.append({"city": city, "icao": icao, "lat": lat, "lon": lon, "mkt": mkt})
+        self._today_markets_cache = entries
+        self._today_markets_ts = _time.time()
+        if entries:
+            icaos_found = {e["icao"] for e in entries}
+            logger.info("[WA] today's markets: %d buckets across %d stations",
+                        len(entries), len(icaos_found))
 
-                prices_raw = mkt.get("outcomePrices", '["0.5"]')
-                prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
-                poly_yes = float(prices[0])
-                if poly_yes < 0.01 or poly_yes > INTRADAY_ASK_CAP:
-                    continue
+    async def _refresh_all_metars(self) -> None:
+        """
+        Single batched METAR fetch for ALL relevant ICAOs:
+          - ICAOs for today's active market cities (from _today_markets_cache)
+          - ICAOs for any open positions in _open_meta
 
-                lo_c, hi_c, is_celsius = _parse_outcome(mkt.get("question", ""))
-                if lo_c is None and hi_c is None:
-                    continue
+        Updates _icao_metar_cache[icao] with latest observation.
+        Preserves running_max_c across cycles (only resets at midnight).
+        """
+        # Refresh market list if stale
+        await self._refresh_today_markets()
 
-                # Hard METAR check: has running_max already confirmed this bucket?
-                lo_bound = (lo_c - 0.5) if lo_c is not None else None
-                hi_bound = (hi_c + 0.5) if hi_c is not None else None
-                if hi_bound is not None and station_running_max >= hi_bound:
-                    continue  # temperature already exceeded upper bound → skip
-                if lo_bound is not None and station_running_max < lo_bound:
-                    continue  # temperature hasn't reached lower bound yet → skip
+        # Collect all ICAOs needed
+        icaos: set[str] = {e["icao"] for e in self._today_markets_cache}
+        if hasattr(self.bot, "_open_meta"):
+            for meta in self.bot._open_meta.values():
+                if isinstance(meta, dict) and meta.get("icao"):
+                    icaos.add(meta["icao"])
+        if not icaos:
+            return
 
-                # Nowcast P(bucket) with shrunk sigma
-                cal_sigma = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, 1.5)
-                hours_to_peak = max(0.0, peak_hour - now_utc.hour)
-                nc_sigma = max(0.2, cal_sigma * (hours_to_peak / 12.0) ** 0.5)
-                p_intraday = _outcome_prob(station_running_max, lo_c, hi_c, nc_sigma)
+        url = (f"https://aviationweather.gov/api/data/metar"
+               f"?ids={','.join(icaos)}&format=json&hours=1")
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(
+                    url, timeout=aiohttp.ClientTimeout(total=12),
+                    headers={"User-Agent": "Klaus-WeatherBot/1.0"},
+                ) as resp:
+                    if resp.status != 200:
+                        return
+                    records = await resp.json()
+        except Exception as e:
+            logger.debug("[WA] metar batch fetch error: %s", e)
+            return
 
-                if p_intraday < INTRADAY_MIN_PROB:
-                    continue
-                edge = p_intraday - poly_yes
-                if edge < INTRADAY_EDGE_MIN:
-                    continue
+        from datetime import datetime, timezone, date as _date
+        today_str = _date.today().isoformat()
 
-                logger.info(
-                    "[WA] INTRADAY CANDIDATE %s %s | run_max=%.1f°C P=%.3f poly=%.3f edge=%.3f",
-                    city, today, station_running_max, p_intraday, poly_yes, edge,
-                )
+        for rec in records:
+            icao = rec.get("icaoId") or rec.get("stationId", "")
+            if not icao:
+                continue
+            obs_time = rec.get("obsTime", 0)
+            cached = self._icao_metar_cache.setdefault(icao, {
+                "running_max_c": None, "last_obs_time": 0, "prev_temp_c": None,
+                "running_max_date": today_str,
+            })
+            if obs_time <= cached.get("last_obs_time", 0):
+                continue  # not a new observation
 
-                # Intraday Kelly stake (higher certainty signal → INTRADAY_STAKE_FRAC Kelly)
-                bankroll = self._get_bankroll()
-                kelly_f = edge / max(0.01, 1.0 - poly_yes)
-                raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
-                stake = max(5.0, min(50.0, raw_stake))
+            temp_c = rec.get("temp")
+            if temp_c is None:
+                continue
+            temp_c = float(temp_c)
 
-                if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake):
-                    logger.info("[WA] INTRADAY ENTRY %s stake=$%.1f", city, stake)
+            # Reset running_max at midnight
+            if cached.get("running_max_date") != today_str:
+                cached["running_max_c"] = None
+                cached["running_max_date"] = today_str
+
+            prev_temp = cached.get("temp_c")    # before this update — for rapid-rise detection
+            prev_max  = cached.get("running_max_c")
+            new_max   = temp_c if (prev_max is None or temp_c > prev_max) else prev_max
+
+            sky_cover     = self._parse_sky_cover(rec.get("rawOb", ""))
+            wind_speed_kt = rec.get("wspd")
+            wind_dir_deg  = rec.get("wdir")
+            dewpoint_c    = rec.get("dewp")
+            obs_utc_hour  = datetime.fromtimestamp(obs_time, tz=timezone.utc).hour
+
+            cached.update({
+                "temp_c":        temp_c,
+                "prev_temp_c":   prev_temp,
+                "running_max_c": new_max,
+                "sky_cover":     sky_cover,
+                "wind_speed_kt": float(wind_speed_kt) if wind_speed_kt is not None else None,
+                "wind_dir_deg":  float(wind_dir_deg)  if wind_dir_deg  is not None else None,
+                "dewpoint_c":    float(dewpoint_c)    if dewpoint_c    is not None else None,
+                "utc_hour":      obs_utc_hour,
+                "last_obs_time": obs_time,
+                "obs_time":      obs_time,
+            })
+
+    async def _poll_metars(self) -> None:
+        """
+        Monitor open WEATHER_ARB positions using data already in _icao_metar_cache.
+        No network I/O — _refresh_all_metars() has already fetched everything.
+        """
+        if not hasattr(self.bot, "_open_meta") or not hasattr(self.bot, "risk"):
+            return
+
+        from datetime import datetime, timezone
+        for token_id, meta in list(self.bot._open_meta.items()):
+            if not isinstance(meta, dict):
+                continue
+            icao = meta.get("icao")
+            if not icao or token_id not in self.bot.risk.open_positions:
+                continue
+
+            cached = self._icao_metar_cache.get(icao)
+            if not cached:
+                continue
+            obs_time = cached.get("obs_time", 0)
+            if obs_time <= meta.get("last_obs_time", 0):
+                continue  # no new METAR
+
+            temp_c    = cached.get("temp_c")
+            sky_cover = cached.get("sky_cover", "CLR")
+            if temp_c is None:
+                continue
+
+            # Sync running_max from universal cache into position meta
+            new_max = cached["running_max_c"]
+            meta["last_obs_time"] = obs_time
+            meta["running_max_c"] = new_max
+
+            lo = meta.get("bucket_lo_c")
+            hi = meta.get("bucket_hi_c")
+            lo_bound = (lo - 0.5) if lo is not None else None
+            hi_bound = (hi + 0.5) if hi is not None else None
+
+            city   = meta.get("city", "")
+            coords = CITY_COORDS.get(city)
+            est_max, nc_sigma = None, None
+            if coords:
+                try:
+                    est_max, nc_sigma = await self._nowcast_max(
+                        coords[0], coords[1], new_max, temp_c, sky_cover, city
+                    )
+                    meta["est_daily_max_c"] = est_max
+                    meta["nc_sigma"] = nc_sigma
+                except Exception:
+                    pass
+
+            if hi_bound is not None and new_max >= hi_bound:
+                status = "ABOVE BUCKET ✗"
+            elif lo_bound is not None and new_max >= lo_bound:
+                status = "IN BUCKET"
+            else:
+                gap = (lo_bound - new_max) if lo_bound is not None else 0.0
+                status = f"BELOW BUCKET gap={gap:+.1f}°C"
+
+            p_nc: Optional[float] = None
+            p_str = ""
+            if est_max is not None and lo is not None and nc_sigma is not None:
+                p_nc  = _outcome_prob(est_max, lo, hi, nc_sigma)
+                p_str = f" | nowcast_max={est_max:.1f}°C σ={nc_sigma:.1f} P(bucket)={p_nc:.3f}"
+
+            obs_dt = datetime.fromtimestamp(obs_time, tz=timezone.utc).strftime("%H:%M UTC")
+            logger.info(
+                "[WA] METAR %s %s | sky=%s temp=%.1f°C run_max=%.1f°C | bucket=[%.1f,%.1f) | %s%s",
+                icao, obs_dt, sky_cover, temp_c, new_max,
+                lo_bound if lo_bound is not None else -99.0,
+                hi_bound if hi_bound is not None else 99.0,
+                status, p_str,
+            )
+
+            # ── Dynamic exit: nowcast collapsed, salvage remaining bid value ──
+            if (
+                p_nc is not None
+                and p_nc < NOWCAST_EXIT_FLOOR
+                and token_id in self.bot.risk.open_positions
+            ):
+                pos = self.bot.risk.open_positions[token_id]
+                current_bid = getattr(pos, "current_price", 0.0) or 0.0
+                if current_bid > SALVAGE_MIN_BID and not DRY_RUN_LOG:
+                    logger.warning(
+                        "[WA] NOWCAST EXIT %s | P(bucket)=%.3f < floor %.2f | bid=%.3f",
+                        icao, p_nc, NOWCAST_EXIT_FLOOR, current_bid,
+                    )
+                    try:
+                        await self.bot.orders.limit_sell(
+                            token_id=token_id,
+                            price=round(current_bid - 0.01, 4),
+                            size=pos.shares,
+                            condition_id=pos.condition_id,
+                        )
+                    except Exception:
+                        logger.exception("[WA] nowcast exit sell failed %s", token_id[:12])
+                elif current_bid > SALVAGE_MIN_BID:
+                    logger.info("[WA] [DRY] would nowcast-exit %s bid=%.3f", icao, current_bid)
+
+
+    async def _intraday_scan(self) -> None:
+        """
+        Front-run the WU→Polymarket publication lag using live METAR running_max.
+
+        Signal class: observational arb (hard), NOT forecast arb (soft).
+        Monitors ALL active today's markets from _today_markets_cache (not just open positions).
+
+        Fires only when:
+          1. running_max_c in _icao_metar_cache confirms temperature reached bucket_lo
+          2. Current UTC hour >= city's historical peak hour (daily max has settled)
+          3. Nowcast P(bucket) >= INTRADAY_MIN_PROB (0.80)
+          4. Polymarket is still pricing the token below INTRADAY_ASK_CAP
+          5. Edge >= INTRADAY_EDGE_MIN
+        """
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        today = now_utc.date().isoformat()
+
+        if not self._today_markets_cache:
+            return
+
+        for entry in self._today_markets_cache:
+            city  = entry["city"]
+            icao  = entry["icao"]
+            mkt   = entry["mkt"]
+
+            # Must have a live METAR with running_max
+            metar = self._icao_metar_cache.get(icao)
+            if not metar:
+                continue
+            station_running_max: Optional[float] = metar.get("running_max_c")
+            if station_running_max is None:
+                continue
+
+            slug      = CITY_NAME_TO_SLUG.get(city, "")
+            peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
+            if peak_hour is None:
+                continue
+            if now_utc.hour < peak_hour:
+                continue  # daily max may not have occurred yet
+
+            if mkt.get("closed", False):
+                continue
+            token_ids_raw = _parse_token_ids(mkt.get("clobTokenIds", []))
+            if not token_ids_raw:
+                continue
+            token_id = token_ids_raw[0]
+            if token_id in self._fired_tokens:
+                continue
+
+            prices_raw = mkt.get("outcomePrices", '["0.5"]')
+            prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+            poly_yes = float(prices[0])
+            if poly_yes < 0.01 or poly_yes > INTRADAY_ASK_CAP:
+                continue
+
+            lo_c, hi_c, is_celsius = _parse_outcome(mkt.get("question", ""))
+            if lo_c is None and hi_c is None:
+                continue
+
+            # Hard METAR confirmation: running_max must be within bucket and not above hi bound
+            lo_bound = (lo_c - 0.5) if lo_c is not None else None
+            hi_bound = (hi_c + 0.5) if hi_c is not None else None
+            if hi_bound is not None and station_running_max >= hi_bound:
+                continue  # temperature already exceeded upper bound → bucket cannot win
+            if lo_bound is not None and station_running_max < lo_bound:
+                continue  # temperature hasn't reached lower bound yet
+
+            # Nowcast P(bucket) with sigma shrunk to observation uncertainty only
+            cal_sigma = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, 1.5)
+            hours_to_peak = max(0.0, peak_hour - now_utc.hour)
+            nc_sigma = max(0.2, cal_sigma * (hours_to_peak / 12.0) ** 0.5)
+            p_intraday = _outcome_prob(station_running_max, lo_c, hi_c, nc_sigma)
+
+            if p_intraday < INTRADAY_MIN_PROB:
+                continue
+            edge = p_intraday - poly_yes
+            if edge < INTRADAY_EDGE_MIN:
+                continue
+
+            logger.info(
+                "[WA] INTRADAY CANDIDATE %s %s | icao=%s run_max=%.1f°C "
+                "P=%.3f poly=%.3f edge=%.3f",
+                city, today, icao, station_running_max, p_intraday, poly_yes, edge,
+            )
+
+            bankroll = self._get_bankroll()
+            kelly_f  = edge / max(0.01, 1.0 - poly_yes)
+            raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
+            stake = max(5.0, min(50.0, raw_stake))
+
+            if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake):
+                logger.info("[WA] INTRADAY ENTRY %s stake=$%.1f", city, stake)
 
     async def _enter_intraday(
         self, mkt: dict, fair_prob: float, poly_price: float,
@@ -1074,6 +1186,189 @@ class WeatherArb:
             return float(self.bot.risk.bankroll)
         except Exception:
             return 200.0  # conservative fallback
+
+    async def _fetch_book_and_vwap(
+        self, token_id: str, stake_usd: float
+    ) -> tuple[float, float, float, bool]:
+        """
+        Fetch CLOB order book for token_id and compute VWAP for stake_usd.
+
+        Returns (best_bid, best_ask, vwap, has_depth):
+          best_bid  — highest resting bid (what we receive if we sell)
+          best_ask  — lowest resting ask (what we pay as taker)
+          vwap      — volume-weighted avg price walking the ask side for stake_usd
+          has_depth — True if ask side has enough liquidity to fill stake_usd
+
+        Falls back to (0.0, 0.5, 0.5, False) on error.
+        """
+        url = f"{CLOB_BASE}/book?token_id={token_id}"
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status != 200:
+                        return 0.0, 0.5, 0.5, False
+                    book = await resp.json()
+        except Exception as e:
+            logger.debug("[WA] CLOB book fetch error %s: %s", token_id[:8], e)
+            return 0.0, 0.5, 0.5, False
+
+        bids = sorted(book.get("bids", []), key=lambda x: -float(x.get("price", 0)))
+        asks = sorted(book.get("asks", []), key=lambda x:  float(x.get("price", 1)))
+
+        best_bid = float(bids[0]["price"]) if bids else 0.0
+        best_ask = float(asks[0]["price"]) if asks else 0.5
+
+        # Walk ask side to compute VWAP for stake_usd
+        remaining = stake_usd
+        cost = 0.0
+        filled = 0.0
+        for level in asks:
+            price  = float(level.get("price", 1.0))
+            size   = float(level.get("size", 0.0))   # size in shares
+            avail  = size * price                     # USD value at this level
+            take   = min(remaining, avail)
+            shares = take / price
+            cost   += take
+            filled += shares
+            remaining -= take
+            if remaining <= 0:
+                break
+
+        has_depth = remaining <= 0
+        vwap = (cost / filled) if filled > 0 else best_ask
+        return best_bid, best_ask, round(vwap, 4), has_depth
+
+    async def _tail_sniper_check(self) -> None:
+        """
+        Asymmetric $0.01–$0.04 tail sniper: buy flat TAIL_STAKE_TOKENS shares when a
+        Foehn/rapid-warming METAR anomaly is detected and the bucket is reachable.
+
+        Bypasses the Gaussian model entirely — tail tokens are mis-priced too cheaply
+        for the model to generate an EDGE_MIN edge. Instead uses hard observational triggers:
+
+        Trigger A — rapid rise: METAR temp rose >= FOEHN_TEMP_RISE_C vs previous obs
+        Trigger B — Foehn wind: temp_c - dewpoint_c > FOEHN_DEW_SPREAD_C,
+                                wind >= FOEHN_WIND_MIN_KT, wind sector in FOEHN_WIND_SECTORS
+
+        Reachability: bucket_lo - running_max <= FOEHN_MAX_GAP_C (target is close enough)
+        Max risk: TAIL_STAKE_TOKENS × TAIL_PRICE_HI ≈ $20
+        """
+        if not TAIL_SNIPER_ENABLED or not self._today_markets_cache:
+            return
+
+        from datetime import datetime, timezone
+        now_utc  = datetime.now(timezone.utc)
+        today    = now_utc.date().isoformat()
+
+        for entry in self._today_markets_cache:
+            city  = entry["city"]
+            icao  = entry["icao"]
+            mkt   = entry["mkt"]
+
+            metar = self._icao_metar_cache.get(icao)
+            if not metar:
+                continue
+
+            temp_c      = metar.get("temp_c")
+            prev_temp   = metar.get("prev_temp_c")
+            running_max = metar.get("running_max_c")
+            dewpoint_c  = metar.get("dewpoint_c")
+            wind_kt     = metar.get("wind_speed_kt")
+            wind_dir    = metar.get("wind_dir_deg")
+
+            if temp_c is None or running_max is None:
+                continue
+
+            # Trigger A: rapid temperature rise
+            trigger_a = (
+                prev_temp is not None
+                and (temp_c - prev_temp) >= FOEHN_TEMP_RISE_C
+            )
+
+            # Trigger B: classic Foehn signature
+            sector = FOEHN_WIND_SECTORS.get(icao)
+            trigger_b = False
+            if (sector and dewpoint_c is not None and wind_kt is not None
+                    and wind_dir is not None):
+                dew_spread   = temp_c - dewpoint_c
+                in_sector    = sector[0] <= wind_dir <= sector[1]
+                trigger_b    = (dew_spread > FOEHN_DEW_SPREAD_C
+                                and wind_kt >= FOEHN_WIND_MIN_KT
+                                and in_sector)
+
+            if not (trigger_a or trigger_b):
+                continue
+
+            if mkt.get("closed", False):
+                continue
+            token_ids_raw = _parse_token_ids(mkt.get("clobTokenIds", []))
+            if not token_ids_raw:
+                continue
+            token_id = token_ids_raw[0]
+            if token_id in self._fired_tokens:
+                continue
+
+            prices_raw = mkt.get("outcomePrices", '["0.5"]')
+            prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+            ask = float(prices[0])
+            if ask < TAIL_PRICE_LO or ask > TAIL_PRICE_HI:
+                continue
+
+            lo_c, hi_c, _ = _parse_outcome(mkt.get("question", ""))
+            if lo_c is None:
+                continue
+
+            # Reachability: is the bucket_lo within FOEHN_MAX_GAP_C of current running_max?
+            gap = lo_c - running_max
+            if gap > FOEHN_MAX_GAP_C or gap < -1.0:
+                continue  # too far, or bucket already exceeded
+
+            trigger_tag = "RAPID_RISE" if trigger_a else "FOEHN_WIND"
+            stake_usd   = TAIL_STAKE_TOKENS * ask
+            logger.info(
+                "[WA] TAIL SNIPER %s icao=%s trigger=%s ask=%.3f gap=%.1f°C stake=$%.2f",
+                city, icao, trigger_tag, ask, gap, stake_usd,
+            )
+
+            self._fired_tokens.add(token_id)
+            if DRY_RUN_LOG:
+                logger.info("[WA] [DRY] tail sniper %s ask=%.3f tokens=%d", city, ask, TAIL_STAKE_TOKENS)
+                continue
+
+            try:
+                from strategy.momentum import Direction as Dir
+                fill = await self.bot.orders.limit_buy(
+                    token_id=token_id,
+                    intended_price=ask,
+                    stake_usd=stake_usd,
+                    direction=Dir.BUY_YES,
+                    neg_risk=mkt.get("negRisk", True),
+                    fast_fail=True,
+                )
+                from execution.order_manager import OrderStatus
+                if fill.status == OrderStatus.FILLED and fill.total_size > 0:
+                    from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+                    _tpsl = _TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0)
+                    self.bot.risk.open_position(
+                        token_id=token_id,
+                        asset="WEATHER",
+                        direction=_Dir.BUY_YES,
+                        stake=fill.total_size * fill.avg_fill_price,
+                        entry_price=fill.avg_fill_price,
+                        tpsl=_tpsl,
+                        condition_id=mkt.get("conditionId", ""),
+                        window_end_ts=0.0,
+                        is_bond=True,
+                        bond_outcome_direction="up",
+                        bond_entry_class="WEATHER_TAIL",
+                    )
+                    logger.info("[WA] TAIL ENTRY %s %s filled=%d @ %.4f",
+                                city, trigger_tag, int(fill.total_size), fill.avg_fill_price)
+                else:
+                    self._fired_tokens.discard(token_id)
+            except Exception:
+                self._fired_tokens.discard(token_id)
+                logger.exception("[WA] tail sniper entry error %s", city)
 
     def _select_bracket(
         self, candidates: list[tuple[dict, dict]]
