@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+572f5f64 CAS-BTC: override H04 stake to $10 (was $30 strong)
+f85f7adf CAS: increase strong-hour stakes to $30/$15, move H22 to STRONG tier
+7e2f57ef CAS-BTC: block H05 and H13 — 25% and 33% WR with -$13.46 and -$23.92 loss
 667c1c2a Watchdog 2026-05-20T04:17:59Z: OK — 2 active MEDIUM alerts in backoff
 f2c6ad93 Watchdog 2026-05-20T03:20:27Z: OK — 2 active MEDIUM alerts in backoff
 8fb1dcd1 Watchdog 2026-05-20T02:20:10Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
@@ -9,15 +12,12 @@ f2c6ad93 Watchdog 2026-05-20T03:20:27Z: OK — 2 active MEDIUM alerts in backoff
 0bc68ed3 VOLARB Scout 2026-05-20T0042Z — H5 [220-280s) BELOW_CI n=617; ETH BELOW_CI n=301; 'up' dir degrading z=1.67
 bf980529 chore(sports_copy): disable live mode — shadow only
 4fa7505e revert(sports_copy): remove 60s mirror-sell hold — copy wallet exits immediately
-35eda88e fix(sports_copy): exempt from SL_15S/VELOCITY_EXIT; min 60s hold before mirror-sell
-9bbcaf34 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
-357dfe73 fix(risk): exempt SPORTS_COPY from 210s hard-exit timer
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   56G       37G  60% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   56G       37G  61% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 05:40:11 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 05:54:49 UTC
 
 ## Open positions (count):
 0
