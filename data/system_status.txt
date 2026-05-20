@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+848ed08d weather_arb: fix station coords + multi-model forecast with dynamic sigma
+10747157 Go live: CryptoUpDown and WeatherArb DRY_RUN_LOG=False
+8ae399cb Add CryptoUpDown and WeatherArb strategies (DRY_RUN mode)
+e9a026b3 Watchdog 2026-05-20T09:18:15Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
+8b31ee2f Validator 2026-05-20 — ready=1 rejected=0 stalled=0
+472d75c4 Watchdog 2026-05-20T08:16:16Z: HIGH 1 alerts (CAPITAL_DROP)
 da15758b CAS: fix fast-retry to use per-hour stake config instead of ASSET_STAKE fallback
 b1c8da52 CAS: implement Option B per-asset per-hour staking (live WR-backed)
 572f5f64 CAS-BTC: override H04 stake to $10 (was $30 strong)
 f85f7adf CAS: increase strong-hour stakes to $30/$15, move H22 to STRONG tier
-7e2f57ef CAS-BTC: block H05 and H13 — 25% and 33% WR with -$13.46 and -$23.92 loss
-667c1c2a Watchdog 2026-05-20T04:17:59Z: OK — 2 active MEDIUM alerts in backoff
-f2c6ad93 Watchdog 2026-05-20T03:20:27Z: OK — 2 active MEDIUM alerts in backoff
-8fb1dcd1 Watchdog 2026-05-20T02:20:10Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
-4e18e54f Watchdog 2026-05-20T01:18:24Z: OK — 0 alerts (2 active anomalies in backoff)
-0bc68ed3 VOLARB Scout 2026-05-20T0042Z — H5 [220-280s) BELOW_CI n=617; ETH BELOW_CI n=301; 'up' dir degrading z=1.67
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   56G       37G  61% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   57G       37G  61% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 07:02:59 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 10:01:45 UTC
 
 ## Open positions (count):
 0
