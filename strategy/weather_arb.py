@@ -286,8 +286,30 @@ METAR_POLL_INTERVAL = 60  # METARs post every ~30 min; poll every 60s to catch w
 # sigma_residual = sigma_clim × sqrt(1 − r²), r=0.95 (NWP skill assumption; update when
 # forecast-vs-actual validation accumulates ≥30 days per city).
 CITY_NAME_TO_SLUG: dict[str, str] = {
+    # Original 7 — calibrated ASOS sigma + remaining-rise tables
     "New York City": "nyc", "Chicago": "chicago", "Los Angeles": "los-angeles",
     "Miami": "miami", "San Francisco": "san-francisco", "Tokyo": "tokyo", "London": "london",
+    # All other cities — skill matrix provides bias + sigma; no ASOS rise table (falls back)
+    "Paris": "paris", "Seoul": "seoul", "Seattle": "seattle", "Sao Paulo": "sao-paulo",
+    "Buenos Aires": "buenos-aires", "Ankara": "ankara", "Wellington": "wellington",
+    "Lucknow": "lucknow", "Munich": "munich", "Dallas": "dallas", "Singapore": "singapore",
+    "Milan": "milan", "Madrid": "madrid", "Warsaw": "warsaw", "Taipei": "taipei",
+    "Beijing": "beijing", "Wuhan": "wuhan", "Chengdu": "chengdu", "Shenzhen": "shenzhen",
+    "Austin": "austin", "Denver": "denver", "Houston": "houston", "Mexico City": "mexico-city",
+    "Busan": "busan", "Amsterdam": "amsterdam", "Helsinki": "helsinki",
+    "Panama City": "panama-city", "Jakarta": "jakarta", "Jeddah": "jeddah",
+    "Cape Town": "cape-town", "Guangzhou": "guangzhou", "Jinan": "jinan",
+    "Qingdao": "qingdao", "Karachi": "karachi", "Manila": "manila", "Toronto": "toronto",
+    "Shanghai": "shanghai", "Hong Kong": "hong-kong", "Dubai": "dubai", "Sydney": "sydney",
+    "Phoenix": "phoenix", "Atlanta": "atlanta", "Berlin": "berlin", "Stockholm": "stockholm",
+    "Oslo": "oslo", "Copenhagen": "copenhagen", "Vienna": "vienna", "Zurich": "zurich",
+    "Brussels": "brussels", "Barcelona": "barcelona", "Rome": "rome", "Prague": "prague",
+    "Budapest": "budapest", "Bucharest": "bucharest", "Athens": "athens",
+    "Istanbul": "istanbul", "Moscow": "moscow", "Riyadh": "riyadh", "Cairo": "cairo",
+    "Lagos": "lagos", "Nairobi": "nairobi", "Johannesburg": "johannesburg",
+    "Mumbai": "mumbai", "Delhi": "delhi", "Dhaka": "dhaka", "Bangkok": "bangkok",
+    "Kuala Lumpur": "kuala-lumpur", "Bogota": "bogota", "Lima": "lima",
+    "Santiago": "santiago", "Chongqing": "chongqing",
 }
 
 # Per-city/month residual sigma in °C (uncertainty remaining after NWP forecast, r=0.95 assumed)
