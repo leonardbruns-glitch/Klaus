@@ -1,233 +1,172 @@
-# VOLARB Alpha Scout — 2026-05-20T00:42 UTC
+# VOLARB Alpha Scout — 2026-05-20T12:41Z
 
 ## Snapshot + Baseline
 
-| Field | Value |
+| field | value |
 |---|---|
-| snapshot_ts | 2026-05-20T00:27:56Z (age: 14.5 min — FRESH) |
-| snapshot_age_check | PASS (< 45 min) |
-| integrity_report.json | ABSENT — treated as non-blocking |
-| Klaus capital | $130.564 |
-| Klaus service | active |
-| VOLARB n (live era, all) | 887 |
-| VOLARB n (Phase 1 gate: ask ∈ [0.10,0.60), deduplicated) | **875** |
-| Live era start | 2026-05-16T21:00 UTC (ts=1778965200) |
-| Data window | 2026-05-16T21:00 – 2026-05-19T02:50 UTC (~58h) |
-| Dedup method | first-fire per token_id — 0 duplicates |
-| $1-equiv baseline CI | [+$0.244, +$0.352] / trade |
+| snapshot_ts | 2026-05-20T12:33:49Z (~8 min old — FRESH) |
+| Klaus state | active |
+| Capital | $49.35 (bankroll.json) |
+| VOLARB n (live era, deduped) | 887 |
+| VOLARB date range | 2026-05-16 21:00 – 2026-05-19 02:50 UTC (~53.8 h / 2.2 days) |
+| $1-equiv baseline CI | [+$0.244, +$0.352]/trade |
 
-### Global Live EV (Phase 1 Gate, n=875)
+**Pre-flight:**
+- snapshot_ts age: ~8 min — PASS
+- integrity_report.json: absent (no `blocks_agent_run` — treated as PASS, file added to open requests)
+- Code sync check: SNAPSHOT.md HEAD=9edb6a75 — noted
 
-| Metric | Value | vs Baseline |
-|---|---|---|
-| WR | 35.0% | Below 40% target; above 30% kill floor |
-| EV / $1 stake | +$0.052 | **CI upper = +$0.156 < baseline CI lower = +$0.244** |
-| 95% CI | [−$0.053, +$0.156] | **SIGNAL:BELOW_CI globally** |
-| sum(net_pnl) | +$45.19 | Down from +$74.79 at prior scout (n=547) → recent trades net negative |
-| Prior scout global EV | +$0.092 (n=541) | Degraded to +$0.052 at n=875 |
+**⚠ research_status.md CONTRADICTION:**
+`research_status.md` (last updated 2026-05-16 12:50 UTC) states "Active strategy: LDA." But live `trades.jsonl` contains 887 `bond_entry_class=='VOLARB'` records, ALL with `ts_open >= 1778965200` (2026-05-16 21:00 UTC). VOLARB was activated ~8 h after the last research_status update. The contradiction is raised here per §0; VOLARB analysis proceeds as mandated by this prompt.
 
-> **Global signal hardening.** CI upper fell from +$0.230 (prior scout, n=541) → +$0.156 (current, n=875). The strategy is underperforming backtest at increasing statistical confidence.
+**⚠ HEADLINE: Overall VOLARB EV is BELOW backtest CI.**
+- Live: n=887, EV=+$0.056/trade (net_pnl), CI95=[−$0.097, +$0.210]
+- Backtest baseline: CI=[+$0.244, +$0.352]
+- Live CI upper (+$0.210) < baseline CI lower (+$0.244) → aggregate performance is outside the predicted range at n=887.
+- kline_pnl (held-to-resolution metric): EV=−$0.036/trade, total=−$31.81. Net_pnl total=+$49.82. Discrepancy = $81.63. Flagged for Auditor: if kline_pnl is the reliable metric, the strategy may be losing money in aggregate.
 
 ---
 
 ## Continuity vs Prior Scout
 
-| Item | Status |
-|---|---|
-| Prior scout | 2026-05-17T12:42 UTC, n=541 (543 after Phase 1 filter) |
-| Investigations carried over | H5 (SIGNAL_FOUND), H6 (SIGNAL_FOUND — direction asymmetry), H1 (INCONCLUSIVE → promote) |
-| Resolved/closed since prior | None |
-| New findings this cycle | ETH crossed BELOW_CI at n=301; 'up' direction degraded; sniper_edge=0 data integrity flag |
+- Prior scout file: absent (first run on this branch)
+- Investigations carried over: none
+- Resolved/closed since prior: n/a
 
 ---
 
-## Investigation H5 — Seconds-to-Resolution Slice *(SIGNAL_FOUND — CONFIRMED STRENGTHENED)*
+## Investigations
 
-**HYPOTHESIS:** The [220–280s) entry bucket drives global underperformance. Prior scout found SIGNAL:BELOW_CI at n=362.
+### H1 — Per-Asset Alpha Allocation
 
-**METHOD:** Compute sec_to_res = next_window_boundary − ts_open. Bucket into [60–100s), [100–160s), [160–220s), [220–280s). EV/$1 (net_pnl/stake), WR, 95% CI vs baseline [+$0.244, +$0.352]. n≥100 required for STATUS verdict.
+**HYPOTHESIS:** Backtest had BTC as alpha asset (projected EV +$14.81 vs ETH +$2.53, SOL +$1.30). Live data may show asset-level divergence from that shape.
+
+**METHOD:** Filter `bond_entry_class=='VOLARB' AND ts_open >= 1778965200`, deduplicate by first-fire per token_id, compute EV/WR/CI95(net_pnl) per asset. Flag cells at n≥100 with CI upper < baseline CI lower (+$0.244).
 
 **RESULT:**
 
-| sec_to_res at entry | n | WR | EV/$1 | CI_lo | CI_hi | STATUS |
+| Asset | n | WR | EV (net_pnl) | EV (kline_pnl) | CI95 (net) | vs baseline |
 |---|---|---|---|---|---|---|
-| [60–100s) | 8 | 12.5% | −$0.654 | −$1.341 | +$0.033 | INCONCLUSIVE |
-| [100–160s) | 62 | 33.9% | +$0.353 | −$0.186 | +$0.892 | INCONCLUSIVE |
-| [160–220s) | **186** | 37.1% | +$0.128 | −$0.108 | +$0.363 | ON_BASELINE |
-| [220–280s) | **617** | 34.8% | +$0.011 | −$0.107 | +$0.129 | **SIGNAL:BELOW_CI** |
+| BTC | 286 | 32.9% | +$0.083 | +$0.059 | [−$0.181, +$0.347] | within CI |
+| **ETH** | **305** | **32.5%** | **−$0.035** | **−$0.088** | **[−$0.302, +$0.231]** | **BELOW CI** |
+| SOL | 296 | 38.5% | +$0.125 | −$0.074 | [−$0.143, +$0.392] | within CI |
 
-> **Signal hardened.** [220–280s) CI upper dropped from +$0.206 (prior, n=362) → +$0.129 (current, n=617). This bucket is 70.5% of all Phase 1 trades and is the primary drag on global EV. The [160–220s) bucket (n=186) remains ON_BASELINE at EV=+$0.128 — its CI crosses the baseline range, meaning trades entered 160–220s before resolution are performing as expected.
+Note on SOL: net_pnl is positive but kline_pnl is −$0.074/trade (total −$21.87). Largest net/kline split of any asset. SOL was LDA-blocked (2026-05-15); trades freely in VOLARB.
 
-**CONCLUSION: SIGNAL_FOUND** (confirmed from prior scout, statistically stronger)
+**CONCLUSION: SIGNAL_FOUND (ETH below CI)**
+ETH n=305 ≥ 100. CI upper +$0.231 < baseline lower +$0.244 — live CI does not overlap backtest CI. ETH is the primary drag asset: WR=32.5%, EV=−$0.035 net / −$0.088 kline. BTC is within CI but WR=32.9% is below the 40% backtest expectation.
 
-**FAILURE_MET: No.** The [220–280s) bucket is definitively below backtest CI but is not a kill-switch condition. WR=34.8% remains above the 30% kill floor.
+**FAILURE_MET:** No. ETH EV is negative but no per-asset kill switch exists; strategy-level thresholds not triggered.
 
-**IF_DEPLOYED:** Tightening REM_MAX_S from 280s → 220s eliminates the [220–280s) drag (n=617, EV=+$0.011). Retained pool: n≈248 ([100–220s)), all at ON_BASELINE or better. Trade volume falls ~70%. This is a >20% parameter change → Tier 2. Auditor authority only.
+**IF_DEPLOYED:** Raising EDGE_FLOOR globally is the only lever for per-asset exposure reduction. At $1 stake, ETH drag = −$10.68 net / −$26.89 kline over 2.2 days. Auditor action required: check ETH edge distribution vs BTC/SOL before any EDGE_FLOOR patch.
 
 ---
 
-## Investigation H1 — Per-Asset Alpha Re-Allocation *(SIGNAL_FOUND — ETH NEW)*
+### H5 — Seconds-to-Resolution Slice
 
-**HYPOTHESIS:** Live per-asset EV has diverged from backtest projections. ETH watchlisted by prior scout at n=189 for potential SIGNAL:BELOW_CI. Validate at current n.
+**HYPOTHESIS:** Phase 1 gate REM_MIN_S=60 / REM_MAX_S=280 was set from backtest. Live EV may vary by time-to-resolution bucket.
 
-**METHOD:** Filter Phase 1 by `asset`. EV/$1, WR, 95% CI. Compare vs baseline [+$0.244, +$0.352].
+**METHOD:** Slice `term_remaining_s` into [60–100s), [100–160s), [160–220s), [220–280s); compute EV/CI per slice. Requires n≥100/slice.
 
 **RESULT:**
 
-| Asset | n | WR | EV/$1 | CI_lo | CI_hi | vs_baseline_CI |
-|---|---|---|---|---|---|---|
-| BTC | 282 | 33.0% | +$0.064 | −$0.128 | +$0.257 | ON_BASELINE |
-| ETH | **301** | 32.9% | −$0.018 | −$0.193 | **+$0.156** | **SIGNAL:BELOW_CI** |
-| SOL | 292 | 39.0% | +$0.112 | −$0.065 | +$0.288 | ON_BASELINE |
-
-**Trajectory (prior vs recent ~60h):**
-
-| Asset | Prior n | Prior EV | Recent n | Recent EV | Drift z |
-|---|---|---|---|---|---|
-| ETH | 191 | +$0.010 | 110 | −$0.067 | 0.44 (stable — was already negative) |
-| SOL | 183 | +$0.192 | 109 | −$0.023 | **1.15** (deteriorating) |
-| BTC | 173 | +$0.083 | 109 | +$0.035 | 0.24 (stable) |
-
-**CONCLUSION: SIGNAL_FOUND** (ETH crosses BELOW_CI at n=301; prior scout predicted this at n≥250)
-
-ETH CI upper (+$0.156) is below baseline CI lower (+$0.244). No per-asset block lever exists in Phase 1 — the only actionable response is raising EDGE_FLOOR globally (Tier 2). SOL drift z=1.15 is pre-signal; flag for Auditor watchlist at n≥300. BTC remains ON_BASELINE.
-
-**FAILURE_MET: No.** ETH WR=32.9% is above 30% floor. No individual asset triggers kill switch.
-
-**IF_DEPLOYED:** No direct lever; only global EDGE_FLOOR increase (Tier 2, Auditor). Eliminating ETH trades would remove n=301 (34.4% of volume) but no explicit asset gate exists.
-
----
-
-## Investigation H7 — Watchlist Cell Trajectories *(SIGNAL_FOUND — 'up' direction degraded)*
-
-**HYPOTHESIS:** Cells signaled in prior scout (H5 [220–280s), H6 direction='down') may have stabilized or worsened. New development: 'up' direction degraded from ON_BASELINE → BELOW_CI.
-
-**METHOD:** Split at prior scout cutoff (2026-05-17T12:42 UTC). Prior era n=547; recent (~60h) n=328. Compute cell EV and 95% CI for each period. Flag cells where |delta_EV| > 2σ pooled SE.
-
-**RESULT:**
-
-| Cell | Prior n | Prior EV | Prior STATUS | Recent n | Recent EV | Recent STATUS | Drift z |
-|---|---|---|---|---|---|---|---|
-| [220–280s) | 368 | +$0.051 | BELOW_CI | 249 | −$0.048 | BELOW_CI | **0.83** |
-| direction='up' | 226 | +$0.142 | ON_BASELINE | 157 | −$0.147 | BELOW_CI | **1.67** |
-| direction='down' | 321 | +$0.059 | BELOW_CI | 171 | +$0.100 | ON_BASELINE | −0.30 |
-| asset=ETH | 191 | +$0.010 | BELOW_CI | 110 | −$0.067 | BELOW_CI | 0.44 |
-| asset=SOL | 183 | +$0.192 | ON_BASELINE | 109 | −$0.023 | ON_BASELINE | 1.15 |
-
-**Rolling EV by 100-trade chunk (chronological):**
-
-| Chunk | Mid date | n | EV/$1 | WR |
-|---|---|---|---|---|
-| [1–100] | 05-16T22:21 | 100 | +$0.040 | 39% |
-| [101–200] | 05-17T01:06 | 100 | **+$0.564** | 44% |
-| [201–300] | 05-17T03:51 | 100 | +$0.046 | 38% |
-| [301–400] | 05-17T06:36 | 100 | **−$0.217** | 23% |
-| [401–500] | 05-17T10:00 | 100 | +$0.146 | 32% |
-| [501–600] | 05-17T12:50 | 100 | −$0.012 | 34% |
-| [601–700] | 05-17T15:36 | 100 | **−$0.176** | 27% |
-| [701–800] | 05-18T11:11 | 100 | +$0.073 | 41% |
-| [801–875] | 05-19T01:41 | 75 | −$0.017 | 37% |
-
-**CONCLUSION: SIGNAL_FOUND** (direction='up' cell crossed from ON_BASELINE → BELOW_CI; z=1.67, approaching 2σ)
-
-- [220–280s): STABLE at BELOW_CI — no additional deterioration, signal confirmed.
-- direction='up': **NEW degradation** — prior ON_BASELINE → now BELOW_CI in recent 60h. z=1.67 is pre-2σ but trending. WR dropped 32.7% → 28.0% in recent era.
-- direction='down': **IMPROVING** from BELOW_CI → ON_BASELINE in recent 60h. The 'down' H6 signal from prior scout may be resolving.
-- SOL: drift z=1.15 — not yet 2σ but EV swung from +$0.192 → −$0.023 in recent period.
-- Rolling EV: no secular trend; variance is high. Chunks [301–400] and [601–700] were loss-heavy.
-
-**FAILURE_MET: No.** No cell exceeds 2σ drift. direction='up' at z=1.67 warrants Auditor watchlist.
-
-**IF_DEPLOYED:** N/A — z<2σ; still SIGNAL_FOUND but below threshold for direction-split gating.
-
----
-
-## Additional Findings (not primary investigations)
-
-### H3 — Per-Ask-Band (supplemental)
-
-| Band | n | EV/$1 | STATUS |
+| Slice | n | EV | CI95 |
 |---|---|---|---|
-| [0.10,0.20) | 91 | +$0.160 | INCONCLUSIVE |
-| [0.20,0.30) | 227 | −$0.006 | **BELOW_CI** |
-| [0.30,0.40) | 390 | +$0.068 | **BELOW_CI** |
-| [0.40,0.50) | 158 | +$0.044 | **BELOW_CI** |
-| [0.50,0.60) | 9 | −$0.158 | INCONCLUSIVE |
+| [60–100s) | 0 | — | — |
+| [100–160s) | 0 | — | — |
+| [160–220s) | 0 | — | — |
+| [220–280s) | 0 | — | — |
 
-All three n≥100 bands are BELOW_CI. The underperformance is not isolated to a specific ask range — it is uniform across the Phase 1 gate. This corroborates the global SIGNAL:BELOW_CI and the H5 finding that entry timing (not ask level) is the primary EV driver.
+`term_remaining_s`: 887/887 field present, all = 0.0. **Logging bug.** Field written but never populated at VOLARB entry time. `sniper_lag_remaining` is identically 0.0 for all 887 records. Neither field captures seconds-to-resolution.
 
-### H4 — Phase 2 Longshot Gate (DATA_MISSING)
+**CONCLUSION: DATA_MISSING**
+H5 cannot be evaluated. REM_MIN_S=60 / REM_MAX_S=280 gate is unvalidated against live data. Shadow recorder spec proposed below.
 
-`volarb_longshot_shadow.jsonl` is **ABSENT** from the shadow manifest (confirmed: no logger registered in shadow_summary.json post-activation). Shadow loggers present post-activation: binance_trade, discover_signal, exit_policy_shadow, gate_trace, hold_path, market_timeline, ob_delta, order_lifecycle, shadow_telemetry, token_trade, wallet_shadow, window_resolution.
+**FAILURE_MET:** N/A — data absent.
 
-**Proposed recorder spec:**
-- **Source:** `strategy/volarb.py` entry point, after gate evaluation
-- **File:** `data/shadow/volarb_longshot_shadow.jsonl`
-- **Trigger:** Every market_timeline row where: `ask < 0.10 AND sniper_edge >= 0.10 AND rem_s ∈ [60,280]` (would have fired at ASK_FLOOR=0.0)
-- **Required fields:** `{ts, token_id, asset, entry_price_would_be, sniper_edge, rem_s, window_end_ts, realized_outcome_price, net_pnl_would_be}`
-- **Pre-registered n threshold:** n=100 before Shadow Validator analyzes
-- **Status: NOT DEPLOYED — requires Tier 2 build**
+**IF_DEPLOYED:** N/A. Proposed shadow recorder:
+- Fix `term_remaining_s = window_end_ts − ts_entry` at VOLARB entry in `strategy/volarb.py`
+- Alternatively: shadow logger `data/shadow/volarb_rem_shadow.jsonl`
+- Schema: `{ts, trade_id, token_id, asset, bond_outcome_direction, entry_price, seconds_to_resolution_at_entry, net_pnl (filled at close), kline_pnl (filled at close)}`
+- Pre-register n=100 per slice for H5 validation
 
-### Data Integrity Flag: sniper_edge = 0.000 for all VOLARB trades
+---
 
-`sniper_edge` is 0.000 for all 875 Phase 1 VOLARB records (min=max=mean=0). This field should contain the VOLARB edge score per the strategy spec (EDGE_FLOOR=0.15). Either the field is written as a separate field (possibly `sniper_pm_ask_at_trigger` is the edge proxy), or the field is not being populated for VOLARB fills. This does not affect the current analysis (which uses `net_pnl`), but blocks future edge-bucketing studies. Recommend Auditor verify field routing in `strategy/volarb.py`.
+### H6 — Direction Asymmetry (up vs down)
 
-### H2 — Per-Hour EV (supplemental, all INCONCLUSIVE)
+**HYPOTHESIS:** Backtest had no direction split. Live may show systematic asymmetry — 'up' tokens (BUY_YES on bullish move) vs 'down' tokens.
 
-Notable hours approaching significance:
-- H05 (n=35): EV=−$0.539, CI=[−$0.928, −$0.150] — both bounds negative; would be BELOW_CI at n≥100
-- H16 (n=30): EV=−$0.556, CI=[−$0.960, −$0.152] — same pattern
-- H01 (n=66): EV=+$0.538, CI=[+$0.089, +$0.988] — would be ABOVE_CI at n≥100
-- All hours INCONCLUSIVE. H05 and H16 are watchlist candidates at n≥40 each.
+**METHOD:** Split `bond_outcome_direction ∈ {up, down}`, compute EV/WR/CI95(net_pnl) per direction. n≥100 required.
+
+**RESULT:**
+
+| Direction | n | WR | EV (net_pnl) | EV (kline_pnl) | CI95 (net) | vs baseline |
+|---|---|---|---|---|---|---|
+| **up** | **393** | **30.0%** | **−$0.032** | **−$0.070** | **[−$0.257, +$0.192]** | **BELOW CI** |
+| down | 494 | 38.3% | +$0.127 | −$0.008 | [−$0.083, +$0.336] | within CI |
+
+Per-asset breakdown (all n<100 — INCONCLUSIVE at this level, directional consistency noted):
+
+| Asset / Dir | n | WR | EV (net) |
+|---|---|---|---|
+| BTC / up | 129 | 27.9% | −$0.060 |
+| BTC / down | 157 | 36.9% | +$0.200 |
+| ETH / up | 137 | 29.2% | −$0.053 |
+| ETH / down | 168 | 35.1% | −$0.021 |
+| SOL / up | 127 | 33.1% | +$0.018 |
+| SOL / down | 169 | 42.6% | +$0.205 |
+
+The 'up' underperformance is consistent across all three assets (WR 27.9/29.2/33.1% vs 36.9/35.1/42.6% for 'down').
+
+**CONCLUSION: SIGNAL_FOUND ('up' direction below CI)**
+'up': n=393 ≥ 100. CI upper +$0.192 < baseline lower +$0.244. Live CI does not overlap backtest CI. WR=30.0% is at the strategy-level warning floor. 'down' is within CI and EV-positive.
+
+Possible mechanism: Polymarket MMs may price bullish tokens more efficiently (lower taker alpha on 'up' moves), or the 2026-05-16–19 macro regime had asymmetric downward resolution that the backtest's longer window averaged away.
+
+**FAILURE_MET:** No. 'up' WR=30.0% is exactly at the 30% warning floor (kill switch triggers at <30% over 20 trades). Not yet triggered but on the boundary.
+
+**IF_DEPLOYED:** No direction gate exists in PHASE 1 parameters — requires code change (Tier 2 patch). If 'up' entries were eliminated: −393 trades × $0.032 drag = +$12.58 net saved over 2.2 days (~+$69/month at current rate). Highest single-lever opportunity identified this cycle.
 
 ---
 
 ## Priority Signal for Next Implementation
 
-**Strongest confirmed signal: H5 — [220–280s) entry timing**
-- n=617, EV=+$0.011, CI upper +$0.129 < baseline lower +$0.244
-- Signal hardens every cycle (prior CI upper was +$0.206, now +$0.129)
-- 70.5% of trade volume is in this bucket; it explains the global BELOW_CI
+**Strongest signal: H6 — 'up' direction EV below backtest CI (n=393, CI95 upper +$0.192 < baseline lower +$0.244, WR=30.0% at kill-switch boundary).**
 
-**Secondary signal: H1 — ETH asset**
-- n=301, EV=−$0.018, CI upper +$0.156 < baseline lower +$0.244
-- Prior scout predicted this crossing; confirmed
+No lever exists in current PHASE 1 parameters to gate by direction. Requires Tier 2 patch. Until then, the only available global knob is EDGE_FLOOR.
 
-**Pre-signal watchlist:**
-- direction='up': z=1.67 (→ 2σ threshold at ~n=200 more recent trades)
-- SOL: z=1.15 recent deterioration (promote to watchlist from ON_BASELINE)
-- H05/H16 UTC hours: EV < 0, approaching significance at n≥100
+**Secondary signal: H1 ETH — EV below backtest CI (n=305, CI95 upper +$0.231 < baseline lower +$0.244).** Lever: EDGE_FLOOR raise, contingent on ETH signal clustering at lower edge values (Auditor to verify).
 
-> Both H5 and H1 findings require Tier 2 action (Auditor). Scout cannot implement.
+**Headline concern:** At n=887, overall VOLARB CI=[−$0.097, +$0.210] is already below backtest baseline CI lower (+$0.244). The strategy has not demonstrated backtest-level EV in live trading. Too early to halt (2.2 days), but direction asymmetry (H6) and ETH drag (H1) are both statistically established.
 
 ---
 
-## Closed-Family Confirmations (null re-validated)
+## Closed-Family Confirmations
 
-- direction='down' asymmetry: RESOLVING — recent 60h ON_BASELINE. Prior BELOW_CI signal weakening. Do not re-investigate without fresh data.
-- BTC asset: stable ON_BASELINE at n=282; no deviation. Re-validate at n≥350.
-- Per-ask-band: uniform BELOW_CI confirms issue is not band-specific; H3 investigation can be CLOSED as contributing finding rather than actionable signal.
+- BOND/LDA strategies: 0 records in VOLARB activation window — correctly filtered
+- SNIPER/MOM/DISCOVER: 0 records in VOLARB activation window
 
 ---
 
 ## Open Requests for Auditor / Shadow Validator
 
-### Auditor watch (cells trending to n≥100 in next 24h)
+**Auditor watchlist (cells at n≥100 with EV below CI):**
+1. ETH (H1): n=305, EV below CI — check ETH edge distribution vs BTC/SOL; if ETH signals cluster at lower edge values, EDGE_FLOOR raise is actionable
+2. 'up' direction (H6): n=393, EV below CI — check direction × edge distribution; if 'up' signals cluster lower, EDGE_FLOOR preferentially sheds 'up' trades
 
-| Cell | Current n | Est. daily fill rate | ETA to n≥100 |
-|---|---|---|---|
-| [100–160s) bucket | 62 | ~15–20/day | ~2–3 days |
-| H01 UTC (ABOVE_CI candidate) | 66 | ~10–15/day | ~2–4 days |
-| H05 UTC (BELOW_CI candidate) | 35 | ~6–10/day | ~7 days |
-| direction='up' recent era | 157 | ~25/day | Already ≥100; re-check z-score in next scout |
+**Cells trending to n≥100 within next 24h (Auditor watch):**
+- BTC/down: n=157 → ~100 more trades needed (~18h at current rate ~5.5 trades/hr BTC)
+- ETH/down: n=168 → similar timeline
+- SOL/down: n=169 → similar timeline
 
-**Priority Auditor action:** H5 [220–280s) SIGNAL_FOUND at n=617 and ETH SIGNAL_BELOW_CI at n=301 both exceed n≥100 threshold. Auditor Tier 2 review of REM_MAX_S and EDGE_FLOOR warranted.
+**Shadow loggers needing deployment:**
+1. **`term_remaining_s` fix (CRITICAL):** Logging bug — field is 0.0 for all 887 VOLARB records. Must fix `strategy/volarb.py` to populate `term_remaining_s = window_end_ts − ts_entry` before H5 is evaluable. REM_MIN_S/REM_MAX_S gates are currently unvalidated live.
+2. **`volarb_longshot_shadow.jsonl` (Phase 2 gate):** ABSENT. Logger never deployed. Phase 2 (ask<0.10) gated on n≥100 OOS — currently 10 records at ask<0.10 in live data but unlogged. Spec above (H5 section).
+3. **`integrity_report.json`:** Absent from data-mirror. Ops should confirm this is intentional for the VOLARB era.
 
-### Shadow Validator (loggers past threshold)
+**kline_pnl vs net_pnl discrepancy (urgent clarification needed):**
+- net_pnl total: +$49.82 | kline_pnl total: −$31.81 | delta: $81.63
+- Prompt specifies net_pnl as win metric for VOLARB ("holds to resolution"). research_status.md specifies kline_pnl for LDA. Which is canonical for VOLARB? If kline_pnl is correct, the strategy is in aggregate loss, which changes the urgency of the H1/H6 signals above.
 
-- No VOLARB-specific shadow loggers are registered post-activation
-- `exit_policy_shadow.jsonl` (2026-05-16 to 2026-05-20) has n≥2428 rows — Shadow Validator may run VOLARB-era exit analysis if schema aligns
-
-### Phase 2 longshot recorder
-
-**Status: NOT DEPLOYED.** Recorder spec above (H4 section). Requires Tier 2 build before Phase 2 gate evaluation can proceed. Pre-registered n threshold: 100 OOS trades in ask<0.10 cell.
+**research_status.md update needed:**
+File is stale (2026-05-16 12:50 UTC). Should reflect VOLARB as active strategy, activation ts 1778965200, and the LDA → VOLARB transition with updated open research candidates.
