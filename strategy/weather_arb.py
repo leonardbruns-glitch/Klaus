@@ -39,84 +39,99 @@ METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
 STAKE_USD    = 25.0    # per market position
-SIGMA_C      = 1.5     # forecast uncertainty std-dev in °C
-SIGMA_F      = 2.7     # forecast uncertainty std-dev in °F
+SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
+SIGMA_F_DEFAULT = 2.7  # fallback in °F
 SCAN_INTERVAL_S = 1800 # scan every 30 minutes
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
 
-# City → (lat, lon) for Open-Meteo API
-# Derived from observed Polymarket weather market cities
+# Multiple forecast models — average for better point estimate, spread → dynamic sigma
+FORECAST_MODELS = "best_match,gfs025,icon_global"
+
+# City → (lat, lon) of the EXACT weather station Polymarket resolves against.
+# All station codes verified from market description wunderground URLs (2026-05-20).
+# Cities without a confirmed Polymarket market use nearest major airport as best proxy.
 CITY_COORDS: dict[str, tuple[float, float]] = {
-    "London":           (51.5085, -0.1257),
-    "Paris":            (48.8567,  2.3508),
-    "Seoul":            (37.5665, 126.9780),
-    "Seattle":          (47.6062, -122.3321),
-    "Sao Paulo":        (-23.5475, -46.6361),
-    "Buenos Aires":     (-34.6118, -58.4173),
-    "Ankara":           (39.9199,  32.8543),
-    "Wellington":       (-41.2866, 174.7756),
-    "Lucknow":          (26.8467,  80.9462),
-    "Munich":           (48.1374,  11.5755),
-    "Tokyo":            (35.6895, 139.6917),
-    "Beijing":          (39.9042, 116.4074),
-    "Shanghai":         (31.2304, 121.4737),
-    "Hong Kong":        (22.3193, 114.1694),
-    "Singapore":        (1.3521,  103.8198),
-    "Dubai":            (25.2048,  55.2708),
-    "Sydney":           (-33.8688, 151.2093),
-    "Miami":            (25.7617,  -80.1918),
-    "Los Angeles":      (34.0522, -118.2437),
-    "New York City":    (40.7128,  -74.0060),
-    "Chicago":          (41.8781,  -87.6298),
-    "Houston":          (29.7604,  -95.3698),
-    "Denver":           (39.7392, -104.9903),
-    "Phoenix":          (33.4484, -112.0740),
-    "Atlanta":          (33.7490,  -84.3880),
-    "Berlin":           (52.5200,  13.4050),
-    "Amsterdam":        (52.3676,   4.9041),
-    "Helsinki":         (60.1695,  24.9354),
-    "Stockholm":        (59.3293,  18.0686),
-    "Oslo":             (59.9139,  10.7522),
-    "Copenhagen":       (55.6761,  12.5683),
-    "Vienna":           (48.2082,  16.3738),
-    "Zurich":           (47.3769,   8.5417),
-    "Brussels":         (50.8503,   4.3517),
-    "Madrid":           (40.4168,  -3.7038),
-    "Barcelona":        (41.3851,   2.1734),
-    "Rome":             (41.9028,  12.4964),
-    "Milan":            (45.4654,   9.1859),
-    "Warsaw":           (52.2297,  21.0122),
-    "Prague":           (50.0755,  14.4378),
-    "Budapest":         (47.4979,  19.0402),
-    "Bucharest":        (44.4268,  26.1025),
-    "Athens":           (37.9838,  23.7275),
-    "Istanbul":         (41.0082,  28.9784),
-    "Moscow":           (55.7558,  37.6173),
-    "Riyadh":           (24.6877,  46.7219),
-    "Jeddah":           (21.3891,  39.8579),
-    "Cairo":            (30.0444,  31.2357),
-    "Lagos":            (6.5244,    3.3792),
-    "Nairobi":          (-1.2921,  36.8219),
-    "Johannesburg":     (-26.2041,  28.0473),
-    "Mumbai":           (19.0760,  72.8777),
-    "Delhi":            (28.7041,  77.1025),
-    "Karachi":          (24.8607,  67.0011),
-    "Dhaka":            (23.8103,  90.4125),
-    "Bangkok":          (13.7563, 100.5018),
-    "Jakarta":          (-6.2088, 106.8456),
-    "Manila":           (14.5995, 120.9842),
-    "Kuala Lumpur":     (3.1390,  101.6869),
-    "Mexico City":      (19.4326,  -99.1332),
-    "Bogota":           (4.7110,   -74.0721),
-    "Lima":             (-12.0464, -77.0428),
-    "Santiago":         (-33.4489, -70.6693),
-    "Wuhan":            (30.5928,  114.3055),
-    "Chengdu":          (30.5728,  104.0668),
-    "Guangzhou":        (23.1291,  113.2644),
-    "Shenzhen":         (22.5431,  114.0579),
-    "Chongqing":        (29.4316,  106.9123),
-    "Qingdao":          (36.0671,  120.3826),
+    # Confirmed from live Polymarket market descriptions (ICAO station)
+    "London":           (51.5048,   0.0495),   # EGLC London City Airport
+    "Paris":            (48.9694,   2.4414),   # LFPB Paris-Le Bourget
+    "Seoul":            (37.4691, 126.4505),   # RKSI Incheon Intl
+    "Seattle":          (47.4502, -122.3088),  # KSEA Seattle-Tacoma Intl
+    "Sao Paulo":        (-23.4356, -46.4731),  # SBGR Guarulhos Intl
+    "Buenos Aires":     (-34.8222, -58.5358),  # SAEZ Ezeiza Intl
+    "Ankara":           (40.1281,  32.9951),   # LTAC Esenboğa Intl
+    "Wellington":       (-41.3272, 174.8051),  # NZWN Wellington Intl
+    "Lucknow":          (26.7606,  80.8893),   # VILK Chaudhary Charan Singh Intl
+    "Munich":           (48.3538,  11.7861),   # EDDM Munich Airport
+    "New York City":    (40.7769, -73.8740),   # KLGA LaGuardia
+    "Dallas":           (32.8481, -96.8517),   # KDAL Dallas Love Field
+    "Miami":            (25.7953, -80.2900),   # KMIA Miami Intl
+    "Chicago":          (41.9742, -87.9073),   # KORD O'Hare Intl
+    "Singapore":        (1.3644,  103.9915),   # WSSS Changi Airport
+    "Milan":            (45.6307,   8.7281),   # LIMC Malpensa Intl
+    "Madrid":           (40.4936,  -3.5668),   # LEMD Barajas
+    "Warsaw":           (52.1657,  20.9671),   # EPWA Chopin Airport
+    "Taipei":           (25.0694, 121.5522),   # RCSS Songshan Airport
+    "Beijing":          (40.0799, 116.5844),   # ZBAA Capital Intl
+    "Wuhan":            (30.7838, 114.2080),   # ZHHH Tianhe Intl
+    "Chengdu":          (30.5782, 103.9470),   # ZUUU Shuangliu Intl
+    "Shenzhen":         (22.6393, 113.8107),   # ZGSZ Bao'an Intl
+    "Austin":           (30.1945, -97.6699),   # KAUS Bergstrom Intl
+    "Denver":           (39.7017,-104.7517),   # KBKF Buckley Space Force Base
+    "Houston":          (29.6454, -95.2789),   # KHOU William P. Hobby
+    "Los Angeles":      (33.9425,-118.4081),   # KLAX LAX
+    "San Francisco":    (37.6213,-122.3790),   # KSFO SFO
+    "Mexico City":      (19.4363, -99.0721),   # MMMX Benito Juárez Intl
+    "Busan":            (35.1795, 128.9382),   # RKPK Gimhae Intl
+    "Amsterdam":        (52.3086,   4.7639),   # EHAM Schiphol
+    "Helsinki":         (60.3172,  24.9633),   # EFHK Vantaa Airport
+    "Panama City":      (8.9788,  -79.5556),   # MPHO Marcos Gelabert Intl
+    "Jakarta":          (-6.2662, 106.8906),   # WIHH Halim Perdanakusuma
+    "Jeddah":           (21.6796,  39.1565),   # OEJN King Abdulaziz Intl
+    "Cape Town":        (-33.9648,  18.6017),  # FACT Cape Town Intl
+    "Guangzhou":        (23.3924, 113.2990),   # ZGGG Baiyun Intl
+    "Jinan":            (36.8572, 117.0558),   # ZSJN Yaoqiang Intl
+    "Qingdao":          (36.2661, 120.3742),   # ZSQD Jiaodong Intl
+    "Karachi":          (24.8936,  67.1355),   # OPKC Masroor Airbase
+    "Manila":           (14.5086, 121.0194),   # RPLL Ninoy Aquino Intl
+    "Toronto":          (43.6777, -79.6248),   # CYYZ Pearson Intl
+    "Shanghai":         (31.1434, 121.8052),   # ZSPD Pudong Intl
+    # Best-proxy airports for cities not yet confirmed in Polymarket markets
+    "Tokyo":            (35.5494, 139.7798),   # RJTT Haneda
+    "Hong Kong":        (22.3080, 113.9185),   # VHHH HK Intl
+    "Dubai":            (25.2532,  55.3657),   # OMDB Dubai Intl
+    "Sydney":           (-33.9399, 151.1753),  # YSSY Kingsford Smith
+    "Phoenix":          (33.4343,-112.0117),   # KPHX Phoenix Sky Harbor
+    "Atlanta":          (33.6407, -84.4277),   # KATL Hartsfield-Jackson
+    "Berlin":           (52.3667,  13.5033),   # EDDB Brandenburg
+    "Stockholm":        (59.6519,  17.9186),   # ESSA Arlanda
+    "Oslo":             (60.1939,  11.0998),   # ENGM Gardermoen
+    "Copenhagen":       (55.6179,  12.6560),   # EKCH Kastrup
+    "Vienna":           (48.1103,  16.5697),   # LOWW Schwechat
+    "Zurich":           (47.4647,   8.5492),   # LSZH Kloten
+    "Brussels":         (50.9010,   4.4844),   # EBBR Zaventem
+    "Barcelona":        (41.2971,   2.0785),   # LEBL El Prat
+    "Rome":             (41.8003,  12.2389),   # LIRF Fiumicino
+    "Prague":           (50.1008,  14.2600),   # LKPR Václav Havel
+    "Budapest":         (47.4298,  19.2610),   # LHBP Ferenc Liszt
+    "Bucharest":        (44.5722,  26.1022),   # LROP Henri Coandă
+    "Athens":           (37.9364,  23.9445),   # LGAV Venizelos
+    "Istanbul":         (40.8986,  29.3092),   # LTFJ Sabiha Gökçen
+    "Moscow":           (55.9736,  37.4125),   # UUEE Sheremetyevo
+    "Riyadh":           (24.9576,  46.6988),   # OERK King Khalid Intl
+    "Cairo":            (30.1219,  31.4056),   # HECA Cairo Intl
+    "Lagos":            (6.5774,    3.3214),   # DNMM Murtala Muhammed
+    "Nairobi":          (-1.3192,  36.9275),   # HKJK Jomo Kenyatta
+    "Johannesburg":     (-26.1392,  28.2460),  # FAOR O.R. Tambo
+    "Mumbai":           (19.0896,  72.8656),   # VABB Chhatrapati Shivaji
+    "Delhi":            (28.5665,  77.1031),   # VIDP Indira Gandhi
+    "Dhaka":            (23.8433,  90.3978),   # VGHS Hazrat Shahjalal
+    "Bangkok":          (13.6811, 100.7472),   # VTBS Suvarnabhumi
+    "Kuala Lumpur":     (2.7456,  101.7072),   # WMKK KLIA
+    "Bogota":           (4.7016,  -74.1469),   # SKBO El Dorado
+    "Lima":             (-12.0219, -77.1143),  # SPJC Jorge Chávez
+    "Santiago":         (-33.3930, -70.7858),  # SCEL Arturo Merino Benítez
+    "Chongqing":        (29.7192, 106.6418),   # ZUCK Jiangbei Intl
 }
 
 
@@ -291,11 +306,12 @@ class WeatherArb:
         if lo_c is None and hi_c is None:
             return None
 
-        forecast_mean = forecast.get(end_date)
-        if not forecast_mean:
+        forecast_entry = forecast.get(end_date)
+        if not forecast_entry:
             return None
+        forecast_mean, sigma_c = forecast_entry
 
-        sigma = SIGMA_C if is_celsius else SIGMA_F
+        sigma = sigma_c if is_celsius else sigma_c * (SIGMA_F_DEFAULT / SIGMA_C_DEFAULT)
         fair_prob = _outcome_prob(forecast_mean, lo_c, hi_c, sigma)
 
         edge = fair_prob - poly_yes
@@ -385,11 +401,15 @@ class WeatherArb:
 
     async def _get_forecast(
         self, lat: float, lon: float, today: str, tomorrow: str
-    ) -> Optional[dict[str, float]]:
-        """Return dict {date_str: forecast_max_celsius} for today+tomorrow."""
+    ) -> Optional[dict[str, tuple[float, float]]]:
+        """
+        Return dict {date_str: (forecast_mean_celsius, sigma_celsius)}.
+        Fetches multiple NWP models; mean=ensemble average, sigma=model spread (min 1.0°C).
+        """
         url = (
             f"{METEO_BASE}?latitude={lat}&longitude={lon}"
-            f"&daily=temperature_2m_max&temperature_unit=celsius&forecast_days=2"
+            f"&daily=temperature_2m_max&temperature_unit=celsius"
+            f"&forecast_days=2&models={FORECAST_MODELS}"
         )
         try:
             async with aiohttp.ClientSession() as sess:
@@ -397,13 +417,29 @@ class WeatherArb:
                     if resp.status != 200:
                         return None
                     data = await resp.json()
-            daily  = data.get("daily", {})
-            dates  = daily.get("time", [])
-            maxes  = daily.get("temperature_2m_max", [])
-            result = {}
-            for d, mx in zip(dates, maxes):
-                if mx is not None and d in (today, tomorrow):
-                    result[d] = float(mx)
+            daily = data.get("daily", {})
+            dates = daily.get("time", [])
+            # Collect all temperature_2m_max arrays (one per model)
+            temp_keys = [k for k in daily if "temperature_2m_max" in k]
+            result: dict[str, tuple[float, float]] = {}
+            for i, d in enumerate(dates):
+                if d not in (today, tomorrow):
+                    continue
+                values = []
+                for k in temp_keys:
+                    arr = daily[k]
+                    if i < len(arr) and arr[i] is not None:
+                        values.append(float(arr[i]))
+                if not values:
+                    continue
+                mean = sum(values) / len(values)
+                # Dynamic sigma: model spread is the best uncertainty estimate.
+                # Floor at 1.0°C (irreducible forecast error even when models agree).
+                spread = max(values) - min(values) if len(values) > 1 else 0.0
+                sigma = max(1.0, spread)
+                result[d] = (mean, sigma)
+                logger.debug("[WA] forecast %s lat=%.2f models=%d mean=%.1f sigma=%.1f",
+                             d, lat, len(values), mean, sigma)
             return result if result else None
         except Exception as e:
             logger.debug("[WA] forecast error lat=%.2f lon=%.2f: %s", lat, lon, e)
