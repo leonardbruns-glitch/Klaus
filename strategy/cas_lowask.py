@@ -56,16 +56,90 @@ STAKE_FLOOR_USD  = 15.00
 ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 3.00}
 MAX_CONCURRENT   = 3
 
-# Hour-based stake sizing (deployed 2026-05-19 after WR analysis; increased 2026-05-20)
-# Strong hours (WR ≥ 60%): {0,4,7,8,9,10,12,15,20,22,23}
-# Medium hours (45% ≤ WR < 60%): {5,6,13,19}
-# Cautious hours (shadow +EV but live poor): {14} — reduced stakes for validation
-# Weak hours (WR < 45%): blocked globally
-STRONG_HOURS = {0, 4, 7, 8, 9, 10, 12, 15, 20, 22, 23}
-MEDIUM_HOURS = {5, 6, 13, 19}
-CAUTIOUS_HOURS = {14}  # H14: shadow EV=+0.057 but live shows poor performance; validate with $5 cap
-HOUR_STAKE_BTCETH = {"strong": 30.00, "medium": 10.00, "cautious": 5.00}  # BTC/ETH — increased strong from $20
-HOUR_STAKE_SOL = {"strong": 15.00, "medium": 4.00, "cautious": 5.00}      # SOL — increased strong from $10
+# Per-asset per-hour staking (deployed 2026-05-20, Option B, backed by live WR data)
+# BTC: ELITE (70%+) $50, STRONG (60-70%) $30, MEDIUM (50-60%) $15, CAUTIOUS (40-50%) $8, WEAK (<40%) $0
+# ETH: ELITE (70%+) $50, STRONG (60-70%) $30, MEDIUM (50-60%) $15, CAUTIOUS (40-50%) $8, WEAK (<40%) $0
+# SOL: ELITE (70%+) $25, STRONG (60-70%) $15, MEDIUM (50-60%) $8, CAUTIOUS (40-50%) $4, WEAK (<40%) $0
+BTC_HOUR_STAKES = {
+    0: 50.0,   # ELITE 100% WR (3/3)
+    1: 0.0,    # WEAK 0% (1/1)
+    2: 0.0,    # WEAK 0% (1/1)
+    3: 0.0,    # no data
+    4: 30.0,   # STRONG 60% (3/5)
+    5: 0.0,    # WEAK 25% (1/4)
+    6: 8.0,    # CAUTIOUS 43% (3/7)
+    7: 50.0,   # ELITE 100% (2/2)
+    8: 15.0,   # MEDIUM 50% (1/2)
+    9: 30.0,   # STRONG 67% (4/6)
+    10: 50.0,  # ELITE 100% (1/1)
+    11: 0.0,   # no data
+    12: 15.0,  # MEDIUM 50% (1/2)
+    13: 0.0,   # WEAK 33% (1/3)
+    14: 0.0,   # WEAK 0% (1/1)
+    15: 0.0,   # no data
+    16: 0.0,   # no data
+    17: 0.0,   # no data
+    18: 0.0,   # WEAK 0% (1/1)
+    19: 0.0,   # no data
+    20: 50.0,  # ELITE 100% (1/1)
+    21: 50.0,  # ELITE 100% (1/1)
+    22: 30.0,  # STRONG 67% (2/3)
+    23: 50.0,  # ELITE 75% (3/4)
+}
+
+ETH_HOUR_STAKES = {
+    0: 0.0,    # WEAK 0% (2/2)
+    1: 0.0,    # WEAK 0% (2/2)
+    2: 50.0,   # ELITE 100% (1/1)
+    3: 0.0,    # WEAK 0% (1/1)
+    4: 0.0,    # no data
+    5: 50.0,   # ELITE 100% (1/1)
+    6: 0.0,    # WEAK 0% (1/1)
+    7: 0.0,    # no data
+    8: 50.0,   # ELITE 75% (3/4)
+    9: 0.0,    # no data
+    10: 50.0,  # ELITE 100% (1/1)
+    11: 0.0,   # no data
+    12: 50.0,  # ELITE 100% (2/2)
+    13: 50.0,  # ELITE 100% (1/1)
+    14: 0.0,   # WEAK 0% (2/2)
+    15: 50.0,  # ELITE 100% (1/1)
+    16: 0.0,   # WEAK 0% (1/1)
+    17: 0.0,   # no data
+    18: 0.0,   # no data
+    19: 0.0,   # no data
+    20: 50.0,  # ELITE 100% (4/4)
+    21: 0.0,   # WEAK 0% (2/2)
+    22: 15.0,  # MEDIUM 50% (1/2)
+    23: 15.0,  # MEDIUM 50% (1/2)
+}
+
+SOL_HOUR_STAKES = {
+    0: 8.0,    # MEDIUM 50% (2/4)
+    1: 0.0,    # WEAK 0% (1/1)
+    2: 0.0,    # WEAK 0% (2/2)
+    3: 0.0,    # WEAK 0% (2/2)
+    4: 25.0,   # ELITE 100% (3/3)
+    5: 8.0,    # STRONG 67% (4/6)
+    6: 25.0,   # ELITE 100% (3/3)
+    7: 8.0,    # MEDIUM 50% (1/2)
+    8: 8.0,    # MEDIUM 50% (2/4)
+    9: 8.0,    # MEDIUM 50% (1/2)
+    10: 25.0,  # ELITE 100% (1/1)
+    11: 8.0,   # MEDIUM 50% (1/2)
+    12: 8.0,   # MEDIUM 50% (2/4)
+    13: 25.0,  # ELITE 100% (1/1)
+    14: 25.0,  # ELITE 100% (1/1)
+    15: 8.0,   # MEDIUM 50% (1/2)
+    16: 0.0,   # WEAK 0% (1/1)
+    17: 8.0,   # MEDIUM 50% (1/2)
+    18: 0.0,   # WEAK 0% (1/1)
+    19: 0.0,   # WEAK 25% (1/4)
+    20: 0.0,   # WEAK 25% (1/4)
+    21: 0.0,   # no data
+    22: 25.0,  # ELITE 100% (1/1)
+    23: 8.0,   # MEDIUM 50% (2/4)
+}
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
 # size, so smaller fills preserve EV per dollar while capturing more opportunities.
@@ -164,22 +238,17 @@ class CASLowAsk:
                 logger.info("[CAS_DEPTH_BLOCK] H%02d %s depth=%.1f < %.1f shares", hour_utc, asset, ask_size, ASK_DEPTH_MIN_SH)
             return
 
-        # Hour-based stake sizing: strong $30/$15, medium $10/$4, cautious $5/$5
-        # BTC H04 override: 60% WR, -$2.85 historical; keep at $10 (medium) to reduce variance
-        if asset == "BTC" and hour_utc == 4:
-            target_stake = 10.00
-        elif hour_utc in STRONG_HOURS:
-            hour_category = "strong"
-            target_stake = HOUR_STAKE_SOL[hour_category] if asset == "SOL" else HOUR_STAKE_BTCETH[hour_category]
-        elif hour_utc in MEDIUM_HOURS:
-            hour_category = "medium"
-            target_stake = HOUR_STAKE_SOL[hour_category] if asset == "SOL" else HOUR_STAKE_BTCETH[hour_category]
-        elif hour_utc in CAUTIOUS_HOURS:
-            hour_category = "cautious"
-            target_stake = HOUR_STAKE_SOL[hour_category] if asset == "SOL" else HOUR_STAKE_BTCETH[hour_category]
-        else:
-            # Should not reach here (weak hours blocked above), but fallback to baseline
-            target_stake = HOUR_STAKE_BTCETH["medium"] if asset != "SOL" else HOUR_STAKE_SOL["medium"]
+        # Per-asset per-hour staking lookup (Option B, live WR-based, deployed 2026-05-20)
+        if asset == "BTC":
+            target_stake = BTC_HOUR_STAKES.get(hour_utc, 0.0)
+        elif asset == "ETH":
+            target_stake = ETH_HOUR_STAKES.get(hour_utc, 0.0)
+        else:  # SOL
+            target_stake = SOL_HOUR_STAKES.get(hour_utc, 0.0)
+
+        # Block if stake is 0 (weak WR or no data)
+        if target_stake <= 0.0:
+            return
 
         shares_to_buy = min(target_stake / ask, ask_size)
         actual_stake = shares_to_buy * ask

@@ -342,3 +342,5 @@ Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $
 2026-05-20 22:35 UTC | CAS-BTC | block H05 (25% WR, -$13.46) and H13 (33% WR, -$23.92) | Per-asset hour analysis identified BTC underperformance in afternoon UTC; blocks reduce bleed while preserving edge in strong hours (H00, H07-H10, H20-H23, 56.2% overall WR)
 
 2026-05-20 22:40 UTC | CAS-STAKES | increase strong-hour stakes to $30/$15 (was $20/$10) | Hour analysis confirmed peak windows: H04 (75% WR), H07-H10 (75-100% WR), H12 (62.5%), H15-H20 (66.7%), H22-H23 (66.7-60%). Moved H22 from MEDIUM to STRONG tier (66.7% WR, +$11.46). BTC/ETH $30, SOL $15 in strong hours.
+
+2026-05-20 22:45 UTC | CAS-BTC-H04 | override stake to $10 (reduce from $30) | H04 shows BTC 60% WR vs 75% historical, losses concentrated in cheap asks ($0.12, $0.35 entries). SOL 100% WR in H04. Keep BTC at medium-tier $10 to reduce variance bleed while SOL/ETH capture $30 in strong hour.
