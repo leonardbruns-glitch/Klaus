@@ -1,23 +1,25 @@
-# VOLARB Quantitative Audit — 2026-05-19 00:16 UTC
+# VOLARB Quantitative Audit — 2026-05-20 12:14 UTC
 
 ## Snapshot
 
 | field | value |
 |---|---|
-| snapshot_ts | 2026-05-19T00:08:47Z (8 min old — FRESH) |
-| Klaus state | active (systemd: active, 0 open positions) |
-| Capital | $105.59 (prior audit 2026-05-17 12:16 UTC: $80.43 → **+$25.16 Δ** over ~36h) |
-| VOLARB n (live era) | 825 (deduped first-fire per (asset, ts_open rounded to second)) |
+| snapshot_ts | 2026-05-20T12:03:41Z (10.7 min old — FRESH) |
+| Klaus state | active (systemd: active, CAS_LOWASK, 0 open positions) |
+| Capital | $60.13 (prior audit 2026-05-19 00:16 UTC: $105.59 → **−$45.46 Δ** — CAS_LOWASK, not VOLARB) |
+| VOLARB n (live era, deduped) | 885 (prior: 825, Δ=+60 — last VOLARB trade 2026-05-19 02:50 UTC) |
 | drift_status | OK — data-mirror has no strategy/volarb.py; dev branch parameters confirmed current |
-| Data window | 2026-05-16T21:00Z .. 2026-05-19T00:08Z (51h8m) |
+| Data window | 2026-05-16T21:00Z .. 2026-05-19T02:50Z (53h50m total VOLARB operation) |
+| Open audit PRs | NONE |
 
-**EDGE_FLOOR NOTE:** Audit prompt assumes current EDGE_FLOOR=0.15. Actual deployed value is
-**0.10** (user instruction 2026-05-17 10:20 UTC; prior audit noted same discrepancy).
-Patch proposal "0.15→0.17" remains inapplicable.
+**STRATEGY STATUS: RETIRED.** VOLARB was disabled 2026-05-17 19:56 UTC (CAS_LOWASK launched),
+formally retired 2026-05-19 (volarb_strategy=None, import removed). All 885 trades are
+historical. No parameter change has operational effect.
 
-**HOUR GATE NOTE:** volarb.py currently restricts to `hour_utc in {1, 2, 11, 18}`. All
-full-window metrics (n=825) include trades from now-blocked hours. Current-config subset (n=169)
-tells a materially different story — see §Current-Config below.
+**EDGE_FLOOR NOTE:** Audit prompt assumes `EDGE_FLOOR=0.15` ("current"). Actual code has
+`EDGE_FLOOR_DEFAULT=0.10` (user-lowered 2026-05-17 10:20 UTC, state_log). The prescribed
+patch "(0.15→0.17)" is incoherent with actual code state. Third consecutive audit noting
+same discrepancy.
 
 ---
 
@@ -25,185 +27,195 @@ tells a materially different story — see §Current-Config below.
 
 | check | result |
 |---|---|
-| Snapshot age ≤45 min | PASS (8 min) |
-| `system_status.txt` `active` | PASS |
-| `bankroll.json` capital non-zero | PASS ($105.59) |
-| Code drift guard | PASS (data-mirror has no strategy/volarb.py; N/A condition) |
-| Open audit PRs | NONE (checked via GitHub API) |
-| `integrity_report.json` `blocks_agent_run` | N/A (absent from mirror) |
+| Snapshot age ≤45 min | PASS (10.7 min) |
+| `system_status.txt` contains `active` | PASS |
+| `bankroll.json` capital non-zero | PASS ($60.13) |
+| Code drift guard | PASS — data-mirror has no `strategy/volarb.py`; mirror-file-present condition N/A |
+| Open `audit/volarb-*` PRs | NONE (GitHub API confirmed) |
+| STALE_MIRROR | NO |
+| BOT_DOWN | NO (active; running CAS_LOWASK) |
+| DATA_CORRUPT | NO |
 
 ---
 
-## Overall VOLARB Performance (full window, all historical hours)
+## Overall VOLARB Performance (full window, 2026-05-16 21:00 – 2026-05-19 02:50 UTC)
 
-| metric | value | baseline (1-equiv) | vs baseline |
+| metric | value | backtest baseline ($1-equiv) | vs baseline |
 |---|---|---|---|
-| n | 825 | — | — |
-| WR | 34.3% | — | — |
-| PF | 1.060 | — | — |
-| net_sum | +$50.08 | — | — |
-| EV/trade | +$0.0607 | +$0.298 mid | BELOW mid |
-| CI95 | [−$0.102, +$0.222] | [+$0.244, +$0.352] | CI upper ($0.222) < baseline lower ($0.244) |
-| fee_bleed | 1.8% of gross wins ($15.50 / $880.48) | <20% kill-switch | OK |
+| n | 885 | — | — |
+| WR | 34.7% | 51.7% (backtest) | WELL BELOW |
+| PF | 1.061 | — | — |
+| net_sum | +$54.69 | — | — |
+| EV/trade | +$0.062 | CI=[+$0.244, +$0.352] | BELOW CI lower |
+| CI95 | [−$0.087, +$0.220] | [+$0.244, +$0.352] | CI ranges do not overlap |
+| fee_bleed | 1.7% of gross wins | <20% kill-switch | OK |
 
-Full-window metrics are diluted by now-blocked hours (see §Current-Config).
+### Current-Config Subset (hour_utc ∈ {1, 2, 11, 18} — hours gate-allowed by live code)
 
-## Current-Config Performance (hour_utc ∈ {1, 2, 11, 18} only)
+| metric | this audit | prior audit (2026-05-19 00:16) | Δ |
+|---|---|---|---|
+| n | 226 | 169 | +57 |
+| WR | 43.4% | 45.6% | −2.2pp |
+| PF | 1.407 | 1.633 | −0.226 |
+| EV/trade | +$0.378 | +$0.531 | −$0.153 |
+| CI95 | [+$0.069, +$0.692] | [+$0.164, +$0.896] | CI lower dropped toward zero |
 
-| metric | value | vs baseline CI |
-|---|---|---|
-| n | 169 | — |
-| WR | 45.6% | — |
-| PF | 1.633 | — |
-| net_sum | +$89.67 | — |
-| EV/trade | +$0.531 | **ABOVE** baseline CI upper (+$0.352) |
-| CI95 | [+$0.164, +$0.896] | CI lower (+$0.164) < baseline lower (+$0.244), but overlapping |
+Current-config still positive (CI lower > 0) but deteriorating. Moot: strategy retired.
 
-Per-asset within current-config:
+### EDGE_FLOOR Patch Condition Check
 
-| asset | n | WR | PF | EV/trade | CI95 |
-|---|---|---|---|---|---|
-| BTC | 55 | 40.0% | 1.288 | +$0.265 | [−$0.342, +$0.912] |
-| ETH | 58 | 44.8% | 1.607 | +$0.509 | [−$0.083, +$1.126] |
-| SOL | 56 | 51.8% | 2.075 | +$0.814 | [+$0.166, +$1.501] |
+| condition | required | actual | pass? |
+|---|---|---|---|
+| n ≥ 200 | n≥200 | 885 | PASS |
+| EV/trade < +$0.10 | <$0.10 | $0.062 | PASS |
+| PF < 1.10 | <1.10 | 1.061 | PASS |
+| CI95 lower < 0 | <0 | −$0.087 | PASS |
 
-SOL current-config CI lower (+$0.166) is below backtest lower but CI clears zero — COLLECTING.
+All four conditions satisfied. **NO PATCH** — two independent blockers:
+1. Strategy retired. Editing `EDGE_FLOOR_DEFAULT` in unreachable code has no effect.
+2. Code-value mismatch. Prescribed patch "(0.15→0.17)" references a stale value; actual
+   constant is 0.10 per user directive (state_log 2026-05-17 10:20 UTC). Raising it would
+   contradict that explicit instruction.
 
 ---
 
 ## 6h Recency Cells (n≥10 threshold)
 
-Window: 2026-05-18 18:08 UTC .. 2026-05-19 00:08 UTC (n=30 total)
+Window: 2026-05-18 20:50 UTC .. 2026-05-19 02:50 UTC (final 6h of VOLARB operation).
 
-No cell reached n≥10 per (asset × ask_band). Only H18 (18:08–19:00, ~52 min) + a few H23
-trades (H23 block deployed mid-window) produced entries. **No 6h recency flags.**
+| cell | n | WR | net_sum | EV | flag |
+|---|---|---|---|---|---|
+| (SOL, [30%,40%)) | 12 | 25.0% | −$7.58 | −$0.632 | FLAG (EV<−$0.50) |
+| (SOL, [40%,50%)) | 15 | 33.3% | −$9.01 | −$0.601 | FLAG (EV<−$0.50) |
+| (BTC, [30%,40%)) | 24 | 41.7% | +$6.97 | +$0.290 | OK |
+| (ETH, [30%,40%)) | 22 | 45.5% | +$9.29 | +$0.422 | OK |
+
+SOL bled in the final hours. Strategy was already being replaced; not actionable.
 
 ---
 
-## Full-Window Cell Scan (2026-05-16 21:00Z .. snapshot)
+## Full-Window Cell Scan (2026-05-16 21:00 – 2026-05-19 02:50 UTC)
 
-### a–c. Per-Asset
+### b. Per-Asset
 
-| asset | n | WR | PF | net_sum | EV/trade | CI95 | vs_baseline_CI | status |
+| asset | n | WR | PF | sum | EV/trade | CI95 | vs_baseline_CI | status |
 |---|---|---|---|---|---|---|---|---|
-| BTC | 265 | 32.1% | 1.066 | +$17.00 | +$0.064 | [−$0.194, +$0.346] | CI upper < baseline lower | below_mid |
-| ETH | 283 | 31.4% | 0.935 | −$19.22 | −$0.068 | [−$0.340, +$0.214] | CI upper ($0.214) < baseline lower ($0.244) | **WATCHLIST** |
-| SOL | 277 | 39.4% | 1.191 | +$52.30 | +$0.189 | [−$0.087, +$0.462] | CI upper > baseline lower | below_mid |
+| BTC | 286 | 32.9% | 1.08 | +$23.74 | +$0.083 | [−$0.183, +$0.358] | IN_CI | WATCH (n≥100, EV below $0.244) |
+| ETH | 305 | 32.5% | 0.97 | −$10.78 | −$0.035 | [−$0.293, +$0.238] | BELOW_CI | WATCH |
+| SOL | 294 | 38.8% | 1.14 | +$41.74 | +$0.142 | [−$0.125, +$0.410] | IN_CI | WATCH (n≥100, EV below $0.244) |
 
-**ETH watchlist note:** Full-window ETH is distorted by blocked hours. ETH in allowed hours shows
-EV=+$0.509 (n=58) vs −$0.068 full-window. The blocked-hour ETH drag is entirely from
-H05 (WR=0% n=11 EV=−$1.52), H07 (WR=10% n=10 EV=−$0.76), H12 (WR=15% n=13 EV=−$1.09),
-H17 (WR=14% n=7 EV=−$2.52) — all now blocked. Watchlist flag on ETH is artefactual given
-current gate set; promote to MONITOR_ONLY pending n≥100 in current-config hours.
+ETH is weakest: EV negative, CI upper ($0.238) below baseline lower ($0.244). All three
+assets below backtest CI lower ($0.244). No per-asset lever exists in Phase 1; watchlist only.
+
+### c. Per-Hour UTC (all COLLECTING — no cell at n≥100)
+
+| H | n | WR | PF | sum | EV/trade | CI95 | vs_baseline_CI | status |
+|---|---|---|---|---|---|---|---|---|
+| H00 | 39 | 35.9% | 1.36 | +$12.46 | +$0.320 | [−$0.394, +$1.074] | IN_CI | COLLECTING |
+| H01 | 66 | 48.5% | 1.95 | +$51.76 | +$0.784 | [+$0.191, +$1.406] | ABOVE_CI | COLLECTING |
+| H02 | 64 | 40.6% | 1.18 | +$12.56 | +$0.196 | [−$0.360, +$0.820] | IN_CI | COLLECTING |
+| H03 | 36 | 44.4% | 1.37 | +$13.38 | +$0.372 | [−$0.411, +$1.147] | IN_CI | COLLECTING |
+| H04 | 37 | 32.4% | 0.87 | −$5.42 | −$0.146 | [−$0.838, +$0.576] | IN_CI | COLLECTING |
+| H05 | 35 | 14.3% | 0.36 | −$30.13 | −$0.861 | [−$1.388, −$0.236] | BELOW_CI | COLLECTING |
+| H06 | 35 | 31.4% | 1.02 | +$0.72 | +$0.021 | [−$0.722, +$0.761] | IN_CI | COLLECTING |
+| H07 | 31 | 19.4% | 0.62 | −$13.60 | −$0.439 | [−$1.125, +$0.314] | IN_CI | COLLECTING |
+| H08 | 35 | 28.6% | 1.50 | +$14.30 | +$0.409 | [−$0.385, +$1.239] | IN_CI | COLLECTING |
+| H09 | 28 | 14.3% | 0.44 | −$15.75 | −$0.563 | [−$1.092, +$0.069] | BELOW_CI | COLLECTING |
+| H10 | 38 | 34.2% | 1.16 | +$5.34 | +$0.141 | [−$0.483, +$0.813] | IN_CI | COLLECTING |
+| H11 | 71 | 35.2% | 1.20 | +$13.53 | +$0.191 | [−$0.340, +$0.741] | IN_CI | COLLECTING |
+| H12 | 36 | 36.1% | 0.97 | −$1.20 | −$0.033 | [−$0.785, +$0.716] | IN_CI | COLLECTING |
+| H13 | 36 | 33.3% | 1.02 | +$0.83 | +$0.023 | [−$0.701, +$0.827] | IN_CI | COLLECTING |
+| H14 | 47 | 29.8% | 0.89 | −$5.05 | −$0.107 | [−$0.708, +$0.491] | IN_CI | COLLECTING |
+| H15 | 36 | 30.6% | 0.90 | −$4.45 | −$0.124 | [−$0.910, +$0.709] | IN_CI | COLLECTING |
+| H16 | 30 | 16.7% | 0.43 | −$21.46 | −$0.715 | [−$1.315, −$0.057] | BELOW_CI | COLLECTING |
+| H17 | 21 | 38.1% | 0.75 | −$8.14 | −$0.387 | [−$2.031, +$1.041] | IN_CI | COLLECTING |
+| H18 | 25 | 60.0% | 1.41 | +$7.53 | +$0.301 | [−$0.495, +$1.171] | IN_CI | COLLECTING |
+| H20 | 3 | 100.0% | — | +$9.05 | +$3.016 | — | ABOVE_CI | COLLECTING (n<40, ignore) |
+| H21 | 39 | 51.3% | 1.87 | +$23.67 | +$0.607 | [−$0.046, +$1.264] | IN_CI | COLLECTING |
+| H22 | 40 | 32.5% | 0.87 | −$5.48 | −$0.137 | [−$0.727, +$0.553] | IN_CI | COLLECTING |
+| H23 | 57 | 33.3% | 1.00 | +$0.24 | +$0.004 | [−$0.540, +$0.582] | IN_CI | COLLECTING |
+
+No hour reaches n≥100. Notable extremes: H05 (WR=14.3%, CI both negative) and H16
+(WR=16.7%, CI upper=−$0.057 < 0) — both n<40, below watchlist threshold.
 
 ### d. Per-Ask-Band
 
-| band | n | WR | PF | net_sum | EV/trade | CI95 | vs_baseline_CI | status |
+| band | n | WR | PF | sum | EV/trade | CI95 | vs_baseline_CI | status |
 |---|---|---|---|---|---|---|---|---|
-| [0.00,0.10) | 10 | 0.0% | 0.000 | −$9.11 | −$0.911 | [−$1.10, −$0.75] | — | collect (n<40) |
-| [0.10,0.20) | 91 | 18.7% | 1.197 | +$13.60 | +$0.149 | [−$0.308, +$0.667] | CI upper > baseline lower | WATCHLIST |
-| [0.20,0.30) | 227 | 26.4% | 0.997 | −$0.73 | −$0.003 | [−$0.276, +$0.305] | CI upper > baseline lower | below_mid |
-| [0.30,0.40) | 348 | 38.5% | 1.104 | +$38.04 | +$0.109 | [−$0.129, +$0.352] | CI upper = baseline upper | below_mid |
-| [0.40,0.50) | 139 | 48.2% | 1.114 | +$17.72 | +$0.128 | [−$0.268, +$0.527] | CI overlapping | below_mid |
-| [0.50,0.60) | 8 | 50.0% | 0.881 | −$1.25 | −$0.157 | [−$1.991, +$1.684] | — | collect (n<40) |
-| [0.60+) | 2 | 50.0% | 0.356 | −$8.18 | −$4.091 | [−$12.71, +$4.53] | — | collect (n<40) |
+| <0.10 | 10 | 0.0% | 0.00 | −$9.11 | −$0.911 | [−$1.105, −$0.740] | BELOW_CI | COLLECTING (n<40) |
+| [0.10,0.20) | 91 | 18.7% | 1.20 | +$13.60 | +$0.149 | [−$0.302, +$0.661] | IN_CI | COLLECTING (n=40–99) |
+| [0.20,0.30) | 227 | 26.4% | 1.00 | −$0.73 | −$0.003 | [−$0.276, +$0.265] | IN_CI | WATCH (n≥100, EV below $0.244) |
+| [0.30,0.40) | 390 | 38.7% | 1.11 | +$46.99 | +$0.120 | [−$0.108, +$0.357] | IN_CI | WATCH (n≥100, EV below $0.244) |
+| [0.40,0.50) | 157 | 47.1% | 1.07 | +$13.38 | +$0.085 | [−$0.280, +$0.472] | IN_CI | WATCH (n≥100, EV below $0.244) |
+| [0.50,0.60) | 8 | 50.0% | 0.88 | −$1.25 | −$0.157 | [−$1.997, +$1.697] | IN_CI | COLLECTING (n<40) |
+| ≥0.60 | 2 | 50.0% | 0.36 | −$8.18 | −$4.091 | — | — | COLLECTING (n<40, ignore) |
 
-[0.00,0.10) longshot bucket: WR=0% n=10, CI fully negative. Not actionable (n<40), but early
-signal is very negative — existing EDGE_CEIL=0.20 may already be filtering the worst of these.
-
-### Per-Hour (selected: currently-allowed hours and near-threshold)
-
-| hour | n | WR | PF | EV/trade | CI95 | status |
-|---|---|---|---|---|---|---|
-| H01 ← | 36 | 50.0% | 2.638 | +$1.103 | [+$0.270, +$2.029] | collect (n<100) |
-| H02 ← | 37 | 51.4% | 1.964 | +$0.781 | [+$0.024, +$1.554] | collect (n<100) |
-| H05 [blocked] | 35 | 14.3% | 0.359 | −$0.861 | [−$1.387, −$0.242] | blocked, CI fully negative — confirms block |
-| H11 ← | 71 | 35.2% | 1.196 | +$0.191 | [−$0.353, +$0.723] | WATCHLIST (40≤n<100) |
-| H16 [blocked] | 30 | 16.7% | 0.428 | −$0.715 | [−$1.311, −$0.060] | blocked, CI fully negative — confirms block |
-| H18 ← | 25 | 60.0% | 1.406 | +$0.301 | [−$0.493, +$1.077] | collect (n<100) |
-| H21 [blocked] | 39 | 51.3% | 1.873 | +$0.607 | [−$0.036, +$1.271] | blocked, positive trend noted |
-
-← = currently allowed. Full per-hour table: H01(+$1.10), H02(+$0.78), H03(+$0.37),
-H04(−$0.15), H05(−$0.86 ✓blocked), H06(+$0.02), H07(−$0.44), H08(+$0.41), H09(−$0.56),
-H10(+$0.14), H11(+$0.19), H12(−$0.03), H13(+$0.02), H14(−$0.11), H15(−$0.12),
-H16(−$0.72 ✓blocked), H17(−$0.39), H18(+$0.30), H21(+$0.61), H22(−$0.14), H23(+$0.004 → blocked).
+Longshot bucket <0.10 (activated 2026-05-17): n=10, WR=0%, CI fully negative. Catastrophic
+as warned. Not lever-actionable at n<40.
 
 ---
 
 ## Lever Probes
 
-### ASK_CEIL probe [0.50, 0.60)
-n=8 (< 100 threshold). EV=−$0.157, CI=[−$1.99, +$1.68].
-**→ Not a lever candidate. Collect.**
+| probe | n | WR | EV | CI95 | lever_candidate | result |
+|---|---|---|---|---|---|---|
+| ASK_CEIL [0.50,0.60) | 8 | 50.0% | −$0.157 | [−$1.997, +$1.697] | n<100 → NO | NO_ACTION |
+| REM_MAX_S [260,280) | 221 | 39.8% | −$0.004 | [−$0.340, +$0.326] | CI upper > 0 → NO | NO_ACTION |
+| REM_MIN_S [60,80) | 8 | 0.0% | −$1.075 | [−$1.338, −$0.830] | n<100 → NO | NO_ACTION |
+| ASK_DEPTH_MULT | — | — | — | slippage=0 throughout | no adverse-selection evidence | NO_ACTION |
 
-### REM_MAX_S probe [260, 280)
-n=201, WR=39.3%, EV=−$0.033, CI=[−$0.362, +$0.295].
-EV condition: −$0.033 > −$0.10 → **condition not met**.
-**→ Not a lever candidate.**
-
-### REM_MIN_S probe [60, 80)
-n=8 (< 100 threshold). EV=−$1.076, CI=[−$1.352, −$0.820].
-EV is very negative but n is far below 100. Early signal flagged (see Watchlist).
-**→ Not a lever candidate.**
-
-### ASK_DEPTH_MULT probe
-No direct adverse-selection slippage metric available in trade records. Overall EV degradation
-is explained by blocked-hour history, not adverse selection. n<200 required for this lever.
-**→ Not a lever candidate.**
+REM_MIN_S [60,80) has n=8, CI fully negative — a real signal, but n<100 is hard. Not
+lever-actionable. REM distribution: rem[100,140) is best bucket (WR=37.5%, EV=+$0.630);
+very early entries (rem<100) worst (WR=7.1%, EV=−$0.698).
 
 ---
 
 ## Proposed Patch
 
-**No patch.**
+**no patch**
 
-EDGE_FLOOR raise conditions are statistically met on the full-window dataset (n=825 ≥ 200,
-EV=$+0.061 < $0.10, PF=1.060 < 1.10, CI_lo=−$0.102 < 0). However:
-
-1. **Current floor is 0.10, not 0.15.** Prompt's specified patch (0.15→0.17) is inapplicable.
-   Applying 0.10→0.12 (+20%) would be inferred, not specified.
-2. **User override (state_log 2026-05-17 10:20 UTC).** User explicitly set EDGE_FLOOR=0.10
-   after evidence showed 0.30 caused WR=19.3% EV=−$0.224. Raising contradicts stated intent.
-3. **Full-window metrics are polluted.** Current-config hours (H01/H02/H11/H18) show
-   EV=+$0.531, CI=[+$0.164, +$0.896] — entirely above backtest baseline. The full-window
-   EDGE_FLOOR trigger is artefactual from now-blocked hours.
-4. **No other lever probe clears its conditions.**
+No lever probe meets all required conditions. EDGE_FLOOR raise conditions are statistically
+met (n=885, EV=$0.062<$0.10, PF=1.061<1.10, CI_lo=−$0.087<0) but is blocked by: (1)
+strategy retired; (2) prescribed patch incoherent with actual code value (0.10 ≠ 0.15).
 
 ---
 
-## Watchlist (40≤n<100 AND findings without actionable lever)
+## Watchlist (40≤n<100 or n≥100 below baseline, with Δ vs prior audit)
 
-| dimension | cell | n | WR | EV/trade | CI95 | delta vs prior | note |
+| dimension | cell | n | WR | EV/trade | CI95 | Δ vs prior | status |
 |---|---|---|---|---|---|---|---|
-| per-hour | H11 (allowed) | 71 | 35.2% | +$0.191 | [−$0.353, +$0.723] | +$0.002 EV vs flat prior | Positive, COLLECTING — promote at n≥100 |
-| per-ask-band | [0.10,0.20) | 91 | 18.7% | +$0.149 | [−$0.308, +$0.667] | n growing | Low WR but PF=1.197; large wins pulling avg; watch |
-| rem-probe | [60,80) | 8 | 0.0% | −$1.076 | [−$1.352, −$0.820] | NEW | n<40, CI fully negative; early adverse signal on the minimum-rem boundary. No action yet |
-| longshot | [0.00,0.10) | 10 | 0.0% | −$0.911 | [−$1.10, −$0.75] | n<40 | All 10 resolved NO; watch at n≥40 |
+| asset | ETH | 305 | 32.5% | −$0.035 | [−$0.293, +$0.238] | new (not individually tracked prior) | DETERIORATING |
+| asset | BTC | 286 | 32.9% | +$0.083 | [−$0.183, +$0.358] | new | WATCH |
+| asset | SOL | 294 | 38.8% | +$0.142 | [−$0.125, +$0.410] | new | WATCH |
+| ask_band | [0.20,0.30) | 227 | 26.4% | −$0.003 | [−$0.276, +$0.265] | new | WATCH |
+| ask_band | [0.30,0.40) | 390 | 38.7% | +$0.120 | [−$0.108, +$0.357] | new | WATCH |
+| ask_band | [0.40,0.50) | 157 | 47.1% | +$0.085 | [−$0.280, +$0.472] | new | WATCH |
+| hour | H02 | 64 | 40.6% | +$0.196 | [−$0.360, +$0.820] | — | COLLECTING (n=40–99) |
+| hour | H11 | 71 | 35.2% | +$0.191 | [−$0.340, +$0.741] | — | COLLECTING (n=40–99) |
+| hour | H14 | 47 | 29.8% | −$0.107 | [−$0.708, +$0.491] | — | COLLECTING (n=40–99) |
+| hour | H22 | 40 | 32.5% | −$0.137 | [−$0.727, +$0.553] | — | COLLECTING (n=40–99) |
+| hour | H23 | 57 | 33.3% | +$0.004 | [−$0.540, +$0.582] | — | COLLECTING (n=40–99) |
 
-**H21 note (blocked, n=39, EV=+$0.607, CI_lo=−$0.036):** Was one of VOLARB's four strongest hours
-per prior analysis; blocked for CAS conflict. EV approaches significance — promote to
-watchlist for user review if CAS-H21 conflict resolves.
+All watchlist items are moot — VOLARB is retired. No re-enablement path without explicit
+user instruction and model retrain.
 
 ---
 
 ## Skipped — User Override (state_log)
 
-| lever | condition | override |
+| item | state_log entry | action blocked |
 |---|---|---|
-| EDGE_FLOOR raise | Conditions met on full-window data | state_log 2026-05-17 10:20 UTC: user set 0.10 explicitly, reversing failed 0.30 experiment. Prompt patch (0.15→0.17) also inapplicable since floor≠0.15. |
-| ETH full-window WATCHLIST → block | CI upper < baseline lower on full data | Entirely driven by now-blocked hours (H05, H07, H12, H17). ETH in allowed hours: EV=+$0.509 n=58. User-override: hour gate already addresses root cause. |
-| H21 re-enable | n=39 EV=+$0.607 trending positive | Blocked via state_log 2026-05-18 CAS/VOLARB swap. n<100 and user gated — watchlist only. |
+| EDGE_FLOOR raise | 2026-05-17 10:20 UTC: user explicitly lowered to 0.10 after 0.30 experiment failed | Would contradict user directive |
+| Any parameter edit | 2026-05-19: strategy retired, volarb_strategy=None | No operational target |
 
 ---
 
-## Summary
+## Structural Note
 
-Strategy is healthy in its current operating configuration. Capital grew +$25.16 (+31%) since
-prior audit. Fee bleed at 1.8% is well within limits. The 825-trade full-window dataset is
-materially distorted by blocked-hour history; the current operative subset (n=169, H01/H02/H11/H18)
-shows WR=45.6%, EV=+$0.531 — above backtest baseline. No patch warranted. COLLECTING toward
-n≥100 per current-config hour.
-
-Next decision gate: H01 at n≥100 (~64 more fires) — CI95 lower (+$0.270) already above
-backtest lower at n=36. If it holds, this becomes the first current-config cell to clear
-the baseline with n≥100 confidence.
+Third consecutive audit with no actionable patch. Root cause is strategy retirement, not
+insufficient data. VOLARB (23h live, WR=34.7%, EV=$0.062) was superseded by CAS_LOWASK on
+2026-05-17. If this audit cron continues to run, consider: (1) suspending until VOLARB is
+re-enabled; (2) updating audit prompt's EDGE_FLOOR assumption from 0.15 to 0.10; (3) noting
+that current-config hour subset {1,2,11,18} was added post-operation and is a retrospective
+filter, not a prospective cohort (its positive EV does not imply the gate would produce same
+results if re-deployed).
