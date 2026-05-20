@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-20T00:12:47Z
+# Snapshot: 2026-05-20T00:27:56Z
 # Latest commit on klaus:
-9bbcaf3 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
+bf98052 chore(sports_copy): disable live mode — shadow only
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
