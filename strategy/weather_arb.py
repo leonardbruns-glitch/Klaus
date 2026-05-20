@@ -380,14 +380,14 @@ class WeatherArb:
                     direction="UP",
                     side="YES",
                     shares=fill.total_size,
-                    entry_price=fill.avg_price,
+                    entry_price=fill.avg_fill_price,
                     stake_usd=STAKE_USD,
                     bond_entry_class="WEATHER_ARB",
                     bond_outcome_direction="up",
                     window_end_ts=0,
                 )
                 logger.info("[WA] FILLED %s shares=%.1f @ %.4f",
-                            question[:45], fill.total_size, fill.avg_price)
+                            question[:45], fill.total_size, fill.avg_fill_price)
                 return True
             else:
                 self._fired_tokens.discard(token_id)

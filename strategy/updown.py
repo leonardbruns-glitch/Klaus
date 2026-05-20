@@ -170,7 +170,7 @@ class CryptoUpDown:
                     direction="UP" if direction == "Up" else "DOWN",
                     side="YES",
                     shares=fill.total_size,
-                    entry_price=fill.avg_price,
+                    entry_price=fill.avg_fill_price,
                     stake_usd=STAKE_USD,
                     bond_entry_class="UPDOWN",
                     bond_outcome_direction="up" if direction == "Up" else "down",
@@ -178,7 +178,7 @@ class CryptoUpDown:
                 )
                 logger.info("[UD] %s W%d FILLED %s shares=%.1f @ %.4f",
                             asset_lower.upper(), window_start, direction,
-                            fill.total_size, fill.avg_price)
+                            fill.total_size, fill.avg_fill_price)
             else:
                 logger.warning("[UD] %s W%d fill failed: %s",
                                asset_lower.upper(), window_start, getattr(fill, "error", "?"))
