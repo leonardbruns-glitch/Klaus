@@ -344,3 +344,5 @@ Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $
 2026-05-20 22:40 UTC | CAS-STAKES | increase strong-hour stakes to $30/$15 (was $20/$10) | Hour analysis confirmed peak windows: H04 (75% WR), H07-H10 (75-100% WR), H12 (62.5%), H15-H20 (66.7%), H22-H23 (66.7-60%). Moved H22 from MEDIUM to STRONG tier (66.7% WR, +$11.46). BTC/ETH $30, SOL $15 in strong hours.
 
 2026-05-20 22:45 UTC | CAS-BTC-H04 | override stake to $10 (reduce from $30) | H04 shows BTC 60% WR vs 75% historical, losses concentrated in cheap asks ($0.12, $0.35 entries). SOL 100% WR in H04. Keep BTC at medium-tier $10 to reduce variance bleed while SOL/ETH capture $30 in strong hour.
+
+2026-05-20 23:05 UTC | CAS-OPTION-B | implement per-asset per-hour staking (live WR-backed) | Replace uniform hour tiers with granular allocation: BTC (ELITE $50 at H0,7,10,20-23; STRONG $30 at H4,9,22; MEDIUM $15 at H8,12; CAUTIOUS $8 at H6), ETH (8 ELITE $50 hours H2,5,8,10,12-13,15,20; MEDIUM $15 at H22-23), SOL (ELITE $25 at H4,6,10,13-14,22; STRONG $15 at H5; MEDIUM $8 elsewhere). All backed by live n≥1. Peak H10 $125, H20 $100. Dead zones H01,H03,H16,H18-19. Commit b1c8da52.
