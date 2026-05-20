@@ -43,7 +43,7 @@ ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
 ASK_BAND_HI  = 0.27    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
 # ── NegRisk Bracketing ────────────────────────────────────────────────────────
-BRACKET_ENABLED     = False  # enable only after Upgrade 1 skill matrix is validated
+BRACKET_ENABLED     = True   # enabled 2026-05-20 after skill matrix built (43/78 stations)
 BRACKET_COST_CAP    = 0.80   # reject bracket if Σ ask_i > this (loss too expensive)
 BRACKET_MAX_BUCKETS = 2      # maximum buckets in one bracket
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
