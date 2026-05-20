@@ -428,7 +428,7 @@ class CASLowAsk:
                 and ASK_MIN <= _new_ask <= ASK_MAX_HIGH_CONV
                 and (wend - time.time()) >= REM_MIN_S
             ):
-                _target = ASSET_STAKE.get(asset.upper(), STAKE_CAP_USD)
+                _target = target_stake
                 _sh = min(_target / _new_ask, _ob.asks[0][1])
                 _retry_stake = _sh * _new_ask
                 if _retry_stake >= MIN_NOTIONAL_USD:
