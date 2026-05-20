@@ -75,7 +75,7 @@ ELEVATION_SIGMA_FLOOR = 3.0  # Minimum sigma for mountain cities (vs 1.0 for sea
 # Multiple forecast models — average for better point estimate, spread → dynamic sigma
 # 2026-05-20: Added GraphCast (Google DeepMind AI model, outperforms ECMWF on 10-day horizon)
 # and ECMWF IFS (most accurate global model). Now 5-model ensemble vs prior 3-model.
-FORECAST_MODELS = "best_match,gfs025,icon_global,ecmwf,graphcast"
+FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025"
 
 # City → (lat, lon) of the EXACT weather station Polymarket resolves against.
 # All station codes verified from market description wunderground URLs (2026-05-20).
