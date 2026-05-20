@@ -340,3 +340,5 @@ Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $
 ## 2026-05-19 | STRATEGY / VOLARB | VOLARB fully disabled — volarb_strategy=None | User instruction. Was already not entering trades (schedule_if_ready never called from main.py). Import and instantiation removed. Exit-path checks for bond_entry_class=="VOLARB" kept for residual wallet positions. Commit 3203629.
 
 2026-05-20 22:35 UTC | CAS-BTC | block H05 (25% WR, -$13.46) and H13 (33% WR, -$23.92) | Per-asset hour analysis identified BTC underperformance in afternoon UTC; blocks reduce bleed while preserving edge in strong hours (H00, H07-H10, H20-H23, 56.2% overall WR)
+
+2026-05-20 22:40 UTC | CAS-STAKES | increase strong-hour stakes to $30/$15 (was $20/$10) | Hour analysis confirmed peak windows: H04 (75% WR), H07-H10 (75-100% WR), H12 (62.5%), H15-H20 (66.7%), H22-H23 (66.7-60%). Moved H22 from MEDIUM to STRONG tier (66.7% WR, +$11.46). BTC/ETH $30, SOL $15 in strong hours.

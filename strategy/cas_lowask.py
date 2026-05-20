@@ -164,21 +164,22 @@ class CASLowAsk:
                 logger.info("[CAS_DEPTH_BLOCK] H%02d %s depth=%.1f < %.1f shares", hour_utc, asset, ask_size, ASK_DEPTH_MIN_SH)
             return
 
-        # Hour-based stake sizing: strong $20/$10, medium $10/$4, cautious $5/$5 (H14 validation)
-        if hour_utc in STRONG_HOURS:
+        # Hour-based stake sizing: strong $30/$15, medium $10/$4, cautious $5/$5
+        # BTC H04 override: 60% WR, -$2.85 historical; keep at $10 (medium) to reduce variance
+        if asset == "BTC" and hour_utc == 4:
+            target_stake = 10.00
+        elif hour_utc in STRONG_HOURS:
             hour_category = "strong"
+            target_stake = HOUR_STAKE_SOL[hour_category] if asset == "SOL" else HOUR_STAKE_BTCETH[hour_category]
         elif hour_utc in MEDIUM_HOURS:
             hour_category = "medium"
+            target_stake = HOUR_STAKE_SOL[hour_category] if asset == "SOL" else HOUR_STAKE_BTCETH[hour_category]
         elif hour_utc in CAUTIOUS_HOURS:
             hour_category = "cautious"
+            target_stake = HOUR_STAKE_SOL[hour_category] if asset == "SOL" else HOUR_STAKE_BTCETH[hour_category]
         else:
             # Should not reach here (weak hours blocked above), but fallback to baseline
-            hour_category = "medium"
-
-        if asset == "SOL":
-            target_stake = HOUR_STAKE_SOL[hour_category]
-        else:  # BTC, ETH
-            target_stake = HOUR_STAKE_BTCETH[hour_category]
+            target_stake = HOUR_STAKE_BTCETH["medium"] if asset != "SOL" else HOUR_STAKE_SOL["medium"]
 
         shares_to_buy = min(target_stake / ask, ask_size)
         actual_stake = shares_to_buy * ask
