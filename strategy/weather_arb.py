@@ -203,6 +203,16 @@ def _parse_outcome(question: str) -> tuple[Optional[float], Optional[float], boo
     return None, None, False
 
 
+def _parse_token_ids(raw) -> list:
+    """gamma-api returns clobTokenIds inconsistently as list or JSON string."""
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except Exception:
+            return []
+    return raw if isinstance(raw, list) else []
+
+
 def _parse_city(title: str) -> Optional[str]:
     """Extract city name from event title like 'Highest temperature in London on May 20?'"""
     m = re.search(r'temperature in ([^?]+?) on', title, re.IGNORECASE)
@@ -260,7 +270,9 @@ class WeatherArb:
             for m in ev.get("markets", []):
                 if m.get("endDate", "")[:10] not in target_dates: continue
                 if m.get("closed", False): continue
-                if not m.get("conditionId") or not m.get("clobTokenIds"): continue
+                if not m.get("conditionId"): continue
+                token_ids_raw = _parse_token_ids(m.get("clobTokenIds", []))
+                if not token_ids_raw: continue
                 prices_raw = m.get("outcomePrices", '["0"]')
                 prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
                 if float(prices[0]) <= 0.001: continue
@@ -292,7 +304,7 @@ class WeatherArb:
         prices_raw = mkt.get("outcomePrices", '["0.5", "0.5"]')
         prices     = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
         poly_yes   = float(prices[0])  # YES token price = P(outcome)
-        token_ids = mkt.get("clobTokenIds", [])
+        token_ids = _parse_token_ids(mkt.get("clobTokenIds", []))
         end_date  = mkt.get("endDate", "")[:10]
 
         if not token_ids or poly_yes <= 0.005:
@@ -333,7 +345,7 @@ class WeatherArb:
 
     async def _enter(self, mkt: dict, fair_prob: float, poly_price: float,
                      city: str) -> bool:
-        token_id  = mkt["clobTokenIds"][0]
+        token_id  = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
         cid       = mkt.get("conditionId", "")
         question  = mkt.get("question", "")
         end_date  = mkt.get("endDate", "?")[:10]
