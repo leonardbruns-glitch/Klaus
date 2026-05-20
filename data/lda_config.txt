@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-20T15:36:41Z
+# Snapshot: 2026-05-20T15:51:43Z
 # Latest commit on klaus:
-1e6ff563 weather: nowcast formula — bias-correct forecast with live METAR + sky cover
+2e2e67d5 weather: fix metar loop crash — guard non-dict meta + correct positions attr
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
