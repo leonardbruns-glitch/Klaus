@@ -315,24 +315,30 @@ def run_validation(cities: list[str], days_back: int, verbose: bool = False,
                 )
 
             for bucket in mkt.buckets:
-                if bucket.entry_price is None or bucket.entry_price <= 0.001:
-                    continue
+                has_price = bucket.entry_price is not None and bucket.entry_price > 0.001
 
                 fair_prob = _bucket_prob_normal(
                     bucket.lo_inclusive, bucket.hi_exclusive,
                     forecast_mu, sigma_mu,
                 )
-                edge = fair_prob - bucket.entry_price
-                would_enter = (
-                    edge >= EDGE_MIN and
-                    ASK_BAND_LO <= bucket.entry_price < ASK_BAND_HI
-                )
+
+                if has_price:
+                    entry_price = bucket.entry_price
+                    edge = fair_prob - entry_price
+                    would_enter = (
+                        edge >= EDGE_MIN and
+                        ASK_BAND_LO <= entry_price < ASK_BAND_HI
+                    )
+                else:
+                    entry_price = 0.0   # unknown — no CLOB data
+                    edge = 0.0
+                    would_enter = False  # can't evaluate without price
 
                 all_records.append(TradeRecord(
                     city=city_slug,
                     valid_day=mkt.valid_day,
                     bucket=bucket.label,
-                    entry_price=bucket.entry_price,
+                    entry_price=entry_price,
                     forecast_mu_c=forecast_c,
                     actual_temp_c=actual_c,
                     sigma_c=sigma_c,
