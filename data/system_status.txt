@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-10c46ff Log: THR shadow recorder deployment + ASK_MAX tightening
-6a4c4e4 Add CAS THR shadow analysis script
-48a06f9 CAS: add THR shadow recorder — log signals that would fire at 10× looser threshold
-81ba645 CAS: tighten ASK_MAX 0.50→0.55; remove extended convexity ceiling
-bf98052 chore(sports_copy): disable live mode — shadow only
-4fa7505 revert(sports_copy): remove 60s mirror-sell hold — copy wallet exits immediately
-35eda88 fix(sports_copy): exempt from SL_15S/VELOCITY_EXIT; min 60s hold before mirror-sell
-9bbcaf3 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
-357dfe7 fix(risk): exempt SPORTS_COPY from 210s hard-exit timer
-77043c6 fix(sports_copy): skip wallets that buy both sides of the same market
+667c1c2a Watchdog 2026-05-20T04:17:59Z: OK — 2 active MEDIUM alerts in backoff
+f2c6ad93 Watchdog 2026-05-20T03:20:27Z: OK — 2 active MEDIUM alerts in backoff
+8fb1dcd1 Watchdog 2026-05-20T02:20:10Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
+4e18e54f Watchdog 2026-05-20T01:18:24Z: OK — 0 alerts (2 active anomalies in backoff)
+0bc68ed3 VOLARB Scout 2026-05-20T0042Z — H5 [220-280s) BELOW_CI n=617; ETH BELOW_CI n=301; 'up' dir degrading z=1.67
+bf980529 chore(sports_copy): disable live mode — shadow only
+4fa7505e revert(sports_copy): remove 60s mirror-sell hold — copy wallet exits immediately
+35eda88e fix(sports_copy): exempt from SL_15S/VELOCITY_EXIT; min 60s hold before mirror-sell
+9bbcaf34 fix(startup): exempt SPORTS_COPY from orphan force-sell on restart
+357dfe73 fix(risk): exempt SPORTS_COPY from 210s hard-exit timer
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   56G       37G  60% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 00:27:38 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 05:40:11 UTC
 
 ## Open positions (count):
 0
