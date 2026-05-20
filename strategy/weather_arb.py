@@ -38,16 +38,40 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket — rejects cities where
-                       # σ is too wide relative to bucket width (e.g. London May mode=35%)
-ASK_BAND_LO  = 0.01    # min entry price
-ASK_BAND_HI  = 0.27    # max entry price (60d 7-city calibration: WR 26.8% at 0.30+ = unprofitable)
-STAKE_USD    = 25.0    # per market position
+MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket
+ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
+ASK_BAND_HI  = 0.27    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
+
+# ── NegRisk Bracketing ────────────────────────────────────────────────────────
+BRACKET_ENABLED     = False  # enable only after Upgrade 1 skill matrix is validated
+BRACKET_COST_CAP    = 0.80   # reject bracket if Σ ask_i > this (loss too expensive)
+BRACKET_MAX_BUCKETS = 2      # maximum buckets in one bracket
+# Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
+# Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
+SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
+STAKE_USD    = 25.0    # fallback flat stake (used if Kelly is disabled or bankroll unavailable)
+
+# ── Fractional Kelly position sizing ─────────────────────────────────────────
+KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
+KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
+KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
+KELLY_MAX_USD    = 60.0   # ceiling: hard capital cap per weather position
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
 SCAN_INTERVAL_S = 1800 # scan every 30 minutes
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
+
+# ── METAR-loop dynamic exits ──────────────────────────────────────────────────
+NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
+SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss is tiny)
+
+# ── Intraday METAR arb (front-running WU→Polymarket lag) ─────────────────────
+INTRADAY_ENABLED    = True   # master switch for today's-markets trading
+INTRADAY_MIN_PROB   = 0.80   # minimum nowcast P(bucket) to enter today's market
+INTRADAY_EDGE_MIN   = 0.06   # lower edge threshold (harder signal, less spread required)
+INTRADAY_ASK_CAP    = 0.92   # upper price cap for intraday entries (near-certainty buys)
+INTRADAY_STAKE_FRAC = 0.60   # fractional Kelly multiplier for intraday (higher certainty → less fractional)
 
 # Hold-favourites / scalp-mids policy (London 30d backtest 2026-05-20).
 # Favourites: entry in [SCALP_BAND_HI, 1.0) — hold to PROFIT_TARGET=0.99 or resolution.
@@ -458,6 +482,8 @@ class WeatherArb:
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
         self._latest_metar: dict[str, dict] = {}     # icao → {wind_speed_kt, wind_dir_deg, sky_cover, utc_hour}
+        from strategy.ensemble_weights import WeightedEnsemble
+        self._ensemble = WeightedEnsemble()
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
 
@@ -531,6 +557,15 @@ class WeatherArb:
             if not candidates or entries_made >= MAX_POSITIONS:
                 continue
 
+            # ── Bracket evaluation ────────────────────────────────────────────
+            if BRACKET_ENABLED and len(candidates) >= 2:
+                bracket = self._select_bracket(candidates)
+                if bracket is not None:
+                    n_entered = await self._enter_bracket(bracket, city)
+                    entries_made += n_entered
+                    continue  # bracket takes priority over single-best entry
+
+            # ── Single best bucket ────────────────────────────────────────────
             best_mkt, best_entry = max(candidates, key=lambda x: x[1]["fair_prob"])
 
             if best_entry["fair_prob"] < MIN_FAIR_PROB:
@@ -544,8 +579,10 @@ class WeatherArb:
                 logger.info("[WA] BEST BUCKET %s fair=%.3f (skipping %d lower-prob buckets)",
                             city, best_entry["fair_prob"], len(candidates) - 1)
 
+            stake = self._kelly_stake(best_entry["edge"], best_entry["poly_price"])
             if await self._enter(best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
-                                 city, best_entry.get("lo_c"), best_entry.get("hi_c")):
+                                 city, best_entry.get("lo_c"), best_entry.get("hi_c"),
+                                 stake=stake):
                 entries_made += 1
 
         logger.info("[WA] scan done: %d entries made", entries_made)
@@ -577,18 +614,23 @@ class WeatherArb:
             return None
         forecast_mean, sigma_c = forecast_entry
 
-        sigma = sigma_c if is_celsius else sigma_c * (SIGMA_F_DEFAULT / SIGMA_C_DEFAULT)
+        # Sigma inflation for high-price entries: compensates for suspected overconfidence
+        # when ask > ASK_BAND_HI. Only active when BRACKET_ENABLED (Upgrade 4).
+        effective_sigma_c = sigma_c
+        if BRACKET_ENABLED and poly_yes >= ASK_BAND_HI:
+            effective_sigma_c = sigma_c * SIGMA_INFLATION_ABOVE_CAP
+
+        sigma = effective_sigma_c if is_celsius else effective_sigma_c * (SIGMA_F_DEFAULT / SIGMA_C_DEFAULT)
         fair_prob = _outcome_prob(forecast_mean, lo_c, hi_c, sigma)
 
         edge = fair_prob - poly_yes
         if edge < EDGE_MIN:
             return None
 
-        # Ask-band filter (London 30d calibration backtest, 2026-05-20):
-        # <$0.20 is the calibration-mirage zone where Gaussian σ=1.2°C
-        # overpredicts and post-edge-filter realized WR ≈ 0%. >$0.40 has
-        # too few historical obs (n=3) to validate.
-        if not (ASK_BAND_LO <= poly_yes < ASK_BAND_HI):
+        # Ask-band filter: use relaxed ceiling when BRACKET_ENABLED (Upgrade 4).
+        # When bracket is off, strict ASK_BAND_HI applies (60d calibration data).
+        ask_hi = BRACKET_COST_CAP if BRACKET_ENABLED else ASK_BAND_HI
+        if not (ASK_BAND_LO <= poly_yes < ask_hi):
             return None
 
         logger.info("[WA] CANDIDATE %s %s poly=%.3f fair=%.3f edge=%.3f %s",
@@ -608,7 +650,8 @@ class WeatherArb:
 
     async def _enter(self, mkt: dict, fair_prob: float, poly_price: float,
                      city: str, bucket_lo_c: Optional[float] = None,
-                     bucket_hi_c: Optional[float] = None) -> bool:
+                     bucket_hi_c: Optional[float] = None,
+                     stake: float = STAKE_USD) -> bool:
         token_id  = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
         cid       = mkt.get("conditionId", "")
         question  = mkt.get("question", "")
@@ -630,7 +673,7 @@ class WeatherArb:
             fill = await self.bot.orders.limit_buy(
                 token_id=token_id,
                 intended_price=poly_price,
-                stake_usd=STAKE_USD,
+                stake_usd=stake,
                 direction=Dir.BUY_YES,
                 neg_risk=neg_risk,
                 fast_fail=True,
@@ -712,6 +755,8 @@ class WeatherArb:
         while True:
             try:
                 await self._poll_metars()
+                if INTRADAY_ENABLED:
+                    await self._intraday_scan()
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
@@ -820,6 +865,7 @@ class WeatherArb:
                     status = f"BELOW BUCKET gap={gap:+.1f}°C"
 
                 # Nowcast probability
+                p_nc: Optional[float] = None
                 p_str = ""
                 if est_max is not None and lo is not None and nc_sigma is not None:
                     p_nc = _outcome_prob(est_max, lo, hi, nc_sigma)
@@ -833,6 +879,298 @@ class WeatherArb:
                     hi_bound if hi_bound is not None else 99.0,
                     status, p_str,
                 )
+
+                # ── Dynamic exit: nowcast collapsed, salvage remaining bid value ──
+                if (
+                    p_nc is not None
+                    and p_nc < NOWCAST_EXIT_FLOOR
+                    and token_id in self.bot.risk.open_positions
+                ):
+                    pos = self.bot.risk.open_positions[token_id]
+                    current_bid = getattr(pos, "current_price", 0.0) or 0.0
+                    if current_bid > SALVAGE_MIN_BID and not DRY_RUN_LOG:
+                        logger.warning(
+                            "[WA] NOWCAST EXIT %s | P(bucket)=%.3f < floor %.2f | bid=%.3f — salvaging",
+                            icao, p_nc, NOWCAST_EXIT_FLOOR, current_bid,
+                        )
+                        try:
+                            await self.bot.orders.limit_sell(
+                                token_id=token_id,
+                                price=round(current_bid - 0.01, 4),  # undercut bid by 1 tick
+                                size=pos.shares,
+                                condition_id=pos.condition_id,
+                            )
+                        except Exception:
+                            logger.exception("[WA] nowcast exit sell failed %s", token_id[:12])
+                    elif current_bid > SALVAGE_MIN_BID:
+                        logger.info("[WA] [DRY] would nowcast-exit %s bid=%.3f", icao, current_bid)
+
+    async def _intraday_scan(self) -> None:
+        """
+        Front-run the WU→Polymarket publication lag using live METAR running_max.
+
+        Signal class: observational arb (hard), NOT forecast arb (soft).
+        Fires only when:
+          1. Current UTC hour >= city's historical peak hour + 1 (daily max has passed)
+          2. running_max_c >= bucket_lo_c  (METAR confirms temperature hit this bucket)
+          3. Nowcast P(bucket) >= INTRADAY_MIN_PROB (0.80)
+          4. Polymarket is still pricing the token below INTRADAY_ASK_CAP
+          5. Edge >= INTRADAY_EDGE_MIN
+
+        This is a different trade class: we know the answer from METAR; we are buying
+        before WU posts and Polymarket reprices. Stake uses INTRADAY_STAKE_FRAC Kelly.
+        """
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        today = now_utc.date().isoformat()
+
+        # Only run during window where daily max is likely settled (9am–5pm local is
+        # approximated by checking past the ASOS peak hour per city).
+        # We check per city below using CITY_PEAK_HOUR_UTC.
+
+        events = await self._fetch_weather_events()
+        if not events:
+            return
+
+        for ev in events:
+            city = _parse_city(ev.get("title", ""))
+            if not city or city not in CITY_COORDS:
+                continue
+            icao = CITY_ICAO.get(city)
+            if not icao:
+                continue
+
+            # Check we have a recent METAR for this station
+            metar = self._latest_metar.get(icao)
+            if not metar:
+                continue
+            running_max = metar.get("running_max_c")  # cached by _poll_metars per position
+            # running_max lives in _open_meta, not _latest_metar. Use the per-icao cache instead.
+            # For intraday we need the actual per-station running max from existing positions.
+            station_running_max: Optional[float] = None
+            for token_id, meta in self.bot._open_meta.items():
+                if isinstance(meta, dict) and meta.get("icao") == icao:
+                    rmax = meta.get("running_max_c")
+                    if rmax is not None:
+                        station_running_max = rmax if station_running_max is None else max(station_running_max, rmax)
+            if station_running_max is None:
+                continue  # no tracked position for this station → no running_max
+
+            slug = CITY_NAME_TO_SLUG.get(city, "")
+            peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
+            if peak_hour is None:
+                continue
+            if now_utc.hour < peak_hour + 1:
+                continue  # daily max may not have occurred yet — wait
+
+            lat, lon = CITY_COORDS[city]
+
+            for mkt in ev.get("markets", []):
+                if mkt.get("endDate", "")[:10] != today:
+                    continue
+                if mkt.get("closed", False):
+                    continue
+                token_ids_raw = _parse_token_ids(mkt.get("clobTokenIds", []))
+                if not token_ids_raw:
+                    continue
+                token_id = token_ids_raw[0]
+                if token_id in self._fired_tokens:
+                    continue
+
+                prices_raw = mkt.get("outcomePrices", '["0.5"]')
+                prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+                poly_yes = float(prices[0])
+                if poly_yes < 0.01 or poly_yes > INTRADAY_ASK_CAP:
+                    continue
+
+                lo_c, hi_c, is_celsius = _parse_outcome(mkt.get("question", ""))
+                if lo_c is None and hi_c is None:
+                    continue
+
+                # Hard METAR check: has running_max already confirmed this bucket?
+                lo_bound = (lo_c - 0.5) if lo_c is not None else None
+                hi_bound = (hi_c + 0.5) if hi_c is not None else None
+                if hi_bound is not None and station_running_max >= hi_bound:
+                    continue  # temperature already exceeded upper bound → skip
+                if lo_bound is not None and station_running_max < lo_bound:
+                    continue  # temperature hasn't reached lower bound yet → skip
+
+                # Nowcast P(bucket) with shrunk sigma
+                cal_sigma = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, 1.5)
+                hours_to_peak = max(0.0, peak_hour - now_utc.hour)
+                nc_sigma = max(0.2, cal_sigma * (hours_to_peak / 12.0) ** 0.5)
+                p_intraday = _outcome_prob(station_running_max, lo_c, hi_c, nc_sigma)
+
+                if p_intraday < INTRADAY_MIN_PROB:
+                    continue
+                edge = p_intraday - poly_yes
+                if edge < INTRADAY_EDGE_MIN:
+                    continue
+
+                logger.info(
+                    "[WA] INTRADAY CANDIDATE %s %s | run_max=%.1f°C P=%.3f poly=%.3f edge=%.3f",
+                    city, today, station_running_max, p_intraday, poly_yes, edge,
+                )
+
+                # Intraday Kelly stake (higher certainty signal → INTRADAY_STAKE_FRAC Kelly)
+                bankroll = self._get_bankroll()
+                kelly_f = edge / max(0.01, 1.0 - poly_yes)
+                raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
+                stake = max(5.0, min(50.0, raw_stake))
+
+                if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake):
+                    logger.info("[WA] INTRADAY ENTRY %s stake=$%.1f", city, stake)
+
+    async def _enter_intraday(
+        self, mkt: dict, fair_prob: float, poly_price: float,
+        city: str, bucket_lo_c: Optional[float], bucket_hi_c: Optional[float],
+        stake: float,
+    ) -> bool:
+        """Identical to _enter() but uses the supplied stake instead of STAKE_USD."""
+        token_id = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
+        self._fired_tokens.add(token_id)
+        if DRY_RUN_LOG:
+            logger.info("[WA] [DRY] intraday enter %s fair=%.3f poly=%.3f stake=$%.1f",
+                        city, fair_prob, poly_price, stake)
+            return True
+        try:
+            from strategy.momentum import Direction as Dir
+            fill = await self.bot.orders.limit_buy(
+                token_id=token_id,
+                intended_price=poly_price,
+                stake_usd=stake,
+                direction=Dir.BUY_YES,
+                neg_risk=mkt.get("negRisk", True),
+                fast_fail=True,
+            )
+            from execution.order_manager import OrderStatus
+            if fill.status == OrderStatus.FILLED and fill.total_size > 0:
+                from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+                _tpsl = _TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0)
+                self.bot.risk.open_position(
+                    token_id=token_id,
+                    asset="WEATHER",
+                    direction=_Dir.BUY_YES,
+                    stake=fill.total_size * fill.avg_fill_price,
+                    entry_price=fill.avg_fill_price,
+                    tpsl=_tpsl,
+                    condition_id=mkt.get("conditionId", ""),
+                    window_end_ts=0.0,
+                    is_bond=True,
+                    bond_outcome_direction="up",
+                    bond_entry_class="WEATHER_INTRADAY",
+                )
+                return True
+            self._fired_tokens.discard(token_id)
+            return False
+        except Exception:
+            self._fired_tokens.discard(token_id)
+            logger.exception("[WA] intraday enter error %s", city)
+            return False
+
+    def _get_bankroll(self) -> float:
+        """Current usable bankroll from the risk manager."""
+        try:
+            return float(self.bot.risk.bankroll)
+        except Exception:
+            return 200.0  # conservative fallback
+
+    def _select_bracket(
+        self, candidates: list[tuple[dict, dict]]
+    ) -> Optional[list[tuple[dict, dict]]]:
+        """
+        From the city's candidate buckets, find the best bracket of ≤ BRACKET_MAX_BUCKETS
+        that passes both the combined-edge and combined-cost guards.
+
+        Returns a list of (mkt, entry) pairs to enter simultaneously, or None.
+
+        Selection: take the top-N by fair_prob. Check:
+          combined_cost  = Σ poly_price_i  < BRACKET_COST_CAP
+          combined_edge  = Σ fair_prob_i − Σ poly_price_i  ≥ EDGE_MIN
+          each individual fair_prob ≥ MIN_FAIR_PROB (no speculative tail-padding)
+
+        Math: EV of bracket = Σ q_i − Σ p_i = combined_edge (mutual exclusivity guarantees this)
+        """
+        # Sort by fair_prob descending
+        ranked = sorted(candidates, key=lambda x: x[1]["fair_prob"], reverse=True)
+        n = min(BRACKET_MAX_BUCKETS, len(ranked))
+
+        for size in range(n, 1, -1):  # try largest bracket first
+            subset = ranked[:size]
+            combined_ask  = sum(e["poly_price"]  for _, e in subset)
+            combined_fair = sum(e["fair_prob"]   for _, e in subset)
+            combined_edge = combined_fair - combined_ask
+
+            if combined_ask >= BRACKET_COST_CAP:
+                continue
+            if combined_edge < EDGE_MIN:
+                continue
+            if any(e["fair_prob"] < MIN_FAIR_PROB for _, e in subset):
+                continue
+
+            logger.info(
+                "[WA] BRACKET selected size=%d combined_fair=%.3f combined_ask=%.3f edge=%.3f",
+                size, combined_fair, combined_ask, combined_edge,
+            )
+            return subset
+
+        return None
+
+    async def _enter_bracket(
+        self, bracket: list[tuple[dict, dict]], city: str
+    ) -> int:
+        """
+        Enter all buckets in the bracket with proportional Kelly sizing.
+
+        Per-bucket stake allocation:
+          f* = combined_edge / (1 − combined_cost)     [combined Kelly fraction]
+          stake_i = f* × bankroll × KELLY_FRACTION × (q_i / Σ q_j)
+
+        Returns number of successfully entered positions.
+        """
+        combined_ask  = sum(e["poly_price"] for _, e in bracket)
+        combined_fair = sum(e["fair_prob"]  for _, e in bracket)
+        combined_edge = combined_fair - combined_ask
+
+        f_star = combined_edge / max(0.001, 1.0 - combined_ask)
+        bankroll = self._get_bankroll()
+        total_kelly_stake = KELLY_FRACTION * bankroll * f_star
+        total_kelly_stake = max(KELLY_MIN_USD * len(bracket),
+                                min(KELLY_MAX_USD * len(bracket), total_kelly_stake))
+
+        n_entered = 0
+        for mkt, entry in bracket:
+            w_i = entry["fair_prob"] / combined_fair
+            stake_i = max(KELLY_MIN_USD, min(KELLY_MAX_USD, total_kelly_stake * w_i))
+            logger.info(
+                "[WA] BRACKET LEG %s poly=%.3f fair=%.3f stake=$%.1f",
+                city, entry["poly_price"], entry["fair_prob"], stake_i,
+            )
+            entered = await self._enter(
+                mkt, entry["fair_prob"], entry["poly_price"],
+                city, entry.get("lo_c"), entry.get("hi_c"),
+                stake=stake_i,
+            )
+            if entered:
+                n_entered += 1
+        return n_entered
+
+    def _kelly_stake(self, edge: float, ask: float) -> float:
+        """
+        Fractional Kelly stake in USD.
+
+        f* = edge / (1 − ask)   [Kelly fraction of bankroll]
+        stake = KELLY_FRACTION × bankroll × f*
+
+        Clamped to [KELLY_MIN_USD, KELLY_MAX_USD].
+        Falls back to STAKE_USD if Kelly is disabled or ask >= 1.0.
+        """
+        if not KELLY_ENABLED or ask >= 1.0:
+            return STAKE_USD
+        f_star = edge / max(0.001, 1.0 - ask)
+        bankroll = self._get_bankroll()
+        raw = KELLY_FRACTION * bankroll * f_star
+        return max(KELLY_MIN_USD, min(KELLY_MAX_USD, raw))
 
     @staticmethod
     def _parse_sky_cover(raw_ob: str) -> str:
@@ -1016,37 +1354,41 @@ class WeatherArb:
             for i, d in enumerate(dates):
                 if d not in (today, tomorrow):
                     continue
-                values = []
+                # Build model_values_by_name dict for skill-weighted ensemble.
+                # Key format: "temperature_2m_max_gfs_seamless" → "gfs_seamless"
+                model_values_by_name: dict[str, float] = {}
                 for k in temp_keys:
                     arr = daily[k]
                     if i < len(arr) and arr[i] is not None:
-                        values.append(float(arr[i]))
-                if not values:
+                        suffix = k[len("temperature_2m_max"):].lstrip("_")
+                        model_name = suffix if suffix else FORECAST_MODELS.split(",")[0]
+                        model_values_by_name[model_name] = float(arr[i])
+                if not model_values_by_name:
                     continue
+                values = list(model_values_by_name.values())  # kept for NWS append below
 
                 # For US cities: add NWS NDFD (blends HRRR + NAM + GFS internally)
                 if d == tomorrow and city in _US_CITIES:
                     nws_val = await self._fetch_nws_daily_max(lat, lon, tomorrow)
                     if nws_val is not None:
+                        model_values_by_name["nws_ndfd"] = nws_val
                         values.append(nws_val)
                         logger.debug("[WA] NWS added %.1f°C for %s %s", nws_val, city, d)
 
-                mean = sum(values) / len(values)
-                # Dynamic sigma: model spread is the best uncertainty estimate.
-                spread = max(values) - min(values) if len(values) > 1 else 0.0
-
-                # Use calibrated historical residual sigma for the 7 validated stations;
-                # fall back to model spread (elevation-aware) for all other cities.
                 from datetime import date as _date
                 _month = _date.fromisoformat(d).month
                 _slug = CITY_NAME_TO_SLUG.get(city, "")
+
+                # Skill-weighted ensemble mean + BLUE combined sigma.
+                # Falls back to arithmetic mean + ASOS floor when skill matrix absent.
                 cal_sigma = CITY_SIGMA_C.get(_slug, {}).get(_month)
-                if cal_sigma is not None:
-                    sigma = cal_sigma
-                else:
+                if cal_sigma is None:
                     elev = CITY_ELEVATION_M.get(city, 0.0)
-                    sigma_floor = ELEVATION_SIGMA_FLOOR if elev > ELEVATION_THRESHOLD_M else 1.0
-                    sigma = max(sigma_floor, spread)
+                    cal_sigma = ELEVATION_SIGMA_FLOOR if elev > ELEVATION_THRESHOLD_M else 1.0
+                mean, sigma = self._ensemble.combine(
+                    _slug, _month, model_values_by_name,
+                    asos_sigma_floor=cal_sigma,
+                )
                 # Microclimate correction: tarmac heat island + sea breeze floor
                 from strategy.station_microclimate import compute_forecast_correction
                 icao = CITY_ICAO.get(city, "")
