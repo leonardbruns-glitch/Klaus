@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-20T19:23:55Z
+# Snapshot: 2026-05-20T19:38:56Z
 # Latest commit on klaus:
-a97ca5a1 weather: enter only highest-conviction bucket per city, add MIN_FAIR_PROB=0.35
+eb43941d weather: add --no-clob flag to validation script
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

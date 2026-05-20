@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+eb43941d weather: add --no-clob flag to validation script
+fb8c274c weather: 7-model ensemble + NWS NDFD for US cities
 a97ca5a1 weather: enter only highest-conviction bucket per city, add MIN_FAIR_PROB=0.35
 2e2e67d5 weather: fix metar loop crash — guard non-dict meta + correct positions attr
 72968de3 weather: calibrate nowcast + sigma from 5yr ASOS diurnal analysis
@@ -10,8 +12,6 @@ a97ca5a1 weather: enter only highest-conviction bucket per city, add MIN_FAIR_PR
 b8ba3504 weather: live METAR tracker — poll AWC every 60s for all open positions
 e51497c1 weather: exclude WEATHER_ARB from cascade abort
 cca17465 weather: fix broken FORECAST_MODELS — replace deprecated names with working ones
-4b8044bc weather: add ask-band filter [0.20, 0.40] — favourite cell only
-bebe2f1a weather: exclude WEATHER_ARB from HARD_EXIT timer
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   59G       34G  64% /
