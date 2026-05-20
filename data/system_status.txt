@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+a97ca5a1 weather: enter only highest-conviction bucket per city, add MIN_FAIR_PROB=0.35
 2e2e67d5 weather: fix metar loop crash — guard non-dict meta + correct positions attr
 72968de3 weather: calibrate nowcast + sigma from 5yr ASOS diurnal analysis
 1e6ff563 weather: nowcast formula — bias-correct forecast with live METAR + sky cover
@@ -11,13 +12,12 @@ e51497c1 weather: exclude WEATHER_ARB from cascade abort
 cca17465 weather: fix broken FORECAST_MODELS — replace deprecated names with working ones
 4b8044bc weather: add ask-band filter [0.20, 0.40] — favourite cell only
 bebe2f1a weather: exclude WEATHER_ARB from HARD_EXIT timer
-5bb0b4f4 weather: hold-favourites scalp-mids policy + WS exit, orphan-safe
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   59G       35G  63% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 15:48:32 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 16:06:54 UTC
 
 ## Open positions (count):
 0

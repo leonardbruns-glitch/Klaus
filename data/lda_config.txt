@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-20T15:51:43Z
+# Snapshot: 2026-05-20T16:06:52Z
 # Latest commit on klaus:
-2e2e67d5 weather: fix metar loop crash — guard non-dict meta + correct positions attr
+a97ca5a1 weather: enter only highest-conviction bucket per city, add MIN_FAIR_PROB=0.35
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
