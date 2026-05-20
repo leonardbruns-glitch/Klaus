@@ -243,6 +243,12 @@ class WeatherArb:
             await asyncio.sleep(SCAN_INTERVAL_S)
 
     async def _scan(self) -> None:
+        # PAUSED 2026-05-20: Exit logic (BOND_ABORT_CASCADE) kills winners before resolution
+        # See analysis: 3/3 BOND_ABORT_CASCADE trades = 0% WR, avg -$0.75 loss
+        # Hold positions to resolution; pause new scans pending Tier 2 fix
+        logger.warning("[WA] PAUSED: weather strategy disabled for exit logic audit")
+        return
+
         today = date.today().isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         # Only trade tomorrow's markets — today's markets are partially resolved by the time
