@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+da15758b CAS: fix fast-retry to use per-hour stake config instead of ASSET_STAKE fallback
 b1c8da52 CAS: implement Option B per-asset per-hour staking (live WR-backed)
 572f5f64 CAS-BTC: override H04 stake to $10 (was $30 strong)
 f85f7adf CAS: increase strong-hour stakes to $30/$15, move H22 to STRONG tier
@@ -11,13 +12,12 @@ f2c6ad93 Watchdog 2026-05-20T03:20:27Z: OK — 2 active MEDIUM alerts in backoff
 8fb1dcd1 Watchdog 2026-05-20T02:20:10Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
 4e18e54f Watchdog 2026-05-20T01:18:24Z: OK — 0 alerts (2 active anomalies in backoff)
 0bc68ed3 VOLARB Scout 2026-05-20T0042Z — H5 [220-280s) BELOW_CI n=617; ETH BELOW_CI n=301; 'up' dir degrading z=1.67
-bf980529 chore(sports_copy): disable live mode — shadow only
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   56G       37G  61% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 06:04:40 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 07:02:59 UTC
 
 ## Open positions (count):
 0
