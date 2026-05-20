@@ -38,6 +38,8 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
+MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket — rejects cities where
+                       # σ is too wide relative to bucket width (e.g. London May mode=35%)
 ASK_BAND_LO  = 0.20    # min entry price (London 30d backtest: <0.20 is calibration-mirage)
 ASK_BAND_HI  = 0.40    # max entry price (London 30d backtest: <3 obs above 0.40, unsupported)
 STAKE_USD    = 25.0    # per market position
@@ -507,14 +509,34 @@ class WeatherArb:
                 logger.debug("[WA] no forecast for %s", city)
                 continue
 
+            # Evaluate all buckets for this city, then enter ONLY the highest-conviction
+            # one. These are negRisk markets — entering multiple buckets means one always
+            # cancels the other while paying fees twice.
+            candidates: list[tuple[dict, dict]] = []
             for mkt in markets:
-                if entries_made >= MAX_POSITIONS:
-                    break
                 entry = await self._evaluate_market(city, mkt, forecast)
                 if entry:
-                    if await self._enter(mkt, entry["fair_prob"], entry["poly_price"], city,
-                                     entry.get("lo_c"), entry.get("hi_c")):
-                        entries_made += 1
+                    candidates.append((mkt, entry))
+
+            if not candidates or entries_made >= MAX_POSITIONS:
+                continue
+
+            best_mkt, best_entry = max(candidates, key=lambda x: x[1]["fair_prob"])
+
+            if best_entry["fair_prob"] < MIN_FAIR_PROB:
+                logger.info(
+                    "[WA] SKIP %s best bucket fair=%.3f < MIN_FAIR_PROB=%.2f (σ too wide)",
+                    city, best_entry["fair_prob"], MIN_FAIR_PROB,
+                )
+                continue
+
+            if len(candidates) > 1:
+                logger.info("[WA] BEST BUCKET %s fair=%.3f (skipping %d lower-prob buckets)",
+                            city, best_entry["fair_prob"], len(candidates) - 1)
+
+            if await self._enter(best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
+                                 city, best_entry.get("lo_c"), best_entry.get("hi_c")):
+                entries_made += 1
 
         logger.info("[WA] scan done: %d entries made", entries_made)
 
