@@ -56,16 +56,16 @@ STAKE_FLOOR_USD  = 15.00
 ASSET_STAKE: dict = {"BTC": 15.00, "ETH": 15.00, "SOL": 3.00}
 MAX_CONCURRENT   = 3
 
-# Hour-based stake sizing (deployed 2026-05-19 after WR analysis)
-# Strong hours (WR ≥ 55%): {0,4,7,8,9,10,12,15,20,23}
-# Medium hours (45% ≤ WR < 55%): {5,6,13,19,22}
+# Hour-based stake sizing (deployed 2026-05-19 after WR analysis; increased 2026-05-20)
+# Strong hours (WR ≥ 60%): {0,4,7,8,9,10,12,15,20,22,23}
+# Medium hours (45% ≤ WR < 60%): {5,6,13,19}
 # Cautious hours (shadow +EV but live poor): {14} — reduced stakes for validation
 # Weak hours (WR < 45%): blocked globally
-STRONG_HOURS = {0, 4, 7, 8, 9, 10, 12, 15, 20, 23}
-MEDIUM_HOURS = {5, 6, 13, 19, 22}
+STRONG_HOURS = {0, 4, 7, 8, 9, 10, 12, 15, 20, 22, 23}
+MEDIUM_HOURS = {5, 6, 13, 19}
 CAUTIOUS_HOURS = {14}  # H14: shadow EV=+0.057 but live shows poor performance; validate with $5 cap
-HOUR_STAKE_BTCETH = {"strong": 20.00, "medium": 10.00, "cautious": 5.00}  # BTC/ETH
-HOUR_STAKE_SOL = {"strong": 10.00, "medium": 4.00, "cautious": 5.00}      # SOL
+HOUR_STAKE_BTCETH = {"strong": 30.00, "medium": 10.00, "cautious": 5.00}  # BTC/ETH — increased strong from $20
+HOUR_STAKE_SOL = {"strong": 15.00, "medium": 4.00, "cautious": 5.00}      # SOL — increased strong from $10
 # Partial-fill mode: take up to target stake, but accept smaller fills down to CLOB
 # minimums (5 shares / $1 notional). WR is determined by token resolution not stake
 # size, so smaller fills preserve EV per dollar while capturing more opportunities.

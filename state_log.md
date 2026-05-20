@@ -338,3 +338,5 @@ Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $
 ## 2026-05-19 | DOCS / ALL | CLAUDE.md fully rewritten for CAS_LOWASK — TERMINAL and VOLARB removed | User instruction. All TERMINAL/VOLARB references removed. Strategy section, parameters table, data integrity rules, key design decisions all updated to reflect CAS_LOWASK as the only live strategy. Commit 4c6fa0a.
 
 ## 2026-05-19 | STRATEGY / VOLARB | VOLARB fully disabled — volarb_strategy=None | User instruction. Was already not entering trades (schedule_if_ready never called from main.py). Import and instantiation removed. Exit-path checks for bond_entry_class=="VOLARB" kept for residual wallet positions. Commit 3203629.
+
+2026-05-20 22:35 UTC | CAS-BTC | block H05 (25% WR, -$13.46) and H13 (33% WR, -$23.92) | Per-asset hour analysis identified BTC underperformance in afternoon UTC; blocks reduce bleed while preserving edge in strong hours (H00, H07-H10, H20-H23, 56.2% overall WR)

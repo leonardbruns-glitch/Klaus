@@ -63,7 +63,7 @@ Run before any analysis or code change:
 | Entry window | rem 10–95s | Blocks [65,75) and [85,95) |
 | Ask range | 0.05–0.50 | Extended to 0.60 when range_pos>0.8 |
 | Synchrony threshold | THR=0.005 | Relaxed to 0.001 for H06/H21 |
-| Stakes | BTC $15, ETH $15, SOL $3 | Fixed per-asset; partial fills accepted |
+| Stakes | Strong H: BTC/ETH $30, SOL $15 | Increased 2026-05-20 (moved H22 to STRONG) |
 | Max concurrent | 2 | Across all assets |
 | Blocked hours (global) | {1,2,3,5,14,16,18,21} UTC | Negative EV in shadow/live |
 | Blocked hours (BTC) | {5,13} UTC | H05 25% WR -$13.46, H13 33% WR -$23.92 |
