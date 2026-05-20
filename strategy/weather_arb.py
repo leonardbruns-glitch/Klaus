@@ -43,7 +43,7 @@ SIGMA_C      = 1.5     # forecast uncertainty std-dev in °C
 SIGMA_F      = 2.7     # forecast uncertainty std-dev in °F
 SCAN_INTERVAL_S = 1800 # scan every 30 minutes
 MAX_POSITIONS    = 30  # max concurrent weather positions
-DRY_RUN_LOG  = True   # set False to trade live
+DRY_RUN_LOG  = False  # set False to trade live
 
 # City → (lat, lon) for Open-Meteo API
 # Derived from observed Polymarket weather market cities

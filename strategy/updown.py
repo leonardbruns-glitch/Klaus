@@ -31,7 +31,7 @@ ASSETS       = ("BTC", "ETH", "SOL")
 THR_PCT      = 0.005       # 5m partial return threshold (same as CAS)
 STAKE_USD    = 20.0        # per asset per window
 MAX_ENTRY_DELAY_S = 120.0  # don't enter if >2 min past window start
-DRY_RUN_LOG  = True        # if True, log but don't buy (set False to go live)
+DRY_RUN_LOG  = False       # if True, log but don't buy (set False to go live)
 
 
 class CryptoUpDown:
