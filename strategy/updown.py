@@ -122,8 +122,9 @@ class CryptoUpDown:
             token_ids = market.get("clobTokenIds", [])
             end_date  = market.get("endDate", "?")
 
-            if len(outcomes) < 2 or len(token_ids) < 2:
-                logger.warning("[UD] %s W%d: bad market structure", asset_lower.upper(), window_start)
+            if len(outcomes) < 2 or len(token_ids) < 2 or len(prices_s) < 2:
+                logger.warning("[UD] %s W%d: bad market structure outcomes=%s prices=%s tokens=%d",
+                               asset_lower.upper(), window_start, outcomes, prices_s, len(token_ids))
                 return
 
             # Determine which token index corresponds to the direction we want
