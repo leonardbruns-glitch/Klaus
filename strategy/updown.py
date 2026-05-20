@@ -163,18 +163,20 @@ class CryptoUpDown:
             )
             from execution.order_manager import OrderStatus
             if fill.status == OrderStatus.FILLED and fill.total_size > 0:
+                from strategy.momentum import TPSLLevels as _TPSL
+                _tpsl = _TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0)
                 self.bot.risk.open_position(
                     token_id=token_id,
-                    condition_id=cid,
                     asset=asset_lower.upper(),
-                    direction="UP" if direction == "Up" else "DOWN",
-                    side="YES",
-                    shares=fill.total_size,
+                    direction=Dir.BUY_YES,
+                    stake=fill.total_size * fill.avg_fill_price,
                     entry_price=fill.avg_fill_price,
-                    stake_usd=STAKE_USD,
-                    bond_entry_class="UPDOWN",
-                    bond_outcome_direction="up" if direction == "Up" else "down",
+                    tpsl=_tpsl,
+                    condition_id=cid,
                     window_end_ts=window_start + 900,
+                    is_bond=True,
+                    bond_outcome_direction="up" if direction == "Up" else "down",
+                    bond_entry_class="UPDOWN",
                 )
                 logger.info("[UD] %s W%d FILLED %s shares=%.1f @ %.4f",
                             asset_lower.upper(), window_start, direction,

@@ -373,18 +373,20 @@ class WeatherArb:
             )
             from execution.order_manager import OrderStatus
             if fill.status == OrderStatus.FILLED and fill.total_size > 0:
+                from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+                _tpsl = _TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0)
                 self.bot.risk.open_position(
                     token_id=token_id,
-                    condition_id=cid,
                     asset="WEATHER",
-                    direction="UP",
-                    side="YES",
-                    shares=fill.total_size,
+                    direction=_Dir.BUY_YES,
+                    stake=fill.total_size * fill.avg_fill_price,
                     entry_price=fill.avg_fill_price,
-                    stake_usd=STAKE_USD,
-                    bond_entry_class="WEATHER_ARB",
+                    tpsl=_tpsl,
+                    condition_id=cid,
+                    window_end_ts=0.0,
+                    is_bond=True,
                     bond_outcome_direction="up",
-                    window_end_ts=0,
+                    bond_entry_class="WEATHER_ARB",
                 )
                 logger.info("[WA] FILLED %s shares=%.1f @ %.4f",
                             question[:45], fill.total_size, fill.avg_fill_price)
