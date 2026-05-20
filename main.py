@@ -373,7 +373,7 @@ class KlausBot:
         # 5 wallets selected from 1.06M-wallet harvest (2026-05-19); combined 157 cycles, 539 trades/30d.
         from strategy.sports_copy import SportsCopy
         self.sports_copy = SportsCopy(self)
-        self.sports_copy.live_mode = True    # LIVE — real capital on wallet signals
+        self.sports_copy.live_mode = False   # PAUSED — shadow only
         # Safety guards: $40 ring-fenced sub-bankroll, $10/trade cap, -$10/day kill
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
