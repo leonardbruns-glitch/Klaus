@@ -1044,7 +1044,7 @@ class RiskManager:
         if (
             time_held >= _hard_exit_limit
             and not pos.hard_exit_triggered
-            and getattr(pos, "bond_entry_class", "") != "SPORTS_COPY"
+            and getattr(pos, "bond_entry_class", "") not in ("SPORTS_COPY", "WEATHER_ARB")
         ):
             pos.hard_exit_triggered = True
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")
@@ -1540,6 +1540,10 @@ class RiskManager:
         result = []
         for pos in self.open_positions.values():
             if pos.hard_exit_triggered:
+                continue
+            # WEATHER_ARB and SPORTS_COPY are long-hold strategies (hours-days);
+            # the adaptive timer is calibrated for crypto-window strategies (~210s).
+            if getattr(pos, "bond_entry_class", "") in ("SPORTS_COPY", "WEATHER_ARB"):
                 continue
             age = now - pos.open_ts
 
