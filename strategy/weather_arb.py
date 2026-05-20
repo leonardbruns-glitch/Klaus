@@ -503,6 +503,24 @@ def _parse_city(title: str) -> Optional[str]:
     return None
 
 
+def _resolve_coords_from_description(description: str) -> Optional[tuple]:
+    """
+    Extract WU station code + exact coords from a market description without needing
+    city-centre coords (no haversine gate). Used for dynamically discovered cities
+    that are not in CITY_COORDS.
+
+    Returns (station_code, lat, lon) or None.
+    """
+    from strategy.resolution_mapper import _extract_wu_station, STATION_COORDS
+    station = _extract_wu_station(description)
+    if not station:
+        return None
+    coords = STATION_COORDS.get(station)
+    if not coords:
+        return None
+    return station, coords[0], coords[1]
+
+
 class WeatherArb:
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -524,9 +542,23 @@ class WeatherArb:
         self._today_markets_cache: list[dict] = []
         self._today_markets_ts: float = 0.0
 
-        # Tracks unfilled resting maker bids: {token_id: {resting_price, fair_prob, placed_ts, lo_c, hi_c}}
-        # Populated by _enter(); scanned by _evaluate_dynamic_exits() to cancel stale orders.
-        self._pending_maker_orders: dict[str, dict] = {}
+        # ── Centralized position state tracker ───────────────────────────────────
+        # Single source of truth for ALL weather positions from order placement to settlement.
+        # Lifecycle: RESTING_MAKER → FILLED → (auto-popped when bot.risk drops it)
+        #            TAKER_PENDING → FILLED
+        # Schema per token_id:
+        #   strategy_tag   : str   — STRAT_1_OVERNIGHT|STRAT_2_BRACKET|STRAT_3_INTRADAY|STRAT_4_TAIL_SNIPER
+        #   icao_station   : str|None  — ICAO code of the resolution station (or None)
+        #   station_coords : (lat,lon) — exact sensor coords
+        #   entry_price    : float — avg fill price (set at fill; resting_price before fill)
+        #   target_bucket  : (lo_c, hi_c) — bucket bounds in Celsius
+        #   initial_fair_prob: float  — model probability at order time
+        #   expected_max_c : float|None — forecast daily max at entry
+        #   status         : str   — RESTING_MAKER|TAKER_PENDING|FILLED|CLOSED
+        #   placed_ts      : float — unix timestamp of order placement
+        #   city           : str
+        #   lo_c, hi_c     : float|None  — mirrors target_bucket (convenience aliases)
+        self._positions: dict[str, dict] = {}
 
         # Open-Meteo live current-conditions cache for non-ICAO cities.
         # Keyed by (round(lat,2), round(lon,2)). Persists running_max_c across cycles.
@@ -536,6 +568,39 @@ class WeatherArb:
         self._ensemble = WeightedEnsemble()
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
+
+    def _register_position(
+        self,
+        token_id: str,
+        strategy_tag: str,
+        icao_station: Optional[str],
+        target_bucket: tuple,
+        initial_fair_prob: float,
+        expected_max_c: Optional[float],
+        entry_price: float,
+        city: str,
+        status: str,
+        station_coords: Optional[tuple] = None,
+    ) -> None:
+        lo_c, hi_c = target_bucket if len(target_bucket) == 2 else (None, None)
+        self._positions[token_id] = {
+            "strategy_tag":    strategy_tag,
+            "icao_station":    icao_station,
+            "station_coords":  station_coords or (CITY_COORDS.get(city, (0.0, 0.0))),
+            "entry_price":     entry_price,
+            "target_bucket":   target_bucket,
+            "initial_fair_prob": initial_fair_prob,
+            "expected_max_c":  expected_max_c,
+            "status":          status,
+            "placed_ts":       time.time(),
+            "city":            city,
+            "lo_c":            lo_c,
+            "hi_c":            hi_c,
+        }
+
+    def _close_position(self, token_id: str) -> None:
+        """Mark a position as CLOSED and remove it from the tracker."""
+        self._positions.pop(token_id, None)
 
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop(), name="weather_arb_loop")
@@ -571,10 +636,6 @@ class WeatherArb:
         entries_made = 0
         for ev in events:
             city = _parse_city(ev.get("title", ""))
-            if not city or city not in CITY_COORDS:
-                continue
-
-            city_lat, city_lon = CITY_COORDS[city]
 
             # Only process markets resolving today or tomorrow
             markets = []
@@ -591,22 +652,36 @@ class WeatherArb:
             if not markets:
                 continue
 
-            # ── Resolution source validation ──────────────────────────────────
-            # Polymarket resolves against a specific WU station (e.g. RKSI for Seoul,
-            # not downtown Seoul). Extract the exact sensor coords from the market
-            # description; skip if we cannot confirm the station within 50 km.
+            # ── Dynamic location resolution ───────────────────────────────────
+            # Priority 1: extract exact WU station from market description (oracle-aligned).
+            # Priority 2: use CITY_COORDS lookup if city is known.
+            # Priority 3: skip — cannot determine resolution location.
             description = ev.get("description", "") or ""
             if not description:
-                # Try first market's description as fallback
                 description = markets[0].get("description", "") or ""
-            station_result = resolve_station(description, city, city_lat, city_lon)
-            if station_result is None:
-                # No confirmed WU station → use city coords with a warning (permissive mode).
-                # To enforce strict mode: replace the next line with `continue`.
-                lat, lon = city_lat, city_lon
-                logger.debug("[WA] %s using city-centre coords (WU station unconfirmed)", city)
+
+            city_lat = CITY_COORDS.get(city, (0.0, 0.0))[0] if city else 0.0
+            city_lon = CITY_COORDS.get(city, (0.0, 0.0))[1] if city else 0.0
+            known_city = city and city in CITY_COORDS
+
+            if known_city:
+                # Known city: full haversine validation (station must be within 50 km of city centre)
+                station_result = resolve_station(description, city, city_lat, city_lon)
+                if station_result is not None:
+                    _station_code, lat, lon = station_result
+                else:
+                    lat, lon = city_lat, city_lon
+                    logger.debug("[WA] %s using city-centre coords (WU station unconfirmed)", city)
             else:
-                _station_code, lat, lon = station_result
+                # Unknown city: extract station directly from description (no city-centre gate)
+                direct = _resolve_coords_from_description(description)
+                if direct is None:
+                    continue  # cannot determine location — skip
+                _station_code, lat, lon = direct
+                if city is None:
+                    city = _station_code   # use station code as display name
+                logger.debug("[WA] DYNAMIC CITY %s → station %s @ (%.4f, %.4f)",
+                             city, _station_code, lat, lon)
 
             # Get forecast for this city (only once per city, at exact station coords)
             forecast = await self._get_forecast(lat, lon, today, tomorrow, city)
@@ -651,7 +726,9 @@ class WeatherArb:
             stake = self._kelly_stake(best_entry["edge"], best_entry["poly_price"])
             if await self._enter(best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
                                  city, best_entry.get("lo_c"), best_entry.get("hi_c"),
-                                 stake=stake):
+                                 stake=stake,
+                                 strategy_tag="STRAT_1_OVERNIGHT",
+                                 expected_max_c=best_entry.get("expected_max_c")):
                 entries_made += 1
 
         logger.info("[WA] scan done: %d entries made", entries_made)
@@ -706,21 +783,24 @@ class WeatherArb:
                     city, end_date, poly_yes, fair_prob, edge, question[:55])
 
         return {
-            "token_id":   token_id,
-            "condition_id": mkt.get("conditionId", ""),
-            "poly_price": poly_yes,
-            "fair_prob":  fair_prob,
-            "edge":       edge,
-            "question":   question,
-            "end_date":   end_date,
-            "lo_c":       lo_c,
-            "hi_c":       hi_c,
+            "token_id":      token_id,
+            "condition_id":  mkt.get("conditionId", ""),
+            "poly_price":    poly_yes,
+            "fair_prob":     fair_prob,
+            "edge":          edge,
+            "question":      question,
+            "end_date":      end_date,
+            "lo_c":          lo_c,
+            "hi_c":          hi_c,
+            "expected_max_c": forecast_mean,
         }
 
     async def _enter(self, mkt: dict, fair_prob: float, poly_price: float,
                      city: str, bucket_lo_c: Optional[float] = None,
                      bucket_hi_c: Optional[float] = None,
-                     stake: float = STAKE_USD) -> bool:
+                     stake: float = STAKE_USD,
+                     strategy_tag: str = "STRAT_1_OVERNIGHT",
+                     expected_max_c: Optional[float] = None) -> bool:
         token_id  = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
         cid       = mkt.get("conditionId", "")
         question  = mkt.get("question", "")
@@ -759,16 +839,19 @@ class WeatherArb:
                     "[WA] maker order %s spread=%.4f bid=%.4f → %.4f",
                     token_id[:8], spread, best_bid, intended_price,
                 )
-                # Register as pending maker — orphan manager will cancel if model degrades.
-                # lo_c / hi_c are stored so the orphan check can recompute fair_prob exactly.
-                self._pending_maker_orders[token_id] = {
-                    "resting_price": intended_price,
-                    "fair_prob":     fair_prob,
-                    "placed_ts":     time.time(),
-                    "city":          city,
-                    "lo_c":          bucket_lo_c,
-                    "hi_c":          bucket_hi_c,
-                }
+                # Register as RESTING_MAKER — orphan manager will cancel if model degrades.
+                self._register_position(
+                    token_id, strategy_tag, CITY_ICAO.get(city),
+                    (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
+                    intended_price, city, "RESTING_MAKER",
+                )
+            if use_taker:
+                # Taker: register as TAKER_PENDING; will update to FILLED on success.
+                self._register_position(
+                    token_id, strategy_tag, CITY_ICAO.get(city),
+                    (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
+                    intended_price, city, "TAKER_PENDING",
+                )
 
             from strategy.momentum import Direction as Dir
             fill = await self.bot.orders.limit_buy(
@@ -780,7 +863,17 @@ class WeatherArb:
                 fast_fail=True,
             )
             from execution.order_manager import OrderStatus
-            self._pending_maker_orders.pop(token_id, None)  # order settled — clear orphan tracker
+            if fill.status == OrderStatus.FILLED and fill.total_size > 0:
+                # Transition position state to FILLED; update actual fill price
+                if token_id in self._positions:
+                    self._positions[token_id]["status"] = "FILLED"
+                    self._positions[token_id]["entry_price"] = fill.avg_fill_price
+                else:
+                    self._register_position(
+                        token_id, strategy_tag, CITY_ICAO.get(city),
+                        (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
+                        fill.avg_fill_price, city, "FILLED",
+                    )
             if fill.status == OrderStatus.FILLED and fill.total_size > 0:
                 from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
                 _tpsl = _TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0)
@@ -843,11 +936,13 @@ class WeatherArb:
                             "" if _scalp_tp > 0 else " (hold-to-resolution)")
                 return True
             else:
+                self._close_position(token_id)
                 self._fired_tokens.discard(token_id)
                 logger.warning("[WA] fill failed %s: %s",
                                city, getattr(fill, "error", "?"))
                 return False
         except Exception:
+            self._close_position(token_id)
             self._fired_tokens.discard(token_id)
             logger.exception("[WA] enter error %s", city)
             return False
@@ -889,27 +984,37 @@ class WeatherArb:
         today = __import__("datetime").date.today().isoformat()
         events = await self._fetch_weather_events()
         entries = []
-        from strategy.resolution_mapper import resolve_station
+        from strategy.resolution_mapper import resolve_station, STATION_COORDS as _SC
         n_no_icao = 0
         for ev in events:
             city = _parse_city(ev.get("title", ""))
-            if not city or city not in CITY_COORDS:
-                continue
-            city_lat, city_lon = CITY_COORDS[city]
-            icao: Optional[str] = CITY_ICAO.get(city)   # None for non-validated stations
+            description = ev.get("description", "") or ""
+
+            city_lat = CITY_COORDS.get(city, (0.0, 0.0))[0] if city else 0.0
+            city_lon = CITY_COORDS.get(city, (0.0, 0.0))[1] if city else 0.0
+            known_city = city and city in CITY_COORDS
+
+            if known_city:
+                icao: Optional[str] = CITY_ICAO.get(city)
+                station_result = resolve_station(description, city, city_lat, city_lon)
+                if station_result is not None:
+                    station_icao, lat, lon = station_result
+                    if station_icao in _SC:
+                        icao = station_icao
+                else:
+                    lat, lon = city_lat, city_lon
+            else:
+                # Dynamically discovered city: extract station directly from description
+                direct = _resolve_coords_from_description(description)
+                if direct is None:
+                    continue
+                station_icao, lat, lon = direct
+                icao = station_icao if station_icao in _SC else None
+                if city is None:
+                    city = station_icao
+
             if icao is None:
                 n_no_icao += 1
-
-            # Resolve exact WU station coords from market description
-            description = ev.get("description", "") or ""
-            station_result = resolve_station(description, city, city_lat, city_lon)
-            if station_result is not None:
-                station_icao, lat, lon = station_result
-                # If resolution mapper confirms an ICAO, trust it over our static table
-                if station_icao in __import__("strategy.resolution_mapper", fromlist=[""]).STATION_COORDS:
-                    icao = station_icao
-            else:
-                lat, lon = city_lat, city_lon   # fallback to city centre
 
             for mkt in ev.get("markets", []):
                 if mkt.get("endDate", "")[:10] != today:
@@ -1113,7 +1218,7 @@ class WeatherArb:
            Exit trigger: P(bucket) < NOWCAST_EXIT_FLOOR AND best_bid ≥ SALVAGE_MIN_BID
            → aggressive taker SELL at (best_bid − 0.01) to salvage capital immediately.
 
-        B) ORPHANED ORDER CANCELLATION — for every entry in _pending_maker_orders:
+        B) ORPHANED ORDER CANCELLATION — for every RESTING_MAKER entry in _positions:
            Re-run _get_forecast() for the city. If new fair_prob < resting_price (model
            degraded below our bid), cancel the resting order via orders.cancel().
 
@@ -1132,14 +1237,25 @@ class WeatherArb:
             "CLR": 1.0, "FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08,
         }
 
+        # ── Cleanup resolved positions ────────────────────────────────────────
+        if hasattr(self.bot, "risk"):
+            for _tid in list(self._positions.keys()):
+                _pos = self._positions[_tid]
+                if (_pos.get("status") == "FILLED"
+                        and _tid not in self.bot.risk.open_positions):
+                    self._close_position(_tid)
+
         # ── A) NOWCAST COLLAPSE EXIT ──────────────────────────────────────────
-        for token_id, meta in list(self.bot._open_meta.items()):
-            if not isinstance(meta, dict):
+        # Applies to STRAT_1/2/3 (FILLED). STRAT_4_TAIL_SNIPER is held to maturity.
+        for token_id, pos in list(self._positions.items()):
+            if pos.get("status") != "FILLED":
                 continue
-            if token_id not in self.bot.risk.open_positions:
+            if pos.get("strategy_tag") == "STRAT_4_TAIL_SNIPER":
+                continue
+            if not hasattr(self.bot, "risk") or token_id not in self.bot.risk.open_positions:
                 continue
 
-            icao = meta.get("icao")
+            icao = pos.get("icao_station")
             if not icao:
                 continue
             cached = self._icao_metar_cache.get(icao)
@@ -1152,12 +1268,12 @@ class WeatherArb:
             if temp_c is None or run_max is None:
                 continue
 
-            lo = meta.get("bucket_lo_c")
-            hi = meta.get("bucket_hi_c")
+            lo = pos.get("lo_c")
+            hi = pos.get("hi_c")
             if lo is None and hi is None:
                 continue
 
-            city = meta.get("city", "")
+            city = pos.get("city", "")
             slug = CITY_NAME_TO_SLUG.get(city, "")
 
             # Step 1: μ_nowcast
@@ -1210,12 +1326,11 @@ class WeatherArb:
             try:
                 await self.bot.orders.limit_sell(
                     token_id=token_id,
-                    price=round(current_bid - 0.01, 4),  # taker-agressive: cross bid
+                    price=round(current_bid - 0.01, 4),  # taker-aggressive: cross bid
                     size=pos.shares,
                     condition_id=pos.condition_id,
                 )
-                # Remove from pending tracker if it somehow survived
-                self._pending_maker_orders.pop(token_id, None)
+                self._close_position(token_id)  # pop from tracker; risk manager handles PnL
             except Exception:
                 logger.exception("[WA] nowcast exit sell failed %s", token_id[:12])
 
@@ -1230,7 +1345,9 @@ class WeatherArb:
         #   - Sigma widening (convective uncertainty grows) that erodes the probability mass
         # Any of these can drop new_fair_prob below resting_price + EDGE_MIN without
         # old_fair_prob moving at all — the old proxy check was blind to all three.
-        if not self._pending_maker_orders:
+        resting = {tid: p for tid, p in self._positions.items()
+                   if p.get("status") == "RESTING_MAKER"}
+        if not resting:
             return
 
         from datetime import timedelta as _td
@@ -1238,9 +1355,9 @@ class WeatherArb:
         tomorrow = (now_utc.date() + _td(days=1)).isoformat()
 
         stale_tokens = []
-        for token_id, order in list(self._pending_maker_orders.items()):
+        for token_id, order in list(resting.items()):
             city          = order.get("city", "")
-            resting_price = order.get("resting_price", 1.0)
+            resting_price = order.get("entry_price", 1.0)
             placed_ts     = order.get("placed_ts", 0.0)
             lo_c          = order.get("lo_c")
             hi_c          = order.get("hi_c")
@@ -1305,7 +1422,7 @@ class WeatherArb:
                 logger.info("[WA] [DRY] would cancel orphan %s edge=%.3f", token_id[:12], residual_edge)
 
         for tid in stale_tokens:
-            self._pending_maker_orders.pop(tid, None)
+            self._close_position(tid)
             self._fired_tokens.discard(tid)  # allow re-evaluation on next scan cycle
 
     async def _intraday_scan(self) -> None:
@@ -1436,16 +1553,18 @@ class WeatherArb:
             raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
             stake     = max(5.0, min(50.0, raw_stake))
 
-            if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake):
+            if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake,
+                                         expected_max_c=est_max):
                 logger.info("[WA] INTRADAY ENTRY %s $%.1f (%s)", city, stake, pre_post)
 
     async def _enter_intraday(
         self, mkt: dict, fair_prob: float, poly_price: float,
         city: str, bucket_lo_c: Optional[float], bucket_hi_c: Optional[float],
-        stake: float,
+        stake: float, expected_max_c: Optional[float] = None,
     ) -> bool:
         """Identical to _enter() but uses the supplied stake instead of STAKE_USD."""
         token_id = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
+        icao = CITY_ICAO.get(city)
         self._fired_tokens.add(token_id)
         if DRY_RUN_LOG:
             logger.info("[WA] [DRY] intraday enter %s fair=%.3f poly=%.3f stake=$%.1f",
@@ -1478,10 +1597,17 @@ class WeatherArb:
                     bond_outcome_direction="up",
                     bond_entry_class="WEATHER_INTRADAY",
                 )
+                self._register_position(
+                    token_id, "STRAT_3_INTRADAY", icao,
+                    (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
+                    fill.avg_fill_price, city, "FILLED",
+                )
                 return True
+            self._close_position(token_id)
             self._fired_tokens.discard(token_id)
             return False
         except Exception:
+            self._close_position(token_id)
             self._fired_tokens.discard(token_id)
             logger.exception("[WA] intraday enter error %s", city)
             return False
@@ -1668,9 +1794,16 @@ class WeatherArb:
                         bond_outcome_direction="up",
                         bond_entry_class="WEATHER_TAIL",
                     )
+                    # STRAT_4 positions are held to maturity — dynamic exit module skips them.
+                    self._register_position(
+                        token_id, "STRAT_4_TAIL_SNIPER", icao,
+                        (lo_c, hi_c), 0.0, None,
+                        fill.avg_fill_price, city, "FILLED",
+                    )
                     logger.info("[WA] TAIL ENTRY %s %s filled=%d @ %.4f",
                                 city, trigger_tag, int(fill.total_size), fill.avg_fill_price)
                 else:
+                    self._close_position(token_id)
                     self._fired_tokens.discard(token_id)
             except Exception:
                 self._fired_tokens.discard(token_id)
@@ -1751,6 +1884,8 @@ class WeatherArb:
                 mkt, entry["fair_prob"], entry["poly_price"],
                 city, entry.get("lo_c"), entry.get("hi_c"),
                 stake=stake_i,
+                strategy_tag="STRAT_2_BRACKET",
+                expected_max_c=entry.get("expected_max_c"),
             )
             if entered:
                 n_entered += 1
@@ -2004,16 +2139,33 @@ class WeatherArb:
             return None
 
     async def _fetch_weather_events(self) -> list[dict]:
-        url = f"{GAMMA_BASE}/events?closed=false&limit=200&tag_slug=weather"
+        """
+        Fetch ALL open weather events from Gamma API with pagination.
+        Walks pages until an empty page is returned (offset increments by 200).
+        This ensures newly opened cities are discovered automatically without code changes.
+        """
+        events: list[dict] = []
+        offset = 0
+        limit  = 200
         try:
             async with aiohttp.ClientSession() as sess:
-                async with sess.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                    if resp.status != 200:
-                        return []
-                    return await resp.json()
+                while True:
+                    url = (f"{GAMMA_BASE}/events?closed=false&limit={limit}"
+                           f"&offset={offset}&tag_slug=weather")
+                    async with sess.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                        if resp.status != 200:
+                            break
+                        page: list[dict] = await resp.json()
+                    if not page:
+                        break
+                    events.extend(page)
+                    if len(page) < limit:
+                        break   # last partial page — no more data
+                    offset += len(page)
         except Exception as e:
             logger.debug("[WA] events fetch error: %s", e)
-            return []
+        logger.debug("[WA] fetched %d weather events (paginated)", len(events))
+        return events
 
     async def _get_forecast(
         self, lat: float, lon: float, today: str, tomorrow: str, city: str = ""
