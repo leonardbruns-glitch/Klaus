@@ -457,6 +457,7 @@ class WeatherArb:
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
+        self._latest_metar: dict[str, dict] = {}     # icao → {wind_speed_kt, wind_dir_deg, sky_cover, utc_hour}
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
 
@@ -768,6 +769,17 @@ class WeatherArb:
             if temp_c is None:
                 continue
             sky_cover = self._parse_sky_cover(rec.get("rawOb", ""))
+            wind_speed_kt = rec.get("wspd")   # knots
+            wind_dir_deg  = rec.get("wdir")   # degrees
+
+            # Cache latest METAR per station for use in forecast corrections
+            _obs_utc_hour = datetime.fromtimestamp(obs_time, tz=timezone.utc).hour if obs_time else None
+            self._latest_metar[icao] = {
+                "wind_speed_kt": float(wind_speed_kt) if wind_speed_kt is not None else None,
+                "wind_dir_deg":  float(wind_dir_deg)  if wind_dir_deg  is not None else None,
+                "sky_cover":     sky_cover,
+                "utc_hour":      _obs_utc_hour,
+            }
 
             for token_id in token_ids:
                 meta = self.bot._open_meta.get(token_id, {})
@@ -1035,6 +1047,26 @@ class WeatherArb:
                     elev = CITY_ELEVATION_M.get(city, 0.0)
                     sigma_floor = ELEVATION_SIGMA_FLOOR if elev > ELEVATION_THRESHOLD_M else 1.0
                     sigma = max(sigma_floor, spread)
+                # Microclimate correction: tarmac heat island + sea breeze floor
+                from strategy.station_microclimate import compute_forecast_correction
+                icao = CITY_ICAO.get(city, "")
+                if icao:
+                    metar = self._latest_metar.get(icao, {})
+                    mc_mu, mc_sigma = compute_forecast_correction(
+                        icao, mean, sigma,
+                        wind_speed_kt=metar.get("wind_speed_kt"),
+                        wind_dir_deg=metar.get("wind_dir_deg"),
+                        sky_cover=metar.get("sky_cover"),
+                        utc_hour=metar.get("utc_hour"),
+                    )
+                    if mc_mu != mean or mc_sigma != sigma:
+                        logger.debug(
+                            "[WA] microclimate %s: mu %.2f→%.2f sigma %.2f→%.2f (%s)",
+                            icao, mean, mc_mu, sigma, mc_sigma,
+                            "sea-breeze" if mc_mu < mean else "THI",
+                        )
+                    mean, sigma = mc_mu, mc_sigma
+
                 result[d] = (mean, sigma)
                 elev_tag = f" (elev {elev:.0f}m)" if elev > 0 else ""
                 logger.debug("[WA] forecast %s lat=%.2f models=%d mean=%.1f sigma=%.1f%s",
