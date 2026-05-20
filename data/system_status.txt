@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+e51497c1 weather: exclude WEATHER_ARB from cascade abort
+cca17465 weather: fix broken FORECAST_MODELS — replace deprecated names with working ones
 4b8044bc weather: add ask-band filter [0.20, 0.40] — favourite cell only
 bebe2f1a weather: exclude WEATHER_ARB from HARD_EXIT timer
 5bb0b4f4 weather: hold-favourites scalp-mids policy + WS exit, orphan-safe
@@ -10,14 +12,12 @@ bebe2f1a weather: exclude WEATHER_ARB from HARD_EXIT timer
 e57b92d2 weather: model validation framework + CRITICAL FINDING: 100% win rate when forecaster contradicts market
 b03a03e6 state: log WEATHER_REPRICING strategy finalized (comprehensive backtest, AROME 146% ROI 100% WR)
 c03cc455 weather: comprehensive backtest + final integrated strategy (repricing-first)
-e8d142e8 state: log dual-strategy analysis finding (repricing wins 90.6%) + revised Tier 1C (2026-05-20 23:XX)
-8768e27c weather: dual-strategy analysis + repricing recommendation
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   58G       35G  63% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-20 14:35:24 UTC
+ActiveEnterTimestamp=Wed 2026-05-20 15:06:06 UTC
 
 ## Open positions (count):
 0
