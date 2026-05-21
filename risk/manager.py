@@ -1044,7 +1044,9 @@ class RiskManager:
         if (
             time_held >= _hard_exit_limit
             and not pos.hard_exit_triggered
-            and getattr(pos, "bond_entry_class", "") not in ("SPORTS_COPY", "WEATHER_ARB")
+            and getattr(pos, "bond_entry_class", "") not in (
+                "SPORTS_COPY", "WEATHER_ARB", "WEATHER_INTRADAY", "WEATHER_BRACKET", "WEATHER_TAIL"
+            )
         ):
             pos.hard_exit_triggered = True
             return ExitDecision(True, "HARD_EXIT", urgency="immediate")

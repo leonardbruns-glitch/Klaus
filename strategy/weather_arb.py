@@ -1527,14 +1527,15 @@ class WeatherArb:
             delta_rem = rise_tbl.get(current_hour, 0.0)
             mu_nowcast = max(run_max, temp_c + delta_rem * s_f)
 
-            # Step 2: σ_nowcast = σ_base × sqrt(t_rem / 12)
+            # Step 2: σ_nowcast = σ_base × sqrt(t_rem / 12), floored at max(0.5×σ_base, 0.5)
             peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(month)
             sigma_base = CITY_SIGMA_C.get(slug, {}).get(month, SIGMA_C_DEFAULT)
             if peak_hour is not None:
                 t_rem = max(0.0, float(peak_hour - current_hour))
             else:
                 t_rem = 0.0  # no calibration → assume peak passed, sigma collapses to floor
-            sigma_nc = max(0.20, sigma_base * math.sqrt(t_rem / 12.0))
+            sigma_floor_exit = max(0.50, sigma_base * 0.5)
+            sigma_nc = max(sigma_floor_exit, sigma_base * math.sqrt(t_rem / 12.0))
 
             # Step 3: P(bucket) = Φ((hi+0.5−μ)/σ) − Φ((lo−0.5−μ)/σ)
             p_bucket = _outcome_prob(mu_nowcast, lo, hi, sigma_nc)
@@ -1741,6 +1742,14 @@ class WeatherArb:
                 continue
             token_id = token_ids_raw[0]
             if token_id in self._fired_tokens:
+                continue
+
+            # City-level dedup: one INTRADAY position per city per day
+            today_str = now_utc.date().isoformat()
+            if any(
+                p.get("city") == city and p.get("end_date", "") == today_str
+                for p in self._positions.values()
+            ):
                 continue
 
             prices_raw = mkt.get("outcomePrices", '["0.5"]')
@@ -2500,10 +2509,15 @@ class WeatherArb:
 
         est_max = max(running_max_c, temp_c + remaining_rise)
 
-        # Sigma shrinks as observation hour approaches historical peak hour
+        # Sigma shrinks as observation hour approaches historical peak hour.
+        # Floor = max(0.5 × sigma_base, 0.5°C) so that near-peak confidence never
+        # collapses below half the calibrated daily spread. A 0.20 absolute floor was
+        # unrealistically tight for exact-degree-bucket markets (e.g. London 23°C):
+        # P([22.5,23.5]) = 97.6% with σ=0.20 vs ~38% with σ=1.03 (full spread).
         horizon = 12.0
         hours_to_peak = max(0.0, peak_hour - current_hour)
-        sigma = max(0.2, cal_sigma * (hours_to_peak / horizon) ** 0.5)
+        sigma_floor = max(0.50, cal_sigma * 0.5)
+        sigma = max(sigma_floor, cal_sigma * (hours_to_peak / horizon) ** 0.5)
 
         return round(est_max, 2), round(sigma, 2)
 
