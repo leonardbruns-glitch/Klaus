@@ -2434,6 +2434,20 @@ class WeatherArb:
                 elev_tag = f" (elev {elev:.0f}m)" if elev > 0 else ""
                 logger.debug("[WA] forecast %s lat=%.2f models=%d mean=%.1f sigma=%.1f%s",
                              d, lat, len(values), mean, sigma, elev_tag)
+                # Live calibration accumulator: log raw model values + ensemble output
+                if _slug:
+                    try:
+                        from analysis.weather.live_accumulator import log_forecast as _lf
+                        _lf(
+                            slug=f"weather-forecast-{_slug}-{d}",
+                            city_slug=_slug,
+                            valid_day=d,
+                            model_values=model_values_by_name,
+                            ensemble_mu=mean,
+                            ensemble_sigma=sigma,
+                        )
+                    except Exception:
+                        pass
             return result if result else None
         except Exception as e:
             logger.debug("[WA] forecast error lat=%.2f lon=%.2f: %s", lat, lon, e)

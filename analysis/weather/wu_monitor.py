@@ -32,6 +32,7 @@ from playwright.async_api import async_playwright
 
 from analysis.weather.stations import STATIONS, Station
 from analysis.weather.wu_high_scraper import scrape_one
+from analysis.weather.live_accumulator import log_actual
 
 DEFAULT_INTERVAL_S = 60
 DEFAULT_MAX_PARALLEL = 14   # 7 stations × 2 days
@@ -116,6 +117,15 @@ async def run(cities: list[str], interval_s: int, out_path: Optional[str],
                     if cur is not None and prev is None:
                         n_transitions += 1
                         _emit_transition(rec)
+                        try:
+                            log_actual(
+                                slug=f"wu-{rec['city']}-{rec['date']}",
+                                city_slug=rec["city"],
+                                valid_day=rec["date"],
+                                wu_high_c=float(rec["high_c"]),
+                            )
+                        except Exception:
+                            pass
                     last_high[key] = cur
                     if fh is not None:
                         _log_jsonl(fh, rec, cycle)
