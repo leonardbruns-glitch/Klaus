@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+ade7057f weather: remaining-rise gate for STRAT_4 hot entries
+97aec0a9 weather: full ASOS calibration for all 23 cities + sigma floor fix
+0491483d Watchdog 2026-05-21T14:18:50Z: CRITICAL 2 alerts — CAPITAL_RUIN CAPITAL_DROP
 be834423 log: state_log entry for weather fix commit d7fde86f
 d7fde86f fix: HARD_EXIT + sigma floor + INTRADAY city dedup for weather positions
 0f572ff6 fix: handle VRB wind direction in METAR parser — metar loop crash
@@ -9,15 +12,12 @@ d7fde86f fix: HARD_EXIT + sigma floor + INTRADAY city dedup for weather position
 c688f3ac fix: seasonal gate for STRAT_4 HOT base-rate triggers
 caeac8da state: log weather audit fixes (c50c56cc)
 c50c56cc audit: fix weather position tracking — exit gates, city scope, trade logs
-7f5c9467 Watchdog 2026-05-21T13:20:32Z: HIGH 1 alert — TRADE_LOOP_SILENT
-5346ccdc weather: data-driven tail trigger expansion (5yr calibration)
-e7c8fb2b analytics: tail trigger analysis — bust signal calibration
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   62G       32G  67% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 14:17:24 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 15:05:07 UTC
 
 ## Open positions (count):
 0
