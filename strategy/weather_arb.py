@@ -217,7 +217,16 @@ ELEVATION_SIGMA_FLOOR = 3.0  # Minimum sigma for mountain cities (vs 1.0 for sea
 # via Open-Meteo live + historical APIs (2026-05-20 probe).
 # GFS (NOAA), ICON (DWD), ECMWF IFS, GEM (CMC/Canada), JMA, UKMO, Météo-France.
 # Models that lack coverage for a region return null and are silently excluded.
-FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025,gem_seamless,jma_seamless,ukmo_seamless,meteofrance_seamless"
+FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025,gem_seamless,jma_seamless,ukmo_seamless,meteofrance_seamless,ecmwf_aifs025,gfs_graphcast025"
+
+# Minimum live models required for an STRAT_1/2 entry. Below this, σ_ens is unreliable:
+# the ensemble spread shrinks artificially when models drop out, faking conviction.
+# Open-Meteo nulls are typical for regional models in extra-coverage zones; require at least 4
+# globally-coverage models to keep σ statistically meaningful.
+MIN_MODELS_FOR_ENTRY = 4
+# Sigma inflation factor applied when fewer than MIN_MODELS_FOR_ENTRY were available.
+# Adds protection against the "fewer models → tighter spread → false confidence" failure.
+LOW_MODEL_SIGMA_INFLATION = 1.40
 
 # US cities where we also fetch NWS NDFD as an additional source.
 # NWS NDFD incorporates HRRR (3km) and NAM internally — equivalent to adding
@@ -366,6 +375,34 @@ CITY_ICAO: dict[str, str] = {
 
 AWC_METAR_URL = "https://aviationweather.gov/api/data/metar?ids={icao}&format=json&hours=1"
 METAR_POLL_INTERVAL = 60  # METARs post every ~30 min; poll every 60s to catch within 60s
+
+# UTC offset in hours per ICAO. Used to reset running_max at LOCAL midnight, not UTC.
+# Critical for Asia/Pacific cities where local midnight is at 14:00-18:00 UTC: resetting at
+# UTC 00:00 would erase the morning observations from the day Polymarket actually resolves.
+# Note: ignores DST — error is ≤1h, and the running_max reset only matters around midnight.
+ICAO_UTC_OFFSET_H: dict[str, int] = {
+    # Americas
+    "KLGA":  -5, "KORD":  -6, "KLAX":  -8, "KSFO":  -8, "KSEA":  -8,
+    "KMIA":  -5, "KDAL":  -6, "KHOU":  -6, "KAUS":  -6, "KDEN":  -7,
+    "KBKF":  -7, "KATL":  -5, "KPHX":  -7, "MMMX":  -6, "CYYZ":  -5,
+    "SBGR":  -3, "SAEZ":  -3, "MPHO":  -5, "SKBO":  -5, "SPJC":  -5,
+    "SCEL":  -3,
+    # Europe / Africa
+    "EGLC":   0, "LFPB":   1, "LEMD":   1, "EHAM":   1, "LIMC":   1,
+    "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1,
+    "LIRF":   1, "LKPR":   1, "LHBP":   1, "LROP":   2, "LGAV":   2,
+    "LTFJ":   3, "LTAC":   3, "UUEE":   3, "EFHK":   2, "ESSA":   1,
+    "ENGM":   1, "EKCH":   1, "LOWW":   1, "LSZH":   1, "HECA":   2,
+    "DNMM":   1, "HKJK":   3, "FAOR":   2, "FACT":   2, "OERK":   3,
+    "OEJN":   3,
+    # Asia / Oceania
+    "VHHH":   8, "RJTT":   9, "RKSI":   9, "RKPK":   9, "ZBAA":   8,
+    "ZSPD":   8, "ZGSZ":   8, "ZGGG":   8, "ZSJN":   8, "ZSQD":   8,
+    "ZHHH":   8, "ZUUU":   8, "ZUCK":   8, "RCSS":   8, "WSSS":   8,
+    "WIHH":   7, "WMKK":   8, "VTBS":   7, "VABB":   5, "VIDP":   5,
+    "VILK":   5, "VGHS":   6, "OMDB":   4, "OPKC":   5, "RPLL":   8,
+    "YSSY":  10, "NZWN":  12,
+}
 
 # Calibration tables derived from 5 years (2021-2025) of ASOS hourly data via Iowa State Mesonet.
 # All 23 validated stations (analysis/weather/stations.py). sigma = ASOS-measured intraday
@@ -930,6 +967,15 @@ class WeatherArb:
         # Keyed by (round(lat,2), round(lon,2)). Persists running_max_c across cycles.
         self._om_live_cache: dict[tuple, dict] = {}
 
+        # HOT_BASE_RATE / COLD_SIGNAL fire dedup: {city|date: trigger_tag}.
+        # Without this, the no-physical-event triggers fire every METAR cycle for the same
+        # city, exposing us to METAR-noise-driven over-firing. One fire per city per day max.
+        self._tail_base_rate_fired: dict[str, str] = {}
+
+        # Ask anchor at session open for each city/date — used to detect that the market has
+        # already repriced significantly upward before HOT_BASE_RATE fires (signal stale).
+        self._tail_open_ask: dict[str, float] = {}
+
         from strategy.ensemble_weights import WeightedEnsemble
         self._ensemble = WeightedEnsemble()
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
@@ -1054,24 +1100,41 @@ class WeatherArb:
             city_lon = CITY_COORDS.get(city, (0.0, 0.0))[1] if city else 0.0
             known_city = city and city in CITY_COORDS
 
+            # SAFETY: STRAT_1/2 require oracle-aligned station coords.
+            # City-centre coords introduce 3-8°F bias on 1-2°F bucket markets → guaranteed loss.
+            # If WU station cannot be confirmed from description, REFUSE to trade.
             if known_city:
-                # Known city: full haversine validation (station must be within 50 km of city centre)
                 station_result = resolve_station(description, city, city_lat, city_lon)
-                if station_result is not None:
-                    _station_code, lat, lon = station_result
-                else:
-                    lat, lon = city_lat, city_lon
-                    logger.debug("[WA] %s using city-centre coords (WU station unconfirmed)", city)
+                if station_result is None:
+                    logger.warning(
+                        "[WA] SKIP %s — WU station unconfirmed in description "
+                        "(city-centre coords would introduce systematic bucket bias)",
+                        city,
+                    )
+                    continue
+                _station_code, lat, lon = station_result
             else:
-                # Unknown city: extract station directly from description (no city-centre gate)
+                # Unknown city: extract station directly from description
                 direct = _resolve_coords_from_description(description)
                 if direct is None:
-                    continue  # cannot determine location — skip
+                    logger.debug("[WA] SKIP unknown-city market — no resolvable WU station")
+                    continue
                 _station_code, lat, lon = direct
                 if city is None:
-                    city = _station_code   # use station code as display name
+                    city = _station_code
                 logger.debug("[WA] DYNAMIC CITY %s → station %s @ (%.4f, %.4f)",
                              city, _station_code, lat, lon)
+
+            # Triple-check: extracted station must match the ICAO we'd use for METAR/microclimate.
+            # If mismatch, the bot is about to trade with NWP from one location and exit logic
+            # (METAR cache) from another — silent wrong-station risk. Refuse.
+            _expected_icao = CITY_ICAO.get(city)
+            if _expected_icao and _station_code and _expected_icao != _station_code:
+                logger.warning(
+                    "[WA] SKIP %s — station mismatch: WU=%s CITY_ICAO=%s (would split data sources)",
+                    city, _station_code, _expected_icao,
+                )
+                continue
 
             # Get forecast for this city (only once per city, at exact station coords)
             forecast = await self._get_forecast(lat, lon, today, tomorrow, city)
@@ -1618,14 +1681,17 @@ class WeatherArb:
             logger.debug("[WA] metar batch fetch error: %s", e)
             return
 
-        from datetime import datetime, timezone, date as _date
-        today_str = _date.today().isoformat()
+        from datetime import datetime, timezone, timedelta as _td, date as _date
 
         for rec in records:
             icao = rec.get("icaoId") or rec.get("stationId", "")
             if not icao:
                 continue
             obs_time = rec.get("obsTime", 0)
+            # Local trading day = (utc_now + offset_h) date. This is the day the market resolves.
+            _tz_h = ICAO_UTC_OFFSET_H.get(icao, 0)
+            _local_dt = datetime.now(timezone.utc) + _td(hours=_tz_h)
+            today_str = _local_dt.date().isoformat()
             cached = self._icao_metar_cache.setdefault(icao, {
                 "running_max_c": None, "last_obs_time": 0, "prev_temp_c": None,
                 "running_max_date": today_str,
@@ -1634,16 +1700,35 @@ class WeatherArb:
                 continue  # not a new observation
 
             # Prefer the RMK T-group (0.1°C precision) over the rounded METAR temp field.
-            # Format: T[s][TTTT][s][TTTT] where s=0 pos / 1 neg, TTTT = tenths of °C.
+            # Format: T[s][TTT][s][TTT] — sign=0/1, exactly 3 digits = tenths of °C.
             # e.g. T02750211 → dry=+27.5°C, dew=+21.1°C.
+            # SAFETY: lock to exactly 3 digits per field; sanity-range −60..+60°C.
             raw_ob = rec.get("rawOb", "")
             temp_c = None
-            _t_match = __import__("re").search(r"\bT([01])(\d{3,4})([01]\d{3,4})?\b", raw_ob)
+            _t_match = __import__("re").search(
+                r"\bT([01])(\d{3})(?:([01])(\d{3}))?\b", raw_ob,
+            )
             if _t_match:
                 _sign = -1 if _t_match.group(1) == "1" else 1
-                temp_c = _sign * int(_t_match.group(2)) / 10.0
+                _cand = _sign * int(_t_match.group(2)) / 10.0
+                if -60.0 < _cand < 60.0:
+                    temp_c = _cand
+                else:
+                    logger.warning(
+                        "[WA] METAR T-group out-of-range icao=%s val=%.1f raw=%s",
+                        rec.get("icaoId", "?"), _cand, raw_ob[:80],
+                    )
             if temp_c is None:
-                temp_c = rec.get("temp")
+                _fallback = rec.get("temp")
+                if _fallback is not None:
+                    _fallback = float(_fallback)
+                    if -60.0 < _fallback < 60.0:
+                        temp_c = _fallback
+                    else:
+                        logger.warning(
+                            "[WA] METAR temp out-of-range icao=%s val=%.1f",
+                            rec.get("icaoId", "?"), _fallback,
+                        )
             if temp_c is None:
                 continue
             temp_c = float(temp_c)
@@ -2374,6 +2459,29 @@ class WeatherArb:
             if lo_c is None or hi_c is None:
                 continue
 
+            # ── HOT_BASE_RATE / COLD_SIGNAL fire-once-per-day-per-city dedup ────────
+            # These triggers fire on every cycle without a physical event, so without
+            # dedup the bot would attempt entry every 60s. RAPID_RISE / FOEHN_WIND have
+            # natural physical debouncing (the event itself is transient).
+            _city_date_key = f"{city}|{today}|{lo_c:.1f}|{hi_c:.1f}"
+            _is_no_event_trigger = (trigger_c or trigger_d) and not (trigger_a or trigger_b)
+            if _is_no_event_trigger and _city_date_key in self._tail_base_rate_fired:
+                continue
+
+            # ── Ask anchor / market-priced check ─────────────────────────────────────
+            # Capture session-open ask; if the market has already moved >50% up since
+            # then, the edge is gone — market has repriced and we're chasing.
+            _ask_key = f"{city}|{today}|{lo_c:.1f}|{hi_c:.1f}"
+            _open_ask = self._tail_open_ask.get(_ask_key)
+            if _open_ask is None:
+                self._tail_open_ask[_ask_key] = ask
+            elif ask > _open_ask * 1.5 and _is_no_event_trigger:
+                logger.debug(
+                    "[WA] TAIL SKIP %s — ask anchored %.3f → now %.3f (>50%% move), edge gone",
+                    city, _open_ask, ask,
+                )
+                continue
+
             # Route by direction and validate bucket reachability
             if trigger_d and not (trigger_a or trigger_b):
                 # COLD entry: running_max must be inside this bucket right now.
@@ -2462,6 +2570,10 @@ class WeatherArb:
                     )
                     logger.info("[WA] TAIL ENTRY %s %s filled=%d @ %.4f",
                                 city, trigger_tag, int(fill.total_size), fill.avg_fill_price)
+                    # Mark no-physical-event triggers fired-for-the-day so we don't re-enter
+                    # adjacent buckets in the same city on subsequent METAR cycles.
+                    if _is_no_event_trigger:
+                        self._tail_base_rate_fired[_city_date_key] = trigger_tag
                 else:
                     self._close_position(token_id)
                     self._fired_tokens.discard(token_id)
@@ -3190,10 +3302,21 @@ class WeatherArb:
                 if cal_sigma is None:
                     elev = CITY_ELEVATION_M.get(city, 0.0)
                     cal_sigma = ELEVATION_SIGMA_FLOOR if elev > ELEVATION_THRESHOLD_M else 1.0
+                # Defense against σ collapse: when fewer than MIN_MODELS_FOR_ENTRY models
+                # respond, the ensemble spread is structurally underestimated. Either skip
+                # the day or inflate σ — choose inflation to preserve trading but reduce risk.
+                _n_models = len(model_values_by_name)
                 mean, sigma = self._ensemble.combine(
                     _slug, _month, model_values_by_name,
                     asos_sigma_floor=cal_sigma,
                 )
+                if _n_models < MIN_MODELS_FOR_ENTRY:
+                    sigma *= LOW_MODEL_SIGMA_INFLATION
+                    logger.warning(
+                        "[WA] LOW_MODEL_COUNT %s %s: n=%d < %d → σ inflated %.2f→%.2f",
+                        city, d, _n_models, MIN_MODELS_FOR_ENTRY,
+                        sigma / LOW_MODEL_SIGMA_INFLATION, sigma,
+                    )
                 # Microclimate correction: tarmac heat island + sea breeze floor
                 from strategy.station_microclimate import compute_forecast_correction
                 icao = CITY_ICAO.get(city, "")
