@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+a74c9fa7 tune: lower MIN_FAIR_PROB 0.50→0.45 — open cheap-tail entries
+4b0815b5 Watchdog 2026-05-21T23:18:45Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT re-confirmed)
 f82f7308 feat: wire regime_today.json into overnight + intraday scans; remove auto-kill
 dedbd5e4 feat: 5 daily auto-improvement routines + legacy crypto cleanup
 8332dc27 fix: disable CAS_LOWASK — weather-only live mode
@@ -10,14 +12,12 @@ dedbd5e4 feat: 5 daily auto-improvement routines + legacy crypto cleanup
 8d8e6080 fix: disable NO_SIDE_ARB — bought NO when YES already held same bucket
 b0941d9b Watchdog 2026-05-21T22:19:26Z: OK (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT backoff)
 01922bf4 feat: empirical HOT_BUST_RATE table — replace binary city set with 3yr GFS-vs-ASOS P(bust) per (city,month)
-1b20ab8f fix: CRITICAL — ensemble weights summing to >1.0, μ inflated by 5-15%
-fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 calibrated cities
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  69% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   64G       30G  69% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 22:55:18 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 23:47:38 UTC
 
 ## Open positions (count):
 0
