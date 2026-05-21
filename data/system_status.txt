@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 calibrated cities
+5c4ba282 Watchdog 2026-05-21T21:22:25Z: OK (TRADE_LOOP_SILENT recovered; 2 anomalies backoff)
 96ce5340 feat: unified Calibration layer + GraphCast/AIFS skill cells
 7e16c279 feat: un-kill TAIL_RAPID_RISE (with safeguards) + add NO_SIDE strategy
 5a38cf8d feat: 23-city × 11-strategy backtest (live + killed/proposed)
@@ -10,14 +12,12 @@ active
 71d003ad Watchdog 2026-05-21T20:18:16Z: HIGH 1 alert (TRADE_LOOP_SILENT re-triggered; CAPITAL_RUIN recovered)
 a1b16fff fix: 5 audit risks + add GraphCast/AIFS to ensemble
 f0f7471d feat: shadow logger + non-binary physics for met upgrades
-ce1f60b1 feat: three meteorological upgrades to intraday nowcast
-b788654c Watchdog 2026-05-21T19:18:09Z: OK (3 anomalies backoff: CAPITAL_RUIN/VOLARB_DD/VOLARB_SILENT)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 21:12:51 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 21:28:06 UTC
 
 ## Open positions (count):
 0
