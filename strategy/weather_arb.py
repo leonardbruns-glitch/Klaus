@@ -58,6 +58,7 @@ KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
 KELLY_MAX_USD    = 60.0   # ceiling: hard capital cap per weather position
+PER_STRAT_ALLOC  = 0.25   # each strategy gets 25% of bankroll — all 4 can run simultaneously
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
 SCAN_INTERVAL_S = 1800 # scan every 30 minutes
@@ -2071,7 +2072,7 @@ class WeatherArb:
             bankroll  = self._get_bankroll()
             kelly_f   = edge / max(0.01, 1.0 - poly_yes)
             raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
-            stake     = max(5.0, min(50.0, bankroll * 0.75, raw_stake))
+            stake     = max(5.0, min(50.0, bankroll * PER_STRAT_ALLOC, raw_stake))
 
             if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake,
                                          expected_max_c=est_max):
@@ -2552,7 +2553,9 @@ class WeatherArb:
         bankroll = self._get_bankroll()
         total_kelly_stake = KELLY_FRACTION * bankroll * f_star
         total_kelly_stake = max(KELLY_MIN_USD * len(bracket),
-                                min(KELLY_MAX_USD * len(bracket), total_kelly_stake))
+                                min(KELLY_MAX_USD * len(bracket),
+                                    bankroll * PER_STRAT_ALLOC,
+                                    total_kelly_stake))
 
         n_entered = 0
         for mkt, entry in bracket:
@@ -2588,7 +2591,7 @@ class WeatherArb:
         f_star = edge / max(0.001, 1.0 - ask)
         bankroll = self._get_bankroll()
         raw = KELLY_FRACTION * bankroll * f_star
-        return max(KELLY_MIN_USD, min(KELLY_MAX_USD, raw))
+        return max(KELLY_MIN_USD, min(KELLY_MAX_USD, bankroll * PER_STRAT_ALLOC, raw))
 
     @staticmethod
     def _parse_sky_cover(raw_ob: str) -> str:
