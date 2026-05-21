@@ -112,6 +112,10 @@ SCALP_TARGET_ABS       = 0.03   # min absolute profit per share on a scalp
 SCALP_TARGET_EDGE_FRAC = 0.50   # capture this fraction of (fair - entry)
 SCALP_DISCOUNT         = 0.90   # TP ≤ fair × this (executability buffer)
 
+# ── Forecast consensus / bucket-switching ────────────────────────────────────
+BUCKET_SWITCH_MIN_RUNS = 3      # consecutive scans preferring new bucket before switching
+BUCKET_SWITCH_MU_DELTA = 0.5    # min °C shift in ensemble mu required to trigger switch
+
 
 def _compute_scalp_tp(entry: float, fair: float) -> float:
     """Take-profit price for mid-band entries; 0.0 means hold-to-resolution."""
@@ -547,7 +551,8 @@ class WeatherArb:
     def __init__(self, bot) -> None:
         self.bot = bot
         self._fired_tokens: set[str] = set()
-        self._fired_city_dates: set[str] = set()  # "(city, date)" — one bucket per city/day
+        self._fired_city_dates: dict[str, str] = {}  # city|date → held token_id
+        self._bucket_consensus: dict[str, list] = {}  # city|date → [(token_id, mu, ts), ...]
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
@@ -721,6 +726,21 @@ class WeatherArb:
                 if entry:
                     candidates.append((mkt, entry))
 
+            # ── Neg-risk dedup / consensus tracking ──────────────────────────
+            # All markets in this loop are filtered to target_dates={tomorrow},
+            # so every candidate shares the same end_date = tomorrow.
+            city_date_key = f"{city}|{tomorrow}"
+
+            if city_date_key in self._fired_city_dates:
+                # Already holding a bucket for this city/date.
+                # Still evaluate to detect sustained model shifts.
+                if candidates:
+                    best_c_mkt, best_c_entry = max(candidates, key=lambda x: x[1]["fair_prob"])
+                    await self._update_and_maybe_switch(
+                        city, city_date_key, best_c_mkt, best_c_entry,
+                    )
+                continue
+
             if not candidates or entries_made >= MAX_POSITIONS:
                 continue
 
@@ -772,12 +792,6 @@ class WeatherArb:
 
         token_id = token_ids[0]  # YES token
         if token_id in self._fired_tokens:
-            return None
-
-        # Neg-risk dedup: all buckets for the same city/date are mutually exclusive.
-        # Once any bucket is filled, block every other bucket for that city/date.
-        _city_date_key = f"{city}|{end_date}"
-        if _city_date_key in self._fired_city_dates:
             return None
 
         lo_c, hi_c, is_celsius = _parse_outcome(question)
@@ -857,7 +871,7 @@ class WeatherArb:
         neg_risk  = mkt.get("negRisk", True)
 
         self._fired_tokens.add(token_id)
-        self._fired_city_dates.add(f"{city}|{end_date}")
+        self._fired_city_dates[f"{city}|{end_date}"] = token_id
 
         logger.info("[WA] ENTER city=%s date=%s poly=%.3f fair=%.3f stake=$%.0f%s",
                     city, end_date, poly_price, fair_prob, stake,
@@ -999,6 +1013,120 @@ class WeatherArb:
             self._fired_tokens.discard(token_id)
             logger.exception("[WA] enter error %s", city)
             return False
+
+    async def _exit_for_switch(self, token_id: str, city: str) -> bool:
+        """
+        Exit a held position to free the city/date slot for a better bucket.
+        Returns True if exit succeeded (or position was already gone), False if illiquid.
+        """
+        if not hasattr(self.bot, "risk") or token_id not in self.bot.risk.open_positions:
+            self._close_position(token_id)
+            return True
+        pos = self.bot.risk.open_positions[token_id]
+        current_bid = getattr(pos, "current_price", 0.0) or 0.0
+        if current_bid < SALVAGE_MIN_BID:
+            logger.warning(
+                "[WA] SWITCH_BLOCKED %s bid=%.3f < SALVAGE_MIN_BID=%.2f — illiquid, not switching",
+                city, current_bid, SALVAGE_MIN_BID,
+            )
+            return False
+        if DRY_RUN_LOG:
+            logger.info("[WA] [DRY] switch: would sell %s @ %.3f", token_id[:12], current_bid - 0.01)
+            return True
+        try:
+            await self.bot.orders.limit_sell(
+                token_id=token_id,
+                price=round(current_bid - 0.01, 4),
+                size=pos.shares,
+                condition_id=pos.condition_id,
+            )
+            self._close_position(token_id)
+            return True
+        except Exception:
+            logger.exception("[WA] switch exit sell failed %s", token_id[:12])
+            return False
+
+    async def _update_and_maybe_switch(
+        self,
+        city: str,
+        city_date_key: str,
+        best_mkt: dict,
+        best_entry: dict,
+    ) -> None:
+        """
+        Track which bucket the model most prefers across consecutive scans.
+        Fires a bucket switch when:
+          - BUCKET_SWITCH_MIN_RUNS consecutive scans all prefer the same new token, AND
+          - ensemble mu has shifted >= BUCKET_SWITCH_MU_DELTA °C from the entry mu.
+        Switch = exit old position (if bid >= SALVAGE_MIN_BID) + enter new bucket.
+        """
+        new_token  = best_entry["token_id"]
+        new_mu     = best_entry.get("expected_max_c") or 0.0
+        held_token = self._fired_city_dates.get(city_date_key, "")
+        end_date   = best_entry.get("end_date", "")
+
+        if not held_token or new_token == held_token:
+            # Model still prefers the held bucket — reset streak
+            self._bucket_consensus.pop(city_date_key, None)
+            return
+
+        # Record this scan's best token
+        q = self._bucket_consensus.setdefault(city_date_key, [])
+        q.append((new_token, new_mu, time.time()))
+        if len(q) > BUCKET_SWITCH_MIN_RUNS:
+            del q[:-BUCKET_SWITCH_MIN_RUNS]  # keep only last N
+
+        n_agree = sum(1 for t, _, _ in q if t == new_token)
+        if n_agree < BUCKET_SWITCH_MIN_RUNS:
+            logger.info(
+                "[WA] CONSENSUS %s/%s: %d/%d scans prefer %s... over held %s...",
+                city, end_date, n_agree, BUCKET_SWITCH_MIN_RUNS,
+                new_token[:12], held_token[:12],
+            )
+            return
+
+        # N consecutive scans agree — check if this is a resting order (handled by orphan canceller)
+        held_pos_meta = self._positions.get(held_token, {})
+        if held_pos_meta.get("status") == "RESTING_MAKER":
+            return  # orphan cancellation handles model drift for resting orders
+
+        entry_mu: Optional[float] = held_pos_meta.get("expected_max_c")
+        if entry_mu is None:
+            logger.debug("[WA] SWITCH %s/%s: no entry_mu for held token, skipping", city, end_date)
+            return
+
+        mu_delta = abs(new_mu - entry_mu)
+        if mu_delta < BUCKET_SWITCH_MU_DELTA:
+            logger.info(
+                "[WA] SWITCH_SUPPRESSED %s/%s: mu_delta=%.2f°C < %.1f°C (was=%.1f now=%.1f)",
+                city, end_date, mu_delta, BUCKET_SWITCH_MU_DELTA, entry_mu, new_mu,
+            )
+            return
+
+        logger.warning(
+            "[WA] BUCKET_SWITCH %s/%s | held=%s... → new=%s... | "
+            "mu_delta=%.2f°C (%.1f→%.1f°C) | %d/%d runs agree",
+            city, end_date, held_token[:12], new_token[:12],
+            mu_delta, entry_mu, new_mu, n_agree, BUCKET_SWITCH_MIN_RUNS,
+        )
+
+        exit_ok = await self._exit_for_switch(held_token, city)
+        if not exit_ok:
+            return
+
+        # Clear dedup so _enter() can register the new bucket
+        self._fired_city_dates.pop(city_date_key, None)
+        self._fired_tokens.discard(held_token)
+        self._bucket_consensus.pop(city_date_key, None)
+
+        stake = self._kelly_stake(best_entry["edge"], best_entry["poly_price"])
+        await self._enter(
+            best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
+            city, best_entry.get("lo_c"), best_entry.get("hi_c"),
+            stake=stake,
+            strategy_tag="STRAT_1_OVERNIGHT",
+            expected_max_c=new_mu,
+        )
 
     async def _metar_loop(self) -> None:
         await asyncio.sleep(30)
