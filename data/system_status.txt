@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+4fda7fc2 fix: raise STRAT_4 tail price ceiling 0.04→0.08
+c688f3ac fix: seasonal gate for STRAT_4 HOT base-rate triggers
 caeac8da state: log weather audit fixes (c50c56cc)
 c50c56cc audit: fix weather position tracking — exit gates, city scope, trade logs
 7f5c9467 Watchdog 2026-05-21T13:20:32Z: HIGH 1 alert — TRADE_LOOP_SILENT
@@ -10,14 +12,12 @@ e7c8fb2b analytics: tail trigger analysis — bust signal calibration
 8c150d75 VOLARB Scout 2026-05-21T1242Z — ERA CLOSED, n=887 frozen; H3 out-of-gate bug -$17.29; H7 'up' 2.1σ terminal drag; no actionable VOLARB signal
 102a8e4e weather: WU transition → immediate loser exit
 e89d2618 weather: strategy tuning — hold-to-resolution, tighter bracket, city filter
-9d6e8faf Watchdog 2026-05-21T12:20:32Z: OK (2 MEDIUM backoff, no new alerts)
-5be59364 VOLARB Audit 20260521-1210 — NO PATCH (n=885, Δ=0, strategy retired 57h+)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   61G       32G  66% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 13:24:47 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 13:48:10 UTC
 
 ## Open positions (count):
 0
