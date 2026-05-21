@@ -2898,6 +2898,26 @@ class WeatherArb:
 
         return round(mu_nowcast, 2), round(sigma_nowcast, 2)
 
+    async def _log_met_adjustment(self, record: dict) -> None:
+        """Append one met-adjustment shadow record to logs/shadow/met_adjustments.jsonl.
+
+        Called via asyncio.create_task() — runs concurrently with no latency on the
+        critical decision path. File I/O delegated to thread-pool via run_in_executor.
+        """
+        from pathlib import Path as _Path
+
+        def _write(path: str, line: str) -> None:
+            with open(path, "a") as fh:
+                fh.write(line)
+
+        log_path = _Path("logs/shadow/met_adjustments.jsonl")
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            line = json.dumps(record) + "\n"
+            await asyncio.get_event_loop().run_in_executor(None, _write, str(log_path), line)
+        except Exception as e:
+            logger.debug("[WA] met shadow log error: %s", e)
+
     async def _nowcast_max(
         self, lat: float, lon: float,
         running_max_c: float, temp_c: float, sky_cover: str,
@@ -2912,9 +2932,10 @@ class WeatherArb:
 
         For other cities: falls back to hourly Open-Meteo forecast rise × sky_factor.
 
-        sky_factor: CLR=1.0, FEW=0.85, SCT=0.60, BKN=0.30, OVC=0.08
-          Reads pre-computed sky_factor from METAR cache (with cirrus altitude correction)
-          when available; falls back to sky_cover string lookup otherwise.
+        Three live meteorological corrections (shadow-logged when active):
+          1. Cirrus dampening: BKN/OVC at ≥20k ft → sky_factor reclassified to SCT=0.60
+          2. Marine sea-breeze: onshore flow → mean_rise × max(0.1, 1−spd/25) [wind-scaled]
+          3. Latent heat penalty: precip_24h_mm → max(0, mm*0.15−0.5)°C [linear scaler]
 
         Delegates mu/sigma math to _compute_nowcast_mu_sigma().
         """
@@ -2927,17 +2948,19 @@ class WeatherArb:
         icao = CITY_ICAO.get(city, "")
         obs_cache = self._icao_metar_cache.get(icao, {}) if icao else {}
 
-        # sky_factor: prefer cache value (with cirrus-altitude correction); fall back to string lookup
+        # ── Rule 1: Cirrus cloud height dampening ─────────────────────────────────
+        # f_sky_raw = string-lookup baseline (what old code would use)
+        _sky_factors_str = {"CLR": 1.0, "FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
+        f_sky_raw = _sky_factors_str.get(sky_cover, 0.60)
         cached_sky_factor = obs_cache.get("sky_factor")
-        if cached_sky_factor is not None:
-            f_sky = cached_sky_factor
-        else:
-            sky_factors = {"CLR": 1.0, "FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
-            f_sky = sky_factors.get(sky_cover, 0.60)
+        f_sky = cached_sky_factor if cached_sky_factor is not None else f_sky_raw
+        cirrus_active = cached_sky_factor is not None and round(cached_sky_factor, 3) != round(f_sky_raw, 3)
 
-        # Latent heat evaporation penalty: recent precipitation suppresses afternoon max.
+        # ── Rule 2: Latent heat evaporation penalty (linear scaler) ──────────────
+        # Penalty = max(0, mm*0.15 − 0.5): zero below ~3.3 mm, ramps to 0.25°C at 5 mm,
+        # 1.0°C at 10 mm. Replaces the binary 0.75°C threshold.
         precip_24h_mm = obs_cache.get("precip_24h_mm", 0.0) or 0.0
-        precip_penalty_c = PRECIP_LATENT_PENALTY_C if precip_24h_mm >= PRECIP_LATENT_THRESH_MM else 0.0
+        precip_penalty_c = max(0.0, precip_24h_mm * 0.15 - 0.5)
 
         slug = CITY_NAME_TO_SLUG.get(city, "")
         cal_rise_table = CITY_REMAINING_RISE.get(slug, {}).get(month)
@@ -2945,7 +2968,7 @@ class WeatherArb:
         cal_sigma      = CITY_SIGMA_C.get(slug, {}).get(month, 1.2)
 
         if cal_rise_table is not None and cal_peak_hour is not None:
-            mean_rise = cal_rise_table.get(current_hour, 0.0)  # raw, sky_factor applied inside
+            mean_rise = cal_rise_table.get(current_hour, 0.0)
             peak_hour = cal_peak_hour
         else:
             # Fallback: Open-Meteo hourly forecast rise
@@ -2963,25 +2986,33 @@ class WeatherArb:
             mean_rise = max(0.0, fcst_peak - fcst_now)
             cal_sigma = 1.2
 
-        # Marine / cold-onshore wind suppression: onshore marine flow limits afternoon heating.
-        if icao in MARINE_WIND_SECTORS:
-            wind_dir = obs_cache.get("wind_dir_deg")
-            if wind_dir is not None:
-                lo_sec, hi_sec = MARINE_WIND_SECTORS[icao]
-                in_marine = (lo_sec <= wind_dir <= hi_sec) if lo_sec <= hi_sec else (
-                    wind_dir >= lo_sec or wind_dir <= hi_sec
+        mean_rise_raw = mean_rise
+
+        # ── Rule 3: Marine sea-breeze floor (wind-speed-scaled multiplier) ────────
+        # multiplier = max(0.1, 1 − wind_speed/25):
+        #   5 kt → 0.80, 12.5 kt → 0.50, 20 kt → 0.20, ≥25 kt → 0.10 (floor)
+        marine_active   = False
+        marine_mult     = 1.0
+        wind_speed_kt_v = obs_cache.get("wind_speed_kt") or 0.0
+        wind_dir_v      = obs_cache.get("wind_dir_deg")
+        if icao in MARINE_WIND_SECTORS and wind_dir_v is not None:
+            lo_sec, hi_sec = MARINE_WIND_SECTORS[icao]
+            in_marine = (lo_sec <= wind_dir_v <= hi_sec) if lo_sec <= hi_sec else (
+                wind_dir_v >= lo_sec or wind_dir_v <= hi_sec
+            )
+            if in_marine:
+                marine_mult = max(0.1, 1.0 - (wind_speed_kt_v / 25.0))
+                mean_rise  *= marine_mult
+                marine_active = True
+                logger.debug(
+                    "[WA] marine flow %s wind_dir=%.0f° spd=%.0fkt mult=%.2f "
+                    "mean_rise %.2f→%.2f°C",
+                    icao, wind_dir_v, wind_speed_kt_v, marine_mult,
+                    mean_rise_raw, mean_rise,
                 )
-                if in_marine:
-                    logger.debug(
-                        "[WA] marine flow %s wind_dir=%.0f° sector=(%.0f,%.0f) "
-                        "mean_rise %.2f→%.2f°C",
-                        icao, wind_dir, lo_sec, hi_sec,
-                        mean_rise, mean_rise * MARINE_RISE_MULTIPLIER,
-                    )
-                    mean_rise *= MARINE_RISE_MULTIPLIER
 
         hours_to_peak = max(0.0, peak_hour - current_hour)
-        return self._compute_nowcast_mu_sigma(
+        mu_final, sigma = self._compute_nowcast_mu_sigma(
             mean_rise=mean_rise,
             temp_c=temp_c,
             running_max_c=running_max_c,
@@ -2991,6 +3022,51 @@ class WeatherArb:
             nwp_max_c=nwp_max_c,
             precip_penalty_c=precip_penalty_c,
         )
+
+        # ── Shadow log: fire-and-forget when any rule was active ─────────────────
+        if marine_active or cirrus_active or precip_penalty_c > 0.0:
+            mu_baseline, _ = self._compute_nowcast_mu_sigma(
+                mean_rise=mean_rise_raw,
+                temp_c=temp_c,
+                running_max_c=running_max_c,
+                sky_factor=f_sky_raw,
+                cal_sigma=cal_sigma,
+                hours_to_peak=hours_to_peak,
+                nwp_max_c=nwp_max_c,
+                precip_penalty_c=0.0,
+            )
+            shadow = {
+                "ts":   now_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "city": city,
+                "icao": icao or None,
+                "marine": {
+                    "active":        marine_active,
+                    "wind_dir_deg":  round(wind_dir_v, 1) if wind_dir_v is not None else None,
+                    "wind_speed_kt": round(wind_speed_kt_v, 1),
+                    "multiplier":    round(marine_mult, 3),
+                    "mean_rise_raw": round(mean_rise_raw, 3),
+                    "mean_rise_adj": round(mean_rise, 3),
+                } if marine_active else {"active": False},
+                "cirrus": {
+                    "active":    cirrus_active,
+                    "f_sky_raw": round(f_sky_raw, 2),
+                    "f_sky_adj": round(f_sky, 2),
+                } if cirrus_active else {"active": False},
+                "latent_heat": {
+                    "active":        precip_penalty_c > 0.0,
+                    "precip_24h_mm": round(precip_24h_mm, 1),
+                    "penalty_c":     round(precip_penalty_c, 3),
+                } if precip_penalty_c > 0.0 else {"active": False},
+                "mu_baseline":  mu_baseline,
+                "mu_final":     mu_final,
+                "total_delta":  round(mu_final - mu_baseline, 3),
+            }
+            try:
+                asyncio.create_task(self._log_met_adjustment(shadow))
+            except RuntimeError:
+                pass  # no running event loop (test / offline context)
+
+        return mu_final, sigma
 
     async def _fetch_nws_daily_max(self, lat: float, lon: float,
                                      target_date: str) -> Optional[float]:
