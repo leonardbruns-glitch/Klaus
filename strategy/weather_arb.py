@@ -58,7 +58,8 @@ KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
 KELLY_MAX_USD    = 60.0   # ceiling: hard capital cap per weather position
-PER_STRAT_ALLOC  = 0.25   # each strategy gets 25% of bankroll — all 4 can run simultaneously
+PER_STRAT_ALLOC  = 0.25   # STRAT_1/2/3 get 25% of bankroll each
+TAIL_STRAT_ALLOC = 0.15   # STRAT_4 tail sniper gets 15% — smaller speculative bets
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
 SCAN_INTERVAL_S = 1800 # scan every 30 minutes
@@ -2320,7 +2321,7 @@ class WeatherArb:
                 else:
                     trigger_tag = "HOT_BASE_RATE"
 
-            stake_usd = TAIL_STAKE_TOKENS * ask
+            stake_usd = min(TAIL_STAKE_TOKENS * ask, self._get_bankroll() * TAIL_STRAT_ALLOC)
             logger.info(
                 "[WA] TAIL SNIPER %s icao=%s trigger=%s ask=%.3f gap=%.1f°C stake=$%.2f"
                 " dew=%.1f wind=%.1fkt",
@@ -2576,7 +2577,7 @@ class WeatherArb:
                 n_entered += 1
         return n_entered
 
-    def _kelly_stake(self, edge: float, ask: float) -> float:
+    def _kelly_stake(self, edge: float, ask: float, strat_alloc: float = PER_STRAT_ALLOC) -> float:
         """
         Fractional Kelly stake in USD.
 
@@ -2591,7 +2592,7 @@ class WeatherArb:
         f_star = edge / max(0.001, 1.0 - ask)
         bankroll = self._get_bankroll()
         raw = KELLY_FRACTION * bankroll * f_star
-        return max(KELLY_MIN_USD, min(KELLY_MAX_USD, bankroll * PER_STRAT_ALLOC, raw))
+        return max(KELLY_MIN_USD, min(KELLY_MAX_USD, bankroll * strat_alloc, raw))
 
     @staticmethod
     def _parse_sky_cover(raw_ob: str) -> str:
