@@ -1136,10 +1136,10 @@ class RiskManager:
                     pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
                 )
 
-        # WEATHER_ARB / UPDOWN: hold to resolution (1.0 or 0.0).
+        # All WEATHER_* and UPDOWN: hold to resolution (1.0 or 0.0).
         # All intraday profit and stop exits (Stage-1, Moon Bag, Ratchet, signal-flip, etc.)
         # are wrong for multi-hour daily-resolution markets. Managed by weather_arb._monitor_positions.
-        if getattr(pos, "bond_entry_class", "") in ("WEATHER_ARB", "UPDOWN"):
+        if getattr(pos, "bond_entry_class", "").startswith("WEATHER_") or getattr(pos, "bond_entry_class", "") == "UPDOWN":
             return None
 
         # ── 3. Stage-1 profit: 60% of fair-value gap ────────────────────────────
@@ -1550,9 +1550,9 @@ class RiskManager:
         for pos in self.open_positions.values():
             if pos.hard_exit_triggered:
                 continue
-            # WEATHER_ARB and SPORTS_COPY are long-hold strategies (hours-days);
+            # All WEATHER_* and SPORTS_COPY are long-hold strategies (hours-days);
             # the adaptive timer is calibrated for crypto-window strategies (~210s).
-            if getattr(pos, "bond_entry_class", "") in ("SPORTS_COPY", "WEATHER_ARB"):
+            if getattr(pos, "bond_entry_class", "").startswith("WEATHER_") or getattr(pos, "bond_entry_class", "") == "SPORTS_COPY":
                 continue
             age = now - pos.open_ts
 
