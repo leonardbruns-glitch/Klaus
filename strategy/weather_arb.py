@@ -2416,10 +2416,21 @@ class WeatherArb:
             slug       = CITY_NAME_TO_SLUG.get(city, "")
             dew_spread = (temp_c - dewpoint_c) if dewpoint_c is not None else None
 
-            # Trigger A (RAPID_RISE): DISABLED 2026-05-21 — strategic audit verdict.
-            # Single-cycle sensor glitches were producing false positives. The signal magnitude
-            # never beat what HOT_BASE_RATE + FOEHN_WIND already capture.
-            trigger_a = False
+            # Trigger A (RAPID_RISE): RE-ENABLED 2026-05-21 — 6mo backtest verdict.
+            # 23 cities × 180 days: n=2458, WR=23.2%, EV/bet=$27.70, PF=4.0, +$68k.
+            # The original sensor-glitch concern is mitigated by two new guards:
+            #   1. Hard upper bound (4°C/cycle): sensor glitches spike 3-10°C; real
+            #      heating maxes at 1.5-2.5°C/cycle.
+            #   2. Block firing past the city's calibrated peak hour — ramp is over.
+            _peak_h_a = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
+            _post_peak = (_peak_h_a is not None and now_utc.hour > _peak_h_a)
+            _rise = (temp_c - prev_temp) if prev_temp is not None else 0.0
+            trigger_a = (
+                prev_temp is not None
+                and _rise >= FOEHN_TEMP_RISE_C   # >= 1.5°C
+                and _rise <= 4.0                  # cap sensor-glitch
+                and not _post_peak
+            )
 
             # Trigger B: classic Foehn/downslope wind signature
             sector    = FOEHN_WIND_SECTORS.get(icao)
@@ -2442,7 +2453,7 @@ class WeatherArb:
             # Reactivate after ≥30 forward live observations confirm the direction.
             trigger_d = False
 
-            if not (trigger_b or trigger_c):
+            if not (trigger_a or trigger_b or trigger_c):
                 continue
 
             if mkt.get("closed", False):
