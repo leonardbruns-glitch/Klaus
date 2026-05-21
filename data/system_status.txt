@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+0bb1c36e feat: 6mo multi-strategy backtest harness (real data)
 3b249f74 feat: 4-strategy weather portfolio — HFT NWP-LAG + CITYCTR + trimmed TAIL + tight INTRADAY
 71d003ad Watchdog 2026-05-21T20:18:16Z: HIGH 1 alert (TRADE_LOOP_SILENT re-triggered; CAPITAL_RUIN recovered)
 a1b16fff fix: 5 audit risks + add GraphCast/AIFS to ensemble
@@ -11,10 +12,9 @@ b788654c Watchdog 2026-05-21T19:18:09Z: OK (3 anomalies backoff: CAPITAL_RUIN/VO
 e89f732c Watchdog 2026-05-21T18:21:09Z: OK (3 anomalies backoff: CAPITAL_RUIN/VOLARB_DD/VOLARB_SILENT)
 6ec1552f Watchdog 2026-05-21T17:18:19Z: MEDIUM 2 alerts (VOLARB_DD/VOLARB_SILENT re-confirmed; CAPITAL_RUIN backoff)
 bb8516b6 fix: block tail HOT entries past peak hour — remaining-rise gate used wrong metric
-b52af253 fix: extend PROFIT_1 and hard-exit guards to all WEATHER_* classes
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       31G  68% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Thu 2026-05-21 20:24:48 UTC
