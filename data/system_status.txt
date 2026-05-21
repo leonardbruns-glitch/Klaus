@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+8d8e6080 fix: disable NO_SIDE_ARB — bought NO when YES already held same bucket
+b0941d9b Watchdog 2026-05-21T22:19:26Z: OK (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT backoff)
+01922bf4 feat: empirical HOT_BUST_RATE table — replace binary city set with 3yr GFS-vs-ASOS P(bust) per (city,month)
 1b20ab8f fix: CRITICAL — ensemble weights summing to >1.0, μ inflated by 5-15%
 fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 calibrated cities
 5c4ba282 Watchdog 2026-05-21T21:22:25Z: OK (TRADE_LOOP_SILENT recovered; 2 anomalies backoff)
@@ -9,15 +12,12 @@ fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 cali
 7e16c279 feat: un-kill TAIL_RAPID_RISE (with safeguards) + add NO_SIDE strategy
 5a38cf8d feat: 23-city × 11-strategy backtest (live + killed/proposed)
 0bb1c36e feat: 6mo multi-strategy backtest harness (real data)
-3b249f74 feat: 4-strategy weather portfolio — HFT NWP-LAG + CITYCTR + trimmed TAIL + tight INTRADAY
-71d003ad Watchdog 2026-05-21T20:18:16Z: HIGH 1 alert (TRADE_LOOP_SILENT re-triggered; CAPITAL_RUIN recovered)
-a1b16fff fix: 5 audit risks + add GraphCast/AIFS to ensemble
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 21:52:20 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 22:23:42 UTC
 
 ## Open positions (count):
 0
