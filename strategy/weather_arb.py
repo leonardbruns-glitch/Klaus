@@ -2320,7 +2320,14 @@ class WeatherArb:
                 # Remaining-rise gate: gap must not exceed mean remaining rise at
                 # this hour from the ASOS calibration table. Prevents entries near
                 # or past peak hour where the target bucket is physically unreachable.
-                mean_rise = CITY_REMAINING_RISE.get(slug, {}).get(now_utc.month, {}).get(now_utc.hour, 0.0)
+                # Post-peak: CITY_REMAINING_RISE stores mean(daily_max − T_h), which
+                # is a past drop-from-peak, not future rise. Use 0 after peak_hour
+                # so any positive gap is correctly rejected.
+                peak_hour_m = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
+                if peak_hour_m is not None and now_utc.hour > peak_hour_m:
+                    mean_rise = 0.0
+                else:
+                    mean_rise = CITY_REMAINING_RISE.get(slug, {}).get(now_utc.month, {}).get(now_utc.hour, 0.0)
                 if gap > mean_rise:
                     continue
                 if trigger_a:
