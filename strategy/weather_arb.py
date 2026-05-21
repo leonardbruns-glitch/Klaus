@@ -2061,6 +2061,9 @@ class WeatherArb:
             )
 
             bankroll  = self._get_bankroll()
+            if bankroll < 50.0:
+                logger.warning("[WA] INTRADAY blocked — bankroll $%.2f below $50 floor", bankroll)
+                continue
             kelly_f   = edge / max(0.01, 1.0 - poly_yes)
             raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
             stake     = max(5.0, min(50.0, bankroll * 0.75, raw_stake))
