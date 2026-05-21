@@ -126,10 +126,6 @@ class CityCentreArb:
             await asyncio.sleep(CITYCTR_SCAN_INTERVAL_S)
 
     async def _scan(self) -> None:
-        from analysis.weather.daily_audit import is_killed
-        if is_killed("WEATHER_CITYCTR"):
-            logger.info("[CITYCTR] auto-killed by daily_audit — skipping scan")
-            return
         wa = getattr(self.bot, "weather_arb", None)
         if wa is None:
             return

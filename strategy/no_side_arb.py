@@ -78,10 +78,6 @@ class NoSideArb:
             await asyncio.sleep(NOSIDE_SCAN_INTERVAL_S)
 
     async def _scan(self) -> None:
-        from analysis.weather.daily_audit import is_killed
-        if is_killed("WEATHER_NOSIDE"):
-            logger.info("[NOSIDE] auto-killed by daily_audit — skipping scan")
-            return
         wa = getattr(self.bot, "weather_arb", None)
         if wa is None:
             return

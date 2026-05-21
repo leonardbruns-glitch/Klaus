@@ -52,6 +52,30 @@ class _NullHotBustRates:
     def query(self, *a, **kw):   return 0.0
     def reload(self):             pass
 
+
+# ── Regime cache ──────────────────────────────────────────────────────────────
+# Reads strategy/regime_today.json written by analysis/weather/regime_detection.py
+# at 06:00 UTC. Returns regime string for (slug, date_iso): "normal" | "volatile"
+# | "heatwave" | "cold_front". Falls back to "normal" on any error.
+
+import os as _os
+_REGIME_PATH = _os.path.join(_os.path.dirname(__file__), "regime_today.json")
+_regime_cache: dict = {}
+_regime_mtime: float = 0.0
+
+def _get_regime(slug: str, date_iso: str) -> str:
+    global _regime_cache, _regime_mtime
+    try:
+        mtime = _os.path.getmtime(_REGIME_PATH)
+        if mtime != _regime_mtime:
+            with open(_REGIME_PATH) as _f:
+                _regime_cache = json.load(_f)
+            _regime_mtime = mtime
+    except Exception:
+        return "normal"
+    return _regime_cache.get("cities", {}).get(slug, {}).get(date_iso, {}).get("regime", "normal")
+
+
 GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
@@ -1170,6 +1194,13 @@ class WeatherArb:
                 logger.debug("[WA] no forecast for %s", city)
                 continue
 
+            # Regime gate: skip volatile cities (high inter-model spread → σ unreliable)
+            _slug_for_regime = CITY_NAME_TO_SLUG.get(city, "")
+            if _get_regime(_slug_for_regime, tomorrow) == "volatile":
+                logger.info("[WA] SKIP %s %s — regime=volatile (inter-model spread too wide)",
+                            city, tomorrow)
+                continue
+
             # Evaluate all buckets for this city, then enter ONLY the highest-conviction
             # one. These are negRisk markets — entering multiple buckets means one always
             # cancels the other while paying fees twice.
@@ -2193,6 +2224,11 @@ class WeatherArb:
 
             lo_c, hi_c, is_celsius = _parse_outcome(mkt.get("question", ""))
             if lo_c is None and hi_c is None:
+                continue
+
+            # Regime gate: volatile today → inter-model spread too wide for INTRADAY
+            if _get_regime(slug, today_str) == "volatile":
+                logger.debug("[WA] INTRADAY SKIP %s — regime=volatile", city)
                 continue
 
             # ── μ_nowcast via calibrated remaining-rise table ─────────────────
