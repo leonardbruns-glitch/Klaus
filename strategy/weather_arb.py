@@ -123,13 +123,16 @@ SCALP_DISCOUNT         = 0.90   # TP ≤ fair × this (executability buffer)
 # Adjacent-higher tail tokens are systematically mispriced: fair value 15-35%
 # vs market price $0.01-$0.04. Enter on base rate alone, no physical trigger.
 HOT_BUST_BASE_CITIES = frozenset({
-    "shanghai",     # 35.5% HOT bust — strongest GFS cold bias globally
-    "madrid",       # 27.1% HOT bust — Meseta continental heating
-    "beijing",      # 24.5% HOT bust — arid continental interior
-    "jakarta",      # 20.1% HOT bust — tropical boundary layer
-    "buenos-aires", # 21.3% HOT bust (also 19.2% cold — both tails)
+    "shanghai",     # 35.5% HOT bust — year-round (Jan 34%, Aug 84%)
+    "madrid",       # 32.2% HOT bust — year-round, weakest Mar-Apr (17%)
+    # beijing REMOVED: monthly breakdown shows HOT only Nov-Feb; Jun-Jul 59% COLD-bust
+    "jakarta",      # HOT only Sep-Nov (9-16%); gated by HOT_BUST_JAKARTA_MONTHS below
+    "buenos-aires", # 63% HOT bust — uniformly strong every month
 })
 TAIL_HOT_GAP_BASE = 4.0  # °C: relaxed reachability for base-rate cities (vs 3.0 triggered)
+# Jakarta HOT base-rate is only real in dry season (monthly breakdown 2026-05-21):
+# Sep 12%, Oct 16%, Nov 13%. Wet season (Nov-Apr) it's cold-busting (20-30%).
+HOT_BUST_JAKARTA_MONTHS = frozenset({9, 10, 11})
 
 # Cities where morning METAR signals predict daily max will fall BELOW GFS.
 # Signal: low dew spread (humid, clouds suppress heating) + calm wind.
@@ -1981,7 +1984,10 @@ class WeatherArb:
                              and in_sector)
 
             # Trigger C: base-rate hot bust — systematic GFS cold bias, no physical trigger
-            trigger_c = slug in HOT_BUST_BASE_CITIES
+            trigger_c = (
+                slug in HOT_BUST_BASE_CITIES
+                and (slug != "jakarta" or now_utc.month in HOT_BUST_JAKARTA_MONTHS)
+            )
 
             # Trigger D: cold signal — humid + calm morning predicts suppressed daily max
             trigger_d = (
