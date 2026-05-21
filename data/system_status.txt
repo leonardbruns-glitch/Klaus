@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+6411b9b6 fix: exempt WEATHER_* positions from PRICE_FLOOR exit
+acee2d6a fix: _get_bankroll reads .capital not float(BankrollTracker)
+bb968be1 Watchdog 2026-05-21T15:18:14Z: CRITICAL 3 alerts — CAPITAL_RUIN VOLARB_ROLLING_DRAWDOWN VOLARB_TRADE_LOOP_SILENT
 a8c819ed fix: cap INTRADAY stake at 75% of bankroll to prevent over-sizing
 ade7057f weather: remaining-rise gate for STRAT_4 hot entries
 97aec0a9 weather: full ASOS calibration for all 23 cities + sigma floor fix
@@ -9,15 +12,12 @@ ade7057f weather: remaining-rise gate for STRAT_4 hot entries
 be834423 log: state_log entry for weather fix commit d7fde86f
 d7fde86f fix: HARD_EXIT + sigma floor + INTRADAY city dedup for weather positions
 0f572ff6 fix: handle VRB wind direction in METAR parser — metar loop crash
-4fda7fc2 fix: raise STRAT_4 tail price ceiling 0.04→0.08
-c688f3ac fix: seasonal gate for STRAT_4 HOT base-rate triggers
-caeac8da state: log weather audit fixes (c50c56cc)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   62G       32G  67% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 15:14:59 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 15:35:18 UTC
 
 ## Open positions (count):
 0
