@@ -357,8 +357,8 @@ class KlausBot:
         # when this is enabled — only one strategy active at a time.
         from strategy.discover_strategy import DiscoverStrategy
         self.discover_strategy = DiscoverStrategy(self)
-        from strategy.crypto_arb_strategy import CryptoArbStrategy
-        self.crypto_arb = CryptoArbStrategy(self)
+        # CRYPTO_ARB — DISABLED 2026-05-21: weather-only live mode
+        self.crypto_arb = None
         self.oracle_sweeper = None  # permanently off; replaced by LDA
         from strategy.late_direction_arb import LateDirectionArb
         self.lda_strategy = LateDirectionArb(self)
@@ -404,11 +404,11 @@ class KlausBot:
     async def start(self) -> None:
         await self.feed.start()
         _bond_tp = self._ws_bond_tp_check
-        _carb = self.crypto_arb.on_book_update
+        _carb = self.crypto_arb.on_book_update if self.crypto_arb else None
         _cas_bbo = self._cas_on_bbo
         async def _bbo_chain(tid: str, bid: float) -> None:
             await _bond_tp(tid, bid)
-            await _carb(tid, bid)
+            if _carb: await _carb(tid, bid)
             await _cas_bbo(tid)
         self.feed._on_bbo_update = _bbo_chain
         await self.orders.start()
@@ -2674,13 +2674,7 @@ class KlausBot:
                         "DISCOVER SCAN ERROR (isolated): %s",
                         _disc_exc, exc_info=True,
                     )
-                try:
-                    await self.crypto_arb.scan()
-                except Exception as _carb_exc:
-                    logger.error(
-                        "CRYPTO_ARB SCAN ERROR (isolated): %s",
-                        _carb_exc, exc_info=True,
-                    )
+                # crypto_arb disabled 2026-05-21
                 await self._scan_reversal_candidates()
                 if self.research_agent.due():
                     asyncio.create_task(

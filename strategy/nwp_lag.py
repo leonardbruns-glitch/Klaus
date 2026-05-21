@@ -150,6 +150,10 @@ class NwpLagArbitrage:
     async def _scan_after_publish(self, models: list[str]) -> None:
         """For each city with an active market, fetch the freshly-published models,
         diff μ vs prior, evaluate entry on the bucket whose P shifted most."""
+        from analysis.weather.daily_audit import is_killed
+        if is_killed("WEATHER_NWPLAG"):
+            logger.info("[NWPLAG] auto-killed by daily_audit — skipping scan")
+            return
         # Reuse the parent WeatherArb's caches: today's markets list, ICAO map, etc.
         wa = getattr(self.bot, "weather_arb", None)
         if wa is None:
