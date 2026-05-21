@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+f82f7308 feat: wire regime_today.json into overnight + intraday scans; remove auto-kill
+dedbd5e4 feat: 5 daily auto-improvement routines + legacy crypto cleanup
 8332dc27 fix: disable CAS_LOWASK — weather-only live mode
 9bc3a59c fix: NO_SIDE_ARB — use correct data source per market day
 2ee20869 fix: NO_SIDE_ARB — restrict to tomorrow's markets + YES-conflict gate
@@ -10,14 +12,12 @@ b0941d9b Watchdog 2026-05-21T22:19:26Z: OK (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRA
 01922bf4 feat: empirical HOT_BUST_RATE table — replace binary city set with 3yr GFS-vs-ASOS P(bust) per (city,month)
 1b20ab8f fix: CRITICAL — ensemble weights summing to >1.0, μ inflated by 5-15%
 fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 calibrated cities
-5c4ba282 Watchdog 2026-05-21T21:22:25Z: OK (TRADE_LOOP_SILENT recovered; 2 anomalies backoff)
-96ce5340 feat: unified Calibration layer + GraphCast/AIFS skill cells
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  69% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 22:38:19 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 22:49:51 UTC
 
 ## Open positions (count):
 0
