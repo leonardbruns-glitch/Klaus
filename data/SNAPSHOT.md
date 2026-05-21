@@ -2,11 +2,11 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-05-21T16:50:52Z |
-| klaus HEAD | 487c1333 |
-| trades.jsonl rows | 6916 |
-| live rows | 6916 |
-| bankroll capital | $22.573816 |
+| snapshot_ts (UTC) | 2026-05-21T17:06:10Z |
+| klaus HEAD | bb8516b6 |
+| trades.jsonl rows | 6918 |
+| live rows | 6918 |
+| bankroll capital | $17.655936 |
 | klaus service | active |
 | shadow files | 5 |
 

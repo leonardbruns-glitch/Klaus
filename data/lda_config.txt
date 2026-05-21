@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-21T16:50:52Z
+# Snapshot: 2026-05-21T17:06:10Z
 # Latest commit on klaus:
-487c1333 fix: CATASTROPHIC_SL fires on WEATHER_* in Phase-1 immunity zone
+bb8516b6 fix: block tail HOT entries past peak hour — remaining-rise gate used wrong metric
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+bb8516b6 fix: block tail HOT entries past peak hour — remaining-rise gate used wrong metric
+b52af253 fix: extend PROFIT_1 and hard-exit guards to all WEATHER_* classes
+1632c561 Watchdog 2026-05-21T16:18:43Z: OK (3 anomalies backoff: CAPITAL_RUIN/VOLARB_DD/VOLARB_SILENT)
 487c1333 fix: CATASTROPHIC_SL fires on WEATHER_* in Phase-1 immunity zone
 581aa1af fix: exempt all WEATHER_* from cascade abort check
 354a67d1 feat: per-position allocation = strat_alloc/4, up to 4 positions per strat
@@ -9,15 +12,12 @@ active
 421962c0 feat: STRAT_4 tail sniper capped at 15% bankroll (vs 25% for others)
 0657a65f feat: per-strategy 25% bankroll allocation across all 4 strats
 bf608906 fix: seed _fired_tokens from open positions on startup
-a92f585f revert: remove INTRADAY bankroll floor block
-be2fe9ec fix: block INTRADAY entries when bankroll < $50 ruin floor
-8dfbb59d fix: skip ALL dynamic exits for WEATHER_* — hold to resolution
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   62G       31G  67% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 16:04:04 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 17:04:23 UTC
 
 ## Open positions (count):
 0
