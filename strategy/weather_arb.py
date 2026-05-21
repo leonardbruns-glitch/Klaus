@@ -2063,7 +2063,7 @@ class WeatherArb:
             bankroll  = self._get_bankroll()
             kelly_f   = edge / max(0.01, 1.0 - poly_yes)
             raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
-            stake     = max(5.0, min(50.0, raw_stake))
+            stake     = max(5.0, min(50.0, bankroll * 0.75, raw_stake))
 
             if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake,
                                          expected_max_c=est_max):
