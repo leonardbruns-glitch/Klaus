@@ -1082,7 +1082,7 @@ class RiskManager:
         # exits from snap update lag (field-gated would retrigger on every tick).
         # P(cascade | Rule B fires) ≈ 0.85; P(recovery | snap30<-5, winner) = 0.79.
         # WEATHER_ARB excluded: multi-hour holds; snap30/60 noise is irrelevant.
-        if pos.is_bond and pos.bond_entry_class != "WEATHER_ARB":
+        if pos.is_bond and not getattr(pos, "bond_entry_class", "").startswith("WEATHER_"):
             time_held = now - pos.open_ts
 
             # CAS_LOWASK: fire cascade check at T+30s (T+60s = resolution, too late).
