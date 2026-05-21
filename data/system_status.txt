@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+487c1333 fix: CATASTROPHIC_SL fires on WEATHER_* in Phase-1 immunity zone
+581aa1af fix: exempt all WEATHER_* from cascade abort check
+354a67d1 feat: per-position allocation = strat_alloc/4, up to 4 positions per strat
+824feaa3 feat: rebalance strat allocations — 40/40/10/10
+421962c0 feat: STRAT_4 tail sniper capped at 15% bankroll (vs 25% for others)
 0657a65f feat: per-strategy 25% bankroll allocation across all 4 strats
 bf608906 fix: seed _fired_tokens from open positions on startup
 a92f585f revert: remove INTRADAY bankroll floor block
 be2fe9ec fix: block INTRADAY entries when bankroll < $50 ruin floor
 8dfbb59d fix: skip ALL dynamic exits for WEATHER_* — hold to resolution
-6411b9b6 fix: exempt WEATHER_* positions from PRICE_FLOOR exit
-acee2d6a fix: _get_bankroll reads .capital not float(BankrollTracker)
-bb968be1 Watchdog 2026-05-21T15:18:14Z: CRITICAL 3 alerts — CAPITAL_RUIN VOLARB_ROLLING_DRAWDOWN VOLARB_TRADE_LOOP_SILENT
-a8c819ed fix: cap INTRADAY stake at 75% of bankroll to prevent over-sizing
-ade7057f weather: remaining-rise gate for STRAT_4 hot entries
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   62G       31G  67% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 15:49:20 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 16:04:04 UTC
 
 ## Open positions (count):
 0
