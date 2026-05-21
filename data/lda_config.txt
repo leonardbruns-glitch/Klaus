@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-21T15:35:12Z
+# Snapshot: 2026-05-21T15:50:12Z
 # Latest commit on klaus:
-6411b9b6 fix: exempt WEATHER_* positions from PRICE_FLOOR exit
+0657a65f feat: per-strategy 25% bankroll allocation across all 4 strats
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
