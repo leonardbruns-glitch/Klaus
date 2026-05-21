@@ -115,6 +115,14 @@ class NoSideArb:
             yes_token, no_token = token_ids[0], token_ids[1]
             if no_token in self._fired or no_token in wa._fired_tokens:
                 continue
+            # Conflict gate: skip if we already hold YES for this bucket
+            if yes_token in wa._fired_tokens:
+                continue
+
+            # Only trade TOMORROW's markets — today's NWP forecast is stale by midday
+            end_date = mkt.get("endDate", "")[:10]
+            if end_date != tomorrow_str:
+                continue
 
             prices_raw = mkt.get("outcomePrices", '["0.5"]')
             prices     = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
@@ -137,8 +145,6 @@ class NoSideArb:
             if not forecast:
                 continue
 
-            # Pick the right forecast day (market endDate)
-            end_date = mkt.get("endDate", "")[:10]
             if end_date not in forecast:
                 continue
             mu_ens, sigma_ens = forecast[end_date]

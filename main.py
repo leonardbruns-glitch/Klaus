@@ -387,8 +387,8 @@ class KlausBot:
         # CITY-CENTRE ARB — structural retail-mispricing harvester. GTC maker, hold to resolution.
         from strategy.city_centre_arb import CityCentreArb
         self.city_centre_arb = CityCentreArb(self)
-        # NO-SIDE ARB — DISABLED 2026-05-21: bought NO when YES already held same bucket
-        self.no_side_arb = None
+        from strategy.no_side_arb import NoSideArb
+        self.no_side_arb = NoSideArb(self)
         # Safety guards: $40 ring-fenced sub-bankroll, $10/trade cap, -$10/day kill
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
@@ -605,7 +605,11 @@ class KlausBot:
         except Exception:
             logger.exception("city_centre_arb start failed")
 
-        # NO-SIDE ARB — disabled 2026-05-21
+        # NO-SIDE ARB — tomorrow-only, YES-conflict gate added 2026-05-21
+        try:
+            self.no_side_arb.start()
+        except Exception:
+            logger.exception("no_side_arb start failed")
 
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
