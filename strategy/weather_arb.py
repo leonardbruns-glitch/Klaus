@@ -34,6 +34,24 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+# Lazy-loaded: only imported after STATIONS have registered (avoids circular boot order).
+_hot_bust_rates = None
+
+def _hbr():
+    global _hot_bust_rates
+    if _hot_bust_rates is None:
+        try:
+            from analysis.weather.build_hot_bust_table import HotBustRates
+            _hot_bust_rates = HotBustRates()
+        except Exception as e:
+            logger.warning("[WA] HotBustRates unavailable: %s", e)
+            _hot_bust_rates = _NullHotBustRates()
+    return _hot_bust_rates
+
+class _NullHotBustRates:
+    def query(self, *a, **kw):   return 0.0
+    def reload(self):             pass
+
 GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
@@ -167,20 +185,22 @@ SCALP_TARGET_ABS       = 0.03   # min absolute profit per share on a scalp
 SCALP_TARGET_EDGE_FRAC = 0.50   # capture this fraction of (fair - entry)
 SCALP_DISCOUNT         = 0.90   # TP ≤ fair × this (executability buffer)
 
-# ── Tail sniper base-rate triggers (2026-05-21 calibration) ──────────────────
-# Cities with >15% HOT_BUST rate vs GFS (5yr ASOS, bust_thresh=1.5°C).
-# Adjacent-higher tail tokens are systematically mispriced: fair value 15-35%
-# vs market price $0.01-$0.04. Enter on base rate alone, no physical trigger.
+# ── Tail sniper base-rate triggers — empirical HOT_BUST_RATE table ───────────
+# Trigger C fires when P(actual_daily_max - gfs_d1 >= 1.5°C) >= HOT_BUST_MIN_PROB
+# for the current (city, month), as computed by build_hot_bust_table.py.
+# The binary HOT_BUST_BASE_CITIES set is retained as the offline fallback only.
+HOT_BUST_MIN_PROB = 0.10          # P(bust >= 1.5°C) threshold to fire Trigger C
+HOT_BUST_TABLE_GAP_C = 1.5       # gap used for table lookup (°C)
+HOT_BUST_STAKE_REF_PROB = 0.20   # stake scale = bust_prob / this (1.0× at 20%, 2× at 40%)
+
+# Offline fallback (used only if hot_bust_rates.json is missing):
 HOT_BUST_BASE_CITIES = frozenset({
-    "shanghai",     # 35.5% HOT bust — year-round (Jan 34%, Aug 84%)
-    "madrid",       # 32.2% HOT bust — year-round, weakest Mar-Apr (17%)
-    # beijing REMOVED: monthly breakdown shows HOT only Nov-Feb; Jun-Jul 59% COLD-bust
-    "jakarta",      # HOT only Sep-Nov (9-16%); gated by HOT_BUST_JAKARTA_MONTHS below
-    "buenos-aires", # 63% HOT bust — uniformly strong every month
+    "shanghai",     # ~35% HOT bust year-round
+    "madrid",       # ~32% HOT bust year-round
+    "jakarta",      # HOT Sep-Nov only
+    "buenos-aires", # ~63% HOT bust year-round
 })
-TAIL_HOT_GAP_BASE = 4.0  # °C: relaxed reachability for base-rate cities (vs 3.0 triggered)
-# Jakarta HOT base-rate is only real in dry season (monthly breakdown 2026-05-21):
-# Sep 12%, Oct 16%, Nov 13%. Wet season (Nov-Apr) it's cold-busting (20-30%).
+TAIL_HOT_GAP_BASE = 4.0  # °C: relaxed reachability for base-rate cities
 HOT_BUST_JAKARTA_MONTHS = frozenset({9, 10, 11})
 
 # Cities where morning METAR signals predict daily max will fall BELOW GFS.
@@ -2413,8 +2433,9 @@ class WeatherArb:
             if temp_c is None or running_max is None:
                 continue
 
-            slug       = CITY_NAME_TO_SLUG.get(city, "")
-            dew_spread = (temp_c - dewpoint_c) if dewpoint_c is not None else None
+            slug        = CITY_NAME_TO_SLUG.get(city, "")
+            dew_spread  = (temp_c - dewpoint_c) if dewpoint_c is not None else None
+            _c_bust_prob = 0.0   # populated by Trigger C block below; used for stake scaling
 
             # Trigger A (RAPID_RISE): RE-ENABLED 2026-05-21 — 6mo backtest verdict.
             # 23 cities × 180 days: n=2458, WR=23.2%, EV/bet=$27.70, PF=4.0, +$68k.
@@ -2442,11 +2463,24 @@ class WeatherArb:
                              and wind_kt >= FOEHN_WIND_MIN_KT
                              and in_sector)
 
-            # Trigger C: base-rate hot bust — systematic GFS cold bias, no physical trigger
-            trigger_c = (
-                slug in HOT_BUST_BASE_CITIES
-                and (slug != "jakarta" or now_utc.month in HOT_BUST_JAKARTA_MONTHS)
-            )
+            # Trigger C: base-rate hot bust — probability table (empirical GFS cold bias)
+            # Primary: query hot_bust_rates.json for P(actual - gfs >= 1.5°C) this month.
+            # Fallback (table missing): binary HOT_BUST_BASE_CITIES set.
+            _bust_prob = _hbr().query(slug, now_utc.month, gap_c=HOT_BUST_TABLE_GAP_C)
+            if _bust_prob >= HOT_BUST_MIN_PROB:
+                trigger_c    = True
+                _c_bust_prob = _bust_prob
+            elif _bust_prob == 0.0:
+                # Table has no data for this city/month — fall back to binary set
+                _fallback_c = (
+                    slug in HOT_BUST_BASE_CITIES
+                    and (slug != "jakarta" or now_utc.month in HOT_BUST_JAKARTA_MONTHS)
+                )
+                trigger_c    = _fallback_c
+                _c_bust_prob = 0.20 if _fallback_c else 0.0   # assume ~20% for fallback cities
+            else:
+                trigger_c    = False
+                _c_bust_prob = _bust_prob
 
             # Trigger D (COLD_SIGNAL): DISABLED 2026-05-21 — strategic audit verdict.
             # Only 2 cities (Singapore, Jakarta), training sample size unknown.
@@ -2533,11 +2567,20 @@ class WeatherArb:
                 else:
                     trigger_tag = "HOT_BASE_RATE"
 
-            stake_usd = min(TAIL_STAKE_TOKENS * ask, self._get_bankroll() * TAIL_POS_ALLOC)
+            # Trigger C stake scaled by bust probability (more confident = larger position).
+            # Scale factor: 1.0× at HOT_BUST_STAKE_REF_PROB (20%), up to 2.0× at 40%+.
+            # Physical triggers (A/B) use flat stake; C uses bust_prob-weighted stake.
+            _base_stake = min(TAIL_STAKE_TOKENS * ask, self._get_bankroll() * TAIL_POS_ALLOC)
+            if trigger_c and not (trigger_a or trigger_b):
+                _scale = min(2.0, _c_bust_prob / max(HOT_BUST_STAKE_REF_PROB, 0.01))
+                stake_usd = min(_base_stake * _scale, self._get_bankroll() * TAIL_POS_ALLOC * 2)
+            else:
+                stake_usd = _base_stake
             logger.info(
                 "[WA] TAIL SNIPER %s icao=%s trigger=%s ask=%.3f gap=%.1f°C stake=$%.2f"
-                " dew=%.1f wind=%.1fkt",
+                " bust_p=%.2f dew=%.1f wind=%.1fkt",
                 city, icao, trigger_tag, ask, gap, stake_usd,
+                _c_bust_prob if trigger_c else 0.0,
                 dew_spread if dew_spread is not None else float("nan"),
                 wind_kt    if wind_kt    is not None else float("nan"),
             )
