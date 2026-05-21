@@ -38,7 +38,7 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket
+MIN_FAIR_PROB = 0.50   # minimum fair probability for the best bucket (must have majority conviction)
 ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
 ASK_BAND_HI  = 0.27    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
@@ -46,6 +46,8 @@ ASK_BAND_HI  = 0.27    # max entry price — OVERRIDE with BRACKET_ENABLED for h
 BRACKET_ENABLED     = True   # enabled 2026-05-20 after skill matrix built (43/78 stations)
 BRACKET_COST_CAP    = 0.80   # reject bracket if Σ ask_i > this (loss too expensive)
 BRACKET_MAX_BUCKETS = 2      # maximum buckets in one bracket
+BRACKET_MAX_PROB_GAP = 0.15  # reject bracket if top-two fair_probs differ by more than this
+                              # (model has conviction → single-leg the winner instead)
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
@@ -69,10 +71,14 @@ SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss
 # ── Intraday METAR arb (front-running WU→Polymarket lag) ─────────────────────
 INTRADAY_ENABLED      = True   # master switch for today's-markets trading
 INTRADAY_MIN_PROB     = 0.80   # minimum nowcast P(bucket) to enter today's market
+INTRADAY_MIN_PROB_HI_PREC = 0.72  # lower threshold for high-precision cities (σ_blue < 0.45°C)
 INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less spread required)
-INTRADAY_ASK_CAP      = 0.92   # upper price cap for intraday entries (near-certainty buys)
+INTRADAY_ASK_CAP      = 0.96   # upper price cap for intraday entries (raised: T-2h certainty buys)
 INTRADAY_STAKE_FRAC   = 0.60   # fractional Kelly multiplier for intraday (higher certainty → less fractional)
 INTRADAY_HEAT_RAMP_H  = 5      # hours BEFORE peak to open the intraday scan window
+
+# Cities with σ_blue < 0.45°C (8 regional models) — lower intraday prob threshold applies
+INTRADAY_HI_PREC_CITIES = {"amsterdam", "paris", "madrid", "london"}
 # Example: peak_hour=16 UTC → window opens at UTC 11 (7 AM EDT), closes at peak+1=17
 TODAY_MARKETS_TTL     = 1800   # seconds between today's-market list refreshes (30 min)
 
@@ -116,15 +122,16 @@ SCALP_DISCOUNT         = 0.90   # TP ≤ fair × this (executability buffer)
 BUCKET_SWITCH_MIN_RUNS = 3      # consecutive scans preferring new bucket before switching
 BUCKET_SWITCH_MU_DELTA = 0.5    # min °C shift in ensemble mu required to trigger switch
 
+# Cities excluded from STRAT_1 overnight entries: forecast σ_real > 3°C, near-coin-flip WR
+STRAT1_SKIP_CITIES = {"denver"}  # σ_blue=0.97 → real D+1 WR ≈ 34%, fee-negative
+
 
 def _compute_scalp_tp(entry: float, fair: float) -> float:
-    """Take-profit price for mid-band entries; 0.0 means hold-to-resolution."""
-    if not (SCALP_BAND_LO <= entry < SCALP_BAND_HI):
-        return 0.0
-    edge = max(0.0, fair - entry)
-    target = entry + max(SCALP_TARGET_ABS, SCALP_TARGET_EDGE_FRAC * edge)
-    ceiling = fair * SCALP_DISCOUNT
-    return round(min(target, ceiling), 4)
+    """Scalp exits disabled: all positions hold to resolution or METAR/nowcast exit.
+    METAR dynamic exit (NOWCAST_EXIT_FLOOR) handles early risk-off; WU transition
+    confirms the winner. Scalp TPs cut winners short without improving loss discipline.
+    Return 0.0 always so main.py skips the WEATHER_SCALP_TP path."""
+    return 0.0
 
 # 2026-05-20: Elevation-aware sigma tuning. Mountains (>1500m) have 2-3x higher forecast error
 # than coastal cities. Prevents edge-hunting in unwinnable high-altitude markets.
@@ -664,6 +671,12 @@ class WeatherArb:
         entries_made = 0
         for ev in events:
             city = _parse_city(ev.get("title", ""))
+
+            # Skip cities where overnight D+1 forecast edge is structurally too thin
+            city_slug = CITY_NAME_TO_SLUG.get(city, "")
+            if city_slug in STRAT1_SKIP_CITIES:
+                logger.debug("[WA] SKIP %s (STRAT1_SKIP_CITIES — low overnight WR)", city)
+                continue
 
             # Only process markets resolving today or tomorrow
             markets = []
@@ -1713,7 +1726,10 @@ class WeatherArb:
                 nc_sigma = max(nc_sigma, ELEVATION_SIGMA_FLOOR)
 
             p_intraday = _outcome_prob(est_max, lo_c, hi_c, nc_sigma)
-            if p_intraday < INTRADAY_MIN_PROB:
+            _min_prob = (INTRADAY_MIN_PROB_HI_PREC
+                         if slug in INTRADAY_HI_PREC_CITIES
+                         else INTRADAY_MIN_PROB)
+            if p_intraday < _min_prob:
                 continue
 
             edge = p_intraday - poly_yes
@@ -2021,6 +2037,13 @@ class WeatherArb:
             if combined_edge < EDGE_MIN:
                 continue
             if any(e["fair_prob"] < MIN_FAIR_PROB for _, e in subset):
+                continue
+            # Reject bracket when model has conviction: top-two probs too far apart
+            # means one bucket dominates → single-leg the winner instead of padding
+            probs = sorted([e["fair_prob"] for _, e in subset], reverse=True)
+            if len(probs) >= 2 and (probs[0] - probs[1]) > BRACKET_MAX_PROB_GAP:
+                logger.debug("[WA] BRACKET rejected: prob gap %.3f > %.3f (use single-leg)",
+                             probs[0] - probs[1], BRACKET_MAX_PROB_GAP)
                 continue
 
             logger.info(
