@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-21T21:38:46Z
+# Snapshot: 2026-05-21T21:53:48Z
 # Latest commit on klaus:
-fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 calibrated cities
+1b20ab8f fix: CRITICAL — ensemble weights summing to >1.0, μ inflated by 5-15%
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+1b20ab8f fix: CRITICAL — ensemble weights summing to >1.0, μ inflated by 5-15%
 fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 calibrated cities
 5c4ba282 Watchdog 2026-05-21T21:22:25Z: OK (TRADE_LOOP_SILENT recovered; 2 anomalies backoff)
 96ce5340 feat: unified Calibration layer + GraphCast/AIFS skill cells
@@ -11,13 +12,12 @@ fcfc2c2b fix: CRITICAL — _get_forecast silently returning None for all 23 cali
 3b249f74 feat: 4-strategy weather portfolio — HFT NWP-LAG + CITYCTR + trimmed TAIL + tight INTRADAY
 71d003ad Watchdog 2026-05-21T20:18:16Z: HIGH 1 alert (TRADE_LOOP_SILENT re-triggered; CAPITAL_RUIN recovered)
 a1b16fff fix: 5 audit risks + add GraphCast/AIFS to ensemble
-f0f7471d feat: shadow logger + non-binary physics for met upgrades
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 21:28:06 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 21:52:20 UTC
 
 ## Open positions (count):
 0
