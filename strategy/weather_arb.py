@@ -2298,6 +2298,12 @@ class WeatherArb:
                 gap_cap = TAIL_HOT_GAP_BASE if (trigger_c and not (trigger_a or trigger_b)) else FOEHN_MAX_GAP_C
                 if gap > gap_cap or gap < -1.0:
                     continue
+                # Remaining-rise gate: gap must not exceed mean remaining rise at
+                # this hour from the ASOS calibration table. Prevents entries near
+                # or past peak hour where the target bucket is physically unreachable.
+                mean_rise = CITY_REMAINING_RISE.get(slug, {}).get(now_utc.month, {}).get(now_utc.hour, 0.0)
+                if gap > mean_rise:
+                    continue
                 if trigger_a:
                     trigger_tag = "RAPID_RISE"
                 elif trigger_b:
