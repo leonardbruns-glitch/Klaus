@@ -1393,9 +1393,12 @@ class RiskManager:
             pos.signal_flip_ts = 0.0
             return None
 
-        # 0. Absolute price floor (skip for weather positions — they hold to resolution)
+        # 0. All dynamic exits skip weather positions — they hold to resolution
         _entry_class = getattr(pos, "bond_entry_class", "")
-        if current_price <= 0.20 and not _entry_class.startswith("WEATHER_"):
+        if _entry_class.startswith("WEATHER_"):
+            return None
+
+        if current_price <= 0.20:
             logger.warning(
                 "PRICE_FLOOR %s/%s @ %.4f ≤ 0.20 — instant exit",
                 pos.asset, pos.direction.name, current_price,
