@@ -412,6 +412,195 @@ def replay_noisy(markets: list[MarketView], sigma_err_c: float,
     }
 
 
+# ---------- Fee-aware replay (strategy-level) ----------
+
+def replay_with_fees(
+    markets: list[MarketView],
+    sigma_err_c: float,
+    strategy_tag: str = "STRAT_1_OVERNIGHT",
+    stake: float = 20.0,
+    mc_draws: int = MC_DRAWS_PER_MARKET,
+    seed: int = RNG_SEED,
+) -> dict:
+    """Noisy-forecast replay with realistic Polymarket fees, maker rebates,
+    and spread/slippage. Uses strategy execution profile to determine roles.
+
+    PnL accounting:
+      gross_pnl = (1 − eff_entry_price) if winner else (−eff_entry_price)
+      net_pnl   = gross_pnl − entry_fee − exit_fee     (per share notional)
+      win_rate, profit_factor, fee_drag computed across all simulated bets.
+    """
+    import random
+    from strategy.fee_model import (
+        profile_for, simulate_taker_fill, simulate_maker_fill,
+        estimate_spread, DEFAULT_SPREAD, MAKER_REBATE_FRAC,
+    )
+
+    rng = random.Random(seed)
+    entry_role, exit_role, profile_spread, fill_prob = profile_for(strategy_tag)
+
+    sum_gross_pnl = 0.0
+    sum_net_pnl   = 0.0
+    sum_fees      = 0.0
+    sum_rebates   = 0.0
+    n_bets        = 0
+    n_wins        = 0
+    n_unfilled    = 0
+    bets_log: list[dict] = []
+
+    for m in markets:
+        if m.resolved_high_market_unit is None:
+            continue
+        sigma_unit = sigma_err_c * (9.0 / 5.0 if m.unit == "F" else 1.0)
+        actual     = m.resolved_high_market_unit
+
+        for _ in range(mc_draws):
+            err     = rng.gauss(0.0, sigma_unit)
+            mean_fc = actual + err
+            fc_sig  = max(sigma_unit, 0.5)
+
+            # Determine the SINGLE best-edge bucket to bet (matches live behaviour)
+            best = None
+            best_edge = -1.0
+            for b in m.buckets:
+                if b.entry_price is None or b.entry_price <= 0.01 or b.entry_price >= 0.99:
+                    continue
+                p_model = _bucket_prob_normal(b.lo_inclusive, b.hi_exclusive, mean_fc, fc_sig)
+                e = p_model - b.entry_price
+                if e >= MIN_EDGE and e > best_edge:
+                    best_edge = e
+                    best = (b, p_model, e)
+
+            if best is None:
+                continue
+
+            bucket, p_model, edge = best
+
+            # Simulate entry fill
+            if entry_role == "maker":
+                fill = simulate_maker_fill(bucket.entry_price, stake, profile_spread, fill_prob)
+                if fill is None:
+                    n_unfilled += 1
+                    continue
+            else:
+                fill = simulate_taker_fill(bucket.entry_price, stake, profile_spread)
+
+            eff_entry = fill.avg_price
+            entry_fee = fill.fee_usd
+            n_bets   += 1
+
+            # Outcome
+            won = bucket.is_winner
+            if won:
+                n_wins += 1
+
+            # Per-share notional: assume we hold to resolution (settlement = $1 if win, $0 if lose).
+            # Position size in shares = stake / eff_entry; payout = shares × $1 if win.
+            shares = stake / eff_entry if eff_entry > 0 else 0.0
+            if won:
+                # For "settle" exit role, no exit fee (resolution payout). For "taker", exit at $1.
+                if exit_role == "settle":
+                    gross = shares * 1.0 - stake
+                    exit_fee = 0.0
+                else:
+                    # Exit fee at p≈0.99 = ~0.05% — negligible
+                    exit_fill = simulate_taker_fill(0.99, shares * 1.0, profile_spread)
+                    gross = shares * exit_fill.avg_price - stake
+                    exit_fee = exit_fill.fee_usd
+            else:
+                # Loser: sells before resolution at salvage bid, or holds to $0.
+                if exit_role == "settle":
+                    gross = -stake
+                    exit_fee = 0.0
+                else:
+                    salvage_price = max(0.01, eff_entry * 0.30)  # rough salvage at 30% of entry
+                    exit_fill = simulate_taker_fill(salvage_price, shares * salvage_price, profile_spread)
+                    gross = shares * exit_fill.avg_price - stake
+                    exit_fee = exit_fill.fee_usd
+
+            net = gross - entry_fee - exit_fee
+            if entry_fee < 0: sum_rebates += abs(entry_fee)
+            else: sum_fees += entry_fee
+            if exit_fee > 0: sum_fees += exit_fee
+
+            sum_gross_pnl += gross
+            sum_net_pnl   += net
+
+            if mc_draws == 1:  # only log individual bets in deterministic mode
+                bets_log.append({
+                    "city": m.city_slug, "date": m.valid_day.isoformat(),
+                    "bucket": bucket.label, "entry_price": bucket.entry_price,
+                    "eff_entry": round(eff_entry, 4),
+                    "edge": round(edge, 4), "won": won,
+                    "gross_pnl": round(gross, 3),
+                    "entry_fee": round(entry_fee, 3),
+                    "exit_fee":  round(exit_fee, 3),
+                    "net_pnl":   round(net, 3),
+                })
+
+    avg_bets_per_draw = n_bets / mc_draws if mc_draws > 0 else 0
+    wins_per_draw     = n_wins / mc_draws if mc_draws > 0 else 0
+    win_rate = (n_wins / n_bets) if n_bets > 0 else None
+    profit_factor = None
+    if sum_net_pnl != 0:
+        wins_pnl   = sum(b["net_pnl"] for b in bets_log if b["won"]) if bets_log else None
+        losses_pnl = sum(-b["net_pnl"] for b in bets_log if not b["won"]) if bets_log else None
+        if losses_pnl and losses_pnl > 0 and wins_pnl is not None:
+            profit_factor = round(wins_pnl / losses_pnl, 3)
+
+    return {
+        "mode":                   "fees_aware",
+        "strategy":               strategy_tag,
+        "execution_profile":      {
+            "entry_role": entry_role, "exit_role": exit_role,
+            "default_spread": profile_spread, "fill_probability": fill_prob,
+        },
+        "sigma_err_c":            sigma_err_c,
+        "stake_per_bet":          stake,
+        "n_bets_total":           n_bets,
+        "n_unfilled_maker":       n_unfilled,
+        "fill_rate_maker":        round(n_bets / (n_bets + n_unfilled), 3) if entry_role == "maker" and (n_bets + n_unfilled) > 0 else None,
+        "avg_bets_per_draw":      round(avg_bets_per_draw, 2),
+        "win_rate":               round(win_rate, 4) if win_rate is not None else None,
+        "profit_factor":          profit_factor,
+        "gross_pnl_total":        round(sum_gross_pnl, 2),
+        "net_pnl_total":          round(sum_net_pnl, 2),
+        "net_pnl_per_bet":        round(sum_net_pnl / n_bets, 3) if n_bets > 0 else None,
+        "fees_paid_total":        round(sum_fees, 2),
+        "rebates_earned_total":   round(sum_rebates, 2),
+        "fee_drag_pct_of_stake":  round(sum_fees / (n_bets * stake) * 100.0, 3) if n_bets > 0 else None,
+        "rebate_offset_pct":      round(sum_rebates / (n_bets * stake) * 100.0, 3) if n_bets > 0 else None,
+    }
+
+
+def compare_strategies(markets: list[MarketView], sigma_err_c: float, stake: float = 20.0,
+                        strategies: list[str] | None = None, mc_draws: int = 50,
+                        seed: int = RNG_SEED) -> dict:
+    """Run replay_with_fees across multiple strategy execution profiles.
+
+    Useful for: "given the same forecast skill, which execution profile yields the
+    best risk-adjusted return after fees?"
+    """
+    strategies = strategies or [
+        "STRAT_1_OVERNIGHT", "STRAT_2_BRACKET", "STRAT_3_INTRADAY",
+        "STRAT_4_TAIL", "STRAT_5_NWPLAG", "STRAT_6_CITYCTR", "STRAT_7_NOSIDE",
+    ]
+    out = {}
+    for tag in strategies:
+        out[tag] = replay_with_fees(markets, sigma_err_c=sigma_err_c, strategy_tag=tag,
+                                    stake=stake, mc_draws=mc_draws, seed=seed)
+    # Rank by net_pnl_per_bet
+    ranked = sorted(out.items(), key=lambda kv: kv[1].get("net_pnl_per_bet") or -999, reverse=True)
+    return {
+        "sigma_err_c":  sigma_err_c,
+        "stake":        stake,
+        "mc_draws":     mc_draws,
+        "n_markets":    sum(1 for m in markets if m.resolved_high_market_unit is not None),
+        "results":      out,
+        "ranked":       [{"strategy": k, "net_pnl_per_bet": v.get("net_pnl_per_bet")} for k, v in ranked],
+    }
+
+
 # ---------- CLI ----------
 
 def _cli():
@@ -420,6 +609,12 @@ def _cli():
     ap.add_argument("--city", action="append", help="restrict to one or more city slugs (default: all 7)")
     ap.add_argument("--stake", type=float, default=1.0, help="$ per bet")
     ap.add_argument("--out", help="JSON output file (full per-market replay)")
+    ap.add_argument("--compare-strategies", action="store_true",
+                    help="Run fee-aware multi-strategy comparison at σ=0.7°C (realistic skill)")
+    ap.add_argument("--strategy-sigma", type=float, default=0.7,
+                    help="σ_err (°C) for the fee-aware strategy comparison")
+    ap.add_argument("--strategy-stake", type=float, default=20.0,
+                    help="$ per bet for fee-aware replay (must match real-world stake size)")
     args = ap.parse_args()
 
     cities = args.city or list(STATIONS.keys())
@@ -470,6 +665,28 @@ def _cli():
         pnl = sum(r["pnl"] for r in rows)
         print(f"  {city:<14} n_bets={len(rows):<3} total_pnl=${pnl:.2f}  avg_entry={statistics.fmean([r['entry_price'] for r in rows]):.3f}")
 
+    # 3. Fee-aware strategy comparison (optional)
+    strategy_compare = None
+    if args.compare_strategies:
+        print("\n=== FEE-AWARE STRATEGY COMPARISON ===")
+        print(f"   σ_err={args.strategy_sigma}°C  stake=${args.strategy_stake}")
+        strategy_compare = compare_strategies(
+            markets,
+            sigma_err_c=args.strategy_sigma,
+            stake=args.strategy_stake,
+            mc_draws=50,
+        )
+        print(f"{'Strategy':<22} {'n_bets':<7} {'WR':<7} {'net/bet':<10} {'fee_drag%':<10} {'fill%':<7}")
+        for tag, r in strategy_compare["results"].items():
+            print(f"  {tag:<20} {r['n_bets_total']:<7} "
+                  f"{(r['win_rate']*100 if r['win_rate'] else 0):.1f}%   "
+                  f"${r.get('net_pnl_per_bet', 0) or 0:<8.3f} "
+                  f"{r.get('fee_drag_pct_of_stake', 0) or 0:<8.2f}% "
+                  f"{(r.get('fill_rate_maker') or 1.0)*100:.0f}%")
+        print("\nRanked by net_pnl/bet (best execution profile):")
+        for row in strategy_compare["ranked"]:
+            print(f"  {row['strategy']:<22}  ${row['net_pnl_per_bet']}")
+
     if args.out:
         with open(args.out, "w") as f:
             json.dump({
@@ -480,6 +697,7 @@ def _cli():
                 "n_resolved": n_resolved,
                 "perfect": perfect,
                 "sweep": sweep_results,
+                "strategy_compare": strategy_compare,
             }, f, indent=2)
         print(f"\nFull replay written to {args.out}", file=sys.stderr)
 

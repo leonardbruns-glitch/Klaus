@@ -380,6 +380,13 @@ class KlausBot:
         # WeatherArb — daily city temperature prediction market arb vs Open-Meteo forecasts
         from strategy.weather_arb import WeatherArb
         self.weather_arb = WeatherArb(self)
+        # NWP-LAG — HFT-style scheduler firing at known NWP publish slots.
+        # Subsumes the slow overnight scan; faster latency-arb against model updates.
+        from strategy.nwp_lag import NwpLagArbitrage
+        self.nwp_lag = NwpLagArbitrage(self)
+        # CITY-CENTRE ARB — structural retail-mispricing harvester. GTC maker, hold to resolution.
+        from strategy.city_centre_arb import CityCentreArb
+        self.city_centre_arb = CityCentreArb(self)
         # Safety guards: $40 ring-fenced sub-bankroll, $10/trade cap, -$10/day kill
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
@@ -581,6 +588,18 @@ class KlausBot:
             self.weather_arb.start()
         except Exception:
             logger.exception("weather_arb start failed")
+
+        # NWP-LAG — HFT-style latency arb at NWP publish slots
+        try:
+            self.nwp_lag.start()
+        except Exception:
+            logger.exception("nwp_lag start failed")
+
+        # CITY-CENTRE ARB — set-and-forget structural mispricing
+        try:
+            self.city_centre_arb.start()
+        except Exception:
+            logger.exception("city_centre_arb start failed")
 
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())

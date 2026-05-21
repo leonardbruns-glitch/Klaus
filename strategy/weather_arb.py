@@ -43,7 +43,9 @@ ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
 ASK_BAND_HI  = 0.27    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
 # ── NegRisk Bracketing ────────────────────────────────────────────────────────
-BRACKET_ENABLED     = True   # enabled 2026-05-20 after skill matrix built (43/78 stations)
+# DISABLED 2026-05-21: 2.5% round-trip fees + partial-fill risk on two legs
+# destroy the negRisk EV math. Strategic audit verdict: kill.
+BRACKET_ENABLED     = False
 BRACKET_COST_CAP    = 0.80   # reject bracket if Σ ask_i > this (loss too expensive)
 BRACKET_MAX_BUCKETS = 2      # maximum buckets in one bracket
 BRACKET_MAX_PROB_GAP = 0.15  # reject bracket if top-two fair_probs differ by more than this
@@ -71,7 +73,10 @@ TAIL_POS_ALLOC       = TAIL_STRAT_ALLOC / MAX_POS_PER_STRAT   # 2.5% per tail po
 PER_STRAT_ALLOC  = OVERNIGHT_POS_ALLOC  # default for _kelly_stake (STRAT_1)
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
-SCAN_INTERVAL_S = 1800 # scan every 30 minutes
+SCAN_INTERVAL_S = 21600  # 2026-05-21: 6h loop kept as safety-net only.
+                          # Primary entry is via STRAT_5 NWP-LAG which is wall-clock-scheduled
+                          # at the 10 known NWP publish slots/day. The 6h fallback catches
+                          # cases where NWP-LAG missed (e.g., publish slot offline).
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
 
@@ -87,7 +92,10 @@ INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less sprea
 INTRADAY_EDGE_MAX     = 0.40   # crowd-divergence gate: edge above this = broken model or anomaly
 INTRADAY_ASK_CAP      = 0.96   # upper price cap for intraday entries (raised: T-2h certainty buys)
 INTRADAY_STAKE_FRAC   = 0.60   # fractional Kelly multiplier for intraday (higher certainty → less fractional)
-INTRADAY_HEAT_RAMP_H  = 5      # hours BEFORE peak to open the intraday scan window
+INTRADAY_HEAT_RAMP_H  = 2      # 2026-05-21: tightened 5h→2h. First 3h were NWP-anchored
+                                # and structurally not where the METAR-lag edge lives.
+                                # Genuine edge appears in the final 2h before peak when
+                                # observed running_max dominates μ_nowcast.
 INTRADAY_W1_MIN       = 0.30   # minimum METAR weight at window open; NWP anchors the remainder
 RR_CV                 = 0.35   # coefficient of variation proxy: std(remaining_rise) ≈ mean × RR_CV
                                 # True std requires per-city/month/hour ASOS reanalysis; 0.35 is
@@ -2408,11 +2416,10 @@ class WeatherArb:
             slug       = CITY_NAME_TO_SLUG.get(city, "")
             dew_spread = (temp_c - dewpoint_c) if dewpoint_c is not None else None
 
-            # Trigger A: rapid temperature rise
-            trigger_a = (
-                prev_temp is not None
-                and (temp_c - prev_temp) >= FOEHN_TEMP_RISE_C
-            )
+            # Trigger A (RAPID_RISE): DISABLED 2026-05-21 — strategic audit verdict.
+            # Single-cycle sensor glitches were producing false positives. The signal magnitude
+            # never beat what HOT_BASE_RATE + FOEHN_WIND already capture.
+            trigger_a = False
 
             # Trigger B: classic Foehn/downslope wind signature
             sector    = FOEHN_WIND_SECTORS.get(icao)
@@ -2430,14 +2437,12 @@ class WeatherArb:
                 and (slug != "jakarta" or now_utc.month in HOT_BUST_JAKARTA_MONTHS)
             )
 
-            # Trigger D: cold signal — humid + calm morning predicts suppressed daily max
-            trigger_d = (
-                slug in SIGNAL_COLD_CITIES
-                and dew_spread is not None and dew_spread < TAIL_COLD_DEW_MAX
-                and wind_kt   is not None and wind_kt   < TAIL_COLD_WIND_MAX
-            )
+            # Trigger D (COLD_SIGNAL): DISABLED 2026-05-21 — strategic audit verdict.
+            # Only 2 cities (Singapore, Jakarta), training sample size unknown.
+            # Reactivate after ≥30 forward live observations confirm the direction.
+            trigger_d = False
 
-            if not (trigger_a or trigger_b or trigger_c or trigger_d):
+            if not (trigger_b or trigger_c):
                 continue
 
             if mkt.get("closed", False):
