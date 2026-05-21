@@ -777,6 +777,20 @@ class WeatherArb:
         if lo_c is None and hi_c is None:
             return None
 
+        # Pre-entry METAR gate: if the live run_max already exceeds this bucket's
+        # ceiling, the outcome is impossible regardless of what the forecast says.
+        _icao = CITY_ICAO.get(city)
+        if _icao and hi_c is not None:
+            _metar = self._icao_metar_cache.get(_icao)
+            if _metar:
+                _run_max = _metar.get("running_max_c")
+                if _run_max is not None and _run_max > hi_c:
+                    logger.info(
+                        "[WA] SKIP %s bucket=[%.1f,%.1f) — METAR run_max=%.1f°C already above ceiling",
+                        city, lo_c if lo_c is not None else float("-inf"), hi_c, _run_max,
+                    )
+                    return None
+
         forecast_entry = forecast.get(end_date)
         if not forecast_entry:
             return None
