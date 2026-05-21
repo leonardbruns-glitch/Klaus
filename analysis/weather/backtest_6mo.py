@@ -80,6 +80,25 @@ def _http_get(url: str, timeout: int = 60) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
+def _http_get_text_retry(url: str, timeout: int = 180, max_retries: int = 4) -> str:
+    """GET text with exponential backoff on 429/5xx. ASOS endpoint rate-limits aggressively."""
+    delay = 4.0
+    for attempt in range(max_retries):
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 503, 502) and attempt < max_retries - 1:
+                print(f"    [http {e.code}] backing off {delay:.0f}s (attempt {attempt+1}/{max_retries})",
+                      file=sys.stderr)
+                time.sleep(delay)
+                delay *= 2.0
+                continue
+            raise
+    return ""
+
+
 def fetch_d1_forecasts(lat: float, lon: float, models: tuple[str, ...],
                        start: str, end: str, cache_key: str = "") -> dict:
     """
@@ -160,12 +179,12 @@ def fetch_asos_daily_max(icao: str, start_iso: str, end_iso: str,
         "latlon": "no", "direct": "no", "report_type": "2",
     })
     url = f"{ASOS_URL}?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=120) as r:
-            raw = r.read().decode("utf-8")
+        raw = _http_get_text_retry(url, timeout=120)
     except Exception as e:
         print(f"  [asos] error {cache_key}: {e}", file=sys.stderr)
+        return {}
+    if not raw:
         return {}
 
     lines = [l for l in raw.strip().split("\n") if not l.startswith("#") and l.strip()]
@@ -226,12 +245,12 @@ def fetch_asos_hourly(icao: str, start_iso: str, end_iso: str,
         "latlon": "no", "direct": "no", "report_type": "2",
     })
     url = f"{ASOS_URL}?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=180) as r:
-            raw = r.read().decode("utf-8")
+        raw = _http_get_text_retry(url, timeout=300)
     except Exception as e:
         print(f"  [asos_hourly] error {cache_key}: {e}", file=sys.stderr)
+        return {}
+    if not raw:
         return {}
 
     lines = [l for l in raw.strip().split("\n") if not l.startswith("#") and l.strip()]
@@ -744,6 +763,444 @@ def replay_intraday(asos_hourly: dict, asos_daily: dict, slug: str,
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# PART 3b — KILLED / PROPOSED strategy replays
+# ════════════════════════════════════════════════════════════════════════════
+# Run these alongside the surviving 4 to demonstrate why we killed them.
+
+# ── STRAT_1 OVERNIGHT (KILLED — original modal-bucket arb) ───────────────────
+def replay_strat1_overnight(d1_forecasts: dict, asos_daily: dict,
+                              sigma_per_month: dict, stake: float = 20.0,
+                              city: str = "?") -> list[StrategyTrade]:
+    """
+    Original STRAT_1: D+1 ensemble forecast, scan all buckets, enter on edge ≥ 0.08
+    in price band [0.01, 0.27]. Maker entry, hold to resolution.
+    Replaced by NWP-LAG (faster, scheduled execution).
+    """
+    from strategy.fee_model import (
+        taker_fee_rate, simulate_maker_fill, MAKER_REBATE_FRAC, DEFAULT_SPREAD,
+    )
+    trades: list[StrategyTrade] = []
+    for day in sorted(d1_forecasts.keys()):
+        models = d1_forecasts[day]
+        actual = asos_daily.get(day)
+        if not models or actual is None:
+            continue
+        mu_ens = statistics.fmean(models.values())
+        month  = int(day[5:7])
+        sigma  = sigma_per_month.get(month, 1.0)
+
+        # Synthesize the market: priced as a noisy version of the ensemble itself
+        # (since both we and competitors look at the same models)
+        buckets = synthesize_buckets_from_forecast(mu_ens, sigma, market_noise_c=0.5)
+        # Find best edge in [0.01, 0.27] (original STRAT_1 band)
+        best = None
+        for b in buckets:
+            if b.ask < 0.01 or b.ask > 0.27:
+                continue
+            fair = _outcome_prob(mu_ens, b.lo_c, b.hi_c, sigma)
+            edge = fair - b.ask
+            if fair < 0.50:                       # MIN_FAIR_PROB
+                continue
+            if edge < 0.08:                       # EDGE_MIN
+                continue
+            if best is None or edge > best[2]:
+                best = (b, fair, edge)
+        if best is None:
+            continue
+        b, fair, edge = best
+
+        # Maker entry with rebate; hold to resolution
+        maker_price = max(0.01, b.ask - 0.01)
+        fillable = _effective_fillable_notional(stake, maker_price)
+        fill = simulate_maker_fill(maker_price, fillable, spread=DEFAULT_SPREAD, fill_probability=0.70)
+        if fill is None:
+            continue
+        eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+        won = (b.lo_c - 0.5) <= actual < (b.hi_c + 0.5)
+        shares = fillable / eff_entry
+        gross = shares * (1.0 if won else 0.0) - fillable
+        net   = gross - entry_fee
+
+        trades.append(StrategyTrade(
+            strategy="STRAT1_OVERNIGHT", city=city, valid_day=day,
+            bucket_lo=b.lo_c, bucket_hi=b.hi_c, ask=b.ask, eff_entry=eff_entry,
+            fair_prob=fair, edge=edge, actual=actual, won=won,
+            gross_pnl=round(gross, 3), fees=round(entry_fee, 3),
+            net_pnl=round(net, 3),
+            notes=f"mu={mu_ens:.1f} σ={sigma:.2f}",
+        ))
+    return trades
+
+
+# ── STRAT_2 BRACKET (KILLED — 2-leg negRisk bracket) ────────────────────────
+def replay_strat2_bracket(d1_forecasts: dict, asos_daily: dict,
+                            sigma_per_month: dict, stake: float = 20.0,
+                            city: str = "?") -> list[StrategyTrade]:
+    """
+    Original STRAT_2: when 2 adjacent buckets both have edge ≥ 0.08, combined_ask
+    < 0.80, fair_probs within 0.15pp → enter both legs proportionally. Hold to res.
+    Replaced because 2× fees + fill-rate risk destroyed negRisk EV.
+    """
+    from strategy.fee_model import (
+        taker_fee_rate, simulate_maker_fill, MAKER_REBATE_FRAC, DEFAULT_SPREAD,
+    )
+    trades: list[StrategyTrade] = []
+    for day in sorted(d1_forecasts.keys()):
+        models = d1_forecasts[day]
+        actual = asos_daily.get(day)
+        if not models or actual is None:
+            continue
+        mu_ens = statistics.fmean(models.values())
+        month  = int(day[5:7])
+        sigma  = sigma_per_month.get(month, 1.0)
+        buckets = synthesize_buckets_from_forecast(mu_ens, sigma, market_noise_c=0.5)
+
+        # Find top-2 buckets with edge ≥ 0.08 each
+        candidates = []
+        for b in buckets:
+            if b.ask < 0.01 or b.ask > 0.80:
+                continue
+            fair = _outcome_prob(mu_ens, b.lo_c, b.hi_c, sigma)
+            edge = fair - b.ask
+            if edge < 0.08 or fair < 0.50:
+                continue
+            candidates.append((b, fair, edge))
+        if len(candidates) < 2:
+            continue
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        top2 = candidates[:2]
+        combined_ask  = sum(c[0].ask for c in top2)
+        combined_fair = sum(c[1] for c in top2)
+        combined_edge = combined_fair - combined_ask
+        if combined_ask >= 0.80 or combined_edge < 0.08:
+            continue
+        if abs(top2[0][1] - top2[1][1]) > 0.15:    # too much conviction → single-leg
+            continue
+
+        # Both legs maker; only one wins. Each gets stake/2.
+        # Fill-rate risk: simulate 0.55 fill probability per leg, both must fill.
+        leg_stake = stake / 2.0
+        legs_won = 0
+        total_gross = 0.0
+        total_fees  = 0.0
+        legs_filled = []
+        for b, fair, edge in top2:
+            maker_price = max(0.01, b.ask - 0.01)
+            fillable = _effective_fillable_notional(leg_stake, maker_price)
+            fill = simulate_maker_fill(maker_price, fillable, spread=DEFAULT_SPREAD, fill_probability=0.55)
+            if fill is None:
+                continue
+            eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+            won = (b.lo_c - 0.5) <= actual < (b.hi_c + 0.5)
+            shares = fillable / eff_entry
+            leg_gross = shares * (1.0 if won else 0.0) - fillable
+            total_gross += leg_gross
+            total_fees  += entry_fee
+            if won: legs_won += 1
+            legs_filled.append(b)
+
+        if not legs_filled:
+            continue
+        net = total_gross - total_fees
+        trades.append(StrategyTrade(
+            strategy="STRAT2_BRACKET", city=city, valid_day=day,
+            bucket_lo=legs_filled[0].lo_c, bucket_hi=legs_filled[-1].hi_c,
+            ask=round(combined_ask, 3), eff_entry=round(combined_ask, 3),
+            fair_prob=combined_fair, edge=combined_edge, actual=actual,
+            won=(legs_won > 0),
+            gross_pnl=round(total_gross, 3), fees=round(total_fees, 3),
+            net_pnl=round(net, 3),
+            notes=f"legs_filled={len(legs_filled)}/2 legs_won={legs_won}",
+        ))
+    return trades
+
+
+# ── NO-SIDE ARB (KILLED — mirror of STRAT_1, buy NO instead) ────────────────
+def replay_no_side(d1_forecasts: dict, asos_daily: dict,
+                     sigma_per_month: dict, stake: float = 20.0,
+                     city: str = "?") -> list[StrategyTrade]:
+    """
+    Mirror of STRAT_1: buy NO when poly_yes ≥ 0.50 AND fair_prob ≤ poly_yes - edge_min.
+    NO token = (1 - YES_token); pays $1 if outcome NOT in bucket.
+    """
+    from strategy.fee_model import simulate_maker_fill, MAKER_REBATE_FRAC, taker_fee_rate, DEFAULT_SPREAD
+    trades: list[StrategyTrade] = []
+    for day in sorted(d1_forecasts.keys()):
+        models = d1_forecasts[day]
+        actual = asos_daily.get(day)
+        if not models or actual is None:
+            continue
+        mu_ens = statistics.fmean(models.values())
+        month  = int(day[5:7])
+        sigma  = sigma_per_month.get(month, 1.0)
+        buckets = synthesize_buckets_from_forecast(mu_ens, sigma, market_noise_c=0.5)
+
+        best = None
+        for b in buckets:
+            poly_yes = b.ask
+            if poly_yes < 0.30 or poly_yes > 0.80:
+                continue
+            fair = _outcome_prob(mu_ens, b.lo_c, b.hi_c, sigma)
+            # We buy NO; NO token price ≈ 1 - poly_yes
+            no_ask  = 1.0 - poly_yes + 0.01     # 1c spread
+            no_fair = 1.0 - fair
+            edge_no = no_fair - no_ask
+            if edge_no < 0.08:
+                continue
+            if best is None or edge_no > best[2]:
+                best = (b, fair, edge_no, no_ask, no_fair)
+        if best is None:
+            continue
+        b, fair, edge, no_ask, no_fair = best
+
+        maker_price = max(0.01, no_ask - 0.01)
+        fillable = _effective_fillable_notional(stake, maker_price)
+        fill = simulate_maker_fill(maker_price, fillable, spread=DEFAULT_SPREAD, fill_probability=0.65)
+        if fill is None:
+            continue
+        eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+        # NO wins if actual NOT in bucket
+        in_bucket = (b.lo_c - 0.5) <= actual < (b.hi_c + 0.5)
+        won = not in_bucket
+        shares = fillable / eff_entry
+        gross = shares * (1.0 if won else 0.0) - fillable
+        net   = gross - entry_fee
+
+        trades.append(StrategyTrade(
+            strategy="NO_SIDE", city=city, valid_day=day,
+            bucket_lo=b.lo_c, bucket_hi=b.hi_c, ask=no_ask, eff_entry=eff_entry,
+            fair_prob=no_fair, edge=edge, actual=actual, won=won,
+            gross_pnl=round(gross, 3), fees=round(entry_fee, 3),
+            net_pnl=round(net, 3),
+            notes=f"NO@{no_ask:.3f} YES_fair={fair:.3f}",
+        ))
+    return trades
+
+
+# ── PAIRED REVERSION (gopfan2-style: buy YES <$0.15 OR buy NO >$0.45) ───────
+def replay_paired_reversion(d1_forecasts: dict, asos_daily: dict,
+                              sigma_per_month: dict, stake: float = 5.0,
+                              city: str = "?") -> list[StrategyTrade]:
+    """
+    Mass-market low-friction strategy: for every bucket priced <$0.15, check
+    if our model gives it more probability — if so, $5 flat YES bet. Similarly
+    for NO at >$0.45.
+    """
+    from strategy.fee_model import simulate_maker_fill, taker_fee_rate, DEFAULT_SPREAD
+    trades: list[StrategyTrade] = []
+    for day in sorted(d1_forecasts.keys()):
+        models = d1_forecasts[day]
+        actual = asos_daily.get(day)
+        if not models or actual is None:
+            continue
+        mu_ens = statistics.fmean(models.values())
+        month  = int(day[5:7])
+        sigma  = sigma_per_month.get(month, 1.0)
+        buckets = synthesize_buckets_from_forecast(mu_ens, sigma, market_noise_c=0.5)
+
+        for b in buckets:
+            # YES side: cheap bucket with model edge
+            if 0.05 <= b.ask <= 0.15:
+                fair = _outcome_prob(mu_ens, b.lo_c, b.hi_c, sigma)
+                edge = fair - b.ask
+                if edge >= 0.05:
+                    maker_price = max(0.01, b.ask - 0.01)
+                    fillable = _effective_fillable_notional(stake, maker_price)
+                    fill = simulate_maker_fill(maker_price, fillable, spread=DEFAULT_SPREAD,
+                                                fill_probability=0.55)
+                    if fill is None:
+                        continue
+                    eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+                    won = (b.lo_c - 0.5) <= actual < (b.hi_c + 0.5)
+                    shares = fillable / eff_entry
+                    gross = shares * (1.0 if won else 0.0) - fillable
+                    net   = gross - entry_fee
+                    trades.append(StrategyTrade(
+                        strategy="PAIRED_REVERSION", city=city, valid_day=day,
+                        bucket_lo=b.lo_c, bucket_hi=b.hi_c, ask=b.ask,
+                        eff_entry=eff_entry, fair_prob=fair, edge=edge,
+                        actual=actual, won=won,
+                        gross_pnl=round(gross, 3), fees=round(entry_fee, 3),
+                        net_pnl=round(net, 3),
+                        notes=f"YES@{b.ask:.3f}",
+                    ))
+    return trades
+
+
+# ── TAIL_RAPID_RISE (KILLED — removed from STRAT_4) ──────────────────────────
+def replay_tail_rapid_rise(asos_hourly: dict, asos_daily: dict, slug: str,
+                            sigma_per_month: dict, peak_hour_per_month: dict,
+                            stake_shares: int = 500, ask_target: float = 0.04,
+                            city: str = "?") -> list[StrategyTrade]:
+    """
+    Trigger A: temp_c - prev_temp_c >= 1.5°C in single METAR cycle.
+    Buy bucket above current running_max. Hold to resolution.
+    Removed live due to sensor-glitch susceptibility.
+    """
+    from strategy.fee_model import simulate_taker_fill, THIN_SPREAD
+    trades: list[StrategyTrade] = []
+    intended_notional = stake_shares * ask_target
+    for day, hours in asos_hourly.items():
+        actual = asos_daily.get(day)
+        if actual is None or not hours:
+            continue
+        month = int(day[5:7])
+        peak_hour = peak_hour_per_month.get(month, 19)
+
+        # Find rapid rise event between consecutive obs in [peak-6, peak-1]
+        sorted_hours = sorted(hours, key=lambda h: h["hour_utc"])
+        prev_temp = None
+        for h in sorted_hours:
+            if not (peak_hour - 6 <= h["hour_utc"] <= peak_hour - 1):
+                prev_temp = h["temp_c"]
+                continue
+            if prev_temp is None:
+                prev_temp = h["temp_c"]
+                continue
+            rise = h["temp_c"] - prev_temp
+            if rise >= 1.5:
+                running_max = max((h2["temp_c"] for h2 in sorted_hours
+                                    if h2["hour_utc"] <= h["hour_utc"]), default=h["temp_c"])
+                target_lo = math.floor(running_max + 1.0)
+                target_hi = target_lo + 1.0
+                gap = target_lo - running_max
+                if 0 <= gap <= 3.0:
+                    fillable = _effective_fillable_notional(intended_notional, ask_target)
+                    fill = simulate_taker_fill(ask_target, fillable, spread=THIN_SPREAD)
+                    eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+                    won = target_lo - 0.5 <= actual < target_hi + 0.5
+                    shares = fillable / eff_entry
+                    gross = shares * (1.0 if won else 0.0) - fillable
+                    net   = gross - entry_fee
+                    trades.append(StrategyTrade(
+                        strategy="TAIL_RAPID_RISE", city=city, valid_day=day,
+                        bucket_lo=target_lo, bucket_hi=target_hi,
+                        ask=ask_target, eff_entry=eff_entry,
+                        fair_prob=0.0, edge=0.0, actual=actual, won=won,
+                        gross_pnl=round(gross, 3), fees=round(entry_fee, 3),
+                        net_pnl=round(net, 3),
+                        notes=f"rise={rise:.1f}°C at h={h['hour_utc']}",
+                    ))
+                    break   # one entry per day
+            prev_temp = h["temp_c"]
+    return trades
+
+
+# ── TAIL_COLD_SIGNAL (KILLED — humid + calm → bucket containing run_max) ─────
+def replay_tail_cold_signal(asos_hourly: dict, asos_daily: dict, slug: str,
+                              sigma_per_month: dict, peak_hour_per_month: dict,
+                              cold_cities: set[str], stake_shares: int = 500,
+                              ask_target: float = 0.10, city: str = "?") -> list[StrategyTrade]:
+    """
+    Trigger D: city in cold_cities + dew_spread < 4.5°C + wind < 7kt (morning).
+    Buy bucket currently containing running_max. Hold to resolution.
+    """
+    from strategy.fee_model import simulate_taker_fill, THIN_SPREAD
+    if slug not in cold_cities:
+        return []
+    trades: list[StrategyTrade] = []
+    intended_notional = stake_shares * ask_target
+    for day, hours in asos_hourly.items():
+        actual = asos_daily.get(day)
+        if actual is None or not hours:
+            continue
+        month = int(day[5:7])
+        peak_hour = peak_hour_per_month.get(month, 19)
+        morning = [h for h in hours if h["hour_utc"] < peak_hour - 3]
+        if not morning:
+            continue
+        # Check cold-signal conditions on the latest morning obs
+        last_morning = max(morning, key=lambda h: h["hour_utc"])
+        if last_morning.get("dewp_c") is None or last_morning.get("wind_kt") is None:
+            continue
+        dew_spread = last_morning["temp_c"] - last_morning["dewp_c"]
+        if not (dew_spread < 4.5 and last_morning["wind_kt"] < 7.0):
+            continue
+
+        running_max = max(h["temp_c"] for h in morning)
+        target_lo = math.floor(running_max)
+        target_hi = target_lo + 1.0
+
+        fillable = _effective_fillable_notional(intended_notional, ask_target)
+        fill = simulate_taker_fill(ask_target, fillable, spread=THIN_SPREAD)
+        eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+        won = target_lo - 0.5 <= actual < target_hi + 0.5
+        shares = fillable / eff_entry
+        gross = shares * (1.0 if won else 0.0) - fillable
+        net   = gross - entry_fee
+        trades.append(StrategyTrade(
+            strategy="TAIL_COLD_SIGNAL", city=city, valid_day=day,
+            bucket_lo=target_lo, bucket_hi=target_hi,
+            ask=ask_target, eff_entry=eff_entry,
+            fair_prob=0.0, edge=0.0, actual=actual, won=won,
+            gross_pnl=round(gross, 3), fees=round(entry_fee, 3),
+            net_pnl=round(net, 3),
+            notes=f"dew_spread={dew_spread:.1f} wind={last_morning['wind_kt']:.1f}",
+        ))
+    return trades
+
+
+# ── TAIL_FOEHN_WIND (LIVE — meteorological signal trigger) ───────────────────
+def replay_tail_foehn(asos_hourly: dict, asos_daily: dict, icao: str,
+                       sigma_per_month: dict, peak_hour_per_month: dict,
+                       foehn_sectors: dict, stake_shares: int = 500,
+                       ask_target: float = 0.03, city: str = "?") -> list[StrategyTrade]:
+    """
+    Trigger B: dew_spread > 10°C AND wind ≥ 12kt AND wind_dir in Foehn sector.
+    Buy adjacent-higher bucket. Hold to resolution.
+    """
+    from strategy.fee_model import simulate_taker_fill, THIN_SPREAD
+    if icao not in foehn_sectors:
+        return []
+    sector_lo, sector_hi = foehn_sectors[icao]
+    trades: list[StrategyTrade] = []
+    intended_notional = stake_shares * ask_target
+    for day, hours in asos_hourly.items():
+        actual = asos_daily.get(day)
+        if actual is None or not hours:
+            continue
+        month = int(day[5:7])
+        peak_hour = peak_hour_per_month.get(month, 19)
+        # Check any morning hour for Foehn signature
+        for h in hours:
+            if h["hour_utc"] > peak_hour - 2: continue
+            if h.get("dewp_c") is None or h.get("wind_kt") is None or h.get("wind_dir") is None:
+                continue
+            dew_spread = h["temp_c"] - h["dewp_c"]
+            if not (dew_spread > 10.0 and h["wind_kt"] >= 12.0):
+                continue
+            wd = h["wind_dir"]
+            in_sector = (sector_lo <= wd <= sector_hi) if sector_lo <= sector_hi else (
+                wd >= sector_lo or wd <= sector_hi)
+            if not in_sector:
+                continue
+            running_max = max(h2["temp_c"] for h2 in hours if h2["hour_utc"] <= h["hour_utc"])
+            target_lo = math.floor(running_max + 1.5)
+            target_hi = target_lo + 1.0
+            gap = target_lo - running_max
+            if not (0 <= gap <= 3.0):
+                continue
+            fillable = _effective_fillable_notional(intended_notional, ask_target)
+            fill = simulate_taker_fill(ask_target, fillable, spread=THIN_SPREAD)
+            eff_entry, entry_fee = fill.avg_price, fill.fee_usd
+            won = target_lo - 0.5 <= actual < target_hi + 0.5
+            shares = fillable / eff_entry
+            gross = shares * (1.0 if won else 0.0) - fillable
+            net   = gross - entry_fee
+            trades.append(StrategyTrade(
+                strategy="TAIL_FOEHN", city=city, valid_day=day,
+                bucket_lo=target_lo, bucket_hi=target_hi,
+                ask=ask_target, eff_entry=eff_entry,
+                fair_prob=0.0, edge=0.0, actual=actual, won=won,
+                gross_pnl=round(gross, 3), fees=round(entry_fee, 3),
+                net_pnl=round(net, 3),
+                notes=f"dew={dew_spread:.1f} wind={h['wind_kt']:.0f}kt@{wd:.0f}°",
+            ))
+            break   # one Foehn entry per day
+    return trades
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # PART 4 — Driver
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -782,15 +1239,25 @@ def aggregate(trades: list[StrategyTrade]) -> dict:
     }
 
 
+ALL_STRATEGIES = [
+    # LIVE / SURVIVING
+    "nwplag", "cityctr", "tail", "intraday",
+    # KILLED / PROPOSED — for the audit comparison
+    "strat1", "strat2", "noside", "paired",
+    "tail_rapid", "tail_cold", "tail_foehn",
+]
+
+
 def run_full(cities: list[str], days_back: int = 180, stake: float = 20.0,
               run_strategies: list[str] | None = None) -> dict:
     from strategy.weather_arb import (
         CITY_NAME_TO_SLUG, CITY_SIGMA_C, CITY_PEAK_HOUR_UTC,
         CITY_REMAINING_RISE, HOT_BUST_BASE_CITIES, HOT_BUST_JAKARTA_MONTHS,
+        SIGNAL_COLD_CITIES, FOEHN_WIND_SECTORS,
     )
     from strategy.city_centre_arb import CITY_VS_AIRPORT_DELTA_C
 
-    run_strategies = run_strategies or ["nwplag", "cityctr", "tail", "intraday"]
+    run_strategies = run_strategies or ALL_STRATEGIES
     end_date = date.today() - timedelta(days=1)
     start_date = end_date - timedelta(days=days_back)
     start_iso = start_date.isoformat()
@@ -869,6 +1336,32 @@ def run_full(cities: list[str], days_back: int = 180, stake: float = 20.0,
             else:
                 city_trades["intraday"] = []
 
+        # ── KILLED / PROPOSED — for comparison ────────────────────────────────
+        if "strat1" in run_strategies:
+            city_trades["strat1"] = replay_strat1_overnight(d1, asos_daily, sigma_per_month,
+                                                              stake=stake, city=city_slug)
+        if "strat2" in run_strategies:
+            city_trades["strat2"] = replay_strat2_bracket(d1, asos_daily, sigma_per_month,
+                                                            stake=stake, city=city_slug)
+        if "noside" in run_strategies:
+            city_trades["noside"] = replay_no_side(d1, asos_daily, sigma_per_month,
+                                                     stake=stake, city=city_slug)
+        if "paired" in run_strategies:
+            city_trades["paired"] = replay_paired_reversion(d1, asos_daily, sigma_per_month,
+                                                              stake=5.0, city=city_slug)
+        if "tail_rapid" in run_strategies and asos_hourly:
+            city_trades["tail_rapid"] = replay_tail_rapid_rise(
+                asos_hourly, asos_daily, city_slug, sigma_per_month, peak_per_month,
+                city=city_slug)
+        if "tail_cold" in run_strategies and asos_hourly:
+            city_trades["tail_cold"] = replay_tail_cold_signal(
+                asos_hourly, asos_daily, city_slug, sigma_per_month, peak_per_month,
+                SIGNAL_COLD_CITIES, city=city_slug)
+        if "tail_foehn" in run_strategies and asos_hourly:
+            city_trades["tail_foehn"] = replay_tail_foehn(
+                asos_hourly, asos_daily, station.icao, sigma_per_month, peak_per_month,
+                FOEHN_WIND_SECTORS, city=city_slug)
+
         by_city[city_slug] = {k: aggregate(v) for k, v in city_trades.items()}
         for t_list in city_trades.values():
             all_trades.extend(t_list)
@@ -881,7 +1374,12 @@ def run_full(cities: list[str], days_back: int = 180, stake: float = 20.0,
 
     # Per-strategy aggregation
     by_strategy: dict[str, dict] = {}
-    for strat in ("NWP_LAG", "CITY_CTR", "TAIL_HOTBASE", "INTRADAY"):
+    strat_tags = [
+        "NWP_LAG", "CITY_CTR", "TAIL_HOTBASE", "INTRADAY",
+        "STRAT1_OVERNIGHT", "STRAT2_BRACKET", "NO_SIDE", "PAIRED_REVERSION",
+        "TAIL_RAPID_RISE", "TAIL_COLD_SIGNAL", "TAIL_FOEHN",
+    ]
+    for strat in strat_tags:
         st_trades = [t for t in all_trades if t.strategy == strat]
         by_strategy[strat] = aggregate(st_trades)
 
@@ -899,9 +1397,11 @@ def run_full(cities: list[str], days_back: int = 180, stake: float = 20.0,
 
 
 def _cli():
+    from strategy.weather_arb import VALIDATED_CITY_SLUGS
     ap = argparse.ArgumentParser(description="6-month multi-strategy backtest")
-    ap.add_argument("--cities", default="nyc,chicago,london,tokyo,buenos-aires,madrid,los-angeles",
-                    help="comma-separated city slugs")
+    default_cities = ",".join(sorted(VALIDATED_CITY_SLUGS))
+    ap.add_argument("--cities", default=default_cities,
+                    help="comma-separated city slugs (default: all 23 validated)")
     ap.add_argument("--days", type=int, default=180, help="lookback days")
     ap.add_argument("--stake", type=float, default=20.0, help="$/bet")
     ap.add_argument("--strategy", action="append",
