@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+caeac8da state: log weather audit fixes (c50c56cc)
+c50c56cc audit: fix weather position tracking — exit gates, city scope, trade logs
+7f5c9467 Watchdog 2026-05-21T13:20:32Z: HIGH 1 alert — TRADE_LOOP_SILENT
 5346ccdc weather: data-driven tail trigger expansion (5yr calibration)
 e7c8fb2b analytics: tail trigger analysis — bust signal calibration
 8c150d75 VOLARB Scout 2026-05-21T1242Z — ERA CLOSED, n=887 frozen; H3 out-of-gate bug -$17.29; H7 'up' 2.1σ terminal drag; no actionable VOLARB signal
@@ -9,15 +12,12 @@ e7c8fb2b analytics: tail trigger analysis — bust signal calibration
 e89d2618 weather: strategy tuning — hold-to-resolution, tighter bracket, city filter
 9d6e8faf Watchdog 2026-05-21T12:20:32Z: OK (2 MEDIUM backoff, no new alerts)
 5be59364 VOLARB Audit 20260521-1210 — NO PATCH (n=885, Δ=0, strategy retired 57h+)
-4c2253d4 weather: 5-year skill matrix + live calibration accumulator
-782ebe51 weather: 91-day per-model calibration + 23-city station expansion
-062afb09 Watchdog 2026-05-21T11:20:04Z: OK (2 MEDIUM backoff, no new alerts)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   61G       32G  66% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 13:11:04 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 13:24:47 UTC
 
 ## Open positions (count):
 0
