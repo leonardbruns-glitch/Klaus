@@ -119,9 +119,8 @@ class NoSideArb:
             if yes_token in wa._fired_tokens:
                 continue
 
-            # Only trade TOMORROW's markets — today's NWP forecast is stale by midday
             end_date = mkt.get("endDate", "")[:10]
-            if end_date != tomorrow_str:
+            if end_date not in (today_str, tomorrow_str):
                 continue
 
             prices_raw = mkt.get("outcomePrices", '["0.5"]')
@@ -134,25 +133,42 @@ class NoSideArb:
             if lo_c is None and hi_c is None:
                 continue
 
-            # Get forecast (cache per city)
-            if city not in scanned_cities:
-                scanned_cities.add(city)
-            try:
-                forecast = await wa._get_forecast(entry["lat"], entry["lon"],
-                                                    today_str, tomorrow_str, city)
-            except Exception:
-                continue
-            if not forecast:
-                continue
-
-            if end_date not in forecast:
-                continue
-            mu_ens, sigma_ens = forecast[end_date]
-
+            scanned_cities.add(city)
             slug = CITY_NAME_TO_SLUG.get(city, "")
-            cal_sigma = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, sigma_ens)
 
-            fair_yes = _outcome_prob(mu_ens, lo_c, hi_c, cal_sigma)
+            if end_date == today_str:
+                # Today's market: use live METAR nowcast (same signal as INTRADAY)
+                icao = entry.get("icao", "")
+                obs  = wa._icao_metar_cache.get(icao) if icao else None
+                if obs is None:
+                    obs = await wa._refresh_open_meteo_live(entry["lat"], entry["lon"])
+                if not obs:
+                    continue
+                running_max = obs.get("running_max_c")
+                temp_c_obs  = obs.get("temp_c")
+                sky_cover   = obs.get("sky_cover", "CLR")
+                if running_max is None or temp_c_obs is None:
+                    continue
+                try:
+                    mu_now, sigma_now = await wa._nowcast_max(
+                        entry["lat"], entry["lon"], running_max, temp_c_obs,
+                        sky_cover, city,
+                    )
+                except Exception:
+                    continue
+                fair_yes = _outcome_prob(mu_now, lo_c, hi_c, sigma_now)
+            else:
+                # Tomorrow's market: use overnight NWP ensemble (same signal as OVERNIGHT)
+                try:
+                    forecast = await wa._get_forecast(entry["lat"], entry["lon"],
+                                                      today_str, tomorrow_str, city)
+                except Exception:
+                    continue
+                if not forecast or tomorrow_str not in forecast:
+                    continue
+                mu_ens, sigma_ens = forecast[tomorrow_str]
+                cal_sigma = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, sigma_ens)
+                fair_yes = _outcome_prob(mu_ens, lo_c, hi_c, cal_sigma)
             # We buy NO when YES is overpriced
             if fair_yes > poly_yes - NOSIDE_EDGE_MIN:
                 continue   # YES is not overpriced enough
