@@ -1355,7 +1355,7 @@ class WeatherArb:
                 "running_max_c": new_max,
                 "sky_cover":     sky_cover,
                 "wind_speed_kt": float(wind_speed_kt) if wind_speed_kt is not None else None,
-                "wind_dir_deg":  float(wind_dir_deg)  if wind_dir_deg  is not None else None,
+                "wind_dir_deg":  (float(wind_dir_deg) if str(wind_dir_deg).replace('.','',1).isdigit() else None) if wind_dir_deg is not None else None,
                 "dewpoint_c":    float(dewpoint_c)    if dewpoint_c    is not None else None,
                 "utc_hour":      obs_utc_hour,
                 "last_obs_time": obs_time,
