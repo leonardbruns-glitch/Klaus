@@ -894,6 +894,14 @@ class WeatherArb:
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
         # process newly appended actual events each METAR cycle.
         self._wu_actuals_offset: int = 0
+        # Seed _fired_tokens from any WEATHER positions already open in the risk manager
+        # so restarts don't re-enter the same city/token.
+        for tid, pos in getattr(self.bot.risk, "open_positions", {}).items():
+            if getattr(pos, "bond_entry_class", "").startswith("WEATHER_"):
+                self._fired_tokens.add(tid)
+        if self._fired_tokens:
+            logger.info("[WA] Seeded %d fired tokens from open positions", len(self._fired_tokens))
+
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
 
