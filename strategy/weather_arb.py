@@ -58,11 +58,17 @@ KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
 KELLY_MAX_USD    = 60.0   # ceiling: hard capital cap per weather position
-OVERNIGHT_ALLOC  = 0.40   # STRAT_1 overnight: 40% of bankroll
-INTRADAY_ALLOC   = 0.40   # STRAT_3 intraday: 40% of bankroll
-BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll
-TAIL_STRAT_ALLOC = 0.10   # STRAT_4 tail sniper: 10% of bankroll
-PER_STRAT_ALLOC  = OVERNIGHT_ALLOC  # default for _kelly_stake (STRAT_1)
+OVERNIGHT_ALLOC  = 0.40   # STRAT_1 overnight: 40% of bankroll total
+INTRADAY_ALLOC   = 0.40   # STRAT_3 intraday: 40% of bankroll total
+BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll total
+TAIL_STRAT_ALLOC = 0.10   # STRAT_4 tail sniper: 10% of bankroll total
+MAX_POS_PER_STRAT = 4     # up to 4 positions per strategy
+# Per-position cap = strat_alloc / MAX_POS_PER_STRAT
+OVERNIGHT_POS_ALLOC  = OVERNIGHT_ALLOC  / MAX_POS_PER_STRAT   # 10% per overnight position
+INTRADAY_POS_ALLOC   = INTRADAY_ALLOC   / MAX_POS_PER_STRAT   # 10% per intraday position
+BRACKET_POS_ALLOC    = BRACKET_ALLOC    / MAX_POS_PER_STRAT   # 2.5% per bracket position
+TAIL_POS_ALLOC       = TAIL_STRAT_ALLOC / MAX_POS_PER_STRAT   # 2.5% per tail position
+PER_STRAT_ALLOC  = OVERNIGHT_POS_ALLOC  # default for _kelly_stake (STRAT_1)
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
 SCAN_INTERVAL_S = 1800 # scan every 30 minutes
@@ -2076,7 +2082,7 @@ class WeatherArb:
             bankroll  = self._get_bankroll()
             kelly_f   = edge / max(0.01, 1.0 - poly_yes)
             raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
-            stake     = max(5.0, min(50.0, bankroll * INTRADAY_ALLOC, raw_stake))
+            stake     = max(5.0, min(50.0, bankroll * INTRADAY_POS_ALLOC, raw_stake))
 
             if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake,
                                          expected_max_c=est_max):
@@ -2324,7 +2330,7 @@ class WeatherArb:
                 else:
                     trigger_tag = "HOT_BASE_RATE"
 
-            stake_usd = min(TAIL_STAKE_TOKENS * ask, self._get_bankroll() * TAIL_STRAT_ALLOC)
+            stake_usd = min(TAIL_STAKE_TOKENS * ask, self._get_bankroll() * TAIL_POS_ALLOC)
             logger.info(
                 "[WA] TAIL SNIPER %s icao=%s trigger=%s ask=%.3f gap=%.1f°C stake=$%.2f"
                 " dew=%.1f wind=%.1fkt",
@@ -2558,7 +2564,7 @@ class WeatherArb:
         total_kelly_stake = KELLY_FRACTION * bankroll * f_star
         total_kelly_stake = max(KELLY_MIN_USD * len(bracket),
                                 min(KELLY_MAX_USD * len(bracket),
-                                    bankroll * BRACKET_ALLOC,
+                                    bankroll * BRACKET_POS_ALLOC,
                                     total_kelly_stake))
 
         n_entered = 0
