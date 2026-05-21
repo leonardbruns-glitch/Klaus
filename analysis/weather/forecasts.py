@@ -191,7 +191,8 @@ def bucket_probs(mean_c: float, sigma_c: float, buckets: list[tuple[float, float
 
 
 def build_distribution(station: Station, valid_day: date,
-                       distribution: str = "gaussian") -> dict:
+                       distribution: str = "gaussian",
+                       slug: str | None = None) -> dict:
     """One-call helper: pull all sources, ensemble, return the parameters.
 
     Returns: {
@@ -199,8 +200,13 @@ def build_distribution(station: Station, valid_day: date,
         'sources': [Forecast.to_jsonable(), ...],
         'distribution': 'gaussian'|'gumbel',
         'station': ICAO, 'valid_day': YYYY-MM-DD,
+        'weighted': bool,  # True when skill-matrix weighting applied
     }
     Raises ValueError if no source returns data.
+
+    When slug is provided, uses WeightedEnsemble (skill_matrix.json) for
+    bias-corrected, inverse-variance-weighted combination. Falls back to
+    arithmetic mean when slug is None or skill matrix unavailable.
     """
     forecasts: list[Forecast] = []
     forecasts.extend(fetch_openmeteo(station, valid_day))
@@ -209,7 +215,25 @@ def build_distribution(station: Station, valid_day: date,
         forecasts.append(nws)
     if not forecasts:
         raise ValueError(f"no forecast sources returned data for {station.icao} {valid_day}")
-    mean, sigma = ensemble(forecasts)
+
+    weighted = False
+    if slug is not None:
+        try:
+            from strategy.ensemble_weights import WeightedEnsemble
+            _ens = WeightedEnsemble()
+            # Map Forecast.source → model key expected by skill matrix
+            # e.g. "openmeteo:gfs_seamless" → "gfs_seamless"; "nws" → "nws"
+            model_values: dict[str, float] = {}
+            for f in forecasts:
+                key = f.source.replace("openmeteo:", "")
+                model_values[key] = f.t_max_c
+            mean, sigma = _ens.combine(slug, valid_day.month, model_values)
+            weighted = True
+        except Exception:
+            mean, sigma = ensemble(forecasts)
+    else:
+        mean, sigma = ensemble(forecasts)
+
     return {
         "station": station.icao,
         "valid_day": valid_day.isoformat(),
@@ -218,6 +242,7 @@ def build_distribution(station: Station, valid_day: date,
         "n_sources": len(forecasts),
         "sources": [f.to_jsonable() for f in forecasts],
         "distribution": distribution,
+        "weighted": weighted,
     }
 
 

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 _GLOBAL = ("ecmwf_aifs025", "ecmwf_ifs025", "gfs_seamless", "icon_seamless")
 _JP_NATIONAL = ("jma_seamless", "jma_msm", "jma_gsm")
 _UK_NATIONAL = ("ukmo_seamless", "metno_seamless", "meteofrance_seamless")
+_EU_NATIONAL = ("ukmo_seamless", "metno_seamless", "meteofrance_seamless")
 
 
 @dataclass(frozen=True)
@@ -42,4 +43,28 @@ STATIONS: dict[str, Station] = {
     "tokyo":         Station("tokyo",         "RJTT", "jp/tokyo/RJTT",             35.5494, 139.7798, "C", 1, _GLOBAL + _JP_NATIONAL),
     # London — global + UKMO + MetNo + Meteofrance (national/European)
     "london":        Station("london",        "EGLC", "gb/london/EGLC",            51.5053,   0.0553, "C", 1, _GLOBAL + _UK_NATIONAL),
+
+    # --- Additional US cities (validated 2026-05-21, WU Summary OK, 1-day PM match) ---
+    "dallas":        Station("dallas",        "KDAL", "us/tx/dallas/KDAL",         32.8481,  -96.8517,"F", 2, _GLOBAL, True),
+    "houston":       Station("houston",       "KHOU", "us/tx/houston/KHOU",        29.6450,  -95.2789,"F", 2, _GLOBAL, True),
+    "seattle":       Station("seattle",       "KSEA", "us/wa/seatac/KSEA",         47.4435, -122.3014,"F", 2, _GLOBAL, True),
+    "denver":        Station("denver",        "KBKF", "us/co/aurora/KBKF",         39.7017, -104.7519,"F", 2, _GLOBAL, True),
+    "atlanta":       Station("atlanta",       "KATL", "us/ga/atlanta/KATL",        33.6367,  -84.4281,"F", 2, _GLOBAL, True),
+
+    # --- European cities (validated 2026-05-21) ---
+    "paris":         Station("paris",         "LFPB", "fr/bonneuil-en-france/LFPB",48.9589,   2.4408,"C", 1, _GLOBAL + _EU_NATIONAL),
+    "madrid":        Station("madrid",        "LEMD", "es/madrid/LEMD",            40.4719,  -3.5626, "C", 1, _GLOBAL + _EU_NATIONAL),
+    "amsterdam":     Station("amsterdam",     "EHAM", "nl/schiphol/EHAM",          52.3086,   4.7639, "C", 1, _GLOBAL + _EU_NATIONAL),
+
+    # --- Asian cities (validated 2026-05-21) ---
+    "beijing":       Station("beijing",       "ZBAA", "cn/beijing/ZBAA",           40.0799, 116.5858, "C", 1, _GLOBAL),
+    "shanghai":      Station("shanghai",      "ZSPD", "cn/shanghai/ZSPD",          31.1443, 121.8083, "C", 1, _GLOBAL),
+    "singapore":     Station("singapore",     "WSSS", "sg/singapore/WSSS",          1.3644, 103.9915, "C", 1, _GLOBAL),
+    "jakarta":       Station("jakarta",       "WIHH", "id/jakarta/WIHH",           -6.1275, 106.6537, "C", 1, _GLOBAL),
+
+    # --- Americas non-US (validated 2026-05-21) ---
+    "toronto":       Station("toronto",       "CYYZ", "ca/mississauga/CYYZ",       43.6772,  -79.6306,"C", 1, _GLOBAL),
+    "mexico-city":   Station("mexico-city",   "MMMX", "mx/mexico-city/MMMX",      19.4363,  -99.0721,"C", 1, _GLOBAL),
+    "buenos-aires":  Station("buenos-aires",  "SAEZ", "ar/ezeiza/SAEZ",           -34.8222,  -58.5358,"C", 1, _GLOBAL),
+    "sao-paulo":     Station("sao-paulo",     "SBGR", "br/guarulhos/SBGR",        -23.4356,  -46.4731,"C", 1, _GLOBAL),
 }

@@ -23,7 +23,7 @@ SKILL_MATRIX_PATH = Path(__file__).parent / "skill_matrix.json"
 
 # If a model has fewer than this many historical days for a (station, month),
 # its individual weight is zeroed and equal-weight fallback applies.
-MIN_N_PER_MONTH = 30
+MIN_N_PER_MONTH = 12
 
 # Inter-model correlation inflation: NWP models share physics and assimilation
 # systems, so their errors are correlated. σ_ens is inflated by γ before use.
@@ -126,6 +126,22 @@ class WeightedEnsemble:
                 result[m] = (W_FLOOR / (total_floored + W_FLOOR), 0.0)
 
         return result
+
+    def median_model_sigma(self, slug: str, month: int) -> Optional[float]:
+        """
+        Median per-model residual sigma for (slug, month) from the skill matrix.
+        Returns None if fewer than 2 qualified models exist.
+        Used as the asos_sigma_floor for cities not in CITY_SIGMA_C.
+        """
+        sigmas = []
+        for model_data in self._matrix.get(slug, {}).values():
+            entry = model_data.get(str(month)) or model_data.get(month)
+            if entry and entry.get("n", 0) >= MIN_N_PER_MONTH and entry.get("sigma", 0) > 0:
+                sigmas.append(entry["sigma"])
+        if len(sigmas) < 2:
+            return None
+        sigmas.sort()
+        return sigmas[len(sigmas) // 2]
 
     def combine(
         self,

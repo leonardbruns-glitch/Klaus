@@ -1,5 +1,5 @@
 """
-Historical diurnal temperature analysis for all 7 validated Polymarket weather stations.
+Historical diurnal temperature analysis for all validated Polymarket weather stations.
 
 Pulls 5 years of ASOS hourly data from Iowa State Mesonet, computes per-station/month:
   - Mean T(hour) diurnal curve
@@ -22,16 +22,11 @@ from io import StringIO
 import pandas as pd
 import numpy as np
 
-# 7 validated stations
-STATIONS = {
-    "nyc":           ("KLGA",  "New York City"),
-    "chicago":       ("KORD",  "Chicago"),
-    "los-angeles":   ("KLAX",  "Los Angeles"),
-    "miami":         ("KMIA",  "Miami"),
-    "san-francisco": ("KSFO",  "San Francisco"),
-    "tokyo":         ("RJTT",  "Tokyo"),
-    "london":        ("EGLC",  "London"),
-}
+from analysis.weather.stations import STATIONS as _STATION_MAP
+
+# Build (icao, display_name) tuples from central station registry
+STATIONS = {slug: (st.icao, slug.replace("-", " ").title())
+            for slug, st in _STATION_MAP.items()}
 
 ASOS_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py"
 YEARS_BACK = 5   # 2021-2025
