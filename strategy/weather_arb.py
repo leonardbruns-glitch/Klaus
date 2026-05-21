@@ -84,9 +84,14 @@ INTRADAY_ENABLED      = True   # master switch for today's-markets trading
 INTRADAY_MIN_PROB     = 0.80   # minimum nowcast P(bucket) to enter today's market
 INTRADAY_MIN_PROB_HI_PREC = 0.72  # lower threshold for high-precision cities (σ_blue < 0.45°C)
 INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less spread required)
+INTRADAY_EDGE_MAX     = 0.40   # crowd-divergence gate: edge above this = broken model or anomaly
 INTRADAY_ASK_CAP      = 0.96   # upper price cap for intraday entries (raised: T-2h certainty buys)
 INTRADAY_STAKE_FRAC   = 0.60   # fractional Kelly multiplier for intraday (higher certainty → less fractional)
 INTRADAY_HEAT_RAMP_H  = 5      # hours BEFORE peak to open the intraday scan window
+INTRADAY_W1_MIN       = 0.30   # minimum METAR weight at window open; NWP anchors the remainder
+RR_CV                 = 0.35   # coefficient of variation proxy: std(remaining_rise) ≈ mean × RR_CV
+                                # True std requires per-city/month/hour ASOS reanalysis; 0.35 is
+                                # calibrated from literature (Oke 2002, NWS verification studies).
 
 # Cities with σ_blue < 0.45°C (8 regional models) — lower intraday prob threshold applies
 INTRADAY_HI_PREC_CITIES = {"amsterdam", "paris", "madrid", "london"}
@@ -119,6 +124,30 @@ FOEHN_WIND_SECTORS: dict[str, tuple[float, float]] = {
     "KBKF": (270.0, 330.0),  # Denver Chinook: W–NW off Front Range
     "RJTT": (300.0, 360.0),  # NW downslope from Japanese Alps in winter
 }
+
+# Marine / cold-onshore wind sectors per ICAO (bearing FROM which cool maritime air arrives).
+# When live METAR wind falls in this sector, remaining_rise is multiplied by MARINE_RISE_MULTIPLIER.
+# Distinct from FOEHN_WIND_SECTORS (opposing directional effect: cooling, not warming).
+MARINE_RISE_MULTIPLIER: float = 0.10   # scale remaining_rise when cold marine flow detected
+MARINE_WIND_SECTORS: dict[str, tuple[float, float]] = {
+    "KSFO": (180.0, 300.0),   # Pacific onshore SW–NW: marine layer suppresses inland heating
+    "KLAX": (200.0, 270.0),   # Pacific onshore SW–W: coastal marine inversion
+    "KSEA": (210.0, 270.0),   # Pacific/Puget onshore SW–W: cool marine push
+    "KMIA": ( 70.0, 150.0),   # Atlantic onshore E–SE: sea breeze caps afternoon max
+    "EGLC": (210.0, 270.0),   # Channel/Atlantic onshore SW: damps London heating ramp
+    "EHAM": (270.0, 330.0),   # North Sea onshore NW: cool maritime suppresses Amsterdam max
+}
+
+# Cloud height threshold for cirrus reclassification.
+# METAR BKN/OVC layers at altitude ≥ CIRRUS_ALT_CODE (in hundreds of feet = 20,000 ft)
+# are high cirrus decks that transmit most solar radiation; reclassify sky_factor to SCT=0.60
+# instead of BKN=0.30 / OVC=0.08 (which are valid only for low/mid clouds).
+CIRRUS_ALT_CODE: int = 200   # hundreds of feet; 200 = 20,000 ft
+
+# Latent heat evaporation penalty: recent precipitation keeps surface and air moist,
+# suppressing afternoon max through evaporative cooling. Applied in _compute_nowcast_mu_sigma.
+PRECIP_LATENT_THRESH_MM: float = 5.0    # 24h precip (mm) above which penalty fires
+PRECIP_LATENT_PENALTY_C: float = 0.75   # °C subtracted from both mu_metar and mu_NWP
 
 # Hold-favourites / scalp-mids policy (London 30d backtest 2026-05-20).
 # Favourites: entry in [SCALP_BAND_HI, 1.0) — hold to PROFIT_TARGET=0.99 or resolution.
@@ -864,6 +893,7 @@ class WeatherArb:
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
+        self._nwp_today_cache: dict[tuple, Optional[float]] = {}  # (lat2, lon2, date) → nwp_daily_max_c
 
         # Universal per-ICAO METAR cache — populated by _refresh_all_metars(),
         # shared by _poll_metars(), _intraday_scan(), and _tail_sniper_check().
@@ -1603,7 +1633,17 @@ class WeatherArb:
             if obs_time <= cached.get("last_obs_time", 0):
                 continue  # not a new observation
 
-            temp_c = rec.get("temp")
+            # Prefer the RMK T-group (0.1°C precision) over the rounded METAR temp field.
+            # Format: T[s][TTTT][s][TTTT] where s=0 pos / 1 neg, TTTT = tenths of °C.
+            # e.g. T02750211 → dry=+27.5°C, dew=+21.1°C.
+            raw_ob = rec.get("rawOb", "")
+            temp_c = None
+            _t_match = __import__("re").search(r"\bT([01])(\d{3,4})([01]\d{3,4})?\b", raw_ob)
+            if _t_match:
+                _sign = -1 if _t_match.group(1) == "1" else 1
+                temp_c = _sign * int(_t_match.group(2)) / 10.0
+            if temp_c is None:
+                temp_c = rec.get("temp")
             if temp_c is None:
                 continue
             temp_c = float(temp_c)
@@ -1618,22 +1658,28 @@ class WeatherArb:
             new_max   = temp_c if (prev_max is None or temp_c > prev_max) else prev_max
 
             sky_cover     = self._parse_sky_cover(rec.get("rawOb", ""))
+            sky_factor    = self._sky_factor_from_layers(rec.get("rawOb", ""))
             wind_speed_kt = rec.get("wspd")
             wind_dir_deg  = rec.get("wdir")
             dewpoint_c    = rec.get("dewp")
             obs_utc_hour  = datetime.fromtimestamp(obs_time, tz=timezone.utc).hour
+            # 24h precipitation (inches → mm); AWC field "p24i"; None when not reported.
+            _p24i = rec.get("p24i")
+            precip_24h_mm = float(_p24i) * 25.4 if _p24i is not None else 0.0
 
             cached.update({
                 "temp_c":        temp_c,
                 "prev_temp_c":   prev_temp,
                 "running_max_c": new_max,
                 "sky_cover":     sky_cover,
+                "sky_factor":    sky_factor,
                 "wind_speed_kt": float(wind_speed_kt) if wind_speed_kt is not None else None,
                 "wind_dir_deg":  (float(wind_dir_deg) if str(wind_dir_deg).replace('.','',1).isdigit() else None) if wind_dir_deg is not None else None,
                 "dewpoint_c":    float(dewpoint_c)    if dewpoint_c    is not None else None,
                 "utc_hour":      obs_utc_hour,
                 "last_obs_time": obs_time,
                 "obs_time":      obs_time,
+                "precip_24h_mm": precip_24h_mm,
             })
 
     async def _poll_metars(self) -> None:
@@ -2040,9 +2086,22 @@ class WeatherArb:
             # Uses _nowcast_max which implements:
             #   μ_nowcast = max(T_run, T_cur + ΔT_rem(h) × S_f)
             # For non-core cities: falls back to Open-Meteo hourly forecast rise.
+            # NWP anchoring: fetch today's ensemble daily max once per city per day.
+            _nwp_key = (round(lat, 2), round(lon, 2), today_str)
+            if _nwp_key not in self._nwp_today_cache:
+                try:
+                    _fc = await self._get_forecast(lat, lon, today_str, today_str, city)
+                    self._nwp_today_cache[_nwp_key] = (
+                        _fc[today_str][0] if (_fc and today_str in _fc) else None
+                    )
+                except Exception:
+                    self._nwp_today_cache[_nwp_key] = None
+            nwp_max_c = self._nwp_today_cache[_nwp_key]
+
             try:
                 est_max, nc_sigma = await self._nowcast_max(
-                    lat, lon, running_max, temp_c, sky_cover, city
+                    lat, lon, running_max, temp_c, sky_cover, city,
+                    nwp_max_c=nwp_max_c,
                 )
             except Exception:
                 continue
@@ -2068,6 +2127,19 @@ class WeatherArb:
 
             edge = p_intraday - poly_yes
             if edge < INTRADAY_EDGE_MIN:
+                continue
+
+            # Crowd divergence gate: edge > 0.40 means our model disagrees with the market
+            # by more than 40pp. At that magnitude the signal is almost certainly a broken
+            # model assumption (wrong μ_nowcast) rather than a genuine pricing lag.
+            # Valid intraday arb is 0.06–0.40; anything above is an anomaly, not an edge.
+            if edge > INTRADAY_EDGE_MAX:
+                logger.info(
+                    "[WA] INTRADAY SKIP %s %s — crowd divergence edge=%.3f > %.2f "
+                    "(μ_nc=%.1f poly=%.3f nwp=%.1f)",
+                    city, today_str, edge, INTRADAY_EDGE_MAX,
+                    est_max, poly_yes, nwp_max_c if nwp_max_c is not None else float("nan"),
+                )
                 continue
 
             pre_post   = "PRE-PEAK" if (peak_hour is not None and now_utc.hour < peak_hour) else "POST-PEAK"
@@ -2625,6 +2697,32 @@ class WeatherArb:
                     best = key
         return best
 
+    @staticmethod
+    def _sky_factor_from_layers(raw_ob: str) -> float:
+        """
+        Compute sky_factor from METAR raw string with cirrus altitude correction.
+
+        BKN/OVC layers at altitude >= CIRRUS_ALT_CODE (200 = 20,000 ft) are high
+        cirrus that transmit most solar radiation; they are reclassified as SCT (0.60)
+        instead of BKN (0.30) or OVC (0.08).
+
+        Returns the minimum sky_factor across all parsed layers:
+          CLR/SKC (no groups) → 1.00
+          FEW → 0.85, SCT → 0.60, BKN → 0.30, OVC → 0.08
+        """
+        import re as _re
+        FACTORS = {"FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
+        worst = 1.0
+        for m in _re.finditer(r'\b(FEW|SCT|BKN|OVC)(\d{3})(?:TCU|CB)?\b', raw_ob):
+            code = m.group(1)
+            alt  = int(m.group(2))
+            if code in ("BKN", "OVC") and alt >= CIRRUS_ALT_CODE:
+                code = "SCT"   # high cirrus: transmits radiation like SCT
+            f = FACTORS[code]
+            if f < worst:
+                worst = f
+        return worst
+
     async def _refresh_open_meteo_live(self, lat: float, lon: float) -> Optional[dict]:
         """
         Fetch current conditions from Open-Meteo for cities without an ICAO METAR station.
@@ -2746,10 +2844,64 @@ class WeatherArb:
             logger.debug("[WA] hourly forecast error lat=%.2f: %s", lat, e)
             return {}
 
+    @staticmethod
+    def _compute_nowcast_mu_sigma(
+        mean_rise: float,
+        temp_c: float,
+        running_max_c: float,
+        sky_factor: float,
+        cal_sigma: float,
+        hours_to_peak: float,
+        nwp_max_c: Optional[float] = None,
+        heat_ramp_h: float = float(INTRADAY_HEAT_RAMP_H),
+        precip_penalty_c: float = 0.0,
+    ) -> tuple[float, float]:
+        """
+        Pure math core for the intraday nowcast. Separated for testability.
+
+        mu:
+          METAR extrapolation: mu_metar = max(T_run, T_cur + mean_rise × sky_factor − penalty)
+          NWP anchoring (when nwp_max_c supplied):
+            w1 = clamp(1 − (h/ramp_h) × (1 − W1_MIN), W1_MIN, 1.0)
+            mu = w1 × mu_metar + (1−w1) × (nwp_max_c − penalty)
+          Near or past peak (h=0): w1=1.0 → METAR observed max is the truth.
+          At window open (h=ramp_h): w1=W1_MIN → NWP carries (1−W1_MIN) weight.
+
+        sigma:
+          std_RR = mean_rise × RR_CV  (proxy for historical spread of remaining rise)
+          sigma  = max(cal_sigma, std_RR × sqrt(h / 12))
+          When mean_rise → 0 or h → 0: sigma collapses to cal_sigma (ASOS floor).
+          When mean_rise is large (early morning, large projection): sigma expands,
+          flattening the Gaussian and suppressing P(exact bucket).
+
+        precip_penalty_c:
+          Latent heat evaporation penalty. Subtracted from both mu_metar projection
+          and nwp_max_c before the blend. Running max provides the hard floor so the
+          penalty cannot push mu below already-observed temperature.
+        """
+        h = max(0.0, hours_to_peak)
+
+        # mu (with latent heat evaporation penalty applied to the rising component)
+        mu_metar = max(running_max_c, temp_c + mean_rise * sky_factor - precip_penalty_c)
+        if nwp_max_c is not None and h > 0 and heat_ramp_h > 0:
+            w1 = 1.0 - (h / heat_ramp_h) * (1.0 - INTRADAY_W1_MIN)
+            w1 = max(INTRADAY_W1_MIN, min(1.0, w1))
+            nwp_adj = nwp_max_c - precip_penalty_c
+            mu_nowcast = w1 * mu_metar + (1.0 - w1) * nwp_adj
+        else:
+            mu_nowcast = mu_metar
+
+        # sigma
+        std_rr = mean_rise * RR_CV
+        sigma_dynamic = std_rr * math.sqrt(h / 12.0) if h > 0 else 0.0
+        sigma_nowcast = max(cal_sigma, sigma_dynamic)
+
+        return round(mu_nowcast, 2), round(sigma_nowcast, 2)
+
     async def _nowcast_max(
         self, lat: float, lon: float,
         running_max_c: float, temp_c: float, sky_cover: str,
-        city: str = "",
+        city: str = "", nwp_max_c: Optional[float] = None,
     ) -> tuple[float, float]:
         """
         Estimate final daily max given current observed conditions.
@@ -2761,14 +2913,31 @@ class WeatherArb:
         For other cities: falls back to hourly Open-Meteo forecast rise × sky_factor.
 
         sky_factor: CLR=1.0, FEW=0.85, SCT=0.60, BKN=0.30, OVC=0.08
+          Reads pre-computed sky_factor from METAR cache (with cirrus altitude correction)
+          when available; falls back to sky_cover string lookup otherwise.
+
+        Delegates mu/sigma math to _compute_nowcast_mu_sigma().
         """
         from datetime import datetime, timezone
         now_utc = datetime.now(timezone.utc)
         current_hour = now_utc.hour
         month = now_utc.month
 
-        sky_factors = {"CLR": 1.0, "FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
-        f_sky = sky_factors.get(sky_cover, 0.60)
+        # Pull pre-computed fields from METAR cache (populated by _refresh_all_metars).
+        icao = CITY_ICAO.get(city, "")
+        obs_cache = self._icao_metar_cache.get(icao, {}) if icao else {}
+
+        # sky_factor: prefer cache value (with cirrus-altitude correction); fall back to string lookup
+        cached_sky_factor = obs_cache.get("sky_factor")
+        if cached_sky_factor is not None:
+            f_sky = cached_sky_factor
+        else:
+            sky_factors = {"CLR": 1.0, "FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
+            f_sky = sky_factors.get(sky_cover, 0.60)
+
+        # Latent heat evaporation penalty: recent precipitation suppresses afternoon max.
+        precip_24h_mm = obs_cache.get("precip_24h_mm", 0.0) or 0.0
+        precip_penalty_c = PRECIP_LATENT_PENALTY_C if precip_24h_mm >= PRECIP_LATENT_THRESH_MM else 0.0
 
         slug = CITY_NAME_TO_SLUG.get(city, "")
         cal_rise_table = CITY_REMAINING_RISE.get(slug, {}).get(month)
@@ -2776,12 +2945,10 @@ class WeatherArb:
         cal_sigma      = CITY_SIGMA_C.get(slug, {}).get(month, 1.2)
 
         if cal_rise_table is not None and cal_peak_hour is not None:
-            # Calibrated path: historical remaining_rise × sky_factor
-            raw_rise = cal_rise_table.get(current_hour, 0.0)
-            remaining_rise = raw_rise * f_sky
+            mean_rise = cal_rise_table.get(current_hour, 0.0)  # raw, sky_factor applied inside
             peak_hour = cal_peak_hour
         else:
-            # Fallback: Open-Meteo hourly forecast rise × sky_factor
+            # Fallback: Open-Meteo hourly forecast rise
             hourly = await self._get_hourly_forecast(lat, lon)
             if not hourly:
                 return running_max_c, 1.2
@@ -2793,22 +2960,37 @@ class WeatherArb:
             else:
                 peak_hour = current_hour
                 fcst_peak = fcst_now
-            remaining_rise = max(0.0, fcst_peak - fcst_now) * f_sky
+            mean_rise = max(0.0, fcst_peak - fcst_now)
             cal_sigma = 1.2
 
-        est_max = max(running_max_c, temp_c + remaining_rise)
+        # Marine / cold-onshore wind suppression: onshore marine flow limits afternoon heating.
+        if icao in MARINE_WIND_SECTORS:
+            wind_dir = obs_cache.get("wind_dir_deg")
+            if wind_dir is not None:
+                lo_sec, hi_sec = MARINE_WIND_SECTORS[icao]
+                in_marine = (lo_sec <= wind_dir <= hi_sec) if lo_sec <= hi_sec else (
+                    wind_dir >= lo_sec or wind_dir <= hi_sec
+                )
+                if in_marine:
+                    logger.debug(
+                        "[WA] marine flow %s wind_dir=%.0f° sector=(%.0f,%.0f) "
+                        "mean_rise %.2f→%.2f°C",
+                        icao, wind_dir, lo_sec, hi_sec,
+                        mean_rise, mean_rise * MARINE_RISE_MULTIPLIER,
+                    )
+                    mean_rise *= MARINE_RISE_MULTIPLIER
 
-        # Sigma shrinks as observation hour approaches historical peak hour.
-        # Floor = cal_sigma (ASOS-measured peak-hour residual) so near-peak confidence never
-        # collapses below half the calibrated daily spread. A 0.20 absolute floor was
-        # unrealistically tight for exact-degree-bucket markets (e.g. London 23°C):
-        # P([22.5,23.5]) = 97.6% with σ=0.20 vs ~38% with σ=1.03 (full spread).
-        horizon = 12.0
         hours_to_peak = max(0.0, peak_hour - current_hour)
-        sigma_floor = cal_sigma
-        sigma = max(sigma_floor, cal_sigma * (hours_to_peak / horizon) ** 0.5)
-
-        return round(est_max, 2), round(sigma, 2)
+        return self._compute_nowcast_mu_sigma(
+            mean_rise=mean_rise,
+            temp_c=temp_c,
+            running_max_c=running_max_c,
+            sky_factor=f_sky,
+            cal_sigma=cal_sigma,
+            hours_to_peak=hours_to_peak,
+            nwp_max_c=nwp_max_c,
+            precip_penalty_c=precip_penalty_c,
+        )
 
     async def _fetch_nws_daily_max(self, lat: float, lon: float,
                                      target_date: str) -> Optional[float]:
