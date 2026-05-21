@@ -108,24 +108,25 @@ class WeightedEnsemble:
             n = len(available_models)
             return {m: (1.0 / n, 0.0) for m in available_models}
 
-        total = sum(inv_var.values())
-        weights_raw = {m: v / total for m, v in inv_var.items()}
-
-        # Apply W_FLOOR and re-normalise (prevents extreme single-model dominance)
-        weights_floored = {m: max(W_FLOOR, w) for m, w in weights_raw.items()}
-        total_floored = sum(weights_floored.values())
-        weights_final = {m: w / total_floored for m, w in weights_floored.items()}
-
-        # Models without skill data but present in the forecast get a W_FLOOR share
-        # with no bias correction
-        result = {}
+        # Build raw weights for ALL available models: skilled get inv-variance,
+        # unskilled get W_FLOOR. Then normalise the COMBINED set so weights sum to 1.0.
+        #
+        # PRIOR BUG (fixed 2026-05-21): unskilled models were given W_FLOOR weight
+        # ON TOP of the already-normalised skilled weights. With 4 unskilled models
+        # at W_FLOOR=0.03, total weight became 1.0 + 0.12 = 1.12 → μ inflated by 12%.
+        # This caused systematic over-prediction (e.g., Buenos Aires μ=15.05°C
+        # instead of the correct 13.48°C). Discovered via SAEZ entry where 7-model
+        # arithmetic mean was 12.76°C but our reported μ was 15.05°C.
+        raw_w: dict[str, float] = {}
         for m in available_models:
-            if m in weights_final:
-                result[m] = (weights_final[m], biases.get(m, 0.0))
+            if m in inv_var:
+                raw_w[m] = max(W_FLOOR, inv_var[m])
             else:
-                result[m] = (W_FLOOR / (total_floored + W_FLOOR), 0.0)
+                raw_w[m] = W_FLOOR
+        total_raw = sum(raw_w.values())
+        weights_final = {m: w / total_raw for m, w in raw_w.items()}
 
-        return result
+        return {m: (weights_final[m], biases.get(m, 0.0)) for m in available_models}
 
     def median_model_sigma(self, slug: str, month: int) -> Optional[float]:
         """
