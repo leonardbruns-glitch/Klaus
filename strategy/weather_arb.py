@@ -601,6 +601,9 @@ class WeatherArb:
 
         from strategy.ensemble_weights import WeightedEnsemble
         self._ensemble = WeightedEnsemble()
+        # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
+        # process newly appended actual events each METAR cycle.
+        self._wu_actuals_offset: int = 0
         logger.info("[WA] WeatherArb strategy initialized stake=$%.0f edge_min=%.2f",
                     STAKE_USD, EDGE_MIN)
 
@@ -616,6 +619,7 @@ class WeatherArb:
         city: str,
         status: str,
         station_coords: Optional[tuple] = None,
+        end_date: str = "",
     ) -> None:
         lo_c, hi_c = target_bucket if len(target_bucket) == 2 else (None, None)
         self._positions[token_id] = {
@@ -631,6 +635,7 @@ class WeatherArb:
             "city":            city,
             "lo_c":            lo_c,
             "hi_c":            hi_c,
+            "end_date":        end_date,
         }
 
     def _close_position(self, token_id: str) -> None:
@@ -921,6 +926,7 @@ class WeatherArb:
                     token_id, strategy_tag, CITY_ICAO.get(city),
                     (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
                     intended_price, city, "RESTING_MAKER",
+                    end_date=end_date,
                 )
             if use_taker:
                 # Taker: register as TAKER_PENDING; will update to FILLED on success.
@@ -928,6 +934,7 @@ class WeatherArb:
                     token_id, strategy_tag, CITY_ICAO.get(city),
                     (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
                     intended_price, city, "TAKER_PENDING",
+                    end_date=end_date,
                 )
 
             from strategy.momentum import Direction as Dir
@@ -950,6 +957,7 @@ class WeatherArb:
                         token_id, strategy_tag, CITY_ICAO.get(city),
                         (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
                         fill.avg_fill_price, city, "FILLED",
+                        end_date=end_date,
                     )
             if fill.status == OrderStatus.FILLED and fill.total_size > 0:
                 from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
@@ -1151,10 +1159,12 @@ class WeatherArb:
                 await self._poll_metars()
                 # 3. Dynamic exit evaluation (nowcast collapse) + orphaned order cancellation
                 await self._evaluate_dynamic_exits()
-                # 4. Scan ALL today's markets for intraday arb (heating ramp window)
+                # 4. WU transition check — sell confirmed losers immediately when WU posts the daily high
+                await self._check_wu_transitions()
+                # 5. Scan ALL today's markets for intraday arb (heating ramp window)
                 if INTRADAY_ENABLED:
                     await self._intraday_scan()
-                # 5. Tail sniper on $0.01–$0.04 tokens
+                # 6. Tail sniper on $0.01–$0.04 tokens
                 if TAIL_SNIPER_ENABLED:
                     await self._tail_sniper_check()
             except Exception:
@@ -1798,6 +1808,7 @@ class WeatherArb:
                     token_id, "STRAT_3_INTRADAY", icao,
                     (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
                     fill.avg_fill_price, city, "FILLED",
+                    end_date=mkt.get("endDate", "")[:10],
                 )
                 return True
             self._close_position(token_id)
@@ -1996,6 +2007,7 @@ class WeatherArb:
                         token_id, "STRAT_4_TAIL_SNIPER", icao,
                         (lo_c, hi_c), 0.0, None,
                         fill.avg_fill_price, city, "FILLED",
+                        end_date=mkt.get("endDate", "")[:10],
                     )
                     logger.info("[WA] TAIL ENTRY %s %s filled=%d @ %.4f",
                                 city, trigger_tag, int(fill.total_size), fill.avg_fill_price)
@@ -2005,6 +2017,111 @@ class WeatherArb:
             except Exception:
                 self._fired_tokens.discard(token_id)
                 logger.exception("[WA] tail sniper entry error %s", city)
+
+    async def _check_wu_transitions(self) -> None:
+        """
+        Read newly appended actual events from forecast_actuals.jsonl and match them
+        against open FILLED positions.
+
+        For each new actual (event="actual"):
+          - Match on: city_slug == CITY_NAME_TO_SLUG[pos["city"]]
+                  AND valid_day == pos["end_date"]   ← critical: same weather day, same market
+          - If wu_high_c NOT in [lo_c, hi_c): position is a confirmed loser → sell immediately.
+          - If wu_high_c IS in [lo_c, hi_c): confirmed winner → log, hold to resolution.
+
+        Uses a byte-offset cursor (_wu_actuals_offset) so each cycle only processes new lines.
+        """
+        from pathlib import Path as _Path
+        import json as _json
+        from analysis.weather.live_accumulator import ACTUALS_FILE
+
+        actuals_path = _Path(ACTUALS_FILE)
+        if not actuals_path.exists():
+            return
+
+        new_actuals: list[dict] = []
+        try:
+            with actuals_path.open("rb") as fh:
+                fh.seek(self._wu_actuals_offset)
+                chunk = fh.read()
+                self._wu_actuals_offset = actuals_path.stat().st_size
+            for line in chunk.decode("utf-8", errors="replace").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                if rec.get("event") == "actual":
+                    new_actuals.append(rec)
+        except Exception:
+            logger.exception("[WA] WU transition check failed reading actuals file")
+            return
+
+        if not new_actuals:
+            return
+
+        for actual in new_actuals:
+            city_slug  = actual.get("city_slug", "")
+            valid_day  = actual.get("valid_day", "")
+            wu_high_c  = actual.get("wu_high_c")
+            if not city_slug or not valid_day or wu_high_c is None:
+                continue
+
+            for token_id, pos in list(self._positions.items()):
+                if pos.get("status") != "FILLED":
+                    continue
+                pos_city = pos.get("city", "")
+                pos_slug = CITY_NAME_TO_SLUG.get(pos_city, "")
+                pos_date = pos.get("end_date", "")
+
+                # Guard: only act when slug AND date match exactly.
+                if pos_slug != city_slug or pos_date != valid_day:
+                    continue
+
+                lo_c = pos.get("lo_c")
+                hi_c = pos.get("hi_c")
+                if lo_c is None or hi_c is None:
+                    continue
+
+                in_bucket = lo_c <= wu_high_c < hi_c
+
+                if in_bucket:
+                    logger.info(
+                        "[WA] WU_CONFIRMED_WINNER %s %s wu=%.1f°C bucket=[%.1f,%.1f) → hold to resolution",
+                        city_slug, valid_day, wu_high_c, lo_c, hi_c,
+                    )
+                    continue
+
+                # Confirmed loser — sell immediately to salvage capital.
+                logger.warning(
+                    "[WA] WU_CONFIRMED_LOSER %s %s wu=%.1f°C NOT in bucket=[%.1f,%.1f) → SELL NOW",
+                    city_slug, valid_day, wu_high_c, lo_c, hi_c,
+                )
+                if DRY_RUN_LOG:
+                    logger.info("[WA] [DRY] would sell loser %s", token_id[:12])
+                    continue
+                try:
+                    risk_pos = self.bot.risk.open_positions.get(token_id)
+                    if risk_pos is None:
+                        self._close_position(token_id)
+                        continue
+                    current_bid = getattr(risk_pos, "current_price", 0.0) or 0.0
+                    sell_price  = round(max(0.01, current_bid - 0.01), 4)
+                    await self.bot.orders.limit_sell(
+                        token_id=token_id,
+                        price=sell_price,
+                        size=risk_pos.shares,
+                        condition_id=risk_pos.condition_id,
+                    )
+                    self._close_position(token_id)
+                    logger.info(
+                        "[WA] WU_EXIT sold %s @ %.4f (bid was %.4f)",
+                        token_id[:12], sell_price, current_bid,
+                    )
+                except Exception:
+                    logger.exception("[WA] WU_EXIT sell failed %s", token_id[:12])
 
     def _select_bracket(
         self, candidates: list[tuple[dict, dict]]
