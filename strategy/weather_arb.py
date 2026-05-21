@@ -547,6 +547,7 @@ class WeatherArb:
     def __init__(self, bot) -> None:
         self.bot = bot
         self._fired_tokens: set[str] = set()
+        self._fired_city_dates: set[str] = set()  # "(city, date)" — one bucket per city/day
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
@@ -773,6 +774,12 @@ class WeatherArb:
         if token_id in self._fired_tokens:
             return None
 
+        # Neg-risk dedup: all buckets for the same city/date are mutually exclusive.
+        # Once any bucket is filled, block every other bucket for that city/date.
+        _city_date_key = f"{city}|{end_date}"
+        if _city_date_key in self._fired_city_dates:
+            return None
+
         lo_c, hi_c, is_celsius = _parse_outcome(question)
         if lo_c is None and hi_c is None:
             return None
@@ -850,6 +857,7 @@ class WeatherArb:
         neg_risk  = mkt.get("negRisk", True)
 
         self._fired_tokens.add(token_id)
+        self._fired_city_dates.add(f"{city}|{end_date}")
 
         logger.info("[WA] ENTER city=%s date=%s poly=%.3f fair=%.3f stake=$%.0f%s",
                     city, end_date, poly_price, fair_prob, stake,
