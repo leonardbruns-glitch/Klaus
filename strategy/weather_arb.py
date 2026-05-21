@@ -777,10 +777,12 @@ class WeatherArb:
         if lo_c is None and hi_c is None:
             return None
 
-        # Pre-entry METAR gate: if the live run_max already exceeds this bucket's
-        # ceiling, the outcome is impossible regardless of what the forecast says.
+        # Pre-entry METAR gate: only valid for same-day markets.
+        # If today's run_max already exceeds this bucket's ceiling, the outcome
+        # is impossible. For tomorrow's markets today's METAR is irrelevant.
+        _today = __import__("datetime").date.today().isoformat()
         _icao = CITY_ICAO.get(city)
-        if _icao and hi_c is not None:
+        if end_date == _today and _icao and hi_c is not None:
             _metar = self._icao_metar_cache.get(_icao)
             if _metar:
                 _run_max = _metar.get("running_max_c")
