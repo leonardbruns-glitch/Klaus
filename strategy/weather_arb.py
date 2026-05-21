@@ -3314,9 +3314,9 @@ class WeatherArb:
 
                 # Skill-weighted ensemble mean + BLUE combined sigma.
                 # Falls back to arithmetic mean + ASOS floor when skill matrix absent.
+                elev = CITY_ELEVATION_M.get(city, 0.0)   # defined always — used by elev_tag below
                 cal_sigma = CITY_SIGMA_C.get(_slug, {}).get(_month)
                 if cal_sigma is None:
-                    elev = CITY_ELEVATION_M.get(city, 0.0)
                     cal_sigma = ELEVATION_SIGMA_FLOOR if elev > ELEVATION_THRESHOLD_M else 1.0
                 # Defense against σ collapse: when fewer than MIN_MODELS_FOR_ENTRY models
                 # respond, the ensemble spread is structurally underestimated. Either skip
