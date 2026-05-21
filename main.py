@@ -366,9 +366,8 @@ class KlausBot:
         self.lda_strategy.enabled = False
         # VOLARB disabled 2026-05-19 (user instruction).
         self.volarb_strategy = None
-        # CAS-LowAsk — cross-asset synchrony × cheap-ask cheap-tail. $5 stake, max 2 concurrent.
-        from strategy.cas_lowask import CASLowAsk
-        self.cas_lowask_strategy = CASLowAsk(self)
+        # CAS-LowAsk — DISABLED 2026-05-21: weather-only live mode
+        self.cas_lowask_strategy = None
         # SPORTS_COPY — slippage-tolerant wallet copy-trade. Shadow mode on first deploy.
         # 5 wallets selected from 1.06M-wallet harvest (2026-05-19); combined 157 cycles, 539 trades/30d.
         from strategy.sports_copy import SportsCopy
