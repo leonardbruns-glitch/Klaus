@@ -1134,6 +1134,12 @@ class RiskManager:
                     pos.entry_snap_30s_pct, pos.entry_snap_60s_pct,
                 )
 
+        # WEATHER_ARB / UPDOWN: hold to resolution (1.0 or 0.0).
+        # All intraday profit and stop exits (Stage-1, Moon Bag, Ratchet, signal-flip, etc.)
+        # are wrong for multi-hour daily-resolution markets. Managed by weather_arb._monitor_positions.
+        if getattr(pos, "bond_entry_class", "") in ("WEATHER_ARB", "UPDOWN"):
+            return None
+
         # ── 3. Stage-1 profit: 60% of fair-value gap ────────────────────────────
         # Thesis: we entered because PM hasn't priced in the Binance move.
         # TP1 = entry + 60% of (FV - entry) — take partial profits at 60% of gap closed.
@@ -1364,10 +1370,6 @@ class RiskManager:
             pos.binance_reversal_count += 1
         else:
             pos.binance_reversal_count = 0
-
-        # Hold-to-resolution strategies: no intraday exits apply at all
-        if getattr(pos, "bond_entry_class", "") in ("WEATHER_ARB", "UPDOWN"):
-            return None
 
         # -2. Phase 1 immunity zone — soft exits disabled, catastrophic stop only
         # All SIGNAL_FLIPPED / VELOCITY_EXIT / SL_15S are below this return None,
