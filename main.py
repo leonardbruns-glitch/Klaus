@@ -387,9 +387,8 @@ class KlausBot:
         # CITY-CENTRE ARB — structural retail-mispricing harvester. GTC maker, hold to resolution.
         from strategy.city_centre_arb import CityCentreArb
         self.city_centre_arb = CityCentreArb(self)
-        # NO-SIDE ARB — mirror of STRAT_1 on NO tokens. GTC maker, hold to resolution.
-        from strategy.no_side_arb import NoSideArb
-        self.no_side_arb = NoSideArb(self)
+        # NO-SIDE ARB — DISABLED 2026-05-21: bought NO when YES already held same bucket
+        self.no_side_arb = None
         # Safety guards: $40 ring-fenced sub-bankroll, $10/trade cap, -$10/day kill
         # Gap sweeper DISABLED alongside oracle sweep (same deployment batch).
         self.gap_sweeper = None
@@ -574,17 +573,19 @@ class KlausBot:
         # previous sessions. Delayed 10s to let the feed populate token list first.
         asyncio.create_task(self._startup_orphan_sweep())
 
-        # SPORTS_COPY wallet poller starts here (shadow or live based on .live_mode)
-        try:
-            await self.sports_copy.start()
-        except Exception:
-            logger.exception("sports_copy start failed")
-
-        # CryptoUpDown — 15-min Up/Down prediction markets (DRY_RUN_LOG=True initially)
-        try:
-            self.updown_strategy.start()
-        except Exception:
-            logger.exception("updown_strategy start failed")
+        # ── 2026-05-21: LEGACY STRATEGIES PAUSED — exclusive weather focus ──
+        # Code path preserved (importable, instantiable) so re-enabling is one-line.
+        # Capital, scan cycles, and CLOB calls are reserved for weather strategies.
+        if False:   # SPORTS_COPY — paused 2026-05-21
+            try:
+                await self.sports_copy.start()
+            except Exception:
+                logger.exception("sports_copy start failed")
+        if False:   # CryptoUpDown — paused 2026-05-21
+            try:
+                self.updown_strategy.start()
+            except Exception:
+                logger.exception("updown_strategy start failed")
 
         # WeatherArb — daily temperature prediction arb (DRY_RUN_LOG=True initially)
         try:
@@ -604,11 +605,7 @@ class KlausBot:
         except Exception:
             logger.exception("city_centre_arb start failed")
 
-        # NO-SIDE ARB — mirror of STRAT_1 on NO tokens
-        try:
-            self.no_side_arb.start()
-        except Exception:
-            logger.exception("no_side_arb start failed")
+        # NO-SIDE ARB — disabled 2026-05-21
 
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())
