@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-21T15:04:56Z
+# Snapshot: 2026-05-21T15:20:11Z
 # Latest commit on klaus:
-ade7057f weather: remaining-rise gate for STRAT_4 hot entries
+a8c819ed fix: cap INTRADAY stake at 75% of bankroll to prevent over-sizing
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

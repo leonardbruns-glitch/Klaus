@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+a8c819ed fix: cap INTRADAY stake at 75% of bankroll to prevent over-sizing
 ade7057f weather: remaining-rise gate for STRAT_4 hot entries
 97aec0a9 weather: full ASOS calibration for all 23 cities + sigma floor fix
 0491483d Watchdog 2026-05-21T14:18:50Z: CRITICAL 2 alerts — CAPITAL_RUIN CAPITAL_DROP
@@ -11,13 +12,12 @@ d7fde86f fix: HARD_EXIT + sigma floor + INTRADAY city dedup for weather position
 4fda7fc2 fix: raise STRAT_4 tail price ceiling 0.04→0.08
 c688f3ac fix: seasonal gate for STRAT_4 HOT base-rate triggers
 caeac8da state: log weather audit fixes (c50c56cc)
-c50c56cc audit: fix weather position tracking — exit gates, city scope, trade logs
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   62G       32G  67% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 15:05:07 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 15:14:59 UTC
 
 ## Open positions (count):
 0
