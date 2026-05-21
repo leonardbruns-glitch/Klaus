@@ -91,7 +91,8 @@ CLOB_TICK        = 0.01      # minimum price increment for weather markets
 # ── Tail-risk sniper ($0.01–$0.04 tokens) ────────────────────────────────────
 TAIL_SNIPER_ENABLED  = True
 TAIL_PRICE_LO        = 0.01   # minimum token price for tail sniper
-TAIL_PRICE_HI        = 0.04   # maximum token price for tail sniper
+TAIL_PRICE_HI        = 0.08   # maximum token price for tail sniper (raised 0.04→0.08: live data shows
+                               # meaningful HOT-bias edge at $0.04-$0.08, gap filter already gates reachability)
 TAIL_STAKE_TOKENS    = 500    # flat share count (= $5–$20 total risk, max loss clearly bounded)
 FOEHN_TEMP_RISE_C    = 1.5    # °C rapid rise in one 30-min METAR cycle → anomaly trigger
 FOEHN_DEW_SPREAD_C   = 10.0   # temp − dewpoint > this → dry air, Foehn-consistent
