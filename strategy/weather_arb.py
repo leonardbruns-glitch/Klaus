@@ -147,6 +147,15 @@ BUCKET_SWITCH_MU_DELTA = 0.5    # min °C shift in ensemble mu required to trigg
 # Cities excluded from STRAT_1 overnight entries: forecast σ_real > 3°C, near-coin-flip WR
 STRAT1_SKIP_CITIES = {"denver"}  # σ_blue=0.97 → real D+1 WR ≈ 34%, fee-negative
 
+# Validated set from analysis/weather/stations.py (23 cities with confirmed WU source + 5yr calibration).
+# _scan() filters to this set so STRAT_1/2 never trade unvalidated cities.
+VALIDATED_CITY_SLUGS: frozenset = frozenset({
+    "nyc", "chicago", "los-angeles", "miami", "san-francisco", "tokyo", "london",
+    "dallas", "houston", "seattle", "denver", "atlanta", "paris", "madrid",
+    "amsterdam", "beijing", "shanghai", "singapore", "jakarta", "toronto",
+    "mexico-city", "buenos-aires", "sao-paulo",
+})
+
 
 def _compute_scalp_tp(entry: float, fair: float) -> float:
     """Scalp exits disabled: all positions hold to resolution or METAR/nowcast exit.
@@ -699,8 +708,13 @@ class WeatherArb:
         for ev in events:
             city = _parse_city(ev.get("title", ""))
 
-            # Skip cities where overnight D+1 forecast edge is structurally too thin
+            # Only trade the 23 validated cities (stations.py + 5yr skill matrix + WU source confirmed).
             city_slug = CITY_NAME_TO_SLUG.get(city, "")
+            if city_slug not in VALIDATED_CITY_SLUGS:
+                logger.debug("[WA] SKIP %s (not in validated 23 cities)", city)
+                continue
+
+            # Skip cities where overnight D+1 forecast edge is structurally too thin
             if city_slug in STRAT1_SKIP_CITIES:
                 logger.debug("[WA] SKIP %s (STRAT1_SKIP_CITIES — low overnight WR)", city)
                 continue
@@ -995,7 +1009,7 @@ class WeatherArb:
                     window_end_ts=0.0,
                     is_bond=True,
                     bond_outcome_direction="up",
-                    bond_entry_class="WEATHER_ARB",
+                    bond_entry_class="WEATHER_BRACKET" if strategy_tag == "STRAT_2_BRACKET" else "WEATHER_ARB",
                 )
                 # Hold-favourites / scalp-mids: store scalp_tp on the position meta
                 # so the WS BBO callback (_ws_bond_tp_check) can fire instantly when
@@ -1008,6 +1022,7 @@ class WeatherArb:
                 _meta["bucket_hi_c"] = bucket_hi_c
                 _meta["icao"] = CITY_ICAO.get(city)
                 _meta["city"] = city
+                _meta["signal_source"] = f"WEATHER/{city}/{strategy_tag}"
                 _meta["running_max_c"] = None
                 _meta["last_obs_time"] = 0
                 # Register the token with the feed so the CLOB WS subscribes to its
@@ -1826,6 +1841,9 @@ class WeatherArb:
                     bond_outcome_direction="up",
                     bond_entry_class="WEATHER_INTRADAY",
                 )
+                _intra_meta = self.bot._open_meta.setdefault(token_id, {})
+                _intra_meta["signal_source"] = f"WEATHER/{city}/STRAT_3_INTRADAY"
+                _intra_meta["city"] = city
                 self._register_position(
                     token_id, "STRAT_3_INTRADAY", icao,
                     (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
@@ -2058,6 +2076,9 @@ class WeatherArb:
                         bond_entry_class="WEATHER_TAIL",
                     )
                     # STRAT_4 positions are held to maturity — dynamic exit module skips them.
+                    _tail_meta = self.bot._open_meta.setdefault(token_id, {})
+                    _tail_meta["signal_source"] = f"WEATHER/{city}/STRAT_4/{trigger_tag}"
+                    _tail_meta["city"] = city
                     self._register_position(
                         token_id, "STRAT_4_TAIL_SNIPER", icao,
                         (lo_c, hi_c), 0.0, None,
