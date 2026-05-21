@@ -1373,6 +1373,11 @@ class RiskManager:
         else:
             pos.binance_reversal_count = 0
 
+        # -1. Weather positions hold to resolution — no dynamic exits at any phase
+        _entry_class = getattr(pos, "bond_entry_class", "")
+        if _entry_class.startswith("WEATHER_"):
+            return None
+
         # -2. Phase 1 immunity zone — soft exits disabled, catastrophic stop only
         # All SIGNAL_FLIPPED / VELOCITY_EXIT / SL_15S are below this return None,
         # so they are structurally unreachable during Phase 1.
@@ -1391,11 +1396,6 @@ class RiskManager:
             pos.sl_breach_llm_queried = False
             pos.velocity_breach_ts = 0.0
             pos.signal_flip_ts = 0.0
-            return None
-
-        # 0. All dynamic exits skip weather positions — they hold to resolution
-        _entry_class = getattr(pos, "bond_entry_class", "")
-        if _entry_class.startswith("WEATHER_"):
             return None
 
         if current_price <= 0.20:
