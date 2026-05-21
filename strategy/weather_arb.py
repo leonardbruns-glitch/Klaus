@@ -2131,9 +2131,9 @@ class WeatherArb:
     def _get_bankroll(self) -> float:
         """Current usable bankroll from the risk manager."""
         try:
-            return float(self.bot.risk.bankroll)
+            return float(self.bot.risk.bankroll.capital)
         except Exception:
-            return 200.0  # conservative fallback
+            return 30.0  # conservative fallback
 
     async def _fetch_book_and_vwap(
         self, token_id: str, stake_usd: float
