@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+ce1f60b1 feat: three meteorological upgrades to intraday nowcast
+b788654c Watchdog 2026-05-21T19:18:09Z: OK (3 anomalies backoff: CAPITAL_RUIN/VOLARB_DD/VOLARB_SILENT)
+e89f732c Watchdog 2026-05-21T18:21:09Z: OK (3 anomalies backoff: CAPITAL_RUIN/VOLARB_DD/VOLARB_SILENT)
+6ec1552f Watchdog 2026-05-21T17:18:19Z: MEDIUM 2 alerts (VOLARB_DD/VOLARB_SILENT re-confirmed; CAPITAL_RUIN backoff)
 bb8516b6 fix: block tail HOT entries past peak hour — remaining-rise gate used wrong metric
 b52af253 fix: extend PROFIT_1 and hard-exit guards to all WEATHER_* classes
 1632c561 Watchdog 2026-05-21T16:18:43Z: OK (3 anomalies backoff: CAPITAL_RUIN/VOLARB_DD/VOLARB_SILENT)
 487c1333 fix: CATASTROPHIC_SL fires on WEATHER_* in Phase-1 immunity zone
 581aa1af fix: exempt all WEATHER_* from cascade abort check
 354a67d1 feat: per-position allocation = strat_alloc/4, up to 4 positions per strat
-824feaa3 feat: rebalance strat allocations — 40/40/10/10
-421962c0 feat: STRAT_4 tail sniper capped at 15% bankroll (vs 25% for others)
-0657a65f feat: per-strategy 25% bankroll allocation across all 4 strats
-bf608906 fix: seed _fired_tokens from open positions on startup
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   62G       31G  68% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-21 17:04:23 UTC
+ActiveEnterTimestamp=Thu 2026-05-21 19:33:19 UTC
 
 ## Open positions (count):
 0
