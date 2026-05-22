@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Strategy parameters ──────────────────────────────────────────────────────
-NOSIDE_ENABLED            = True
+NOSIDE_ENABLED            = False  # paused 2026-05-22: STRAT_1-only mode
 NOSIDE_MIN_POLY_YES       = 0.50    # only consider NO when YES priced as majority
 NOSIDE_MAX_POLY_YES       = 0.85    # very-deep favorites are reliably right
 NOSIDE_EDGE_MIN           = 0.08    # net edge after rebate

@@ -630,23 +630,23 @@ class KlausBot:
         except Exception:
             logger.exception("weather_arb start failed")
 
-        # NWP-LAG — HFT-style latency arb at NWP publish slots
-        try:
-            self.nwp_lag.start()
-        except Exception:
-            logger.exception("nwp_lag start failed")
+        if False:  # NWP-LAG — paused 2026-05-22: STRAT_1-only mode
+            try:
+                self.nwp_lag.start()
+            except Exception:
+                logger.exception("nwp_lag start failed")
 
-        # CITY-CENTRE ARB — set-and-forget structural mispricing
-        try:
-            self.city_centre_arb.start()
-        except Exception:
-            logger.exception("city_centre_arb start failed")
+        if False:  # CITY-CENTRE ARB — paused 2026-05-22: STRAT_1-only mode
+            try:
+                self.city_centre_arb.start()
+            except Exception:
+                logger.exception("city_centre_arb start failed")
 
-        # NO-SIDE ARB — tomorrow-only, YES-conflict gate added 2026-05-21
-        try:
-            self.no_side_arb.start()
-        except Exception:
-            logger.exception("no_side_arb start failed")
+        if False:  # NO-SIDE ARB — paused 2026-05-22: STRAT_1-only mode
+            try:
+                self.no_side_arb.start()
+            except Exception:
+                logger.exception("no_side_arb start failed")
 
         ob_task = asyncio.create_task(self._ob_scan_loop())
         signal_task = asyncio.create_task(self._signal_loop())

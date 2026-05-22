@@ -95,13 +95,13 @@ BRACKET_MAX_PROB_GAP = 0.15  # reject bracket if top-two fair_probs differ by mo
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
-STAKE_USD    = 25.0    # fallback flat stake (used if Kelly is disabled or bankroll unavailable)
+STAKE_USD    = 5.0     # fallback flat stake (2026-05-22: $5 cap, STRAT_1 only mode)
 
 # ── Fractional Kelly position sizing ─────────────────────────────────────────
 KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
-KELLY_MAX_USD    = 60.0   # ceiling: hard capital cap per weather position
+KELLY_MAX_USD    = 5.0    # ceiling: hard cap $5/position (2026-05-22: calibration mode)
 OVERNIGHT_ALLOC  = 0.55   # STRAT_1 overnight: 55% (was 40% + 15% from retired CITYCTR)
 INTRADAY_ALLOC   = 0.40   # STRAT_3 intraday: 40% of bankroll total
 BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll total
@@ -127,7 +127,7 @@ NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) dro
 SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss is tiny)
 
 # ── Intraday METAR arb (front-running WU→Polymarket lag) ─────────────────────
-INTRADAY_ENABLED      = True   # master switch for today's-markets trading
+INTRADAY_ENABLED      = False  # disabled 2026-05-22: STRAT_1-only mode
 INTRADAY_MIN_PROB     = 0.80   # minimum nowcast P(bucket) to enter today's market
 INTRADAY_MIN_PROB_HI_PREC = 0.72  # lower threshold for high-precision cities (σ_blue < 0.45°C)
 INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less spread required)
@@ -155,7 +155,7 @@ TAKER_EDGE_MIN   = 0.15      # override to taker when edge this large (captures 
 CLOB_TICK        = 0.01      # minimum price increment for weather markets
 
 # ── Tail-risk sniper ($0.01–$0.04 tokens) ────────────────────────────────────
-TAIL_SNIPER_ENABLED  = True
+TAIL_SNIPER_ENABLED  = False  # disabled 2026-05-22: STRAT_1-only mode
 TAIL_PRICE_LO        = 0.01   # minimum token price for tail sniper
 TAIL_PRICE_HI        = 0.08   # maximum token price for tail sniper (raised 0.04→0.08: live data shows
                                # meaningful HOT-bias edge at $0.04-$0.08, gap filter already gates reachability)
