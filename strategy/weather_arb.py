@@ -80,7 +80,7 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.40   # minimum fair probability for the best bucket (must have majority conviction)
+MIN_FAIR_PROB = 0.45   # minimum fair probability for the best bucket (must have majority conviction)
 ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
 ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
@@ -172,6 +172,9 @@ RR_CV                 = 0.35   # coefficient of variation proxy: std(remaining_r
 
 # Cities with σ_blue < 0.45°C (8 regional models) — lower intraday prob threshold applies
 INTRADAY_HI_PREC_CITIES = {"amsterdam", "paris", "madrid", "london"}
+# Only run INTRADAY arb in city-months where σ < this threshold.
+# High-σ months don't generate the fair_prob ≥ 0.90 needed for a reliable WU-lag scalp.
+INTRADAY_SIGMA_CAP = 0.65
 # Example: peak_hour=16 UTC → window opens at UTC 11 (7 AM EDT), closes at peak+1=17
 TODAY_MARKETS_TTL     = 1800   # seconds between today's-market list refreshes (30 min)
 
@@ -1119,6 +1122,11 @@ class WeatherArb:
         # _on_weather_bbo() fires _enter() the moment ask drops to min_ask.
         self._near_threshold_watchlist: dict[str, dict] = {}
 
+        # INTRADAY scalp TP tracking: token_id → resting sell price (fair_prob - 0.05).
+        # Set when a GTC limit_sell is placed post-fill. Cleaned up when bid reaches the TP
+        # (via _on_weather_bbo), when NOWCAST exit fires, or on market resolution.
+        self._intraday_scalp_tp: dict[str, float] = {}
+
         # NWP freshness probe: last observed ensemble μ per reference city.
         # Seeded on startup; compared each scan cycle to detect when Open-Meteo
         # has ingested a new model run.
@@ -1596,7 +1604,20 @@ class WeatherArb:
         )
 
     async def _on_weather_bbo(self, token_id: str, bid: float) -> None:
-        """BBO callback: fire _enter() the moment a watched token's ask drops to threshold."""
+        """BBO callback: scalp TP monitoring for INTRADAY, and watchlist entry firing."""
+        # INTRADAY scalp TP: bid reached our resting sell → position filled, clean up tracker
+        if token_id in self._intraday_scalp_tp:
+            scalp_tp = self._intraday_scalp_tp[token_id]
+            if bid >= scalp_tp:
+                logger.info(
+                    "[WA] INTRADAY SCALP TP HIT %s bid=%.3f tp=%.3f → tracker closed",
+                    token_id[:12], bid, scalp_tp,
+                )
+                del self._intraday_scalp_tp[token_id]
+                self._close_position(token_id)
+                self._fired_tokens.discard(token_id)
+            return  # active position — don't process watchlist
+
         entry = self._near_threshold_watchlist.get(token_id)
         if entry is None:
             return
@@ -2345,6 +2366,13 @@ class WeatherArb:
             if DRY_RUN_LOG:
                 logger.info("[WA] [DRY] would sell %s @ %.3f", token_id[:12], current_bid - 0.01)
                 continue
+            # Cancel any pending intraday scalp TP sell before placing emergency exit
+            if token_id in self._intraday_scalp_tp:
+                try:
+                    await self.bot.orders.cancel(token_id=token_id)
+                except Exception:
+                    pass
+                del self._intraday_scalp_tp[token_id]
             try:
                 await self.bot.orders.limit_sell(
                     token_id=token_id,
@@ -2473,6 +2501,11 @@ class WeatherArb:
         if not self._today_markets_cache:
             return
 
+        # Clean up scalp TP entries for positions that have already closed externally
+        for tid in list(self._intraday_scalp_tp):
+            if tid not in self._positions:
+                del self._intraday_scalp_tp[tid]
+
         for entry in self._today_markets_cache:
             city = entry["city"]
             icao = entry["icao"]
@@ -2500,6 +2533,15 @@ class WeatherArb:
             slug      = CITY_NAME_TO_SLUG.get(city, "")
             if slug not in VALIDATED_CITY_SLUGS:
                 continue
+
+            # Precision gate: only trade intraday in months where σ is sharp enough
+            # to generate fair_prob ≥ 0.90 from METAR certainty.
+            _sigma_intra = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, 1.0)
+            if _sigma_intra >= INTRADAY_SIGMA_CAP:
+                logger.debug("[WA] INTRADAY SKIP %s — σ=%.2f ≥ INTRADAY_SIGMA_CAP=%.2f M%02d",
+                             city, _sigma_intra, INTRADAY_SIGMA_CAP, now_utc.month)
+                continue
+
             peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
             lat, lon  = entry["lat"], entry["lon"]
 
@@ -2674,6 +2716,24 @@ class WeatherArb:
                     fill.avg_fill_price, city, "FILLED",
                     end_date=mkt.get("endDate", "")[:10],
                 )
+                # Scalp exit: resting GTC sell at fair_prob - 0.05.
+                # Fires when WU publishes confirmed daily max and market reprices up.
+                scalp_tp = round(fair_prob - 0.05, 4)
+                if scalp_tp > fill.avg_fill_price:
+                    try:
+                        await self.bot.orders.limit_sell(
+                            token_id=token_id,
+                            price=scalp_tp,
+                            size=fill.total_size,
+                            condition_id=mkt.get("conditionId", ""),
+                        )
+                        self._intraday_scalp_tp[token_id] = scalp_tp
+                        logger.info(
+                            "[WA] INTRADAY SCALP TP placed %s @ %.3f (fair=%.3f fill=%.3f)",
+                            city, scalp_tp, fair_prob, fill.avg_fill_price,
+                        )
+                    except Exception:
+                        logger.exception("[WA] scalp TP placement failed %s", city)
                 return True
             self._close_position(token_id)
             self._fired_tokens.discard(token_id)
