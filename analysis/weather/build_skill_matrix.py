@@ -58,6 +58,8 @@ MIN_N_REPORT = 5     # include cell in matrix only if n >= this (MIN_N_PER_MONTH
 # ecmwf_ifs025 excluded — returns all-null in archive.
 # gem_seamless = Canadian GEM; in live FORECAST_MODELS, available in archive.
 # metno_seamless included for EU even though not in FORECAST_MODELS (provides extra sigma info).
+# jma_seamless, ukmo_seamless: tested globally 2026-05-22 — net MAE degradation (+0.023°C avg,
+# worse in 19/36 cities); UKMO stays EU-only, JMA stays JP-only.
 ARCHIVE_MODELS_GLOBAL = ("era5", "era5_land", "gfs_seamless", "icon_seamless", "gem_seamless")
 ARCHIVE_MODELS_JP     = ARCHIVE_MODELS_GLOBAL + ("jma_seamless",)
 ARCHIVE_MODELS_EU     = ARCHIVE_MODELS_GLOBAL + ("ukmo_seamless", "metno_seamless", "meteofrance_seamless")
