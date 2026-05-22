@@ -1930,6 +1930,7 @@ class KlausBot:
                                         traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
                                         traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
                                         price_at_t10s=self._price_at_t10s.get(token_id),
+                                        extra_fields={k: v for k, v in _wo_meta.items() if k.startswith("weather_")},
                                     )
                                 except Exception as _woe:
                                     logger.error("record_trade BOND_RESOLVED_NO failed: %s", _woe)
@@ -5827,6 +5828,7 @@ class KlausBot:
                     traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
                     traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
                     price_at_t10s=self._price_at_t10s.get(token_id),
+                    extra_fields={k: v for k, v in meta.items() if k.startswith("weather_")},
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)

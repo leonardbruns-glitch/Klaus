@@ -1453,6 +1453,8 @@ class WeatherArb:
                 _meta["icao"] = CITY_ICAO.get(city)
                 _meta["city"] = city
                 _meta["signal_source"] = f"WEATHER/{city}/{strategy_tag}"
+                _meta["weather_question"] = question
+                _meta["weather_date"] = end_date
                 _meta["running_max_c"] = None
                 _meta["last_obs_time"] = 0
                 # Register the token with the feed so the CLOB WS subscribes to its
@@ -2352,6 +2354,8 @@ class WeatherArb:
                 _intra_meta = self.bot._open_meta.setdefault(token_id, {})
                 _intra_meta["signal_source"] = f"WEATHER/{city}/STRAT_3_INTRADAY"
                 _intra_meta["city"] = city
+                _intra_meta["weather_question"] = mkt.get("question", "")
+                _intra_meta["weather_date"] = mkt.get("endDate", "")[:10]
                 self._register_position(
                     token_id, "STRAT_3_INTRADAY", icao,
                     (bucket_lo_c, bucket_hi_c), fair_prob, expected_max_c,
@@ -2657,6 +2661,8 @@ class WeatherArb:
                     _tail_meta = self.bot._open_meta.setdefault(token_id, {})
                     _tail_meta["signal_source"] = f"WEATHER/{city}/STRAT_4/{trigger_tag}"
                     _tail_meta["city"] = city
+                    _tail_meta["weather_question"] = mkt.get("question", "")
+                    _tail_meta["weather_date"] = mkt.get("endDate", "")[:10]
                     self._register_position(
                         token_id, "STRAT_4_TAIL_SNIPER", icao,
                         (lo_c, hi_c), 0.0, None,

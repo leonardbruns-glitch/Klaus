@@ -480,6 +480,7 @@ class FeedbackEngine:
         window_outcome_price: float = 0.0,
         chainlink_price: float = 0.0,
         exit_price_uncertain: bool = False,
+        extra_fields: dict | None = None,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -730,7 +731,10 @@ class FeedbackEngine:
 
         self._recent.append(rec)
         self._session_trades.append(rec)
-        self._write_jsonl(self.cfg.trade_log, asdict(rec))
+        _rec_dict = asdict(rec)
+        if extra_fields:
+            _rec_dict.update(extra_fields)
+        self._write_jsonl(self.cfg.trade_log, _rec_dict)
 
         # Run diagnostics after each trade
         diag = self.run_diagnostics()
