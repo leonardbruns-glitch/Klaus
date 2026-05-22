@@ -45,6 +45,10 @@ _WU_URL_RE = re.compile(
     r"([A-Z]{3,4}[0-9A-Z]{0,6})"            # station code: uppercase ICAO or PWS id
 )
 
+# Some markets (Tel Aviv, Moscow, Istanbul) resolve via NOAA timeseries instead of WU:
+#   https://www.weather.gov/wrh/timeseries?site=LLBG
+_NOAA_URL_RE = re.compile(r"weather\.gov/wrh/timeseries\?site=([A-Z0-9]{3,6})")
+
 # ── Station coordinate table ────────────────────────────────────────────────
 # Physical lat/lon of the exact WU/ASOS sensor (airport tarmac, not city centre).
 # Source: FAA/ICAO published aerodrome reference points + WMO station tables.
@@ -88,7 +92,9 @@ STATION_COORDS: dict[str, tuple[float, float]] = {
     "LROP":  (44.5722,   26.1022),   # Bucharest Henri Coandă
     "LGAV":  (37.9364,   23.9445),   # Athens Venizelos
     "LTFJ":  (40.8986,   29.3092),   # Istanbul Sabiha Gökçen
+    "LTFM":  (41.2608,   28.7425),   # Istanbul Airport (new main, NOAA resolution)
     "UUEE":  (55.9736,   37.4125),   # Moscow Sheremetyevo
+    "UUWW":  (55.5915,   37.2613),   # Moscow Vnukovo (Polymarket NOAA resolution station)
     # Asia-Pacific
     "RKSI":  (37.4602,  126.4407),   # Seoul Incheon (confirmed Polymarket station)
     "RJTT":  (35.5494,  139.7798),   # Tokyo Haneda
@@ -147,17 +153,19 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def _extract_wu_station(text: str) -> Optional[str]:
     """
-    Extract the WU station code from a Polymarket market description.
+    Extract the resolution station code from a Polymarket market description.
 
-    Handles:
+    Handles WU URLs:
       wunderground.com/history/daily/kr/incheon/RKSI/...   → "RKSI"
       wunderground.com/history/daily/KLGA/date/2026-5-20   → "KLGA"
       wunderground.com/history/daily/us/tx/dallas/KDAL     → "KDAL"
+    And NOAA timeseries URLs (Tel Aviv, Moscow, Istanbul):
+      https://www.weather.gov/wrh/timeseries?site=LLBG     → "LLBG"
     Returns the uppercase station code, or None if not found.
     """
     if not text:
         return None
-    m = _WU_URL_RE.search(text)
+    m = _WU_URL_RE.search(text) or _NOAA_URL_RE.search(text)
     if not m:
         return None
     code = m.group(1).upper()

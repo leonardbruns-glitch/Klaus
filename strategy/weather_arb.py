@@ -375,7 +375,7 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
     "Bucharest":        (44.5722,  26.1022),   # LROP Henri Coandă
     "Athens":           (37.9364,  23.9445),   # LGAV Venizelos
     "Istanbul":         (40.8986,  29.3092),   # LTFJ Sabiha Gökçen
-    "Moscow":           (55.9736,  37.4125),   # UUEE Sheremetyevo
+    "Moscow":           (55.5915,  37.2613),   # UUWW Vnukovo (Polymarket NOAA resolution)
     "Riyadh":           (24.9576,  46.6988),   # OERK King Khalid Intl
     "Cairo":            (30.1219,  31.4056),   # HECA Cairo Intl
     "Lagos":            (6.5774,    3.3214),   # DNMM Murtala Muhammed
@@ -435,7 +435,7 @@ CITY_ICAO: dict[str, str] = {
     "Copenhagen": "EKCH", "Vienna": "LOWW", "Zurich": "LSZH",
     "Brussels": "EBBR", "Barcelona": "LEBL", "Rome": "LIRF",
     "Prague": "LKPR", "Budapest": "LHBP", "Bucharest": "LROP",
-    "Athens": "LGAV", "Istanbul": "LTFJ", "Moscow": "UUEE",
+    "Athens": "LGAV", "Istanbul": "LTFJ", "Moscow": "UUWW",
     "Riyadh": "OERK", "Cairo": "HECA", "Lagos": "DNMM",
     "Nairobi": "HKJK", "Johannesburg": "FAOR", "Mumbai": "VABB",
     "Delhi": "VIDP", "Dhaka": "VGHS", "Bangkok": "VTBS",
@@ -461,7 +461,7 @@ ICAO_UTC_OFFSET_H: dict[str, int] = {
     "EGLC":   0, "LFPB":   1, "LEMD":   1, "EHAM":   1, "LIMC":   1,
     "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1, "EFHK":   2, "KAUS":  -6,
     "LIRF":   1, "LKPR":   1, "LHBP":   1, "LROP":   2, "LGAV":   2,
-    "LTFJ":   3, "LTAC":   3, "UUEE":   3, "ESSA":   1,
+    "LTFJ":   3, "LTAC":   3, "UUEE":   3, "UUWW":   3, "ESSA":   1,
     "ENGM":   1, "EKCH":   1, "LOWW":   1, "LSZH":   1, "HECA":   2,
     "DNMM":   1, "HKJK":   3, "FAOR":   2, "FACT":   2, "OERK":   3,
     "OEJN":   3,
@@ -539,7 +539,7 @@ CITY_SIGMA_C: dict[str, dict[int, float]] = {
     "austin":      {1: 1.549, 2: 1.455, 3: 1.441, 4: 1.374, 5: 1.130, 6: 0.873, 7: 0.983, 8: 1.110, 9: 1.088, 10: 0.974, 11: 0.876, 12: 1.010},
     # Wave-3 (2026-05-22)
     "tel-aviv":    {1: 0.834, 2: 0.697, 3: 1.271, 4: 1.480, 5: 1.186, 6: 0.922, 7: 0.753, 8: 0.666, 9: 0.656, 10: 0.732, 11: 0.893, 12: 1.061},
-    "moscow":      {1: 0.702, 2: 0.676, 3: 0.930, 4: 0.931, 5: 0.718, 6: 0.658, 7: 0.670, 8: 0.758, 9: 0.660, 10: 0.622, 11: 0.653, 12: 0.674},
+    "moscow":      {1: 0.807, 2: 0.721, 3: 0.730, 4: 0.839, 5: 0.778, 6: 0.756, 7: 0.723, 8: 0.807, 9: 0.602, 10: 0.613, 11: 0.665, 12: 0.622},
     "guangzhou":   {1: 1.014, 2: 1.086, 3: 1.248, 4: 1.184, 5: 1.196, 6: 1.201, 7: 1.031, 8: 1.063, 9: 1.056, 10: 0.975, 11: 1.002, 12: 1.027},
     "shenzhen":    {1: 1.321, 2: 1.400, 3: 1.365, 4: 1.118, 5: 1.099, 6: 1.089, 7: 0.982, 8: 1.001, 9: 1.068, 10: 1.025, 11: 1.115, 12: 1.048},
 }
