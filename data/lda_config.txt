@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T09:59:13Z
+# Snapshot: 2026-05-22T10:14:42Z
 # Latest commit on klaus:
-0ec7f597 fix: add VALIDATED_CITY_SLUGS gate to STRAT_3/4/5/7
+9b514675 tune: ERA5-floor CITY_SIGMA_C, exclude LA/SF/NYC/Shanghai from STRAT_1, add SIGMA_SKIP_FLOOR=1.5
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

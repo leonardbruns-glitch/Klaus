@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+9b514675 tune: ERA5-floor CITY_SIGMA_C, exclude LA/SF/NYC/Shanghai from STRAT_1, add SIGMA_SKIP_FLOOR=1.5
 0ec7f597 fix: add VALIDATED_CITY_SLUGS gate to STRAT_3/4/5/7
 cf7c0780 tune: OVERNIGHT_ALLOC 0.40→0.55 — absorb retired CITYCTR allocation
 00a0c50d disable CITYCTR trading — passive divergence logger only
@@ -11,13 +12,12 @@ b37e6560 Watchdog 2026-05-22T09:19:11Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN
 12488953 feat: weather local time + price path — high_time_local from hourly obs, tz per city
 26235442 feat: auto-log weather resolution — immediate at exit + 4h backfill loop
 dd675509 fix: backfill also patches STARTUP_EXTERNALLY_SOLD orphans with blank bond_entry_class
-81bdf0da fix: backfill queries day-by-day — Gamma API caps wide date range at ~100 events
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   65G       29G  70% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 09:52:51 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 10:05:42 UTC
 
 ## Open positions (count):
 0
