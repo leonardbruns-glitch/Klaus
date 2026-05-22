@@ -167,7 +167,9 @@ INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less sprea
 INTRADAY_EDGE_MAX     = 0.40   # crowd-divergence gate: edge above this = broken model or anomaly
 INTRADAY_ASK_CAP      = 0.96   # upper price cap for intraday entries (raised: T-2h certainty buys)
 INTRADAY_STAKE_FRAC   = 0.60   # fractional Kelly multiplier for intraday (higher certainty → less fractional)
-INTRADAY_HI_POS_ALLOC = 0.20   # 20% of bankroll per position — only fires after σ < 0.65 gate ($20 at $100)
+INTRADAY_HI_PROB      = 0.90   # p threshold for $20 stake (requires σ < 0.65 gate already passed)
+INTRADAY_HI_POS_ALLOC = 0.20   # 20% of bankroll when p >= INTRADAY_HI_PROB ($20 at $100)
+# below INTRADAY_HI_PROB: INTRADAY_POS_ALLOC applies (10% = $10)
 INTRADAY_HEAT_RAMP_H  = 2      # 2026-05-21: tightened 5h→2h. First 3h were NWP-anchored
                                 # and structurally not where the METAR-lag edge lives.
                                 # Genuine edge appears in the final 2h before peak when
@@ -2684,7 +2686,8 @@ class WeatherArb:
             bankroll  = self._get_bankroll()
             kelly_f   = edge / max(0.01, 1.0 - poly_yes)
             raw_stake = INTRADAY_STAKE_FRAC * bankroll * kelly_f
-            stake     = max(5.0, min(50.0, bankroll * INTRADAY_HI_POS_ALLOC, raw_stake))
+            _pos_alloc = INTRADAY_HI_POS_ALLOC if p_intraday >= INTRADAY_HI_PROB else INTRADAY_POS_ALLOC
+            stake     = max(5.0, min(50.0, bankroll * _pos_alloc, raw_stake))
 
             if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake,
                                          expected_max_c=est_max):
