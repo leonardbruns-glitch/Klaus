@@ -195,6 +195,7 @@ CLOB_TICK        = 0.01      # minimum price increment for weather markets
 TAKER_FEE_RATE   = 0.02      # Polymarket taker fee (~2% on order value)
 
 # ── Upstream Oracle (STRAT_5) ─────────────────────────────────────────────────
+UPSTREAM_ORACLE_ENABLED = False  # shadow mode: log signals but don't enter
 DOWNSTREAM_FAIR_FLOOR = 0.50   # minimum bivariate-normal P(bucket) to consider entry
 DOWNSTREAM_ASK_CAP    = 0.55   # skip if market has already repriced above this
 DOWNSTREAM_EDGE_MIN   = 0.10   # minimum edge (fair_prob - ask)
@@ -3332,9 +3333,12 @@ class WeatherArb:
 
             stake = self._kelly_stake(best_prob, best_ask, OVERNIGHT_POS_ALLOC)
             logger.info(
-                "[Oracle] ENTER_CANDIDATE %s %s dir=%s fair=%.3f ask=%.3f edge=%.3f stake=$%.1f",
-                ds_slug, tomorrow, direction, best_prob, best_ask, best_edge, stake,
+                "[Oracle] SIGNAL trigger=%s→%s dir=%s fair=%.3f ask=%.3f edge=%.3f stake=$%.1f%s",
+                city_slug, ds_slug, direction, best_prob, best_ask, best_edge, stake,
+                " [SHADOW]" if not UPSTREAM_ORACLE_ENABLED else "",
             )
+            if not UPSTREAM_ORACLE_ENABLED:
+                continue
             await self._enter(
                 best_mkt, best_prob, best_ask,
                 ds_city,
