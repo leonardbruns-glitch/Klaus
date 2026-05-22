@@ -372,5 +372,28 @@ def main() -> None:
     print(f"rewrote {TRADES_PATH}")
 
 
+def run_backfill() -> None:
+    """Callable entry point for the bot's background backfill loop.
+
+    Equivalent to running main() with no arguments (uses default date range,
+    no dry-run).  Suppresses stdout so it doesn't pollute bot logs — outcomes
+    are visible in the next feedback.py run.
+    """
+    import logging as _log
+    _logger = _log.getLogger("backfill_weather")
+    try:
+        # Redirect print() to the module logger so output isn't swallowed silently
+        import builtins as _bt
+        _orig_print = _bt.print
+
+        def _log_print(*args, **kwargs):
+            _logger.info("[weather_backfill] %s", " ".join(str(a) for a in args))
+
+        _bt.print = _log_print
+        main()
+    finally:
+        _bt.print = _orig_print
+
+
 if __name__ == "__main__":
     main()

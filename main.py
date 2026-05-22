@@ -162,6 +162,44 @@ def _save_cooldown_state(state: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_WEATHER_CLASSES_SET = frozenset({
+    "WEATHER_ARB", "WEATHER_INTRADAY", "WEATHER_TAIL",
+    "WEATHER_NOSIDE", "WEATHER_CITYCTR", "WEATHER_BRACKET",
+})
+
+
+def _build_weather_extra(
+    meta: dict,
+    bond_entry_class: str,
+    exit_price: float,
+    shares: float,
+    entry_price: float,
+    stake: float,
+    net_pnl: float | None,
+) -> dict:
+    """Build extra_fields for record_trade for WEATHER_* positions.
+
+    Pulls weather_* metadata from meta (populated at entry).
+    For resolution exits (exit_price ≥ 0.99 or ≤ 0.01) also sets
+    entered_correctly and kline_pnl immediately — no backfill needed.
+    For intraday exits leaves them None; the backfill loop fills them in.
+    """
+    extra: dict = {k: v for k, v in meta.items() if k.startswith("weather_")}
+    if bond_entry_class not in _WEATHER_CLASSES_SET:
+        return extra
+    if exit_price >= 0.99:
+        extra["entered_correctly"] = True
+        extra["kline_pnl"] = round(net_pnl, 4) if net_pnl is not None else round(shares * (1.0 - entry_price), 4)
+    elif exit_price <= 0.01:
+        extra["entered_correctly"] = False
+        extra["kline_pnl"] = round(net_pnl, 4) if net_pnl is not None else round(-stake, 4)
+    return extra
+
+
+# ---------------------------------------------------------------------------
 # Bot
 # ---------------------------------------------------------------------------
 
@@ -617,6 +655,7 @@ class KlausBot:
         research_task = asyncio.create_task(self.research.run())
         prewarm_task = asyncio.create_task(self._prewarm_loop())
         redeem_task = asyncio.create_task(self.redeemer.run_loop(interval_s=60.0))
+        weather_backfill_task = asyncio.create_task(self._weather_backfill_loop())
 
         try:
             # return_exceptions=True: one task crashing doesn't cancel the others.
@@ -624,7 +663,7 @@ class KlausBot:
             # for exceptions that escape the loop (startup errors, NameError, etc.)
             results = await asyncio.gather(
                 ob_task, signal_task, report_task, heartbeat_task,
-                research_task, prewarm_task, redeem_task,
+                research_task, prewarm_task, redeem_task, weather_backfill_task,
                 return_exceptions=True,
             )
             for i, r in enumerate(results):
@@ -1930,7 +1969,10 @@ class KlausBot:
                                         traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
                                         traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
                                         price_at_t10s=self._price_at_t10s.get(token_id),
-                                        extra_fields={k: v for k, v in _wo_meta.items() if k.startswith("weather_")},
+                                        extra_fields=_build_weather_extra(
+                                            _wo_meta, pos.bond_entry_class, _wo_exit_price,
+                                            pos.shares, pos.entry_price, pos.stake, _wo_pnl,
+                                        ),
                                     )
                                 except Exception as _woe:
                                     logger.error("record_trade BOND_RESOLVED_NO failed: %s", _woe)
@@ -5828,7 +5870,10 @@ class KlausBot:
                     traj_mfe_30s=float(self._traj_mfe.get(token_id, {}).get(30, 0.0)),
                     traj_mae_30s=float(self._traj_mae.get(token_id, {}).get(30, 0.0)),
                     price_at_t10s=self._price_at_t10s.get(token_id),
-                    extra_fields={k: v for k, v in meta.items() if k.startswith("weather_")},
+                    extra_fields=_build_weather_extra(
+                        meta, pos.bond_entry_class, analytics_exit_price,
+                        all_shares, pos.entry_price, pos.stake, net_pnl,
+                    ),
                 )
             except Exception as _rec_exc:
                 logger.error("record_trade failed (trade still closed): %s", _rec_exc)
@@ -6968,6 +7013,24 @@ class KlausBot:
                 self.orders.prewarm_token_caches(self.feed.tokens)
 
     # ── 30-min report loop ────────────────────────────────────────────────────
+
+    async def _weather_backfill_loop(self) -> None:
+        """Runs weather resolution backfill on startup (after 2 min) then every 4 h.
+
+        Patches entered_correctly + kline_pnl + weather metadata for intraday
+        exits and STARTUP_EXTERNALLY_SOLD orphans where the Polymarket market has
+        since resolved.  Resolution exits (exit_price→1.0/0.0) are handled
+        immediately at record_trade time via extra_fields; this loop covers the
+        remaining cases.
+        """
+        await asyncio.sleep(120)   # let startup settle
+        while self._running:
+            try:
+                from analytics.backfill_weather_resolution import run_backfill
+                await asyncio.to_thread(run_backfill)
+            except Exception as _wbf_e:
+                logger.warning("weather backfill error: %s", _wbf_e)
+            await asyncio.sleep(4 * 3600)
 
     async def _report_loop(self) -> None:
         while self._running:
