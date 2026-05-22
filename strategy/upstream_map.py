@@ -15,6 +15,14 @@ Key empirical findings vs prior assumptions:
 - EU pairs are exceptionally strong (r=0.60-0.72) — dense Atlantic westerly network
 - Shanghai → Tokyo: r=0.54 (unexpected; East China Sea pathway)
 
+Backtest validation (oracle_backtest.py, 2026-05-22, ASOS 2015-2024, trigger |z|>2.0):
+- STRAT_5 bivariate-normal model: +22.5% Brier skill over climatology (OOS 2024: +22.6%)
+- Mean empirical conditional r (given |z|>2.0): 0.069 — SYNOPTIC_R=0.50 overestimates
+- Pairs removed for hit_rate < 35%: dallas→nyc/atlanta, austin→atlanta, beijing→shanghai,
+  guangzhou→taipei, qingdao→tokyo, madrid→munich/paris, warsaw→moscow,
+  shanghai→qingdao/taipei, atlanta→nyc
+- Best performing pairs: dallas→austin(80%), london→amsterdam(73%), london→paris(70%)
+
 SYNOPTIC_REGIONS: cities that share the same air mass simultaneously.
 Used for coherence check: require ≥2 cities from same region at z > ANOMALY_Z_MIN.
 Based on lag-0 proximity + lag-1 correlation structure.
@@ -74,17 +82,16 @@ SYNOPTIC_REGIONS: dict[str, list[str]] = {
 # r values shown are lag-1d summer ASOS correlations.
 DOWNSTREAM_SUMMER: dict[str, list[str]] = {
     # US Southern Plains → Southeast + Northeast corridor
-    "dallas":       ["austin",    # r=0.73 ★★★
-                     "houston",   # r=0.63 ★★★
-                     "atlanta",   # r=0.44 ★★
-                     "nyc"],      # r=0.33 ★  (lag-2 entry; enter if anomaly is ≥2.5σ)
+    "dallas":       ["austin",    # r=0.73 ★★★  backtest hit=80%
+                     "houston"],  # r=0.63 ★★★  backtest hit=58%
+    # dallas→atlanta (hit=31%), dallas→nyc (hit=31%) REMOVED: backtest below 35%
 
     "houston":      ["austin",    # r=0.67 ★★★
                      "atlanta"],  # r=0.32 ★
 
-    "austin":       ["dallas",    # r=0.73 (bidirectional — whoever peaks first is trigger)
-                     "houston",   # r=0.67
-                     "atlanta"],  # r=0.33 ★
+    "austin":       ["dallas",    # r=0.73  backtest hit=65%
+                     "houston"],  # r=0.67  backtest hit=68%
+    # austin→atlanta (hit=30%) REMOVED: backtest below 35%
 
     # US Midwest → Northeast corridor
     "chicago":      ["toronto",   # r=0.70 ★★★
@@ -93,7 +100,7 @@ DOWNSTREAM_SUMMER: dict[str, list[str]] = {
 
     "toronto":      ["nyc"],      # r=0.47 ★★
 
-    "atlanta":      ["nyc"],      # r=0.33 ★
+    # atlanta→nyc (hit=18.9%) REMOVED: backtest below 35%
 
     "nyc":          ["toronto"],  # r=0.47 (reverse of chicago→toronto; NYC→Toronto is real)
 
@@ -116,32 +123,30 @@ DOWNSTREAM_SUMMER: dict[str, list[str]] = {
                      "milan"],     # r=0.46 ★★
 
     # Iberian Peninsula (omega blocks → Central/Southern Europe)
-    "madrid":       ["milan",      # r=0.64 ★★★ (strongest Madrid pair empirically)
-                     "munich",     # r=0.45 ★★
-                     "paris"],     # r=0.45 ★★
+    "madrid":       ["milan"],     # r=0.64 ★★★  backtest hit=52%
+    # madrid→munich (hit=35.7%), madrid→paris (hit=33.9%) REMOVED: backtest below 40%
 
     # Central Europe → Eastern Europe
     "munich":       ["milan",      # r=0.64 ★★★
                      "warsaw"],    # r=0.63 ★★★
 
     # Northern Europe
-    "warsaw":       ["helsinki",   # r=0.57 ★★★
-                     "moscow"],    # r=0.50 ★★
+    "warsaw":       ["helsinki"],  # r=0.57 ★★★  backtest hit=45%
+    # warsaw→moscow (hit=28.9%) REMOVED: backtest below 35%
 
     "helsinki":     ["moscow"],    # r=0.67 ★★★
 
     # East Asia — East China Sea / Pacific westerly pathway
-    "shanghai":     ["tokyo",      # r=0.54 ★★★
-                     "qingdao",    # r=0.44 ★★
-                     "taipei"],    # r=0.38 ★
+    "shanghai":     ["tokyo"],     # r=0.54 ★★★  backtest hit=48%
+    # shanghai→qingdao (hit=23.9%), shanghai→taipei (hit=30.4%) REMOVED: backtest below 35%
 
-    "guangzhou":    ["shenzhen",   # r=0.52 ★★★
-                     "taipei"],    # r=0.28 (borderline; only fire on z>2.5)
+    "guangzhou":    ["shenzhen"],  # r=0.52 ★★★  backtest hit=48%
+    # guangzhou→taipei (hit=18.2%) REMOVED: backtest below 35%
 
-    "qingdao":      ["tokyo"],     # r=0.43 ★★
+    # qingdao→tokyo (hit=25.5%) REMOVED: backtest below 35%
 
-    "beijing":      ["qingdao",    # r=0.43 ★★
-                     "shanghai"],  # r≈0.35 (estimated; Beijing→Shanghai lag-1 not directly measured)
+    "beijing":      ["qingdao"],   # r=0.43 ★★  backtest hit=46%
+    # beijing→shanghai (hit=13.5%) REMOVED: backtest below 35%
 }
 
 # ── Winter downstream map (Oct–Mar) ──────────────────────────────────────────
