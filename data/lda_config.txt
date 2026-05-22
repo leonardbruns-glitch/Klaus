@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T21:20:23Z
+# Snapshot: 2026-05-22T21:35:40Z
 # Latest commit on klaus:
-66ab2d59 fix: STRAT_1 same-day NWP staleness gate — block today's markets within 5h of city peak
+5e9bc9ac feat: restore INTRADAY tiered stake — $10 below p=0.90, $20 at p>=0.90
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

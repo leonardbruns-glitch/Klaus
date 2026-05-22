@@ -1,24 +1,23 @@
 ## klaus systemd:
-deactivating
-unknown
+active
 
 ## Last 10 commits on klaus:
+5e9bc9ac feat: restore INTRADAY tiered stake — $10 below p=0.90, $20 at p>=0.90
+9f88efbb simplify: flat $20 for all intraday — σ gate is the quality filter
+7dd62bb1 feat: INTRADAY tiered stake — $20 when p >= 0.90, $10 otherwise
+b18b12d0 feat: raise STRAT_1 Kelly cap $5→$8; INTRADAY already at $10 via bankroll alloc
+d073a74f Watchdog 2026-05-22T21:18:00Z: MEDIUM 2 alerts
 66ab2d59 fix: STRAT_1 same-day NWP staleness gate — block today's markets within 5h of city peak
 ee0056d4 feat: intraday sigma gate + scalp TP exit + MIN_FAIR_PROB 0.45
 6ca8b0b4 remove LA/SF from STRAT1_SKIP: ERA5 unreliable for coastal cities
 f8ae4c85 feat: CLOB WS watchlist for near-threshold weather markets
 da36a179 fix: restore discard-on-abort — retry next scan when edge survives price move
-90e206fa fix: keep city locked on ABORT — don't chase price after slippage
-8a481f32 Watchdog 2026-05-22T20:18:23Z: HIGH 1 alert
-ec4ba7a7 fix: abort STRAT_1 entry when live CLOB ask erases edge
-3e42ec1f feat: re-enable INTRADAY_ENABLED — post-peak METAR certainty lock
-04172be7 Watchdog 2026-05-22T19:18:48Z: MEDIUM 2 alerts (backoff)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       27G  72% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 21:21:19 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 21:34:14 UTC
 
 ## Open positions (count):
 0
