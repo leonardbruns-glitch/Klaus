@@ -266,12 +266,20 @@ def main() -> None:
         except Exception:
             parsed.append(None)
 
-    # Find WEATHER_* candidates
+    # Find WEATHER_* candidates — includes STARTUP_EXTERNALLY_SOLD with blank class
+    # (those are positions recovered at startup where CLOB API returned 401, so
+    # exit_price was set to entry_price and net_pnl ≈ -fee even for actual wins).
     candidates = [
         (i, t) for i, t in enumerate(parsed)
         if t and t.get("is_live") and
-        t.get("bond_entry_class", "") in WEATHER_CLASSES and
-        t.get("entered_correctly") is None
+        t.get("entered_correctly") is None and
+        (
+            t.get("bond_entry_class", "") in WEATHER_CLASSES or
+            (
+                t.get("exit_reason", "").startswith("STARTUP_EXTERNALLY_SOLD") and
+                t.get("bond_entry_class", "") == ""
+            )
+        )
     ]
     print(f"WEATHER_* trades needing resolution: {len(candidates)}")
     if not candidates:
@@ -309,6 +317,10 @@ def main() -> None:
         # Always write the question/metadata even if resolution is still pending
         for k, v in weather_meta.items():
             parsed[i][k] = v
+
+        # Tag unclassified orphan recoveries so they appear in weather reports
+        if not parsed[i].get("bond_entry_class"):
+            parsed[i]["bond_entry_class"] = "WEATHER_STARTUP_ORPHAN"
 
         if entered_correctly is None:
             unresolved += 1
