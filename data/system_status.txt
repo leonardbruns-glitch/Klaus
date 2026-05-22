@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+327596c1 fix: NOAA resolution parsing + Moscow wrong-airport correction
+b087de3f fix: add LLBG (Tel Aviv Ben Gurion) to STATION_COORDS
+1026246e feat: add 4 wave-3 cities — Tel Aviv, Moscow, Guangzhou, Shenzhen
+610a8ac3 Watchdog 2026-05-22T10:18:48Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT)
+ec8f11f4 feat: add 5 new validated cities — Munich, Warsaw, Helsinki, Milan, Austin
 9b514675 tune: ERA5-floor CITY_SIGMA_C, exclude LA/SF/NYC/Shanghai from STRAT_1, add SIGMA_SKIP_FLOOR=1.5
 0ec7f597 fix: add VALIDATED_CITY_SLUGS gate to STRAT_3/4/5/7
 cf7c0780 tune: OVERNIGHT_ALLOC 0.40→0.55 — absorb retired CITYCTR allocation
 00a0c50d disable CITYCTR trading — passive divergence logger only
 b37e6560 Watchdog 2026-05-22T09:19:11Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT) + SHADOW_LOGGER_STALLED resolved
-44f96911 Validator 2026-05-22 — ready=0 rejected=0 stalled=0
-8af7a10c fix: extend all weather exit exemptions to WEATHER_NOSIDE + WEATHER_CITYCTR
-12488953 feat: weather local time + price path — high_time_local from hourly obs, tz per city
-26235442 feat: auto-log weather resolution — immediate at exit + 4h backfill loop
-dd675509 fix: backfill also patches STARTUP_EXTERNALLY_SOLD orphans with blank bond_entry_class
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   65G       29G  70% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 10:05:42 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 10:30:28 UTC
 
 ## Open positions (count):
 0
