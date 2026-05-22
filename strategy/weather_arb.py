@@ -265,6 +265,8 @@ VALIDATED_CITY_SLUGS: frozenset = frozenset({
     "munich", "warsaw", "helsinki",
     # Wave-2 marginal (SIGMA_SKIP_FLOOR blocks worst months automatically)
     "milan", "austin",
+    # Wave-3 (2026-05-22): tel-aviv/moscow clean; guangzhou/shenzhen marginal winter months
+    "tel-aviv", "moscow", "guangzhou", "shenzhen",
 })
 
 
@@ -351,6 +353,7 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
     "Manila":           (14.5086, 121.0194),   # RPLL Ninoy Aquino Intl
     "Toronto":          (43.6777, -79.6248),   # CYYZ Pearson Intl
     "Shanghai":         (31.1434, 121.8052),   # ZSPD Pudong Intl
+    "Tel Aviv":         (32.0005,  34.8706),   # LLBG Ben Gurion Intl
     # Best-proxy airports for cities not yet confirmed in Polymarket markets
     "Tokyo":            (35.5494, 139.7798),   # RJTT Haneda
     "Hong Kong":        (22.3080, 113.9185),   # VHHH HK Intl
@@ -400,7 +403,7 @@ CITY_ELEVATION_M: dict[str, float] = {
     "Houston": 9, "Los Angeles": 28, "San Francisco": 4, "Mexico City": 2250,
     "Busan": 13, "Amsterdam": -2, "Helsinki": 4, "Panama City": 14, "Jakarta": 8,
     "Jeddah": 4, "Cape Town": 41, "Guangzhou": 13, "Jinan": 34, "Qingdao": 76,
-    "Karachi": 4, "Manila": 22, "Toronto": 76, "Shanghai": 4, "Tokyo": 44,
+    "Karachi": 4, "Manila": 22, "Toronto": 76, "Shanghai": 4, "Tokyo": 44, "Tel Aviv": 48,
     "Hong Kong": 33, "Dubai": 3, "Sydney": 6, "Phoenix": 342, "Atlanta": 315,
     "Berlin": 34, "Stockholm": 7, "Oslo": 88, "Copenhagen": 7, "Vienna": 171,
     "Zurich": 432, "Brussels": 15, "Barcelona": 7, "Rome": 21, "Prague": 235,
@@ -425,7 +428,7 @@ CITY_ICAO: dict[str, str] = {
     "Helsinki": "EFHK", "Panama City": "MPHO", "Jakarta": "WIHH",
     "Jeddah": "OEJN", "Cape Town": "FACT", "Guangzhou": "ZGGG",
     "Jinan": "ZSJN", "Qingdao": "ZSQD", "Karachi": "OPKC",
-    "Manila": "RPLL", "Toronto": "CYYZ", "Shanghai": "ZSPD",
+    "Manila": "RPLL", "Toronto": "CYYZ", "Shanghai": "ZSPD", "Tel Aviv": "LLBG",
     "Tokyo": "RJTT", "Hong Kong": "VHHH", "Dubai": "OMDB",
     "Sydney": "YSSY", "Phoenix": "KPHX", "Atlanta": "KATL",
     "Berlin": "EDDB", "Stockholm": "ESSA", "Oslo": "ENGM",
@@ -456,14 +459,14 @@ ICAO_UTC_OFFSET_H: dict[str, int] = {
     "SCEL":  -3,
     # Europe / Africa
     "EGLC":   0, "LFPB":   1, "LEMD":   1, "EHAM":   1, "LIMC":   1,
-    "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1, "EFHK":   2,
-    "KAUS":  -6,
+    "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1, "EFHK":   2, "KAUS":  -6,
     "LIRF":   1, "LKPR":   1, "LHBP":   1, "LROP":   2, "LGAV":   2,
-    "LTFJ":   3, "LTAC":   3, "UUEE":   3, "EFHK":   2, "ESSA":   1,
+    "LTFJ":   3, "LTAC":   3, "UUEE":   3, "ESSA":   1,
     "ENGM":   1, "EKCH":   1, "LOWW":   1, "LSZH":   1, "HECA":   2,
     "DNMM":   1, "HKJK":   3, "FAOR":   2, "FACT":   2, "OERK":   3,
     "OEJN":   3,
     # Asia / Oceania
+    "LLBG":   3,
     "VHHH":   8, "RJTT":   9, "RKSI":   9, "RKPK":   9, "ZBAA":   8,
     "ZSPD":   8, "ZGSZ":   8, "ZGGG":   8, "ZSJN":   8, "ZSQD":   8,
     "ZHHH":   8, "ZUUU":   8, "ZUCK":   8, "RCSS":   8, "WSSS":   8,
@@ -499,7 +502,7 @@ CITY_NAME_TO_SLUG: dict[str, str] = {
     "Lagos": "lagos", "Nairobi": "nairobi", "Johannesburg": "johannesburg",
     "Mumbai": "mumbai", "Delhi": "delhi", "Dhaka": "dhaka", "Bangkok": "bangkok",
     "Kuala Lumpur": "kuala-lumpur", "Bogota": "bogota", "Lima": "lima",
-    "Santiago": "santiago", "Chongqing": "chongqing",
+    "Santiago": "santiago", "Chongqing": "chongqing", "Tel Aviv": "tel-aviv",
 }
 
 # Per-city/month calibrated sigma floor in °C — ERA5 reanalysis validation (5yr, max of prior
@@ -534,6 +537,11 @@ CITY_SIGMA_C: dict[str, dict[int, float]] = {
     "helsinki":    {1: 0.711, 2: 0.568, 3: 1.105, 4: 1.171, 5: 0.931, 6: 0.861, 7: 0.827, 8: 0.850, 9: 0.829, 10: 0.571, 11: 0.725, 12: 0.752},
     "milan":       {1: 1.517, 2: 1.055, 3: 0.881, 4: 1.008, 5: 0.960, 6: 1.268, 7: 1.167, 8: 1.108, 9: 0.870, 10: 0.765, 11: 1.287, 12: 1.481},
     "austin":      {1: 1.549, 2: 1.455, 3: 1.441, 4: 1.374, 5: 1.130, 6: 0.873, 7: 0.983, 8: 1.110, 9: 1.088, 10: 0.974, 11: 0.876, 12: 1.010},
+    # Wave-3 (2026-05-22)
+    "tel-aviv":    {1: 0.834, 2: 0.697, 3: 1.271, 4: 1.480, 5: 1.186, 6: 0.922, 7: 0.753, 8: 0.666, 9: 0.656, 10: 0.732, 11: 0.893, 12: 1.061},
+    "moscow":      {1: 0.702, 2: 0.676, 3: 0.930, 4: 0.931, 5: 0.718, 6: 0.658, 7: 0.670, 8: 0.758, 9: 0.660, 10: 0.622, 11: 0.653, 12: 0.674},
+    "guangzhou":   {1: 1.014, 2: 1.086, 3: 1.248, 4: 1.184, 5: 1.196, 6: 1.201, 7: 1.031, 8: 1.063, 9: 1.056, 10: 0.975, 11: 1.002, 12: 1.027},
+    "shenzhen":    {1: 1.321, 2: 1.400, 3: 1.365, 4: 1.118, 5: 1.099, 6: 1.089, 7: 0.982, 8: 1.001, 9: 1.068, 10: 1.025, 11: 1.115, 12: 1.048},
 }
 
 # Per-city/month typical peak temperature UTC hour (mean of daily peak hours, 5yr ASOS)

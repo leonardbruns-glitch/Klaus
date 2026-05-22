@@ -79,4 +79,11 @@ STATIONS: dict[str, Station] = {
     "taipei":        Station("taipei",        "RCSS", "tw/taipei/RCSS",            25.0694,  121.5522,"C", 1, _GLOBAL, False, "Asia/Taipei"),
     "cape-town":     Station("cape-town",     "FACT", "za/cape-town/FACT",        -33.9648,   18.6017,"C", 1, _GLOBAL, False, "Africa/Johannesburg"),
     "qingdao":       Station("qingdao",       "ZSQD", "cn/qingdao/ZSQD",           36.2661,  120.3742,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+
+    # --- Wave-3 candidates (calibration run 2026-05-22) ---
+    "tel-aviv":      Station("tel-aviv",      "LLBG", "il/tel-aviv/LLBG",          32.0005,   34.8706,"C", 1, _GLOBAL, False, "Asia/Jerusalem"),
+    "istanbul":      Station("istanbul",      "LTFJ", "tr/istanbul/LTFJ",          40.8986,   29.3092,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Istanbul"),
+    "moscow":        Station("moscow",        "UUEE", "ru/moscow/UUEE",            55.9736,   37.4125,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Moscow"),
+    "shenzhen":      Station("shenzhen",      "ZGSZ", "cn/shenzhen/ZGSZ",          22.6393,  113.8107,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+    "guangzhou":     Station("guangzhou",     "ZGGG", "cn/guangzhou/ZGGG",         23.3924,  113.2990,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
 }

@@ -72,6 +72,7 @@ def _http_get_json(url: str, timeout: int = 60) -> dict:
 _EU_SLUGS = frozenset({
     "paris", "madrid", "amsterdam", "london",
     "munich", "warsaw", "milan", "helsinki",
+    "istanbul", "moscow",
 })
 
 def _archive_models_for(station: Station) -> tuple[str, ...]:
