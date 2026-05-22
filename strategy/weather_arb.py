@@ -97,6 +97,10 @@ BRACKET_MAX_PROB_GAP = 0.15  # reject bracket if top-two fair_probs differ by mo
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
 STAKE_USD    = 5.0     # fallback flat stake (2026-05-22: $5 cap, STRAT_1 only mode)
 
+# ── Near-threshold CLOB WS watchlist ─────────────────────────────────────────
+WATCHLIST_EDGE_FLOOR = -0.06  # subscribe if within 6pp of qualifying (ask too high by ≤0.06)
+WATCHLIST_MIN_FAIR   = 0.35   # minimum fair_prob to be worth watching
+
 # ── Fractional Kelly position sizing ─────────────────────────────────────────
 KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
@@ -1109,6 +1113,12 @@ class WeatherArb:
         # already repriced significantly upward before HOT_BASE_RATE fires (signal stale).
         self._tail_open_ask: dict[str, float] = {}
 
+        # Near-threshold CLOB WS watchlist: markets that almost qualify.
+        # token_id → {mkt, fair_prob, city, end_date, lo_c, hi_c, expected_max_c, min_ask}
+        # Populated by _evaluate_market() when edge is thin; cleared at each _scan() start.
+        # _on_weather_bbo() fires _enter() the moment ask drops to min_ask.
+        self._near_threshold_watchlist: dict[str, dict] = {}
+
         # NWP freshness probe: last observed ensemble μ per reference city.
         # Seeded on startup; compared each scan cycle to detect when Open-Meteo
         # has ingested a new model run.
@@ -1275,6 +1285,11 @@ class WeatherArb:
         target_dates = {today, tomorrow}
 
         logger.info("[WA] scanning weather markets today=%s tomorrow=%s", today, tomorrow)
+
+        # Refresh watchlist each scan so fair_probs stay current.
+        # CLOB WS subscriptions persist independently; only the in-memory trigger
+        # context is cleared here — it gets re-populated below for still-qualifying markets.
+        self._near_threshold_watchlist.clear()
 
         # Fetch all open weather events
         events = await self._fetch_weather_events()
@@ -1512,6 +1527,10 @@ class WeatherArb:
 
         edge = fair_prob - poly_yes
         if edge < EDGE_MIN:
+            self._maybe_add_to_watchlist(
+                token_id, mkt, fair_prob, poly_yes, edge,
+                city, end_date, lo_c, hi_c, forecast_mean,
+            )
             return None
 
         # Ask-band filter: use relaxed ceiling when BRACKET_ENABLED (Upgrade 4).
@@ -1539,6 +1558,88 @@ class WeatherArb:
             "hi_c":          hi_c,
             "expected_max_c": forecast_mean,
         }
+
+    def _maybe_add_to_watchlist(
+        self, token_id: str, mkt: dict, fair_prob: float, poly_yes: float,
+        edge: float, city: str, end_date: str,
+        lo_c: Optional[float], hi_c: Optional[float], expected_max_c: float,
+    ) -> None:
+        """Subscribe a near-qualifying market to CLOB WS; fire entry when ask falls."""
+        ask_hi = BRACKET_COST_CAP if BRACKET_ENABLED else ASK_BAND_HI
+        min_ask = fair_prob - EDGE_MIN  # ask must reach this level before we can enter
+
+        if (edge < WATCHLIST_EDGE_FLOOR          # too far from qualifying
+                or fair_prob < WATCHLIST_MIN_FAIR
+                or min_ask >= ask_hi              # would never pass ask-band check
+                or poly_yes < ASK_BAND_LO
+                or token_id in self._fired_tokens
+                or token_id in self._near_threshold_watchlist):
+            return
+
+        self._near_threshold_watchlist[token_id] = {
+            "mkt": mkt,
+            "fair_prob": fair_prob,
+            "city": city,
+            "end_date": end_date,
+            "lo_c": lo_c,
+            "hi_c": hi_c,
+            "expected_max_c": expected_max_c,
+            "min_ask": min_ask,
+        }
+        try:
+            self.bot.feed._clob_ws_sub_queue.put_nowait([token_id])
+        except Exception:
+            pass
+        logger.info(
+            "[WA] WATCHLIST+SUB %s %s fair=%.3f ask=%.3f → watching for ask≤%.3f (gap=%.3f)",
+            city, end_date, fair_prob, poly_yes, min_ask, EDGE_MIN - edge,
+        )
+
+    async def _on_weather_bbo(self, token_id: str, bid: float) -> None:
+        """BBO callback: fire _enter() the moment a watched token's ask drops to threshold."""
+        entry = self._near_threshold_watchlist.get(token_id)
+        if entry is None:
+            return
+
+        city = entry["city"]
+        end_date = entry["end_date"]
+
+        # Stale: city already entered or token already fired
+        if token_id in self._fired_tokens or f"{city}|{end_date}" in self._fired_city_dates:
+            self._near_threshold_watchlist.pop(token_id, None)
+            return
+
+        # Get live ask from order book (bid alone is insufficient — spread can be wide)
+        ob = self.bot.feed.order_books.get(token_id)
+        if ob is None or not ob.asks:
+            return
+        live_ask = ob.asks[0][0]
+
+        fair_prob = entry["fair_prob"]
+        live_edge = fair_prob - live_ask
+
+        if live_edge < EDGE_MIN:
+            return  # not yet
+
+        ask_hi = BRACKET_COST_CAP if BRACKET_ENABLED else ASK_BAND_HI
+        if not (ASK_BAND_LO <= live_ask < ask_hi):
+            return
+
+        # Remove immediately to prevent double-entry before _enter() returns
+        self._near_threshold_watchlist.pop(token_id, None)
+
+        logger.info(
+            "[WA] WATCHLIST HIT %s %s fair=%.3f live_ask=%.3f edge=%.3f (bid=%.3f)",
+            city, end_date, fair_prob, live_ask, live_edge, bid,
+        )
+        stake = self._kelly_stake(live_edge, live_ask)
+        await self._enter(
+            entry["mkt"], fair_prob, live_ask,
+            city, entry["lo_c"], entry["hi_c"],
+            stake=stake,
+            strategy_tag="STRAT_1_OVERNIGHT",
+            expected_max_c=entry["expected_max_c"],
+        )
 
     async def _enter(self, mkt: dict, fair_prob: float, poly_price: float,
                      city: str, bucket_lo_c: Optional[float] = None,

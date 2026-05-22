@@ -444,10 +444,12 @@ class KlausBot:
         _bond_tp = self._ws_bond_tp_check
         _carb = self.crypto_arb.on_book_update if self.crypto_arb else None
         _cas_bbo = self._cas_on_bbo
+        _wa_bbo = self.weather_arb._on_weather_bbo if self.weather_arb else None
         async def _bbo_chain(tid: str, bid: float) -> None:
             await _bond_tp(tid, bid)
             if _carb: await _carb(tid, bid)
             await _cas_bbo(tid)
+            if _wa_bbo: await _wa_bbo(tid, bid)
         self.feed._on_bbo_update = _bbo_chain
         await self.orders.start()
         self._running = True
