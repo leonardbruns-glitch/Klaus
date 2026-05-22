@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T09:44:12Z
+# Snapshot: 2026-05-22T09:59:13Z
 # Latest commit on klaus:
-cf7c0780 tune: OVERNIGHT_ALLOC 0.40→0.55 — absorb retired CITYCTR allocation
+0ec7f597 fix: add VALIDATED_CITY_SLUGS gate to STRAT_3/4/5/7
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
