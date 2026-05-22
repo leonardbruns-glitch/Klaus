@@ -1569,9 +1569,11 @@ class WeatherArb:
             live_edge = fair_prob - best_ask
             if live_edge < EDGE_MIN:
                 logger.info(
-                    "[WA] ABORT %s %s — ask moved %.3f→%.3f, live edge %.3f < %.2f (locked today)",
+                    "[WA] ABORT %s %s — ask moved %.3f→%.3f, live edge %.3f < %.2f (retry next scan)",
                     city, end_date, poly_price, best_ask, live_edge, EDGE_MIN,
                 )
+                self._fired_tokens.discard(token_id)
+                self._fired_city_dates.pop(f"{city}|{end_date}", None)
                 return False
             edge = fair_prob - poly_price
             use_taker = (not MAKER_FIRST) or (edge >= TAKER_EDGE_MIN) or (not has_depth)
