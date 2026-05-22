@@ -27,7 +27,7 @@ import logging
 import math
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import aiohttp
@@ -115,10 +115,18 @@ TAIL_POS_ALLOC       = TAIL_STRAT_ALLOC / MAX_POS_PER_STRAT   # 2.5% per tail po
 PER_STRAT_ALLOC  = OVERNIGHT_POS_ALLOC  # default for _kelly_stake (STRAT_1)
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
-SCAN_INTERVAL_S = 21600  # 2026-05-21: 6h loop kept as safety-net only.
-                          # Primary entry is via STRAT_5 NWP-LAG which is wall-clock-scheduled
-                          # at the 10 known NWP publish slots/day. The 6h fallback catches
-                          # cases where NWP-LAG missed (e.g., publish slot offline).
+SCAN_INTERVAL_S = 21600  # fallback sleep if no NWP slot found within 6h (should never fire)
+
+# ── Entry timing window (local-time-aware) ────────────────────────────────────
+# Resolution = midnight LOCAL on endDate. Window is [MAX_H_BEFORE, MIN_H_BEFORE] before that.
+# Computed per-city using ICAO_UTC_OFFSET_H so Asian/Western cities are treated correctly.
+MIN_HOURS_BEFORE_RESOLUTION = 6    # don't enter if <6h left in local day (market already priced)
+MAX_HOURS_BEFORE_RESOLUTION = 36   # don't enter if >36h out (forecast not yet converged)
+
+# NWP publish slots (UTC hours). Scan fires T+5min after each slot when fresh model data lands.
+# Mirrors nwp_lag.py schedule; that strategy is paused but the schedule is ground truth.
+NWP_SCAN_SLOTS_UTC: list[int] = sorted({3,4,5,6,7,9,10,11,15,16,17,18,19,21,22,23})
+NWP_SCAN_OFFSET_MIN = 5  # minutes after the hour to poll (model data available by then)
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
 
@@ -1114,24 +1122,55 @@ class WeatherArb:
         self._task = asyncio.create_task(self._loop(), name="weather_arb_loop")
         self._metar_task = asyncio.create_task(self._metar_loop(), name="weather_metar_loop")
 
+    @staticmethod
+    def _seconds_to_next_nwp_slot() -> float:
+        """Seconds until the next NWP publish slot (UTC hour + NWP_SCAN_OFFSET_MIN).
+        Returns at most SCAN_INTERVAL_S as a fallback cap."""
+        now = datetime.now(timezone.utc)
+        offset = timedelta(minutes=NWP_SCAN_OFFSET_MIN)
+        for h in NWP_SCAN_SLOTS_UTC:
+            candidate = now.replace(hour=h, minute=NWP_SCAN_OFFSET_MIN, second=0, microsecond=0)
+            if candidate > now:
+                return min((candidate - now).total_seconds(), SCAN_INTERVAL_S)
+        # All slots passed today — first slot tomorrow
+        tomorrow_first = now.replace(hour=NWP_SCAN_SLOTS_UTC[0],
+                                     minute=NWP_SCAN_OFFSET_MIN, second=0, microsecond=0) \
+                         + timedelta(days=1)
+        return min((tomorrow_first - now).total_seconds(), SCAN_INTERVAL_S)
+
     async def _loop(self) -> None:
-        # First run after 60s (allow bot to initialize), then every 30 min
-        await asyncio.sleep(60.0)
+        await asyncio.sleep(60.0)  # allow bot to initialise
         while True:
             try:
                 await self._scan()
             except Exception:
                 logger.exception("[WA] scan error")
-            await asyncio.sleep(SCAN_INTERVAL_S)
+            sleep_s = self._seconds_to_next_nwp_slot()
+            logger.debug("[WA] next scan in %.0fs (next NWP slot)", sleep_s)
+            await asyncio.sleep(sleep_s)
+
+    @staticmethod
+    def _hours_to_local_resolution(end_date_str: str, icao: Optional[str]) -> float:
+        """Hours from now until midnight LOCAL on end_date for this city's ICAO.
+        Midnight local = start of the day AFTER end_date in the city's timezone.
+        Falls back to UTC if ICAO unknown."""
+        utc_offset_h = ICAO_UTC_OFFSET_H.get(icao or "", 0)
+        end_d = date.fromisoformat(end_date_str)
+        # Midnight local at end of end_date = 00:00 local on end_date+1
+        # In UTC: end_date+1 00:00 local = end_date+1 00:00 UTC - utc_offset_h hours
+        resolution_utc = datetime(end_d.year, end_d.month, end_d.day,
+                                  tzinfo=timezone.utc) + timedelta(days=1) \
+                         - timedelta(hours=utc_offset_h)
+        return (resolution_utc - datetime.now(timezone.utc)).total_seconds() / 3600.0
 
     async def _scan(self) -> None:
         today = date.today().isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
-        # Only trade tomorrow's markets — today's markets are partially resolved by the time
-        # we scan (they end at noon local time; markets already show resolution direction).
-        target_dates = {tomorrow}
+        # Include both today and tomorrow: UTC+9 cities (Tokyo etc.) can have their
+        # "today" market still within the entry window when scanning in the morning UTC.
+        target_dates = {today, tomorrow}
 
-        logger.info("[WA] scanning weather markets for tomorrow=%s", tomorrow)
+        logger.info("[WA] scanning weather markets today=%s tomorrow=%s", today, tomorrow)
 
         # Fetch all open weather events
         events = await self._fetch_weather_events()
@@ -1156,10 +1195,12 @@ class WeatherArb:
                 logger.debug("[WA] SKIP %s (STRAT1_SKIP_CITIES — low overnight WR)", city)
                 continue
 
-            # Only process markets resolving today or tomorrow
+            # Only process markets within the local-time entry window
+            _city_icao = CITY_ICAO.get(city)
             markets = []
             for m in ev.get("markets", []):
-                if m.get("endDate", "")[:10] not in target_dates: continue
+                _end = m.get("endDate", "")[:10]
+                if _end not in target_dates: continue
                 if m.get("closed", False): continue
                 if not m.get("conditionId"): continue
                 token_ids_raw = _parse_token_ids(m.get("clobTokenIds", []))
@@ -1167,6 +1208,16 @@ class WeatherArb:
                 prices_raw = m.get("outcomePrices", '["0"]')
                 prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
                 if float(prices[0]) <= 0.001: continue
+                # Local-time resolution window gate
+                h_left = self._hours_to_local_resolution(_end, _city_icao)
+                if h_left < MIN_HOURS_BEFORE_RESOLUTION:
+                    logger.debug("[WA] SKIP %s %s — only %.1fh to local resolution (min %dh)",
+                                 city, _end, h_left, MIN_HOURS_BEFORE_RESOLUTION)
+                    continue
+                if h_left > MAX_HOURS_BEFORE_RESOLUTION:
+                    logger.debug("[WA] SKIP %s %s — %.1fh to local resolution > max %dh",
+                                 city, _end, h_left, MAX_HOURS_BEFORE_RESOLUTION)
+                    continue
                 markets.append(m)
             if not markets:
                 continue
