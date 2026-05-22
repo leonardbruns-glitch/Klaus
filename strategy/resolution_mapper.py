@@ -131,6 +131,7 @@ STATION_COORDS: dict[str, tuple[float, float]] = {
     "LTAC":  (40.1281,   32.9951),   # Ankara Esenboğa
     "MPHO":  (8.9788,   -79.5556),   # Panama City Marcos Gelabert
     "OPKC":  (24.8936,   67.1355),   # Karachi Masroor
+    "LLBG":  (32.0005,   34.8706),   # Tel Aviv Ben Gurion
 }
 
 
