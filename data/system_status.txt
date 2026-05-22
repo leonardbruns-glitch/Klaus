@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+665f7944 data: empirically validate upstream oracle pairs from 10yr ASOS correlations
 8bca1094 feat: Upstream Oracle (STRAT_5) — cross-city synoptic anomaly detection
 cbc5e99e fix: add Austin to CITY_PEAK_HOUR_UTC — same-day gate was always blocking
 48d471d9 Watchdog 2026-05-22T22:20:32Z: OK
@@ -11,7 +12,6 @@ bf322995 feat: add_nasa_power_to_matrix — 10yr MERRA-2 skill cells via NASA PO
 64e4924c fix: backfill_prev_runs — use api.open-meteo.com past_days (archive subdomain unreachable)
 d66f16d9 feat: skill matrix enrichment — prev-runs backfill + 10yr history rebuild
 5e9bc9ac feat: restore INTRADAY tiered stake — $10 below p=0.90, $20 at p>=0.90
-9f88efbb simplify: flat $20 for all intraday — σ gate is the quality filter
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
