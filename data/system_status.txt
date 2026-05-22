@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-665f7944 data: empirically validate upstream oracle pairs from 10yr ASOS correlations
-8bca1094 feat: Upstream Oracle (STRAT_5) — cross-city synoptic anomaly detection
+1399b71d fix: split sh-isolated into single-city regions
+8eed557c fix: switch oracle trigger from wu_monitor actuals to METAR running_max
+49b5073a feat: STRAT_5 shadow mode — log oracle signals without entering
+c033c72c data: empirically validate upstream oracle pairs from 10yr ASOS correlations
+8a8a8113 feat: Upstream Oracle (STRAT_5) — cross-city synoptic anomaly detection
+03fab08b Watchdog 2026-05-22T23:20:36Z: OK
 cbc5e99e fix: add Austin to CITY_PEAK_HOUR_UTC — same-day gate was always blocking
 48d471d9 Watchdog 2026-05-22T22:20:32Z: OK
 1cb76676 data: skill_matrix — 432 merra2 cells (10yr NASA POWER MERRA-2, n≈310/month/city)
 8ef1984c feat: fee-adjusted Kelly (TAKER_FEE_RATE=2%) + thin-book abort guard
-bf322995 feat: add_nasa_power_to_matrix — 10yr MERRA-2 skill cells via NASA POWER API
-64e4924c fix: backfill_prev_runs — use api.open-meteo.com past_days (archive subdomain unreachable)
-d66f16d9 feat: skill matrix enrichment — prev-runs backfill + 10yr history rebuild
-5e9bc9ac feat: restore INTRADAY tiered stake — $10 below p=0.90, $20 at p>=0.90
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 22:33:39 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 23:32:26 UTC
 
 ## Open positions (count):
 0
