@@ -95,14 +95,6 @@ BRACKET_MAX_PROB_GAP = 0.15  # reject bracket if top-two fair_probs differ by mo
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
-
-# ── Multi-bucket parallel entry ───────────────────────────────────────────────
-# Fires when ≥2 buckets pass STRAT_1 filters. Equal-share sizing; all orders
-# submitted via asyncio.gather. BRACKET_ENABLED (negRisk arb) remains disabled.
-MULTI_BUCKET_ENABLED      = True
-MULTI_BUCKET_ALLOC        = 0.20   # fraction of bankroll allocated to this strategy
-MULTI_BUCKET_MARGIN_FLOOR = 0.70   # max combined ask (ensures ≥$0.30 net profit per win)
-
 STAKE_USD    = 5.0     # fallback flat stake (2026-05-22: $5 cap, STRAT_1 only mode)
 
 # ── Fractional Kelly position sizing ─────────────────────────────────────────
@@ -1395,14 +1387,6 @@ class WeatherArb:
             if not candidates or entries_made >= MAX_POSITIONS:
                 continue
 
-            # ── Multi-bucket parallel entry ───────────────────────────────────
-            if MULTI_BUCKET_ENABLED and len(candidates) >= 2:
-                selected = self._select_multi_bucket(candidates)
-                if selected is not None:
-                    n_entered = await self._enter_multi_bucket(selected, city)
-                    entries_made += n_entered
-                    continue  # multi takes priority over single-best entry
-
             # ── Bracket evaluation ────────────────────────────────────────────
             if BRACKET_ENABLED and len(candidates) >= 2:
                 bracket = self._select_bracket(candidates)
@@ -1619,9 +1603,7 @@ class WeatherArb:
                     window_end_ts=0.0,
                     is_bond=True,
                     bond_outcome_direction="up",
-                    bond_entry_class=("WEATHER_BRACKET" if strategy_tag == "STRAT_2_BRACKET"
-                                      else "WEATHER_MULTI" if strategy_tag == "STRAT_5_MULTI"
-                                      else "WEATHER_ARB"),
+                    bond_entry_class="WEATHER_BRACKET" if strategy_tag == "STRAT_2_BRACKET" else "WEATHER_ARB",
                 )
                 # Hold-favourites / scalp-mids: store scalp_tp on the position meta
                 # so the WS BBO callback (_ws_bond_tp_check) can fire instantly when
@@ -3065,96 +3047,6 @@ class WeatherArb:
             if entered:
                 n_entered += 1
         return n_entered
-
-    def _select_multi_bucket(
-        self, candidates: list[tuple[dict, dict]]
-    ) -> Optional[list[tuple[dict, dict]]]:
-        """
-        Select qualifying buckets for a multi-bucket equal-share entry.
-
-        All candidates already pass EDGE_MIN and ASK_BAND filters from
-        _evaluate_market. Here we additionally require fair_prob >= MIN_FAIR_PROB
-        per bucket, then drop weakest-edge buckets until combined_ask <=
-        MULTI_BUCKET_MARGIN_FLOOR. Returns ≥2 buckets or None.
-        """
-        # Best bucket must meet MIN_FAIR_PROB (model has some conviction).
-        # Per-bucket fair_prob floor is wrong here: probability spread across
-        # adjacent buckets is exactly when multi-bucket adds value over single-best.
-        if max(e["fair_prob"] for _, e in candidates) < MIN_FAIR_PROB:
-            return None
-
-        eligible = list(candidates)
-
-        # Sort by edge descending so pop() removes the weakest edge last
-        eligible.sort(key=lambda x: x[1]["edge"], reverse=True)
-        while eligible and sum(e["poly_price"] for _, e in eligible) > MULTI_BUCKET_MARGIN_FLOOR:
-            eligible.pop()
-
-        if len(eligible) < 2:
-            return None
-
-        logger.info(
-            "[WA] MULTI selected %d buckets combined_ask=%.3f combined_edge=%.3f",
-            len(eligible),
-            sum(e["poly_price"] for _, e in eligible),
-            sum(e["fair_prob"] for _, e in eligible) - sum(e["poly_price"] for _, e in eligible),
-        )
-        return eligible
-
-    async def _enter_multi_bucket(
-        self, selected: list[tuple[dict, dict]], city: str
-    ) -> int:
-        """
-        Enter all selected buckets in parallel with equal-share sizing.
-
-        target_shares = min(median Kelly shares, per_event_budget / combined_ask)
-        Per-event budget = bankroll × MULTI_BUCKET_ALLOC / MAX_POS_PER_STRAT.
-        All orders fired via asyncio.gather (parallel book fetch + submission).
-        """
-        combined_ask = sum(e["poly_price"] for _, e in selected)
-        bankroll = self._get_bankroll()
-
-        per_event_cap = max(
-            KELLY_MIN_USD * len(selected),
-            min(bankroll * MULTI_BUCKET_ALLOC / MAX_POS_PER_STRAT,
-                KELLY_MAX_USD * len(selected)),
-        )
-
-        kelly_shares_list = []
-        for _, entry in selected:
-            k_frac = (entry["edge"] / max(0.001, 1.0 - entry["poly_price"])) * KELLY_FRACTION
-            kelly_stake = max(KELLY_MIN_USD, min(k_frac * bankroll, KELLY_MAX_USD))
-            kelly_shares_list.append(kelly_stake / entry["poly_price"])
-
-        kelly_shares_list.sort()
-        median_shares = kelly_shares_list[len(kelly_shares_list) // 2]
-        target_shares = min(median_shares, per_event_cap / combined_ask)
-
-        logger.info(
-            "[WA] MULTI ENTER %d buckets city=%s target_shares=%.1f cap=$%.1f",
-            len(selected), city, target_shares, per_event_cap,
-        )
-
-        async def _enter_one(mkt: dict, entry: dict) -> bool:
-            stake = max(target_shares * entry["poly_price"], KELLY_MIN_USD)
-            return await self._enter(
-                mkt, entry["fair_prob"], entry["poly_price"],
-                city, entry.get("lo_c"), entry.get("hi_c"),
-                stake=stake,
-                strategy_tag="STRAT_5_MULTI",
-                expected_max_c=entry.get("expected_max_c"),
-            )
-
-        results = await asyncio.gather(*[_enter_one(m, e) for m, e in selected])
-        n_filled = sum(1 for r in results if r)
-
-        if n_filled < len(selected):
-            filled_ask = sum(e["poly_price"] for (_, e), r in zip(selected, results) if r)
-            logger.warning(
-                "[WA] MULTI partial fill %d/%d buckets filled_combined_ask=%.3f",
-                n_filled, len(selected), filled_ask,
-            )
-        return n_filled
 
     def _kelly_stake(self, edge: float, ask: float, strat_alloc: float = PER_STRAT_ALLOC) -> float:
         """
