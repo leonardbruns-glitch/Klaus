@@ -140,56 +140,75 @@ def parse_weather_question(q: str) -> dict:
 # ── Polymarket event fetcher ──────────────────────────────────────────────────
 
 def fetch_weather_events(date_min: str, date_max: str) -> dict:
-    """Returns token_id -> market dict for weather events in the date range."""
+    """Returns token_id -> market dict for weather events in the date range.
+
+    The Gamma API returns fewer results with wide date windows (seems to cap
+    at ~100 events regardless of pagination). Querying day-by-day guarantees
+    complete coverage because each narrow window paginates properly.
+    """
     token_map: dict = {}
     cond_map: dict = {}
 
-    for closed in ("true", "false"):
-        offset = 0
-        while True:
-            url = (f"{GAMMA_BASE}/events?tag_slug=weather&limit=200"
-                   f"&offset={offset}&closed={closed}"
-                   f"&end_date_min={date_min}&end_date_max={date_max}")
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "klaus-backfill"})
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    page = json.loads(resp.read())
-            except Exception as e:
-                print(f"  fetch error offset={offset} closed={closed}: {e}")
-                break
-            if not page:
-                break
-            for ev in page:
-                for m in ev.get("markets", []):
-                    cid = m.get("conditionId")
-                    question = m.get("question", "")
-                    outcome_prices = m.get("outcomePrices") or '["0","0"]'
-                    if isinstance(outcome_prices, str):
-                        try:
-                            outcome_prices = json.loads(outcome_prices)
-                        except Exception:
-                            outcome_prices = ["0", "0"]
-                    closed_flag = m.get("closed", False)
-                    entry = {
-                        "question": question,
-                        "outcomePrices": outcome_prices,
-                        "closed": closed_flag,
-                        "conditionId": cid,
-                    }
-                    if cid:
-                        cond_map[cid] = entry
-                    tokens_raw = m.get("clobTokenIds") or []
-                    if isinstance(tokens_raw, str):
-                        try:
-                            tokens_raw = json.loads(tokens_raw)
-                        except Exception:
-                            tokens_raw = []
-                    for tok in tokens_raw:
-                        token_map[str(tok)] = entry
-            if len(page) < 200:
-                break
-            offset += len(page)
-            time.sleep(0.1)
+    # Build list of daily windows from date_min to date_max
+    d = date.fromisoformat(date_min)
+    d_max = date.fromisoformat(date_max)
+    day_windows: list = []
+    while d <= d_max:
+        day_windows.append(d.isoformat())
+        d += timedelta(days=1)
+
+    def _ingest_page(page: list) -> None:
+        for ev in page:
+            for m in ev.get("markets", []):
+                cid = m.get("conditionId")
+                question = m.get("question", "")
+                outcome_prices = m.get("outcomePrices") or '["0","0"]'
+                if isinstance(outcome_prices, str):
+                    try:
+                        outcome_prices = json.loads(outcome_prices)
+                    except Exception:
+                        outcome_prices = ["0", "0"]
+                closed_flag = m.get("closed", False)
+                entry = {
+                    "question": question,
+                    "outcomePrices": outcome_prices,
+                    "closed": closed_flag,
+                    "conditionId": cid,
+                }
+                if cid:
+                    cond_map[cid] = entry
+                tokens_raw = m.get("clobTokenIds") or []
+                if isinstance(tokens_raw, str):
+                    try:
+                        tokens_raw = json.loads(tokens_raw)
+                    except Exception:
+                        tokens_raw = []
+                for tok in tokens_raw:
+                    token_map[str(tok)] = entry
+
+    for day in day_windows:
+        next_day = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+        for closed in ("true", "false"):
+            offset = 0
+            while True:
+                url = (f"{GAMMA_BASE}/events?tag_slug=weather&limit=200"
+                       f"&offset={offset}&closed={closed}"
+                       f"&end_date_min={day}&end_date_max={next_day}")
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "klaus-backfill"})
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        page = json.loads(resp.read())
+                except Exception as e:
+                    print(f"  fetch error day={day} closed={closed} offset={offset}: {e}")
+                    break
+                if not page:
+                    break
+                _ingest_page(page)
+                if len(page) < 200:
+                    break
+                offset += len(page)
+                time.sleep(0.05)
+        time.sleep(0.1)
 
     return token_map, cond_map
 
