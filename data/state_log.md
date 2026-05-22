@@ -375,3 +375,5 @@ Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $
 
 2026-05-20 09:49 UTC | NEW-STRATEGY | WeatherArb added (DRY_RUN_LOG=True) | Daily city temperature arb vs Open-Meteo forecasts. Normal dist model (sigma=1.5°C), edge_min=0.08, TOMORROW-only markets, neg_risk=True, stake=$25. First scan (09:50 UTC) found Paris 27°C May 21: poly=0.021 fair=0.111 edge=0.089. 63 cities mapped. Commit 8ae399cb.
 2026-05-20 19:55 UTC | WEATHER | ASK_BAND changed 0.20-0.40 → 0.01-0.27 | 60d 7-city calibration n=4323: realized WR 26.8% in [0.30,0.40) fair_prob band = unprofitable at ask>0.27; [0.20,0.30) band showed +7.5% over-expected WR, floor lowered to 0.01 to open cheap-tail
+
+2026-05-22 18:07 UTC | WEATHER | NameError city_slug fixed — weather trades unblocked | _evaluate_market crashed on every call since ERA5 revert (commit 665ee68d) introduced CITY_SIGMA_C_ERA5 shadow log using city_slug which was never assigned in that scope. Zero weather trades possible while bug was live. Fix: add city_slug = CITY_NAME_TO_SLUG.get(city, "") before line 1497. Commit 6dc84792, deployed 18:06 UTC.

@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T18:03:29Z
+# Snapshot: 2026-05-22T18:18:41Z
 # Latest commit on klaus:
-665ee68d revert: restore pre-ERA5 CITY_SIGMA_C; add ERA5 shadow logging
+9778856c fix: NameError month in _evaluate_market — second missing variable from ERA5 block
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
