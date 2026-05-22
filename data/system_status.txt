@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+4a291524 fix: MULTI — drop per-bucket fair_prob floor; only require best bucket >= MIN_FAIR_PROB
+56e56c28 feat: STRAT_5_MULTI — multi-bucket parallel entry with 20% bankroll allocation
+39375a1b Watchdog 2026-05-22T14:18:25Z: HIGH 3 alerts
 1c851dfc analysis: backtest UKMO+JMA global extension — reverted (net worse)
 4949d5d0 Watchdog 2026-05-22T13:18:00Z: MEDIUM 2 alerts
 9f3e747b tune: MIN_FAIR_PROB 0.45→0.40, ASK_BAND_HI 0.27→0.29
@@ -9,15 +12,12 @@ d154276d Watchdog 2026-05-22T11:18:07Z: OK
 a4cf30d9 tune: baseline scan 60min→6h; NWP slots still fire within that window
 dbe2b498 fix: restore 60min baseline scan + fix probe-on-background-scan bug
 3922f833 feat: NWP freshness probe — scan when data lands, not on fixed offset
-e61f2d3f feat: NWP-slot scan trigger + local-time entry window [6h–36h]
-62e98478 config: STRAT_1-only mode, $5 max stake per position
-e9c14ed1 feat: NOAA scraper for Tel Aviv + Moscow live accumulator
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   66G       28G  71% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 12:21:21 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 15:16:51 UTC
 
 ## Open positions (count):
 0
