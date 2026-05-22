@@ -3077,9 +3077,13 @@ class WeatherArb:
         per bucket, then drop weakest-edge buckets until combined_ask <=
         MULTI_BUCKET_MARGIN_FLOOR. Returns ≥2 buckets or None.
         """
-        eligible = [(m, e) for m, e in candidates if e["fair_prob"] >= MIN_FAIR_PROB]
-        if len(eligible) < 2:
+        # Best bucket must meet MIN_FAIR_PROB (model has some conviction).
+        # Per-bucket fair_prob floor is wrong here: probability spread across
+        # adjacent buckets is exactly when multi-bucket adds value over single-best.
+        if max(e["fair_prob"] for _, e in candidates) < MIN_FAIR_PROB:
             return None
+
+        eligible = list(candidates)
 
         # Sort by edge descending so pop() removes the weakest edge last
         eligible.sort(key=lambda x: x[1]["edge"], reverse=True)
