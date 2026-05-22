@@ -127,6 +127,12 @@ SCAN_INTERVAL_S = 21600  # baseline 6h scan cadence between NWP slots
 MIN_HOURS_BEFORE_RESOLUTION = 6    # don't enter if <6h left in local day (market already priced)
 MAX_HOURS_BEFORE_RESOLUTION = 36   # don't enter if >36h out (forecast not yet converged)
 
+# STRAT_1 same-day NWP staleness gate.
+# Once we're within this many hours of city peak, NWP daily-max forecast is stale
+# (actual peak may have already passed). INTRADAY (STRAT_3) owns same-day territory
+# via live METAR. Skip today's markets in STRAT_1 once the peak window approaches.
+STRAT1_PRE_PEAK_BLOCK_H = 5
+
 # NWP publish slots (UTC hours). Scan fires T+5min after each slot when fresh model data lands.
 # Mirrors nwp_lag.py schedule; that strategy is paused but the schedule is ground truth.
 NWP_SCAN_SLOTS_UTC: list[int] = sorted({3,4,5,6,7,9,10,11,15,16,17,18,19,21,22,23})
@@ -1345,6 +1351,24 @@ class WeatherArb:
                     logger.debug("[WA] SKIP %s %s — %.1fh to local resolution > max %dh",
                                  city, _end, h_left, MAX_HOURS_BEFORE_RESOLUTION)
                     continue
+                # STRAT_1 same-day NWP staleness gate.
+                # NWP daily-max forecast is valid for D+1 but stale for today once
+                # we approach the city's afternoon peak. After that point INTRADAY
+                # (STRAT_3) owns same-day territory via live METAR observations.
+                if _end == today:
+                    _slug_peak = CITY_NAME_TO_SLUG.get(city, "")
+                    _peak_month = date.fromisoformat(_end).month
+                    _peak_h = CITY_PEAK_HOUR_UTC.get(_slug_peak, {}).get(_peak_month)
+                    _now_h = datetime.now(timezone.utc).hour
+                    if _peak_h is None or _now_h >= _peak_h - STRAT1_PRE_PEAK_BLOCK_H:
+                        logger.info(
+                            "[WA] SKIP %s %s (same-day NWP stale: now UTC %02d, peak UTC %s, "
+                            "block starts at UTC %s)",
+                            city, _end, _now_h,
+                            str(_peak_h) if _peak_h else "unknown",
+                            str(_peak_h - STRAT1_PRE_PEAK_BLOCK_H) if _peak_h else "?",
+                        )
+                        continue
                 markets.append(m)
             if not markets:
                 continue
