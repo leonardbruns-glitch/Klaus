@@ -194,6 +194,11 @@ TAKER_EDGE_MIN   = 0.15      # override to taker when edge this large (captures 
 CLOB_TICK        = 0.01      # minimum price increment for weather markets
 TAKER_FEE_RATE   = 0.02      # Polymarket taker fee (~2% on order value)
 
+# ── Upstream Oracle (STRAT_5) ─────────────────────────────────────────────────
+DOWNSTREAM_FAIR_FLOOR = 0.50   # minimum bivariate-normal P(bucket) to consider entry
+DOWNSTREAM_ASK_CAP    = 0.55   # skip if market has already repriced above this
+DOWNSTREAM_EDGE_MIN   = 0.10   # minimum edge (fair_prob - ask)
+
 # ── Tail-risk sniper ($0.01–$0.04 tokens) ────────────────────────────────────
 TAIL_SNIPER_ENABLED  = False  # disabled 2026-05-22: STRAT_1-only mode
 TAIL_PRICE_LO        = 0.01   # minimum token price for tail sniper
@@ -3200,6 +3205,143 @@ class WeatherArb:
                     )
                 except Exception:
                     logger.exception("[WA] WU_EXIT sell failed %s", token_id[:12])
+
+        # After processing all new actuals, run upstream oracle check.
+        if new_actuals:
+            for actual in new_actuals:
+                cs = actual.get("city_slug", "")
+                vd = actual.get("valid_day", "")
+                wh = actual.get("wu_high_c")
+                if cs and vd and wh is not None:
+                    month = int(vd[5:7]) if vd else 0
+                    if month:
+                        try:
+                            await self._upstream_oracle_check(cs, vd, wh, month)
+                        except Exception:
+                            logger.exception("[Oracle] check failed for %s %s", cs, vd)
+
+    async def _upstream_oracle_check(
+        self, city_slug: str, valid_day: str, wu_high_c: float, month: int
+    ) -> None:
+        """
+        Called after each confirmed WU actual.  If upstream anomaly detected and synoptic
+        coherence passes, enters tomorrow's markets for downstream cities.
+        """
+        import strategy.upstream_oracle as _oracle
+        from strategy.resolution_mapper import STATION_COORDS as _SC
+
+        _oracle.notify_actual(city_slug, valid_day, wu_high_c)
+        targets = _oracle.check_upstream_signal(city_slug, valid_day, wu_high_c, month)
+        if not targets:
+            return
+
+        tomorrow = (date.fromisoformat(valid_day) + timedelta(days=1)).isoformat()
+        logger.info("[Oracle] upstream %s z→%.2f — scanning %d downstream cities for %s",
+                    city_slug, targets[0]["z"], len(targets), tomorrow)
+
+        events = await self._fetch_weather_events()
+        # Build city→markets index for tomorrow
+        tomorrow_mkts: dict[str, list[dict]] = {}
+        for ev in events:
+            city_name = _parse_city(ev.get("title", ""))
+            if not city_name:
+                continue
+            ds_slug = CITY_NAME_TO_SLUG.get(city_name, "")
+            if not ds_slug:
+                continue
+            for mkt in ev.get("markets", []):
+                if mkt.get("endDate", "")[:10] != tomorrow:
+                    continue
+                if mkt.get("closed", False):
+                    continue
+                if not _parse_token_ids(mkt.get("clobTokenIds", [])):
+                    continue
+                tomorrow_mkts.setdefault(ds_slug, []).append(mkt)
+
+        for target in targets:
+            ds_slug     = target["city_slug"]
+            direction   = target["direction"]
+            trigger_z   = target["z"]
+            ds_mkts     = tomorrow_mkts.get(ds_slug, [])
+            if not ds_mkts:
+                logger.debug("[Oracle] no tomorrow markets found for %s", ds_slug)
+                continue
+
+            # Resolve city name for _enter()
+            ds_city = next(
+                (c for c, s in CITY_NAME_TO_SLUG.items() if s == ds_slug), ds_slug
+            )
+
+            best_mkt    = None
+            best_prob   = 0.0
+            best_ask    = 1.0
+            best_edge   = 0.0
+            best_lo_c   = None
+            best_hi_c   = None
+
+            for mkt in ds_mkts:
+                question = mkt.get("question", "")
+                lo_c, hi_c, _ = _parse_outcome(question)
+
+                # Direction gate: hot → only buy high buckets; cold → only buy low buckets
+                clim_cell = _oracle._load_clim().get(ds_slug, {}).get(str(month))
+                if not clim_cell:
+                    continue
+                ds_mean = clim_cell["mean_max_c"]
+                if direction == "hot" and lo_c is not None and lo_c < ds_mean:
+                    continue   # this bucket is below average — not the anomaly bucket
+                if direction == "cold" and hi_c is not None and hi_c > ds_mean:
+                    continue   # this bucket is above average — not the anomaly bucket
+
+                fair_prob = _oracle.estimate_downstream_bucket_prob(
+                    trigger_z, direction, ds_slug, month, lo_c, hi_c
+                )
+                if fair_prob is None or fair_prob < DOWNSTREAM_FAIR_FLOOR:
+                    continue
+
+                # Get current ask from CLOB
+                token_id = _parse_token_ids(mkt.get("clobTokenIds", []))[0]
+                if token_id in self._fired_tokens:
+                    continue
+
+                try:
+                    _, poly_ask, _, _ = await self._fetch_book_and_vwap(token_id, KELLY_MIN_USD)
+                except Exception:
+                    continue
+
+                if poly_ask > DOWNSTREAM_ASK_CAP:
+                    logger.debug("[Oracle] %s bucket=[%.1f,%.1f) ask=%.3f > cap %.2f — skip",
+                                 ds_slug, lo_c or -99, hi_c or 99, poly_ask, DOWNSTREAM_ASK_CAP)
+                    continue
+
+                edge = fair_prob - poly_ask
+                if edge < DOWNSTREAM_EDGE_MIN:
+                    continue
+
+                if edge > best_edge:
+                    best_mkt  = mkt
+                    best_prob = fair_prob
+                    best_ask  = poly_ask
+                    best_edge = edge
+                    best_lo_c = lo_c
+                    best_hi_c = hi_c
+
+            if best_mkt is None:
+                logger.debug("[Oracle] %s — no qualifying bucket (direction=%s)", ds_slug, direction)
+                continue
+
+            stake = self._kelly_stake(best_prob, best_ask, OVERNIGHT_POS_ALLOC)
+            logger.info(
+                "[Oracle] ENTER_CANDIDATE %s %s dir=%s fair=%.3f ask=%.3f edge=%.3f stake=$%.1f",
+                ds_slug, tomorrow, direction, best_prob, best_ask, best_edge, stake,
+            )
+            await self._enter(
+                best_mkt, best_prob, best_ask,
+                ds_city,
+                bucket_lo_c=best_lo_c, bucket_hi_c=best_hi_c,
+                stake=stake,
+                strategy_tag="STRAT_5_UPSTREAM",
+            )
 
     def _select_bracket(
         self, candidates: list[tuple[dict, dict]]
