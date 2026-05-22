@@ -1,7 +1,10 @@
 ## klaus systemd:
-active
+deactivating
+unknown
 
 ## Last 10 commits on klaus:
+66ab2d59 fix: STRAT_1 same-day NWP staleness gate — block today's markets within 5h of city peak
+ee0056d4 feat: intraday sigma gate + scalp TP exit + MIN_FAIR_PROB 0.45
 6ca8b0b4 remove LA/SF from STRAT1_SKIP: ERA5 unreliable for coastal cities
 f8ae4c85 feat: CLOB WS watchlist for near-threshold weather markets
 da36a179 fix: restore discard-on-abort — retry next scan when edge survives price move
@@ -10,14 +13,12 @@ da36a179 fix: restore discard-on-abort — retry next scan when edge survives pr
 ec4ba7a7 fix: abort STRAT_1 entry when live CLOB ask erases edge
 3e42ec1f feat: re-enable INTRADAY_ENABLED — post-peak METAR certainty lock
 04172be7 Watchdog 2026-05-22T19:18:48Z: MEDIUM 2 alerts (backoff)
-6d9c20d4 fix: restore MIN_FAIR_PROB=0.40 (revert packaging error from 5b0ee72d)
-363554b6 Watchdog 2026-05-22T18:18:25Z: MEDIUM 2 alerts
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       27G  72% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 20:53:43 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 21:21:19 UTC
 
 ## Open positions (count):
 0
