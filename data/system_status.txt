@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+12488953 feat: weather local time + price path — high_time_local from hourly obs, tz per city
+26235442 feat: auto-log weather resolution — immediate at exit + 4h backfill loop
 dd675509 fix: backfill also patches STARTUP_EXTERNALLY_SOLD orphans with blank bond_entry_class
 81bdf0da fix: backfill queries day-by-day — Gamma API caps wide date range at ~100 events
 aa8be466 feat: weather resolution backfill + forward-log weather_question at entry/exit
@@ -10,14 +12,12 @@ aa8be466 feat: weather resolution backfill + forward-log weather_question at ent
 4b0815b5 Watchdog 2026-05-21T23:18:45Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT re-confirmed)
 f82f7308 feat: wire regime_today.json into overnight + intraday scans; remove auto-kill
 dedbd5e4 feat: 5 daily auto-improvement routines + legacy crypto cleanup
-8332dc27 fix: disable CAS_LOWASK — weather-only live mode
-9bc3a59c fix: NO_SIDE_ARB — use correct data source per market day
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   64G       29G  70% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   65G       29G  70% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 08:26:30 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 08:54:40 UTC
 
 ## Open positions (count):
 0
