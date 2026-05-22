@@ -1986,6 +1986,8 @@ class WeatherArb:
 
             city = pos.get("city", "")
             slug = CITY_NAME_TO_SLUG.get(city, "")
+            if slug not in VALIDATED_CITY_SLUGS:
+                continue
 
             # Step 1: μ_nowcast
             s_f       = sky_factors.get(sky_cover, 0.60)
@@ -2188,6 +2190,8 @@ class WeatherArb:
                 continue
 
             slug      = CITY_NAME_TO_SLUG.get(city, "")
+            if slug not in VALIDATED_CITY_SLUGS:
+                continue
             peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
             lat, lon  = entry["lat"], entry["lon"]
 
@@ -2474,6 +2478,8 @@ class WeatherArb:
                 continue
 
             slug        = CITY_NAME_TO_SLUG.get(city, "")
+            if slug not in VALIDATED_CITY_SLUGS:
+                continue
             dew_spread  = (temp_c - dewpoint_c) if dewpoint_c is not None else None
             _c_bust_prob = 0.0   # populated by Trigger C block below; used for stake scaling
 

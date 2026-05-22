@@ -91,8 +91,8 @@ class NoSideArb:
             return
 
         from strategy.weather_arb import (
-            CITY_NAME_TO_SLUG, CITY_SIGMA_C, _outcome_prob, _parse_outcome,
-            _parse_token_ids,
+            CITY_NAME_TO_SLUG, CITY_SIGMA_C, VALIDATED_CITY_SLUGS,
+            _outcome_prob, _parse_outcome, _parse_token_ids,
         )
         from strategy.fee_model import MAKER_REBATE_FRAC, taker_fee_rate
 
@@ -133,8 +133,10 @@ class NoSideArb:
             if lo_c is None and hi_c is None:
                 continue
 
-            scanned_cities.add(city)
             slug = CITY_NAME_TO_SLUG.get(city, "")
+            if slug not in VALIDATED_CITY_SLUGS:
+                continue
+            scanned_cities.add(city)
 
             if end_date == today_str:
                 # Today's market: use live METAR nowcast (same signal as INTRADAY)

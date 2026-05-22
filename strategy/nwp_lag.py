@@ -185,8 +185,10 @@ class NwpLagArbitrage:
                 continue
 
             # Compute μ_new and μ_old for this city
-            from strategy.weather_arb import CITY_NAME_TO_SLUG
+            from strategy.weather_arb import CITY_NAME_TO_SLUG, VALIDATED_CITY_SLUGS
             slug = CITY_NAME_TO_SLUG.get(city, "")
+            if slug not in VALIDATED_CITY_SLUGS:
+                continue
             shift_summary = self._compute_shift(slug, new_mu_by_model)
             if not shift_summary:
                 continue
