@@ -69,11 +69,16 @@ def _http_get_json(url: str, timeout: int = 60) -> dict:
         return json.loads(r.read().decode("utf-8"))
 
 
+_EU_SLUGS = frozenset({
+    "paris", "madrid", "amsterdam", "london",
+    "munich", "warsaw", "milan", "helsinki",
+})
+
 def _archive_models_for(station: Station) -> tuple[str, ...]:
     slug = station.city_slug
     if slug == "tokyo":
         return ARCHIVE_MODELS_JP
-    if slug in ("paris", "madrid", "amsterdam", "london"):
+    if slug in _EU_SLUGS:
         return ARCHIVE_MODELS_EU
     return ARCHIVE_MODELS_GLOBAL
 

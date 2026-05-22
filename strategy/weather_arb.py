@@ -256,10 +256,15 @@ SIGMA_SKIP_FLOOR = 1.5  # °C — erf(1/(1.5×√2)) ≈ 52% true WR ceiling, be
 # Validated set from analysis/weather/stations.py (23 cities with confirmed WU source + 5yr calibration).
 # _scan() filters to this set so STRAT_1/2 never trade unvalidated cities.
 VALIDATED_CITY_SLUGS: frozenset = frozenset({
+    # Original 23 (5yr ASOS + ERA5 calibrated, 2026-05-21)
     "nyc", "chicago", "los-angeles", "miami", "san-francisco", "tokyo", "london",
     "dallas", "houston", "seattle", "denver", "atlanta", "paris", "madrid",
     "amsterdam", "beijing", "shanghai", "singapore", "jakarta", "toronto",
     "mexico-city", "buenos-aires", "sao-paulo",
+    # Wave-2 additions (calibrated 2026-05-22, ERA5 σ < 1.3°C all-year)
+    "munich", "warsaw", "helsinki",
+    # Wave-2 marginal (SIGMA_SKIP_FLOOR blocks worst months automatically)
+    "milan", "austin",
 })
 
 
@@ -451,7 +456,8 @@ ICAO_UTC_OFFSET_H: dict[str, int] = {
     "SCEL":  -3,
     # Europe / Africa
     "EGLC":   0, "LFPB":   1, "LEMD":   1, "EHAM":   1, "LIMC":   1,
-    "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1,
+    "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1, "EFHK":   2,
+    "KAUS":  -6,
     "LIRF":   1, "LKPR":   1, "LHBP":   1, "LROP":   2, "LGAV":   2,
     "LTFJ":   3, "LTAC":   3, "UUEE":   3, "EFHK":   2, "ESSA":   1,
     "ENGM":   1, "EKCH":   1, "LOWW":   1, "LSZH":   1, "HECA":   2,
@@ -522,6 +528,12 @@ CITY_SIGMA_C: dict[str, dict[int, float]] = {
     "singapore":   {1: 0.861, 2: 0.821, 3: 0.912, 4: 1.092, 5: 0.894, 6: 0.950, 7: 0.824, 8: 0.891, 9: 0.846, 10: 0.851, 11: 0.964, 12: 0.880},
     "tokyo":       {1: 0.936, 2: 1.157, 3: 1.206, 4: 1.196, 5: 1.278, 6: 1.188, 7: 1.320, 8: 1.107, 9: 1.194, 10: 0.923, 11: 1.072, 12: 1.131},
     "toronto":     {1: 0.678, 2: 0.832, 3: 1.271, 4: 1.609, 5: 1.100, 6: 1.022, 7: 0.988, 8: 0.752, 9: 0.870, 10: 1.055, 11: 0.960, 12: 0.865},
+    # Wave-2 (2026-05-22)
+    "munich":      {1: 1.158, 2: 1.136, 3: 0.703, 4: 0.779, 5: 0.799, 6: 0.923, 7: 0.847, 8: 0.950, 9: 0.783, 10: 1.218, 11: 1.143, 12: 1.034},
+    "warsaw":      {1: 0.730, 2: 0.701, 3: 0.804, 4: 0.706, 5: 0.750, 6: 0.845, 7: 0.834, 8: 0.782, 9: 0.864, 10: 0.767, 11: 0.742, 12: 0.585},
+    "helsinki":    {1: 0.711, 2: 0.568, 3: 1.105, 4: 1.171, 5: 0.931, 6: 0.861, 7: 0.827, 8: 0.850, 9: 0.829, 10: 0.571, 11: 0.725, 12: 0.752},
+    "milan":       {1: 1.517, 2: 1.055, 3: 0.881, 4: 1.008, 5: 0.960, 6: 1.268, 7: 1.167, 8: 1.108, 9: 0.870, 10: 0.765, 11: 1.287, 12: 1.481},
+    "austin":      {1: 1.549, 2: 1.455, 3: 1.441, 4: 1.374, 5: 1.130, 6: 0.873, 7: 0.983, 8: 1.110, 9: 1.088, 10: 0.974, 11: 0.876, 12: 1.010},
 }
 
 # Per-city/month typical peak temperature UTC hour (mean of daily peak hours, 5yr ASOS)

@@ -68,4 +68,15 @@ STATIONS: dict[str, Station] = {
     "mexico-city":   Station("mexico-city",   "MMMX", "mx/mexico-city/MMMX",      19.4363,  -99.0721,"C", 1, _GLOBAL, False, "America/Mexico_City"),
     "buenos-aires":  Station("buenos-aires",  "SAEZ", "ar/ezeiza/SAEZ",           -34.8222,  -58.5358,"C", 1, _GLOBAL, False, "America/Argentina/Buenos_Aires"),
     "sao-paulo":     Station("sao-paulo",     "SBGR", "br/guarulhos/SBGR",        -23.4356,  -46.4731,"C", 1, _GLOBAL, False, "America/Sao_Paulo"),
+
+    # --- Candidates — confirmed on Polymarket, calibration run 2026-05-22 ---
+    # WU paths are best-guess patterns; verify via wu_high_scraper before enabling live accumulator.
+    "munich":        Station("munich",        "EDDM", "de/munich/EDDM",            48.3538,   11.7861,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Berlin"),
+    "warsaw":        Station("warsaw",        "EPWA", "pl/warsaw/EPWA",            52.1657,   20.9671,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Warsaw"),
+    "milan":         Station("milan",         "LIMC", "it/milan/LIMC",             45.6307,    8.7281,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Rome"),
+    "helsinki":      Station("helsinki",      "EFHK", "fi/helsinki/EFHK",          60.3172,   24.9633,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Helsinki"),
+    "austin":        Station("austin",        "KAUS", "us/tx/austin/KAUS",         30.1945,  -97.6699,"F", 2, _GLOBAL, True,  "America/Chicago"),
+    "taipei":        Station("taipei",        "RCSS", "tw/taipei/RCSS",            25.0694,  121.5522,"C", 1, _GLOBAL, False, "Asia/Taipei"),
+    "cape-town":     Station("cape-town",     "FACT", "za/cape-town/FACT",        -33.9648,   18.6017,"C", 1, _GLOBAL, False, "Africa/Johannesburg"),
+    "qingdao":       Station("qingdao",       "ZSQD", "cn/qingdao/ZSQD",           36.2661,  120.3742,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
 }
