@@ -271,10 +271,10 @@ BUCKET_SWITCH_MU_DELTA = 0.5    # min °C shift in ensemble mu required to trigg
 # or structural bucket-hit WR < 55% (fee-negative after spread+rebate).
 STRAT1_SKIP_CITIES = {
     "denver",        # σ_blue=0.97 → real D+1 WR ≈ 34% — original exclusion
-    "los-angeles",   # ERA5 σ=1.5–2.2°C all year → WR ≈ 37–46%, structurally fee-negative
-    "san-francisco", # ERA5 σ=1.1–2.1°C; summer (May–Oct) all >1.5°C → coin-flip at best
     "nyc",           # ERA5 σ=0.8–1.6°C; Mar–Jul all >1.3°C → marginal / coin-flip
     "shanghai",      # ERA5 σ=1.0–2.1°C; Mar–Jun all ≥1.5°C → unreliable forecast city
+    # los-angeles / san-francisco removed 2026-05-22: ERA5 unreliable for coastal cities
+    # (coarse grid can't resolve marine layer); ASOS-calibrated σ=0.45/0.51 is the better signal
 }
 
 # Skip any city/month where calibrated σ > this floor (forecast too uncertain for positive EV)
