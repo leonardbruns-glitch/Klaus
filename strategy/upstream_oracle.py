@@ -134,10 +134,11 @@ def check_upstream_signal(
             region_anomalies.append((peer, peer_z))
 
     n_coherent = len(region_anomalies)
-    is_isolated_region = len(region_cities) <= 1
+    from strategy.upstream_map import is_isolated_region as _is_isolated
+    solo_region = _is_isolated(city_slug)
 
-    # Accept if: ≥2 coherent peers, OR isolated region + z >= solo threshold
-    if n_coherent < 2 and not (is_isolated_region and abs_z >= ANOMALY_Z_SOLO):
+    # Accept if: ≥2 coherent peers, OR isolated/single-city region + z >= solo threshold
+    if n_coherent < 2 and not (solo_region and abs_z >= ANOMALY_Z_SOLO):
         logger.debug(
             "[Oracle] %s z=%.2f %s — coherence failed (%d/%d peers)",
             city_slug, z, direction, n_coherent, len(region_cities)
