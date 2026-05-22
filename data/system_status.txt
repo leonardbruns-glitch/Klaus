@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+8ffd6f44 backtest: prune upstream_map pairs with hit_rate < 35%
 1399b71d fix: split sh-isolated into single-city regions
 8eed557c fix: switch oracle trigger from wu_monitor actuals to METAR running_max
 49b5073a feat: STRAT_5 shadow mode — log oracle signals without entering
@@ -11,13 +12,12 @@ c033c72c data: empirically validate upstream oracle pairs from 10yr ASOS correla
 cbc5e99e fix: add Austin to CITY_PEAK_HOUR_UTC — same-day gate was always blocking
 48d471d9 Watchdog 2026-05-22T22:20:32Z: OK
 1cb76676 data: skill_matrix — 432 merra2 cells (10yr NASA POWER MERRA-2, n≈310/month/city)
-8ef1984c feat: fee-adjusted Kelly (TAKER_FEE_RATE=2%) + thin-book abort guard
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   68G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 23:32:26 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 23:41:56 UTC
 
 ## Open positions (count):
 0

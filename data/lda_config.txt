@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T23:37:18Z
+# Snapshot: 2026-05-22T23:52:20Z
 # Latest commit on klaus:
-1399b71d fix: split sh-isolated into single-city regions
+8ffd6f44 backtest: prune upstream_map pairs with hit_rate < 35%
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
