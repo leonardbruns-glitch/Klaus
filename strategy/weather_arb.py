@@ -636,6 +636,7 @@ CITY_PEAK_HOUR_UTC: dict[str, dict[int, int]] = {
     "mexico-city": {1: 20, 2: 21, 3: 20, 4: 20, 5: 19, 6: 19, 7: 19, 8: 19, 9: 19, 10: 20, 11: 20, 12: 20},
     "buenos-aires": {1: 19, 2: 19, 3: 19, 4: 18, 5: 18, 6: 18, 7: 19, 8: 18, 9: 19, 10: 18, 11: 19, 12: 19},
     "sao-paulo": {1: 16, 2: 16, 3: 16, 4: 17, 5: 18, 6: 18, 7: 18, 8: 18, 9: 17, 10: 17, 11: 17, 12: 16},
+    "austin":      {1: 20, 2: 21, 3: 21, 4: 20, 5: 20, 6: 21, 7: 21, 8: 21, 9: 21, 10: 20, 11: 20, 12: 20},
 }
 
 # Per-city/month/UTC-hour mean remaining rise in °C (how much more the temp typically rises
