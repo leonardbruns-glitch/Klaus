@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+e61f2d3f feat: NWP-slot scan trigger + local-time entry window [6h–36h]
+62e98478 config: STRAT_1-only mode, $5 max stake per position
 e9c14ed1 feat: NOAA scraper for Tel Aviv + Moscow live accumulator
 327596c1 fix: NOAA resolution parsing + Moscow wrong-airport correction
 b087de3f fix: add LLBG (Tel Aviv Ben Gurion) to STATION_COORDS
@@ -10,14 +12,12 @@ b087de3f fix: add LLBG (Tel Aviv Ben Gurion) to STATION_COORDS
 ec8f11f4 feat: add 5 new validated cities — Munich, Warsaw, Helsinki, Milan, Austin
 9b514675 tune: ERA5-floor CITY_SIGMA_C, exclude LA/SF/NYC/Shanghai from STRAT_1, add SIGMA_SKIP_FLOOR=1.5
 0ec7f597 fix: add VALIDATED_CITY_SLUGS gate to STRAT_3/4/5/7
-cf7c0780 tune: OVERNIGHT_ALLOC 0.40→0.55 — absorb retired CITYCTR allocation
-00a0c50d disable CITYCTR trading — passive divergence logger only
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   65G       28G  70% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 10:30:28 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 10:56:22 UTC
 
 ## Open positions (count):
 0
