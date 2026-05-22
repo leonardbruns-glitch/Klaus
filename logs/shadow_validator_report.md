@@ -1,11 +1,10 @@
-# Shadow Validator — 2026-05-20T09:18:00Z
+# Shadow Validator — 2026-05-22T09:15:00Z
 
 ## Snapshot
-- snapshot_ts: 2026-05-20T09:01:19Z (age: ~17 min — FRESH)
-- Loggers indexed (all dates): 156 entries across 20 logger types
-- Active (mtime <24h, today): 14 files
-- Manifest-tracked active: 3 (exit_policy_shadow, order_lifecycle, window_resolution)
-- Stalled (mtime >6h, expected active): 0
+- snapshot_ts: 2026-05-22T08:58:23Z (age: ~17 min — fresh)
+- Loggers indexed (shadow_summary.json): 5 manifest-relevant, 30+ total
+- Active (mtime < 24h): exit_policy_shadow, order_lifecycle, window_resolution, discover_signal (closed), shadow_telemetry
+- Stalled (mtime > 6h): none
 - Strategy live: VOLARB Phase 1 (activated 2026-05-16 21:00 UTC)
 
 ---
@@ -14,26 +13,23 @@
 
 | name | n_total | n_new | candidate_ev | baseline_ev | uplift | CI95 | threshold | status |
 |---|---|---|---|---|---|---|---|---|
-| exit_policy_shadow / BE_trail_5_3 | 25769 rows | +7514 | +7.48% | +0.07% | +6.30% | [+4.91%, +7.69%] | 500 rows | **READY** (schema-adapted) |
-| exit_policy_shadow / PT0.93+30s | 25769 rows | +7514 | +1.71% | +0.07% | +1.28% | [-0.83%, +3.39%] | 500 rows | AMBIGUOUS |
-| exit_policy_shadow / PT0.95+30s | 25769 rows | +7514 | +2.03% | +0.07% | +1.62% | [-0.43%, +3.68%] | 500 rows | AMBIGUOUS |
+| exit_policy_shadow / BE_trail_5_3 | 30,805 | 5,036 | +8.332% | +1.399% | +6.933% | [+5.28, +8.58] | 500 | SCHEMA_DRIFT→adapted READY |
+| exit_policy_shadow / PT0.93+30s | 30,805 | 5,036 | +0.963% | +0.559% | +0.404% | [-1.83, +2.63] | 500 | SCHEMA_DRIFT→adapted AMBIGUOUS |
+| exit_policy_shadow / PT0.95+30s | 30,805 | 5,036 | +0.824% | +0.559% | +0.265% | [-2.08, +2.61] | 500 | SCHEMA_DRIFT→adapted AMBIGUOUS |
 | volarb_longshot_shadow | 0 | 0 | — | — | — | — | 100 | NOT_DEPLOYED |
-| order_lifecycle | 3361 | +891 | — | — | — | — | n/a | INFORMATIONAL |
-| window_resolution | 13542 | +3294 | — | — | — | — | n/a | JOIN_SOURCE |
+| order_lifecycle | 3,583 | 222 | — | — | — | — | n/a | INFORMATIONAL |
+| window_resolution | 15,774 | 2,232 | — | — | — | — | n/a | JOIN_SOURCE |
 
-**Analysis basis:** exit_policy_shadow uses today's hot file only (941 rows, 232 unique observations).
-Paired analysis: each candidate policy vs baseline `gate_died` on same (condition_id, window_end_ts).
-CI95 computed via t-distribution (n_paired: 206-226; t_crit=1.96 for n≥100).
+**Note on analysis scope**: Today's hot file (875 rows / 232 unique events) is the only data available for computation. Cumulative n=30,805 >> threshold of 500. Pair counts per policy (today only): BE_trail_5_3 n=193, PT0.93+30s n=225, PT0.95+30s n=225. CI computed from today's sample at t=1.96.
 
 ---
 
 ## READY for Live Review
 
-- **exit_policy_shadow / BE_trail_5_3**: uplift=+6.30% CI=[+4.91%, +7.69%] n_paired=206 (today).
-  Prior run (2026-05-17): uplift=+7.27% CI=[+5.70%, +8.85%] n_paired=216.
-  **Two independent samples, both CI clearly above 0. Signal is robust and consistent.**
-  Recommend live deployment review via Auditor.
-  **Formally blocked pending manifest update** — schema drift flag raised on two consecutive runs (see §SCHEMA DRIFT). Promotion requires manifest alignment before live deployment review.
+**BLOCKED — schema drift prevents formal promotion:**
+
+- **exit_policy_shadow / BE_trail_5_3**: uplift=+6.93% CI=[+5.28, +8.58] n_paired=193 (today's sample).
+  This is the **third consecutive independent daily sample** with CI entirely above zero (2026-05-17, 2026-05-20, 2026-05-22-partial). Adapted analysis classifies as READY. Formal promotion blocked pending manifest update at research_status.md §5 to reflect actual schema (`policy_id`, `realistic_pnl_pct`). Recommend: Auditor or operator update the manifest, then re-run validator to clear formal READY.
 
 ---
 
@@ -43,59 +39,51 @@ None.
 
 ---
 
-## STALLED (mtime >6h, expected active)
+## STALLED (mtime > 6h, expected active)
 
-None. All manifest-tracked loggers wrote within 9 minutes of snapshot timestamp.
-- exit_policy_shadow: last write 2026-05-20T08:59:20Z (2 min before snapshot)
-- order_lifecycle: last write 2026-05-20T08:53:40Z (8 min before snapshot)
-- window_resolution: last write 2026-05-20T09:00:35Z (1 min before snapshot)
+None. All manifest loggers wrote within the last ~30 minutes of snapshot.
 
 ---
 
 ## SCHEMA DRIFT
 
-- **exit_policy_shadow**: Manifest schema `{ts, trade_id, candidate_exit_reason, candidate_exit_price, baseline_exit_reason, baseline_exit_price}` does not match actual rows.
-
-  Actual schema (observed): `{ts_s, token_id, condition_id, asset, outcome_dir, outcome_side, window_end_ts, fire_ts_s, fire_ask, sec_to_res_at_fire, policy_id, exit_ts_s, exit_bid, exit_bid_size, exit_trigger, clean_pnl_pct, realistic_pnl_pct, fill_ok, hold_seconds, bnc_5m_pct, ...}`
-
-  The logger is per-policy-per-observation (multiple rows per window, one per `policy_id`). Policy IDs active today: `BE_trail_5_3`, `PT0.93+30s`, `PT0.95+30s`, `gate_died` (baseline).
-
-  **This is the SECOND consecutive run flagging schema drift with no manifest update.** Schema-adapted analysis performed in both runs. Formal READY status remains blocked until research_status.md §5 is updated to reflect actual schema.
-
-  Recommend: update `research_status.md §5` exit_policy_shadow schema definition to match actual rows, then re-run validator.
+- **exit_policy_shadow**: Manifest schema specifies `{ts, trade_id, candidate_exit_reason, candidate_exit_price, baseline_exit_reason, baseline_exit_price}`. Actual rows use `{schema_version, record_type, ts_s, token_id, condition_id, policy_id, fire_ask, exit_bid, clean_pnl_pct, realistic_pnl_pct, exit_trigger, hold_seconds, ...}`. Multi-row-per-event format (one row per policy_id per fire event). Drift has persisted since at least 2026-05-17 (third consecutive flag). Manifest at research_status.md §5 still reads "rolling exit-rule validation rows" with old field names. Recommend manifest update to unblock formal READY status.
 
 ---
 
-## Unregistered Active Loggers (not in manifest — flagged only, not analyzed)
+## Informational: order_lifecycle (n_new=222, today n=38)
 
-The following loggers are writing today but absent from research_status.md §5. Not analyzed.
+- Event type: all `fill` events (no submitted/cancelled rows in today's hot file)
+- Mean latency: 1,271ms (improving from 1,451ms prior run, 1,895ms two runs prior)
+- Median latency: 1,178ms | p95: 1,947ms
+- Full fills (realized_size ≥ intended_size): 27/38 = 71%
+- Mean slippage: 0.899% (expected at extreme-odds thin markets; e.g. 0.07 ask price)
+- CF (Cloudflare) attempts: mean=1.0, max=1 — no retries needed today
 
-| logger | n_today | last_mtime |
-|---|---|---|
-| preseed_shadow | 445 | 2026-05-20T08:53:38Z |
-| sports_copy_signals | 308 | 2026-05-20T08:47:20Z |
-
-Recommend: register or explicitly close these in research_status.md §5.
-
----
-
-## PT0.93 / PT0.95 Signal Regression Note
-
-Prior run (2026-05-17): PT0.93 uplift=+4.71% CI=[+3.15%, +6.26%], PT0.95 uplift=+4.42% CI=[+2.62%, +6.23%] — both CI above 0.
-
-Today (2026-05-20, independent sample): PT0.93 uplift=+1.28% CI=[-0.83%, +3.39%], PT0.95 uplift=+1.62% CI=[-0.43%, +3.68%] — both CI straddle 0.
-
-Point estimates dropped ~3.5pp. Possible causes: different session/hour distribution under VOLARB Phase 1 vs prior; PT policies more sensitive to session composition than BE_trail. Do not promote. Extend collection to resolve.
+Latency trend is improving. Fill rate at 71% suggests partial fills at extreme odds; normal for VOLARB low-price tokens.
 
 ---
 
-## State Transitions vs Prior
+## Informational: window_resolution (n_new=2,232, today n=432)
 
-| logger / sub-key | prior status | current status |
-|---|---|---|
-| exit_policy_shadow / BE_trail_5_3 | SCHEMA_DRIFT (CI>0 in prior adapted analysis) | **READY** (schema-adapted, blocked pending manifest update) |
-| exit_policy_shadow / PT0.93+30s | SCHEMA_DRIFT (CI>0 in prior adapted analysis) | AMBIGUOUS (CI straddles 0 in today's independent sample) |
-| exit_policy_shadow / PT0.95+30s | SCHEMA_DRIFT (CI>0 in prior adapted analysis) | AMBIGUOUS (CI straddles 0 in today's independent sample) |
-| volarb_longshot_shadow | NOT_DEPLOYED | NOT_DEPLOYED (no change) |
-| order_lifecycle | INFORMATIONAL | INFORMATIONAL (latency improving: mean 1451ms vs prior 1894ms) |
-| window_resolution | JOIN_SOURCE | JOIN_SOURCE (no change) |
+- Today: 144 windows per asset (BTC/ETH/SOL), all logging `outcome_dir=up` (logger records only the "up" condition side of each updown market pair)
+- YES (price went up) rate: 197/432 = 45.6% — consistent with near-random binary outcome
+- Resolution method: all `kline`-based
+- No anomalies. Join source functioning normally.
+
+---
+
+## Informational: volarb_longshot_shadow (NOT_DEPLOYED)
+
+Phase 2 gate not yet deployed. File absent from data-mirror. Expected: ASK_FLOOR=0.0 OOS collection to begin before ASK_FLOOR lift from 0.10 → 0.0. Status unchanged since last run.
+
+---
+
+## State Transitions vs Prior (2026-05-20T09:18:00Z)
+
+- **exit_policy_shadow**: SCHEMA_DRIFT → SCHEMA_DRIFT (no change). Schema-adapted sub-status: BE_trail_5_3 READY_PENDING_MANIFEST → READY_PENDING_MANIFEST (third consecutive CI>0 confirmation; no manifest update received). PT0.93+30s: AMBIGUOUS → AMBIGUOUS. PT0.95+30s: AMBIGUOUS → AMBIGUOUS.
+- **volarb_longshot_shadow**: NOT_DEPLOYED → NOT_DEPLOYED (no change).
+- **order_lifecycle**: INFORMATIONAL → INFORMATIONAL. Latency improving (1,451ms → 1,271ms mean).
+- **window_resolution**: JOIN_SOURCE → JOIN_SOURCE (no change).
+
+No promotions. No rejections. BE_trail_5_3 awaiting manifest correction to unlock formal READY.
