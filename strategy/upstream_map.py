@@ -62,8 +62,11 @@ SYNOPTIC_REGIONS: dict[str, list[str]] = {
     "ea-yangtze": ["shanghai", "qingdao"],
     "ea-south-china": ["guangzhou", "shenzhen"],
 
-    # Southern Hemisphere / isolated — use solo threshold (z>2.5)
-    "sh-isolated": ["buenos-aires", "sao-paulo", "cape-town"],
+    # Southern Hemisphere — no synoptic links between these cities (7000km+ apart)
+    # Each treated as solo-region; ANOMALY_Z_SOLO (2.5) applies to all three
+    "sh-buenos-aires": ["buenos-aires"],
+    "sh-sao-paulo":    ["sao-paulo"],
+    "sh-cape-town":    ["cape-town"],
 }
 
 # ── Summer downstream map (Jun–Sep) ───────────────────────────────────────────
