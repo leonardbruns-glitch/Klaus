@@ -115,7 +115,7 @@ TAIL_POS_ALLOC       = TAIL_STRAT_ALLOC / MAX_POS_PER_STRAT   # 2.5% per tail po
 PER_STRAT_ALLOC  = OVERNIGHT_POS_ALLOC  # default for _kelly_stake (STRAT_1)
 SIGMA_C_DEFAULT = 1.5  # fallback forecast uncertainty when only one model available
 SIGMA_F_DEFAULT = 2.7  # fallback in °F
-SCAN_INTERVAL_S = 21600  # fallback sleep if no NWP slot found within 6h (should never fire)
+SCAN_INTERVAL_S = 21600  # baseline 6h scan cadence between NWP slots
 
 # ── Entry timing window (local-time-aware) ────────────────────────────────────
 # Resolution = midnight LOCAL on endDate. Window is [MAX_H_BEFORE, MIN_H_BEFORE] before that.
@@ -1145,24 +1145,24 @@ class WeatherArb:
     @staticmethod
     def _seconds_to_next_nwp_slot() -> tuple[float, bool]:
         """Return (sleep_seconds, is_nwp_slot).
-        sleep_seconds is capped at 3600s so we scan at least every 60min.
+        sleep_seconds is capped at 21600s (6h) so we baseline-scan every 6 hours.
         is_nwp_slot=True means we woke because a publish slot is imminent — run the
-        freshness probe. is_nwp_slot=False means 60-min cap fired — scan immediately."""
+        freshness probe. is_nwp_slot=False means 6h cap fired — scan immediately."""
         now = datetime.now(timezone.utc)
         for h in NWP_SCAN_SLOTS_UTC:
             candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
             if candidate > now:
                 secs = (candidate - now).total_seconds()
-                if secs <= 3600.0:
-                    return secs, True   # NWP slot within the hour
-                return 3600.0, False    # 60-min cap fires first
+                if secs <= 21600.0:
+                    return secs, True   # NWP slot within 6h
+                return 21600.0, False   # 6h cap fires first
         tomorrow_first = now.replace(hour=NWP_SCAN_SLOTS_UTC[0],
                                      minute=0, second=0, microsecond=0) \
                          + timedelta(days=1)
         secs = (tomorrow_first - now).total_seconds()
-        if secs <= 3600.0:
+        if secs <= 21600.0:
             return secs, True
-        return 3600.0, False
+        return 21600.0, False
 
     async def _probe_data_fresh(self) -> bool:
         """Fetch ensemble μ for 3 reference cities; return True if any shifted > PROBE_SHIFT_C.
