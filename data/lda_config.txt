@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T18:33:43Z
+# Snapshot: 2026-05-22T18:48:44Z
 # Latest commit on klaus:
-9778856c fix: NameError month in _evaluate_market — second missing variable from ERA5 block
+6d9c20d4 fix: restore MIN_FAIR_PROB=0.40 (revert packaging error from 5b0ee72d)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
