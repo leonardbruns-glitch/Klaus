@@ -1154,6 +1154,8 @@ class WeatherArb:
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
         # process newly appended actual events each METAR cycle.
         self._wu_actuals_offset: int = 0
+        # Upstream Oracle dedup: {city_slug|date_iso} already checked this run-day
+        self._oracle_fired_dates: set[str] = set()
         # Seed _fired_tokens from any WEATHER positions already open in the risk manager
         # so restarts don't re-enter the same city/token.
         for tid, pos in getattr(self.bot.risk, "open_positions", {}).items():
@@ -2004,10 +2006,12 @@ class WeatherArb:
                 await self._evaluate_dynamic_exits()
                 # 4. WU transition check — sell confirmed losers immediately when WU posts the daily high
                 await self._check_wu_transitions()
-                # 5. Scan ALL today's markets for intraday arb (heating ramp window)
+                # 5. Upstream Oracle — check METAR running_max post-peak for anomaly signal
+                await self._oracle_metar_check()
+                # 6. Scan ALL today's markets for intraday arb (heating ramp window)
                 if INTRADAY_ENABLED:
                     await self._intraday_scan()
-                # 6. Tail sniper on $0.01–$0.04 tokens
+                # 7. Tail sniper on $0.01–$0.04 tokens
                 if TAIL_SNIPER_ENABLED:
                     await self._tail_sniper_check()
             except Exception:
@@ -3220,6 +3224,51 @@ class WeatherArb:
                             await self._upstream_oracle_check(cs, vd, wh, month)
                         except Exception:
                             logger.exception("[Oracle] check failed for %s %s", cs, vd)
+
+    async def _oracle_metar_check(self) -> None:
+        """
+        METAR-driven upstream oracle trigger (replaces WU-actuals path).
+
+        After a city's peak hour has passed, running_max_c from the METAR cache
+        IS the confirmed daily maximum — same signal, 2-4h earlier than WU publication.
+
+        Fires once per city per calendar day (deduped by _oracle_fired_dates).
+        Only considers cities with a calibrated CITY_PEAK_HOUR_UTC entry + ICAO.
+        """
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        today   = now_utc.date().isoformat()
+        month   = now_utc.month
+
+        for city_name, icao in CITY_ICAO.items():
+            slug = CITY_NAME_TO_SLUG.get(city_name, "")
+            if not slug:
+                continue
+            dedup_key = f"{slug}|{today}"
+            if dedup_key in self._oracle_fired_dates:
+                continue
+
+            peak_h = CITY_PEAK_HOUR_UTC.get(slug, {}).get(month)
+            if peak_h is None:
+                continue
+            # Only fire after peak hour has passed (plus 1h buffer for temp to plateau)
+            if now_utc.hour < peak_h + 1:
+                continue
+
+            obs = self._icao_metar_cache.get(icao)
+            if not obs:
+                continue
+            running_max = obs.get("running_max_c")
+            if running_max is None:
+                continue
+
+            # Mark as checked regardless of whether oracle fires, to avoid per-cycle spam
+            self._oracle_fired_dates.add(dedup_key)
+
+            try:
+                await self._upstream_oracle_check(slug, today, running_max, month)
+            except Exception:
+                logger.exception("[Oracle] metar check failed for %s", slug)
 
     async def _upstream_oracle_check(
         self, city_slug: str, valid_day: str, wu_high_c: float, month: int
