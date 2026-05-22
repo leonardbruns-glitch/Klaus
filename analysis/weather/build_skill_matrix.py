@@ -49,7 +49,7 @@ ASOS_URL = "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 USER_AGENT = "Klaus-WeatherBot/1.0 (research; contact: leonard.bruns@gmail.com)"
 
-YEAR_START = 2021
+YEAR_START = 2015
 YEAR_END   = 2025
 SIGMA_FLOOR = 0.30   # minimum debiased sigma (°C) — prevents over-confident weights
 MIN_N_REPORT = 5     # include cell in matrix only if n >= this (MIN_N_PER_MONTH in ensemble_weights checks further)
