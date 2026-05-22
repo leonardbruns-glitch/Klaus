@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+1cb76676 data: skill_matrix — 432 merra2 cells (10yr NASA POWER MERRA-2, n≈310/month/city)
+8ef1984c feat: fee-adjusted Kelly (TAKER_FEE_RATE=2%) + thin-book abort guard
 bf322995 feat: add_nasa_power_to_matrix — 10yr MERRA-2 skill cells via NASA POWER API
 64e4924c fix: backfill_prev_runs — use api.open-meteo.com past_days (archive subdomain unreachable)
 d66f16d9 feat: skill matrix enrichment — prev-runs backfill + 10yr history rebuild
@@ -10,14 +12,12 @@ d66f16d9 feat: skill matrix enrichment — prev-runs backfill + 10yr history reb
 7dd62bb1 feat: INTRADAY tiered stake — $20 when p >= 0.90, $10 otherwise
 b18b12d0 feat: raise STRAT_1 Kelly cap $5→$8; INTRADAY already at $10 via bankroll alloc
 d073a74f Watchdog 2026-05-22T21:18:00Z: MEDIUM 2 alerts
-66ab2d59 fix: STRAT_1 same-day NWP staleness gate — block today's markets within 5h of city peak
-ee0056d4 feat: intraday sigma gate + scalp TP exit + MIN_FAIR_PROB 0.45
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  72% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 22:00:29 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 22:15:48 UTC
 
 ## Open positions (count):
 0
