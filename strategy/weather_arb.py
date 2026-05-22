@@ -192,6 +192,7 @@ CLOB_BASE        = "https://clob.polymarket.com"
 MAKER_FIRST      = True      # default: rest at best_bid+tick (passive fill)
 TAKER_EDGE_MIN   = 0.15      # override to taker when edge this large (captures before repricing)
 CLOB_TICK        = 0.01      # minimum price increment for weather markets
+TAKER_FEE_RATE   = 0.02      # Polymarket taker fee (~2% on order value)
 
 # ── Tail-risk sniper ($0.01–$0.04 tokens) ────────────────────────────────────
 TAIL_SNIPER_ENABLED  = False  # disabled 2026-05-22: STRAT_1-only mode
@@ -1728,6 +1729,16 @@ class WeatherArb:
             use_taker = (not MAKER_FIRST) or (edge >= TAKER_EDGE_MIN) or (not has_depth)
             if use_taker:
                 intended_price = vwap if has_depth else best_ask
+                # Thin-book guard: if walking the book pushes VWAP above edge floor, abort.
+                # Paying more than fair_prob - EDGE_MIN destroys the EV basis for the trade.
+                if intended_price > fair_prob - EDGE_MIN:
+                    logger.info(
+                        "[WA] ABORT %s %s — thin book vwap=%.3f > edge floor %.3f",
+                        city, end_date, intended_price, fair_prob - EDGE_MIN,
+                    )
+                    self._fired_tokens.discard(token_id)
+                    self._fired_city_dates.pop(f"{city}|{end_date}", None)
+                    return False
                 logger.debug("[WA] taker order %s edge=%.3f vwap=%.4f", token_id[:8], edge, intended_price)
             else:
                 # Spread-collision guard: only step inside the spread when it is wide enough.
@@ -3282,17 +3293,23 @@ class WeatherArb:
 
     def _kelly_stake(self, edge: float, ask: float, strat_alloc: float = PER_STRAT_ALLOC) -> float:
         """
-        Fractional Kelly stake in USD.
+        Fee-adjusted fractional Kelly stake in USD.
 
-        f* = edge / (1 − ask)   [Kelly fraction of bankroll]
-        stake = KELLY_FRACTION × bankroll × f*
+        Taker fee r means effective entry cost = ask × (1 + r).
+        f* = (fair - ask×(1+r)) / (1 - ask×(1+r))
+           = fee_adj_edge / (1 - p_eff)
+
+        where edge already equals (fair - ask), so:
+        fee_adj_edge = edge - ask × r
 
         Clamped to [KELLY_MIN_USD, KELLY_MAX_USD].
         Falls back to STAKE_USD if Kelly is disabled or ask >= 1.0.
         """
         if not KELLY_ENABLED or ask >= 1.0:
             return STAKE_USD
-        f_star = edge / max(0.001, 1.0 - ask)
+        fee_adj_edge = edge - ask * TAKER_FEE_RATE
+        p_eff = ask * (1.0 + TAKER_FEE_RATE)
+        f_star = fee_adj_edge / max(0.001, 1.0 - p_eff)
         bankroll = self._get_bankroll()
         raw = KELLY_FRACTION * bankroll * f_star
         return max(KELLY_MIN_USD, min(KELLY_MAX_USD, bankroll * strat_alloc, raw))
