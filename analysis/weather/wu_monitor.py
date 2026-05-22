@@ -33,6 +33,7 @@ from playwright.async_api import async_playwright
 from analysis.weather.stations import STATIONS, Station
 from analysis.weather.wu_high_scraper import scrape_one
 from analysis.weather.live_accumulator import log_actual
+from analysis.weather.noaa_scraper import NOAA_CITY_SITES, async_fetch_noaa_daily_max
 
 DEFAULT_INTERVAL_S = 60
 DEFAULT_MAX_PARALLEL = 14   # 7 stations × 2 days
@@ -49,6 +50,8 @@ def _days_to_monitor() -> list[date]:
 
 
 async def _scrape_with(page, station: Station, day: date) -> dict:
+    if station.city_slug in NOAA_CITY_SITES:
+        return await async_fetch_noaa_daily_max(station, day)
     return await scrape_one(page, station, day)
 
 
