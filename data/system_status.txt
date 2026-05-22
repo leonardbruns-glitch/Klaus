@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+8af7a10c fix: extend all weather exit exemptions to WEATHER_NOSIDE + WEATHER_CITYCTR
 12488953 feat: weather local time + price path — high_time_local from hourly obs, tz per city
 26235442 feat: auto-log weather resolution — immediate at exit + 4h backfill loop
 dd675509 fix: backfill also patches STARTUP_EXTERNALLY_SOLD orphans with blank bond_entry_class
@@ -11,13 +12,12 @@ aa8be466 feat: weather resolution backfill + forward-log weather_question at ent
 96dfd4e6 Watchdog 2026-05-22T08:18:09Z: MEDIUM 3 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT + SHADOW_LOGGER_STALLED)
 4b0815b5 Watchdog 2026-05-21T23:18:45Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT re-confirmed)
 f82f7308 feat: wire regime_today.json into overnight + intraday scans; remove auto-kill
-dedbd5e4 feat: 5 daily auto-improvement routines + legacy crypto cleanup
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   65G       29G  70% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 08:54:40 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 09:01:53 UTC
 
 ## Open positions (count):
 0
