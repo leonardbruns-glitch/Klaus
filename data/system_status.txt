@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+9f3e747b tune: MIN_FAIR_PROB 0.45→0.40, ASK_BAND_HI 0.27→0.29
+d154276d Watchdog 2026-05-22T11:18:07Z: OK
 a4cf30d9 tune: baseline scan 60min→6h; NWP slots still fire within that window
 dbe2b498 fix: restore 60min baseline scan + fix probe-on-background-scan bug
 3922f833 feat: NWP freshness probe — scan when data lands, not on fixed offset
@@ -10,14 +12,12 @@ e61f2d3f feat: NWP-slot scan trigger + local-time entry window [6h–36h]
 e9c14ed1 feat: NOAA scraper for Tel Aviv + Moscow live accumulator
 327596c1 fix: NOAA resolution parsing + Moscow wrong-airport correction
 b087de3f fix: add LLBG (Tel Aviv Ben Gurion) to STATION_COORDS
-1026246e feat: add 4 wave-3 cities — Tel Aviv, Moscow, Guangzhou, Shenzhen
-610a8ac3 Watchdog 2026-05-22T10:18:48Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN + VOLARB_TRADE_LOOP_SILENT)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   65G       28G  70% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-22 11:20:00 UTC
+ActiveEnterTimestamp=Fri 2026-05-22 12:12:55 UTC
 
 ## Open positions (count):
 0
