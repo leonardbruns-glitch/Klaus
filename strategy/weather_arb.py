@@ -126,7 +126,22 @@ MAX_HOURS_BEFORE_RESOLUTION = 36   # don't enter if >36h out (forecast not yet c
 # NWP publish slots (UTC hours). Scan fires T+5min after each slot when fresh model data lands.
 # Mirrors nwp_lag.py schedule; that strategy is paused but the schedule is ground truth.
 NWP_SCAN_SLOTS_UTC: list[int] = sorted({3,4,5,6,7,9,10,11,15,16,17,18,19,21,22,23})
-NWP_SCAN_OFFSET_MIN = 5  # minutes after the hour to poll (model data available by then)
+
+# ── NWP data-freshness probe ──────────────────────────────────────────────────
+# After each NWP slot, poll reference cities until Open-Meteo shows a forecast
+# shift (new model run ingested) rather than waiting a fixed T+N offset.
+PROBE_FIRST_WAIT_MIN = 10   # first probe at T+10min after slot
+PROBE_INTERVAL_MIN   = 10   # retry every 10min
+PROBE_MAX_RETRIES    = 3    # give up and scan anyway at T+30min
+PROBE_SHIFT_C        = 0.3  # °C shift in ensemble mean → new run confirmed
+
+# Geographically diverse reference cities for the freshness probe only (not traded).
+# London = ECMWF territory; Chicago = GFS territory; Tokyo = JMA territory.
+_PROBE_CITIES: tuple[tuple[str, float, float], ...] = (
+    ("London",  51.5048,   0.0495),
+    ("Chicago", 41.9742, -87.9073),
+    ("Tokyo",   35.5494, 139.7798),
+)
 MAX_POSITIONS    = 30  # max concurrent weather positions
 DRY_RUN_LOG  = False  # set False to trade live
 
@@ -1067,6 +1082,11 @@ class WeatherArb:
         # already repriced significantly upward before HOT_BASE_RATE fires (signal stale).
         self._tail_open_ask: dict[str, float] = {}
 
+        # NWP freshness probe: last observed ensemble μ per reference city.
+        # Seeded on startup; compared each scan cycle to detect when Open-Meteo
+        # has ingested a new model run.
+        self._nwp_probe_cache: dict[str, float] = {}
+
         from strategy.ensemble_weights import WeightedEnsemble
         self._ensemble = WeightedEnsemble()
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
@@ -1124,30 +1144,75 @@ class WeatherArb:
 
     @staticmethod
     def _seconds_to_next_nwp_slot() -> float:
-        """Seconds until the next NWP publish slot (UTC hour + NWP_SCAN_OFFSET_MIN).
+        """Seconds until the top of the next NWP publish hour (we probe T+10 after).
         Returns at most SCAN_INTERVAL_S as a fallback cap."""
         now = datetime.now(timezone.utc)
-        offset = timedelta(minutes=NWP_SCAN_OFFSET_MIN)
         for h in NWP_SCAN_SLOTS_UTC:
-            candidate = now.replace(hour=h, minute=NWP_SCAN_OFFSET_MIN, second=0, microsecond=0)
+            candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
             if candidate > now:
                 return min((candidate - now).total_seconds(), SCAN_INTERVAL_S)
-        # All slots passed today — first slot tomorrow
         tomorrow_first = now.replace(hour=NWP_SCAN_SLOTS_UTC[0],
-                                     minute=NWP_SCAN_OFFSET_MIN, second=0, microsecond=0) \
+                                     minute=0, second=0, microsecond=0) \
                          + timedelta(days=1)
         return min((tomorrow_first - now).total_seconds(), SCAN_INTERVAL_S)
 
+    async def _probe_data_fresh(self) -> bool:
+        """Fetch ensemble μ for 3 reference cities; return True if any shifted > PROBE_SHIFT_C.
+        Updates _nwp_probe_cache regardless — seeds it on first call."""
+        today     = date.today().isoformat()
+        tomorrow  = (date.today() + timedelta(days=1)).isoformat()
+        shifted   = False
+        for city, lat, lon in _PROBE_CITIES:
+            try:
+                fc = await self._get_forecast(lat, lon, today, tomorrow, city)
+            except Exception:
+                continue
+            if not fc or tomorrow not in fc:
+                continue
+            mu_new, _ = fc[tomorrow]
+            mu_old = self._nwp_probe_cache.get(city)
+            self._nwp_probe_cache[city] = mu_new
+            if mu_old is not None and abs(mu_new - mu_old) > PROBE_SHIFT_C:
+                logger.info("[WA] NWP shift: %s μ %.2f→%.2f°C (Δ%.2f)",
+                            city, mu_old, mu_new, mu_new - mu_old)
+                shifted = True
+        return shifted
+
+    async def _wait_for_nwp_refresh(self) -> bool:
+        """After a publish slot, poll until Open-Meteo confirms a new run or we time out.
+        First probe at T+10min, then every 10min, give up at T+30 and scan anyway."""
+        await asyncio.sleep(PROBE_FIRST_WAIT_MIN * 60)
+        for attempt in range(PROBE_MAX_RETRIES):
+            if attempt > 0:
+                await asyncio.sleep(PROBE_INTERVAL_MIN * 60)
+            try:
+                if await self._probe_data_fresh():
+                    logger.info("[WA] fresh NWP data confirmed (probe %d) — scanning now",
+                                attempt + 1)
+                    return True
+            except Exception:
+                logger.debug("[WA] probe attempt %d error", attempt + 1, exc_info=True)
+        logger.info("[WA] no NWP shift after %dmin — scanning anyway",
+                    PROBE_FIRST_WAIT_MIN + (PROBE_MAX_RETRIES - 1) * PROBE_INTERVAL_MIN)
+        return False
+
     async def _loop(self) -> None:
         await asyncio.sleep(60.0)  # allow bot to initialise
+        # Seed probe cache and do an initial scan before waiting for the first slot
+        await self._probe_data_fresh()
+        try:
+            await self._scan()
+        except Exception:
+            logger.exception("[WA] initial scan error")
         while True:
+            sleep_s = self._seconds_to_next_nwp_slot()
+            logger.debug("[WA] sleeping %.0fs to next NWP slot", sleep_s)
+            await asyncio.sleep(sleep_s)
+            await self._wait_for_nwp_refresh()
             try:
                 await self._scan()
             except Exception:
                 logger.exception("[WA] scan error")
-            sleep_s = self._seconds_to_next_nwp_slot()
-            logger.debug("[WA] next scan in %.0fs (next NWP slot)", sleep_s)
-            await asyncio.sleep(sleep_s)
 
     @staticmethod
     def _hours_to_local_resolution(end_date_str: str, icao: Optional[str]) -> float:
