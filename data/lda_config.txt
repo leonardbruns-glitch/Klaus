@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-22T11:14:48Z
+# Snapshot: 2026-05-22T11:29:50Z
 # Latest commit on klaus:
-dbe2b498 fix: restore 60min baseline scan + fix probe-on-background-scan bug
+a4cf30d9 tune: baseline scan 60min→6h; NWP slots still fire within that window
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
