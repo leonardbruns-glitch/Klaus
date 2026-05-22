@@ -1495,6 +1495,7 @@ class WeatherArb:
             return None
 
         city_slug = CITY_NAME_TO_SLUG.get(city, "")
+        month = date.fromisoformat(end_date).month
         era5_sigma = CITY_SIGMA_C_ERA5.get(city_slug, {}).get(month)
         if era5_sigma and abs(era5_sigma - sigma_c) > 0.05:
             logger.debug("[WA] SIGMA_SHADOW %s M%02d live=%.3f era5=%.3f delta=%.3f",
