@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+d66f16d9 feat: skill matrix enrichment — prev-runs backfill + 10yr history rebuild
 5e9bc9ac feat: restore INTRADAY tiered stake — $10 below p=0.90, $20 at p>=0.90
 9f88efbb simplify: flat $20 for all intraday — σ gate is the quality filter
 7dd62bb1 feat: INTRADAY tiered stake — $20 when p >= 0.90, $10 otherwise
@@ -11,10 +12,9 @@ d073a74f Watchdog 2026-05-22T21:18:00Z: MEDIUM 2 alerts
 ee0056d4 feat: intraday sigma gate + scalp TP exit + MIN_FAIR_PROB 0.45
 6ca8b0b4 remove LA/SF from STRAT1_SKIP: ERA5 unreliable for coastal cities
 f8ae4c85 feat: CLOB WS watchlist for near-threshold weather markets
-da36a179 fix: restore discard-on-abort — retry next scan when edge survives price move
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       27G  72% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  72% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-05-22 21:34:14 UTC
