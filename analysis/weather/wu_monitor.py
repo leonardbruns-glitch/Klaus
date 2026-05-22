@@ -123,6 +123,8 @@ async def run(cities: list[str], interval_s: int, out_path: Optional[str],
                                 city_slug=rec["city"],
                                 valid_day=rec["date"],
                                 wu_high_c=float(rec["high_c"]),
+                                wu_high_time_local=rec.get("high_time_local"),
+                                tz=STATIONS[rec["city"]].tz if rec["city"] in STATIONS else "",
                             )
                         except Exception:
                             pass

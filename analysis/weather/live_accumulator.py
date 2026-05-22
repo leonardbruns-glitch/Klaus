@@ -92,6 +92,8 @@ def log_actual(
     city_slug: str,
     valid_day: str,
     wu_high_c: float,
+    wu_high_time_local: str | None = None,
+    tz: str = "",
 ) -> None:
     """Log the WU Summary daily high after market resolution."""
     _ensure_logs_dir()
@@ -104,9 +106,14 @@ def log_actual(
         "wu_high_c": round(wu_high_c, 3),
         "ts_utc": _now_utc(),
     }
+    if wu_high_time_local is not None:
+        record["wu_high_time_local"] = wu_high_time_local
+    if tz:
+        record["tz"] = tz
     with ACTUALS_FILE.open("a") as f:
         f.write(json.dumps(record) + "\n")
-    logger.info("[ACCUM] actual logged: %s %s wu_high=%.1f°C", city_slug, valid_day, wu_high_c)
+    logger.info("[ACCUM] actual logged: %s %s wu_high=%.1f°C time=%s",
+                city_slug, valid_day, wu_high_c, wu_high_time_local or "?")
 
 
 def _load_actuals() -> list[dict]:

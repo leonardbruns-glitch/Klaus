@@ -1026,6 +1026,17 @@ class KlausBot:
                 )
                 continue
 
+            # ── Weather price path snapshot every 15 minutes ─────────────────
+            if getattr(pos, "bond_entry_class", "").startswith("WEATHER_"):
+                _w_meta = self._open_meta.get(token_id)
+                if _w_meta is not None:
+                    _snap_now = time.time()
+                    if _snap_now - _w_meta.get("_price_snap_ts", 0) >= 900:
+                        _w_meta.setdefault("weather_price_path", []).append(
+                            [round(_snap_now, 1), round(current_price, 4)]
+                        )
+                        _w_meta["_price_snap_ts"] = _snap_now
+
             # ── Position status log every 5s ─────────────────────────────────
             now = time.time()
             if now - self._pos_log_ts.get(token_id, 0) >= 5.0:

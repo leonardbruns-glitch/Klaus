@@ -41,6 +41,34 @@ async def _dismiss_cookies(page: Page) -> None:
         pass
 
 
+def _parse_hourly_max(body: str, high_f: float | None) -> str | None:
+    """Return local time string (e.g. '2:53 PM') of the max-temp hour from the
+    WU hourly observations table. WU inner_text renders rows as:
+      '2:53 PM\\t74\\t55\\t71\\tWSW\\t...'
+    First tries to match a row within ±1°F of the Summary high_f; falls back
+    to the row with the maximum temperature."""
+    rows = re.findall(r'(\d{1,2}:\d{2}\s+[AP]M)\s+(\d{2,3}(?:\.\d+)?)', body, re.IGNORECASE)
+    if not rows:
+        return None
+    if high_f is not None:
+        for t_str, temp_str in rows:
+            try:
+                if abs(float(temp_str) - high_f) <= 1.0:
+                    return t_str.strip()
+            except ValueError:
+                continue
+    # Fallback: time of maximum observed temperature
+    best_t, best_temp = None, float("-inf")
+    for t_str, temp_str in rows:
+        try:
+            temp = float(temp_str)
+            if temp > best_temp:
+                best_temp, best_t = temp, t_str.strip()
+        except ValueError:
+            continue
+    return best_t
+
+
 async def scrape_one(page: Page, station: Station, day: date) -> dict:
     """Return dict with high_f, high_c, no_data, raw fields. Never raises on
     parse failure — caller checks `no_data` / `error`."""
@@ -51,10 +79,12 @@ async def scrape_one(page: Page, station: Station, day: date) -> dict:
         "date": day.isoformat(),
         "unit_market": station.unit,
         "bucket_width": station.bucket_width,
+        "tz": station.tz,
         "url": url,
         "fetched_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "high_f": None,
         "high_c": None,
+        "high_time_local": None,
         "low_f": None,
         "avg_f": None,
         "no_data": False,
@@ -79,6 +109,7 @@ async def scrape_one(page: Page, station: Station, day: date) -> dict:
             f = float(high.group(1))
             out["high_f"] = f
             out["high_c"] = round((f - 32.0) * 5.0 / 9.0, 2)
+            out["high_time_local"] = _parse_hourly_max(body, f)
         if low:
             out["low_f"] = float(low.group(1))
         if avg:
