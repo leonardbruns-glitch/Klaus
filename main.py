@@ -1282,7 +1282,7 @@ class KlausBot:
                     self.macro_engine._enabled
                     and token_id not in self._llm_exit_pending
                     and (now - _last_eval) >= _poll_interval
-                    and getattr(pos, "bond_entry_class", "") not in ("TERMINAL", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL")
+                    and getattr(pos, "bond_entry_class", "") not in ("TERMINAL", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL", "WEATHER_NOSIDE", "WEATHER_CITYCTR")
                 )
                 if _due_for_eval:
                     _ext_pos = self._last_ext_signals.get(pos.asset)
@@ -1617,7 +1617,7 @@ class KlausBot:
                 # post-window kline check; entry×1.5 fires too early at low ask (0.63→0.945).
                 _inv_tp = pos.entry_price * 1.50
                 if (current_price >= _inv_tp
-                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB", "CAS_LOWASK", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL")
+                        and getattr(pos, "bond_entry_class", "") not in ("DISCOVER", "LDA", "VOLARB", "CAS_LOWASK", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL", "WEATHER_NOSIDE", "WEATHER_CITYCTR")
                         and token_id not in self._exit_in_progress):
                     self._exit_in_progress.add(token_id)
                     logger.info(
@@ -6844,7 +6844,7 @@ class KlausBot:
                     self._open_meta.pop(token_id, None)
                 else:
                     _token_in_feed = token_id in self.feed.tokens
-                    if not _token_in_feed and getattr(pos, "bond_entry_class", "") in ("SPORTS_COPY", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL"):
+                    if not _token_in_feed and getattr(pos, "bond_entry_class", "") in ("SPORTS_COPY", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL", "WEATHER_NOSIDE", "WEATHER_CITYCTR"):
                         # Sports + Weather tokens are never subscribed to the WS feed — that's
                         # expected. Their own strategy modules manage exits over REST polling.
                         logger.info(

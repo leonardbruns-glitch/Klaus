@@ -253,6 +253,8 @@ class NoSideArb:
             meta = self.bot._open_meta.setdefault(no_token, {})
             meta["signal_source"] = f"WEATHER/{city}/STRAT_7_NOSIDE"
             meta["city"] = city
+            meta["weather_question"] = mkt.get("question", "")
+            meta["weather_date"] = (mkt.get("endDate", "") or "")[:10]
             self._fired.add(no_token)
             wa._fired_tokens.add(no_token)
             logger.info("[NOSIDE] FILLED %s NO@%.4f size=%.0f tag=NOSIDE",

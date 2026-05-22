@@ -1045,7 +1045,9 @@ class RiskManager:
             time_held >= _hard_exit_limit
             and not pos.hard_exit_triggered
             and getattr(pos, "bond_entry_class", "") not in (
-                "SPORTS_COPY", "WEATHER_ARB", "WEATHER_INTRADAY", "WEATHER_BRACKET", "WEATHER_TAIL"
+                "SPORTS_COPY",
+                "WEATHER_ARB", "WEATHER_INTRADAY", "WEATHER_BRACKET",
+                "WEATHER_TAIL", "WEATHER_NOSIDE", "WEATHER_CITYCTR",
             )
         ):
             pos.hard_exit_triggered = True

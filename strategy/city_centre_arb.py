@@ -293,6 +293,8 @@ class CityCentreArb:
             meta = self.bot._open_meta.setdefault(token_id, {})
             meta["signal_source"] = f"WEATHER/{city}/STRAT_6_CITYCTR"
             meta["city"] = city
+            meta["weather_question"] = mkt.get("question", "")
+            meta["weather_date"] = (mkt.get("endDate", "") or "")[:10]
             self._fired.add(token_id)
             wa._fired_tokens.add(token_id)
             logger.info("[CITYCTR] FILLED %s @ %.4f size=%.0f tag=CITYCTR",
