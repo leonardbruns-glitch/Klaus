@@ -1143,18 +1143,26 @@ class WeatherArb:
         self._metar_task = asyncio.create_task(self._metar_loop(), name="weather_metar_loop")
 
     @staticmethod
-    def _seconds_to_next_nwp_slot() -> float:
-        """Seconds until the top of the next NWP publish hour (we probe T+10 after).
-        Returns at most SCAN_INTERVAL_S as a fallback cap."""
+    def _seconds_to_next_nwp_slot() -> tuple[float, bool]:
+        """Return (sleep_seconds, is_nwp_slot).
+        sleep_seconds is capped at 3600s so we scan at least every 60min.
+        is_nwp_slot=True means we woke because a publish slot is imminent — run the
+        freshness probe. is_nwp_slot=False means 60-min cap fired — scan immediately."""
         now = datetime.now(timezone.utc)
         for h in NWP_SCAN_SLOTS_UTC:
             candidate = now.replace(hour=h, minute=0, second=0, microsecond=0)
             if candidate > now:
-                return min((candidate - now).total_seconds(), SCAN_INTERVAL_S)
+                secs = (candidate - now).total_seconds()
+                if secs <= 3600.0:
+                    return secs, True   # NWP slot within the hour
+                return 3600.0, False    # 60-min cap fires first
         tomorrow_first = now.replace(hour=NWP_SCAN_SLOTS_UTC[0],
                                      minute=0, second=0, microsecond=0) \
                          + timedelta(days=1)
-        return min((tomorrow_first - now).total_seconds(), SCAN_INTERVAL_S)
+        secs = (tomorrow_first - now).total_seconds()
+        if secs <= 3600.0:
+            return secs, True
+        return 3600.0, False
 
     async def _probe_data_fresh(self) -> bool:
         """Fetch ensemble μ for 3 reference cities; return True if any shifted > PROBE_SHIFT_C.
@@ -1198,17 +1206,21 @@ class WeatherArb:
 
     async def _loop(self) -> None:
         await asyncio.sleep(60.0)  # allow bot to initialise
-        # Seed probe cache and do an initial scan before waiting for the first slot
+        # Seed probe cache and do an initial scan before entering the main loop
         await self._probe_data_fresh()
         try:
             await self._scan()
         except Exception:
             logger.exception("[WA] initial scan error")
         while True:
-            sleep_s = self._seconds_to_next_nwp_slot()
-            logger.debug("[WA] sleeping %.0fs to next NWP slot", sleep_s)
+            sleep_s, is_nwp_slot = self._seconds_to_next_nwp_slot()
+            logger.debug("[WA] sleeping %.0fs (%s)", sleep_s,
+                         "NWP slot" if is_nwp_slot else "60min baseline")
             await asyncio.sleep(sleep_s)
-            await self._wait_for_nwp_refresh()
+            if is_nwp_slot:
+                # NWP publish: probe until Open-Meteo confirms fresh data, then scan
+                await self._wait_for_nwp_refresh()
+            # else: 60-min baseline scan — no probe, scan immediately
             try:
                 await self._scan()
             except Exception:
