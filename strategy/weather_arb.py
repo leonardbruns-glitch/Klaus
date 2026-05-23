@@ -1719,7 +1719,7 @@ class WeatherArb:
         neg_risk  = mkt.get("negRisk", True)
 
         self._fired_tokens.add(token_id)
-        self._fired_city_dates[f"{city}|{end_date}"] = token_id
+        self._fired_city_dates.setdefault(f"{city}|{end_date}", token_id)
 
         logger.info("[WA] ENTER city=%s date=%s poly=%.3f fair=%.3f stake=$%.0f%s",
                     city, end_date, poly_price, fair_prob, stake,
@@ -3465,9 +3465,12 @@ class WeatherArb:
         f_star = combined_edge / max(0.001, 1.0 - combined_ask)
         bankroll = self._get_bankroll()
         total_kelly_stake = KELLY_FRACTION * bankroll * f_star
-        total_kelly_stake = max(KELLY_MIN_USD * len(bracket),
+        # Cap total bracket spend at BRACKET_ALLOC of bankroll (not per-position).
+        # Use $2/leg floor (not KELLY_MIN_USD=$5) so the bankroll cap isn't overridden.
+        bracket_min = 2.0 * len(bracket)
+        total_kelly_stake = max(bracket_min,
                                 min(KELLY_MAX_USD * len(bracket),
-                                    bankroll * BRACKET_POS_ALLOC,
+                                    bankroll * BRACKET_ALLOC,
                                     total_kelly_stake))
 
         shadow = not BRACKET_ENABLED
@@ -3475,7 +3478,7 @@ class WeatherArb:
         n_entered = 0
         for mkt, entry in bracket:
             w_i = entry["fair_prob"] / combined_fair
-            stake_i = max(KELLY_MIN_USD, min(KELLY_MAX_USD, total_kelly_stake * w_i))
+            stake_i = max(2.0, min(KELLY_MAX_USD, total_kelly_stake * w_i))
             if shadow:
                 logger.info(
                     "[WA] LADDER SHADOW city=%s poly=%.3f fair=%.3f edge=%.3f "
