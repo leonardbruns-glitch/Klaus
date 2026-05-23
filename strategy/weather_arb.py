@@ -187,8 +187,11 @@ RR_CV                 = 0.35   # coefficient of variation proxy: std(remaining_r
 # Cities with σ_blue < 0.45°C (8 regional models) — lower intraday prob threshold applies
 INTRADAY_HI_PREC_CITIES = {"amsterdam", "paris", "madrid", "london"}
 # Only run INTRADAY arb in city-months where σ < this threshold.
-# High-σ months don't generate the fair_prob ≥ 0.90 needed for a reliable WU-lag scalp.
-INTRADAY_SIGMA_CAP = 0.65
+# Acts as a coarse pre-filter ceiling; the real gate is p_intraday < min_p downstream.
+# Raised 0.65→0.85 (2026-05-23): old cap blocked Paris/Madrid/Amsterdam/Munich/Warsaw
+# in May despite p_intraday being mathematically reachable at off-centered μ. The
+# HI_PREC list (which lowers min_p to 0.72) was dead code for those cities under 0.65.
+INTRADAY_SIGMA_CAP = 0.85
 # Example: peak_hour=16 UTC → window opens at UTC 11 (7 AM EDT), closes at peak+1=17
 TODAY_MARKETS_TTL     = 1800   # seconds between today's-market list refreshes (30 min)
 
@@ -2853,8 +2856,7 @@ class WeatherArb:
             if slug not in VALIDATED_CITY_SLUGS:
                 continue
 
-            # Precision gate: only trade intraday in months where σ is sharp enough
-            # to generate fair_prob ≥ 0.90 from METAR certainty.
+            # Precision gate (coarse). Real gate is p_intraday < min_p further down.
             _sigma_intra = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, 1.0)
             if _sigma_intra >= INTRADAY_SIGMA_CAP:
                 logger.info("[WA] INTRADAY SKIP %s — σ=%.2f ≥ INTRADAY_SIGMA_CAP=%.2f M%02d",
