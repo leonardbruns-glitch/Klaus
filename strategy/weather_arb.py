@@ -1115,6 +1115,10 @@ class WeatherArb:
         self._today_markets_cache: list[dict] = []
         self._today_markets_ts: float = 0.0
 
+        # METAR_LOCKOUT shadow tracker — token_id → first-seen-locked ts.
+        # Persists across cycles to record the moment a bucket first locked out.
+        self._lockout_first_seen: dict[str, float] = {}
+
         # ── Centralized position state tracker ───────────────────────────────────
         # Single source of truth for ALL weather positions from order placement to settlement.
         # Lifecycle: RESTING_MAKER → FILLED → (auto-popped when bot.risk drops it)
@@ -2023,15 +2027,190 @@ class WeatherArb:
                 await self._check_wu_transitions()
                 # 5. Upstream Oracle — check METAR running_max post-peak for anomaly signal
                 await self._oracle_metar_check()
-                # 6. Scan ALL today's markets for intraday arb (heating ramp window)
+                # 6. METAR_LOCKOUT shadow logger (passive, no entries)
+                try:
+                    await self._metar_lockout_scan()
+                except Exception:
+                    logger.exception("[WA] metar lockout scan error")
+                # 7. Scan ALL today's markets for intraday arb (heating ramp window)
                 if INTRADAY_ENABLED:
                     await self._intraday_scan()
-                # 7. Tail sniper on $0.01–$0.04 tokens
+                # 8. Tail sniper on $0.01–$0.04 tokens
                 if TAIL_SNIPER_ENABLED:
                     await self._tail_sniper_check()
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
+
+    async def _metar_lockout_scan(self) -> None:
+        """
+        Shadow logger for the METAR_LOCKOUT strategy candidate.
+
+        For every open bucket in today's events, check whether the resolution
+        bucket is physically locked out (running_max already past the bucket's
+        upper edge). If locked out AND the YES side still has a non-trivial
+        bid, record a candidate to logs/shadow/metar_lockout.jsonl with full
+        state. No capital deployed — pure passive log for backtest.
+
+        Rationale:
+          A locked-out bucket cannot resolve YES (running_max only grows over
+          the day; even a brief rise would already be reflected in running_max
+          since METARs are sampled every 60s and the bot reads the running max
+          across all observations in the day). YES bids > $0.02 on such
+          buckets reflect MM repricing lag or dispute-risk premium.
+
+          Edge per candidate (gross of fees):
+              E[R per $ NO] = (1 − p_overshoot) × (1 / NO_ask − 1) − p_overshoot
+          where NO_ask ≈ 1 − YES_bid and p_overshoot is the climatological
+          probability that future METAR pushes running_max above hi_c.
+
+          p_overshoot is post-hoc computed from ASOS data; the shadow log
+          captures the raw state so the inequality can be evaluated against
+          observed resolution outcomes.
+
+        Output schema (one record per candidate per scan cycle):
+          {
+            schema_version, record_type, ts_utc, ts_s,
+            city, icao, token_id, condition_id, question,
+            bucket_lo_c_padded, bucket_hi_c_padded, is_celsius_market,
+            running_max_c, temp_c, last_obs_ts,
+            yes_bid, yes_ask, no_ask_implied,
+            seconds_since_first_lockout, seconds_to_event_close,
+            hour_utc, peak_hour_utc, month, end_date,
+          }
+        """
+        if not self._today_markets_cache:
+            return
+        from datetime import datetime, timezone
+        from pathlib import Path
+        import time as _time
+
+        today_str = datetime.now(timezone.utc).date().isoformat()
+        log_dir = Path("logs/shadow/hot") / today_str
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "metar_lockout.jsonl"
+
+        now_ts = _time.time()
+        now_utc = datetime.now(timezone.utc)
+
+        # Group markets by (event_id, city) to extract event-level resolution time
+        candidates_written = 0
+        for entry in self._today_markets_cache:
+            mkt = entry.get("mkt") or {}
+            city = entry.get("city")
+            icao = entry.get("icao")
+            if not city or not icao:
+                continue
+
+            # Same-day only — lockout logic is meaningless for tomorrow's markets
+            end_date = (mkt.get("endDate") or "")[:10]
+            if end_date != today_str:
+                continue
+
+            metar = self._icao_metar_cache.get(icao) or {}
+            running_max = metar.get("running_max_c")
+            if running_max is None:
+                continue
+
+            question = mkt.get("question", "")
+            lo_c, hi_c, is_celsius = _parse_outcome(question)
+            # Need an upper bound to be "locked out from above"
+            if hi_c is None:
+                continue
+
+            # Lockout condition: running_max already past the bucket's upper edge.
+            # Use a small safety margin (0.05°C) to avoid edge-case false fires at
+            # the exact boundary where a tenth-degree METAR could go either way.
+            LOCKOUT_SAFETY_C = 0.05
+            if running_max < (hi_c + LOCKOUT_SAFETY_C):
+                continue
+
+            token_ids = _parse_token_ids(mkt.get("clobTokenIds", []))
+            if not token_ids:
+                continue
+            token_id = token_ids[0]  # YES token
+
+            # Track first-seen lockout time per token
+            first_seen = self._lockout_first_seen.get(token_id)
+            if first_seen is None:
+                first_seen = now_ts
+                self._lockout_first_seen[token_id] = first_seen
+
+            # Read live quote — prefer bestBid/bestAsk if gamma supplies them,
+            # otherwise fall back to outcomePrices[0] as a price proxy.
+            yes_bid = mkt.get("bestBid")
+            yes_ask = mkt.get("bestAsk")
+            try:
+                yes_bid_f = float(yes_bid) if yes_bid is not None else None
+                yes_ask_f = float(yes_ask) if yes_ask is not None else None
+            except (TypeError, ValueError):
+                yes_bid_f = yes_ask_f = None
+
+            if yes_bid_f is None:
+                # Fall back to outcomePrices[0] (mid/last)
+                try:
+                    prices_raw = mkt.get("outcomePrices", '["0"]')
+                    prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+                    yes_bid_f = float(prices[0])
+                except Exception:
+                    continue
+
+            # Skip if YES bid is already near zero — no edge to capture.
+            LOCKOUT_BID_FLOOR = 0.005  # only log if there's a non-trivial bid
+            if yes_bid_f < LOCKOUT_BID_FLOOR:
+                continue
+
+            no_ask_implied = max(0.0, 1.0 - yes_bid_f)
+
+            # Time to event close (resolution time = end_date local midnight + WU lag,
+            # but we approximate as end_date 23:59:59 UTC for simplicity)
+            try:
+                end_dt = datetime.fromisoformat(end_date + "T23:59:59+00:00")
+                seconds_to_close = (end_dt - now_utc).total_seconds()
+            except Exception:
+                seconds_to_close = None
+
+            slug = (city or "").lower().replace(" ", "-")
+            peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
+
+            record = {
+                "schema_version": 1,
+                "record_type": "metar_lockout_candidate",
+                "ts_utc": now_utc.isoformat(),
+                "ts_s": int(now_ts),
+                "city": city,
+                "icao": icao,
+                "token_id": token_id,
+                "condition_id": mkt.get("conditionId") or mkt.get("condition_id"),
+                "question": question,
+                "bucket_lo_c_padded": round(lo_c, 4) if lo_c is not None else None,
+                "bucket_hi_c_padded": round(hi_c, 4) if hi_c is not None else None,
+                "is_celsius_market": is_celsius,
+                "running_max_c": round(float(running_max), 3),
+                "temp_c": round(float(metar.get("temp_c") or 0.0), 3) or None,
+                "last_obs_ts": metar.get("last_obs_time"),
+                "yes_bid": round(yes_bid_f, 4),
+                "yes_ask": round(yes_ask_f, 4) if yes_ask_f is not None else None,
+                "no_ask_implied": round(no_ask_implied, 4),
+                "seconds_since_first_lockout": int(now_ts - first_seen),
+                "seconds_to_event_close": int(seconds_to_close) if seconds_to_close is not None else None,
+                "hour_utc": now_utc.hour,
+                "peak_hour_utc": peak_hour,
+                "month": now_utc.month,
+                "end_date": end_date,
+            }
+            try:
+                with log_path.open("a") as f:
+                    f.write(json.dumps(record) + "\n")
+                candidates_written += 1
+            except Exception:
+                logger.exception("[WA] metar_lockout write error")
+
+        if candidates_written:
+            logger.info(
+                "[WA] LOCKOUT_SHADOW logged %d candidates this cycle",
+                candidates_written,
+            )
 
     async def _refresh_today_markets(self) -> None:
         """
