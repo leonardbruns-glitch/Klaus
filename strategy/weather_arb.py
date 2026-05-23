@@ -989,60 +989,68 @@ def _outcome_prob(forecast_mean: float, lo: Optional[float], hi: Optional[float]
     """
     P(lo <= daily_max <= hi) under Normal(forecast_mean, sigma).
     lo=None means unbounded below; hi=None means unbounded above.
+    `lo` and `hi` must already encode the bucket extent — _parse_outcome is the
+    canonical source (Celsius-exact "be 19°C" returns [18.5, 19.5]).
     """
-    p_hi = 1.0 if hi is None else _norm_cdf((hi + 0.5 - forecast_mean) / sigma)
-    p_lo = 0.0 if lo is None else _norm_cdf((lo - 0.5 - forecast_mean) / sigma)
+    p_hi = 1.0 if hi is None else _norm_cdf((hi - forecast_mean) / sigma)
+    p_lo = 0.0 if lo is None else _norm_cdf((lo - forecast_mean) / sigma)
     return max(0.0, p_hi - p_lo)
 
 
 def _parse_outcome(question: str) -> tuple[Optional[float], Optional[float], bool]:
     """
     Parse temperature outcome from market question.
-    Returns (lo_celsius, hi_celsius, is_celsius).
+    Returns (lo_celsius, hi_celsius, is_celsius) — the resolution bucket's
+    continuous edges in °C. Resolution rounds raw temp to whole degrees in
+    the market's native unit (°F or °C, round-half-up); the ±0.5 pad in the
+    native unit defines the bucket's continuous extent. `_outcome_prob` is
+    pure CDF(hi)−CDF(lo) and does no further padding.
+
     Returns (None, None, False) if unparseable.
 
     Handles patterns:
-      "...be 19°C on..."          → exact 19°C range [18.5, 19.5]
-      "...be 20°C or higher..."   → [20, None]
-      "...be 15°C or below..."    → [None, 15]
-      "...be between 88-89°F..."  → convert to Celsius
-      "...be 84°F or higher..."   → convert
+      "...be 19°C on..."          → [18.5, 19.5]°C
+      "...be 20°C or higher..."   → [19.5, None]°C
+      "...be 15°C or below..."    → [None, 15.5]°C
+      "...be between 70-71°F..."  → [69.5°F, 71.5°F] → converted to °C
+      "...be 84°F or higher..."   → [83.5°F, None] → converted
+      "...be 72°F or below..."    → [None, 72.5°F] → converted
     """
-    # Fahrenheit exact range "88-89°F"
+    # Fahrenheit exact range "70-71°F"  →  [lo-0.5°F, hi+0.5°F]
     m = re.search(r'be (?:between )?(\d+)-(\d+)[°\s]*F', question, re.IGNORECASE)
     if m:
         lo_f, hi_f = float(m.group(1)), float(m.group(2))
-        lo_c = (lo_f - 32) * 5 / 9
-        hi_c = (hi_f - 32) * 5 / 9
-        return lo_c, hi_c, False  # fahrenheit range, already in Celsius
+        lo_c = (lo_f - 0.5 - 32) * 5 / 9
+        hi_c = (hi_f + 0.5 - 32) * 5 / 9
+        return lo_c, hi_c, False
 
-    # Fahrenheit "84°F or higher"
+    # Fahrenheit "84°F or higher"  →  [lo-0.5°F, +∞)
     m = re.search(r'be (\d+)[°\s]*F or higher', question, re.IGNORECASE)
     if m:
         lo_f = float(m.group(1))
-        return (lo_f - 32) * 5 / 9, None, False
+        return (lo_f - 0.5 - 32) * 5 / 9, None, False
 
-    # Fahrenheit "72°F or below" / "below 72°F"
+    # Fahrenheit "72°F or below" / "below 72°F"  →  (−∞, hi+0.5°F]
     m = re.search(r'(?:be )?(\d+)[°\s]*F or below', question, re.IGNORECASE)
     if m:
         hi_f = float(m.group(1))
-        return None, (hi_f - 32) * 5 / 9, False
+        return None, (hi_f + 0.5 - 32) * 5 / 9, False
 
-    # Celsius exact: "be 19°C on"
+    # Celsius exact "be 19°C on"  →  [t-0.5, t+0.5]°C
     m = re.search(r'be (\d+(?:\.\d+)?)[°\s]*C (?:on|in)', question, re.IGNORECASE)
     if m:
         t = float(m.group(1))
-        return t, t, True  # exact bucket [t-0.5, t+0.5]
+        return t - 0.5, t + 0.5, True
 
-    # Celsius "or higher / above"
+    # Celsius "or higher / above"  →  [lo-0.5, +∞)°C
     m = re.search(r'be (\d+(?:\.\d+)?)[°\s]*C or (?:higher|above)', question, re.IGNORECASE)
     if m:
-        return float(m.group(1)), None, True
+        return float(m.group(1)) - 0.5, None, True
 
-    # Celsius "or below"
+    # Celsius "or below / lower"  →  (−∞, hi+0.5]°C
     m = re.search(r'be (\d+(?:\.\d+)?)[°\s]*C or (?:below|lower)', question, re.IGNORECASE)
     if m:
-        return None, float(m.group(1)), True
+        return None, float(m.group(1)) + 0.5, True
 
     return None, None, False
 
@@ -2246,10 +2254,12 @@ class WeatherArb:
             meta["last_obs_time"] = obs_time
             meta["running_max_c"] = new_max
 
+            # bucket_lo_c / bucket_hi_c are already the padded resolution-bucket
+            # edges (set from _parse_outcome at entry time).
             lo = meta.get("bucket_lo_c")
             hi = meta.get("bucket_hi_c")
-            lo_bound = (lo - 0.5) if lo is not None else None
-            hi_bound = (hi + 0.5) if hi is not None else None
+            lo_bound = lo
+            hi_bound = hi
 
             city   = meta.get("city", "")
             coords = CITY_COORDS.get(city)
@@ -2307,9 +2317,10 @@ class WeatherArb:
                σ_nowcast = σ_base × sqrt(t_rem / 12)
            where t_rem = max(0, peak_hour_utc − current_utc_hour)
 
-           Step 3 — whole-degree boundary integration:
-               P(bucket) = Φ((hi + 0.5 − μ_nowcast) / σ_nowcast)
-                         − Φ((lo − 0.5 − μ_nowcast) / σ_nowcast)
+           Step 3 — bucket integration (lo, hi already include the resolution
+           rounding pad from _parse_outcome — ±0.5°F for F-markets, ±0.5°C for C):
+               P(bucket) = Φ((hi − μ_nowcast) / σ_nowcast)
+                         − Φ((lo − μ_nowcast) / σ_nowcast)
 
            Exit trigger: P(bucket) < NOWCAST_EXIT_FLOOR AND best_bid ≥ SALVAGE_MIN_BID
            → aggressive taker SELL at (best_bid − 0.01) to salvage capital immediately.
@@ -2390,7 +2401,7 @@ class WeatherArb:
             sigma_floor_exit = sigma_base
             sigma_nc = max(sigma_floor_exit, sigma_base * math.sqrt(t_rem / 12.0))
 
-            # Step 3: P(bucket) = Φ((hi+0.5−μ)/σ) − Φ((lo−0.5−μ)/σ)
+            # Step 3: P(bucket) = Φ((hi−μ)/σ) − Φ((lo−μ)/σ)
             p_bucket = _outcome_prob(mu_nowcast, lo, hi, sigma_nc)
 
             logger.debug(
@@ -2496,8 +2507,9 @@ class WeatherArb:
                 continue
             new_mu, new_sigma = forecast_entry
 
-            # Recompute fair probability over the exact same whole-degree boundaries:
-            # new_fair_prob = Φ((hi+0.5−μ)/σ) − Φ((lo−0.5−μ)/σ)
+            # Recompute fair probability over the same resolution-bucket edges
+            # (lo_c, hi_c are already padded by _parse_outcome at entry):
+            # new_fair_prob = Φ((hi−μ)/σ) − Φ((lo−μ)/σ)
             new_fair_prob = _outcome_prob(new_mu, lo_c, hi_c, new_sigma)
 
             # Edge-decay cancel condition: (new_fair_prob − resting_price) < EDGE_MIN
@@ -2544,7 +2556,7 @@ class WeatherArb:
 
         μ_nowcast = max(T_run, T_cur + ΔT_rem(h) × S_f)   [calibrated remaining rise]
         σ_nowcast = σ_base × sqrt(t_rem / 12)               [shrinks as day progresses]
-        P(bucket) = Φ((hi+0.5−μ)/σ) − Φ((lo−0.5−μ)/σ)    [whole-degree boundary integration]
+        P(bucket) = Φ((hi−μ)/σ) − Φ((lo−μ)/σ)    [lo/hi already padded by _parse_outcome]
 
         Fires when P(bucket) >= INTRADAY_MIN_PROB regardless of whether peak has passed.
         Intraday entries use taker IOC (edge is time-sensitive — price will reprice in minutes).
@@ -2667,9 +2679,9 @@ class WeatherArb:
             except Exception:
                 continue
 
-            # Hard upper-bound check: if running_max already past bucket top, skip
-            hi_bound = (hi_c + 0.5) if hi_c is not None else None
-            if hi_bound is not None and running_max >= hi_bound:
+            # Hard upper-bound check: if running_max already past bucket top, skip.
+            # hi_c is the padded resolution-bucket edge from _parse_outcome.
+            if hi_c is not None and running_max >= hi_c:
                 continue
 
             # For non-core cities: sigma = max(model_spread, elevation_floor)
