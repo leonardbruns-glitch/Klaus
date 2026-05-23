@@ -3,17 +3,26 @@ Backfill entered_correctly + kline_pnl + weather metadata in trades.jsonl
 for WEATHER_* entries using Polymarket resolution data.
 
 Patches per trade:
-  weather_question       — full Polymarket market question
-  weather_city           — city slug (e.g. "london")
-  weather_date           — resolution date YYYY-MM-DD
-  weather_threshold_lo   — lower bound of temperature bucket (unit-native)
-  weather_threshold_hi   — upper bound of temperature bucket (unit-native)
-  weather_threshold_lo_c — lower bound in Celsius
-  weather_threshold_hi_c — upper bound in Celsius
-  weather_unit           — "C" or "F"
-  weather_bucket_type    — "exact" | "above" | "below" | "range"
-  entered_correctly      — True if resolution matched our BUY_YES/NO direction
-  kline_pnl              — canonical hold-to-resolution PnL (analysis truth)
+  weather_question              — full Polymarket market question
+  weather_city                  — city slug (e.g. "london")
+  weather_date                  — resolution date YYYY-MM-DD
+  weather_threshold_lo          — lower bound (unit-native integer from question text)
+  weather_threshold_hi          — upper bound (unit-native integer from question text)
+  weather_threshold_lo_c        — lo converted to °C, unpadded (raw integer °C value)
+  weather_threshold_hi_c        — hi converted to °C, unpadded
+  weather_threshold_lo_c_padded — lo as resolution-bucket edge in °C (matches
+                                  strategy/weather_arb._parse_outcome — ±0.5
+                                  pad in the market's native unit then convert)
+  weather_threshold_hi_c_padded — hi as resolution-bucket edge in °C
+  weather_unit                  — "C" or "F"
+  weather_bucket_type           — "exact" | "above" | "below" | "range"
+  entered_correctly             — True if resolution matched BUY_YES/NO direction
+  kline_pnl                     — canonical hold-to-resolution PnL (analysis truth)
+
+For bucket-math analysis (e.g. "did running_max land in the bucket?"), use
+the _padded fields — they are the canonical continuous bucket extent the
+strategy runtime evaluates against. The unpadded *_c fields preserve the
+raw integer for human inspection / cross-checks against Polymarket.
 
 net_pnl stays as actual realized PnL (intraday exit or otherwise).
 
@@ -133,6 +142,28 @@ def parse_weather_question(q: str) -> dict:
 
         result["weather_threshold_lo_c"] = to_c(lo)
         result["weather_threshold_hi_c"] = to_c(hi)
+
+        # Padded bucket edges — match strategy/weather_arb._parse_outcome:
+        # apply ±0.5 in the market's native unit, then convert to °C.
+        # "above" pads only lo (subtract); "below" pads only hi (add);
+        # "exact" / "range" pad both sides.
+        def to_c_padded(v, side):
+            """side: 'lo' (subtract 0.5 in native unit) or 'hi' (add 0.5)."""
+            if v is None or v in (float("inf"), float("-inf")):
+                return None
+            v_padded = v - 0.5 if side == "lo" else v + 0.5
+            c = (v_padded - 32) * 5 / 9 if unit == "F" else v_padded
+            return round(c, 4)
+
+        if btype == "above":
+            result["weather_threshold_lo_c_padded"] = to_c_padded(lo, "lo")
+            result["weather_threshold_hi_c_padded"] = None
+        elif btype == "below":
+            result["weather_threshold_lo_c_padded"] = None
+            result["weather_threshold_hi_c_padded"] = to_c_padded(hi, "hi")
+        else:  # "exact" or "range"
+            result["weather_threshold_lo_c_padded"] = to_c_padded(lo, "lo")
+            result["weather_threshold_hi_c_padded"] = to_c_padded(hi, "hi")
 
     return result
 
@@ -266,6 +297,24 @@ def main() -> None:
         except Exception:
             parsed.append(None)
 
+    # ── Migration: backfill *_padded fields on already-resolved weather trades ──
+    # These trades have weather_threshold_lo/hi + unit + bucket_type but were
+    # patched before the _padded fields existed. Re-derive from the question.
+    padded_added = 0
+    for t in parsed:
+        if not t or not t.get("weather_question"):
+            continue
+        if t.get("weather_threshold_lo_c_padded") is not None or \
+           t.get("weather_threshold_hi_c_padded") is not None:
+            continue
+        meta = parse_weather_question(t["weather_question"])
+        for k in ("weather_threshold_lo_c_padded", "weather_threshold_hi_c_padded"):
+            if k in meta:
+                t[k] = meta[k]
+                padded_added += 1
+    if padded_added:
+        print(f"migration: added _padded fields to {padded_added // 2} trades")
+
     # Find WEATHER_* candidates — includes STARTUP_EXTERNALLY_SOLD with blank class
     # (those are positions recovered at startup where CLOB API returned 401, so
     # exit_price was set to entry_price and net_pnl ≈ -fee even for actual wins).
@@ -282,8 +331,28 @@ def main() -> None:
         )
     ]
     print(f"WEATHER_* trades needing resolution: {len(candidates)}")
-    if not candidates:
+    if not candidates and not padded_added:
         print("Nothing to patch.")
+        return
+    if not candidates:
+        # Only the _padded migration ran — skip the Polymarket fetch and
+        # jump straight to writing the file.
+        patched = unresolved = no_match = 0
+        print("skipping Polymarket fetch (only _padded migration ran)")
+        if DRY_RUN:
+            print("DRY RUN — not writing")
+            return
+        bak = TRADES_PATH + ".bak_weather"
+        shutil.copy2(TRADES_PATH, bak)
+        print(f"backup: {bak}")
+        tmp = TRADES_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            for t in parsed:
+                if t is None:
+                    continue
+                f.write(json.dumps(t) + "\n")
+        os.replace(tmp, TRADES_PATH)
+        print(f"wrote {TRADES_PATH}")
         return
 
     # Determine date range to query from trade timestamps
