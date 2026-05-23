@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+dcd5523d data: peak-hour UTC for 8 wave-2/3 cities from 5yr ASOS
+3708b26b revert: BRACKET_SIGMA_MIN 0.30→0.60 (smoke-test inconclusive)
+f936bea6 test: BRACKET_SIGMA_MIN 0.60→0.30 (temp, smoke-test ladder.jsonl writer)
 b261abc0 fix: weather_arb dedup survives restart and today-market events
 54f1707f fix: reject lowest/coldest/warmest weather markets in parser
 5c6fbc5f feat: MIN_FAIR_PROB 0.45→0.39 — open cheap-tail single-bucket entries
@@ -9,15 +12,12 @@ b261abc0 fix: weather_arb dedup survives restart and today-market events
 722c6cf6 feat: METAR_LOCKOUT shadow logger (passive, no capital)
 a13a5b7b feat: add weather_threshold_*_c_padded for runtime-consistent bucket edges
 91ccfb36 fix: unit-aware bucket rounding pad in weather _outcome_prob
-d33b9397 fix: two bracket execution bugs before live flip
-0053235b feat: temperature ladder shadow mode (STRAT_2)
-8ffd6f44 backtest: prune upstream_map pairs with hit_rate < 35%
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   69G       24G  75% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sat 2026-05-23 11:39:59 UTC
+ActiveEnterTimestamp=Sat 2026-05-23 11:59:42 UTC
 
 ## Open positions (count):
 0
