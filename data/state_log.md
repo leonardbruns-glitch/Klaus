@@ -380,3 +380,7 @@ Replaced `STAKE_USD = 5.00` with `stake = bankroll * 0.137`, capped $25, floor $
 
 2026-05-22 18:07 UTC | WEATHER | NameError city_slug fixed — weather trades unblocked | _evaluate_market crashed on every call since ERA5 revert (commit 665ee68d) introduced CITY_SIGMA_C_ERA5 shadow log using city_slug which was never assigned in that scope. Zero weather trades possible while bug was live. Fix: add city_slug = CITY_NAME_TO_SLUG.get(city, "") before line 1497. Commit 6dc84792, deployed 18:06 UTC.
 2026-05-22 18:45 UTC | WEATHER | MIN_FAIR_PROB 0.45→0.40 — restored packaging error from 5b0ee72d revert. ASOS calibration validated: 5yr residuals n=155/month oracle-station-matched; Atlanta M5 BLUE sigma=0.493≈ASOS floor 0.498 (well-anchored); Buenos Aires M5 BLUE=0.544; fair_prob [0.40,0.45) range is statistically sound.
+
+2026-05-22 21:06 UTC | WEATHER | MIN_FAIR_PROB 0.40→0.45 (commit ee0056d4) — silent revert alongside intraday sigma gate + scalp TP exit. Not previously logged.
+
+2026-05-23 11:15 UTC | WEATHER | MIN_FAIR_PROB 0.45→0.39 | 7+ hours zero entries since 03:30 UTC Atlanta. Last-7h single-bucket candidates (Paris 0.13, Toronto 0.27-0.34, Buenos Aires 0.34-0.36, Seattle 0.31-0.42, Dallas 0.29-0.30, Austin 0.20-0.26, Chicago single-bucket 0.44 once) all blocked by 0.45 floor. Multi-bucket signals go to LADDER SHADOW (BRACKET_SHADOW=True since commit 0053235b at 00:08 UTC). 0.39 opens cheap-tail single-bucket entries while ASOS calibration n=155/month still supports the band statistically.
