@@ -96,7 +96,7 @@ BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
 BRACKET_MAX_BUCKETS      = 3      # up to 3 rungs
 BRACKET_COMBINED_FAIR_MIN = 0.55  # combined fair_prob floor (replaces per-bucket MIN_FAIR_PROB)
-BRACKET_SIGMA_MIN        = 0.30   # TEMP smoke-test: lowered 0.60→0.30 to force a ladder fire and verify ladder.jsonl writer (revert after one fire)
+BRACKET_SIGMA_MIN        = 0.60   # only ladder on wide-sigma cities (σ ≥ 0.60°C)
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
