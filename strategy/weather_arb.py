@@ -1536,7 +1536,8 @@ class WeatherArb:
                 if bracket is not None:
                     n_entered = await self._enter_bracket(bracket, city)
                     entries_made += n_entered
-                    continue  # bracket (live or shadow) takes priority over single-leg
+                    if BRACKET_ENABLED:
+                        continue  # live bracket entered — skip single-leg
 
             # ── Single best bucket ────────────────────────────────────────────
             best_mkt, best_entry = max(candidates, key=lambda x: x[1]["fair_prob"])
