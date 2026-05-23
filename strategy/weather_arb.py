@@ -84,14 +84,19 @@ MIN_FAIR_PROB = 0.45   # minimum fair probability for the best bucket (must have
 ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
 ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
-# ── NegRisk Bracketing ────────────────────────────────────────────────────────
-# DISABLED 2026-05-21: 2.5% round-trip fees + partial-fill risk on two legs
-# destroy the negRisk EV math. Strategic audit verdict: kill.
-BRACKET_ENABLED     = False
-BRACKET_COST_CAP    = 0.80   # reject bracket if Σ ask_i > this (loss too expensive)
-BRACKET_MAX_BUCKETS = 2      # maximum buckets in one bracket
-BRACKET_MAX_PROB_GAP = 0.15  # reject bracket if top-two fair_probs differ by more than this
-                              # (model has conviction → single-leg the winner instead)
+# ── NegRisk Bracketing / Temperature Ladder ──────────────────────────────────
+# SHADOW mode (2026-05-23): log ladder signals without entering.
+# Ladder = buy 2-3 adjacent cheap tail buckets simultaneously on wide-sigma cities.
+# Edge: each tail bucket individually mispriced (fair > ask+0.08) but none clears
+# MIN_FAIR_PROB=0.45 alone. Combined fair 55-90%; combined cost 0.15-0.45.
+# Live entry gated by BRACKET_ENABLED. Shadow validation target: n≥30 signals,
+# combined hit rate within ±0.10 of combined_fair_prob before flipping live.
+BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
+BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
+BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
+BRACKET_MAX_BUCKETS      = 3      # up to 3 rungs
+BRACKET_COMBINED_FAIR_MIN = 0.55  # combined fair_prob floor (replaces per-bucket MIN_FAIR_PROB)
+BRACKET_SIGMA_MIN        = 0.60   # only ladder on wide-sigma cities (σ ≥ 0.60°C)
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
@@ -1474,13 +1479,15 @@ class WeatherArb:
             if not candidates or entries_made >= MAX_POSITIONS:
                 continue
 
-            # ── Bracket evaluation ────────────────────────────────────────────
-            if BRACKET_ENABLED and len(candidates) >= 2:
+            # ── Bracket / ladder evaluation ───────────────────────────────────
+            # Only attempt ladder on wide-sigma cities (σ ≥ BRACKET_SIGMA_MIN).
+            _sigma_c = (forecast.get(tomorrow) or (None, None))[1] or 0.0
+            if (BRACKET_ENABLED or BRACKET_SHADOW) and len(candidates) >= 2 and _sigma_c >= BRACKET_SIGMA_MIN:
                 bracket = self._select_bracket(candidates)
                 if bracket is not None:
                     n_entered = await self._enter_bracket(bracket, city)
                     entries_made += n_entered
-                    continue  # bracket takes priority over single-best entry
+                    continue  # bracket (live or shadow) takes priority over single-leg
 
             # ── Single best bucket ────────────────────────────────────────────
             best_mkt, best_entry = max(candidates, key=lambda x: x[1]["fair_prob"])
@@ -3400,45 +3407,39 @@ class WeatherArb:
         self, candidates: list[tuple[dict, dict]]
     ) -> Optional[list[tuple[dict, dict]]]:
         """
-        From the city's candidate buckets, find the best bracket of ≤ BRACKET_MAX_BUCKETS
-        that passes both the combined-edge and combined-cost guards.
+        Temperature ladder: find best bracket of ≤ BRACKET_MAX_BUCKETS adjacent tail buckets.
 
-        Returns a list of (mkt, entry) pairs to enter simultaneously, or None.
+        Guards:
+          combined_fair ≥ BRACKET_COMBINED_FAIR_MIN  (overall conviction)
+          combined_ask  < BRACKET_COST_CAP            (total cost cap)
+          combined_edge ≥ EDGE_MIN                    (net positive EV)
 
-        Selection: take the top-N by fair_prob. Check:
-          combined_cost  = Σ poly_price_i  < BRACKET_COST_CAP
-          combined_edge  = Σ fair_prob_i − Σ poly_price_i  ≥ EDGE_MIN
-          each individual fair_prob ≥ MIN_FAIR_PROB (no speculative tail-padding)
+        Deliberately does NOT require each bucket to individually clear MIN_FAIR_PROB —
+        that is the exact wrong gate for ladder mode. Each leg is a cheap mispriced tail;
+        combined probability is what matters.
 
-        Math: EV of bracket = Σ q_i − Σ p_i = combined_edge (mutual exclusivity guarantees this)
+        Math: EV = Σ(P_i × payout_i) − total_cost; mutual exclusivity makes this additive.
         """
-        # Sort by fair_prob descending
         ranked = sorted(candidates, key=lambda x: x[1]["fair_prob"], reverse=True)
         n = min(BRACKET_MAX_BUCKETS, len(ranked))
 
         for size in range(n, 1, -1):  # try largest bracket first
             subset = ranked[:size]
-            combined_ask  = sum(e["poly_price"]  for _, e in subset)
-            combined_fair = sum(e["fair_prob"]   for _, e in subset)
+            combined_ask  = sum(e["poly_price"] for _, e in subset)
+            combined_fair = sum(e["fair_prob"]  for _, e in subset)
             combined_edge = combined_fair - combined_ask
 
+            if combined_fair < BRACKET_COMBINED_FAIR_MIN:
+                continue
             if combined_ask >= BRACKET_COST_CAP:
                 continue
             if combined_edge < EDGE_MIN:
                 continue
-            if any(e["fair_prob"] < MIN_FAIR_PROB for _, e in subset):
-                continue
-            # Reject bracket when model has conviction: top-two probs too far apart
-            # means one bucket dominates → single-leg the winner instead of padding
-            probs = sorted([e["fair_prob"] for _, e in subset], reverse=True)
-            if len(probs) >= 2 and (probs[0] - probs[1]) > BRACKET_MAX_PROB_GAP:
-                logger.debug("[WA] BRACKET rejected: prob gap %.3f > %.3f (use single-leg)",
-                             probs[0] - probs[1], BRACKET_MAX_PROB_GAP)
-                continue
 
             logger.info(
-                "[WA] BRACKET selected size=%d combined_fair=%.3f combined_ask=%.3f edge=%.3f",
+                "[WA] LADDER selected size=%d combined_fair=%.3f combined_ask=%.3f edge=%.3f%s",
                 size, combined_fair, combined_ask, combined_edge,
+                " [SHADOW]" if not BRACKET_ENABLED else "",
             )
             return subset
 
@@ -3449,12 +3450,13 @@ class WeatherArb:
     ) -> int:
         """
         Enter all buckets in the bracket with proportional Kelly sizing.
+        In shadow mode (BRACKET_SHADOW and not BRACKET_ENABLED): log only, no fills.
 
         Per-bucket stake allocation:
           f* = combined_edge / (1 − combined_cost)     [combined Kelly fraction]
           stake_i = f* × bankroll × KELLY_FRACTION × (q_i / Σ q_j)
 
-        Returns number of successfully entered positions.
+        Returns number of successfully entered positions (0 in shadow mode).
         """
         combined_ask  = sum(e["poly_price"] for _, e in bracket)
         combined_fair = sum(e["fair_prob"]  for _, e in bracket)
@@ -3468,23 +3470,34 @@ class WeatherArb:
                                     bankroll * BRACKET_POS_ALLOC,
                                     total_kelly_stake))
 
+        shadow = not BRACKET_ENABLED
+
         n_entered = 0
         for mkt, entry in bracket:
             w_i = entry["fair_prob"] / combined_fair
             stake_i = max(KELLY_MIN_USD, min(KELLY_MAX_USD, total_kelly_stake * w_i))
-            logger.info(
-                "[WA] BRACKET LEG %s poly=%.3f fair=%.3f stake=$%.1f",
-                city, entry["poly_price"], entry["fair_prob"], stake_i,
-            )
-            entered = await self._enter(
-                mkt, entry["fair_prob"], entry["poly_price"],
-                city, entry.get("lo_c"), entry.get("hi_c"),
-                stake=stake_i,
-                strategy_tag="STRAT_2_BRACKET",
-                expected_max_c=entry.get("expected_max_c"),
-            )
-            if entered:
-                n_entered += 1
+            if shadow:
+                logger.info(
+                    "[WA] LADDER SHADOW city=%s poly=%.3f fair=%.3f edge=%.3f "
+                    "stake=$%.1f combined_fair=%.3f combined_ask=%.3f q=%s",
+                    city, entry["poly_price"], entry["fair_prob"], entry["edge"],
+                    stake_i, combined_fair, combined_ask,
+                    (entry.get("question") or "")[:60],
+                )
+            else:
+                logger.info(
+                    "[WA] LADDER LEG %s poly=%.3f fair=%.3f stake=$%.1f",
+                    city, entry["poly_price"], entry["fair_prob"], stake_i,
+                )
+                entered = await self._enter(
+                    mkt, entry["fair_prob"], entry["poly_price"],
+                    city, entry.get("lo_c"), entry.get("hi_c"),
+                    stake=stake_i,
+                    strategy_tag="STRAT_2_BRACKET",
+                    expected_max_c=entry.get("expected_max_c"),
+                )
+                if entered:
+                    n_entered += 1
         return n_entered
 
     def _kelly_stake(self, edge: float, ask: float, strat_alloc: float = PER_STRAT_ALLOC) -> float:
