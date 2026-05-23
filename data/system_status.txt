@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+3eab4d0a weather: MIN_FAIR_PROB 0.39→0.45
+1fa139c5 fix: weather event pagination — limit 200→100 (API cap)
 ca295377 weather: INTRADAY_MIN_PROB 0.80→0.90 (2026-05-23)
 4c7d1ad6 weather: STAKE_USD 5→10 (2026-05-23)
 97dbaaeb weather: PER_CITY_STAKE_USD override; buenos-aires 0 flat (2026-05-23)
@@ -10,14 +12,12 @@ ca295377 weather: INTRADAY_MIN_PROB 0.80→0.90 (2026-05-23)
 34854e5c log: INTRADAY σ-cap and regime-volatile skips → INFO
 dcd5523d data: peak-hour UTC for 8 wave-2/3 cities from 5yr ASOS
 3708b26b revert: BRACKET_SIGMA_MIN 0.30→0.60 (smoke-test inconclusive)
-f936bea6 test: BRACKET_SIGMA_MIN 0.60→0.30 (temp, smoke-test ladder.jsonl writer)
-b261abc0 fix: weather_arb dedup survives restart and today-market events
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   70G       23G  76% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sat 2026-05-23 20:53:40 UTC
+ActiveEnterTimestamp=Sat 2026-05-23 21:36:39 UTC
 
 ## Open positions (count):
 0
