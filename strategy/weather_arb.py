@@ -101,6 +101,9 @@ BRACKET_SIGMA_MIN        = 0.60   # only ladder on wide-sigma cities (σ ≥ 0.6
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
 STAKE_USD    = 5.0     # fallback flat stake (2026-05-22: $5 cap, STRAT_1 only mode)
+PER_CITY_STAKE_USD: dict[str, float] = {
+    "buenos-aires": 20.0,  # 2026-05-23: user-specified flat override
+}
 
 # ── Near-threshold CLOB WS watchlist ─────────────────────────────────────────
 WATCHLIST_EDGE_FLOOR = -0.06  # subscribe if within 6pp of qualifying (ask too high by ≤0.06)
@@ -1550,6 +1553,9 @@ class WeatherArb:
                             city, best_entry["fair_prob"], len(candidates) - 1)
 
             stake = self._kelly_stake(best_entry["edge"], best_entry["poly_price"])
+            _cslug = CITY_NAME_TO_SLUG.get(city, "")
+            if _cslug in PER_CITY_STAKE_USD:
+                stake = PER_CITY_STAKE_USD[_cslug]
             if await self._enter(best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
                                  city, best_entry.get("lo_c"), best_entry.get("hi_c"),
                                  stake=stake,
