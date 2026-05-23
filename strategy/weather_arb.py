@@ -1016,6 +1016,13 @@ def _parse_outcome(question: str) -> tuple[Optional[float], Optional[float], boo
       "...be 84°F or higher..."   → [83.5°F, None] → converted
       "...be 72°F or below..."    → [None, 72.5°F] → converted
     """
+    # Forecast μ/σ from Open-Meteo are daily-MAX only. Reject any market
+    # asking about a different statistic (lowest/coldest/warmest/coolest)
+    # — we have no model for it and would mis-price.
+    ql = question.lower()
+    if "lowest" in ql or "coldest" in ql or "warmest" in ql or "coolest" in ql:
+        return None, None, False
+
     # Fahrenheit exact range "70-71°F"  →  [lo-0.5°F, hi+0.5°F]
     m = re.search(r'be (?:between )?(\d+)-(\d+)[°\s]*F', question, re.IGNORECASE)
     if m:
