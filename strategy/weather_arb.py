@@ -169,7 +169,7 @@ SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss
 
 # ── Intraday METAR arb (front-running WU→Polymarket lag) ─────────────────────
 INTRADAY_ENABLED      = True   # re-enabled 2026-05-22: post-peak METAR certainty lock
-INTRADAY_MIN_PROB     = 0.80   # minimum nowcast P(bucket) to enter today's market
+INTRADAY_MIN_PROB     = 0.90   # minimum nowcast P(bucket) to enter today's market
 INTRADAY_MIN_PROB_HI_PREC = 0.72  # lower threshold for high-precision cities (σ_blue < 0.45°C)
 INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less spread required)
 INTRADAY_EDGE_MAX     = 0.40   # crowd-divergence gate: edge above this = broken model or anomaly
