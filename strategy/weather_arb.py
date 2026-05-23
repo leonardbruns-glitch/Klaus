@@ -1481,9 +1481,24 @@ class WeatherArb:
                     candidates.append((mkt, entry))
 
             # ── Neg-risk dedup / consensus tracking ──────────────────────────
-            # All markets in this loop are filtered to target_dates={tomorrow},
-            # so every candidate shares the same end_date = tomorrow.
-            city_date_key = f"{city}|{tomorrow}"
+            # Lazy-reseed from open positions: PositionMeta doesn't carry city/end_date,
+            # so _fired_city_dates is empty after a process restart even though the
+            # wallet still holds. Without this, a restart between scans for the same
+            # city/date enters a different bucket (e.g. Atlanta 78-79°F then 80-81°F).
+            _open_arb_tids = {
+                _tid for _tid, _p in getattr(self.bot.risk, "open_positions", {}).items()
+                if getattr(_p, "bond_entry_class", "") in ("WEATHER_ARB", "WEATHER_BRACKET")
+            }
+            if _open_arb_tids:
+                for _mkt in markets:
+                    _tids = _parse_token_ids(_mkt.get("clobTokenIds", []))
+                    if _tids and _tids[0] in _open_arb_tids:
+                        _ed = _mkt.get("endDate", "")[:10]
+                        self._fired_city_dates.setdefault(f"{city}|{_ed}", _tids[0])
+            # Use the event's actual end_date (target_dates = {today, tomorrow},
+            # so an event may be for today — hardcoding `tomorrow` here misses today's dedup).
+            event_end_date = (candidates[0][0].get("endDate", "")[:10]) if candidates else tomorrow
+            city_date_key = f"{city}|{event_end_date}"
 
             if city_date_key in self._fired_city_dates:
                 # Already holding a bucket for this city/date.
