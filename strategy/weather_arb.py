@@ -100,7 +100,7 @@ BRACKET_SIGMA_MIN        = 0.60   # only ladder on wide-sigma cities (σ ≥ 0.6
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
-STAKE_USD    = 5.0     # fallback flat stake (2026-05-22: $5 cap, STRAT_1 only mode)
+STAKE_USD    = 10.0    # fallback flat stake (2026-05-23: raised from $5)
 PER_CITY_STAKE_USD: dict[str, float] = {
     "buenos-aires": 20.0,  # 2026-05-23: user-specified flat override
 }
