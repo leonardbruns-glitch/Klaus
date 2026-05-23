@@ -80,7 +80,7 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.45   # minimum fair probability for the best bucket (must have majority conviction)
+MIN_FAIR_PROB = 0.39   # minimum fair probability for the best bucket (must have majority conviction)
 ASK_BAND_LO  = 0.01    # min entry price (overnight forecast arb)
 ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
@@ -3733,6 +3733,7 @@ class WeatherArb:
                                     total_kelly_stake))
 
         shadow = not BRACKET_ENABLED
+        shadow_legs: list[dict] = []  # populated only in shadow mode
 
         n_entered = 0
         for mkt, entry in bracket:
@@ -3746,6 +3747,41 @@ class WeatherArb:
                     stake_i, combined_fair, combined_ask,
                     (entry.get("question") or "")[:60],
                 )
+                # Fetch live YES-side CLOB book for fillability analysis. The
+                # bot.log message above carries the gamma-derived plan; we also
+                # need to know whether the leg's stake can actually be taken at
+                # the quoted poly_price.
+                token_ids = _parse_token_ids(mkt.get("clobTokenIds", []))
+                yes_tok = token_ids[0] if token_ids else None
+                yes_book = (
+                    await self._fetch_book_levels(yes_tok, n=3)
+                    if yes_tok else {"bids": [], "asks": [], "error": "no_token"}
+                )
+                tol = 0.005
+                ask_usd_at_quoted = round(sum(
+                    lvl["usd"] for lvl in yes_book.get("asks", [])
+                    if lvl["price"] <= entry["poly_price"] + tol
+                ), 2)
+                yes_ask_clob = (
+                    yes_book["asks"][0]["price"] if yes_book.get("asks") else None
+                )
+                shadow_legs.append({
+                    "token_id": yes_tok,
+                    "condition_id": mkt.get("conditionId") or mkt.get("condition_id"),
+                    "question": (entry.get("question") or "")[:120],
+                    "lo_c": entry.get("lo_c"),
+                    "hi_c": entry.get("hi_c"),
+                    "expected_max_c": entry.get("expected_max_c"),
+                    "poly_price": round(entry["poly_price"], 4),
+                    "fair_prob": round(entry["fair_prob"], 4),
+                    "edge": round(entry["edge"], 4),
+                    "stake_planned_usd": round(stake_i, 2),
+                    "yes_ask_clob": yes_ask_clob,
+                    "yes_book": yes_book,
+                    "ask_usd_at_quoted": ask_usd_at_quoted,
+                    "fillable_at_stake": ask_usd_at_quoted >= stake_i,
+                    "fillable_any": ask_usd_at_quoted > 0,
+                })
             else:
                 logger.info(
                     "[WA] LADDER LEG %s poly=%.3f fair=%.3f stake=$%.1f",
@@ -3760,6 +3796,39 @@ class WeatherArb:
                 )
                 if entered:
                     n_entered += 1
+
+        if shadow and shadow_legs:
+            from datetime import datetime, timezone
+            from pathlib import Path
+            import time as _time
+            now_utc = datetime.now(timezone.utc)
+            log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = log_dir / "ladder.jsonl"
+            record = {
+                "schema_version": 1,
+                "record_type": "ladder_shadow",
+                "ts_utc": now_utc.isoformat(),
+                "ts_s": int(_time.time()),
+                "city": city,
+                "n_legs": len(shadow_legs),
+                "combined_fair": round(combined_fair, 4),
+                "combined_ask": round(combined_ask, 4),
+                "combined_edge": round(combined_edge, 4),
+                "f_star_kelly": round(f_star, 4),
+                "total_planned_stake_usd": round(total_kelly_stake, 2),
+                "bankroll": round(bankroll, 2),
+                "all_legs_fillable_at_stake": all(L["fillable_at_stake"] for L in shadow_legs),
+                "any_leg_fillable": any(L["fillable_any"] for L in shadow_legs),
+                "min_ask_usd_at_quoted": min(L["ask_usd_at_quoted"] for L in shadow_legs),
+                "legs": shadow_legs,
+            }
+            try:
+                with log_path.open("a") as f:
+                    f.write(json.dumps(record) + "\n")
+            except Exception:
+                logger.exception("[WA] ladder shadow JSONL write error")
+
         return n_entered
 
     def _kelly_stake(self, edge: float, ask: float, strat_alloc: float = PER_STRAT_ALLOC) -> float:
