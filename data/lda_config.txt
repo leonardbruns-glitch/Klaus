@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-23T06:26:09Z
+# Snapshot: 2026-05-23T06:41:13Z
 # Latest commit on klaus:
-d33b9397 fix: two bracket execution bugs before live flip
+91ccfb36 fix: unit-aware bucket rounding pad in weather _outcome_prob
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
