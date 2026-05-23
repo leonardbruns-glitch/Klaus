@@ -2857,8 +2857,8 @@ class WeatherArb:
             # to generate fair_prob ≥ 0.90 from METAR certainty.
             _sigma_intra = CITY_SIGMA_C.get(slug, {}).get(now_utc.month, 1.0)
             if _sigma_intra >= INTRADAY_SIGMA_CAP:
-                logger.debug("[WA] INTRADAY SKIP %s — σ=%.2f ≥ INTRADAY_SIGMA_CAP=%.2f M%02d",
-                             city, _sigma_intra, INTRADAY_SIGMA_CAP, now_utc.month)
+                logger.info("[WA] INTRADAY SKIP %s — σ=%.2f ≥ INTRADAY_SIGMA_CAP=%.2f M%02d",
+                            city, _sigma_intra, INTRADAY_SIGMA_CAP, now_utc.month)
                 continue
 
             peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
@@ -2903,7 +2903,7 @@ class WeatherArb:
 
             # Regime gate: volatile today → inter-model spread too wide for INTRADAY
             if _get_regime(slug, today_str) == "volatile":
-                logger.debug("[WA] INTRADAY SKIP %s — regime=volatile", city)
+                logger.info("[WA] INTRADAY SKIP %s — regime=volatile", city)
                 continue
 
             # ── μ_nowcast via calibrated remaining-rise table ─────────────────
