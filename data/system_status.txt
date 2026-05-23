@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+34854e5c log: INTRADAY σ-cap and regime-volatile skips → INFO
 dcd5523d data: peak-hour UTC for 8 wave-2/3 cities from 5yr ASOS
 3708b26b revert: BRACKET_SIGMA_MIN 0.30→0.60 (smoke-test inconclusive)
 f936bea6 test: BRACKET_SIGMA_MIN 0.60→0.30 (temp, smoke-test ladder.jsonl writer)
@@ -11,13 +12,12 @@ b261abc0 fix: weather_arb dedup survives restart and today-market events
 8d954338 feat: METAR_LOCKOUT shadow records live CLOB book depth
 722c6cf6 feat: METAR_LOCKOUT shadow logger (passive, no capital)
 a13a5b7b feat: add weather_threshold_*_c_padded for runtime-consistent bucket edges
-91ccfb36 fix: unit-aware bucket rounding pad in weather _outcome_prob
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   69G       24G  75% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sat 2026-05-23 11:59:42 UTC
+ActiveEnterTimestamp=Sat 2026-05-23 14:02:25 UTC
 
 ## Open positions (count):
 0
