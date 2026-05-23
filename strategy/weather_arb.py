@@ -2797,6 +2797,22 @@ class WeatherArb:
             self._close_position(tid)
             self._fired_tokens.discard(tid)  # allow re-evaluation on next scan cycle
 
+    def _log_intraday_skip(self, city: str, reason: str, detail: str = "") -> None:
+        """Throttled INFO log for silent INTRADAY skip paths.
+
+        Logs each (city, reason) pair at most once per 5 minutes to avoid spam.
+        Detail string is included only when changed since last log.
+        """
+        if not hasattr(self, "_intraday_skip_throttle"):
+            self._intraday_skip_throttle: dict[tuple, float] = {}
+        key = (city, reason)
+        now = time.time()
+        last = self._intraday_skip_throttle.get(key, 0.0)
+        if now - last < 300:
+            return
+        self._intraday_skip_throttle[key] = now
+        logger.info("[WA] INTRADAY SKIP %s — %s %s", city, reason, detail)
+
     async def _intraday_scan(self) -> None:
         """
         Front-run the WU→Polymarket publication lag during the midday heating ramp.
@@ -2883,6 +2899,7 @@ class WeatherArb:
                 continue
             token_id = token_ids_raw[0]
             if token_id in self._fired_tokens:
+                self._log_intraday_skip(city, "fired_token", token_id[:12])
                 continue
 
             # City-level dedup: one INTRADAY position per city per day
@@ -2891,16 +2908,19 @@ class WeatherArb:
                 p.get("city") == city and p.get("end_date", "") == today_str
                 for p in self._positions.values()
             ):
+                self._log_intraday_skip(city, "city_dedup", today_str)
                 continue
 
             prices_raw = mkt.get("outcomePrices", '["0.5"]')
             prices     = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
             poly_yes   = float(prices[0])
             if poly_yes < 0.01 or poly_yes > INTRADAY_ASK_CAP:
+                self._log_intraday_skip(city, "price_band", f"{poly_yes:.3f}")
                 continue
 
             lo_c, hi_c, is_celsius = _parse_outcome(mkt.get("question", ""))
             if lo_c is None and hi_c is None:
+                self._log_intraday_skip(city, "parse_outcome_failed", mkt.get("question", "")[:40])
                 continue
 
             # Regime gate: volatile today → inter-model spread too wide for INTRADAY
@@ -2935,6 +2955,7 @@ class WeatherArb:
             # Hard upper-bound check: if running_max already past bucket top, skip.
             # hi_c is the padded resolution-bucket edge from _parse_outcome.
             if hi_c is not None and running_max >= hi_c:
+                self._log_intraday_skip(city, "above_bucket", f"run={running_max:.1f} hi={hi_c:.1f}")
                 continue
 
             # For non-core cities: sigma = max(model_spread, elevation_floor)
@@ -2949,10 +2970,14 @@ class WeatherArb:
                          if slug in INTRADAY_HI_PREC_CITIES
                          else INTRADAY_MIN_PROB)
             if p_intraday < _min_prob:
+                self._log_intraday_skip(city, "p_below_min",
+                    f"p={p_intraday:.3f}<{_min_prob} μ={est_max:.1f} σ={nc_sigma:.2f} bkt=[{lo_c},{hi_c}]")
                 continue
 
             edge = p_intraday - poly_yes
             if edge < INTRADAY_EDGE_MIN:
+                self._log_intraday_skip(city, "edge_below_min",
+                    f"edge={edge:.3f}<{INTRADAY_EDGE_MIN} p={p_intraday:.3f} poly={poly_yes:.3f}")
                 continue
 
             # Crowd divergence gate: edge > 0.40 means our model disagrees with the market
