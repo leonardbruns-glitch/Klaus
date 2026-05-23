@@ -4342,12 +4342,14 @@ class WeatherArb:
     async def _fetch_weather_events(self) -> list[dict]:
         """
         Fetch ALL open weather events from Gamma API with pagination.
-        Walks pages until an empty page is returned (offset increments by 200).
+        Walks pages until an empty page is returned (offset increments by 100).
+        API hard-caps at 100 per page; requesting 200 still returns 100, which
+        previously triggered the "partial page = last page" break after offset 0.
         This ensures newly opened cities are discovered automatically without code changes.
         """
         events: list[dict] = []
         offset = 0
-        limit  = 200
+        limit  = 100
         try:
             async with aiohttp.ClientSession() as sess:
                 while True:
