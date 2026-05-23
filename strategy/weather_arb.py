@@ -2173,14 +2173,48 @@ class WeatherArb:
             slug = (city or "").lower().replace(" ", "-")
             peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(now_utc.month)
 
+            # Fetch live CLOB book for both YES and NO tokens. Gamma's bestBid lags
+            # the CLOB heavily on weather markets; without this we cannot tell
+            # whether the lockout "edge" is actually fillable.
+            no_token_id = token_ids[1] if len(token_ids) >= 2 else None
+            yes_book = await self._fetch_book_levels(token_id, n=3)
+            no_book = (
+                await self._fetch_book_levels(no_token_id, n=3)
+                if no_token_id else {"bids": [], "asks": [], "error": "no_no_token"}
+            )
+
+            tol = 0.005  # tolerate 0.5c slippage off the implied/quoted price
+            no_ask_usd_at_implied = round(sum(
+                lvl["usd"] for lvl in no_book.get("asks", [])
+                if lvl["price"] <= no_ask_implied + tol
+            ), 2)
+            yes_bid_usd_at_quoted = round(sum(
+                lvl["usd"] for lvl in yes_book.get("bids", [])
+                if lvl["price"] >= yes_bid_f - tol
+            ), 2)
+            no_taker_fillable = no_ask_usd_at_implied > 0
+            mint_dump_fillable = yes_bid_usd_at_quoted > 0
+            if no_taker_fillable and mint_dump_fillable:
+                fill_path = "both"
+            elif no_taker_fillable:
+                fill_path = "no_taker_only"
+            elif mint_dump_fillable:
+                fill_path = "mint_dump_only"
+            else:
+                fill_path = "neither"
+
+            no_ask_clob = (no_book["asks"][0]["price"] if no_book.get("asks") else None)
+            yes_bid_clob = (yes_book["bids"][0]["price"] if yes_book.get("bids") else None)
+
             record = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "record_type": "metar_lockout_candidate",
                 "ts_utc": now_utc.isoformat(),
                 "ts_s": int(now_ts),
                 "city": city,
                 "icao": icao,
                 "token_id": token_id,
+                "no_token_id": no_token_id,
                 "condition_id": mkt.get("conditionId") or mkt.get("condition_id"),
                 "question": question,
                 "bucket_lo_c_padded": round(lo_c, 4) if lo_c is not None else None,
@@ -2192,6 +2226,13 @@ class WeatherArb:
                 "yes_bid": round(yes_bid_f, 4),
                 "yes_ask": round(yes_ask_f, 4) if yes_ask_f is not None else None,
                 "no_ask_implied": round(no_ask_implied, 4),
+                "yes_book": yes_book,
+                "no_book": no_book,
+                "no_ask_clob": no_ask_clob,
+                "yes_bid_clob": yes_bid_clob,
+                "no_ask_usd_at_implied": no_ask_usd_at_implied,
+                "yes_bid_usd_at_quoted": yes_bid_usd_at_quoted,
+                "fill_path": fill_path,
                 "seconds_since_first_lockout": int(now_ts - first_seen),
                 "seconds_to_event_close": int(seconds_to_close) if seconds_to_close is not None else None,
                 "hour_utc": now_utc.hour,
@@ -2998,6 +3039,33 @@ class WeatherArb:
             return float(self.bot.risk.bankroll.capital)
         except Exception:
             return 30.0  # conservative fallback
+
+    async def _fetch_book_levels(
+        self, token_id: str, n: int = 3
+    ) -> dict:
+        """
+        Return top-n bid/ask levels for token. Each level is
+        {price, size (shares), usd (price*size)}. On error returns empty levels
+        with an 'error' field set.
+        """
+        url = f"{CLOB_BASE}/book?token_id={token_id}"
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(url, timeout=aiohttp.ClientTimeout(total=4)) as resp:
+                    if resp.status != 200:
+                        return {"bids": [], "asks": [], "error": f"http_{resp.status}"}
+                    book = await resp.json()
+        except Exception as e:
+            return {"bids": [], "asks": [], "error": str(e)[:80]}
+
+        def _fmt(lvl):
+            p = float(lvl.get("price", 0.0))
+            s = float(lvl.get("size", 0.0))
+            return {"price": round(p, 4), "size": round(s, 2), "usd": round(p * s, 2)}
+
+        bids = sorted(book.get("bids", []), key=lambda x: -float(x.get("price", 0)))[:n]
+        asks = sorted(book.get("asks", []), key=lambda x:  float(x.get("price", 1)))[:n]
+        return {"bids": [_fmt(b) for b in bids], "asks": [_fmt(a) for a in asks]}
 
     async def _fetch_book_and_vwap(
         self, token_id: str, stake_usd: float
