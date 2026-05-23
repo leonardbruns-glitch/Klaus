@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+ca295377 weather: INTRADAY_MIN_PROB 0.80→0.90 (2026-05-23)
 4c7d1ad6 weather: STAKE_USD 5→10 (2026-05-23)
 97dbaaeb weather: PER_CITY_STAKE_USD override; buenos-aires 0 flat (2026-05-23)
 3ffdea4e log: INTRADAY silent skip paths → INFO (5-min throttle)
@@ -11,13 +12,12 @@ dcd5523d data: peak-hour UTC for 8 wave-2/3 cities from 5yr ASOS
 3708b26b revert: BRACKET_SIGMA_MIN 0.30→0.60 (smoke-test inconclusive)
 f936bea6 test: BRACKET_SIGMA_MIN 0.60→0.30 (temp, smoke-test ladder.jsonl writer)
 b261abc0 fix: weather_arb dedup survives restart and today-market events
-54f1707f fix: reject lowest/coldest/warmest weather markets in parser
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   70G       23G  76% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sat 2026-05-23 20:46:14 UTC
+ActiveEnterTimestamp=Sat 2026-05-23 20:53:40 UTC
 
 ## Open positions (count):
 0
