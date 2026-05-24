@@ -60,6 +60,7 @@ class _NullHotBustRates:
 
 import os as _os
 _REGIME_PATH = _os.path.join(_os.path.dirname(__file__), "regime_today.json")
+_CONSENSUS_STATE_PATH = _os.path.join(_os.path.dirname(__file__), "bucket_consensus_state.json")
 _regime_cache: dict = {}
 _regime_mtime: float = 0.0
 
@@ -1118,6 +1119,23 @@ class WeatherArb:
         self._fired_tokens: set[str] = set()
         self._fired_city_dates: dict[str, str] = {}  # city|date → held token_id
         self._bucket_consensus: dict[str, list] = {}  # city|date → [(token_id, mu, ts), ...]
+        # Restore consensus counter from disk so restarts don't reset the 3/3 run streak.
+        _today_iso = date.today().isoformat()
+        try:
+            with open(_CONSENSUS_STATE_PATH) as _cf:
+                _saved = json.load(_cf)
+            _now_ts = time.time()
+            for _k, _entries in _saved.items():
+                if not _k.endswith(_today_iso):
+                    continue  # stale date — skip
+                _valid = [e for e in _entries if _now_ts - e[2] < 8 * 3600]
+                if _valid:
+                    self._bucket_consensus[_k] = [tuple(e) for e in _valid]
+            if self._bucket_consensus:
+                logger.info("[WA] Restored %d bucket consensus state(s) from disk",
+                            len(self._bucket_consensus))
+        except (FileNotFoundError, KeyError, ValueError, json.JSONDecodeError):
+            pass
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
@@ -2012,6 +2030,14 @@ class WeatherArb:
             logger.exception("[WA] switch exit sell failed %s", token_id[:12])
             return False
 
+    def _save_consensus_state(self) -> None:
+        try:
+            serializable = {k: [list(e) for e in v] for k, v in self._bucket_consensus.items()}
+            with open(_CONSENSUS_STATE_PATH, "w") as _cf:
+                json.dump(serializable, _cf)
+        except Exception:
+            logger.debug("[WA] Could not save bucket consensus state", exc_info=True)
+
     async def _update_and_maybe_switch(
         self,
         city: str,
@@ -2033,7 +2059,8 @@ class WeatherArb:
 
         if not held_token or new_token == held_token:
             # Model still prefers the held bucket — reset streak
-            self._bucket_consensus.pop(city_date_key, None)
+            if self._bucket_consensus.pop(city_date_key, None) is not None:
+                self._save_consensus_state()
             return
 
         # Record this scan's best token
@@ -2041,6 +2068,7 @@ class WeatherArb:
         q.append((new_token, new_mu, time.time()))
         if len(q) > BUCKET_SWITCH_MIN_RUNS:
             del q[:-BUCKET_SWITCH_MIN_RUNS]  # keep only last N
+        self._save_consensus_state()
 
         n_agree = sum(1 for t, _, _ in q if t == new_token)
         if n_agree < BUCKET_SWITCH_MIN_RUNS:
