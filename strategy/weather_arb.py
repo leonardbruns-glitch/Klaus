@@ -81,7 +81,7 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket
+MIN_FAIR_PROB = 0.45   # minimum fair probability for the best bucket
 ASK_BAND_LO  = 0.00    # min entry price (overnight forecast arb) — no floor
 ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
@@ -113,8 +113,8 @@ WATCHLIST_MIN_FAIR   = 0.35   # minimum fair_prob to be worth watching
 # ── Fractional Kelly position sizing ─────────────────────────────────────────
 KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
-KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
-KELLY_MAX_USD    = 8.0    # ceiling: raised 2026-05-22 from $5; INTRADAY uses bankroll-alloc cap separately
+KELLY_MIN_USD    = 10.0   # floor: $10 flat minimum stake
+KELLY_MAX_USD    = 12.0   # ceiling: raised 2026-05-24 from $8
 OVERNIGHT_ALLOC  = 1.00   # STRAT_1 overnight: 100% — all capital to NWP overnight positions
 INTRADAY_ALLOC   = 0.00   # STRAT_3 intraday: disabled — all capital to STRAT_1
 BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll total
