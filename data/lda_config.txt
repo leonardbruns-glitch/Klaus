@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-24T06:41:43Z
+# Snapshot: 2026-05-24T06:56:53Z
 # Latest commit on klaus:
-e7aec532 fix: bucket switch always blocked — fetch live bid via REST not stale pos.current_price
+600d774e fix: bucket switch falls back to Gamma price when CLOB book is stale
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
