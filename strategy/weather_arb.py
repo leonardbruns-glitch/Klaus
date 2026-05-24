@@ -115,8 +115,8 @@ KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 5.0    # floor: below this, fees consume the edge
 KELLY_MAX_USD    = 8.0    # ceiling: raised 2026-05-22 from $5; INTRADAY uses bankroll-alloc cap separately
-OVERNIGHT_ALLOC  = 0.55   # STRAT_1 overnight: 55% (was 40% + 15% from retired CITYCTR)
-INTRADAY_ALLOC   = 0.40   # STRAT_3 intraday: 40% of bankroll total
+OVERNIGHT_ALLOC  = 1.00   # STRAT_1 overnight: 100% — all capital to NWP overnight positions
+INTRADAY_ALLOC   = 0.00   # STRAT_3 intraday: disabled — all capital to STRAT_1
 BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll total
 TAIL_STRAT_ALLOC = 0.10   # STRAT_4 tail sniper: 10% of bankroll total
 MAX_POS_PER_STRAT = 4     # up to 4 positions per strategy
@@ -169,7 +169,7 @@ NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) dro
 SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss is tiny)
 
 # ── Intraday METAR arb (front-running WU→Polymarket lag) ─────────────────────
-INTRADAY_ENABLED      = True   # re-enabled 2026-05-22: post-peak METAR certainty lock
+INTRADAY_ENABLED      = False  # disabled 2026-05-24: all capital to STRAT_1 overnight NWP
 INTRADAY_MIN_PROB     = 0.90   # minimum nowcast P(bucket) to enter today's market
 INTRADAY_MIN_PROB_HI_PREC = 0.72  # lower threshold for high-precision cities (σ_blue < 0.45°C)
 INTRADAY_EDGE_MIN     = 0.06   # lower edge threshold (harder signal, less spread required)
