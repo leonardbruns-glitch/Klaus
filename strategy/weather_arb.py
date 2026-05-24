@@ -1990,6 +1990,23 @@ class WeatherArb:
                 reason="BUCKET_SWITCH",
                 force_exit=True,
             )
+            # Verify on-chain — neg-risk locks can cause partial fills.
+            # If shares remain, retry once with the actual remaining count.
+            await asyncio.sleep(3.0)
+            remaining = await self._fetch_onchain_size(token_id)
+            if remaining and remaining > 0.01:
+                logger.warning(
+                    "[WA] SWITCH_PARTIAL %s: %s shares remain after sell — retrying",
+                    city, remaining,
+                )
+                pos.remaining_shares = remaining
+                await self.bot.orders.cascade_sell(
+                    token_id=token_id,
+                    total_shares=remaining,
+                    current_price=current_bid,
+                    reason="BUCKET_SWITCH_RETRY",
+                    force_exit=True,
+                )
             self._close_position(token_id)
             return True
         except Exception:
@@ -3155,6 +3172,25 @@ class WeatherArb:
         bids = sorted(book.get("bids", []), key=lambda x: -float(x.get("price", 0)))[:n]
         asks = sorted(book.get("asks", []), key=lambda x:  float(x.get("price", 1)))[:n]
         return {"bids": [_fmt(b) for b in bids], "asks": [_fmt(a) for a in asks]}
+
+    async def _fetch_onchain_size(self, token_id: str) -> Optional[float]:
+        """Query data-API for actual on-chain position size. Returns None on error."""
+        wallet = getattr(self.bot, "proxy_wallet", None) or getattr(self.bot, "wallet_address", None)
+        if not wallet:
+            return None
+        url = f"https://data-api.polymarket.com/positions?user={wallet}"
+        try:
+            async with aiohttp.ClientSession() as sess:
+                async with sess.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                    if resp.status != 200:
+                        return None
+                    positions = await resp.json()
+            for p in positions:
+                if p.get("asset", "").startswith(token_id[:20]):
+                    return float(p.get("size", 0))
+            return 0.0  # not found = fully sold
+        except Exception:
+            return None
 
     async def _fetch_book_and_vwap(
         self, token_id: str, stake_usd: float
