@@ -140,7 +140,7 @@ MAX_HOURS_BEFORE_RESOLUTION = 36   # don't enter if >36h out (forecast not yet c
 # Once we're within this many hours of city peak, NWP daily-max forecast is stale
 # (actual peak may have already passed). INTRADAY (STRAT_3) owns same-day territory
 # via live METAR. Skip today's markets in STRAT_1 once the peak window approaches.
-STRAT1_PRE_PEAK_BLOCK_H = 5
+STRAT1_PRE_PEAK_BLOCK_H = 2
 
 # NWP publish slots (UTC hours). Scan fires T+5min after each slot when fresh model data lands.
 # Mirrors nwp_lag.py schedule; that strategy is paused but the schedule is ground truth.
