@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-24T22:37:03Z
+# Snapshot: 2026-05-24T22:52:13Z
 # Latest commit on klaus:
-19f12268 refactor: replace SWITCH_SUPPRESSED hard block with high-scan-count for small mu shifts
+c353b7b2 config: STRAT1_PRE_PEAK_BLOCK_H 5→2h — NWP is not stale at T-5h
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

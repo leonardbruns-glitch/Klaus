@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+c353b7b2 config: STRAT1_PRE_PEAK_BLOCK_H 5→2h — NWP is not stale at T-5h
+6e18de0d config: lower 3-scan threshold from 0.5°C → 0.35°C for bucket switch
 19f12268 refactor: replace SWITCH_SUPPRESSED hard block with high-scan-count for small mu shifts
 2536953f config: MIN_FAIR_PROB 0.35→0.45, KELLY_MIN_USD 5→10, KELLY_MAX_USD 8→12
 f1af03d0 feat: restore SWITCH_SUPPRESSED gate + dynamic required_runs for bucket switch
@@ -10,14 +12,12 @@ c1023eb4 Watchdog 2026-05-24T22:22:10Z: MEDIUM 2 alerts (backoff)
 92af9624 fix: bucket switch sell retries 2→3, sleep 3+2s→5+5+5s for NEG_RISK_LOCK clearance
 aca65b75 config: MIN_FAIR_PROB 0.45→0.35 — open more cities at reasonable conviction
 57688798 Watchdog 2026-05-24T21:18:42Z: MEDIUM 2 alerts
-25824d1b config: ASK_BAND_LO 0.01→0.00 — no ask floor on overnight entries
-9c2425eb config: 100% capital to STRAT_1 — disable intraday allocation
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       20G  79% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 22:34:59 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 22:51:50 UTC
 
 ## Open positions (count):
 0
