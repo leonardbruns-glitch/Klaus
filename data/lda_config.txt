@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-24T07:12:13Z
+# Snapshot: 2026-05-24T07:27:23Z
 # Latest commit on klaus:
-ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
+a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

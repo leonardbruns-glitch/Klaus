@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
+6018fb6d fix: retry cascade_sell for partial fills in neg-risk bucket switch
 ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
 9a4d9edf fix: re-seed _positions expected_max_c on restart so bucket switch mu_delta works
 600d774e fix: bucket switch falls back to Gamma price when CLOB book is stale
@@ -10,14 +12,12 @@ e7aec532 fix: bucket switch always blocked — fetch live bid via REST not stale
 3d5d2cec VOLARB Scout 2026-05-24T0047Z — era permanently closed, all families null
 d24b07df VOLARB Audit 20260524-0022 — NO_PATCH (n=885, watch=6, strategy RETIRED)
 011676a4 Watchdog 2026-05-24T00:20:06Z: OK — 2 active alerts in backoff (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
-b4cc03a7 Watchdog 2026-05-23T23:19Z: MEDIUM 2 alerts in backoff (VOLARB_ROLLING_DRAWDOWN -$13.53/20; VOLARB_TRADE_LOOP_SILENT 116.4h silence)
-e7189176 Watchdog 2026-05-23T22:19Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN re-confirmed -$13.53/20; VOLARB_TRADE_LOOP_SILENT 115.5h silence)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   71G       22G  77% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 07:09:53 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 07:16:54 UTC
 
 ## Open positions (count):
 0
