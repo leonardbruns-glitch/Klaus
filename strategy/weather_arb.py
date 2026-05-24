@@ -2133,30 +2133,33 @@ class WeatherArb:
                 reason="BUCKET_SWITCH",
                 force_exit=True,
             )
-            # Verify on-chain — neg-risk locks / USDC exhaustion can cause zero fills.
-            # Only close the position once confirmed sold.
-            await asyncio.sleep(3.0)
-            remaining = await self._fetch_onchain_size(token_id)
-            if remaining and remaining > 0.01:
+            # Verify on-chain — neg-risk locks can take 5-15s to clear; USDC exhaustion
+            # breaks immediately inside cascade_sell. Retry up to 3 times with 5s gaps.
+            for attempt in range(1, 4):
+                await asyncio.sleep(5.0)
+                remaining = await self._fetch_onchain_size(token_id)
+                if not remaining or remaining <= 0.01:
+                    break
                 logger.warning(
-                    "[WA] SWITCH_PARTIAL %s: %.4f shares remain after sell — retrying",
-                    city, remaining,
+                    "[WA] SWITCH_PARTIAL %s: %.4f shares remain after attempt %d — retrying",
+                    city, remaining, attempt,
                 )
                 pos.remaining_shares = remaining
                 await self.bot.orders.cascade_sell(
                     token_id=token_id,
                     total_shares=remaining,
                     current_price=current_bid,
-                    reason="BUCKET_SWITCH_RETRY",
+                    reason=f"BUCKET_SWITCH_RETRY_{attempt}",
                     force_exit=True,
                 )
-                await asyncio.sleep(2.0)
-                remaining2 = await self._fetch_onchain_size(token_id)
-                if remaining2 and remaining2 > 0.01:
+            else:
+                # All 3 retries exhausted — check final state
+                remaining = await self._fetch_onchain_size(token_id)
+                if remaining and remaining > 0.01:
                     logger.error(
-                        "[WA] SWITCH_SELL_FAILED %s: %.4f shares still held after 2 attempts "
-                        "(USDC exhaustion or CLOB lock) — keeping position, not switching",
-                        city, remaining2,
+                        "[WA] SWITCH_SELL_FAILED %s: %.4f shares still held after 3 attempts "
+                        "(NEG_RISK_LOCK or CLOB lock) — keeping position, not switching",
+                        city, remaining,
                     )
                     return False
             self._close_position(token_id)
