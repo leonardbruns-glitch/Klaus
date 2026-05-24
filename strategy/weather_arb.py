@@ -81,7 +81,7 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.45   # minimum fair probability for the best bucket (must have majority conviction)
+MIN_FAIR_PROB = 0.35   # minimum fair probability for the best bucket
 ASK_BAND_LO  = 0.00    # min entry price (overnight forecast arb) — no floor
 ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
