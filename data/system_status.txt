@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+25824d1b config: ASK_BAND_LO 0.01→0.00 — no ask floor on overnight entries
 9c2425eb config: 100% capital to STRAT_1 — disable intraday allocation
 9bd6d63c fix: bucket switch always buys new bucket even when sell fails
 ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re-entry
@@ -11,13 +12,12 @@ ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re
 a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
 6018fb6d fix: retry cascade_sell for partial fills in neg-risk bucket switch
 ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
-9a4d9edf fix: re-seed _positions expected_max_c on restart so bucket switch mu_delta works
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       20G  79% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 21:02:49 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 21:13:24 UTC
 
 ## Open positions (count):
 0
