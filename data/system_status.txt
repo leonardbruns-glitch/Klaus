@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+9c2425eb config: 100% capital to STRAT_1 — disable intraday allocation
+9bd6d63c fix: bucket switch always buys new bucket even when sell fails
 ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re-entry
 086b597b feat: add CITY_REMAINING_RISE tables for 9 previously uncalibrated cities
 58785132 fix: persist bucket_consensus NWP run counter across restarts
@@ -10,14 +12,12 @@ a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
 6018fb6d fix: retry cascade_sell for partial fills in neg-risk bucket switch
 ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
 9a4d9edf fix: re-seed _positions expected_max_c on restart so bucket switch mu_delta works
-600d774e fix: bucket switch falls back to Gamma price when CLOB book is stale
-ee5fcdce tmp: BUCKET_SWITCH_MIN_RUNS 3→1 to force Toronto switch now
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       21G  79% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       20G  79% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 20:51:03 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 21:02:49 UTC
 
 ## Open positions (count):
 0

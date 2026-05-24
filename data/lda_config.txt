@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-24T20:51:19Z
+# Snapshot: 2026-05-24T21:06:19Z
 # Latest commit on klaus:
-ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re-entry
+9c2425eb config: 100% capital to STRAT_1 — disable intraday allocation
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
