@@ -1661,7 +1661,7 @@ class WeatherArb:
                         if _tid not in self._positions:
                             _lo, _hi, _ = _parse_outcome(_mkt.get("question", ""))
                             _mid = ((_lo or 0) + (_hi or 0)) / 2 if _lo is not None and _hi is not None else None
-                            self._positions[_tid] = {"expected_max_c": _mid, "status": "FILLED"}
+                            self._positions[_tid] = {"expected_max_c": _mid, "status": "FILLED", "lo_c": _lo, "hi_c": _hi}
             # Use the event's actual end_date (target_dates = {today, tomorrow},
             # so an event may be for today — hardcoding `tomorrow` here misses today's dedup).
             event_end_date = (candidates[0][0].get("endDate", "")[:10]) if candidates else tomorrow
@@ -2224,6 +2224,20 @@ class WeatherArb:
             return
 
         mu_delta = abs(new_mu - entry_mu)
+
+        # Guard: if NWP mu hasn't moved outside the held bucket, the switch candidate
+        # is winning on edge repricing (held ask moved up), not a genuine model shift.
+        # Reset consensus and skip — we don't switch on edge noise.
+        held_lo = held_pos_meta.get("lo_c")
+        held_hi = held_pos_meta.get("hi_c")
+        if held_lo is not None and held_hi is not None and held_lo <= new_mu < held_hi:
+            logger.debug(
+                "[WA] MU_IN_BUCKET %s/%s: new_mu=%.2f still inside held [%.1f,%.1f) — not a model shift",
+                city, end_date, new_mu, held_lo, held_hi,
+            )
+            if self._bucket_consensus.pop(city_date_key, None) is not None:
+                self._save_consensus_state()
+            return
 
         # Dynamic required_runs: larger shift → fewer confirmations needed
         if mu_delta >= 1.5:
