@@ -295,7 +295,7 @@ TAIL_COLD_DEW_MAX   = 4.5   # °C dew spread: below this = humid → suppressed 
 TAIL_COLD_WIND_MAX  = 7.0   # kt: calm wind amplifies cold-bust signal
 
 # ── Forecast consensus / bucket-switching ────────────────────────────────────
-# Dynamic required_runs by mu_delta: ≥1.5°C→1, ≥0.8°C→2, ≥0.5°C→3, else→5
+# Dynamic required_runs by mu_delta: ≥1.5°C→1, ≥0.8°C→2, ≥0.35°C→3, else→5
 BUCKET_SWITCH_MAX_RUNS = 5      # queue depth (must hold up to max required_runs)
 
 # Cities excluded from STRAT_1 overnight entries: ERA5 validation shows σ_real > 1.5°C all-year
@@ -2196,8 +2196,8 @@ class WeatherArb:
         required_runs is dynamic based on mu_delta (entry mu → current NWP mu):
           >=1.5°C → 1 scan  (decisive revision)
           >=0.8°C → 2 scans (clear signal, one confirmation)
-          >=0.5°C → 3 scans (moderate, full confirmation)
-          < 0.5°C → 5 scans (slow drift — allowed but needs persistence)
+          >=0.35°C → 3 scans (moderate, full confirmation)
+          < 0.35°C → 5 scans (slow drift — allowed but needs persistence)
         Switch = exit old position (if bid >= SALVAGE_MIN_BID) + enter new bucket.
         """
         new_token  = best_entry["token_id"]
@@ -2228,7 +2228,7 @@ class WeatherArb:
             required_runs = 1
         elif mu_delta >= 0.8:
             required_runs = 2
-        elif mu_delta >= 0.5:
+        elif mu_delta >= 0.35:
             required_runs = 3
         else:
             required_runs = 5  # slow drift — must persist across many scans
