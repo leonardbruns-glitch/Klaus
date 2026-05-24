@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re-entry
 086b597b feat: add CITY_REMAINING_RISE tables for 9 previously uncalibrated cities
 58785132 fix: persist bucket_consensus NWP run counter across restarts
 9177ee9f remove: BUCKET_SWITCH_MU_DELTA gate — 3/3 consensus is sufficient
@@ -11,13 +12,12 @@ ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
 9a4d9edf fix: re-seed _positions expected_max_c on restart so bucket switch mu_delta works
 600d774e fix: bucket switch falls back to Gamma price when CLOB book is stale
 ee5fcdce tmp: BUCKET_SWITCH_MIN_RUNS 3→1 to force Toronto switch now
-e7aec532 fix: bucket switch always blocked — fetch live bid via REST not stale pos.current_price
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       21G  79% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 20:34:41 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 20:51:03 UTC
 
 ## Open positions (count):
 0
