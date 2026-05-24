@@ -1246,14 +1246,16 @@ class WeatherArb:
         self._fired_tokens: set[str] = set()
         self._fired_city_dates: dict[str, str] = {}  # city|date → held token_id
         self._bucket_consensus: dict[str, list] = {}  # city|date → [(token_id, mu, ts), ...]
-        # Restore consensus counter from disk so restarts don't reset the 3/3 run streak.
-        _today_iso = date.today().isoformat()
+        # Restore consensus counter from disk so restarts don't reset the run streak.
+        # Keep both today and tomorrow — D+1 markets accumulate consensus overnight.
+        _today_iso    = date.today().isoformat()
+        _tomorrow_iso = (date.today() + timedelta(days=1)).isoformat()
         try:
             with open(_CONSENSUS_STATE_PATH) as _cf:
                 _saved = json.load(_cf)
             _now_ts = time.time()
             for _k, _entries in _saved.items():
-                if not _k.endswith(_today_iso):
+                if not (_k.endswith(_today_iso) or _k.endswith(_tomorrow_iso)):
                     continue  # stale date — skip
                 _valid = [e for e in _entries if _now_ts - e[2] < 8 * 3600]
                 if _valid:
