@@ -949,8 +949,19 @@ class OrderManager:
                         # CLOB shows tokens as "matched" against the neg-risk pool, blocking
                         # this sell. Cancel does nothing — the lock is from a filled order,
                         # not a resting one. Wait 2s for settlement and retry.
+                        # Guard: if free balance (actual_ticks - matched) is near zero,
+                        # this is a USDC exhaustion, not a token lock — abort immediately.
                         _mm = _re.search(r'matched orders[:\s]+(\d+)', err, _re.IGNORECASE)
                         if _mm and int(_mm.group(1)) > 0:
+                            _free = actual_ticks - int(_mm.group(1))
+                            if _free <= 100_000:  # ≤0.10 USDC free → wallet exhausted
+                                logger.error(
+                                    "USDC_EXHAUSTED %s (attempt %d): balance=%d matched=%d free=%d "
+                                    "— wallet depleted, cannot execute sell",
+                                    token_id[:12], attempt + 1,
+                                    actual_ticks, int(_mm.group(1)), _free,
+                                )
+                                break
                             logger.warning(
                                 "NEG_RISK_LOCK %s (attempt %d): %d micro-tokens locked by "
                                 "sibling neg-risk fill — waiting 2s for CLOB settlement",

@@ -2133,13 +2133,13 @@ class WeatherArb:
                 reason="BUCKET_SWITCH",
                 force_exit=True,
             )
-            # Verify on-chain — neg-risk locks can cause partial fills.
-            # If shares remain, retry once with the actual remaining count.
+            # Verify on-chain — neg-risk locks / USDC exhaustion can cause zero fills.
+            # Only close the position once confirmed sold.
             await asyncio.sleep(3.0)
             remaining = await self._fetch_onchain_size(token_id)
             if remaining and remaining > 0.01:
                 logger.warning(
-                    "[WA] SWITCH_PARTIAL %s: %s shares remain after sell — retrying",
+                    "[WA] SWITCH_PARTIAL %s: %.4f shares remain after sell — retrying",
                     city, remaining,
                 )
                 pos.remaining_shares = remaining
@@ -2150,6 +2150,15 @@ class WeatherArb:
                     reason="BUCKET_SWITCH_RETRY",
                     force_exit=True,
                 )
+                await asyncio.sleep(2.0)
+                remaining2 = await self._fetch_onchain_size(token_id)
+                if remaining2 and remaining2 > 0.01:
+                    logger.error(
+                        "[WA] SWITCH_SELL_FAILED %s: %.4f shares still held after 2 attempts "
+                        "(USDC exhaustion or CLOB lock) — keeping position, not switching",
+                        city, remaining2,
+                    )
+                    return False
             self._close_position(token_id)
             return True
         except Exception:
