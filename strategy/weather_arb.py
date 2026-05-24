@@ -295,7 +295,6 @@ TAIL_COLD_WIND_MAX  = 7.0   # kt: calm wind amplifies cold-bust signal
 
 # ── Forecast consensus / bucket-switching ────────────────────────────────────
 BUCKET_SWITCH_MIN_RUNS = 3      # consecutive scans preferring new bucket before switching
-BUCKET_SWITCH_MU_DELTA = 0.5    # min °C shift in ensemble mu required to trigger switch
 
 # Cities excluded from STRAT_1 overnight entries: ERA5 validation shows σ_real > 1.5°C all-year
 # or structural bucket-hit WR < 55% (fee-negative after spread+rebate).
@@ -2062,19 +2061,11 @@ class WeatherArb:
             logger.debug("[WA] SWITCH %s/%s: no entry_mu for held token, skipping", city, end_date)
             return
 
-        mu_delta = abs(new_mu - entry_mu)
-        if mu_delta < BUCKET_SWITCH_MU_DELTA:
-            logger.info(
-                "[WA] SWITCH_SUPPRESSED %s/%s: mu_delta=%.2f°C < %.1f°C (was=%.1f now=%.1f)",
-                city, end_date, mu_delta, BUCKET_SWITCH_MU_DELTA, entry_mu, new_mu,
-            )
-            return
-
         logger.warning(
             "[WA] BUCKET_SWITCH %s/%s | held=%s... → new=%s... | "
-            "mu_delta=%.2f°C (%.1f→%.1f°C) | %d/%d runs agree",
+            "mu: %.1f→%.1f°C | %d/%d runs agree",
             city, end_date, held_token[:12], new_token[:12],
-            mu_delta, entry_mu, new_mu, n_agree, BUCKET_SWITCH_MIN_RUNS,
+            entry_mu, new_mu, n_agree, BUCKET_SWITCH_MIN_RUNS,
         )
 
         exit_ok = await self._exit_for_switch(held_token, city)
