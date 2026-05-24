@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-24T23:07:32Z
+# Snapshot: 2026-05-24T23:22:53Z
 # Latest commit on klaus:
-d0e406b1 feat: mu-in-bucket guard for bucket switch + preserve lo/hi on re-seed
+273dee64 revert: remove mu-in-bucket guard and lo/hi re-seed
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
