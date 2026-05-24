@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+7e641ae9 fix: bucket switch sell — fresh bid on retries, sleep before final on-chain check
+92af9624 fix: bucket switch sell retries 2→3, sleep 3+2s→5+5+5s for NEG_RISK_LOCK clearance
 aca65b75 config: MIN_FAIR_PROB 0.45→0.35 — open more cities at reasonable conviction
 57688798 Watchdog 2026-05-24T21:18:42Z: MEDIUM 2 alerts
 25824d1b config: ASK_BAND_LO 0.01→0.00 — no ask floor on overnight entries
@@ -10,14 +12,12 @@ aca65b75 config: MIN_FAIR_PROB 0.45→0.35 — open more cities at reasonable co
 ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re-entry
 086b597b feat: add CITY_REMAINING_RISE tables for 9 previously uncalibrated cities
 58785132 fix: persist bucket_consensus NWP run counter across restarts
-9177ee9f remove: BUCKET_SWITCH_MU_DELTA gate — 3/3 consensus is sufficient
-a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       20G  79% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 21:31:40 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 22:06:42 UTC
 
 ## Open positions (count):
 0

@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-24T21:51:39Z
+# Snapshot: 2026-05-24T22:06:40Z
 # Latest commit on klaus:
-aca65b75 config: MIN_FAIR_PROB 0.45→0.35 — open more cities at reasonable conviction
+7e641ae9 fix: bucket switch sell — fresh bid on retries, sleep before final on-chain check
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
