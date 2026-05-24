@@ -2233,11 +2233,22 @@ class WeatherArb:
 
         exit_ok = await self._exit_for_switch(held_token, city)
         if not exit_ok:
-            return
+            # Sell failed (USDC exhaustion, illiquidity, etc.) but NWP has 3/3 consensus.
+            # Buy the new bucket anyway with available capital — do NOT block on the sell.
+            # Old position stays in _positions and will exit via METAR/WU/resolution.
+            # Worst case: hold both simultaneously; 3/3 NWP edge on new bucket justifies it.
+            logger.warning(
+                "[WA] BUCKET_SWITCH_FORCED %s/%s: sell of %s... failed "
+                "— buying new bucket %s... regardless (3/3 NWP, old position kept)",
+                city, end_date, held_token[:12], new_token[:12],
+            )
 
-        # Clear dedup so _enter() can register the new bucket
+        # Clear dedup so _enter() can register the new bucket.
+        # held_token stays in _fired_tokens (prevents spurious re-entry of old bucket)
+        # but is removed from city_date dedup so the new token can claim the slot.
         self._fired_city_dates.pop(city_date_key, None)
-        self._fired_tokens.discard(held_token)
+        if exit_ok:
+            self._fired_tokens.discard(held_token)
         self._bucket_consensus.pop(city_date_key, None)
 
         stake = self._kelly_stake(best_entry["edge"], best_entry["poly_price"])
