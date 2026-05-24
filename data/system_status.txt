@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+aca65b75 config: MIN_FAIR_PROB 0.45→0.35 — open more cities at reasonable conviction
+57688798 Watchdog 2026-05-24T21:18:42Z: MEDIUM 2 alerts
 25824d1b config: ASK_BAND_LO 0.01→0.00 — no ask floor on overnight entries
 9c2425eb config: 100% capital to STRAT_1 — disable intraday allocation
 9bd6d63c fix: bucket switch always buys new bucket even when sell fails
@@ -10,14 +12,12 @@ ec1f7396 fix: bucket switch sell failure no longer wipes position or triggers re
 58785132 fix: persist bucket_consensus NWP run counter across restarts
 9177ee9f remove: BUCKET_SWITCH_MU_DELTA gate — 3/3 consensus is sufficient
 a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
-6018fb6d fix: retry cascade_sell for partial fills in neg-risk bucket switch
-ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       20G  79% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 21:13:24 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 21:31:40 UTC
 
 ## Open positions (count):
 0
