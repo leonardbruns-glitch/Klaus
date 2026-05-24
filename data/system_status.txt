@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+9177ee9f remove: BUCKET_SWITCH_MU_DELTA gate — 3/3 consensus is sufficient
 a4a60c41 restore: BUCKET_SWITCH_MIN_RUNS back to 3
 6018fb6d fix: retry cascade_sell for partial fills in neg-risk bucket switch
 ba29eadd fix: use cascade_sell not limit_sell for bucket switch exit
@@ -11,13 +12,12 @@ ee5fcdce tmp: BUCKET_SWITCH_MIN_RUNS 3→1 to force Toronto switch now
 e7aec532 fix: bucket switch always blocked — fetch live bid via REST not stale pos.current_price
 3d5d2cec VOLARB Scout 2026-05-24T0047Z — era permanently closed, all families null
 d24b07df VOLARB Audit 20260524-0022 — NO_PATCH (n=885, watch=6, strategy RETIRED)
-011676a4 Watchdog 2026-05-24T00:20:06Z: OK — 2 active alerts in backoff (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   72G       21G  78% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 07:16:54 UTC
+ActiveEnterTimestamp=Sun 2026-05-24 19:06:56 UTC
 
 ## Open positions (count):
 0
