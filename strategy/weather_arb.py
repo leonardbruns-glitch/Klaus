@@ -1949,7 +1949,7 @@ class WeatherArb:
             self._close_position(token_id)
             return True
         pos = self.bot.risk.open_positions[token_id]
-        current_bid = getattr(pos, "current_price", 0.0) or 0.0
+        current_bid, _, _, _ = await self._fetch_book_and_vwap(token_id, pos.stake)
         if current_bid < SALVAGE_MIN_BID:
             logger.warning(
                 "[WA] SWITCH_BLOCKED %s bid=%.3f < SALVAGE_MIN_BID=%.2f — illiquid, not switching",
