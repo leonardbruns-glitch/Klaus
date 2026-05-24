@@ -1509,7 +1509,13 @@ class WeatherArb:
                     _tids = _parse_token_ids(_mkt.get("clobTokenIds", []))
                     if _tids and _tids[0] in _open_arb_tids:
                         _ed = _mkt.get("endDate", "")[:10]
-                        self._fired_city_dates.setdefault(f"{city}|{_ed}", _tids[0])
+                        _tid = _tids[0]
+                        self._fired_city_dates.setdefault(f"{city}|{_ed}", _tid)
+                        # Re-seed in-memory position meta so bucket-switch mu_delta works after restart
+                        if _tid not in self._positions:
+                            _lo, _hi, _ = _parse_outcome(_mkt.get("question", ""))
+                            _mid = ((_lo or 0) + (_hi or 0)) / 2 if _lo is not None and _hi is not None else None
+                            self._positions[_tid] = {"expected_max_c": _mid, "status": "FILLED"}
             # Use the event's actual end_date (target_dates = {today, tomorrow},
             # so an event may be for today — hardcoding `tomorrow` here misses today's dedup).
             event_end_date = (candidates[0][0].get("endDate", "")[:10]) if candidates else tomorrow
