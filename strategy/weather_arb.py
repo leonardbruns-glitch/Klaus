@@ -1949,7 +1949,24 @@ class WeatherArb:
             self._close_position(token_id)
             return True
         pos = self.bot.risk.open_positions[token_id]
-        current_bid, _, _, _ = await self._fetch_book_and_vwap(token_id, pos.stake)
+        current_bid, current_ask, _, _ = await self._fetch_book_and_vwap(token_id, pos.stake)
+        # CLOB REST snapshots go stale (bid≈0, ask≈1 while Gamma shows fair price).
+        # If spread is disconnected, fall back to Gamma outcomePrices mid.
+        if current_bid < 0.05 and current_ask > 0.90 and pos.condition_id:
+            try:
+                async with aiohttp.ClientSession() as sess:
+                    url = f"{GAMMA_BASE}/markets?condition_ids={pos.condition_id}"
+                    async with sess.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        if resp.status == 200:
+                            mkts = await resp.json()
+                            if mkts:
+                                prices_raw = mkts[0].get("outcomePrices", "[]")
+                                prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+                                if prices:
+                                    current_bid = float(prices[0])
+                                    logger.info("[WA] SWITCH_BID_FALLBACK %s: CLOB stale, using Gamma mid=%.3f", city, current_bid)
+            except Exception:
+                pass
         if current_bid < SALVAGE_MIN_BID:
             logger.warning(
                 "[WA] SWITCH_BLOCKED %s bid=%.3f < SALVAGE_MIN_BID=%.2f — illiquid, not switching",
