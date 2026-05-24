@@ -294,7 +294,7 @@ TAIL_COLD_DEW_MAX   = 4.5   # °C dew spread: below this = humid → suppressed 
 TAIL_COLD_WIND_MAX  = 7.0   # kt: calm wind amplifies cold-bust signal
 
 # ── Forecast consensus / bucket-switching ────────────────────────────────────
-BUCKET_SWITCH_MIN_RUNS = 1      # consecutive scans preferring new bucket before switching
+BUCKET_SWITCH_MIN_RUNS = 3      # consecutive scans preferring new bucket before switching
 BUCKET_SWITCH_MU_DELTA = 0.5    # min °C shift in ensemble mu required to trigger switch
 
 # Cities excluded from STRAT_1 overnight entries: ERA5 validation shows σ_real > 1.5°C all-year
