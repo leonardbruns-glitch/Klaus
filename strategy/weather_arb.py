@@ -1983,11 +1983,12 @@ class WeatherArb:
             logger.info("[WA] [DRY] switch: would sell %s @ %.3f", token_id[:12], current_bid - 0.01)
             return True
         try:
-            await self.bot.orders.limit_sell(
+            await self.bot.orders.cascade_sell(
                 token_id=token_id,
-                price=round(current_bid - 0.01, 4),
-                size=pos.shares,
-                condition_id=pos.condition_id,
+                total_shares=pos.shares,
+                current_price=current_bid,
+                reason="BUCKET_SWITCH",
+                force_exit=True,
             )
             self._close_position(token_id)
             return True
