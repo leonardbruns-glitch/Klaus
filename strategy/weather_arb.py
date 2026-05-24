@@ -295,9 +295,8 @@ TAIL_COLD_DEW_MAX   = 4.5   # °C dew spread: below this = humid → suppressed 
 TAIL_COLD_WIND_MAX  = 7.0   # kt: calm wind amplifies cold-bust signal
 
 # ── Forecast consensus / bucket-switching ────────────────────────────────────
-BUCKET_SWITCH_MIN_RUNS = 3      # fallback: scans required when mu_delta < 0.8°C
-BUCKET_SWITCH_MU_MIN   = 0.50   # suppress consensus entirely if mu shift < this (noise)
-# Dynamic required_runs: ≥1.5°C→1, ≥0.8°C→2, else→3
+# Dynamic required_runs by mu_delta: ≥1.5°C→1, ≥0.8°C→2, ≥0.5°C→3, else→5
+BUCKET_SWITCH_MAX_RUNS = 5      # queue depth (must hold up to max required_runs)
 
 # Cities excluded from STRAT_1 overnight entries: ERA5 validation shows σ_real > 1.5°C all-year
 # or structural bucket-hit WR < 55% (fee-negative after spread+rebate).
@@ -2193,10 +2192,12 @@ class WeatherArb:
     ) -> None:
         """
         Track which bucket the model most prefers across consecutive scans.
-        Fires a bucket switch when:
-          - mu has shifted >= BUCKET_SWITCH_MU_MIN °C from entry mu (else suppressed as noise), AND
-          - required_runs consecutive scans prefer the same new token, where required_runs is
-            dynamic: >=1.5°C→1 scan, >=0.8°C→2 scans, else→3 scans (BUCKET_SWITCH_MIN_RUNS).
+        Fires a bucket switch when required_runs consecutive scans prefer the same new token.
+        required_runs is dynamic based on mu_delta (entry mu → current NWP mu):
+          >=1.5°C → 1 scan  (decisive revision)
+          >=0.8°C → 2 scans (clear signal, one confirmation)
+          >=0.5°C → 3 scans (moderate, full confirmation)
+          < 0.5°C → 5 scans (slow drift — allowed but needs persistence)
         Switch = exit old position (if bid >= SALVAGE_MIN_BID) + enter new bucket.
         """
         new_token  = best_entry["token_id"]
@@ -2210,7 +2211,7 @@ class WeatherArb:
                 self._save_consensus_state()
             return
 
-        # Fetch entry mu early — needed for suppression check and dynamic required_runs
+        # Fetch entry mu early — needed for dynamic required_runs
         held_pos_meta = self._positions.get(held_token, {})
         if held_pos_meta.get("status") == "RESTING_MAKER":
             return  # orphan cancellation handles model drift for resting orders
@@ -2222,29 +2223,21 @@ class WeatherArb:
 
         mu_delta = abs(new_mu - entry_mu)
 
-        # Suppress if shift is within model noise — reset any partial consensus
-        if mu_delta < BUCKET_SWITCH_MU_MIN:
-            logger.info(
-                "[WA] SWITCH_SUPPRESSED %s/%s: mu_delta=%.2f°C < %.2f°C (was=%.1f now=%.1f)",
-                city, end_date, mu_delta, BUCKET_SWITCH_MU_MIN, entry_mu, new_mu,
-            )
-            if self._bucket_consensus.pop(city_date_key, None) is not None:
-                self._save_consensus_state()
-            return
-
         # Dynamic required_runs: larger shift → fewer confirmations needed
         if mu_delta >= 1.5:
             required_runs = 1
         elif mu_delta >= 0.8:
             required_runs = 2
+        elif mu_delta >= 0.5:
+            required_runs = 3
         else:
-            required_runs = BUCKET_SWITCH_MIN_RUNS  # 3
+            required_runs = 5  # slow drift — must persist across many scans
 
         # Record this scan's best token
         q = self._bucket_consensus.setdefault(city_date_key, [])
         q.append((new_token, new_mu, time.time()))
-        if len(q) > BUCKET_SWITCH_MIN_RUNS:
-            del q[:-BUCKET_SWITCH_MIN_RUNS]  # keep at most 3 entries
+        if len(q) > BUCKET_SWITCH_MAX_RUNS:
+            del q[:-BUCKET_SWITCH_MAX_RUNS]
         self._save_consensus_state()
 
         n_agree = sum(1 for t, _, _ in q if t == new_token)
