@@ -2135,25 +2135,31 @@ class WeatherArb:
             )
             # Verify on-chain — neg-risk locks can take 5-15s to clear; USDC exhaustion
             # breaks immediately inside cascade_sell. Retry up to 3 times with 5s gaps.
+            sold = False
             for attempt in range(1, 4):
                 await asyncio.sleep(5.0)
                 remaining = await self._fetch_onchain_size(token_id)
                 if not remaining or remaining <= 0.01:
+                    sold = True
                     break
                 logger.warning(
                     "[WA] SWITCH_PARTIAL %s: %.4f shares remain after attempt %d — retrying",
                     city, remaining, attempt,
                 )
                 pos.remaining_shares = remaining
+                # Re-fetch bid so we don't pass a 15s-stale price to cascade_sell
+                fresh_bid, _, _, _ = await self._fetch_book_and_vwap(token_id, pos.stake)
+                retry_bid = fresh_bid if fresh_bid >= SALVAGE_MIN_BID else current_bid
                 await self.bot.orders.cascade_sell(
                     token_id=token_id,
                     total_shares=remaining,
-                    current_price=current_bid,
+                    current_price=retry_bid,
                     reason=f"BUCKET_SWITCH_RETRY_{attempt}",
                     force_exit=True,
                 )
-            else:
-                # All 3 retries exhausted — check final state
+            if not sold:
+                # All 3 retries exhausted — wait for final settlement then check
+                await asyncio.sleep(5.0)
                 remaining = await self._fetch_onchain_size(token_id)
                 if remaining and remaining > 0.01:
                     logger.error(
