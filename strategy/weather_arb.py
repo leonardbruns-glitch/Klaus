@@ -101,7 +101,7 @@ BRACKET_SIGMA_MIN        = 0.60   # only ladder on wide-sigma cities (σ ≥ 0.6
 # Sigma inflation for entries above ASK_BAND_HI (compensates for suspected overconfidence).
 # Set to 1.0 to disable. Increase to 1.3 to make high-price fair_prob estimates more conservative.
 SIGMA_INFLATION_ABOVE_CAP = 1.30   # applied when ask > ASK_BAND_HI and BRACKET_ENABLED
-STAKE_USD    = 10.0    # fallback flat stake (2026-05-23: raised from $5)
+STAKE_USD    = 5.0     # fallback flat stake (adaptive: capped at 25% bankroll)
 PER_CITY_STAKE_USD: dict[str, float] = {
     "buenos-aires": 20.0,  # 2026-05-23: user-specified flat override
 }
@@ -113,7 +113,7 @@ WATCHLIST_MIN_FAIR   = 0.35   # minimum fair_prob to be worth watching
 # ── Fractional Kelly position sizing ─────────────────────────────────────────
 KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
-KELLY_MIN_USD    = 10.0   # floor: $10 flat minimum stake
+KELLY_MIN_USD    = 1.0    # floor: $1 minimum stake (adaptive to bankroll)
 KELLY_MAX_USD    = 12.0   # ceiling: raised 2026-05-24 from $8
 OVERNIGHT_ALLOC  = 1.00   # STRAT_1 overnight: 100% — all capital to NWP overnight positions
 INTRADAY_ALLOC   = 0.00   # STRAT_3 intraday: disabled — all capital to STRAT_1
@@ -4733,6 +4733,35 @@ class WeatherArb:
                             "sea-breeze" if mc_mu < mean else "THI",
                         )
                     mean, sigma = mc_mu, mc_sigma
+
+                # ── METAR trajectory blend (same-day only) ──────────────
+                # Anchor the NWP ensemble with a rise-table trajectory from
+                # the current observed temperature. Weight grows closer to
+                # peak so live obs dominate in the final hours.
+                if d == today and icao:
+                    _m = self._latest_metar.get(icao, {})
+                    _t_cur   = _m.get("temp_c")
+                    _sf      = _m.get("sky_factor")
+                    _run_max = _m.get("running_max_c")
+                    _utc_h   = _m.get("utc_hour")
+                    _rt = CITY_REMAINING_RISE.get(_slug, {}).get(_month, {})
+                    if _t_cur is not None and _sf is not None and _utc_h is not None and _rt:
+                        _remaining = _rt.get(_utc_h) or _rt.get(
+                            min(_rt, key=lambda k: abs(k - _utc_h)), 0.0)
+                        _t_traj = _t_cur + _remaining * _sf
+                        if _run_max is not None:
+                            _t_traj = max(_t_traj, _run_max)
+                        _peak_h = CITY_PEAK_HOUR_UTC.get(_slug, {}).get(_month, _utc_h + 8)
+                        _htp = max(0, _peak_h - _utc_h)
+                        _w_m = 0.70 if _htp < 2 else 0.55 if _htp < 4 else 0.35 if _htp < 8 else 0.20
+                        _mean_nwp = mean
+                        mean = round(_w_m * _t_traj + (1.0 - _w_m) * _mean_nwp, 2)
+                        logger.debug(
+                            "[WA] METAR_BLEND %s %s: t_cur=%.1f sf=%.2f rise=%.2f "
+                            "traj=%.2f nwp=%.2f htp=%d w_m=%.2f → blend=%.2f",
+                            city, d, _t_cur, _sf, _remaining, _t_traj,
+                            _mean_nwp, _htp, _w_m, mean,
+                        )
 
                 result[d] = (mean, sigma)
                 elev_tag = f" (elev {elev:.0f}m)" if elev > 0 else ""

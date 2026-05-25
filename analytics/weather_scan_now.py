@@ -20,10 +20,62 @@ from strategy.weather_arb import (
     EDGE_MIN, MIN_FAIR_PROB, ASK_BAND_LO, ASK_BAND_HI,
     MIN_HOURS_BEFORE_RESOLUTION, SIGMA_SKIP_FLOOR,
     CITY_SIGMA_C_ERA5, CITY_SIGMA_C, CITY_ELEVATION_M,
-    FORECAST_MODELS,
+    FORECAST_MODELS, CITY_REMAINING_RISE, CITY_PEAK_HOUR_UTC,
     _parse_city, _parse_outcome, _outcome_prob, _parse_token_ids,
     _get_regime,
 )
+
+AWC_METAR_URL = "https://aviationweather.gov/api/data/metar?ids={icao}&format=json&hours=1"
+
+def _sky_factor_from_raw(raw_ob: str) -> float:
+    FACTORS = {"FEW": 0.85, "SCT": 0.60, "BKN": 0.30, "OVC": 0.08}
+    import re as _re
+    worst = 1.0
+    for m in _re.finditer(r'\b(FEW|SCT|BKN|OVC)(\d{3})(?:TCU|CB)?\b', raw_ob):
+        code, alt = m.group(1), int(m.group(2))
+        if code in ("BKN", "OVC") and alt >= 200:
+            code = "SCT"
+        f = FACTORS[code]
+        if f < worst:
+            worst = f
+    return worst
+
+async def fetch_metar(sess: aiohttp.ClientSession, icao: str) -> dict | None:
+    url = AWC_METAR_URL.format(icao=icao)
+    try:
+        async with sess.get(url, timeout=aiohttp.ClientTimeout(total=6)) as r:
+            if r.status != 200:
+                return None
+            data = await r.json()
+        if not data:
+            return None
+        rec = data[0]
+        temp_c = rec.get("temp")
+        if temp_c is None:
+            return None
+        return {
+            "temp_c":    float(temp_c),
+            "sky_factor": _sky_factor_from_raw(rec.get("rawOb", "")),
+            "utc_hour":  datetime.fromisoformat(rec["reportTime"].replace("Z", "+00:00")).hour
+                         if rec.get("reportTime") else None,
+        }
+    except Exception:
+        return None
+
+def _metar_blend(forecast_mean: float, city_slug: str, month: int,
+                 metar: dict, now_utc: datetime) -> float:
+    t_cur = metar.get("temp_c")
+    sf    = metar.get("sky_factor")
+    utc_h = metar.get("utc_hour")
+    rt = CITY_REMAINING_RISE.get(city_slug, {}).get(month, {})
+    if t_cur is None or sf is None or utc_h is None or not rt:
+        return forecast_mean
+    remaining = rt.get(utc_h) or rt.get(min(rt, key=lambda k: abs(k - utc_h)), 0.0)
+    t_traj = t_cur + remaining * sf
+    peak_h = CITY_PEAK_HOUR_UTC.get(city_slug, {}).get(month, utc_h + 8)
+    htp = max(0, peak_h - utc_h)
+    w_m = 0.70 if htp < 2 else 0.55 if htp < 4 else 0.35 if htp < 8 else 0.20
+    return round(w_m * t_traj + (1.0 - w_m) * forecast_mean, 2)
 
 
 def _hours_to_local_resolution(end_date_str: str, icao: str | None) -> float:
@@ -150,6 +202,18 @@ async def main():
             forecast_mean, sigma_nwp = fc
 
             month = date.fromisoformat(target_end).month
+
+            # METAR trajectory blend for same-day markets
+            _blend_note = ""
+            if target_end == today and city_icao:
+                _metar = await fetch_metar(sess, city_icao)
+                if _metar and _metar.get("utc_hour") is not None:
+                    _blended = _metar_blend(forecast_mean, city_slug, month, _metar, now_utc)
+                    _blend_note = (f" [METAR t={_metar['temp_c']:.1f}°C "
+                                   f"sf={_metar['sky_factor']:.2f} "
+                                   f"nwp={forecast_mean:.1f}→blend={_blended:.1f}°C]")
+                    forecast_mean = _blended
+
             cal_sigma = CITY_SIGMA_C.get(city_slug, {}).get(month)
             sigma_c = cal_sigma if cal_sigma is not None else max(sigma_nwp, 1.0)
 
@@ -178,10 +242,12 @@ async def main():
                     best_edge = edge
                     best_poly = poly_yes
                     best_fair = fair_prob
-                    best_label = f"edge={edge:.3f} fair={fair_prob:.3f} ask={poly_yes:.3f} fc={forecast_mean:.1f}°C σ={sigma_c:.2f} | {mkt.get('question','')[:55]}"
+                    best_label = (f"edge={edge:.3f} fair={fair_prob:.3f} ask={poly_yes:.3f} "
+                                  f"fc={forecast_mean:.1f}°C σ={sigma_c:.2f}{_blend_note} | "
+                                  f"{mkt.get('question','')[:55]}")
 
             if best_edge is None:
-                results.append((city, "SKIP", f"no edge (fc={forecast_mean:.1f}°C σ={sigma_c:.2f}) era5σ={era5_sigma}"))
+                results.append((city, "SKIP", f"no edge (fc={forecast_mean:.1f}°C σ={sigma_c:.2f}{_blend_note}) era5σ={era5_sigma}"))
             elif best_fair < MIN_FAIR_PROB:
                 results.append((city, "SKIP", f"fair={best_fair:.3f} < MIN_FAIR_PROB={MIN_FAIR_PROB} | {best_label}"))
             elif not (ASK_BAND_LO <= best_poly < ASK_BAND_HI):
