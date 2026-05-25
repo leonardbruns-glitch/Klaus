@@ -162,7 +162,36 @@ _PROBE_CITIES: tuple[tuple[str, float, float], ...] = (
     ("Tokyo",   35.5494, 139.7798),
 )
 MAX_POSITIONS    = 30  # max concurrent weather positions
-DRY_RUN_LOG  = False  # set False to trade live
+DRY_RUN_LOG  = True   # 2026-05-25: paused for M1_BETA_PROBE isolation experiment
+# NOTE: DRY_RUN_LOG=True disables WEATHER_ARB / BRACKET / INTRADAY / TAIL live trades.
+# M1_BETA_PROBE runs INDEPENDENTLY of this flag (controlled by M1_BETA_PROBE_ENABLED below).
+
+# ── M1 β-PROBE (live fill experiment for METAR lockout residual) ──────────────
+# Purpose: measure fill rate, slippage, post-trade EV under real execution.
+# ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
+# Do NOT modify these to "tune" — this is a measurement experiment.
+M1_BETA_PROBE_ENABLED          = True
+M1_BETA_PROBE_STAKE_USD        = 5.0    # min stake that clears Polymarket's 5-share minimum at our price range
+M1_BETA_PROBE_MAX_DAILY_FIRES  = 15
+M1_BETA_PROBE_MAX_TOTAL_FIRES  = 30     # hard stop; bounds exposure to ~$150
+M1_BETA_PROBE_MIN_SEC_SINCE    = 60     # 1 min post first-lockout (was 300)
+M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
+M1_BETA_PROBE_MIN_DEPTH_C      = 1.0    # avoid integer-bucket misclass cluster (unchanged)
+M1_BETA_PROBE_MAX_EDGE         = 0.50   # yes_bid ceiling — γ poison cell ALWAYS blocked
+M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 1800   # strict γ-block: edge>=0.50 AND sec>=1800 → never fire
+M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
+
+# Per-layer gates. One fire per (condition_id, layer) — bucket can fire up to 5 times
+# across its lifetime, never twice in the same layer.
+# This is multi-fire BY LAYER, not by time. Statistical clustering is by bucket.
+M1_BETA_PROBE_LAYERS = [
+    # name,   lo_s,   hi_s,   min_edge,  min_depth_usd
+    ("L0",    0,      60,     0.10,      3.0),
+    ("L1",    60,     300,    0.10,      3.0),
+    ("L2",    300,    1800,   0.05,      1.0),
+    ("L3",    1800,   3600,   0.05,      1.0),
+    ("L4",    3600,   86400,  0.05,      1.0),
+]
 
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
 NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
@@ -2539,11 +2568,300 @@ class WeatherArb:
             except Exception:
                 logger.exception("[WA] metar_lockout write error")
 
+            # === M1 β-PROBE: single fixed signal, live $2 limit at displayed +1¢ ===
+            if M1_BETA_PROBE_ENABLED and no_token_id is not None:
+                try:
+                    await self._m1_beta_probe_evaluate(
+                        now_ts=now_ts, now_utc=now_utc, first_seen=first_seen,
+                        mkt=mkt, city=city, icao=icao, end_date=end_date,
+                        question=question, lo_c=lo_c, hi_c=hi_c,
+                        running_max=float(running_max), yes_bid=yes_bid_f,
+                        no_token_id=no_token_id, no_ask_clob=no_ask_clob,
+                        no_book=no_book,
+                        no_ask_usd_at_implied=no_ask_usd_at_implied,
+                        seconds_to_close=seconds_to_close,
+                    )
+                except Exception:
+                    logger.exception("[M1β] probe error %s", city)
+
         if candidates_written:
             logger.info(
                 "[WA] LOCKOUT_SHADOW logged %d candidates this cycle",
                 candidates_written,
             )
+
+    # === M1 β-PROBE implementation ============================================
+    def _m1_beta_probe_load_state(self) -> dict:
+        """State: {date, fires_today, total_fires, fires_by_token, bucket_fire_seq}.
+        fires_by_token maps no_token_id -> [list of layer names already fired].
+        bucket_fire_seq maps no_token_id -> count of fires (for tagging).
+        Per-day resets: fires_today, fires_by_token (= relax to allow re-fire on new day).
+        Persists: total_fires (hard cap), bucket_fire_seq."""
+        from datetime import datetime, timezone
+        from pathlib import Path as _P
+        today = datetime.now(timezone.utc).date().isoformat()
+        path = _P(M1_BETA_PROBE_STATE_PATH)
+        if path.exists():
+            try:
+                st = json.loads(path.read_text())
+            except Exception:
+                st = {}
+        else:
+            st = {}
+        if st.get("date") != today:
+            st = {
+                "date": today,
+                "fires_today": 0,
+                "total_fires": st.get("total_fires", 0),
+                "fires_by_token": {},      # token_id -> list of layer names
+                "bucket_fire_seq": st.get("bucket_fire_seq", {}),  # token_id -> int
+            }
+        st.setdefault("fires_by_token", {})
+        st.setdefault("bucket_fire_seq", {})
+        st.setdefault("total_fires", 0)
+        return st
+
+    def _m1_beta_probe_save_state(self, st: dict) -> None:
+        from pathlib import Path as _P
+        try:
+            _P(M1_BETA_PROBE_STATE_PATH).write_text(json.dumps(st))
+        except Exception:
+            logger.exception("[M1β] state save failed")
+
+    async def _m1_beta_probe_evaluate(
+        self, *, now_ts: float, now_utc, first_seen: float,
+        mkt: dict, city: str, icao: str, end_date: str,
+        question: str, lo_c, hi_c, running_max: float, yes_bid: float,
+        no_token_id: str, no_ask_clob, no_book: dict,
+        no_ask_usd_at_implied: float, seconds_to_close,
+    ) -> None:
+        """Multi-layer surface: one fire per (bucket × layer). Up to 5 fires per bucket.
+
+        Per-fire gates: must clear layer-specific min_edge + min_depth.
+        Universal blocks: depth_c < 1.0°C, edge > 0.50 (γ ceiling), γ-block
+        (edge>=0.50 AND sec>=1800 — but already excluded by MAX_EDGE).
+
+        Statistical safety: every fire is tagged with condition_id (bucket cluster),
+        event_key (city+date cluster), layer, and bucket_fire_seq. Analyzer must
+        collapse correlated outcomes at the bucket-cluster level for WR/EV stats.
+        """
+        sec_since = int(now_ts - first_seen)
+        depth_c = running_max - (hi_c if hi_c is not None else running_max)
+
+        # === Universal blocks (apply to every layer) ===
+        if not (M1_BETA_PROBE_MIN_SEC_SINCE <= sec_since < M1_BETA_PROBE_MAX_SEC_SINCE):
+            return
+        if depth_c < M1_BETA_PROBE_MIN_DEPTH_C:
+            return  # integer-bucket misclass guard
+        if yes_bid >= M1_BETA_PROBE_MAX_EDGE:
+            return  # γ poison cell — never fire above 0.50 edge
+        # Belt-and-suspenders γ-block (redundant with MAX_EDGE but explicit)
+        if yes_bid >= 0.50 and sec_since >= M1_BETA_PROBE_GAMMA_BLOCK_SEC:
+            return
+        if no_ask_clob is None or no_ask_clob >= 1.0:
+            return
+
+        # === Layer selection ===
+        layer_name = None
+        layer_min_edge = None
+        layer_min_depth = None
+        for name, lo_s, hi_s, min_edge, min_depth in M1_BETA_PROBE_LAYERS:
+            if lo_s <= sec_since < hi_s:
+                layer_name, layer_min_edge, layer_min_depth = name, min_edge, min_depth
+                break
+        if layer_name is None:
+            return
+
+        # === Layer-specific gates ===
+        if yes_bid < layer_min_edge:
+            return
+        if (no_ask_usd_at_implied or 0.0) < layer_min_depth:
+            return
+
+        st = self._m1_beta_probe_load_state()
+        # Already fired this bucket in this layer?
+        layers_fired = st["fires_by_token"].get(no_token_id, [])
+        if layer_name in layers_fired:
+            return  # one fire per (bucket, layer)
+
+        if st["fires_today"] >= M1_BETA_PROBE_MAX_DAILY_FIRES:
+            logger.info("[M1β] daily fire cap reached (%d)", st["fires_today"])
+            return
+        if st["total_fires"] >= M1_BETA_PROBE_MAX_TOTAL_FIRES:
+            logger.warning("[M1β] total fire cap reached (%d) — halted for review",
+                            st["total_fires"])
+            return
+
+        # Pre-fire log + order submission
+        intended_price = round(min(0.99, no_ask_clob + 0.01), 4)
+        submitted_ts = now_ts
+        log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "m1_beta_probe.jsonl"
+
+        # Cluster IDs for contamination-aware analysis:
+        # - condition_id identifies the bucket cluster (one resolution outcome per cluster)
+        # - event_key groups buckets by city+date (deeper correlation: shared daily-high obs)
+        # - bucket_fire_seq is the Nth fire on this specific bucket (1,2,3,...)
+        # - layer is which time band this fire was in
+        condition_id = mkt.get("conditionId", "")
+        event_key = f"{city}|{end_date}"
+        bucket_fire_seq = st["bucket_fire_seq"].get(no_token_id, 0) + 1
+
+        pre = {
+            "schema_version": 2,
+            "record_type": "m1_beta_probe",
+            "phase": "submit",
+            "ts_submitted": submitted_ts,
+            # --- cluster identifiers (DO NOT remove — analyzer relies on these) ---
+            "condition_id": condition_id,
+            "event_key": event_key,
+            "layer": layer_name,
+            "bucket_fire_seq": bucket_fire_seq,
+            # --- market identity ---
+            "city": city, "icao": icao, "end_date": end_date,
+            "question": question,
+            "no_token_id": no_token_id,
+            # --- state at signal ---
+            "running_max_c": round(running_max, 3),
+            "bucket_lo_c": round(lo_c, 4) if lo_c is not None else None,
+            "bucket_hi_c": round(hi_c, 4) if hi_c is not None else None,
+            "depth_c": round(depth_c, 3),
+            "yes_bid_at_signal": round(yes_bid, 4),
+            "no_ask_clob_at_signal": round(no_ask_clob, 4),
+            "no_visible_depth_usd_at_signal": round(no_ask_usd_at_implied, 2),
+            "no_book_at_signal": no_book,
+            "sec_since_first_lockout": sec_since,
+            "sec_to_close": int(seconds_to_close) if seconds_to_close is not None else None,
+            # --- order ---
+            "intended_price": intended_price,
+            "stake_usd": M1_BETA_PROBE_STAKE_USD,
+            # --- bookkeeping ---
+            "daily_fires_before": st["fires_today"],
+            "total_fires_before": st["total_fires"],
+            "layer_min_edge": layer_min_edge,
+            "layer_min_depth": layer_min_depth,
+        }
+        try:
+            log_path.open("a").write(json.dumps(pre) + "\n")
+        except Exception:
+            logger.exception("[M1β] pre-log write fail")
+
+        # Submit the live order
+        from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+        from execution.order_manager import OrderStatus
+        neg_risk = mkt.get("negRisk", True)
+        logger.info("[M1β] FIRE %s/%s seq=%d NO@%.3f stake=$%.1f sec=%ds edge=%.3f depth=%.1f°C",
+                    city, layer_name, bucket_fire_seq,
+                    intended_price, M1_BETA_PROBE_STAKE_USD,
+                    sec_since, yes_bid, depth_c)
+        try:
+            fill = await self.bot.orders.limit_buy(
+                token_id=no_token_id,
+                intended_price=intended_price,
+                stake_usd=M1_BETA_PROBE_STAKE_USD,
+                direction=_Dir.BUY_NO,
+                neg_risk=neg_risk,
+                fast_fail=False,
+            )
+        except Exception as e:
+            logger.exception("[M1β] order error %s", city)
+            post = {**pre, "phase": "submit_error", "error": str(e),
+                    "completed_ts": time.time()}
+            try: log_path.open("a").write(json.dumps(post) + "\n")
+            except Exception: pass
+            return
+
+        completed_ts = time.time()
+        filled = (fill.status == OrderStatus.FILLED and fill.total_size > 0)
+        fill_price = float(fill.avg_fill_price) if filled else None
+        fill_size = float(fill.total_size) if filled else 0.0
+        slippage = (fill_price - no_ask_clob) if (filled and fill_price is not None) else None
+
+        post = {
+            "schema_version": 2,
+            "record_type": "m1_beta_probe",
+            "phase": "result",
+            "ts_submitted": submitted_ts,
+            "ts_completed": completed_ts,
+            # --- cluster identifiers (mirror of submit) ---
+            "condition_id": condition_id,
+            "event_key": event_key,
+            "layer": layer_name,
+            "bucket_fire_seq": bucket_fire_seq,
+            # ---
+            "no_token_id": no_token_id,
+            "city": city,
+            "fill_status": str(fill.status),
+            "filled": filled,
+            "fill_avg_price": fill_price,
+            "fill_size_shares": fill_size,
+            "fill_notional_usd": round(fill_price * fill_size, 4) if filled else 0.0,
+            "slippage_vs_displayed_no_ask": round(slippage, 4) if slippage is not None else None,
+            "time_to_fill_ms": int((completed_ts - submitted_ts) * 1000),
+        }
+        try:
+            log_path.open("a").write(json.dumps(post) + "\n")
+        except Exception:
+            logger.exception("[M1β] post-log write fail")
+
+        # Bookkeeping — count the fire whether or not it filled (one chance per layer/bucket)
+        st["fires_by_token"].setdefault(no_token_id, []).append(layer_name)
+        st["bucket_fire_seq"][no_token_id] = bucket_fire_seq
+        st["fires_today"] += 1
+        st["total_fires"] += 1
+
+        if filled:
+            # Multi-fire safety: only register the first fire's PositionMeta.
+            # Subsequent fires on the same token: CLOB accumulates shares in the
+            # wallet naturally, and the orders layer writes a separate trades.jsonl
+            # record per fill (resolution patcher works per-record). Re-calling
+            # open_position would overwrite the original meta with the new size only.
+            already_registered = no_token_id in self.bot.risk.open_positions
+            if not already_registered:
+                self.bot.risk.open_position(
+                    token_id=no_token_id,
+                    asset="WEATHER",
+                    direction=_Dir.BUY_NO,
+                    stake=fill_size * fill_price,
+                    entry_price=fill_price,
+                    tpsl=_TPSL(take_profit=0.0, stop_loss=0.0,
+                                tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
+                    condition_id=condition_id,
+                    window_end_ts=0.0,
+                    is_bond=True,
+                    bond_outcome_direction="down",
+                    bond_entry_class="M1_BETA_PROBE",
+                )
+                meta = self.bot._open_meta.setdefault(no_token_id, {})
+                meta["signal_source"] = f"WEATHER/{city}/M1_BETA_PROBE"
+                meta["city"] = city
+                meta["icao"] = icao
+                meta["weather_question"] = question
+                meta["weather_date"] = end_date
+                meta["bucket_lo_c"] = lo_c
+                meta["bucket_hi_c"] = hi_c
+                meta["m1_beta_first_signal_state"] = pre
+            else:
+                # Re-fire on same token: log additional signal context but don't
+                # overwrite the original PositionMeta.
+                meta = self.bot._open_meta.setdefault(no_token_id, {})
+                meta.setdefault("m1_beta_refire_history", []).append({
+                    "layer": layer_name,
+                    "fire_seq": bucket_fire_seq,
+                    "ts": completed_ts,
+                    "fill_price": fill_price,
+                    "fill_size": fill_size,
+                })
+            logger.info("[M1β] FILLED %s NO@%.4f size=%.1f (total=%d/%d)",
+                        city, fill_price, fill_size,
+                        st["total_fires"], M1_BETA_PROBE_MAX_TOTAL_FIRES)
+        else:
+            logger.info("[M1β] no-fill %s (status=%s) (total=%d/%d)",
+                        city, fill.status,
+                        st["total_fires"], M1_BETA_PROBE_MAX_TOTAL_FIRES)
+
+        self._m1_beta_probe_save_state(st)
 
     async def _refresh_today_markets(self) -> None:
         """

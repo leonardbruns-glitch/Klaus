@@ -70,7 +70,7 @@ HOLD_SECONDS_TARGET   = 2400   # 40 min hold target (let market reprice)
 HOLD_SECONDS_MAX      = 5400   # 90 min hard exit cap
 
 # ── Stake sizing ─────────────────────────────────────────────────────────────
-NWPLAG_ENABLED        = True
+NWPLAG_ENABLED        = False  # 2026-05-25: paused for M1_BETA_PROBE isolation experiment
 NWPLAG_BANKROLL_FRAC  = 0.20   # 20% of bankroll reserved for NWP-LAG positions
 NWPLAG_PER_POSITION   = 0.05   # 5% of bankroll per position (Kelly cap)
 NWPLAG_MIN_STAKE      = 5.0

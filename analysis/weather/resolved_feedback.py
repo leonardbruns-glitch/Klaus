@@ -38,6 +38,7 @@ ACTUALS_FILE = ROOT / "logs" / "weather" / "forecast_actuals.jsonl"
 WEATHER_CLASSES = {
     "WEATHER_ARB", "WEATHER_INTRADAY", "WEATHER_TAIL",
     "WEATHER_NWPLAG", "WEATHER_CITYCTR", "WEATHER_NOSIDE", "WEATHER_BRACKET",
+    "M1_BETA_PROBE",
 }
 
 GAMMA_BASE = "https://gamma-api.polymarket.com"
