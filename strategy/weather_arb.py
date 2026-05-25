@@ -2223,6 +2223,19 @@ class WeatherArb:
             logger.debug("[WA] SWITCH %s/%s: no entry_mu for held token, skipping", city, end_date)
             return
 
+        # If mu is still inside the held bucket, the held bucket is still the peak by definition.
+        # _fired_tokens blinds _evaluate_market to the held token, so without this check the
+        # consensus tracker would build toward the 2nd-best bucket even when we're correctly placed.
+        _held_lo: Optional[float] = held_pos_meta.get("lo_c")
+        _held_hi: Optional[float] = held_pos_meta.get("hi_c")
+        if _held_lo is not None and _held_hi is not None:
+            if _held_lo <= new_mu < _held_hi:
+                if self._bucket_consensus.pop(city_date_key, None) is not None:
+                    self._save_consensus_state()
+                    logger.info("[WA] SWITCH_RESET %s/%s: mu=%.2f°C still inside held bucket [%.1f,%.1f)",
+                                city, end_date, new_mu, _held_lo, _held_hi)
+                return
+
         mu_delta = abs(new_mu - entry_mu)
 
         # Dynamic required_runs: larger shift → fewer confirmations needed
