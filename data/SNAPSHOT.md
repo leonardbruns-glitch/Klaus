@@ -2,7 +2,7 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-05-25T05:56:43Z |
+| snapshot_ts (UTC) | 2026-05-25T06:11:43Z |
 | klaus HEAD | b9e62cd5 |
 | trades.jsonl rows | 6961 |
 | live rows | 6961 |
