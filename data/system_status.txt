@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+b9e62cd5 fix: bucket switch now resets when mu is still inside held bucket
+f79bc483 Watchdog 2026-05-25T01:18:21Z: HIGH 1 alert (TRADE_LOOP_SILENT)
+77a1fec7 VOLARB Scout 2026-05-25T0042Z — H2 INCONCLUSIVE (n<100 all hrs), H4 DATA_MISSING (no longshot recorder), H7 SOL 2σ drift n24h=45 watchlist-only; post-mortem complete
+4f7b2189 VOLARB Audit 20260525-0015 — NO_PATCH (n=885, Δ=0, 8th consecutive; strategy RETIRED ~145h)
+a0a410dc Watchdog 2026-05-25T00:18:15Z: MEDIUM 2 alerts (backoff)
+4b3d4d2c Watchdog 2026-05-24T23:18:34Z: MEDIUM 2 alerts (backoff)
 273dee64 revert: remove mu-in-bucket guard and lo/hi re-seed
 d0e406b1 feat: mu-in-bucket guard for bucket switch + preserve lo/hi on re-seed
 e32bcbc1 fix: restore D+1 bucket consensus across restarts — today-only filter discarded tomorrow's markets
 c353b7b2 config: STRAT1_PRE_PEAK_BLOCK_H 5→2h — NWP is not stale at T-5h
-6e18de0d config: lower 3-scan threshold from 0.5°C → 0.35°C for bucket switch
-19f12268 refactor: replace SWITCH_SUPPRESSED hard block with high-scan-count for small mu shifts
-2536953f config: MIN_FAIR_PROB 0.35→0.45, KELLY_MIN_USD 5→10, KELLY_MAX_USD 8→12
-f1af03d0 feat: restore SWITCH_SUPPRESSED gate + dynamic required_runs for bucket switch
-c1023eb4 Watchdog 2026-05-24T22:22:10Z: MEDIUM 2 alerts (backoff)
-7e641ae9 fix: bucket switch sell — fresh bid on retries, sleep before final on-chain check
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   74G       19G  80% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-24 23:10:19 UTC
+ActiveEnterTimestamp=Mon 2026-05-25 05:33:21 UTC
 
 ## Open positions (count):
 0
