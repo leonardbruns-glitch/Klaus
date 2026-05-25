@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+46728a98 fix: add bankroll safety cap to weather stake sizing
+3e44c0c5 chore: reduce weather MIN_FAIR_PROB from 0.45 to 0.30
 b9e62cd5 fix: bucket switch now resets when mu is still inside held bucket
 f79bc483 Watchdog 2026-05-25T01:18:21Z: HIGH 1 alert (TRADE_LOOP_SILENT)
 77a1fec7 VOLARB Scout 2026-05-25T0042Z — H2 INCONCLUSIVE (n<100 all hrs), H4 DATA_MISSING (no longshot recorder), H7 SOL 2σ drift n24h=45 watchlist-only; post-mortem complete
@@ -10,14 +12,12 @@ a0a410dc Watchdog 2026-05-25T00:18:15Z: MEDIUM 2 alerts (backoff)
 4b3d4d2c Watchdog 2026-05-24T23:18:34Z: MEDIUM 2 alerts (backoff)
 273dee64 revert: remove mu-in-bucket guard and lo/hi re-seed
 d0e406b1 feat: mu-in-bucket guard for bucket switch + preserve lo/hi on re-seed
-e32bcbc1 fix: restore D+1 bucket consensus across restarts — today-only filter discarded tomorrow's markets
-c353b7b2 config: STRAT1_PRE_PEAK_BLOCK_H 5→2h — NWP is not stale at T-5h
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   75G       19G  81% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-05-25 05:33:21 UTC
+ActiveEnterTimestamp=Mon 2026-05-25 10:03:42 UTC
 
 ## Open positions (count):
 0
