@@ -1709,6 +1709,8 @@ class WeatherArb:
             _cslug = CITY_NAME_TO_SLUG.get(city, "")
             if _cslug in PER_CITY_STAKE_USD:
                 stake = PER_CITY_STAKE_USD[_cslug]
+            bankroll = self._get_bankroll()
+            stake = min(stake, bankroll * 0.25)
             if await self._enter(best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
                                  city, best_entry.get("lo_c"), best_entry.get("hi_c"),
                                  stake=stake,
@@ -4172,15 +4174,15 @@ class WeatherArb:
         where edge already equals (fair - ask), so:
         fee_adj_edge = edge - ask × r
 
-        Clamped to [KELLY_MIN_USD, KELLY_MAX_USD].
+        Clamped to [KELLY_MIN_USD, KELLY_MAX_USD] and bankroll safety cap (25%).
         Falls back to STAKE_USD if Kelly is disabled or ask >= 1.0.
         """
+        bankroll = self._get_bankroll()
         if not KELLY_ENABLED or ask >= 1.0:
-            return STAKE_USD
+            return min(STAKE_USD, bankroll * 0.25)
         fee_adj_edge = edge - ask * TAKER_FEE_RATE
         p_eff = ask * (1.0 + TAKER_FEE_RATE)
         f_star = fee_adj_edge / max(0.001, 1.0 - p_eff)
-        bankroll = self._get_bankroll()
         raw = KELLY_FRACTION * bankroll * f_star
         return max(KELLY_MIN_USD, min(KELLY_MAX_USD, bankroll * strat_alloc, raw))
 
