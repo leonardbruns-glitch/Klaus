@@ -1530,9 +1530,12 @@ class WeatherArb:
             _city_icao = CITY_ICAO.get(city)
             markets = []
             for m in ev.get("markets", []):
-                _end = m.get("endDate", "")[:10]
+                _end_dt_str = m.get("endDate", "")
+                _end = _end_dt_str[:10]
                 if _end not in target_dates: continue
                 if m.get("closed", False): continue
+                _end_dt = datetime.fromisoformat(_end_dt_str.replace("Z", "+00:00")) if _end_dt_str else None
+                if _end_dt and _end_dt <= now_utc: continue
                 if not m.get("conditionId"): continue
                 token_ids_raw = _parse_token_ids(m.get("clobTokenIds", []))
                 if not token_ids_raw: continue
