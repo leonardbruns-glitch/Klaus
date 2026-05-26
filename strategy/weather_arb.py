@@ -2832,10 +2832,10 @@ class WeatherArb:
                     window_end_ts=0.0,
                     is_bond=True,
                     bond_outcome_direction="down",
-                    bond_entry_class="M1_BETA_PROBE",
+                    bond_entry_class="WEATHER_M1_PROBE",
                 )
                 meta = self.bot._open_meta.setdefault(no_token_id, {})
-                meta["signal_source"] = f"WEATHER/{city}/M1_BETA_PROBE"
+                meta["signal_source"] = f"WEATHER/{city}/WEATHER_M1_PROBE"
                 meta["city"] = city
                 meta["icao"] = icao
                 meta["weather_question"] = question

@@ -6846,7 +6846,8 @@ class KlausBot:
                     self._open_meta.pop(token_id, None)
                 else:
                     _token_in_feed = token_id in self.feed.tokens
-                    if not _token_in_feed and getattr(pos, "bond_entry_class", "") in ("SPORTS_COPY", "WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_INTRADAY", "WEATHER_TAIL", "WEATHER_NOSIDE", "WEATHER_CITYCTR"):
+                    _ec_startup = getattr(pos, "bond_entry_class", "")
+                    if not _token_in_feed and (_ec_startup.startswith("WEATHER_") or _ec_startup == "SPORTS_COPY"):
                         # Sports + Weather tokens are never subscribed to the WS feed — that's
                         # expected. Their own strategy modules manage exits over REST polling.
                         logger.info(
