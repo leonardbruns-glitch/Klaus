@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+aa55ae29 fix: tighten WIS2 station match radius 0.5°→0.15° to prevent running_max inflation
 072614cd fix: include WIS2 targets in covered_icaos() so WIS2 drain reaches them
 a86b1e81 fix: reject aircraft-altitude temperatures in WIS2 BUFR decode
 563a2d23 feat: add 6 European/Canadian airports to WIS2 targets
@@ -11,13 +12,12 @@ a86b1e81 fix: reject aircraft-altitude temperatures in WIS2 BUFR decode
 7cc5cf50 fix: depth gate shares>=5 instead of usd>=5 (Polymarket min is 5 shares)
 15c597c3 feat: M1β stake $5→$10 (partial fills ok, depth gate stays at $5)
 50fbca76 fix: NameError now_utc in _scan() — NWP-triggered scans crashing all day
-740a154a chore: wis2_debug — 30min test, 3 downloads/origin, #1#airTemperature fallback
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   80G       13G  86% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 21:14:59 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 21:32:54 UTC
 
 ## Open positions (count):
 0
