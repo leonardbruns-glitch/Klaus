@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+4e860768 feat: M1_PROBE WebSocket fast path — entry+TP in milliseconds via _on_weather_bbo
+5738fefb perf: reduce METAR poll to 5s, only run lockout scan on new observations
 73ba44e4 feat: add M1_BETA_PROBE TP at 0.999 for capital recycling
 b77f654a config: uniform M1_BETA_PROBE layer gates — min_edge=0.03, min_depth=5.0
 8a1213f9 config: raise M1_BETA_PROBE_MAX_EDGE 0.50→0.95, disable γ-block
@@ -10,14 +12,12 @@ b77f654a config: uniform M1_BETA_PROBE layer gates — min_edge=0.03, min_depth=
 c709dade fix: block Hong Kong from M1_BETA_PROBE — VHHH station mismatch
 b08c07e1 config: pause STRAT_1, 100% allocation to M1_BETA_PROBE
 7f9f544d config: lower M1_BETA_PROBE_MIN_DEPTH_C 1.0 → 0.5°C
-86fbc21e fix: convert all WEATHER_* exit exclusion lists to startswith pattern
-38f34a8c fix: protect WEATHER_M1_PROBE from cascade abort and hard-exit timers
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       15G  84% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 10:38:58 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 10:59:50 UTC
 
 ## Open positions (count):
 0
