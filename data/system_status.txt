@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+38f34a8c fix: protect WEATHER_M1_PROBE from cascade abort and hard-exit timers
 cfb7ca25 feat: reopen STRAT_1 — $5 flat stake, ask>=0.15, fair_prob>=0.40, 40% alloc
 13cb9838 fix: add missing pathlib.Path import for M1 beta probe log path
 641311d7 Watchdog 2026-05-26T01:21:50Z: HIGH 1 alert (TRADE_LOOP_SILENT)
@@ -11,13 +12,12 @@ cfb7ca25 feat: reopen STRAT_1 — $5 flat stake, ask>=0.15, fair_prob>=0.40, 40%
 945dd1f1 feat: M1 β-probe live surface — isolated capital experiment
 0bc1142d feat: blend METAR trajectory with NWP ensemble for same-day markets
 25ea1c42 fix: filter weather markets whose endDate has already passed
-46728a98 fix: add bankroll safety cap to weather stake sizing
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       16G  84% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 07:49:06 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 09:12:15 UTC
 
 ## Open positions (count):
 0

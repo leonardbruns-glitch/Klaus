@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-26T08:59:22Z
+# Snapshot: 2026-05-26T09:14:43Z
 # Latest commit on klaus:
-cfb7ca25 feat: reopen STRAT_1 — $5 flat stake, ask>=0.15, fair_prob>=0.40, 40% alloc
+38f34a8c fix: protect WEATHER_M1_PROBE from cascade abort and hard-exit timers
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
