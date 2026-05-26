@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+de60deed fix: switch Istanbul METAR station LTFJ → LTFM
 4e860768 feat: M1_PROBE WebSocket fast path — entry+TP in milliseconds via _on_weather_bbo
 5738fefb perf: reduce METAR poll to 5s, only run lockout scan on new observations
 73ba44e4 feat: add M1_BETA_PROBE TP at 0.999 for capital recycling
@@ -11,13 +12,12 @@ b77f654a config: uniform M1_BETA_PROBE layer gates — min_edge=0.03, min_depth=
 747eefdd config: set M1_BETA_PROBE_MIN_SEC_SINCE=0, enable L0 immediate entry
 c709dade fix: block Hong Kong from M1_BETA_PROBE — VHHH station mismatch
 b08c07e1 config: pause STRAT_1, 100% allocation to M1_BETA_PROBE
-7f9f544d config: lower M1_BETA_PROBE_MIN_DEPTH_C 1.0 → 0.5°C
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       15G  85% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 10:59:50 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 12:57:34 UTC
 
 ## Open positions (count):
 0

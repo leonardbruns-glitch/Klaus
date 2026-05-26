@@ -2,8 +2,8 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-05-26T12:47:12Z |
-| klaus HEAD | 4e860768 |
+| snapshot_ts (UTC) | 2026-05-26T13:02:13Z |
+| klaus HEAD | de60deed |
 | trades.jsonl rows | 6968 |
 | live rows | 6968 |
 | bankroll capital | $29.289665 |
