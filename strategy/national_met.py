@@ -93,6 +93,27 @@ _NWS_STATIONS: set[str] = {
     "KAUS",   # Austin
 }
 
+# ── Synoptic HF-ASOS (US cities — 1-min obs, 2-5 min latency) ─────────────────
+# https://docs.synopticdata.com/services/high-frequency-asos
+# Station IDs: ICAO + "1M" suffix. Single batch request for all US stations.
+# Supersedes NWS (~10 min) with 1-min data when SYNOPTIC_API_KEY is set.
+# Register free 14-day trial: https://customer.synopticdata.com
+_SYNOPTIC_TOKEN = os.getenv("SYNOPTIC_API_KEY", "")
+_SYNOPTIC_URL   = "https://api.synopticdata.com/v2/stations/latest"
+_SYNOPTIC_STATIONS: dict[str, str] = {
+    "KLGA": "KLGA1M",
+    "KORD": "KORD1M",
+    "KLAX": "KLAX1M",
+    "KMIA": "KMIA1M",
+    "KSFO": "KSFO1M",
+    "KDAL": "KDAL1M",
+    "KHOU": "KHOU1M",
+    "KSEA": "KSEA1M",
+    "KBKF": "KBKF1M",
+    "KATL": "KATL1M",
+    "KAUS": "KAUS1M",
+}
+
 
 async def _fetch_nea(session, icao: str) -> Optional[dict]:
     """Fetch latest air temperature from Singapore NEA (no auth). ~2 min obs age."""
@@ -337,6 +358,66 @@ async def _fetch_fmi(session, icao: str) -> Optional[dict]:
         return None
 
 
+async def fetch_synoptic_batch(session, icaos: set[str]) -> dict[str, dict]:
+    """
+    Fetch 1-min ASOS obs for all US stations in one Synoptic API call.
+    Returns {icao: obs_dict}. Skips silently if no token.
+    2-5 min latency vs ~13-22 min for NWS.
+    """
+    if not _SYNOPTIC_TOKEN:
+        return {}
+    targets = {icao: stid for icao, stid in _SYNOPTIC_STATIONS.items() if icao in icaos}
+    if not targets:
+        return {}
+    stids = ",".join(targets.values())
+    params = {
+        "stid":   stids,
+        "vars":   "air_temp",
+        "units":  "metric",
+        "token":  _SYNOPTIC_TOKEN,
+    }
+    try:
+        import aiohttp
+        async with session.get(
+            _SYNOPTIC_URL, params=params,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status != 200:
+                logger.warning("[NMS] Synoptic HTTP %d", resp.status)
+                return {}
+            data = await resp.json()
+    except Exception as exc:
+        logger.debug("[NMS] Synoptic error: %s", exc)
+        return {}
+
+    result: dict[str, dict] = {}
+    stid_to_icao = {v: k for k, v in _SYNOPTIC_STATIONS.items()}
+    try:
+        for stn in data.get("STATION", []):
+            stid = stn.get("STID", "")
+            icao = stid_to_icao.get(stid)
+            if not icao:
+                continue
+            obs = stn.get("OBSERVATIONS", {})
+            at = obs.get("air_temp_value_1", {})
+            temp_c = at.get("value")
+            dt_str = at.get("date_time", "")
+            if temp_c is None or not dt_str:
+                continue
+            temp_c = float(temp_c)
+            if not (-60.0 < temp_c < 60.0):
+                continue
+            obs_dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+            obs_ts = obs_dt.timestamp()
+            result[icao] = {
+                "temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
+                "utc_hour": obs_dt.hour, "source": "Synoptic1M",
+            }
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.debug("[NMS] Synoptic parse error: %s", exc)
+    return result
+
+
 # Registry: ICAO → fetch function
 _FETCHERS: dict[str, object] = {}
 
@@ -349,8 +430,13 @@ def _register() -> None:
         _FETCHERS[icao] = _fetch_nea
     for icao in _IMGW_STATIONS:
         _FETCHERS[icao] = _fetch_imgw
+    # Synoptic 1-min supersedes NWS when token present; NWS is fallback
+    if _SYNOPTIC_TOKEN:
+        logger.info("[NMS] Synoptic HF-ASOS active for %d US stations", len(_SYNOPTIC_STATIONS))
     for icao in _NWS_STATIONS:
-        _FETCHERS[icao] = _fetch_nws
+        if not _SYNOPTIC_TOKEN:
+            _FETCHERS[icao] = _fetch_nws
+        # With Synoptic token: NWS stations handled by batch call in poll_all()
     if _KMA_KEY:
         for icao in _KMA_ICAO_TO_STN.values():
             _FETCHERS[icao] = _fetch_kma
@@ -437,6 +523,16 @@ async def poll_all(
                     updates += 1
     except Exception as e:
         logger.debug("[NMS] WIS2 drain error: %s", e)
+
+    # ── Synoptic HF-ASOS batch (1-min, 2-5 min latency) — US stations ────
+    if _SYNOPTIC_TOKEN:
+        us_needed = icaos_needed & set(_SYNOPTIC_STATIONS)
+        if us_needed:
+            async with _aiohttp.ClientSession() as session:
+                batch = await fetch_synoptic_batch(session, us_needed)
+            for icao, obs in batch.items():
+                if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
+                    updates += 1
 
     # ── REST poll for stations in today's market cache ───────────────────
     targets = icaos_needed & set(_FETCHERS)
