@@ -7,12 +7,17 @@ Merges into _icao_metar_cache — lockout scan picks up fresher obs automaticall
 Services (no registration needed):
   DWD via BrightSky — EDDM/EDDB (Munich/Berlin), ~7 min faster than AWC
   FMI WFS           — EFHK (Helsinki),            ~7 min faster than AWC
+  Singapore NEA     — WSSS (Changi, station S24), ~28 min faster than AWC
+  IMGW Poland       — EPWA (Warsaw),              ~10 min faster than AWC
+  NOAA NWS API      — 11 US ASOS stations,        ~10 min faster than AWC
 
 Pending KMA_API_KEY in .env (free registration: https://apihub.kma.go.kr):
   KMA ASOS 1-min    — RKSI/RKPK (Seoul/Busan),   ~10 min faster than AWC
 
 AWC lag measured 2026-05-26: KR=10 min, EU=20 min. NMS freshness: ~13 min.
 Net gain EU stations: ~7 min. KMA would give ~0 min gain on current lag numbers.
+NWS measured 2026-05-26: NWS age ~22 min vs AWC ~32 min = ~10 min gain (US).
+NEA measured 2026-05-26: obs age ~2 min vs AWC WSSS ~30 min = ~28 min gain.
 """
 
 from __future__ import annotations
@@ -53,6 +58,150 @@ _FMI_URL = "https://opendata.fmi.fi/wfs"
 _FMI_STATIONS: dict[str, str] = {
     "EFHK": "100968",
 }
+
+# ── Singapore NEA ──────────────────────────────────────────────────────────────
+# https://api-open.data.gov.sg/v2/real-time/api/air-temperature — no auth
+# Station S24 = Upper Changi Road North, 1.1 km from WSSS. ~2 min obs age.
+_NEA_URL = "https://api-open.data.gov.sg/v2/real-time/api/air-temperature"
+_NEA_STATIONS: dict[str, str] = {
+    "WSSS": "S24",  # Changi Airport
+}
+
+# ── IMGW Poland ───────────────────────────────────────────────────────────────
+# https://danepubliczne.imgw.pl/api/data/synop — no auth, hourly synoptic obs
+# Station 12375 = Warsaw Okecie (EPWA). Timestamps in UTC.
+_IMGW_URL = "https://danepubliczne.imgw.pl/api/data/synop"
+_IMGW_STATIONS: dict[str, str] = {
+    "EPWA": "12375",  # Warsaw Okecie
+}
+
+# ── NOAA NWS API (US cities) ──────────────────────────────────────────────────
+# https://api.weather.gov/stations/{id}/observations/latest — no auth
+# ~10 min faster than AWC for routine hourly METARs (different ingest path).
+_NWS_URL = "https://api.weather.gov/stations/{}/observations/latest"
+_NWS_STATIONS: set[str] = {
+    "KLGA",   # New York (LaGuardia)
+    "KORD",   # Chicago O'Hare
+    "KLAX",   # Los Angeles
+    "KMIA",   # Miami
+    "KSFO",   # San Francisco
+    "KDAL",   # Dallas Love Field
+    "KHOU",   # Houston Hobby
+    "KSEA",   # Seattle-Tacoma
+    "KBKF",   # Denver (Buckley AFB, closest to KBKF)
+    "KATL",   # Atlanta
+    "KAUS",   # Austin
+}
+
+
+async def _fetch_nea(session, icao: str) -> Optional[dict]:
+    """Fetch latest air temperature from Singapore NEA (no auth). ~2 min obs age."""
+    station_id = _NEA_STATIONS.get(icao)
+    if not station_id:
+        return None
+    try:
+        import aiohttp
+        async with session.get(_NEA_URL, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] NEA %s HTTP %d", icao, resp.status)
+                return None
+            data = await resp.json()
+    except Exception as exc:
+        logger.debug("[NMS] NEA %s error: %s", icao, exc)
+        return None
+
+    try:
+        readings = data["data"]["readings"]
+        if not readings:
+            return None
+        r = readings[0]
+        ts_str = r["timestamp"]   # e.g. "2026-05-27T00:14:00+08:00"
+        obs_dt = datetime.fromisoformat(ts_str)
+        obs_ts = obs_dt.astimezone(timezone.utc).timestamp()
+        for item in r.get("data", []):
+            if item.get("stationId") == station_id:
+                temp_c = float(item["value"])
+                if not (-10.0 < temp_c < 50.0):
+                    return None
+                return {"temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
+                        "utc_hour": obs_dt.astimezone(timezone.utc).hour, "source": "NEA"}
+    except (KeyError, TypeError, ValueError, IndexError) as exc:
+        logger.debug("[NMS] NEA %s parse error: %s", icao, exc)
+    return None
+
+
+async def _fetch_imgw(session, icao: str) -> Optional[dict]:
+    """Fetch latest synoptic obs from IMGW Poland (no auth). Hourly resolution."""
+    station_id = _IMGW_STATIONS.get(icao)
+    if not station_id:
+        return None
+    try:
+        import aiohttp
+        async with session.get(_IMGW_URL, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] IMGW %s HTTP %d", icao, resp.status)
+                return None
+            stations = await resp.json()
+    except Exception as exc:
+        logger.debug("[NMS] IMGW %s error: %s", icao, exc)
+        return None
+
+    try:
+        for s in stations:
+            if str(s.get("id_stacji")) == station_id:
+                temp_c = float(s["temperatura"])
+                date_str = s["data_pomiaru"]   # "2026-05-26"
+                hour_str = s["godzina_pomiaru"] # "16" (UTC hour)
+                obs_dt = datetime.strptime(
+                    f"{date_str} {int(hour_str):02d}:00", "%Y-%m-%d %H:%M"
+                ).replace(tzinfo=timezone.utc)
+                obs_ts = obs_dt.timestamp()
+                if not (-40.0 < temp_c < 55.0):
+                    return None
+                return {"temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
+                        "utc_hour": obs_dt.hour, "source": "IMGW"}
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.debug("[NMS] IMGW %s parse error: %s", icao, exc)
+    return None
+
+
+async def _fetch_nws(session, icao: str) -> Optional[dict]:
+    """Fetch latest obs from NOAA NWS API (no auth). ~10 min faster than AWC for US."""
+    if icao not in _NWS_STATIONS:
+        return None
+    url = _NWS_URL.format(icao)
+    headers = {
+        "User-Agent": "Klaus-weather-bot/1.0 (leonard.bruns@gmail.com)",
+        "Accept": "application/json",
+    }
+    try:
+        import aiohttp
+        async with session.get(url, headers=headers,
+                               timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] NWS %s HTTP %d", icao, resp.status)
+                return None
+            data = await resp.json(content_type=None)
+    except Exception as exc:
+        logger.debug("[NMS] NWS %s error: %s", icao, exc)
+        return None
+
+    try:
+        props = data["properties"]
+        ts_str = props["timestamp"]       # ISO 8601 UTC
+        temp_val = props.get("temperature", {}).get("value")
+        if temp_val is None:
+            return None
+        temp_c = float(temp_val)
+        obs_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        obs_ts = obs_dt.timestamp()
+        if not (-50.0 < temp_c < 55.0):
+            return None
+        return {"temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
+                "utc_hour": obs_dt.hour, "source": "NWS"}
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.debug("[NMS] NWS %s parse error: %s", icao, exc)
+    return None
 
 
 async def _fetch_kma(session, icao: str) -> Optional[dict]:
@@ -196,6 +345,12 @@ def _register() -> None:
         _FETCHERS[icao] = _fetch_dwd
     for icao in _FMI_STATIONS:
         _FETCHERS[icao] = _fetch_fmi
+    for icao in _NEA_STATIONS:
+        _FETCHERS[icao] = _fetch_nea
+    for icao in _IMGW_STATIONS:
+        _FETCHERS[icao] = _fetch_imgw
+    for icao in _NWS_STATIONS:
+        _FETCHERS[icao] = _fetch_nws
     if _KMA_KEY:
         for icao in _KMA_ICAO_TO_STN.values():
             _FETCHERS[icao] = _fetch_kma
