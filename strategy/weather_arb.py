@@ -177,7 +177,7 @@ M1_BETA_PROBE_MAX_DAILY_FIRES  = 15
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 30     # hard stop; bounds exposure to ~$150
 M1_BETA_PROBE_MIN_SEC_SINCE    = 60     # 1 min post first-lockout (was 300)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
-M1_BETA_PROBE_MIN_DEPTH_C      = 1.0    # avoid integer-bucket misclass cluster (unchanged)
+M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # hi_c already has 0.5°C pad; 0.5 opens the full medium-confidence population
 M1_BETA_PROBE_MAX_EDGE         = 0.50   # yes_bid ceiling — γ poison cell ALWAYS blocked
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 1800   # strict γ-block: edge>=0.50 AND sec>=1800 → never fire
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
