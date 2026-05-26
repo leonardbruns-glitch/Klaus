@@ -82,8 +82,8 @@ GAMMA_BASE   = "https://gamma-api.polymarket.com"
 METEO_BASE   = "https://api.open-meteo.com/v1/forecast"
 
 EDGE_MIN     = 0.08    # minimum edge (fair_prob - poly_price) required to enter
-MIN_FAIR_PROB = 0.30   # minimum fair probability for the best bucket
-ASK_BAND_LO  = 0.00    # min entry price (overnight forecast arb) — no floor
+MIN_FAIR_PROB = 0.40   # minimum fair probability for the best bucket (raised 2026-05-26: 0/9 WR below ask<0.15)
+ASK_BAND_LO  = 0.15    # min entry price — cheap-tail 0/9 WR, market correctly priced those
 ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for high-price entries
 
 # ── NegRisk Bracketing / Temperature Ladder ──────────────────────────────────
@@ -112,11 +112,11 @@ WATCHLIST_EDGE_FLOOR = -0.06  # subscribe if within 6pp of qualifying (ask too h
 WATCHLIST_MIN_FAIR   = 0.35   # minimum fair_prob to be worth watching
 
 # ── Fractional Kelly position sizing ─────────────────────────────────────────
-KELLY_ENABLED    = True   # False → revert to flat STAKE_USD
+KELLY_ENABLED    = False  # flat $5 stake — Kelly disabled 2026-05-26 (was creating $23 outlier bets)
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 1.0    # floor: $1 minimum stake (adaptive to bankroll)
 KELLY_MAX_USD    = 12.0   # ceiling: raised 2026-05-24 from $8
-OVERNIGHT_ALLOC  = 1.00   # STRAT_1 overnight: 100% — all capital to NWP overnight positions
+OVERNIGHT_ALLOC  = 0.40   # STRAT_1 overnight: 40% bankroll allocation (rest reserved for M1 probe)
 INTRADAY_ALLOC   = 0.00   # STRAT_3 intraday: disabled — all capital to STRAT_1
 BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll total
 TAIL_STRAT_ALLOC = 0.10   # STRAT_4 tail sniper: 10% of bankroll total
@@ -163,7 +163,7 @@ _PROBE_CITIES: tuple[tuple[str, float, float], ...] = (
     ("Tokyo",   35.5494, 139.7798),
 )
 MAX_POSITIONS    = 30  # max concurrent weather positions
-DRY_RUN_LOG  = True   # 2026-05-25: paused for M1_BETA_PROBE isolation experiment
+DRY_RUN_LOG  = False  # 2026-05-26: reopened STRAT_1 — $5 flat stake, ask≥0.15, fair_prob≥0.40
 # NOTE: DRY_RUN_LOG=True disables WEATHER_ARB / BRACKET / INTRADAY / TAIL live trades.
 # M1_BETA_PROBE runs INDEPENDENTLY of this flag (controlled by M1_BETA_PROBE_ENABLED below).
 
@@ -1743,7 +1743,7 @@ class WeatherArb:
             if _cslug in PER_CITY_STAKE_USD:
                 stake = PER_CITY_STAKE_USD[_cslug]
             bankroll = self._get_bankroll()
-            stake = min(stake, bankroll * 0.25)
+            stake = min(stake, 5.0, bankroll * OVERNIGHT_ALLOC)
             if await self._enter(best_mkt, best_entry["fair_prob"], best_entry["poly_price"],
                                  city, best_entry.get("lo_c"), best_entry.get("hi_c"),
                                  stake=stake,
