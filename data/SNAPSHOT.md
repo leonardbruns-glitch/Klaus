@@ -2,11 +2,11 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-05-26T13:02:13Z |
-| klaus HEAD | de60deed |
-| trades.jsonl rows | 6968 |
-| live rows | 6968 |
-| bankroll capital | $29.289665 |
+| snapshot_ts (UTC) | 2026-05-26T13:17:43Z |
+| klaus HEAD | f39000de |
+| trades.jsonl rows | 6970 |
+| live rows | 6970 |
+| bankroll capital | $29.074385 |
 | klaus service | active |
 | shadow files | 6 |
 
