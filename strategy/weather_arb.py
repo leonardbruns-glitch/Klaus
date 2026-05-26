@@ -1429,6 +1429,11 @@ class WeatherArb:
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop(), name="weather_arb_loop")
         self._metar_task = asyncio.create_task(self._metar_loop(), name="weather_metar_loop")
+        try:
+            from strategy.wis2_synop import start as _wis2_start
+            _wis2_start()
+        except Exception as _e:
+            logger.warning("[WA] WIS2 subscriber failed to start: %s", _e)
 
     @staticmethod
     def _seconds_to_next_nwp_slot() -> tuple[float, bool]:

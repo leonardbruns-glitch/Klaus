@@ -423,14 +423,26 @@ async def poll_all(
     cache: dict,
     tz_offsets: dict[str, int],
 ) -> int:
-    """Poll all configured NMS sources. Returns count of cache updates."""
+    """Poll all configured NMS sources + drain WIS2 decoded buffer."""
     import aiohttp as _aiohttp
 
+    updates = 0
+
+    # ── Drain WIS2 push buffer first (zero HTTP cost, already decoded) ──
+    try:
+        from strategy.wis2_synop import take_decoded
+        for icao, obs in take_decoded():
+            if icao in icaos_needed:
+                if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
+                    updates += 1
+    except Exception as e:
+        logger.debug("[NMS] WIS2 drain error: %s", e)
+
+    # ── REST poll for stations in today's market cache ───────────────────
     targets = icaos_needed & set(_FETCHERS)
     if not targets:
-        return 0
+        return updates
 
-    updates = 0
     async with _aiohttp.ClientSession() as session:
         for icao in targets:
             fetcher = _FETCHERS[icao]
