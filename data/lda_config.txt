@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-26T10:31:03Z
+# Snapshot: 2026-05-26T10:46:13Z
 # Latest commit on klaus:
-8a1213f9 config: raise M1_BETA_PROBE_MAX_EDGE 0.50→0.95, disable γ-block
+73ba44e4 feat: add M1_BETA_PROBE TP at 0.999 for capital recycling
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
