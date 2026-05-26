@@ -1534,6 +1534,7 @@ class WeatherArb:
         return (resolution_utc - datetime.now(timezone.utc)).total_seconds() / 3600.0
 
     async def _scan(self) -> None:
+        now_utc = datetime.now(timezone.utc)
         today = date.today().isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         # Include both today and tomorrow: UTC+9 cities (Tokyo etc.) can have their
