@@ -180,6 +180,7 @@ M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
 M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # hi_c already has 0.5°C pad; 0.5 opens the full medium-confidence population
 M1_BETA_PROBE_MAX_EDGE         = 0.95   # only block near-fully-resolved YES (no_ask_clob covers 1.0)
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
+M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 
 # Per-layer gates. One fire per (condition_id, layer) — bucket can fire up to 5 times
@@ -3200,6 +3201,29 @@ class WeatherArb:
                 if (_pos.get("status") == "FILLED"
                         and _tid not in self.bot.risk.open_positions):
                     self._close_position(_tid)
+
+        # ── M1β TP EXIT ───────────────────────────────────────────────────────
+        # Sell NO when bid >= 0.999 — market has fully repriced, recycle capital.
+        if M1_BETA_PROBE_ENABLED and hasattr(self.bot, "risk"):
+            for _tp_tid, _tp_pos in list(self.bot.risk.open_positions.items()):
+                if getattr(_tp_pos, "bond_entry_class", "") != "WEATHER_M1_PROBE":
+                    continue
+                _tp_bid = getattr(_tp_pos, "current_price", 0.0) or 0.0
+                if _tp_bid < M1_BETA_PROBE_TP:
+                    continue
+                logger.info("[M1β] TP %.4f >= %.4f → sell %s shares=%.2f",
+                            _tp_bid, M1_BETA_PROBE_TP, _tp_tid[:12], _tp_pos.shares)
+                try:
+                    await self.bot.orders.limit_sell(
+                        token_id=_tp_tid,
+                        price=round(_tp_bid - 0.001, 4),
+                        size=_tp_pos.shares,
+                        condition_id=_tp_pos.condition_id,
+                    )
+                    self.bot.risk.close_position(_tp_tid, exit_price=_tp_bid,
+                                                 reason="M1B_TP")
+                except Exception:
+                    logger.exception("[M1β] TP sell failed %s", _tp_tid[:12])
 
         # ── A) NOWCAST COLLAPSE EXIT ──────────────────────────────────────────
         # Applies to STRAT_1/2/3 (FILLED). STRAT_4_TAIL_SNIPER is held to maturity.
