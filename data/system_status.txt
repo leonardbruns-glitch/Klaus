@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+740a154a chore: wis2_debug — 30min test, 3 downloads/origin, #1#airTemperature fallback
 fbfaff7c fix: WIS2 message-ID dedup to prevent redundant downloads from cache relays
 00800e74 feat: WIS2 MQTT subscriber for 15 cities without direct NMS API
 3293a2d4 feat: add Singapore NEA, IMGW Poland, NWS API — 13 more NMS-covered cities
@@ -11,7 +12,6 @@ de60deed fix: switch Istanbul METAR station LTFJ → LTFM
 4e860768 feat: M1_PROBE WebSocket fast path — entry+TP in milliseconds via _on_weather_bbo
 5738fefb perf: reduce METAR poll to 5s, only run lockout scan on new observations
 73ba44e4 feat: add M1_BETA_PROBE TP at 0.999 for capital recycling
-b77f654a config: uniform M1_BETA_PROBE layer gates — min_edge=0.03, min_depth=5.0
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   79G       14G  86% /
