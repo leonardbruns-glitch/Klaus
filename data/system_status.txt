@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+7f9f544d config: lower M1_BETA_PROBE_MIN_DEPTH_C 1.0 → 0.5°C
+86fbc21e fix: convert all WEATHER_* exit exclusion lists to startswith pattern
 38f34a8c fix: protect WEATHER_M1_PROBE from cascade abort and hard-exit timers
 cfb7ca25 feat: reopen STRAT_1 — $5 flat stake, ask>=0.15, fair_prob>=0.40, 40% alloc
 13cb9838 fix: add missing pathlib.Path import for M1 beta probe log path
@@ -10,14 +12,12 @@ cfb7ca25 feat: reopen STRAT_1 — $5 flat stake, ask>=0.15, fair_prob>=0.40, 40%
 230c6a98 Watchdog 2026-05-26T00:18:36Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
 2ace4c58 VOLARB Audit 20260526-0014 — NO_PATCH (n=885, Δ=0, 9th consecutive; strategy RETIRED ~165h)
 945dd1f1 feat: M1 β-probe live surface — isolated capital experiment
-0bc1142d feat: blend METAR trajectory with NWP ensemble for same-day markets
-25ea1c42 fix: filter weather markets whose endDate has already passed
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       16G  84% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   77G       16G  84% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 09:12:15 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 09:23:56 UTC
 
 ## Open positions (count):
 0
