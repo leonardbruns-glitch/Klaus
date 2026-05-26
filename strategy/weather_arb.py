@@ -2446,6 +2446,7 @@ class WeatherArb:
                     await self._poll_metars()
                     await self._check_wu_transitions()
                     await self._oracle_metar_check()
+                    await self._poll_national_met()
                     if INTRADAY_ENABLED:
                         await self._intraday_scan()
                     if TAIL_SNIPER_ENABLED:
@@ -3194,6 +3195,18 @@ class WeatherArb:
             new_obs_count += 1
 
         return new_obs_count > 0
+
+    async def _poll_national_met(self) -> None:
+        """Poll supplemental national met service feeds for faster obs on key stations."""
+        try:
+            from strategy.national_met import poll_all, covered_icaos
+        except ImportError:
+            return
+        icaos_needed: set[str] = {e["icao"] for e in self._today_markets_cache if e["icao"]}
+        icaos_needed &= covered_icaos()
+        if not icaos_needed:
+            return
+        await poll_all(icaos_needed, self._icao_metar_cache, ICAO_UTC_OFFSET_H)
 
     async def _poll_metars(self) -> None:
         """
