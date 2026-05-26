@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+563a2d23 feat: add 6 European/Canadian airports to WIS2 targets
+5bfadc8d feat: promote WIS2 decode hits to INFO log level
+4f898dc6 fix: Synoptic uses regular ICAO IDs (open_access blocks 1M), NWS fallback retained
 20220bfe feat: Synoptic HF-ASOS 1-min feed for all 11 US cities (2-5 min latency)
 7cc5cf50 fix: depth gate shares>=5 instead of usd>=5 (Polymarket min is 5 shares)
 15c597c3 feat: M1β stake $5→$10 (partial fills ok, depth gate stays at $5)
@@ -9,15 +12,12 @@ active
 740a154a chore: wis2_debug — 30min test, 3 downloads/origin, #1#airTemperature fallback
 fbfaff7c fix: WIS2 message-ID dedup to prevent redundant downloads from cache relays
 00800e74 feat: WIS2 MQTT subscriber for 15 cities without direct NMS API
-3293a2d4 feat: add Singapore NEA, IMGW Poland, NWS API — 13 more NMS-covered cities
-f39000de fix: national_met DWD/FMI bugs — correct units and FMI element tags
-0b639757 feat: supplemental national met feeds (KMA/DWD/MET-NO/FMI)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   80G       14G  86% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 20:52:25 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 21:07:14 UTC
 
 ## Open positions (count):
 0
