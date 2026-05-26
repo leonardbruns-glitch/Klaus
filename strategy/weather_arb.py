@@ -172,7 +172,7 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
 # Do NOT modify these to "tune" — this is a measurement experiment.
 M1_BETA_PROBE_ENABLED          = True
-M1_BETA_PROBE_STAKE_USD        = 5.0    # min stake that clears Polymarket's 5-share minimum at our price range
+M1_BETA_PROBE_STAKE_USD        = 10.0   # target stake; depth gate stays at $5 so partial fills allowed
 M1_BETA_PROBE_MAX_DAILY_FIRES  = 15
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 30     # hard stop; bounds exposure to ~$150
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
