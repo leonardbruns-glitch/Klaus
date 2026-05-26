@@ -464,7 +464,7 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
     "Budapest":         (47.4298,  19.2610),   # LHBP Ferenc Liszt
     "Bucharest":        (44.5722,  26.1022),   # LROP Henri Coandă
     "Athens":           (37.9364,  23.9445),   # LGAV Venizelos
-    "Istanbul":         (40.8986,  29.3092),   # LTFJ Sabiha Gökçen
+    "Istanbul":         (41.2608,  28.7425),   # LTFM Istanbul Airport (Polymarket NOAA resolution)
     "Moscow":           (55.5915,  37.2613),   # UUWW Vnukovo (Polymarket NOAA resolution)
     "Riyadh":           (24.9576,  46.6988),   # OERK King Khalid Intl
     "Cairo":            (30.1219,  31.4056),   # HECA Cairo Intl
@@ -525,7 +525,7 @@ CITY_ICAO: dict[str, str] = {
     "Copenhagen": "EKCH", "Vienna": "LOWW", "Zurich": "LSZH",
     "Brussels": "EBBR", "Barcelona": "LEBL", "Rome": "LIRF",
     "Prague": "LKPR", "Budapest": "LHBP", "Bucharest": "LROP",
-    "Athens": "LGAV", "Istanbul": "LTFJ", "Moscow": "UUWW",
+    "Athens": "LGAV", "Istanbul": "LTFM", "Moscow": "UUWW",
     "Riyadh": "OERK", "Cairo": "HECA", "Lagos": "DNMM",
     "Nairobi": "HKJK", "Johannesburg": "FAOR", "Mumbai": "VABB",
     "Delhi": "VIDP", "Dhaka": "VGHS", "Bangkok": "VTBS",
@@ -551,7 +551,7 @@ ICAO_UTC_OFFSET_H: dict[str, int] = {
     "EGLC":   0, "LFPB":   1, "LEMD":   1, "EHAM":   1, "LIMC":   1,
     "EDDM":   1, "EDDB":   1, "EPWA":   1, "EBBR":   1, "LEBL":   1, "EFHK":   2, "KAUS":  -6,
     "LIRF":   1, "LKPR":   1, "LHBP":   1, "LROP":   2, "LGAV":   2,
-    "LTFJ":   3, "LTAC":   3, "UUEE":   3, "UUWW":   3, "ESSA":   1,
+    "LTFM":   3, "LTAC":   3, "UUEE":   3, "UUWW":   3, "ESSA":   1,
     "ENGM":   1, "EKCH":   1, "LOWW":   1, "LSZH":   1, "HECA":   2,
     "DNMM":   1, "HKJK":   3, "FAOR":   2, "FACT":   2, "OERK":   3,
     "OEJN":   3,

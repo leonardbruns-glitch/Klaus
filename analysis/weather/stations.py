@@ -82,7 +82,7 @@ STATIONS: dict[str, Station] = {
 
     # --- Wave-3 candidates (calibration run 2026-05-22) ---
     "tel-aviv":      Station("tel-aviv",      "LLBG", "il/tel-aviv/LLBG",          32.0005,   34.8706,"C", 1, _GLOBAL, False, "Asia/Jerusalem"),
-    "istanbul":      Station("istanbul",      "LTFJ", "tr/istanbul/LTFJ",          40.8986,   29.3092,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Istanbul"),
+    "istanbul":      Station("istanbul",      "LTFM", "tr/istanbul/LTFM",          41.2608,   28.7425,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Istanbul"),
     "moscow":        Station("moscow",        "UUWW", "ru/moscow/UUWW",            55.5915,   37.2613,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Moscow"),
     "shenzhen":      Station("shenzhen",      "ZGSZ", "cn/shenzhen/ZGSZ",          22.6393,  113.8107,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
     "guangzhou":     Station("guangzhou",     "ZGGG", "cn/guangzhou/ZGGG",         23.3924,  113.2990,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
