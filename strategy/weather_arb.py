@@ -187,11 +187,12 @@ M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 # This is multi-fire BY LAYER, not by time. Statistical clustering is by bucket.
 M1_BETA_PROBE_LAYERS = [
     # name,   lo_s,   hi_s,   min_edge,  min_depth_usd
-    ("L0",    0,      60,     0.10,      3.0),
-    ("L1",    60,     300,    0.10,      3.0),
-    ("L2",    300,    1800,   0.05,      1.0),
-    ("L3",    1800,   3600,   0.05,      1.0),
-    ("L4",    3600,   86400,  0.05,      1.0),
+    # Uniform gates: min_edge=fee floor only, min_depth=stake size for full fill
+    ("L0",    0,      60,     0.03,      5.0),
+    ("L1",    60,     300,    0.03,      5.0),
+    ("L2",    300,    1800,   0.03,      5.0),
+    ("L3",    1800,   3600,   0.03,      5.0),
+    ("L4",    3600,   86400,  0.03,      5.0),
 ]
 
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
