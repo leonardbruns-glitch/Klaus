@@ -2954,6 +2954,20 @@ class WeatherArb:
         if not icaos:
             return
 
+        # Midnight reset pass — runs unconditionally every cycle, before any new obs.
+        # The per-observation reset below only fires when a new METAR arrives; this
+        # ensures running_max is cleared at local midnight even if no METAR lands
+        # in the first ~30 min of the new local day (common for overnight US stations).
+        from datetime import timedelta as _td2
+        _now_utc = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+        for _icao in list(self._icao_metar_cache.keys()):
+            _tz_h2 = ICAO_UTC_OFFSET_H.get(_icao, 0)
+            _local_today = (_now_utc + _td2(hours=_tz_h2)).date().isoformat()
+            _c = self._icao_metar_cache[_icao]
+            if _c.get("running_max_date") != _local_today:
+                _c["running_max_c"] = None
+                _c["running_max_date"] = _local_today
+
         url = (f"https://aviationweather.gov/api/data/metar"
                f"?ids={','.join(icaos)}&format=json&hours=1")
         try:
