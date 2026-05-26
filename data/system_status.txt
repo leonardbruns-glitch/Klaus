@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+747eefdd config: set M1_BETA_PROBE_MIN_SEC_SINCE=0, enable L0 immediate entry
+c709dade fix: block Hong Kong from M1_BETA_PROBE — VHHH station mismatch
 b08c07e1 config: pause STRAT_1, 100% allocation to M1_BETA_PROBE
 7f9f544d config: lower M1_BETA_PROBE_MIN_DEPTH_C 1.0 → 0.5°C
 86fbc21e fix: convert all WEATHER_* exit exclusion lists to startswith pattern
@@ -10,14 +12,12 @@ cfb7ca25 feat: reopen STRAT_1 — $5 flat stake, ask>=0.15, fair_prob>=0.40, 40%
 13cb9838 fix: add missing pathlib.Path import for M1 beta probe log path
 641311d7 Watchdog 2026-05-26T01:21:50Z: HIGH 1 alert (TRADE_LOOP_SILENT)
 05d21d28 VOLARB Scout 2026-05-26T0042Z — H5 SIGNAL: 220-280s bucket BELOW_CI n=619 (post-mortem closure)
-230c6a98 Watchdog 2026-05-26T00:18:36Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
-2ace4c58 VOLARB Audit 20260526-0014 — NO_PATCH (n=885, Δ=0, 9th consecutive; strategy RETIRED ~165h)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       16G  84% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 09:56:17 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 10:16:01 UTC
 
 ## Open positions (count):
 0

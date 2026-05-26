@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-26T10:00:13Z
+# Snapshot: 2026-05-26T10:15:42Z
 # Latest commit on klaus:
-b08c07e1 config: pause STRAT_1, 100% allocation to M1_BETA_PROBE
+747eefdd config: set M1_BETA_PROBE_MIN_SEC_SINCE=0, enable L0 immediate entry
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
