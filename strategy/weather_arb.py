@@ -2650,6 +2650,9 @@ class WeatherArb:
         depth_c = running_max - (hi_c if hi_c is not None else running_max)
 
         # === Universal blocks (apply to every layer) ===
+        # Hong Kong resolves against HK Observatory, not VHHH — station mismatch confirmed.
+        if icao == "VHHH":
+            return
         if not (M1_BETA_PROBE_MIN_SEC_SINCE <= sec_since < M1_BETA_PROBE_MAX_SEC_SINCE):
             return
         if depth_c < M1_BETA_PROBE_MIN_DEPTH_C:
