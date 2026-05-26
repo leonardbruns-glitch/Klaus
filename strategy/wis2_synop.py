@@ -63,7 +63,7 @@ _TARGETS: dict[str, tuple[float, float]] = {
     "CYYZ": (43.68, -79.63),   # Toronto Pearson      (ECCC Canada)
 }
 
-_MAX_DIST_DEG = 0.5
+_MAX_DIST_DEG = 0.15  # ~17km — tight enough to exclude off-airport ground stations
 
 # ── Shared decoded buffer ─────────────────────────────────────────────────────
 _lock = threading.Lock()
