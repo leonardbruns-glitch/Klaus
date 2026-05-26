@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-26T20:22:43Z
+# Snapshot: 2026-05-26T20:37:43Z
 # Latest commit on klaus:
-740a154a chore: wis2_debug — 30min test, 3 downloads/origin, #1#airTemperature fallback
+7cc5cf50 fix: depth gate shares>=5 instead of usd>=5 (Polymarket min is 5 shares)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
