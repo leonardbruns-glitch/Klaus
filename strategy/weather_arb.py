@@ -1942,15 +1942,19 @@ class WeatherArb:
                     no_ob = self.bot.feed.order_books.get(no_token_id)
                     no_ask_clob = None
                     no_depth_usd = 0.0
+                    no_depth_shares = 0.0
                     if no_ob and no_ob.asks:
                         no_ask_clob = no_ob.asks[0][0]
                         cap = 1.0 - yes_bid + 0.005
                         no_depth_usd = sum(
                             lvl[0] * lvl[1] for lvl in no_ob.asks if lvl[0] <= cap
                         )
+                        no_depth_shares = sum(
+                            lvl[1] for lvl in no_ob.asks if lvl[0] <= cap
+                        )
                     if (no_ask_clob is not None
                             and no_ask_clob < 1.0
-                            and no_depth_usd >= 5.0):
+                            and no_depth_shares >= 5):
                         # Remove from watchlist to prevent race double-fire
                         # (REST path in _metar_lockout_scan may also check this token)
                         # Keep in watchlist for L1-L4 re-entries — only remove after
