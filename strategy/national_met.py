@@ -450,7 +450,12 @@ _register()
 
 
 def covered_icaos() -> set[str]:
-    return set(_FETCHERS.keys())
+    try:
+        from strategy.wis2_synop import _TARGETS as _wis2_targets
+        wis2_icaos = set(_wis2_targets.keys())
+    except Exception:
+        wis2_icaos = set()
+    return set(_FETCHERS.keys()) | wis2_icaos
 
 
 def merge_into_cache(
