@@ -191,7 +191,10 @@ def _decode_bufr(bufr_bytes: bytes) -> list[tuple[str, dict]]:
                         if tk_f > 1e9 or tk_f < 0:
                             continue
                         temp_c = tk_f - 273.15
-                        if not (-60.0 < temp_c < 60.0):
+                        # Reject aircraft-altitude temperatures (≤-50°C) —
+                        # multi-station BUFR bulletins sometimes contain aircraft
+                        # reports whose lat/lon matches a ground station within 0.5°.
+                        if not (-50.0 < temp_c < 55.0):
                             continue
 
                         # Observation timestamp
