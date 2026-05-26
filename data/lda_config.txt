@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-26T07:28:49Z
+# Snapshot: 2026-05-26T07:44:03Z
 # Latest commit on klaus:
-945dd1f1 feat: M1 β-probe live surface — isolated capital experiment
+13cb9838 fix: add missing pathlib.Path import for M1 beta probe log path
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
