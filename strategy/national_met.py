@@ -101,18 +101,20 @@ _NWS_STATIONS: set[str] = {
 _SYNOPTIC_TOKEN = os.getenv("SYNOPTIC_API_KEY", "")
 _SYNOPTIC_URL   = "https://api.synopticdata.com/v2/stations/latest"
 _SYNOPTIC_STATIONS: dict[str, str] = {
-    "KLGA": "KLGA1M",
-    "KORD": "KORD1M",
-    "KLAX": "KLAX1M",
-    "KMIA": "KMIA1M",
-    "KSFO": "KSFO1M",
-    "KDAL": "KDAL1M",
-    "KHOU": "KHOU1M",
-    "KSEA": "KSEA1M",
-    "KBKF": "KBKF1M",
-    "KATL": "KATL1M",
-    "KAUS": "KAUS1M",
+    "KLGA": "KLGA",
+    "KORD": "KORD",
+    "KLAX": "KLAX",
+    "KMIA": "KMIA",
+    "KSFO": "KSFO",
+    "KDAL": "KDAL",
+    "KHOU": "KHOU",
+    "KSEA": "KSEA",
+    "KBKF": "KBKF",
+    "KATL": "KATL",
+    "KAUS": "KAUS",
 }
+# Max obs age to trust Synoptic over NWS fallback (57-min KBKF outlier observed)
+_SYNOPTIC_MAX_AGE_S = 1800  # 30 min — staleness beyond this → NWS takes over
 
 
 async def _fetch_nea(session, icao: str) -> Optional[dict]:
@@ -409,9 +411,13 @@ async def fetch_synoptic_batch(session, icaos: set[str]) -> dict[str, dict]:
                 continue
             obs_dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
             obs_ts = obs_dt.timestamp()
+            obs_age_s = time.time() - obs_ts
+            if obs_age_s > _SYNOPTIC_MAX_AGE_S:
+                logger.debug("[NMS] Synoptic %s stale (%.0fs) — skipping", icao, obs_age_s)
+                continue
             result[icao] = {
                 "temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
-                "utc_hour": obs_dt.hour, "source": "Synoptic1M",
+                "utc_hour": obs_dt.hour, "source": "Synoptic",
             }
     except (KeyError, TypeError, ValueError) as exc:
         logger.debug("[NMS] Synoptic parse error: %s", exc)
@@ -430,13 +436,12 @@ def _register() -> None:
         _FETCHERS[icao] = _fetch_nea
     for icao in _IMGW_STATIONS:
         _FETCHERS[icao] = _fetch_imgw
-    # Synoptic 1-min supersedes NWS when token present; NWS is fallback
+    # NWS always registered as fallback; Synoptic batch runs first in poll_all()
+    # and merge_into_cache ensures only fresher obs wins.
     if _SYNOPTIC_TOKEN:
-        logger.info("[NMS] Synoptic HF-ASOS active for %d US stations", len(_SYNOPTIC_STATIONS))
+        logger.info("[NMS] Synoptic active for %d US stations (NWS fallback retained)", len(_SYNOPTIC_STATIONS))
     for icao in _NWS_STATIONS:
-        if not _SYNOPTIC_TOKEN:
-            _FETCHERS[icao] = _fetch_nws
-        # With Synoptic token: NWS stations handled by batch call in poll_all()
+        _FETCHERS[icao] = _fetch_nws
     if _KMA_KEY:
         for icao in _KMA_ICAO_TO_STN.values():
             _FETCHERS[icao] = _fetch_kma
