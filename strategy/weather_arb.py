@@ -534,7 +534,7 @@ CITY_ICAO: dict[str, str] = {
 }
 
 AWC_METAR_URL = "https://aviationweather.gov/api/data/metar?ids={icao}&format=json&hours=1"
-METAR_POLL_INTERVAL = 5   # poll AWC every 5s — catch new obs within 5s of publication
+METAR_POLL_INTERVAL = 2   # poll AWC every 2s — minimum safe interval without throttling
 
 # UTC offset in hours per ICAO. Used to reset running_max at LOCAL midnight, not UTC.
 # Critical for Asia/Pacific cities where local midnight is at 14:00-18:00 UTC: resetting at
@@ -1319,6 +1319,13 @@ class WeatherArb:
         # Persists across cycles to record the moment a bucket first locked out.
         self._lockout_first_seen: dict[str, float] = {}
 
+        # M1_PROBE real-time watchlist — yes_token_id → lockout context.
+        # Populated the moment a lockout is detected in _metar_lockout_scan.
+        # _on_weather_bbo fires M1_PROBE entry/TP in milliseconds from this dict.
+        # Schema: {no_token_id, city, icao, lo_c, hi_c, depth_c, running_max,
+        #          end_date, question, first_ts, mkt, neg_risk}
+        self._m1_lockout_watchlist: dict[str, dict] = {}
+
         # ── Centralized position state tracker ───────────────────────────────────
         # Single source of truth for ALL weather positions from order placement to settlement.
         # Lifecycle: RESTING_MAKER → FILLED → (auto-popped when bot.risk drops it)
@@ -1890,7 +1897,84 @@ class WeatherArb:
         )
 
     async def _on_weather_bbo(self, token_id: str, bid: float) -> None:
-        """BBO callback: scalp TP monitoring for INTRADAY, and watchlist entry firing."""
+        """BBO callback: M1_PROBE entry/TP, INTRADAY scalp TP, and watchlist entry firing."""
+
+        # ── M1_PROBE TP: NO token bid >= 0.999 → sell immediately ────────────
+        if M1_BETA_PROBE_ENABLED and hasattr(self.bot, "risk"):
+            _m1_pos = self.bot.risk.open_positions.get(token_id)
+            if _m1_pos is not None and getattr(_m1_pos, "bond_entry_class", "") == "WEATHER_M1_PROBE":
+                if bid >= M1_BETA_PROBE_TP:
+                    logger.info("[M1β] WS TP %.4f >= %.4f → sell %s", bid, M1_BETA_PROBE_TP, token_id[:12])
+                    try:
+                        await self.bot.orders.limit_sell(
+                            token_id=token_id,
+                            price=round(bid - 0.001, 4),
+                            size=_m1_pos.shares,
+                            condition_id=_m1_pos.condition_id,
+                        )
+                        self.bot.risk.close_position(token_id, exit_price=bid, reason="M1B_TP_WS")
+                    except Exception:
+                        logger.exception("[M1β] WS TP sell failed %s", token_id[:12])
+                return
+
+        # ── M1_PROBE entry: YES token BBO fires on locked-out bucket ─────────
+        if M1_BETA_PROBE_ENABLED:
+            w = self._m1_lockout_watchlist.get(token_id)
+            if w is not None:
+                import time as _t
+                now_ts = _t.time()
+                yes_bid = bid
+                no_token_id = w["no_token_id"]
+
+                # Gates — all evaluated in-memory, zero network I/O
+                depth_c = w["depth_c"]
+                if (depth_c >= M1_BETA_PROBE_MIN_DEPTH_C
+                        and M1_BETA_PROBE_MIN_SEC_SINCE <= int(now_ts - w["first_ts"]) < M1_BETA_PROBE_MAX_SEC_SINCE
+                        and 0.03 <= yes_bid < M1_BETA_PROBE_MAX_EDGE
+                        and yes_bid != 1.0):
+                    # Check NO book depth from live WebSocket order book
+                    no_ob = self.bot.feed.order_books.get(no_token_id)
+                    no_ask_clob = None
+                    no_depth_usd = 0.0
+                    if no_ob and no_ob.asks:
+                        no_ask_clob = no_ob.asks[0][0]
+                        cap = 1.0 - yes_bid + 0.005
+                        no_depth_usd = sum(
+                            lvl[0] * lvl[1] for lvl in no_ob.asks if lvl[0] <= cap
+                        )
+                    if (no_ask_clob is not None
+                            and no_ask_clob < 1.0
+                            and no_depth_usd >= 5.0):
+                        # Remove from watchlist to prevent race double-fire
+                        # (REST path in _metar_lockout_scan may also check this token)
+                        # Keep in watchlist for L1-L4 re-entries — only remove after
+                        # state tracks this layer as fired.
+                        logger.info(
+                            "[M1β] WS ENTRY %s yes_bid=%.3f depth_c=%.2f no_ask=%.3f depth_usd=%.1f",
+                            w["city"], yes_bid, depth_c, no_ask_clob, no_depth_usd,
+                        )
+                        try:
+                            await self._m1_beta_probe_evaluate(
+                                now_ts=now_ts,
+                                now_utc=__import__("datetime").datetime.now(
+                                    __import__("datetime").timezone.utc),
+                                first_seen=w["first_ts"],
+                                mkt=w["mkt"], city=w["city"], icao=w["icao"],
+                                end_date=w["end_date"], question=w["question"],
+                                lo_c=w["lo_c"], hi_c=w["hi_c"],
+                                running_max=w["running_max"],
+                                yes_bid=yes_bid,
+                                no_token_id=no_token_id,
+                                no_ask_clob=no_ask_clob,
+                                no_book={"asks": [{"price": lvl[0], "usd": lvl[0] * lvl[1]}
+                                                  for lvl in (no_ob.asks if no_ob else [])]},
+                                no_ask_usd_at_implied=no_depth_usd,
+                                seconds_to_close=None,
+                            )
+                        except Exception:
+                            logger.exception("[M1β] WS entry evaluate failed %s", w["city"])
+                return
+
         # INTRADAY scalp TP: bid reached our resting sell → position filled, clean up tracker
         if token_id in self._intraday_scalp_tp:
             scalp_tp = self._intraday_scalp_tp[token_id]
@@ -2460,9 +2544,40 @@ class WeatherArb:
 
             # Track first-seen lockout time per token
             first_seen = self._lockout_first_seen.get(token_id)
-            if first_seen is None:
+            is_new_lockout = first_seen is None
+            if is_new_lockout:
                 first_seen = now_ts
                 self._lockout_first_seen[token_id] = first_seen
+
+            # Subscribe YES + NO tokens to CLOB WebSocket the moment lockout is detected.
+            # After this, _on_weather_bbo fires in milliseconds on every price change —
+            # no waiting for the next METAR poll cycle.
+            no_token_id_early = token_ids[1] if len(token_ids) >= 2 else None
+            depth_c_early = round(float(running_max) - float(hi_c), 2)
+            if M1_BETA_PROBE_ENABLED and no_token_id_early is not None:
+                if token_id not in self._m1_lockout_watchlist:
+                    self._m1_lockout_watchlist[token_id] = {
+                        "no_token_id": no_token_id_early,
+                        "city": city, "icao": icao, "end_date": end_date,
+                        "lo_c": lo_c, "hi_c": hi_c,
+                        "depth_c": depth_c_early,
+                        "running_max": float(running_max),
+                        "question": mkt.get("question", ""),
+                        "first_ts": first_seen,
+                        "mkt": mkt,
+                        "neg_risk": mkt.get("negRisk", True),
+                    }
+                    try:
+                        self.bot.feed._clob_ws_sub_queue.put_nowait(
+                            [token_id, no_token_id_early]
+                        )
+                    except Exception:
+                        pass
+                    if is_new_lockout:
+                        logger.info(
+                            "[M1β] WS subscribed %s/%s YES=%s NO=%s depth=%.2f°C",
+                            city, end_date, token_id[:8], no_token_id_early[:8], depth_c_early,
+                        )
 
             # Read live quote — prefer bestBid/bestAsk if gamma supplies them,
             # otherwise fall back to outcomePrices[0] as a price proxy.
