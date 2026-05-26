@@ -53,6 +53,14 @@ _TARGETS: dict[str, tuple[float, float]] = {
     "ZGGG": (23.39, 113.30),   # Guangzhou            (CMA China)
     "ZSQD": (36.27, 120.37),   # Qingdao              (CMA China)
     "LTFM": (41.26,  28.74),   # Istanbul             (MGM Turkey via GTS)
+    # European cities — covered by national WIS2 nodes (MetOffice/MétéoFrance/AEMET/KNMI/ARPA)
+    "EGLC": (51.51,   0.05),   # London City          (UK Met Office)
+    "LFPB": (48.96,   2.44),   # Paris Le Bourget     (Météo-France)
+    "LEMD": (40.47,  -3.56),   # Madrid Barajas       (AEMET)
+    "EHAM": (52.31,   4.76),   # Amsterdam Schiphol   (KNMI)
+    "LIMC": (45.63,   8.73),   # Milan Malpensa       (ARPA Lombardia)
+    # Americas
+    "CYYZ": (43.68, -79.63),   # Toronto Pearson      (ECCC Canada)
 }
 
 _MAX_DIST_DEG = 0.5
