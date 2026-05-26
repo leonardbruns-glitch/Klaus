@@ -178,8 +178,8 @@ M1_BETA_PROBE_MAX_TOTAL_FIRES  = 30     # hard stop; bounds exposure to ~$150
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
 M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # hi_c already has 0.5°C pad; 0.5 opens the full medium-confidence population
-M1_BETA_PROBE_MAX_EDGE         = 0.50   # yes_bid ceiling — γ poison cell ALWAYS blocked
-M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 1800   # strict γ-block: edge>=0.50 AND sec>=1800 → never fire
+M1_BETA_PROBE_MAX_EDGE         = 0.95   # only block near-fully-resolved YES (no_ask_clob covers 1.0)
+M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 
 # Per-layer gates. One fire per (condition_id, layer) — bucket can fire up to 5 times
