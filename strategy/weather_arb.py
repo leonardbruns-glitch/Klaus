@@ -177,7 +177,7 @@ M1_BETA_PROBE_MAX_DAILY_FIRES  = 15
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 30     # hard stop; bounds exposure to ~$150
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
-M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # hi_c already has 0.5°C pad; 0.5 opens the full medium-confidence population
+M1_BETA_PROBE_MIN_DEPTH_C      = 0.2    # 2× ASOS sensor noise (±0.1°C); 0.5° radius fix makes station contamination unlikely
 M1_BETA_PROBE_MAX_EDGE         = 0.95   # only block near-fully-resolved YES (no_ask_clob covers 1.0)
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
