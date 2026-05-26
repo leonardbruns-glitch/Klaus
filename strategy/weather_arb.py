@@ -534,7 +534,7 @@ CITY_ICAO: dict[str, str] = {
 }
 
 AWC_METAR_URL = "https://aviationweather.gov/api/data/metar?ids={icao}&format=json&hours=1"
-METAR_POLL_INTERVAL = 60  # METARs post every ~30 min; poll every 60s to catch within 60s
+METAR_POLL_INTERVAL = 5   # poll AWC every 5s — catch new obs within 5s of publication
 
 # UTC offset in hours per ICAO. Used to reset running_max at LOCAL midnight, not UTC.
 # Critical for Asia/Pacific cities where local midnight is at 14:00-18:00 UTC: resetting at
@@ -2339,29 +2339,33 @@ class WeatherArb:
 
     async def _metar_loop(self) -> None:
         await asyncio.sleep(30)
+        _last_slow = 0.0
         while True:
             try:
-                # 1. Refresh universal METAR cache for ALL relevant ICAOs in one batch
-                await self._refresh_all_metars()
-                # 2. Monitor open positions (status log) from cache
-                await self._poll_metars()
-                # 3. Dynamic exit evaluation (nowcast collapse) + orphaned order cancellation
+                import time as _t
+                # Fast path (every METAR_POLL_INTERVAL seconds):
+                # 1. Refresh METAR cache — returns True if any station has a new observation
+                new_obs = await self._refresh_all_metars()
+                # 2. M1β TP + NOWCAST exits — no network, just checks current_price in memory
                 await self._evaluate_dynamic_exits()
-                # 4. WU transition check — sell confirmed losers immediately when WU posts the daily high
-                await self._check_wu_transitions()
-                # 5. Upstream Oracle — check METAR running_max post-peak for anomaly signal
-                await self._oracle_metar_check()
-                # 6. METAR_LOCKOUT shadow logger (passive, no entries)
-                try:
-                    await self._metar_lockout_scan()
-                except Exception:
-                    logger.exception("[WA] metar lockout scan error")
-                # 7. Scan ALL today's markets for intraday arb (heating ramp window)
-                if INTRADAY_ENABLED:
-                    await self._intraday_scan()
-                # 8. Tail sniper on $0.01–$0.04 tokens
-                if TAIL_SNIPER_ENABLED:
-                    await self._tail_sniper_check()
+                # 3. Lockout scan + M1_PROBE evaluate — only when new data arrived
+                #    (avoids hammering CLOB book endpoint on every 5s cycle)
+                if new_obs:
+                    try:
+                        await self._metar_lockout_scan()
+                    except Exception:
+                        logger.exception("[WA] metar lockout scan error")
+
+                # Slow path (every ~60s): position monitor + WU + oracle + intraday + tail
+                if _t.time() - _last_slow >= 60.0:
+                    _last_slow = _t.time()
+                    await self._poll_metars()
+                    await self._check_wu_transitions()
+                    await self._oracle_metar_check()
+                    if INTRADAY_ENABLED:
+                        await self._intraday_scan()
+                    if TAIL_SNIPER_ENABLED:
+                        await self._tail_sniper_check()
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
@@ -2935,7 +2939,7 @@ class WeatherArb:
                 len(entries), n_with_icao, n_no_icao,
             )
 
-    async def _refresh_all_metars(self) -> None:
+    async def _refresh_all_metars(self) -> bool:
         """
         Single batched METAR fetch for ALL relevant ICAOs:
           - ICAOs for today's active market cities (from _today_markets_cache)
@@ -2943,6 +2947,7 @@ class WeatherArb:
 
         Updates _icao_metar_cache[icao] with latest observation.
         Preserves running_max_c across cycles (only resets at midnight).
+        Returns True if at least one ICAO had a new observation this cycle.
         """
         # Refresh market list if stale
         await self._refresh_today_markets()
@@ -2954,7 +2959,7 @@ class WeatherArb:
                 if isinstance(meta, dict) and meta.get("icao"):
                     icaos.add(meta["icao"])
         if not icaos:
-            return
+            return False
 
         # Midnight reset pass — runs unconditionally every cycle, before any new obs.
         # The per-observation reset below only fires when a new METAR arrives; this
@@ -2979,14 +2984,15 @@ class WeatherArb:
                     headers={"User-Agent": "Klaus-WeatherBot/1.0"},
                 ) as resp:
                     if resp.status != 200:
-                        return
+                        return False
                     records = await resp.json()
         except Exception as e:
             logger.debug("[WA] metar batch fetch error: %s", e)
-            return
+            return False
 
         from datetime import datetime, timezone, timedelta as _td, date as _date
 
+        new_obs_count = 0
         for rec in records:
             icao = rec.get("icaoId") or rec.get("stationId", "")
             if not icao:
@@ -3070,6 +3076,9 @@ class WeatherArb:
                 "obs_time":      obs_time,
                 "precip_24h_mm": precip_24h_mm,
             })
+            new_obs_count += 1
+
+        return new_obs_count > 0
 
     async def _poll_metars(self) -> None:
         """
