@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+072614cd fix: include WIS2 targets in covered_icaos() so WIS2 drain reaches them
+a86b1e81 fix: reject aircraft-altitude temperatures in WIS2 BUFR decode
 563a2d23 feat: add 6 European/Canadian airports to WIS2 targets
 5bfadc8d feat: promote WIS2 decode hits to INFO log level
 4f898dc6 fix: Synoptic uses regular ICAO IDs (open_access blocks 1M), NWS fallback retained
@@ -10,14 +12,12 @@ active
 15c597c3 feat: M1β stake $5→$10 (partial fills ok, depth gate stays at $5)
 50fbca76 fix: NameError now_utc in _scan() — NWP-triggered scans crashing all day
 740a154a chore: wis2_debug — 30min test, 3 downloads/origin, #1#airTemperature fallback
-fbfaff7c fix: WIS2 message-ID dedup to prevent redundant downloads from cache relays
-00800e74 feat: WIS2 MQTT subscriber for 15 cities without direct NMS API
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   80G       14G  86% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   80G       13G  86% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 21:07:14 UTC
+ActiveEnterTimestamp=Tue 2026-05-26 21:14:59 UTC
 
 ## Open positions (count):
 0

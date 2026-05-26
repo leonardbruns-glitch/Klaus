@@ -1542,10 +1542,10 @@
     },
     "hot/2026-05-26/binance_trade.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1779753600,\"ts_ms_local\":1779753600190,\"exchange_ts_ms\":1779753600071,\"asset\":\"ETH\",\"price\":2113.01,\"qty\":0.0028,\"is_buyer_maker\":false,\"taker_side\":\"BUY\"}",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1779829778,\"ts_ms_local\":1779829778072,\"exchange_ts_ms\":1779829777899,\"asset\":\"SOL\",\"price\":83.79,\"qty\":3.132,\"is_buyer_maker\":true,\"taker_side\":\"SELL\"}",
-      "mtime_utc": "2026-05-26T21:09:38Z",
-      "n_rows": 1612565,
-      "size_bytes": 343837255
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1779830672,\"ts_ms_local\":1779830672680,\"exchange_ts_ms\":1779830672561,\"asset\":\"BTC\",\"price\":76029.77,\"qty\":0.00675,\"is_buyer_maker\":true,\"taker_side\":\"SELL\"}",
+      "mtime_utc": "2026-05-26T21:24:30Z",
+      "n_rows": 1621613,
+      "size_bytes": 345765290
     },
     "hot/2026-05-26/discover_signal.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1779753669,\"ts_ms_local\":1779753669078,\"token_id\":\"109269069553834506380934115557520104981844780136230403986752382802900585155356\",\"condition_id\":\"0x5d98b5b3287511c4cbdcff18e2b162ce15dc1c429e10cf3428e4a0ff2a6bc7a7\",\"asset\":\"E",
@@ -1563,24 +1563,24 @@
     },
     "hot/2026-05-26/gate_trace.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1779753599,\"ts_ms_local\":1779753599411,\"token_id\":\"83744397958605431944558785428126477305220097707021658132859106352610630796184\",\"condition_id\":\"0xf5a356772a32c4abe46493ad55f8af103a8195babcdc1cee3ffe001518081595\",\"asset\":\"BTC\",\"outcome_dir\":\"up\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1779829778,\"ts_ms_local\":1779829778682,\"token_id\":\"67436884844827998864616010128070844762711526445657787497989547802667302421995\",\"condition_id\":\"0xdfa818a6c93388fc9c67776bc18abf3e54c14ad0c701ac054fbb3bf5626c86eb\",\"asset\":\"SOL\",\"outcome_dir\":\"dow",
-      "mtime_utc": "2026-05-26T21:09:38Z",
-      "n_rows": 908022,
-      "size_bytes": 568200959
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1779830672,\"ts_ms_local\":1779830672610,\"token_id\":\"7281075198331321268073890719955240836768857804833216770757722547804213156163\",\"condition_id\":\"0xf8d0b61dd6c2618a91515aaa16d4b3773a964a5b2134f33ab48f183099bc7905\",\"asset\":\"SOL\",\"outcome_dir\":\"down",
+      "mtime_utc": "2026-05-26T21:24:33Z",
+      "n_rows": 916237,
+      "size_bytes": 573353290
     },
     "hot/2026-05-26/hold_path.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1779753810,\"ts_ms_local\":1779753810864,\"token_id\":\"35162401285368866892229160240252888245526512682183004962748265767126189526967\",\"condition_id\":\"0x7a706887c8720a300de3d076cec88c85cf6005136b0433bb286c6bcc7a224b71\",\"asset\":\"BTC\",\"outcome_dir\":\"up\",",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1779829777,\"ts_ms_local\":1779829777681,\"token_id\":\"102545313517059845116572680027410028957068721381125291740495558663931517664653\",\"condition_id\":\"0x5d8166768abd704a39ea1c9db97b7b8846e4c376a49d943a27be59a6e0bb26e3\",\"asset\":\"SOL\",\"outcome_dir\":\"dow",
-      "mtime_utc": "2026-05-26T21:09:38Z",
-      "n_rows": 105647,
-      "size_bytes": 102476800
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1779830651,\"ts_ms_local\":1779830651589,\"token_id\":\"6665765003078254637367966066016781699090543703193033304692277000257082578743\",\"condition_id\":\"0x9666776d8f50249458781d5d9e7147553722352ff681312ea5deca737634207d\",\"asset\":\"ETH\",\"outcome_dir\":\"down\"",
+      "mtime_utc": "2026-05-26T21:24:11Z",
+      "n_rows": 106093,
+      "size_bytes": 102910221
     },
     "hot/2026-05-26/ladder.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"ladder_shadow\", \"ts_utc\": \"2026-05-26T20:27:44.455613+00:00\", \"ts_s\": 1779827264, \"city\": \"Toronto\", \"n_legs\": 2, \"combined_fair\": 0.8186, \"combined_ask\": 0.54, \"combined_edge\": 0.2786, \"f_star_kelly\": 0.6056, \"total_planned_stake_usd\": 4.0, \"bankroll\": 29.07, \"",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"ladder_shadow\", \"ts_utc\": \"2026-05-26T21:08:24.586994+00:00\", \"ts_s\": 1779829704, \"city\": \"Toronto\", \"n_legs\": 2, \"combined_fair\": 0.8195, \"combined_ask\": 0.53, \"combined_edge\": 0.2895, \"f_star_kelly\": 0.616, \"total_planned_stake_usd\": 4.0, \"bankroll\": 29.07, \"a",
-      "mtime_utc": "2026-05-26T21:08:24Z",
-      "n_rows": 7,
-      "size_bytes": 13988
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"ladder_shadow\", \"ts_utc\": \"2026-05-26T21:16:08.143424+00:00\", \"ts_s\": 1779830168, \"city\": \"Toronto\", \"n_legs\": 2, \"combined_fair\": 0.8195, \"combined_ask\": 0.53, \"combined_edge\": 0.2895, \"f_star_kelly\": 0.616, \"total_planned_stake_usd\": 4.0, \"bankroll\": 29.03, \"a",
+      "mtime_utc": "2026-05-26T21:16:08Z",
+      "n_rows": 9,
+      "size_bytes": 17985
     },
     "hot/2026-05-26/m1_beta_probe.jsonl": {
       "first_excerpt": "{\"schema_version\": 2, \"record_type\": \"m1_beta_probe\", \"phase\": \"submit\", \"ts_submitted\": 1779786234.475183, \"condition_id\": \"0x10eddc17015b790c360888a14c9fbe683c686b4f91ac285d5736e731a55000d5\", \"event_key\": \"Moscow|2026-05-26\", \"layer\": \"L2\", \"bucket_fire_seq\": 1, \"city\": \"Moscow\", \"icao\": \"UUWW\", \"",
@@ -1591,24 +1591,24 @@
     },
     "hot/2026-05-26/market_timeline.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1779753599,\"ts_ms_local\":1779753599411,\"token_id\":\"83744397958605431944558785428126477305220097707021658132859106352610630796184\",\"condition_id\":\"0xf5a356772a32c4abe46493ad55f8af103a8195babcdc1cee3ffe001518081595\",\"asset\":\"BTC\",\"outcome_dir\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1779829778,\"ts_ms_local\":1779829778682,\"token_id\":\"78659680517060477077228356325183681414206600537395468418651757452137379088855\",\"condition_id\":\"0x3f61f89d365d7cb637371109e64617182e12154d4af761abf2278457ca835786\",\"asset\":\"BTC\",\"outcome_dir\"",
-      "mtime_utc": "2026-05-26T21:09:35Z",
-      "n_rows": 908011,
-      "size_bytes": 1219043983
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1779830670,\"ts_ms_local\":1779830670610,\"token_id\":\"7281075198331321268073890719955240836768857804833216770757722547804213156163\",\"condition_id\":\"0xf8d0b61dd6c2618a91515aaa16d4b3773a964a5b2134f33ab48f183099bc7905\",\"asset\":\"SOL\",\"outcome_dir\":",
+      "mtime_utc": "2026-05-26T21:24:29Z",
+      "n_rows": 916220,
+      "size_bytes": 1230137498
     },
     "hot/2026-05-26/metar_lockout.jsonl": {
       "first_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-05-26T00:26:17.085083+00:00\", \"ts_s\": 1779755177, \"city\": \"Buenos Aires\", \"icao\": \"SAEZ\", \"token_id\": \"84848532692771526637024997359787848973865501622280012055138984875476908488125\", \"no_token_id\": \"615398339704082107863",
-      "last_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-05-26T21:09:27.220996+00:00\", \"ts_s\": 1779829767, \"city\": \"Los Angeles\", \"icao\": \"KLAX\", \"token_id\": \"24702116985186443122616059230177141995809068526585591592794741628543379690356\", \"no_token_id\": \"7796594515660053079241",
-      "mtime_utc": "2026-05-26T21:09:27Z",
-      "n_rows": 9734,
-      "size_bytes": 15350845
+      "last_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-05-26T21:22:09.422059+00:00\", \"ts_s\": 1779830529, \"city\": \"Los Angeles\", \"icao\": \"KLAX\", \"token_id\": \"24702116985186443122616059230177141995809068526585591592794741628543379690356\", \"no_token_id\": \"7796594515660053079241",
+      "mtime_utc": "2026-05-26T21:22:09Z",
+      "n_rows": 9741,
+      "size_bytes": 15360556
     },
     "hot/2026-05-26/ob_delta.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"ob_delta\",\"ts_s\":1779769276,\"ts_ms_local\":1779769276056,\"exchange_ts_ms\":1779769276022,\"token_id\":\"58739809500008653521306626063319160122480113704515157639898007861795304933046\",\"condition_id\":\"0x012d823ab544e14f68ed5c06fb3a04f84ee5b3d340a793ca712a904279583e30\",\"as",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"ob_delta\",\"ts_s\":1779829778,\"ts_ms_local\":1779829778405,\"exchange_ts_ms\":1779829778397,\"token_id\":\"102545313517059845116572680027410028957068721381125291740495558663931517664653\",\"condition_id\":\"0x5d8166768abd704a39ea1c9db97b7b8846e4c376a49d943a27be59a6e0bb26e3\",\"a",
-      "mtime_utc": "2026-05-26T21:09:38Z",
-      "n_rows": 1095862,
-      "size_bytes": 741151611
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"ob_delta\",\"ts_s\":1779830671,\"ts_ms_local\":1779830671593,\"exchange_ts_ms\":1779830671568,\"token_id\":\"27030432527461290558780984862427623330484636142618291368856351365246275710881\",\"condition_id\":\"0x15af1d80e82351bc3e0ad8a7c16a91a3a1384bd2f29044978b530a7fe325b2a9\",\"as",
+      "mtime_utc": "2026-05-26T21:24:29Z",
+      "n_rows": 1117829,
+      "size_bytes": 756001620
     },
     "hot/2026-05-26/order_lifecycle.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"order_lifecycle\",\"ts_s\":1779786235,\"ts_ms_local\":1779786235918,\"event\":\"fill\",\"order_id\":\"0xfbdfb44142cf4ac4f8ecaac911f4242a46368fc84881062bce9b865c3db5de37\",\"token_id\":\"99183463482572248863554685299407847942218336429008484027605583586392343422428\",\"condition_id\":\"",
@@ -1619,31 +1619,31 @@
     },
     "hot/2026-05-26/shadow_telemetry.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1779753643,\"uptime_s\":13120,\"queue_depth\":25,\"queue_max\":50000,\"queue_pct_full\":0.0005,\"written_total\":602615,\"dropped_total\":0,\"rows_per_min\":2755.8,\"flush_count\":12004,\"flush_latency_p50_ms\":1.39,\"flush_latency_p95_ms\":3.79,\"rss_mb\":271.3",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1779829759,\"uptime_s\":122,\"queue_depth\":0,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":8856,\"dropped_total\":0,\"rows_per_min\":4332.7,\"flush_count\":89,\"flush_latency_p50_ms\":4.66,\"flush_latency_p95_ms\":18.21,\"rss_mb\":447.6,\"files\":{",
-      "mtime_utc": "2026-05-26T21:09:20Z",
-      "n_rows": 1248,
-      "size_bytes": 1595308
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1779830645,\"uptime_s\":542,\"queue_depth\":2,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":37208,\"dropped_total\":0,\"rows_per_min\":4113.2,\"flush_count\":485,\"flush_latency_p50_ms\":3.32,\"flush_latency_p95_ms\":12.68,\"rss_mb\":607.1,\"files\"",
+      "mtime_utc": "2026-05-26T21:24:06Z",
+      "n_rows": 1261,
+      "size_bytes": 1607605
     },
     "hot/2026-05-26/token_trade.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"token_trade\",\"ts_s\":1779769276,\"ts_ms_local\":1779769276070,\"exchange_ts_ms\":1779769276040,\"token_id\":\"108672334348364376151694973446948931511740809115410095754575454900500564160232\",\"condition_id\":\"0x012d823ab544e14f68ed5c06fb3a04f84ee5b3d340a793ca712a904279583e30\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"token_trade\",\"ts_s\":1779829778,\"ts_ms_local\":1779829778320,\"exchange_ts_ms\":1779829778292,\"token_id\":\"38791542202624545668685079457302167486681015228259765590568495178574968494245\",\"condition_id\":\"0x3f61f89d365d7cb637371109e64617182e12154d4af761abf2278457ca835786\",",
-      "mtime_utc": "2026-05-26T21:09:38Z",
-      "n_rows": 308668,
-      "size_bytes": 172271134
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"token_trade\",\"ts_s\":1779830671,\"ts_ms_local\":1779830671554,\"exchange_ts_ms\":1779830671003,\"token_id\":\"112184268471996794080228778581248006572780600622363048452340096755576582305863\",\"condition_id\":\"0x15af1d80e82351bc3e0ad8a7c16a91a3a1384bd2f29044978b530a7fe325b2a9\"",
+      "mtime_utc": "2026-05-26T21:24:32Z",
+      "n_rows": 315180,
+      "size_bytes": 175905972
     },
     "hot/2026-05-26/wallet_shadow.jsonl": {
       "first_excerpt": "{\"rec\":\"wallet_trade\",\"wallet_name\":\"Eulhunter\",\"wallet\":\"0x98db8cca55c32b24cfb414b5b43d273f4e1fdd17\",\"ts\":1779753396,\"iso\":\"2026-05-25T23:56:36\",\"polled_at\":1779753608.573147,\"side\":\"BUY\",\"asset\":\"67600950902205704400814678875195406801960499967787358186220636009978416796457\",\"condition_id\":\"0x19add",
-      "last_excerpt": "{\"rec\":\"wallet_merge\",\"wallet_name\":\"CavaSoTasty\",\"wallet\":\"0x7fea691e28d169a33c500607279f2acb49058f74\",\"ts\":1779829706,\"iso\":\"2026-05-26T21:08:26\",\"polled_at\":1779829739.9654002,\"type\":\"MERGE\",\"asset\":\"\",\"condition_id\":\"0x5e182a031e7e78ef024026076f8ab357bdd7d5174e3e07868f6ade7c47604b7f\",\"slug\":\"atp",
-      "mtime_utc": "2026-05-26T21:08:59Z",
-      "n_rows": 26636,
-      "size_bytes": 25107243
+      "last_excerpt": "{\"rec\":\"wallet_redeem\",\"wallet_name\":\"melchior1248\",\"wallet\":\"0x36901eb0f21519cc9055662a6d2483e96da1e16f\",\"ts\":1779830546,\"iso\":\"2026-05-26T21:22:26\",\"polled_at\":1779830579.5473552,\"type\":\"REDEEM\",\"asset\":\"\",\"condition_id\":\"0x31517fb866d09df1f466bfafbde5010477cd9e0ab25b1292b3661056ffeac2b7\",\"slug\":\"",
+      "mtime_utc": "2026-05-26T21:22:59Z",
+      "n_rows": 26773,
+      "size_bytes": 25236323
     },
     "hot/2026-05-26/window_resolution.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1779753635,\"condition_id\":\"0x2c0053f9bad34574243fd42e98d7b0ab786ead3c1ed3cecddc1b620d7545f73b\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"window_end_ts\":1779753600,\"window_size_s\":300,\"binance_open_5m\":2112.39,\"binance_close_5m\":2113.01,\"b",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1779829535,\"condition_id\":\"0x2ffde121fde275c59494dad1d884f4330e291acf27b15b88f9c55cbebcb0d6b2\",\"asset\":\"SOL\",\"outcome_dir\":\"up\",\"window_end_ts\":1779829500,\"window_size_s\":300,\"binance_open_5m\":83.94,\"binance_close_5m\":83.8,\"binanc",
-      "mtime_utc": "2026-05-26T21:05:35Z",
-      "n_rows": 999,
-      "size_bytes": 516265
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1779830435,\"condition_id\":\"0xfac48ff3a2f3695afa2fc7ddd0bc1cc3d46240b853da9ea07a1ade44da121347\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"window_end_ts\":1779830400,\"window_size_s\":300,\"binance_open_5m\":2071.45,\"binance_close_5m\":2073.51,\"b",
+      "mtime_utc": "2026-05-26T21:20:35Z",
+      "n_rows": 1002,
+      "size_bytes": 517812
     },
     "met_adjustments.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-05-21T19:40:55Z\", \"city\": \"Seattle\", \"icao\": \"KSEA\", \"marine\": {\"active\": false}, \"cirrus\": {\"active\": true, \"f_sky_raw\": 0.3, \"f_sky_adj\": 0.6}, \"latent_heat\": {\"active\": false}, \"mu_baseline\": 19.98, \"mu_final\": 21.06, \"total_delta\": 1.08}",
@@ -1667,5 +1667,5 @@
       "size_bytes": 772219
     }
   },
-  "snapshot_ts": "2026-05-26T21:08:13Z"
+  "snapshot_ts": "2026-05-26T21:23:13Z"
 }
