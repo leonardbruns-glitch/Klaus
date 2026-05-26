@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-26T20:37:43Z
+# Snapshot: 2026-05-26T20:53:11Z
 # Latest commit on klaus:
-7cc5cf50 fix: depth gate shares>=5 instead of usd>=5 (Polymarket min is 5 shares)
+20220bfe feat: Synoptic HF-ASOS 1-min feed for all 11 US cities (2-5 min latency)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
