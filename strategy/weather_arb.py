@@ -116,7 +116,7 @@ KELLY_ENABLED    = False  # flat $5 stake — Kelly disabled 2026-05-26 (was cre
 KELLY_FRACTION   = 0.25   # quarter-Kelly: conservative for unverified sigma calibration
 KELLY_MIN_USD    = 1.0    # floor: $1 minimum stake (adaptive to bankroll)
 KELLY_MAX_USD    = 12.0   # ceiling: raised 2026-05-24 from $8
-OVERNIGHT_ALLOC  = 0.40   # STRAT_1 overnight: 40% bankroll allocation (rest reserved for M1 probe)
+OVERNIGHT_ALLOC  = 0.00   # STRAT_1 paused: 100% allocation to M1_BETA_PROBE
 INTRADAY_ALLOC   = 0.00   # STRAT_3 intraday: disabled — all capital to STRAT_1
 BRACKET_ALLOC    = 0.10   # STRAT_2 bracket: 10% of bankroll total
 TAIL_STRAT_ALLOC = 0.10   # STRAT_4 tail sniper: 10% of bankroll total
@@ -163,7 +163,7 @@ _PROBE_CITIES: tuple[tuple[str, float, float], ...] = (
     ("Tokyo",   35.5494, 139.7798),
 )
 MAX_POSITIONS    = 30  # max concurrent weather positions
-DRY_RUN_LOG  = False  # 2026-05-26: reopened STRAT_1 — $5 flat stake, ask≥0.15, fair_prob≥0.40
+DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BETA_PROBE
 # NOTE: DRY_RUN_LOG=True disables WEATHER_ARB / BRACKET / INTRADAY / TAIL live trades.
 # M1_BETA_PROBE runs INDEPENDENTLY of this flag (controlled by M1_BETA_PROBE_ENABLED below).
 
