@@ -62,6 +62,10 @@ _lock = threading.Lock()
 _buffer: list[tuple[str, dict]] = []   # [(icao, obs_dict), ...]
 _running = False
 _executor: Optional[ThreadPoolExecutor] = None
+# Dedup: WIS2 message IDs seen recently (multiple cache servers relay same obs).
+# Bounded at 2000 entries; old entries fall off when capacity is exceeded.
+_seen_ids: list[str] = []
+_SEEN_MAX = 2000
 
 
 def take_decoded() -> list[tuple[str, dict]]:
@@ -272,6 +276,17 @@ def _build_client() -> object:
             return
         try:
             j = json.loads(msg.payload)
+
+            # Dedup by message ID: multiple cache servers relay the same
+            # notification — skip if we already processed this observation.
+            msg_id = j.get("id", "")
+            if msg_id:
+                with _lock:
+                    if msg_id in _seen_ids:
+                        return
+                    _seen_ids.append(msg_id)
+                    if len(_seen_ids) > _SEEN_MAX:
+                        del _seen_ids[:_SEEN_MAX // 4]
 
             # Pre-filter by GeoJSON geometry: each single-station WIS2 message
             # includes the station's coordinates. Skip if not near a target airport.
