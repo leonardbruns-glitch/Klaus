@@ -526,6 +526,9 @@ async def poll_all(
             if icao in icaos_needed:
                 if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
                     updates += 1
+                    logger.info("[NMS] %s ← WIS2: %.1f°C  obs_age=%ds",
+                                icao, obs["temp_c"],
+                                int(__import__("time").time() - obs["obs_time"]))
     except Exception as e:
         logger.debug("[NMS] WIS2 drain error: %s", e)
 

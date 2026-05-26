@@ -249,6 +249,9 @@ def _download_and_decode(href: str) -> None:
     if matches:
         with _lock:
             _buffer.extend(matches)
+        for icao, obs in matches:
+            logger.info("[WIS2] ← %s: %.1f°C  obs_age=%ds",
+                        icao, obs["temp_c"], int(time.time() - obs["obs_time"]))
         logger.debug("[WIS2] decoded %d matches from %s", len(matches), href[:70])
 
 
