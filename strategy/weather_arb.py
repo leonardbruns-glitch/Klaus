@@ -411,6 +411,7 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
     "Lucknow":          (26.7606,  80.8893),   # VILK Chaudhary Charan Singh Intl
     "Munich":           (48.3538,  11.7861),   # EDDM Munich Airport
     "New York City":    (40.7769, -73.8740),   # KLGA LaGuardia
+    "NYC":              (40.7769, -73.8740),   # KLGA LaGuardia (Polymarket title alias)
     "Dallas":           (32.8481, -96.8517),   # KDAL Dallas Love Field
     "Miami":            (25.7953, -80.2900),   # KMIA Miami Intl
     "Chicago":          (41.9742, -87.9073),   # KORD O'Hare Intl
@@ -508,7 +509,7 @@ CITY_ICAO: dict[str, str] = {
     "London": "EGLC", "Paris": "LFPB", "Seoul": "RKSI", "Seattle": "KSEA",
     "Sao Paulo": "SBGR", "Buenos Aires": "SAEZ", "Ankara": "LTAC",
     "Wellington": "NZWN", "Lucknow": "VILK", "Munich": "EDDM",
-    "New York City": "KLGA", "Dallas": "KDAL", "Miami": "KMIA",
+    "New York City": "KLGA", "NYC": "KLGA", "Dallas": "KDAL", "Miami": "KMIA",
     "Chicago": "KORD", "Singapore": "WSSS", "Milan": "LIMC",
     "Madrid": "LEMD", "Warsaw": "EPWA", "Taipei": "RCSS",
     "Beijing": "ZBAA", "Wuhan": "ZHHH", "Chengdu": "ZUUU",
