@@ -1,23 +1,22 @@
 """
-Supplemental national meteorological service feeds.
+National meteorological service feeds — layered from fastest to slowest.
 
-Polls national met services that are faster than AWC's GTS ingest path.
-Merges into _icao_metar_cache — lockout scan picks up fresher obs automatically.
+All sources merge into _icao_metar_cache. merge_into_cache keeps only the
+freshest observation per station, so faster sources always win.
 
-Services (no registration needed):
-  DWD via BrightSky — EDDM/EDDB (Munich/Berlin), ~7 min faster than AWC
-  FMI WFS           — EFHK (Helsinki),            ~7 min faster than AWC
-  Singapore NEA     — WSSS (Changi, station S24), ~28 min faster than AWC
-  IMGW Poland       — EPWA (Warsaw),              ~10 min faster than AWC
-  NOAA NWS API      — 11 US ASOS stations,        ~10 min faster than AWC
+  Synoptic HF-ASOS  — US cities (KLAX etc.),       1-5 min  (requires key)
+  Singapore NEA     — WSSS (Changi, station S24),   ~2 min   (no auth)
+  JMA AMeDAS        — RJTT (Tokyo Haneda),           ~9 min   (no auth)
+  DWD via BrightSky — EDDM/EDDB (Munich/Berlin),    ~7 min   (no auth)
+  FMI WFS           — EFHK (Helsinki),               ~7 min   (no auth)
+  IMGW Poland       — EPWA (Warsaw),                ~10 min   (no auth)
+  NOAA NWS API      — US cities fallback,           ~10 min   (no auth)
+  WIS2 MQTT push    — 60+ airports globally,         push-based, varies
+  AWC METAR batch   — ALL ICAO airports globally,   15-30 min (no auth)
+                      universal fallback, 4-min poll interval
 
-Pending KMA_API_KEY in .env (free registration: https://apihub.kma.go.kr):
-  KMA ASOS 1-min    — RKSI/RKPK (Seoul/Busan),   ~10 min faster than AWC
-
-AWC lag measured 2026-05-26: KR=10 min, EU=20 min. NMS freshness: ~13 min.
-Net gain EU stations: ~7 min. KMA would give ~0 min gain on current lag numbers.
-NWS measured 2026-05-26: NWS age ~22 min vs AWC ~32 min = ~10 min gain (US).
-NEA measured 2026-05-26: obs age ~2 min vs AWC WSSS ~30 min = ~28 min gain.
+AWC batch is the baseline that ensures every city has data. Faster sources
+above it overwrite AWC observations automatically via merge_into_cache.
 """
 
 from __future__ import annotations
@@ -492,6 +491,78 @@ async def fetch_synoptic_batch(session, icaos: set[str]) -> dict[str, dict]:
     return result
 
 
+# ── AWC METAR batch (universal fallback, all ICAOs, ~15-30 min obs latency) ──
+# https://aviationweather.gov/api/data/metar — no auth, all ICAO airports globally.
+# Runs at most every 4 min; merge_into_cache rejects stale obs so faster sources win.
+_AWC_BATCH_URL       = "https://aviationweather.gov/api/data/metar"
+_AWC_MIN_INTERVAL_S  = 240   # max one call per 4 min
+_awc_last_call_ts: float = 0.0
+
+
+async def fetch_awc_batch(session, icaos: set[str]) -> dict[str, dict]:
+    """
+    Fetch the freshest METAR for each ICAO from AWC in one HTTP call.
+    Returns {icao: obs_dict}. ~15-30 min obs_age for international airports.
+    Acts as universal fallback — merge_into_cache rejects obs stale vs WIS2/Synoptic.
+    """
+    global _awc_last_call_ts
+    now = time.time()
+    if now - _awc_last_call_ts < _AWC_MIN_INTERVAL_S:
+        return {}
+    if not icaos:
+        return {}
+
+    params = {
+        "ids":    ",".join(sorted(icaos)),
+        "format": "json",
+        "hours":  "1",
+    }
+    try:
+        import aiohttp
+        async with session.get(
+            _AWC_BATCH_URL, params=params,
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] AWC batch HTTP %d", resp.status)
+                return {}
+            data = await resp.json(content_type=None)
+    except Exception as exc:
+        logger.debug("[NMS] AWC batch error: %s", exc)
+        return {}
+
+    _awc_last_call_ts = now
+    # AWC returns multiple historical obs per station; keep only the freshest per ICAO
+    best: dict[str, tuple[float, dict]] = {}
+    try:
+        for m in data:
+            icao = m.get("icaoId", "")
+            if not icao or icao not in icaos:
+                continue
+            obs_str = m.get("reportTime") or m.get("obsTime") or ""
+            temp    = m.get("temp")
+            if temp is None or not obs_str:
+                continue
+            try:
+                obs_dt = datetime.fromisoformat(obs_str.replace("Z", "+00:00"))
+                obs_ts = obs_dt.timestamp()
+                temp_c = float(temp)
+            except (ValueError, TypeError):
+                continue
+            if not (-60.0 < temp_c < 60.0):
+                continue
+            prev = best.get(icao)
+            if prev is None or obs_ts > prev[0]:
+                best[icao] = (obs_ts, {
+                    "temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
+                    "utc_hour": obs_dt.hour, "source": "AWC",
+                })
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.debug("[NMS] AWC batch parse error: %s", exc)
+
+    return {icao: obs for icao, (_, obs) in best.items()}
+
+
 # Registry: ICAO → fetch function
 _FETCHERS: dict[str, object] = {}
 
@@ -631,14 +702,28 @@ async def poll_all(
     # ── REST poll for stations in today's market cache ───────────────────
     # Skip JMA sentinels (None fetcher) — handled by _fetch_jma_batch above
     targets = (icaos_needed & set(_FETCHERS)) - set(_JMA_STATIONS)
-    if not targets:
-        return updates
+    if targets:
+        async with _aiohttp.ClientSession() as session:
+            for icao in targets:
+                fetcher = _FETCHERS[icao]
+                obs = await fetcher(session, icao)
+                if obs is not None:
+                    if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
+                        updates += 1
 
-    async with _aiohttp.ClientSession() as session:
-        for icao in targets:
-            fetcher = _FETCHERS[icao]
-            obs = await fetcher(session, icao)
-            if obs is not None:
-                if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
-                    updates += 1
+    # ── AWC METAR batch — universal fallback for all needed ICAOs ────────────
+    # Runs after all faster sources; stale obs are rejected by merge_into_cache.
+    try:
+        async with _aiohttp.ClientSession() as session:
+            awc_batch = await fetch_awc_batch(session, icaos_needed)
+        awc_updates = 0
+        for icao, obs in awc_batch.items():
+            if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
+                updates += 1
+                awc_updates += 1
+        if awc_batch:
+            logger.debug("[NMS] AWC batch: %d fetched, %d new updates", len(awc_batch), awc_updates)
+    except Exception as _e:
+        logger.debug("[NMS] AWC batch poll error: %s", _e)
+
     return updates
