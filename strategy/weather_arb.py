@@ -2504,7 +2504,7 @@ class WeatherArb:
         """
         if not self._today_markets_cache:
             return
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
         from pathlib import Path
         import time as _time
 
@@ -2525,9 +2525,16 @@ class WeatherArb:
             if not city or not icao:
                 continue
 
-            # Same-day only — lockout logic is meaningless for tomorrow's markets
+            # Same-day only — lockout logic is meaningless for tomorrow's markets.
+            # Compare against LOCAL date for this city: running_max resets at local
+            # midnight, so using UTC date causes false lockouts for Western-hemisphere
+            # cities in the 00:00–local-midnight UTC window (e.g. Toronto 00:00–05:00
+            # UTC, São Paulo 00:00–03:00 UTC) where UTC day is already "tomorrow" but
+            # the running_max was accumulated for the previous local day.
             end_date = (mkt.get("endDate") or "")[:10]
-            if end_date != today_str:
+            _tz_h = ICAO_UTC_OFFSET_H.get(icao, 0)
+            _local_today = (now_utc + timedelta(hours=_tz_h)).date().isoformat()
+            if end_date != _local_today:
                 continue
 
             metar = self._icao_metar_cache.get(icao) or {}
