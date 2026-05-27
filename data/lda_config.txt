@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-27T10:00:54Z
+# Snapshot: 2026-05-27T10:15:54Z
 # Latest commit on klaus:
-0474ed0a fix: preserve WEATHER_M1_PROBE positions when balance API returns 0
+d8541e48 feat: fire lockout scan on NMS updates + add 22 AWC-only stations to fast feeds
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
