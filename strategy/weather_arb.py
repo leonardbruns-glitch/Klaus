@@ -2449,14 +2449,14 @@ class WeatherArb:
                 # Fast path (every METAR_POLL_INTERVAL seconds):
                 # 1. Refresh METAR cache — returns True if any station has a new observation
                 new_obs = await self._refresh_all_metars()
-                # 2. Synoptic 1-min ASOS — polled every 2s so we catch new obs within 2s
-                #    of Synoptic publishing (60s poll misaligns with 1-min update cycle,
-                #    adding up to 59s extra lag). JMA/NWS/REST stay on the 60s slow path.
-                synoptic_obs = await self._poll_synoptic_fast()
+                # 2. All NMS sources (Synoptic/JMA/NWS/NEA/etc.) — polled every 2s so we
+                #    catch new obs within 2s of the source publishing. 60s was misaligned
+                #    with update cycles by up to 59s.
+                nms_obs = await self._poll_national_met()
                 # 3. M1β TP + NOWCAST exits — no network, just checks current_price in memory
                 await self._evaluate_dynamic_exits()
                 # 4. Lockout scan + M1_PROBE evaluate — only when new data arrived
-                if new_obs or synoptic_obs:
+                if new_obs or nms_obs:
                     try:
                         await self._metar_lockout_scan()
                     except Exception:
@@ -2468,7 +2468,6 @@ class WeatherArb:
                     await self._poll_metars()
                     await self._check_wu_transitions()
                     await self._oracle_metar_check()
-                    await self._poll_national_met()
                     try:
                         await self._metar_lockout_scan()
                     except Exception:
@@ -3267,41 +3266,16 @@ class WeatherArb:
         return new_obs_count > 0
 
     async def _poll_national_met(self) -> None:
-        """Poll supplemental national met service feeds for faster obs on key stations."""
+        """Poll all NMS sources every fast-path tick (2s). Returns update count."""
         try:
             from strategy.national_met import poll_all, covered_icaos
         except ImportError:
-            return
+            return 0
         icaos_needed: set[str] = {e["icao"] for e in self._today_markets_cache if e["icao"]}
         icaos_needed &= covered_icaos()
         if not icaos_needed:
-            return
-        await poll_all(icaos_needed, self._icao_metar_cache, ICAO_UTC_OFFSET_H)
-
-    async def _poll_synoptic_fast(self) -> bool:
-        """Poll only Synoptic 1-min ASOS on every fast-path tick (every 2s).
-        Returns True if any station cache was updated (new observation arrived)."""
-        try:
-            from strategy.national_met import fetch_synoptic_batch, merge_into_cache, _SYNOPTIC_STATIONS
-        except ImportError:
-            return False
-        if not _SYNOPTIC_STATIONS:
-            return False
-        icaos_needed: set[str] = {e["icao"] for e in self._today_markets_cache if e["icao"]}
-        us_needed = icaos_needed & set(_SYNOPTIC_STATIONS)
-        if not us_needed:
-            return False
-        try:
-            import aiohttp as _aiohttp
-            async with _aiohttp.ClientSession() as session:
-                batch = await fetch_synoptic_batch(session, us_needed)
-            updated = False
-            for icao, obs in batch.items():
-                if merge_into_cache(icao, obs, self._icao_metar_cache, ICAO_UTC_OFFSET_H.get(icao, 0)):
-                    updated = True
-            return updated
-        except Exception:
-            return False
+            return 0
+        return await poll_all(icaos_needed, self._icao_metar_cache, ICAO_UTC_OFFSET_H)
 
     async def _poll_metars(self) -> None:
         """
