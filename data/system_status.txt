@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+28bd8689 feat: M1β dip-rebuy — buy NO when market reprices on hourly METAR dip
 cd7e2cdb fix: per-city local time for STWA phase classification and Kalman reset
 ced231a6 fix: per-city local date in _today_markets_cache (not global UTC)
 2dad5ce9 fix: STWA POST_PEAK sigma damping + NWP 6h cache refresh
@@ -11,7 +12,6 @@ fd0546c6 Watchdog 2026-05-27T17:19:00Z: OK 0 alerts (4 anomalies, all within bac
 8bda1a83 fix: stop watchdog restart + log live CLOB ask for STWA signals
 73ad823f chore: remove debug logs from STWA pipeline (pipeline confirmed working)
 e4a9f6ad fix: skip one-sided buckets (None lo/hi) in STWA bucket_map
-e3ffa8d5 debug: add per-gate counters to STWA get_signals() for diagnosis
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   83G       10G  90% /
