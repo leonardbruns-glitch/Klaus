@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+b3437493 perf: move all NMS sources to 2s fast-path poll
+bfb38d4f perf: poll Synoptic 1-min ASOS every 2s instead of 60s
+d9db2e4c Watchdog 2026-05-27T11:19Z: MEDIUM 3 alerts
 a330349e fix: use CLOB yes_bid (not Gamma) for M1 probe depth cap and edge gates
 16a9264f feat: add 7 remaining AWC-only cities to WIS2 targets
 5af84225 fix: exclude cross-day obs from running_max during 24h startup backfill
@@ -9,15 +12,12 @@ f08b2b40 fix: backfill running_max from 24h METAR on startup to restore lockout 
 d8541e48 feat: fire lockout scan on NMS updates + add 22 AWC-only stations to fast feeds
 0474ed0a fix: preserve WEATHER_M1_PROBE positions when balance API returns 0
 c91f353a feat: add JMA AMeDAS for RJTT (Tokyo Haneda, station 44166)
-00dc7964 fix: correct WIHH coordinates in WIS2 targets (30km off → exact match)
-0646c43d fix: add NYC alias to CITY_COORDS/CITY_ICAO (maps to KLGA)
-61e3510a feat: add WMKK/RPLL/OPKC to WIS2 targets (KL/Manila/Karachi gap)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   82G       11G  89% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 11:02:04 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 11:25:46 UTC
 
 ## Open positions (count):
 0
