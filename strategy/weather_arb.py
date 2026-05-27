@@ -5130,10 +5130,12 @@ class WeatherArb:
         return cached
 
     async def _get_hourly_forecast(self, lat: float, lon: float) -> dict[int, float]:
-        """Fetch today's hourly max-2m-temp forecast in UTC. Cached per station per day."""
+        """Fetch today's hourly max-2m-temp forecast in UTC. Cached per station per 6h slot."""
+        import time
         from datetime import date, datetime, timezone
         today = date.today().isoformat()
-        key = (round(lat, 2), round(lon, 2), today)
+        refresh_slot = int(time.time()) // (6 * 3600)
+        key = (round(lat, 2), round(lon, 2), today, refresh_slot)
         if key in self._hourly_cache:
             return self._hourly_cache[key]
 

@@ -343,6 +343,7 @@ class STWAEngine:
         t_now: float,
         t_close: float,
         buckets: list[tuple[float, float]],
+        phase: str = "PRE_PEAK",
     ) -> dict[tuple[float, float], float]:
         """
         Monte Carlo estimate of P(daily_max ∈ bucket) for each bucket.
@@ -380,8 +381,9 @@ class STWAEngine:
         if n_steps < 2:
             return {}
 
-        # Regime sigma multiplier
-        regime_mul = REGIME_SIGMA_MUL.get(cs.regime, 1.2)
+        # Regime sigma multiplier; POST_PEAK dampens residual variance (day is done)
+        _PHASE_SIG_MUL = {"PRE_PEAK": 1.0, "AT_PEAK": 0.5, "POST_PEAK": 0.15}
+        regime_mul = REGIME_SIGMA_MUL.get(cs.regime, 1.2) * _PHASE_SIG_MUL.get(phase, 1.0)
 
         # Simulate N_PATHS OU residual paths with time-varying κ(t), σ(t)
         rng    = np.random.default_rng(seed=int(t_now) % (2**31))
@@ -465,8 +467,11 @@ class STWAEngine:
             buckets_raw = bucket_map[city]   # [(lo, hi, yes_tok, no_tok), ...]
             buckets     = [(lo, hi) for lo, hi, _, _ in buckets_raw]
 
+            # Phase must be computed before MC so sigma damping is applied correctly
+            phase = _phase(cs, t_close_map[city], now)
+
             try:
-                probs = self._forecast_bucket_probs(city, now, t_close, buckets)
+                probs = self._forecast_bucket_probs(city, now, t_close, buckets, phase=phase)
             except Exception as e:
                 logger.debug("[STWA] MC error %s: %s", city, e)
                 _g["mc"] += 1
@@ -489,7 +494,6 @@ class STWAEngine:
             c_age      = math.exp(-0.15 * metar_age / 3600)                   # 0→1.0, 20min→0.95
             c_variance = math.exp(-p_var / max(float(self._C[cs.idx, cs.idx]), 0.1))
             c_regime   = 1.0 if cs.regime == "SUNNY" else 0.75
-            phase      = _phase(cs, t_close_map[city], now)
             c_phase    = {"PRE_PEAK": 0.80, "AT_PEAK": 0.60, "POST_PEAK": 0.95}.get(phase, 0.80)
 
             confidence = c_age * c_variance * c_regime * c_phase
