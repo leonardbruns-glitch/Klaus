@@ -76,6 +76,10 @@ _TARGETS: dict[str, tuple[float, float]] = {
     # Americas
     "CYYZ": (43.68, -79.63),   # Toronto Pearson      (ECCC Canada)
     "FAOR": (-26.14,  28.24),  # Johannesburg OR Tambo (SAWS — same node as FACT)
+    # Southeast Asia — previously AWC-only, now WIS2-covered
+    "WMKK": (2.74,  101.70),   # Kuala Lumpur Intl    (MetMalaysia)
+    "RPLL": (14.51, 121.02),   # Manila Ninoy Aquino  (PAGASA Philippines)
+    "OPKC": (24.91,  67.16),   # Karachi Jinnah       (PMD Pakistan)
 }
 
 _MAX_DIST_DEG = 0.15  # ~17km — tight enough to exclude off-airport ground stations
