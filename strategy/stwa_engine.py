@@ -246,6 +246,7 @@ class STWAEngine:
         if not self._params or city not in self._cities:
             return
 
+        logger.debug("[STWA] on_metar %s temp=%.1f obs_ts=%d", city, temp_c, int(obs_ts))
         cs  = self._cities[city]
         idx = cs.idx
         st  = self._params["stations"].get(city, {})

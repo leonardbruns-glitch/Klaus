@@ -4012,6 +4012,7 @@ class WeatherArb:
             logger.exception("[STWA] get_signals error")
             return
 
+        logger.info("[STWA] signal_scan: cities=%d signals=%d", len(bucket_map), len(signals))
         if not signals:
             return
 
