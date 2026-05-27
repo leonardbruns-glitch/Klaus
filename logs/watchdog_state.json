@@ -1,45 +1,18 @@
 {
-  "ts": "2026-05-26T01:21:50Z",
-  "prior_capital": 30.935465,
-  "prior_trade_count": 6967,
+  "ts": "2026-05-27T00:18:17Z",
+  "prior_capital": 29.026535,
+  "prior_trade_count": 6971,
   "prior_volarb_count": 887,
-  "prior_volarb_last_ts": 1779159033.2039528,
+  "prior_volarb_last_ts": 1779159033.0,
   "alerts": {
-    "MIRROR_STALE": {
-      "active": false,
-      "last_alert_ts": null
-    },
-    "BOT_DOWN": {
-      "active": false,
-      "last_alert_ts": "2026-05-17T19:18:00Z"
-    },
-    "CAPITAL_DROP": {
-      "active": false,
-      "last_alert_ts": "2026-05-21T14:18:50Z"
-    },
-    "CAPITAL_RUIN": {
-      "active": false,
-      "last_alert_ts": "2026-05-21T14:18:50Z"
-    },
-    "TRADE_LOOP_SILENT": {
-      "active": true,
-      "last_alert_ts": "2026-05-26T01:21:50Z"
-    },
-    "VOLARB_ROLLING_DRAWDOWN": {
-      "active": true,
-      "last_alert_ts": "2026-05-26T00:18:36Z"
-    },
-    "VOLARB_TRADE_LOOP_SILENT": {
-      "active": true,
-      "last_alert_ts": "2026-05-26T00:18:36Z"
-    },
-    "STALE_AUDIT_PR": {
-      "active": false,
-      "last_alert_ts": null
-    },
-    "SHADOW_LOGGER_STALLED": {
-      "active": false,
-      "last_alert_ts": "2026-05-22T08:18:09Z"
-    }
+    "MIRROR_STALE": {"active": false, "last_alert_ts": null},
+    "BOT_DOWN": {"active": false, "last_alert_ts": "2026-05-17T19:18:00Z"},
+    "CAPITAL_DROP": {"active": false, "last_alert_ts": "2026-05-21T14:18:50Z"},
+    "CAPITAL_RUIN": {"active": true, "last_alert_ts": "2026-05-27T00:18:17Z"},
+    "TRADE_LOOP_SILENT": {"active": false, "last_alert_ts": "2026-05-26T01:21:50Z"},
+    "VOLARB_ROLLING_DRAWDOWN": {"active": true, "last_alert_ts": "2026-05-27T00:18:17Z"},
+    "VOLARB_TRADE_LOOP_SILENT": {"active": true, "last_alert_ts": "2026-05-27T00:18:17Z"},
+    "STALE_AUDIT_PR": {"active": false, "last_alert_ts": null},
+    "SHADOW_LOGGER_STALLED": {"active": false, "last_alert_ts": "2026-05-22T08:18:09Z"}
   }
 }
