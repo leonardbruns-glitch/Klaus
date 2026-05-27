@@ -3380,7 +3380,32 @@ class WeatherArb:
         icaos_needed &= covered_icaos()
         if not icaos_needed:
             return 0
-        return await poll_all(icaos_needed, self._icao_metar_cache, ICAO_UTC_OFFSET_H)
+        result = await poll_all(icaos_needed, self._icao_metar_cache, ICAO_UTC_OFFSET_H)
+
+        # Feed any new NMS observations to the STWA Kalman engine.
+        # AWC's on_metar hook only fires for AWC-sourced obs; NMS (Synoptic/WIS2)
+        # updates _icao_metar_cache directly, so we mirror them here.
+        if result > 0 and self._stwa is not None:
+            import time as _t
+            _now_str = __import__("datetime").date.today().isoformat()
+            for _icao, _slug in ICAO_TO_SLUG.items():
+                _cached = self._icao_metar_cache.get(_icao)
+                if not _cached:
+                    continue
+                _cache_ts = _cached.get("last_obs_time", 0.0)
+                if _cache_ts > self._stwa.get_last_obs_ts(_slug):
+                    _temp = _cached.get("temp_c")
+                    if _temp is not None:
+                        self._stwa.on_metar(
+                            _slug, _temp,
+                            _cached.get("dewpoint_c"),
+                            SKY_RANK_MAP.get(_cached.get("sky_cover", "CLR"), 2),
+                            _cache_ts,
+                            _cached.get("running_max_c"),
+                            _cached.get("running_max_date", _now_str),
+                        )
+
+        return result
 
     async def _poll_metars(self) -> None:
         """

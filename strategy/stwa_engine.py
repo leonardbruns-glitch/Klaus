@@ -584,6 +584,11 @@ class STWAEngine:
             })
         return rows
 
+    def get_last_obs_ts(self, city: str) -> float:
+        """Return the last METAR observation timestamp for a city (0.0 if unseen)."""
+        cs = self._cities.get(city)
+        return cs.last_obs_ts if cs is not None else 0.0
+
     def calibration_summary(self) -> dict:
         out = {}
         for city, log in self._cal_log.items():
