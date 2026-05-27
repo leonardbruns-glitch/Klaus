@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+2dad5ce9 fix: STWA POST_PEAK sigma damping + NWP 6h cache refresh
+fd0546c6 Watchdog 2026-05-27T17:19:00Z: OK 0 alerts (4 anomalies, all within backoff)
+75691491 Watchdog 2026-05-27T16:18:49Z: HIGH 4 anomalies (all within backoff, no new alerts)
 144c79c3 fix: wire STWA reset_daily() at UTC midnight
 8bda1a83 fix: stop watchdog restart + log live CLOB ask for STWA signals
 73ad823f chore: remove debug logs from STWA pipeline (pipeline confirmed working)
@@ -9,15 +12,12 @@ e4a9f6ad fix: skip one-sided buckets (None lo/hi) in STWA bucket_map
 e3ffa8d5 debug: add per-gate counters to STWA get_signals() for diagnosis
 d40dedc5 fix: remove neg-risk consistency check from STWA get_signals()
 77a084da fix: relax STWA METAR_MAX_AGE 1200→3600s for hourly-reporting stations
-e59a2158 fix: feed NMS observations to STWA Kalman engine
-a90780cc fix: use CITY_NAME_TO_SLUG key in STWA bucket_map (was raw city name)
-d45a01f2 debug: add signal_scan count log + on_metar DEBUG trace for STWA diagnosis
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   83G       10G  90% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 16:20:03 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 18:41:54 UTC
 
 ## Open positions (count):
 0
