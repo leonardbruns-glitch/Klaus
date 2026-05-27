@@ -161,7 +161,7 @@ class STWAEngine:
         logger.info("[STWA] loaded params: %d cities, %dx%d covariance", N, N, N)
 
     def reset_daily(self) -> None:
-        """Call at midnight UTC to reset Kalman state and running maxima."""
+        """Reset all cities (legacy — prefer reset_city for per-city local midnight)."""
         with self._lock:
             N = len(self._city_list)
             self._X = np.zeros(N)
@@ -172,7 +172,25 @@ class STWAEngine:
                 cs.x_hat       = 0.0
             self._nwp_cache.clear()
             self._nwp_date = ""
-        logger.info("[STWA] daily reset — Kalman state re-initialised")
+        logger.info("[STWA] full daily reset — Kalman state re-initialised")
+
+    def reset_city(self, city: str) -> None:
+        """Reset one city at its local midnight without disturbing other cities."""
+        with self._lock:
+            cs = self._cities.get(city)
+            if cs is None:
+                return
+            i = cs.idx
+            # Zero this city's component in the joint state vector
+            self._X[i] = 0.0
+            # Reset row/col i of P back to the prior spatial covariance
+            self._P[i, :] = self._C[i, :]
+            self._P[:, i] = self._C[:, i]
+            cs.running_max = None
+            cs.obs_date    = ""
+            cs.x_hat       = 0.0
+            self._nwp_cache.pop(city, None)
+        logger.info("[STWA] city reset at local midnight: %s", city)
 
     # ── NWP forecast ───────────────────────────────────────────────────────────
 
@@ -669,16 +687,21 @@ def _phase(cs: _CityState, t_close: float, t_now: float) -> str:
     import datetime
     try:
         from strategy.weather_arb import CITY_PEAK_HOUR_UTC, CITY_NAME_TO_SLUG
-        slug     = CITY_NAME_TO_SLUG.get(cs.city, cs.city)
-        month    = datetime.datetime.utcnow().month
-        peak_h   = CITY_PEAK_HOUR_UTC.get(slug, {}).get(month, 14)
+        slug   = CITY_NAME_TO_SLUG.get(cs.city, cs.city)
+        month  = datetime.datetime.utcnow().month
+        peak_h = CITY_PEAK_HOUR_UTC.get(slug, {}).get(month, 14)
     except Exception:
         peak_h = 14
-    current_h = int((t_now % 86400) / 3600)
-    diff = current_h - peak_h
-    if diff < -1:
+    # Anchor peak time to t_close (market close = local midnight), then walk back
+    # to find the most recent occurrence of peak_h UTC before t_close.
+    # This is timezone-agnostic and handles Americas cities where peak_h < UTC midnight.
+    t_close_h = int((t_close % 86400) / 3600)
+    hours_since_peak = (t_close_h - peak_h) % 24  # hours from peak to close (same day)
+    peak_time = t_close - hours_since_peak * 3600
+    diff_s = t_now - peak_time
+    if diff_s < -3600:
         return "PRE_PEAK"
-    elif diff > 1:
+    elif diff_s > 3600:
         return "POST_PEAK"
     else:
         return "AT_PEAK"
