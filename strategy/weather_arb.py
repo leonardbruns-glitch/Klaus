@@ -3157,6 +3157,12 @@ class WeatherArb:
             if obs_time <= cached.get("last_obs_time", 0):
                 continue  # not a new observation
 
+            # Guard: skip observations from a different local day (protects 24h backfill
+            # from including yesterday's peak for western-hemisphere cities like SBGR/CYYZ).
+            _obs_local_date = (datetime.fromtimestamp(obs_time, tz=timezone.utc) + _td(hours=_tz_h)).date().isoformat()
+            if _obs_local_date != today_str:
+                continue
+
             # Prefer the RMK T-group (0.1°C precision) over the rounded METAR temp field.
             # Format: T[s][TTT][s][TTT] — sign=0/1, exactly 3 digits = tenths of °C.
             # e.g. T02750211 → dry=+27.5°C, dew=+21.1°C.
