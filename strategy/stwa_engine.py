@@ -557,6 +557,32 @@ class STWAEngine:
                 self._suspended.discard(city)
                 logger.info("[STWA] %s re-activated — ECE=%.3f < 0.07", city, ece)
 
+    def get_state_snapshot(self, t_now: Optional[float] = None) -> list[dict]:
+        """Dump current Kalman state per city — no CLOB data needed. For shadow logging."""
+        now = t_now or time.time()
+        rows = []
+        for city, cs in self._cities.items():
+            with self._lock:
+                idx   = cs.idx
+                p_mu  = float(self._X[idx])
+                p_var = float(self._P[idx, idx])
+            st = self._params["stations"].get(city, {})
+            hour_utc = int((now % 86400) / 3600)
+            nwp_mu = self._get_mu(city, hour_utc)
+            rows.append({
+                "ts":           round(now),
+                "city":         city,
+                "regime":       cs.regime,
+                "running_max":  cs.running_max,
+                "last_obs_ts":  cs.last_obs_ts,
+                "metar_age_s":  round(now - cs.last_obs_ts) if cs.last_obs_ts > 0 else None,
+                "kalman_mu":    round(p_mu, 3),
+                "kalman_var":   round(p_var, 4),
+                "nwp_mu":       round(nwp_mu, 2) if math.isfinite(nwp_mu) else None,
+                "suspended":    city in self._suspended,
+            })
+        return rows
+
     def calibration_summary(self) -> dict:
         out = {}
         for city, log in self._cal_log.items():

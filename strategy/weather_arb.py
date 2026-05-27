@@ -1504,18 +1504,18 @@ class WeatherArb:
                     _last_nwp_refresh = now_ts
                     logger.info("[STWA] NWP cache refreshed for %d cities", len(_STWA_STATIONS))
 
-                # Signal logging
-                sigs = self._stwa.get_signals()
-                if not sigs:
+                # State snapshot logging (no CLOB needed)
+                rows = self._stwa.get_state_snapshot()
+                if not rows:
                     continue
                 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
                 out_dir = shadow_dir / today
                 out_dir.mkdir(parents=True, exist_ok=True)
-                out_path = out_dir / "stwa_signals.jsonl"
+                out_path = out_dir / "stwa_state.jsonl"
                 with open(out_path, "a") as _fh:
-                    for sig in sigs:
-                        _fh.write(_json.dumps(sig) + "\n")
-                logger.debug("[STWA] %d shadow signals written to %s", len(sigs), out_path)
+                    for row in rows:
+                        _fh.write(_json.dumps(row) + "\n")
+                logger.debug("[STWA] %d state rows written to %s", len(rows), out_path)
             except asyncio.CancelledError:
                 break
             except Exception as _e:
