@@ -3151,7 +3151,7 @@ class WeatherArb:
         import time as _time
         if _time.time() - self._today_markets_ts < TODAY_MARKETS_TTL:
             return
-        today = __import__("datetime").date.today().isoformat()
+        _now_utc = datetime.now(timezone.utc)
         events = await self._fetch_weather_events()
         entries = []
         from strategy.resolution_mapper import resolve_station, STATION_COORDS as _SC
@@ -3186,8 +3186,12 @@ class WeatherArb:
             if icao is None:
                 n_no_icao += 1
 
+            # Local date for this city — each market closes at its own midnight
+            _tz_h = ICAO_UTC_OFFSET_H.get(icao or "", 0)
+            _local_today = (_now_utc + timedelta(hours=_tz_h)).date().isoformat()
+
             for mkt in ev.get("markets", []):
-                if mkt.get("endDate", "")[:10] != today:
+                if mkt.get("endDate", "")[:10] != _local_today:
                     continue
                 if mkt.get("closed", False):
                     continue
