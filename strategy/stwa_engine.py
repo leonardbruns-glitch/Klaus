@@ -43,7 +43,7 @@ N_PATHS        = 8_000   # Monte Carlo paths per city
 MC_STEP_S      = 300     # 5-minute simulation time step (seconds)
 EDGE_MIN       = 0.08    # minimum edge to generate a signal
 CONFIDENCE_MIN = 0.45    # minimum confidence score
-METAR_MAX_AGE  = 1200    # seconds — don't use obs older than 20 min
+METAR_MAX_AGE  = 3600    # seconds — METAR stations report hourly; allow up to 60 min
 MIN_TIME_REM   = 1800    # don't fire within 30 min of market close
 HOUR_BINS      = [(0, 6), (6, 12), (12, 18), (18, 24)]
 
