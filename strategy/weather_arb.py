@@ -699,6 +699,27 @@ CITY_PEAK_HOUR_UTC: dict[str, dict[int, int]] = {
     "shenzhen":    {1: 5, 2: 6, 3: 5, 4: 4, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 5, 11: 5, 12: 6},
 }
 
+# ICAO → STWA city slug (matches stations.py, used by the Kalman engine)
+ICAO_TO_SLUG: dict[str, str] = {
+    "KLGA": "nyc",          "KORD": "chicago",      "KLAX": "los-angeles",
+    "KMIA": "miami",        "KSFO": "san-francisco", "RJTT": "tokyo",
+    "EGLC": "london",       "KDAL": "dallas",        "KHOU": "houston",
+    "KSEA": "seattle",      "KBKF": "denver",        "KATL": "atlanta",
+    "LFPB": "paris",        "LEMD": "madrid",        "EHAM": "amsterdam",
+    "ZBAA": "beijing",      "ZSPD": "shanghai",      "WSSS": "singapore",
+    "WIHH": "jakarta",      "CYYZ": "toronto",       "MMMX": "mexico-city",
+    "SAEZ": "buenos-aires", "SBGR": "sao-paulo",     "EDDM": "munich",
+    "EPWA": "warsaw",       "LIMC": "milan",          "EFHK": "helsinki",
+    "KAUS": "austin",       "RCSS": "taipei",         "FACT": "cape-town",
+    "ZSQD": "qingdao",      "LLBG": "tel-aviv",       "LTFM": "istanbul",
+    "UUWW": "moscow",       "ZGSZ": "shenzhen",       "ZGGG": "guangzhou",
+}
+
+# Sky cover string → rank 0-4 (matches STWAEngine SKY_RANK convention)
+SKY_RANK_MAP: dict[str, int] = {
+    "CLR": 0, "SKC": 0, "NSC": 0, "FEW": 1, "SCT": 2, "BKN": 3, "OVC": 4, "VV": 4,
+}
+
 # Per-city/month/UTC-hour mean remaining rise in °C (how much more the temp typically rises
 # from this observation hour to the daily maximum). From 5yr ASOS data, sky-cover-independent.
 # Apply sky_factor on top: CLR=1.0, FEW=0.85, SCT=0.60, BKN=0.30, OVC=0.08
@@ -1377,6 +1398,20 @@ class WeatherArb:
 
         from strategy.ensemble_weights import WeightedEnsemble
         self._ensemble = WeightedEnsemble()
+
+        # ── STWA engine (shadow mode until validated) ─────────────────────────
+        try:
+            from strategy.stwa_engine import STWAEngine
+            _stwa_params = Path(__file__).parent.parent / "config" / "stwa_params.json"
+            self._stwa: Optional[STWAEngine] = (
+                STWAEngine(params_path=_stwa_params) if _stwa_params.exists() else None
+            )
+            if self._stwa:
+                logger.info("[STWA] engine loaded — shadow mode active")
+        except Exception as _e:
+            logger.warning("[STWA] engine load failed: %s", _e)
+            self._stwa = None
+        self._stwa_shadow_task: Optional[asyncio.Task] = None
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
         # process newly appended actual events each METAR cycle.
         self._wu_actuals_offset: int = 0
@@ -1431,11 +1466,60 @@ class WeatherArb:
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop(), name="weather_arb_loop")
         self._metar_task = asyncio.create_task(self._metar_loop(), name="weather_metar_loop")
+        if self._stwa is not None:
+            self._stwa_shadow_task = asyncio.create_task(
+                self._stwa_shadow_loop(), name="stwa_shadow_loop"
+            )
         try:
             from strategy.wis2_synop import start as _wis2_start
             _wis2_start()
         except Exception as _e:
             logger.warning("[WA] WIS2 subscriber failed to start: %s", _e)
+
+    async def _stwa_shadow_loop(self) -> None:
+        """Every 30s: log STWA shadow signals. Every 6h: refresh NWP cache for all STWA cities."""
+        import json as _json
+        from analysis.weather.stations import STATIONS as _STWA_STATIONS
+        shadow_dir = Path(__file__).parent.parent / "logs" / "shadow" / "hot"
+        _last_nwp_refresh = 0.0
+        _NWP_REFRESH_INTERVAL = 6 * 3600  # 6 hours
+        while True:
+            try:
+                await asyncio.sleep(30)
+                if self._stwa is None:
+                    break
+
+                now_ts = datetime.now(timezone.utc).timestamp()
+
+                # NWP refresh: on first run and every 6h
+                if now_ts - _last_nwp_refresh >= _NWP_REFRESH_INTERVAL:
+                    for slug, st in _STWA_STATIONS.items():
+                        try:
+                            hourly = await self._get_hourly_forecast(st.lat, st.lon)
+                            if hourly:
+                                self._stwa.update_nwp_forecast(slug, hourly)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(0.1)  # gentle rate limit
+                    _last_nwp_refresh = now_ts
+                    logger.info("[STWA] NWP cache refreshed for %d cities", len(_STWA_STATIONS))
+
+                # Signal logging
+                sigs = self._stwa.get_signals()
+                if not sigs:
+                    continue
+                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                out_dir = shadow_dir / today
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_path = out_dir / "stwa_signals.jsonl"
+                with open(out_path, "a") as _fh:
+                    for sig in sigs:
+                        _fh.write(_json.dumps(sig) + "\n")
+                logger.debug("[STWA] %d shadow signals written to %s", len(sigs), out_path)
+            except asyncio.CancelledError:
+                break
+            except Exception as _e:
+                logger.debug("[STWA] shadow loop error: %s", _e)
 
     @staticmethod
     def _seconds_to_next_nwp_slot() -> tuple[float, bool]:
@@ -3262,6 +3346,25 @@ class WeatherArb:
                 "precip_24h_mm": precip_24h_mm,
             })
             new_obs_count += 1
+
+            # ── STWA Kalman update ────────────────────────────────────────────
+            if self._stwa is not None:
+                try:
+                    _slug = ICAO_TO_SLUG.get(icao, "")
+                    if _slug:
+                        _dew  = cached.get("dewpoint_c")
+                        _sky  = SKY_RANK_MAP.get(sky_cover, 2)
+                        self._stwa.on_metar(
+                            _slug,
+                            temp_c,
+                            float(_dew) if _dew is not None else None,
+                            _sky,
+                            obs_time,
+                            new_max,
+                            today_str,
+                        )
+                except Exception:
+                    pass   # never crash the main METAR loop
 
         return new_obs_count > 0
 
