@@ -44,7 +44,7 @@ _TARGETS: dict[str, tuple[float, float]] = {
     "SAEZ": (-34.82,-58.54),   # Buenos Aires Ezeiza  (SMN Argentina)
     "MMMX": (19.44, -99.07),   # Mexico City          (SMN Mexico)
     "LLBG": (32.00,  34.87),   # Ben Gurion           (IMS Israel)
-    "WIHH": (-6.13, 106.65),   # Jakarta Halim        (BMKG Indonesia)
+    "WIHH": (-6.266, 106.891),  # Jakarta Halim        (BMKG Indonesia)
     "RCSS": (25.07, 121.55),   # Taipei Songshan      (CWB Taiwan)
     "FACT": (-33.96,  18.60),  # Cape Town            (SAWS South Africa)
     "ZBAA": (40.08, 116.59),   # Beijing Capital      (CMA China via GTS)
