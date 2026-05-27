@@ -2680,6 +2680,18 @@ class WeatherArb:
             no_ask_clob = (no_book["asks"][0]["price"] if no_book.get("asks") else None)
             yes_bid_clob = (yes_book["bids"][0]["price"] if yes_book.get("bids") else None)
 
+            # CLOB-based depth: Gamma bestBid lags CLOB heavily on weather markets.
+            # When Gamma shows 0.62 but CLOB is at 0.15, the Gamma-based cap (0.38)
+            # misses NO asks sitting at 0.85. Use CLOB bid for the authoritative check.
+            if yes_bid_clob is not None:
+                _no_ask_clob_implied = max(0.0, 1.0 - yes_bid_clob)
+                no_ask_usd_at_clob_implied = round(sum(
+                    lvl["usd"] for lvl in no_book.get("asks", [])
+                    if lvl["price"] <= _no_ask_clob_implied + tol
+                ), 2)
+            else:
+                no_ask_usd_at_clob_implied = no_ask_usd_at_implied
+
             record = {
                 "schema_version": 2,
                 "record_type": "metar_lockout_candidate",
@@ -2705,6 +2717,7 @@ class WeatherArb:
                 "no_ask_clob": no_ask_clob,
                 "yes_bid_clob": yes_bid_clob,
                 "no_ask_usd_at_implied": no_ask_usd_at_implied,
+                "no_ask_usd_at_clob_implied": no_ask_usd_at_clob_implied,
                 "yes_bid_usd_at_quoted": yes_bid_usd_at_quoted,
                 "fill_path": fill_path,
                 "seconds_since_first_lockout": int(now_ts - first_seen),
@@ -2729,9 +2742,11 @@ class WeatherArb:
                         mkt=mkt, city=city, icao=icao, end_date=end_date,
                         question=question, lo_c=lo_c, hi_c=hi_c,
                         running_max=float(running_max), yes_bid=yes_bid_f,
+                        yes_bid_clob=yes_bid_clob,
                         no_token_id=no_token_id, no_ask_clob=no_ask_clob,
                         no_book=no_book,
                         no_ask_usd_at_implied=no_ask_usd_at_implied,
+                        no_ask_usd_at_clob_implied=no_ask_usd_at_clob_implied,
                         seconds_to_close=seconds_to_close,
                     )
                 except Exception:
@@ -2785,8 +2800,10 @@ class WeatherArb:
         self, *, now_ts: float, now_utc, first_seen: float,
         mkt: dict, city: str, icao: str, end_date: str,
         question: str, lo_c, hi_c, running_max: float, yes_bid: float,
+        yes_bid_clob=None,
         no_token_id: str, no_ask_clob, no_book: dict,
-        no_ask_usd_at_implied: float, seconds_to_close,
+        no_ask_usd_at_implied: float, no_ask_usd_at_clob_implied=None,
+        seconds_to_close,
     ) -> None:
         """Multi-layer surface: one fire per (bucket × layer). Up to 5 fires per bucket.
 
@@ -2801,6 +2818,16 @@ class WeatherArb:
         sec_since = int(now_ts - first_seen)
         depth_c = running_max - (hi_c if hi_c is not None else running_max)
 
+        # Prefer CLOB prices over Gamma for all gates. Gamma bestBid lags the CLOB
+        # on weather markets by minutes; using it causes depth caps that miss where
+        # NO asks actually sit (e.g. Gamma 0.62 → cap 0.38, but CLOB 0.15 → cap 0.85).
+        eff_yes_bid = yes_bid_clob if yes_bid_clob is not None else yes_bid
+        eff_depth = (
+            no_ask_usd_at_clob_implied
+            if no_ask_usd_at_clob_implied is not None
+            else no_ask_usd_at_implied
+        )
+
         # === Universal blocks (apply to every layer) ===
         # Hong Kong resolves against HK Observatory, not VHHH — station mismatch confirmed.
         if icao == "VHHH":
@@ -2809,10 +2836,9 @@ class WeatherArb:
             return
         if depth_c < M1_BETA_PROBE_MIN_DEPTH_C:
             return  # integer-bucket misclass guard
-        if yes_bid >= M1_BETA_PROBE_MAX_EDGE:
-            return  # γ poison cell — never fire above 0.50 edge
-        # Belt-and-suspenders γ-block (redundant with MAX_EDGE but explicit)
-        if yes_bid >= 0.50 and sec_since >= M1_BETA_PROBE_GAMMA_BLOCK_SEC:
+        if eff_yes_bid >= M1_BETA_PROBE_MAX_EDGE:
+            return
+        if eff_yes_bid >= 0.50 and sec_since >= M1_BETA_PROBE_GAMMA_BLOCK_SEC:
             return
         if no_ask_clob is None or no_ask_clob >= 1.0:
             return
@@ -2829,9 +2855,9 @@ class WeatherArb:
             return
 
         # === Layer-specific gates ===
-        if yes_bid < layer_min_edge:
+        if eff_yes_bid < layer_min_edge:
             return
-        if (no_ask_usd_at_implied or 0.0) < layer_min_depth:
+        if (eff_depth or 0.0) < layer_min_depth:
             return
 
         st = self._m1_beta_probe_load_state()
@@ -2883,9 +2909,12 @@ class WeatherArb:
             "bucket_lo_c": round(lo_c, 4) if lo_c is not None else None,
             "bucket_hi_c": round(hi_c, 4) if hi_c is not None else None,
             "depth_c": round(depth_c, 3),
-            "yes_bid_at_signal": round(yes_bid, 4),
+            "yes_bid_gamma_at_signal": round(yes_bid, 4),
+            "yes_bid_clob_at_signal": round(yes_bid_clob, 4) if yes_bid_clob is not None else None,
+            "yes_bid_at_signal": round(eff_yes_bid, 4),
             "no_ask_clob_at_signal": round(no_ask_clob, 4),
-            "no_visible_depth_usd_at_signal": round(no_ask_usd_at_implied, 2),
+            "no_visible_depth_usd_at_signal": round(eff_depth, 2),
+            "no_visible_depth_usd_gamma": round(no_ask_usd_at_implied, 2),
             "no_book_at_signal": no_book,
             "sec_since_first_lockout": sec_since,
             "sec_to_close": int(seconds_to_close) if seconds_to_close is not None else None,
