@@ -1412,6 +1412,7 @@ class WeatherArb:
             logger.warning("[STWA] engine load failed: %s", _e)
             self._stwa = None
         self._stwa_shadow_task: Optional[asyncio.Task] = None
+        self._stwa_last_utc_day: int = 0  # for daily Kalman reset at UTC midnight
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
         # process newly appended actual events each METAR cycle.
         self._wu_actuals_offset: int = 0
@@ -3979,6 +3980,12 @@ class WeatherArb:
 
         import time as _t
         now = _t.time()
+
+        # Reset Kalman state at UTC midnight so yesterday's residuals don't seed today.
+        _utc_day = int(now // 86400)
+        if self._stwa_last_utc_day and _utc_day != self._stwa_last_utc_day:
+            self._stwa.reset_daily()
+        self._stwa_last_utc_day = _utc_day
 
         bucket_map:  dict[str, list]  = {}
         t_close_map: dict[str, float] = {}
