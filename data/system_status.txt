@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+a330349e fix: use CLOB yes_bid (not Gamma) for M1 probe depth cap and edge gates
 16a9264f feat: add 7 remaining AWC-only cities to WIS2 targets
 5af84225 fix: exclude cross-day obs from running_max during 24h startup backfill
 f08b2b40 fix: backfill running_max from 24h METAR on startup to restore lockout detection
@@ -11,13 +12,12 @@ c91f353a feat: add JMA AMeDAS for RJTT (Tokyo Haneda, station 44166)
 00dc7964 fix: correct WIHH coordinates in WIS2 targets (30km off → exact match)
 0646c43d fix: add NYC alias to CITY_COORDS/CITY_ICAO (maps to KLGA)
 61e3510a feat: add WMKK/RPLL/OPKC to WIS2 targets (KL/Manila/Karachi gap)
-74c0a890 feat: remove M1β daily/total fire caps (9999 each)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   82G       12G  88% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   82G       12G  89% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 10:46:32 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 11:02:04 UTC
 
 ## Open positions (count):
 0
