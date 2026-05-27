@@ -173,8 +173,8 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # Do NOT modify these to "tune" — this is a measurement experiment.
 M1_BETA_PROBE_ENABLED          = True
 M1_BETA_PROBE_STAKE_USD        = 10.0   # target stake; depth gate stays at $5 so partial fills allowed
-M1_BETA_PROBE_MAX_DAILY_FIRES  = 15
-M1_BETA_PROBE_MAX_TOTAL_FIRES  = 30     # hard stop; bounds exposure to ~$150
+M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
+M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
 M1_BETA_PROBE_MIN_DEPTH_C      = 0.2    # 2× ASOS sensor noise (±0.1°C); 0.5° radius fix makes station contamination unlikely
