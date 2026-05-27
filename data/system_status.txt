@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+ad0bf61d fix: M1β lockout uses official_running_max_c (AWC/NWS METAR only)
+56c04a93 Watchdog 2026-05-27T21:18:34Z: OK 0 alerts (3 anomalies, all within backoff)
 bfeaabdd feat: AWC METAR batch — universal fallback for all ICAO airports globally
 0a87865b feat: M1β dip-rebuy — buy NO when market reprices on hourly METAR dip
 6c36d447 Watchdog 2026-05-27T20:18:17Z: OK 0 alerts (3 anomalies, all within backoff)
@@ -10,14 +12,12 @@ cd7e2cdb fix: per-city local time for STWA phase classification and Kalman reset
 ced231a6 fix: per-city local date in _today_markets_cache (not global UTC)
 2dad5ce9 fix: STWA POST_PEAK sigma damping + NWP 6h cache refresh
 fd0546c6 Watchdog 2026-05-27T17:19:00Z: OK 0 alerts (4 anomalies, all within backoff)
-75691491 Watchdog 2026-05-27T16:18:49Z: HIGH 4 anomalies (all within backoff, no new alerts)
-144c79c3 fix: wire STWA reset_daily() at UTC midnight
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   83G       10G  90% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 20:50:55 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 21:25:57 UTC
 
 ## Open positions (count):
 0
