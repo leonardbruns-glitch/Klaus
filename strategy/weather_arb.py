@@ -2465,6 +2465,10 @@ class WeatherArb:
                     await self._check_wu_transitions()
                     await self._oracle_metar_check()
                     await self._poll_national_met()
+                    try:
+                        await self._metar_lockout_scan()
+                    except Exception:
+                        logger.exception("[WA] metar lockout scan (nms) error")
                     if INTRADAY_ENABLED:
                         await self._intraday_scan()
                     if TAIL_SNIPER_ENABLED:

@@ -80,6 +80,27 @@ _TARGETS: dict[str, tuple[float, float]] = {
     "WMKK": (2.74,  101.70),   # Kuala Lumpur Intl    (MetMalaysia)
     "RPLL": (14.51, 121.02),   # Manila Ninoy Aquino  (PAGASA Philippines)
     "OPKC": (24.91,  67.16),   # Karachi Jinnah       (PMD Pakistan)
+    # European capitals — national NMS nodes active on WIS2
+    "ESSA": (59.65,  17.92),   # Stockholm Arlanda    (SMHI Sweden)
+    "ENGM": (60.19,  11.09),   # Oslo Gardermoen      (MET Norway)
+    "EKCH": (55.62,  12.65),   # Copenhagen Kastrup   (DMI Denmark)
+    "LOWW": (48.11,  16.57),   # Vienna Schwechat     (ZAMG Austria)
+    "LSZH": (47.46,   8.55),   # Zurich Kloten        (MeteoSwiss)
+    "EBBR": (50.90,   4.48),   # Brussels Zaventem    (RMI Belgium)
+    "LKPR": (50.10,  14.26),   # Prague Ruzyne        (CHMI Czechia)
+    "LHBP": (47.43,  19.26),   # Budapest Ferihegy    (OMSZ Hungary)
+    "LROP": (44.57,  26.10),   # Bucharest Otopeni    (ANM Romania)
+    "LGAV": (37.94,  23.95),   # Athens Eleftherios   (HNMS Greece)
+    # South Asia — IMD and BMD are active WIS2 publishers
+    "VIDP": (28.57,  77.10),   # Delhi IGI            (IMD India)
+    "VABB": (19.09,  72.87),   # Mumbai Chhatrapati   (IMD India — same node as VIDP)
+    "VILK": (26.77,  80.89),   # Lucknow Amausi       (IMD India — same node as VIDP)
+    "VGHS": (23.84,  90.40),   # Dhaka Hazrat Shahjalal (BMD Bangladesh)
+    # Southeast Asia — TMD active WIS2 publisher
+    "VTBS": (13.69, 100.75),   # Bangkok Suvarnabhumi (TMD Thailand)
+    # Middle East — GAMEP Saudi Arabia active WIS2 publisher
+    "OEJN": (21.68,  39.15),   # Jeddah King Abdulaziz (GAMEP Saudi Arabia)
+    "OERK": (24.96,  46.70),   # Riyadh King Khalid   (GAMEP Saudi Arabia — same node as OEJN)
 }
 
 _MAX_DIST_DEG = 0.15  # ~17km — tight enough to exclude off-airport ground stations

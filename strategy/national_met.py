@@ -103,6 +103,7 @@ _NWS_STATIONS: set[str] = {
     "KBKF",   # Denver (Buckley AFB, closest to KBKF)
     "KATL",   # Atlanta
     "KAUS",   # Austin
+    "KPHX",   # Phoenix Sky Harbor
 }
 
 # ── Synoptic HF-ASOS (US cities — 1-min obs, 2-5 min latency) ─────────────────
@@ -124,6 +125,7 @@ _SYNOPTIC_STATIONS: dict[str, str] = {
     "KBKF": "KBKF",
     "KATL": "KATL",
     "KAUS": "KAUS",
+    "KPHX": "KPHX",
 }
 # Max obs age to trust Synoptic over NWS fallback (57-min KBKF outlier observed)
 _SYNOPTIC_MAX_AGE_S = 1800  # 30 min — staleness beyond this → NWS takes over
