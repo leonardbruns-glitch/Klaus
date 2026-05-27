@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+a90780cc fix: use CITY_NAME_TO_SLUG key in STWA bucket_map (was raw city name)
+d45a01f2 debug: add signal_scan count log + on_metar DEBUG trace for STWA diagnosis
+2f7e3478 feat: wire STWA get_signals() into 60s metar slow-path
+01dbbed4 chore: restore STWA shadow loop exception level to DEBUG (verified working)
+bfe09b58 Watchdog 2026-05-27T15:18Z: HIGH 4 alerts (all in backoff)
 b454873b debug: raise STWA shadow loop exception level to WARNING for diagnosis
 4ee8074a fix: replace get_signals() with get_state_snapshot() in STWA shadow loop
 722142fa feat: add STWA fetch/fit pipeline and Kalman engine
 72d52301 feat: complete STWA Kalman engine wiring into weather_arb
 ecfb6b2c Watchdog 2026-05-27T14:18Z: OK 0 new alerts
-048ed15a Watchdog 2026-05-27T13:18Z: OK 0 new alerts
-a8bda3e1 VOLARB Scout 2026-05-27T1242Z — NULL (n=887 frozen, H5/H6/H7 zero-delta; capital anomaly +$67.3 flagged)
-45514314 VOLARB Audit 20260527-1224 — NO_PATCH (n=885, Δ=0, watch=13)
-3496d883 Watchdog 2026-05-27T12:22Z: HIGH 1 alert (TRADE_LOOP_SILENT re-triggered)
-b3437493 perf: move all NMS sources to 2s fast-path poll
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   82G       11G  89% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 15:16:54 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 15:33:46 UTC
 
 ## Open positions (count):
 0
