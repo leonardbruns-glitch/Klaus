@@ -438,23 +438,29 @@ class STWAEngine:
         now = t_now or time.time()
         br  = bankroll or self.bankroll
 
+        _g = {"no_bucket": 0, "t_close": 0, "regime": 0, "fresh": 0, "mc": 0, "conf": 0, "edge": 0, "ok": 0}
+
         for city, cs in self._cities.items():
             if city in self._suspended:
                 continue
             if city not in bucket_map or city not in t_close_map:
+                _g["no_bucket"] += 1
                 continue
 
             t_close = t_close_map[city]
             if t_close <= now + MIN_TIME_REM:
+                _g["t_close"] += 1
                 continue
 
             # Regime gate
             if cs.regime not in REGIME_FIRE:
+                _g["regime"] += 1
                 continue
 
             # Freshness gate
             metar_age = now - cs.last_obs_ts
             if cs.last_obs_ts <= 0 or metar_age > METAR_MAX_AGE:
+                _g["fresh"] += 1
                 continue
 
             buckets_raw = bucket_map[city]   # [(lo, hi, yes_tok, no_tok), ...]
@@ -464,9 +470,11 @@ class STWAEngine:
                 probs = self._forecast_bucket_probs(city, now, t_close, buckets)
             except Exception as e:
                 logger.debug("[STWA] MC error %s: %s", city, e)
+                _g["mc"] += 1
                 continue
 
             if not probs:
+                _g["mc"] += 1
                 continue
 
             # Each bucket is an independent YES/NO binary market on Polymarket.
@@ -488,6 +496,10 @@ class STWAEngine:
             confidence = c_age * c_variance * c_regime * c_phase
 
             if confidence < CONFIDENCE_MIN:
+                logger.debug("[STWA] %s conf=%.3f (age=%.2f var=%.2f reg=%.2f ph=%.2f) p_var=%.3f C=%.3f",
+                             city, confidence, c_age, c_variance, c_regime, c_phase,
+                             p_var, float(self._C[cs.idx, cs.idx]))
+                _g["conf"] += 1
                 continue
 
             for lo, hi, yes_tok, no_tok in buckets_raw:
@@ -531,6 +543,10 @@ class STWAEngine:
                                 kriging_pct=round(kriging_pct, 3),
                             ))
 
+        _g["ok"] = len(signals)
+        logger.info("[STWA] gates: no_bkt=%d t_close=%d regime=%d fresh=%d mc=%d conf=%d edge=%d signals=%d",
+                    _g["no_bucket"], _g["t_close"], _g["regime"], _g["fresh"],
+                    _g["mc"], _g["conf"], _g["edge"], _g["ok"])
         return signals
 
     # ── Calibration ────────────────────────────────────────────────────────────
