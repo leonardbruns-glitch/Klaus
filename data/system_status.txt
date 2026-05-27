@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+b4a5fd87 feat: add 6 Group-2 cities to WIS2 targets (new NMS nodes)
+8de3294b feat: add 8 Group-1 cities to WIS2 targets (same-NMS extensions)
+41df99f2 fix: M1β lockout scan uses local date per city, not UTC date
+b15cc837 Watchdog 2026-05-27T02:19Z: OK no new alerts (4 anomalies in backoff)
+cd231196 Watchdog 2026-05-27T01:18Z: HIGH 1 alert (TRADE_LOOP_SILENT)
+6774dbea VOLARB Scout 2026-05-27T0042Z — TERMINAL CLOSURE: n=887 frozen, all H1-H7 closed, H4 MOOT
+c9754afb VOLARB Audit 20260527-0021 — NO_PATCH (n=885, watch=6)
+309f9110 Watchdog 2026-05-27T00:18:17Z: CRITICAL 3 alerts
 585b82cd feat: lower M1β min_depth_c 0.5→0.2°C
 aa55ae29 fix: tighten WIS2 station match radius 0.5°→0.15° to prevent running_max inflation
-072614cd fix: include WIS2 targets in covered_icaos() so WIS2 drain reaches them
-a86b1e81 fix: reject aircraft-altitude temperatures in WIS2 BUFR decode
-563a2d23 feat: add 6 European/Canadian airports to WIS2 targets
-5bfadc8d feat: promote WIS2 decode hits to INFO log level
-4f898dc6 fix: Synoptic uses regular ICAO IDs (open_access blocks 1M), NWS fallback retained
-20220bfe feat: Synoptic HF-ASOS 1-min feed for all 11 US cities (2-5 min latency)
-7cc5cf50 fix: depth gate shares>=5 instead of usd>=5 (Polymarket min is 5 shares)
-15c597c3 feat: M1β stake $5→$10 (partial fills ok, depth gate stays at $5)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   81G       12G  88% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-05-26 21:57:11 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 04:28:26 UTC
 
 ## Open positions (count):
 0
