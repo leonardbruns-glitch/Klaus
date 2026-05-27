@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+cd7e2cdb fix: per-city local time for STWA phase classification and Kalman reset
+ced231a6 fix: per-city local date in _today_markets_cache (not global UTC)
 2dad5ce9 fix: STWA POST_PEAK sigma damping + NWP 6h cache refresh
 fd0546c6 Watchdog 2026-05-27T17:19:00Z: OK 0 alerts (4 anomalies, all within backoff)
 75691491 Watchdog 2026-05-27T16:18:49Z: HIGH 4 anomalies (all within backoff, no new alerts)
@@ -10,14 +12,12 @@ fd0546c6 Watchdog 2026-05-27T17:19:00Z: OK 0 alerts (4 anomalies, all within bac
 73ad823f chore: remove debug logs from STWA pipeline (pipeline confirmed working)
 e4a9f6ad fix: skip one-sided buckets (None lo/hi) in STWA bucket_map
 e3ffa8d5 debug: add per-gate counters to STWA get_signals() for diagnosis
-d40dedc5 fix: remove neg-risk consistency check from STWA get_signals()
-77a084da fix: relax STWA METAR_MAX_AGE 1200→3600s for hourly-reporting stations
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   83G       10G  90% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 18:41:54 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 19:06:28 UTC
 
 ## Open positions (count):
 0
