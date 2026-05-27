@@ -469,15 +469,9 @@ class STWAEngine:
             if not probs:
                 continue
 
-            # Neg-risk consistency check: probabilities must sum to ~1
-            total_p = sum(probs.values())
-            if not (0.7 <= total_p <= 1.3):
-                logger.debug("[STWA] %s prob sum=%.3f — skipping (consistency fail)", city, total_p)
-                continue
-
-            # Normalise probabilities (handle numerical noise)
-            if abs(total_p - 1.0) > 0.05:
-                probs = {k: v / total_p for k, v in probs.items()}
+            # Each bucket is an independent YES/NO binary market on Polymarket.
+            # Probabilities across open buckets do NOT need to sum to 1 — lower
+            # buckets may already be resolved/closed. Evaluate each independently.
 
             with self._lock:
                 idx   = cs.idx
