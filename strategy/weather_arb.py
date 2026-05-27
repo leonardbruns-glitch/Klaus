@@ -1307,6 +1307,7 @@ class WeatherArb:
         # shared by _poll_metars(), _intraday_scan(), and _tail_sniper_check().
         # Keyed by ICAO; persists running_max_c across poll cycles.
         self._icao_metar_cache: dict[str, dict] = {}
+        self._metar_backfill_done: bool = False  # first fetch uses hours=24 to rebuild running_max
 
         # Alias kept for forecast-correction path (reads same dict by a different name).
         self._latest_metar = self._icao_metar_cache
@@ -3120,8 +3121,10 @@ class WeatherArb:
                 _c["running_max_c"] = None
                 _c["running_max_date"] = _local_today
 
+        hours = 1 if self._metar_backfill_done else 24
+        self._metar_backfill_done = True
         url = (f"https://aviationweather.gov/api/data/metar"
-               f"?ids={','.join(icaos)}&format=json&hours=1")
+               f"?ids={','.join(icaos)}&format=json&hours={hours}")
         try:
             async with aiohttp.ClientSession() as sess:
                 async with sess.get(
