@@ -1790,21 +1790,28 @@ class WeatherArb:
         if lo_c is None and hi_c is None:
             return None
 
-        # Pre-entry METAR gate: only valid for same-day markets.
+        # Pre-entry METAR gate: only valid for same LOCAL day.
         # If today's run_max already exceeds this bucket's ceiling, the outcome
         # is impossible. For tomorrow's markets today's METAR is irrelevant.
-        _today = __import__("datetime").date.today().isoformat()
+        # Compare against LOCAL date: run_max resets at local midnight, so using
+        # UTC date causes false blocks for Western-hemisphere cities in the
+        # 00:00–local-midnight window where UTC is already "tomorrow" but the
+        # run_max accumulated for the previous local day.
         _icao = CITY_ICAO.get(city)
-        if end_date == _today and _icao and hi_c is not None:
-            _metar = self._icao_metar_cache.get(_icao)
-            if _metar:
-                _run_max = _metar.get("running_max_c")
-                if _run_max is not None and _run_max > hi_c:
-                    logger.info(
-                        "[WA] SKIP %s bucket=[%.1f,%.1f) — METAR run_max=%.1f°C already above ceiling",
-                        city, lo_c if lo_c is not None else float("-inf"), hi_c, _run_max,
-                    )
-                    return None
+        if _icao and hi_c is not None:
+            from datetime import datetime as _dt2, timezone as _tz2, timedelta as _td2
+            _tz_h = ICAO_UTC_OFFSET_H.get(_icao, 0)
+            _local_today = (_dt2.now(_tz2.utc) + _td2(hours=_tz_h)).date().isoformat()
+            if end_date == _local_today:
+                _metar = self._icao_metar_cache.get(_icao)
+                if _metar:
+                    _run_max = _metar.get("running_max_c")
+                    if _run_max is not None and _run_max > hi_c:
+                        logger.info(
+                            "[WA] SKIP %s bucket=[%.1f,%.1f) — METAR run_max=%.1f°C already above ceiling",
+                            city, lo_c if lo_c is not None else float("-inf"), hi_c, _run_max,
+                        )
+                        return None
 
         forecast_entry = forecast.get(end_date)
         if not forecast_entry:
