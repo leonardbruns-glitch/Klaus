@@ -31,6 +31,18 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# ── JMA AMeDAS (Japan) ───────────────────────────────────────────────────────
+# https://www.jma.go.jp/bosai/amedas/ — no auth, 10-min obs cycle
+# latest_time.txt → timestamp → map/{ts}.json → station data
+# Fills in between AWC's hourly METAR cycle for Tokyo.
+# Register free KMA key at https://apihub.kma.go.kr to activate Korea.
+# Register free AEMET key at https://opendata.aemet.es to activate Spain.
+_JMA_LATEST_URL = "https://www.jma.go.jp/bosai/amedas/data/latest_time.txt"
+_JMA_MAP_URL    = "https://www.jma.go.jp/bosai/amedas/data/map/{ts}.json"
+_JMA_STATIONS: dict[str, str] = {
+    "RJTT": "44166",   # Tokyo Haneda (0.5km from airport)
+}
+
 # ── KMA ──────────────────────────────────────────────────────────────────────
 _KMA_KEY = os.getenv("KMA_API_KEY", "")
 _KMA_URL = "https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php"
@@ -275,6 +287,60 @@ async def _fetch_kma(session, icao: str) -> Optional[dict]:
     return None
 
 
+async def _fetch_jma_batch(session) -> dict[str, dict]:
+    """
+    Fetch JMA AMeDAS 10-min surface obs for all _JMA_STATIONS in one request.
+    No auth required. Updates every 10 min; obs_age typically ~9 min.
+    Fills in between AWC's hourly METAR cycle for mid-hour new highs.
+    Returns {icao: obs_dict}.
+    """
+    try:
+        import aiohttp
+        async with session.get(_JMA_LATEST_URL,
+                               timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] JMA latest_time HTTP %d", resp.status)
+                return {}
+            ts_raw = (await resp.text()).strip()
+        # ts_raw e.g. "2026-05-27T14:10:00+09:00" — convert to UTC yyyymmddHHMMSS
+        obs_dt = datetime.fromisoformat(ts_raw).astimezone(timezone.utc)
+        ts_fmt = obs_dt.strftime("%Y%m%d%H%M%S")
+        map_url = _JMA_MAP_URL.format(ts=ts_fmt)
+        async with session.get(map_url,
+                               timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] JMA map HTTP %d", resp.status)
+                return {}
+            data = await resp.json(content_type=None)
+    except Exception as exc:
+        logger.debug("[NMS] JMA error: %s", exc)
+        return {}
+
+    result: dict[str, dict] = {}
+    obs_ts = obs_dt.timestamp()
+    for icao, stn_code in _JMA_STATIONS.items():
+        entry = data.get(stn_code)
+        if not entry:
+            continue
+        try:
+            temp_entry = entry.get("temp")
+            if temp_entry is None:
+                continue
+            temp_c = float(temp_entry[0])
+            quality = temp_entry[1] if len(temp_entry) > 1 else 0
+            if quality != 0:          # non-zero = suspect/missing
+                continue
+            if not (-50.0 < temp_c < 60.0):
+                continue
+            result[icao] = {
+                "temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
+                "utc_hour": obs_dt.hour, "source": "JMA",
+            }
+        except (KeyError, TypeError, ValueError, IndexError) as exc:
+            logger.debug("[NMS] JMA %s parse error: %s", icao, exc)
+    return result
+
+
 async def _fetch_dwd(session, icao: str) -> Optional[dict]:
     """Fetch latest obs from DWD via BrightSky API (no auth). Returns °C."""
     stn = _DWD_STATIONS.get(icao)
@@ -445,6 +511,9 @@ def _register() -> None:
     if _KMA_KEY:
         for icao in _KMA_ICAO_TO_STN.values():
             _FETCHERS[icao] = _fetch_kma
+    # JMA batch is called directly in poll_all(); mark ICAOs covered here
+    for icao in _JMA_STATIONS:
+        _FETCHERS[icao] = None   # sentinel: handled by _fetch_jma_batch
 
 _register()
 
@@ -547,8 +616,19 @@ async def poll_all(
                 if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
                     updates += 1
 
+    # ── JMA AMeDAS batch (10-min obs, ~9 min latency) — Japan ────────────
+    jma_needed = icaos_needed & set(_JMA_STATIONS)
+    if jma_needed:
+        async with _aiohttp.ClientSession() as session:
+            jma_batch = await _fetch_jma_batch(session)
+        for icao, obs in jma_batch.items():
+            if icao in jma_needed:
+                if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
+                    updates += 1
+
     # ── REST poll for stations in today's market cache ───────────────────
-    targets = icaos_needed & set(_FETCHERS)
+    # Skip JMA sentinels (None fetcher) — handled by _fetch_jma_batch above
+    targets = (icaos_needed & set(_FETCHERS)) - set(_JMA_STATIONS)
     if not targets:
         return updates
 
