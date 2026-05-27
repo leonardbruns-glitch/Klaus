@@ -1519,7 +1519,7 @@ class WeatherArb:
             except asyncio.CancelledError:
                 break
             except Exception as _e:
-                logger.warning("[STWA] shadow loop error: %s", _e, exc_info=True)
+                logger.debug("[STWA] shadow loop error: %s", _e)
 
     @staticmethod
     def _seconds_to_next_nwp_slot() -> tuple[float, bool]:
