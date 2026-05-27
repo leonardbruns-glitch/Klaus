@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+00dc7964 fix: correct WIHH coordinates in WIS2 targets (30km off → exact match)
+0646c43d fix: add NYC alias to CITY_COORDS/CITY_ICAO (maps to KLGA)
 61e3510a feat: add WMKK/RPLL/OPKC to WIS2 targets (KL/Manila/Karachi gap)
 74c0a890 feat: remove M1β daily/total fire caps (9999 each)
 6e70b82b fix: WA run_max skip gate uses local date per city, not UTC date
@@ -10,14 +12,12 @@ b4a5fd87 feat: add 6 Group-2 cities to WIS2 targets (new NMS nodes)
 41df99f2 fix: M1β lockout scan uses local date per city, not UTC date
 b15cc837 Watchdog 2026-05-27T02:19Z: OK no new alerts (4 anomalies in backoff)
 cd231196 Watchdog 2026-05-27T01:18Z: HIGH 1 alert (TRADE_LOOP_SILENT)
-6774dbea VOLARB Scout 2026-05-27T0042Z — TERMINAL CLOSURE: n=887 frozen, all H1-H7 closed, H4 MOOT
-c9754afb VOLARB Audit 20260527-0021 — NO_PATCH (n=885, watch=6)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   81G       12G  88% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 04:53:59 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 05:03:59 UTC
 
 ## Open positions (count):
 0
