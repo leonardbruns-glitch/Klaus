@@ -4014,6 +4014,8 @@ class WeatherArb:
             except (IndexError, ValueError):
                 continue
 
+            if lo_c is None or hi_c is None:
+                continue  # skip one-sided buckets (MC can't handle None bounds)
             bucket_map.setdefault(slug, []).append((lo_c, hi_c, yes_tok, no_tok))
             clob_books[yes_tok] = {"best_ask": yes_ask, "best_bid": max(0.0, yes_ask - 0.02), "usd_depth": 999.0}
             if no_tok:
