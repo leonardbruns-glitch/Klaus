@@ -52,15 +52,23 @@ _TARGETS: dict[str, tuple[float, float]] = {
     "ZGSZ": (22.64, 113.81),   # Shenzhen             (CMA China)
     "ZGGG": (23.39, 113.30),   # Guangzhou            (CMA China)
     "ZSQD": (36.27, 120.37),   # Qingdao              (CMA China)
+    "ZHHH": (30.78, 114.21),   # Wuhan Tianhe          (CMA China)
+    "ZUUU": (30.57, 103.95),   # Chengdu Shuangliu    (CMA China)
+    "ZUCK": (29.72, 106.65),   # Chongqing Jiangbei   (CMA China)
+    "ZSJN": (36.86, 117.02),   # Jinan Yaoqiang       (CMA China)
     "LTFM": (41.26,  28.74),   # Istanbul             (MGM Turkey via GTS)
+    "LTAC": (40.13,  32.99),   # Ankara Esenboğa      (MGM Turkey — same node as LTFM)
     # European cities — covered by national WIS2 nodes (MetOffice/MétéoFrance/AEMET/KNMI/ARPA)
     "EGLC": (51.51,   0.05),   # London City          (UK Met Office)
     "LFPB": (48.96,   2.44),   # Paris Le Bourget     (Météo-France)
     "LEMD": (40.47,  -3.56),   # Madrid Barajas       (AEMET)
+    "LEBL": (41.30,   2.08),   # Barcelona El Prat    (AEMET — same node as LEMD)
     "EHAM": (52.31,   4.76),   # Amsterdam Schiphol   (KNMI)
     "LIMC": (45.63,   8.73),   # Milan Malpensa       (ARPA Lombardia)
+    "LIRF": (41.80,  12.23),   # Rome Fiumicino       (ARPA — same node as LIMC)
     # Americas
     "CYYZ": (43.68, -79.63),   # Toronto Pearson      (ECCC Canada)
+    "FAOR": (-26.14,  28.24),  # Johannesburg OR Tambo (SAWS — same node as FACT)
 }
 
 _MAX_DIST_DEG = 0.15  # ~17km — tight enough to exclude off-airport ground stations
