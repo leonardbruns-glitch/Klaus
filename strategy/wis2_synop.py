@@ -101,6 +101,15 @@ _TARGETS: dict[str, tuple[float, float]] = {
     # Middle East — GAMEP Saudi Arabia active WIS2 publisher
     "OEJN": (21.68,  39.15),   # Jeddah King Abdulaziz (GAMEP Saudi Arabia)
     "OERK": (24.96,  46.70),   # Riyadh King Khalid   (GAMEP Saudi Arabia — same node as OEJN)
+    # Africa — WMO members; broker coverage varies
+    "HECA": (30.12,  31.41),   # Cairo Intl            (EMA Egypt)
+    "DNMM": ( 6.58,   3.32),   # Lagos Murtala         (NiMet Nigeria)
+    "HKJK": (-1.32,  36.93),   # Nairobi Jomo Kenyatta (KMD Kenya)
+    # Central/South America — WMO members; broker coverage varies
+    "MPHO": ( 9.07, -79.38),   # Panama City Tocumen   (IMHPA Panama)
+    "SKBO": ( 4.70, -74.15),   # Bogota El Dorado      (IDEAM Colombia)
+    "SPJC": (-12.02,-77.11),   # Lima Jorge Chavez     (SENAMHI Peru)
+    "SCEL": (-33.39,-70.79),   # Santiago Arturo Merino (DMC Chile)
 }
 
 _MAX_DIST_DEG = 0.15  # ~17km — tight enough to exclude off-airport ground stations
