@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+73ad823f chore: remove debug logs from STWA pipeline (pipeline confirmed working)
+e4a9f6ad fix: skip one-sided buckets (None lo/hi) in STWA bucket_map
+e3ffa8d5 debug: add per-gate counters to STWA get_signals() for diagnosis
+d40dedc5 fix: remove neg-risk consistency check from STWA get_signals()
+77a084da fix: relax STWA METAR_MAX_AGE 1200→3600s for hourly-reporting stations
+e59a2158 fix: feed NMS observations to STWA Kalman engine
 a90780cc fix: use CITY_NAME_TO_SLUG key in STWA bucket_map (was raw city name)
 d45a01f2 debug: add signal_scan count log + on_metar DEBUG trace for STWA diagnosis
 2f7e3478 feat: wire STWA get_signals() into 60s metar slow-path
 01dbbed4 chore: restore STWA shadow loop exception level to DEBUG (verified working)
-bfe09b58 Watchdog 2026-05-27T15:18Z: HIGH 4 alerts (all in backoff)
-b454873b debug: raise STWA shadow loop exception level to WARNING for diagnosis
-4ee8074a fix: replace get_signals() with get_state_snapshot() in STWA shadow loop
-722142fa feat: add STWA fetch/fit pipeline and Kalman engine
-72d52301 feat: complete STWA Kalman engine wiring into weather_arb
-ecfb6b2c Watchdog 2026-05-27T14:18Z: OK 0 new alerts
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   82G       11G  89% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 15:33:46 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 15:49:06 UTC
 
 ## Open positions (count):
 0
