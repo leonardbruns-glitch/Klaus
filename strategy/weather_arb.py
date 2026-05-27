@@ -4052,12 +4052,25 @@ class WeatherArb:
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "stwa_signals.jsonl"
 
+        # Fetch live CLOB ask for each signal token (top-of-book, 4s timeout).
+        # This replaces the stale Gamma proxy price with the real fillable price.
+        clob_ask_live: dict[str, float] = {}
+        for sig in signals:
+            try:
+                book = await self._fetch_book_levels(sig.token_id, n=1)
+                asks = book.get("asks", [])
+                if asks:
+                    clob_ask_live[sig.token_id] = asks[0]["price"]
+            except Exception:
+                pass
+
         import dataclasses
         with open(out_path, "a") as fh:
             for sig in signals:
                 row = dataclasses.asdict(sig)
                 row["ts"] = now
                 row["bucket"] = list(sig.bucket)
+                row["clob_ask_live"] = clob_ask_live.get(sig.token_id)
                 fh.write(json.dumps(row) + "\n")
 
         logger.info("[STWA] %d signal(s) logged to %s", len(signals), out_path)

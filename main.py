@@ -6608,7 +6608,10 @@ class KlausBot:
                 continue
             self._open_meta[_last_key] = now
 
-            balance = self.orders.fetch_token_balance(token_id)
+            loop = asyncio.get_event_loop()
+            balance = await loop.run_in_executor(
+                None, self.orders.fetch_token_balance, token_id
+            )
             if balance is None or balance < 0.05:
                 continue
 
