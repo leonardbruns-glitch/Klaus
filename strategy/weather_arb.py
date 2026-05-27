@@ -196,6 +196,14 @@ M1_BETA_PROBE_LAYERS = [
     ("L4",    3600,   86400,  0.03,      5.0),
 ]
 
+# Dip-rebuy: market reprices YES up (hourly METAR misses peak) while 5-min ASOS
+# still confirms lockout.  Separate from the time-layer ladder — triggered by
+# price dip on an open position, not by time since first detection.
+M1_DIP_REBUY_ENABLED     = True
+M1_DIP_REBUY_NO_ASK_MAX  = 0.25   # fire when NO ask ≤ this (market thinks YES ≥ 75%)
+M1_DIP_REBUY_MIN_DEPTH_C = 0.15   # live METAR cache must confirm this °C above hi_c
+M1_DIP_REBUY_STAKE_USD   = 5.0    # smaller than initial stake (correlated resolution)
+
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
 NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
 SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss is tiny)
@@ -2557,6 +2565,10 @@ class WeatherArb:
                         await self._metar_lockout_scan()
                     except Exception:
                         logger.exception("[WA] metar lockout scan (nms) error")
+                    try:
+                        await self._m1_dip_rebuy_scan()
+                    except Exception:
+                        logger.exception("[M1β-DIP] scan error")
                     if INTRADAY_ENABLED:
                         await self._intraday_scan()
                     if self._stwa is not None:
@@ -2893,6 +2905,8 @@ class WeatherArb:
         no_token_id: str, no_ask_clob, no_book: dict,
         no_ask_usd_at_implied: float, no_ask_usd_at_clob_implied=None,
         seconds_to_close,
+        override_layer: str | None = None,
+        override_stake_usd: float | None = None,
     ) -> None:
         """Multi-layer surface: one fire per (bucket × layer). Up to 5 fires per bucket.
 
@@ -2925,23 +2939,31 @@ class WeatherArb:
             return
         if depth_c < M1_BETA_PROBE_MIN_DEPTH_C:
             return  # integer-bucket misclass guard
-        if eff_yes_bid >= M1_BETA_PROBE_MAX_EDGE:
+        # DIP layers bypass the MAX_EDGE gate: the whole point is buying when YES bid
+        # is artificially high (market mispriced). Allow up to 0.999.
+        is_dip = override_layer is not None and override_layer.startswith("DIP")
+        if not is_dip and eff_yes_bid >= M1_BETA_PROBE_MAX_EDGE:
             return
         if eff_yes_bid >= 0.50 and sec_since >= M1_BETA_PROBE_GAMMA_BLOCK_SEC:
             return
         if no_ask_clob is None or no_ask_clob >= 1.0:
             return
 
-        # === Layer selection ===
-        layer_name = None
-        layer_min_edge = None
-        layer_min_depth = None
-        for name, lo_s, hi_s, min_edge, min_depth in M1_BETA_PROBE_LAYERS:
-            if lo_s <= sec_since < hi_s:
-                layer_name, layer_min_edge, layer_min_depth = name, min_edge, min_depth
-                break
-        if layer_name is None:
-            return
+        # === Layer selection (bypassed for DIP rebuys) ===
+        if override_layer is not None:
+            layer_name      = override_layer
+            layer_min_edge  = 0.03
+            layer_min_depth = 1.0   # low bar — dip scan already verified depth
+        else:
+            layer_name = None
+            layer_min_edge = None
+            layer_min_depth = None
+            for name, lo_s, hi_s, min_edge, min_depth in M1_BETA_PROBE_LAYERS:
+                if lo_s <= sec_since < hi_s:
+                    layer_name, layer_min_edge, layer_min_depth = name, min_edge, min_depth
+                    break
+            if layer_name is None:
+                return
 
         # === Layer-specific gates ===
         if eff_yes_bid < layer_min_edge:
@@ -2965,6 +2987,7 @@ class WeatherArb:
 
         # Pre-fire log + order submission
         intended_price = round(min(0.99, no_ask_clob + 0.01), 4)
+        stake_usd = override_stake_usd if override_stake_usd is not None else M1_BETA_PROBE_STAKE_USD
         submitted_ts = now_ts
         log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -3009,7 +3032,7 @@ class WeatherArb:
             "sec_to_close": int(seconds_to_close) if seconds_to_close is not None else None,
             # --- order ---
             "intended_price": intended_price,
-            "stake_usd": M1_BETA_PROBE_STAKE_USD,
+            "stake_usd": stake_usd,
             # --- bookkeeping ---
             "daily_fires_before": st["fires_today"],
             "total_fires_before": st["total_fires"],
@@ -3027,13 +3050,13 @@ class WeatherArb:
         neg_risk = mkt.get("negRisk", True)
         logger.info("[M1β] FIRE %s/%s seq=%d NO@%.3f stake=$%.1f sec=%ds edge=%.3f depth=%.1f°C",
                     city, layer_name, bucket_fire_seq,
-                    intended_price, M1_BETA_PROBE_STAKE_USD,
+                    intended_price, stake_usd,
                     sec_since, yes_bid, depth_c)
         try:
             fill = await self.bot.orders.limit_buy(
                 token_id=no_token_id,
                 intended_price=intended_price,
-                stake_usd=M1_BETA_PROBE_STAKE_USD,
+                stake_usd=stake_usd,
                 direction=_Dir.BUY_NO,
                 neg_risk=neg_risk,
                 fast_fail=False,
@@ -3136,6 +3159,138 @@ class WeatherArb:
                         st["total_fires"], M1_BETA_PROBE_MAX_TOTAL_FIRES)
 
         self._m1_beta_probe_save_state(st)
+
+    async def _m1_dip_rebuy_scan(self) -> None:
+        """Dip-rebuy: buy NO cheaply when market reprices YES up on hourly-METAR dip
+        while the 5-min ASOS (live METAR cache) still confirms running_max > hi_c.
+
+        Runs in the 60s slow path. Up to 2 DIP fires per bucket (DIP1, DIP2),
+        deduped by the same fires_by_token mechanism as L0-L4.
+        """
+        if not (M1_BETA_PROBE_ENABLED and M1_DIP_REBUY_ENABLED):
+            return
+        if not self._today_markets_cache:
+            return
+
+        import time as _t
+        from datetime import datetime, timezone, timedelta
+        now_ts  = _t.time()
+        now_utc = datetime.now(timezone.utc)
+
+        for entry in self._today_markets_cache:
+            mkt  = entry.get("mkt") or {}
+            city = entry.get("city")
+            icao = entry.get("icao")
+            if not city or not icao:
+                continue
+
+            question = mkt.get("question", "")
+            lo_c, hi_c, _ = _parse_outcome(question)
+            if hi_c is None:
+                continue
+
+            token_ids = _parse_token_ids(mkt.get("clobTokenIds", []))
+            if len(token_ids) < 2:
+                continue
+            yes_token_id = token_ids[0]
+            no_token_id  = token_ids[1]
+
+            # Only act on buckets where we already hold a position
+            risk = getattr(self.bot, "risk", None)
+            pos  = risk.positions.get(no_token_id) if risk else None
+            if not pos:
+                continue
+            if getattr(pos, "bond_entry_class", "") != "WEATHER_M1_PROBE":
+                continue
+
+            # Verify lockout from live METAR cache (not stale watchlist value)
+            metar    = self._icao_metar_cache.get(icao) or {}
+            live_max = metar.get("running_max_c")
+            if live_max is None or live_max < hi_c + M1_DIP_REBUY_MIN_DEPTH_C:
+                continue
+
+            # Restore watchlist entry if wiped by restart so BBO path resumes
+            if yes_token_id not in self._m1_lockout_watchlist:
+                first_seen = self._lockout_first_seen.get(yes_token_id, now_ts)
+                self._m1_lockout_watchlist[yes_token_id] = {
+                    "no_token_id": no_token_id,
+                    "city": city, "icao": icao,
+                    "end_date": (mkt.get("endDate") or "")[:10],
+                    "lo_c": lo_c, "hi_c": hi_c,
+                    "depth_c": round(live_max - hi_c, 2),
+                    "running_max": live_max,
+                    "question": question,
+                    "first_ts": first_seen,
+                    "mkt": mkt,
+                    "neg_risk": mkt.get("negRisk", True),
+                }
+                try:
+                    self.bot.feed._clob_ws_sub_queue.put_nowait([yes_token_id, no_token_id])
+                except Exception:
+                    pass
+                logger.info("[M1β-DIP] watchlist restored: %s depth=%.2f°C",
+                            city, live_max - hi_c)
+
+            # Get current NO ask — WS book first, then CLOB REST fallback
+            no_ob  = self.bot.feed.order_books.get(no_token_id)
+            no_ask = None
+            no_book: dict = {}
+            if no_ob and no_ob.asks:
+                no_ask  = no_ob.asks[0][0]
+                no_book = {"asks": [{"price": a[0], "usd": a[0] * a[1]}
+                                    for a in no_ob.asks[:5]]}
+            else:
+                try:
+                    import aiohttp as _aio
+                    async with _aio.ClientSession() as _sess:
+                        async with _sess.get(
+                            f"https://clob.polymarket.com/book?token_id={no_token_id}",
+                            timeout=_aio.ClientTimeout(total=5),
+                        ) as _resp:
+                            _bk   = await _resp.json()
+                            _asks = _bk.get("asks", [])
+                            if _asks:
+                                no_ask  = float(_asks[0]["price"])
+                                no_book = {"asks": [{"price": float(a["price"]), "usd": 0.0}
+                                                    for a in _asks[:5]]}
+                except Exception:
+                    continue
+
+            if no_ask is None or no_ask > M1_DIP_REBUY_NO_ASK_MAX or no_ask >= 1.0:
+                continue
+
+            # Pick DIP1 or DIP2 (max 2 per bucket)
+            st           = self._m1_beta_probe_load_state()
+            layers_fired = st["fires_by_token"].get(no_token_id, [])
+            if "DIP1" not in layers_fired:
+                dip_layer = "DIP1"
+            elif "DIP2" not in layers_fired:
+                dip_layer = "DIP2"
+            else:
+                continue
+
+            yes_bid    = round(1.0 - no_ask, 4)
+            first_seen = self._lockout_first_seen.get(yes_token_id, now_ts)
+
+            logger.info("[M1β-DIP] %s %s no_ask=%.3f depth=%.2f°C",
+                        city, dip_layer, no_ask, live_max - hi_c)
+
+            await self._m1_beta_probe_evaluate(
+                now_ts=now_ts, now_utc=now_utc, first_seen=first_seen,
+                mkt=mkt, city=city, icao=icao,
+                end_date=(mkt.get("endDate") or "")[:10],
+                question=question, lo_c=lo_c, hi_c=hi_c,
+                running_max=live_max,
+                yes_bid=yes_bid,
+                no_token_id=no_token_id,
+                no_ask_clob=no_ask,
+                no_book=no_book,
+                no_ask_usd_at_implied=M1_DIP_REBUY_STAKE_USD,
+                no_ask_usd_at_clob_implied=M1_DIP_REBUY_STAKE_USD,
+                seconds_to_close=None,
+                override_layer=dip_layer,
+                override_stake_usd=M1_DIP_REBUY_STAKE_USD,
+            )
 
     async def _refresh_today_markets(self) -> None:
         """
