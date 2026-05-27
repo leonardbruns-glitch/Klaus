@@ -6790,6 +6790,16 @@ class KlausBot:
                             pos.asset, pos.direction.name, _pos_age_s,
                         )
                         continue
+                    # WEATHER_M1_PROBE and other hold-to-resolution strategies don't have
+                    # CLOB resting orders — balance API returning 0 under load is a known
+                    # failure mode. Never orphan-close these; their strategy modules handle exits.
+                    _ec_orphan = getattr(pos, "bond_entry_class", "")
+                    if _ec_orphan.startswith("WEATHER_") or _ec_orphan == "SPORTS_COPY":
+                        logger.warning(
+                            "STARTUP: %s/%s is %s with balance=0 — preserving (balance API may be stale)",
+                            pos.asset, pos.direction.name, _ec_orphan,
+                        )
+                        continue
                     # Shares are gone — sold last session (cascade or manual).
                     # Try CLOB history to recover actual exit price before closing flat.
                     logger.warning(
