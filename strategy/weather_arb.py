@@ -3973,6 +3973,10 @@ class WeatherArb:
             yes_tok = token_ids[0]
             no_tok  = token_ids[1] if len(token_ids) > 1 else ""
 
+            slug = CITY_NAME_TO_SLUG.get(city, "")
+            if not slug:
+                continue
+
             lo_c, hi_c, _ = _parse_outcome(mkt.get("question", ""))
             if lo_c is None and hi_c is None:
                 continue
@@ -3985,17 +3989,17 @@ class WeatherArb:
             except (IndexError, ValueError):
                 continue
 
-            bucket_map.setdefault(city, []).append((lo_c, hi_c, yes_tok, no_tok))
+            bucket_map.setdefault(slug, []).append((lo_c, hi_c, yes_tok, no_tok))
             clob_books[yes_tok] = {"best_ask": yes_ask, "best_bid": max(0.0, yes_ask - 0.02), "usd_depth": 999.0}
             if no_tok:
                 no_ask = round(1.0 - yes_ask, 4)
                 clob_books[no_tok] = {"best_ask": no_ask, "best_bid": max(0.0, no_ask - 0.02), "usd_depth": 999.0}
 
-            # t_close = unix ts of local midnight resolution
+            # t_close = unix ts of local midnight resolution (keyed by slug)
             end_date = mkt.get("endDate", "")[:10]
-            if end_date and city not in t_close_map:
+            if end_date and slug not in t_close_map:
                 hrs_rem = self._hours_to_local_resolution(end_date, icao)
-                t_close_map[city] = now + hrs_rem * 3600.0
+                t_close_map[slug] = now + hrs_rem * 3600.0
 
         if not bucket_map:
             return
