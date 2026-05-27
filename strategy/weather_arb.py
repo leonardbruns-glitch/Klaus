@@ -2558,6 +2558,8 @@ class WeatherArb:
                         logger.exception("[WA] metar lockout scan (nms) error")
                     if INTRADAY_ENABLED:
                         await self._intraday_scan()
+                    if self._stwa is not None:
+                        await self._stwa_signal_scan()
                     if TAIL_SNIPER_ENABLED:
                         await self._tail_sniper_check()
             except Exception:
@@ -3939,6 +3941,95 @@ class WeatherArb:
             if await self._enter_intraday(mkt, p_intraday, poly_yes, city, lo_c, hi_c, stake,
                                          expected_max_c=est_max):
                 logger.info("[WA] INTRADAY ENTRY %s $%.1f (%s)", city, stake, pre_post)
+
+    async def _stwa_signal_scan(self) -> None:
+        """
+        Shadow signal logger for the STWA Kalman engine.
+        Runs every 60s (piggybacking the metar slow-path).
+        Uses Gamma outcomePrices as best_ask proxy — no live CLOB calls needed.
+        Logs signals to logs/shadow/hot/{date}/stwa_signals.jsonl for validation.
+        """
+        if self._stwa is None or not self._today_markets_cache:
+            return
+
+        import time as _t
+        now = _t.time()
+
+        bucket_map:  dict[str, list]  = {}
+        t_close_map: dict[str, float] = {}
+        clob_books:  dict[str, dict]  = {}
+
+        for entry in self._today_markets_cache:
+            city = entry["city"]
+            icao = entry["icao"]
+            mkt  = entry["mkt"]
+
+            if mkt.get("closed", False):
+                continue
+
+            token_ids = _parse_token_ids(mkt.get("clobTokenIds", []))
+            if not token_ids:
+                continue
+            yes_tok = token_ids[0]
+            no_tok  = token_ids[1] if len(token_ids) > 1 else ""
+
+            lo_c, hi_c, _ = _parse_outcome(mkt.get("question", ""))
+            if lo_c is None and hi_c is None:
+                continue
+
+            # Gamma outcomePrices[0] = YES price; treat as best_ask proxy
+            prices_raw = mkt.get("outcomePrices", '["0.5"]')
+            prices = json.loads(prices_raw) if isinstance(prices_raw, str) else prices_raw
+            try:
+                yes_ask = float(prices[0])
+            except (IndexError, ValueError):
+                continue
+
+            bucket_map.setdefault(city, []).append((lo_c, hi_c, yes_tok, no_tok))
+            clob_books[yes_tok] = {"best_ask": yes_ask, "best_bid": max(0.0, yes_ask - 0.02), "usd_depth": 999.0}
+            if no_tok:
+                no_ask = round(1.0 - yes_ask, 4)
+                clob_books[no_tok] = {"best_ask": no_ask, "best_bid": max(0.0, no_ask - 0.02), "usd_depth": 999.0}
+
+            # t_close = unix ts of local midnight resolution
+            end_date = mkt.get("endDate", "")[:10]
+            if end_date and city not in t_close_map:
+                hrs_rem = self._hours_to_local_resolution(end_date, icao)
+                t_close_map[city] = now + hrs_rem * 3600.0
+
+        if not bucket_map:
+            return
+
+        try:
+            signals = self._stwa.get_signals(
+                clob_books=clob_books,
+                bucket_map=bucket_map,
+                t_close_map=t_close_map,
+                bankroll=self._get_bankroll(),
+                t_now=now,
+            )
+        except Exception:
+            logger.exception("[STWA] get_signals error")
+            return
+
+        if not signals:
+            return
+
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        out_dir  = Path(__file__).parent.parent / "logs" / "shadow" / "hot" / today
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "stwa_signals.jsonl"
+
+        import dataclasses
+        with open(out_path, "a") as fh:
+            for sig in signals:
+                row = dataclasses.asdict(sig)
+                row["ts"] = now
+                row["bucket"] = list(sig.bucket)
+                fh.write(json.dumps(row) + "\n")
+
+        logger.info("[STWA] %d signal(s) logged to %s", len(signals), out_path)
 
     async def _enter_intraday(
         self, mkt: dict, fair_prob: float, poly_price: float,
