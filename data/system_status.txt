@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+b454873b debug: raise STWA shadow loop exception level to WARNING for diagnosis
+4ee8074a fix: replace get_signals() with get_state_snapshot() in STWA shadow loop
+722142fa feat: add STWA fetch/fit pipeline and Kalman engine
+72d52301 feat: complete STWA Kalman engine wiring into weather_arb
+ecfb6b2c Watchdog 2026-05-27T14:18Z: OK 0 new alerts
+048ed15a Watchdog 2026-05-27T13:18Z: OK 0 new alerts
+a8bda3e1 VOLARB Scout 2026-05-27T1242Z — NULL (n=887 frozen, H5/H6/H7 zero-delta; capital anomaly +$67.3 flagged)
+45514314 VOLARB Audit 20260527-1224 — NO_PATCH (n=885, Δ=0, watch=13)
+3496d883 Watchdog 2026-05-27T12:22Z: HIGH 1 alert (TRADE_LOOP_SILENT re-triggered)
 b3437493 perf: move all NMS sources to 2s fast-path poll
-bfb38d4f perf: poll Synoptic 1-min ASOS every 2s instead of 60s
-d9db2e4c Watchdog 2026-05-27T11:19Z: MEDIUM 3 alerts
-a330349e fix: use CLOB yes_bid (not Gamma) for M1 probe depth cap and edge gates
-16a9264f feat: add 7 remaining AWC-only cities to WIS2 targets
-5af84225 fix: exclude cross-day obs from running_max during 24h startup backfill
-f08b2b40 fix: backfill running_max from 24h METAR on startup to restore lockout detection
-d8541e48 feat: fire lockout scan on NMS updates + add 22 AWC-only stations to fast feeds
-0474ed0a fix: preserve WEATHER_M1_PROBE positions when balance API returns 0
-c91f353a feat: add JMA AMeDAS for RJTT (Tokyo Haneda, station 44166)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   82G       11G  89% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 11:25:46 UTC
+ActiveEnterTimestamp=Wed 2026-05-27 15:16:54 UTC
 
 ## Open positions (count):
 0
