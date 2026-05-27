@@ -620,8 +620,8 @@ def merge_into_cache(
     today_str = (now_utc + timedelta(hours=tz_offset_h)).date().isoformat()
 
     entry = cache.setdefault(icao, {
-        "running_max_c": None, "last_obs_time": 0,
-        "prev_temp_c": None, "running_max_date": today_str,
+        "running_max_c": None, "official_running_max_c": None,
+        "last_obs_time": 0, "prev_temp_c": None, "running_max_date": today_str,
     })
 
     if obs_ts <= entry.get("last_obs_time", 0):
@@ -629,6 +629,7 @@ def merge_into_cache(
 
     if entry.get("running_max_date") != today_str:
         entry["running_max_c"] = None
+        entry["official_running_max_c"] = None
         entry["running_max_date"] = today_str
 
     prev_max = entry.get("running_max_c")
@@ -643,6 +644,15 @@ def merge_into_cache(
         "utc_hour":      obs.get("utc_hour", now_utc.hour),
         "nms_source":    obs.get("source", "NMS"),
     })
+
+    # official_running_max_c only updates from METAR sources (AWC, NWS).
+    # This matches what WU/Polymarket oracle uses: hourly METARs + SPECIs.
+    # Synoptic 1-min ASOS, JMA AMeDAS, and similar non-METAR feeds are excluded.
+    _OFFICIAL_METAR_SOURCES = {"AWC", "NWS"}
+    if obs.get("source", "") in _OFFICIAL_METAR_SOURCES:
+        official_prev = entry.get("official_running_max_c")
+        official_new = temp_c if (official_prev is None or temp_c > official_prev) else official_prev
+        entry["official_running_max_c"] = official_new
     if obs.get("dewpoint_c") is not None:
         entry["dewpoint_c"] = obs["dewpoint_c"]
     if obs.get("wind_speed_kt") is not None:

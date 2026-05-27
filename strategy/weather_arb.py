@@ -2652,7 +2652,10 @@ class WeatherArb:
                 continue
 
             metar = self._icao_metar_cache.get(icao) or {}
-            running_max = metar.get("running_max_c")
+            # Use official_running_max_c (AWC/NWS METAR sources only) for lockout
+            # detection. This matches the WU/Polymarket oracle which only sees
+            # hourly METARs and SPECIs — not 1-min Synoptic ASOS readings.
+            running_max = metar.get("official_running_max_c")
             if running_max is None:
                 continue
 
@@ -2808,6 +2811,7 @@ class WeatherArb:
                 "bucket_hi_c_padded": round(hi_c, 4) if hi_c is not None else None,
                 "is_celsius_market": is_celsius,
                 "running_max_c": round(float(running_max), 3),
+                "asos_running_max_c": round(float(metar.get("running_max_c") or running_max), 3),
                 "temp_c": round(float(metar.get("temp_c") or 0.0), 3) or None,
                 "last_obs_ts": metar.get("last_obs_time"),
                 "yes_bid": round(yes_bid_f, 4),
@@ -3197,15 +3201,15 @@ class WeatherArb:
 
             # Only act on buckets where we already hold a position
             risk = getattr(self.bot, "risk", None)
-            pos  = risk.positions.get(no_token_id) if risk else None
+            pos  = risk.open_positions.get(no_token_id) if risk else None
             if not pos:
                 continue
             if getattr(pos, "bond_entry_class", "") != "WEATHER_M1_PROBE":
                 continue
 
-            # Verify lockout from live METAR cache (not stale watchlist value)
+            # Verify lockout from live METAR cache — official sources only
             metar    = self._icao_metar_cache.get(icao) or {}
-            live_max = metar.get("running_max_c")
+            live_max = metar.get("official_running_max_c")
             if live_max is None or live_max < hi_c + M1_DIP_REBUY_MIN_DEPTH_C:
                 continue
 
