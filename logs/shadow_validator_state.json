@@ -1,46 +1,46 @@
 {
   "exit_policy_shadow": {
-    "n_seen": 30805,
+    "n_seen": 45744,
     "status": "SCHEMA_DRIFT",
     "last_uplift": null,
     "last_ci95": null,
-    "schema_adapted_uplift_BE_trail_5_3": 6.9329,
-    "schema_adapted_ci95_BE_trail_5_3": [5.2816, 8.5842],
+    "schema_adapted_uplift_BE_trail_5_3": 5.9864,
+    "schema_adapted_ci95_BE_trail_5_3": [4.5930, 7.3799],
     "schema_adapted_status_BE_trail_5_3": "READY_PENDING_MANIFEST",
-    "schema_adapted_n_paired_BE_trail_5_3": 193,
-    "schema_adapted_uplift_PT0_93": 0.4039,
-    "schema_adapted_ci95_PT0_93": [-1.8257, 2.6335],
+    "schema_adapted_n_paired_BE_trail_5_3": 220,
+    "schema_adapted_uplift_PT0_93": 0.8980,
+    "schema_adapted_ci95_PT0_93": [-1.3107, 3.1066],
     "schema_adapted_status_PT0_93": "AMBIGUOUS",
-    "schema_adapted_n_paired_PT0_93": 225,
-    "schema_adapted_uplift_PT0_95": 0.265,
-    "schema_adapted_ci95_PT0_95": [-2.0818, 2.6118],
+    "schema_adapted_n_paired_PT0_93": 250,
+    "schema_adapted_uplift_PT0_95": 0.7577,
+    "schema_adapted_ci95_PT0_95": [-1.5298, 3.0452],
     "schema_adapted_status_PT0_95": "AMBIGUOUS",
-    "schema_adapted_n_paired_PT0_95": 225,
-    "ts": "2026-05-22T09:15:00Z",
-    "note": "Third consecutive schema drift flag (no manifest update). Schema-adapted analysis: BE_trail_5_3 READY (CI>0 on 2026-05-17, 2026-05-20, and 2026-05-22 independent samples). PT0.93+30s and PT0.95+30s remain AMBIGUOUS (CI straddles 0). Formal READY blocked pending research_status.md §5 update to reflect actual schema (policy_id/realistic_pnl_pct)."
+    "schema_adapted_n_paired_PT0_95": 250,
+    "ts": "2026-05-28T09:09:00Z",
+    "note": "Fourth consecutive schema drift flag (manifest not updated). Schema-adapted analysis: BE_trail_5_3 READY (CI>0 confirmed on 2026-05-17, 2026-05-20, 2026-05-22, and 2026-05-28 independent samples; uplift stable 5.99-6.93% range across all four runs). PT0.93+30s and PT0.95+30s remain AMBIGUOUS (CI straddles 0 all four runs). Formal READY blocked pending research_status.md §5 update to reflect actual schema (policy_id/realistic_pnl_pct). Analysis window: today's hot file n=972 rows, 220-250 paired groups per candidate."
   },
   "volarb_longshot_shadow": {
     "n_seen": 0,
     "status": "NOT_DEPLOYED",
     "last_uplift": null,
     "last_ci95": null,
-    "ts": "2026-05-22T09:15:00Z",
-    "note": "Phase 2 gate not yet deployed. No file in data-mirror."
+    "ts": "2026-05-28T09:09:00Z",
+    "note": "Phase 2 gate not yet deployed. File is empty (0 bytes) in data-mirror."
   },
   "order_lifecycle": {
-    "n_seen": 3583,
+    "n_seen": 3665,
     "status": "INFORMATIONAL",
     "last_uplift": null,
     "last_ci95": null,
-    "ts": "2026-05-22T09:15:00Z",
-    "note": "Fill-only events. mean_latency_ms=1271.1 median=1177.6ms p95=1946.8ms. Latency improving vs prior (1451ms mean). Full fill rate 71% (27/38). Mean slippage 0.90%. No promotion criteria."
+    "ts": "2026-05-28T09:09:00Z",
+    "note": "Fill-only events. Today (n=7): mean_latency_ms=1187.4, median=1144.7ms. Full fill rate 7/7 (100% today). Realized below intended on BUYs (favorable). Prior cumulative: mean 1,271ms, 71% full fill rate. Low today activity (last write 06:03 UTC, 3h before snapshot) — consistent with pre-EU-open quiet period. No promotion criteria."
   },
   "window_resolution": {
-    "n_seen": 15774,
+    "n_seen": 22512,
     "status": "JOIN_SOURCE",
     "last_uplift": null,
     "last_ci95": null,
-    "ts": "2026-05-22T09:15:00Z",
-    "note": "Join source only. Today: 432 rows, YES rate 45.6% (197/432). No analysis performed."
+    "ts": "2026-05-28T09:09:00Z",
+    "note": "Join source only. Today: 423 rows, YES rate 45.9% (194/423). Assets: ETH/BTC/SOL 141 each. No analysis performed."
   }
 }
