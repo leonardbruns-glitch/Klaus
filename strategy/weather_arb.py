@@ -2630,6 +2630,15 @@ class WeatherArb:
         now_ts = _time.time()
         now_utc = datetime.now(timezone.utc)
 
+        # Purge stale watchlist entries (token resolved/expired > 24h ago).
+        # Prevents unbounded memory growth; max_sec_since already blocks firing,
+        # but old entries still get checked on every BBO callback.
+        _stale = [tid for tid, w in self._m1_lockout_watchlist.items()
+                  if now_ts - w.get("first_ts", now_ts) > M1_BETA_PROBE_MAX_SEC_SINCE]
+        for tid in _stale:
+            self._m1_lockout_watchlist.pop(tid, None)
+            self._lockout_first_seen.pop(tid, None)
+
         # Group markets by (event_id, city) to extract event-level resolution time
         candidates_written = 0
         for entry in self._today_markets_cache:
@@ -2710,6 +2719,11 @@ class WeatherArb:
                         )
                     except Exception:
                         pass
+                else:
+                    # Refresh depth_c and running_max each scan — frozen values
+                    # cause probe log to show stale depth at fire time.
+                    self._m1_lockout_watchlist[token_id]["depth_c"] = depth_c_early
+                    self._m1_lockout_watchlist[token_id]["running_max"] = float(running_max)
                     if is_new_lockout:
                         logger.info(
                             "[M1β] WS subscribed %s/%s YES=%s NO=%s depth=%.2f°C",
@@ -2870,8 +2884,11 @@ class WeatherArb:
         """State: {date, fires_today, total_fires, fires_by_token, bucket_fire_seq}.
         fires_by_token maps no_token_id -> [list of layer names already fired].
         bucket_fire_seq maps no_token_id -> count of fires (for tagging).
-        Per-day resets: fires_today, fires_by_token (= relax to allow re-fire on new day).
-        Persists: total_fires (hard cap), bucket_fire_seq."""
+        Per-day resets: fires_today only.
+        Persists: total_fires, fires_by_token, bucket_fire_seq.
+        fires_by_token is token-scoped (no_token_id unique per market) so resetting
+        at UTC midnight caused double-fires on Western-hemisphere markets that straddle
+        midnight — a Dallas May-27 bucket could re-fire all layers after 00:00 UTC."""
         from datetime import datetime, timezone
         from pathlib import Path as _P
         today = datetime.now(timezone.utc).date().isoformat()
@@ -2888,7 +2905,7 @@ class WeatherArb:
                 "date": today,
                 "fires_today": 0,
                 "total_fires": st.get("total_fires", 0),
-                "fires_by_token": {},      # token_id -> list of layer names
+                "fires_by_token": st.get("fires_by_token", {}),  # persist — token_ids are unique per market
                 "bucket_fire_seq": st.get("bucket_fire_seq", {}),  # token_id -> int
             }
         st.setdefault("fires_by_token", {})
