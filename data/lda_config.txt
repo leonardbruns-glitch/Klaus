@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-28T14:47:43Z
+# Snapshot: 2026-05-28T15:03:13Z
 # Latest commit on klaus:
-d44644f0 fix: recalibrate NWP bias for all 51 STWA cities (2023-2025 GFS)
+6028c3cb fix: Kalman state persistence + NEG_RISK_ARB depth check + 51-city order
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
