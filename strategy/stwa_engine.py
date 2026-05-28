@@ -104,9 +104,10 @@ class _CityState:
     # For kriging contribution tracking
     last_update_from_self: bool = True
     # 2D velocity state (Langevin)
-    v_hat:   float = 0.0          # posterior mean of dX/dt (°C/h)
-    pv_var:  float = VEL_PRIOR_VAR # posterior variance of v_hat ((°C/h)²)
-    obs_buf: list  = field(default_factory=list)  # [(t_h, x_hat), …] last VEL_OBS_N
+    v_hat:     float = 0.0          # posterior mean of dX/dt (°C/h)
+    pv_var:    float = VEL_PRIOR_VAR # posterior variance of v_hat ((°C/h)²)
+    obs_buf:   list  = field(default_factory=list)  # [(t_h, x_obs), …] last VEL_OBS_N
+    last_temp: float = float("nan") # most recent raw observed temperature (°C)
 
 
 class STWAEngine:
@@ -194,7 +195,7 @@ class STWAEngine:
             city_data = {}
             for city, cs in self._cities.items():
                 city_data[city] = {
-                    "x_hat": cs.x_hat, "last_obs_ts": cs.last_obs_ts,
+                    "x_hat": cs.x_hat, "last_obs_ts": cs.last_obs_ts, "last_temp": cs.last_temp,
                     "running_max": cs.running_max, "running_max_ts": cs.running_max_ts,
                     "obs_date": cs.obs_date, "regime": cs.regime,
                     "obs_count": cs.obs_count,
@@ -227,6 +228,7 @@ class STWAEngine:
                         continue
                     cs.x_hat         = float(d.get("x_hat", 0.0))
                     cs.last_obs_ts   = float(d.get("last_obs_ts", 0.0))
+                    cs.last_temp     = float(d.get("last_temp", float("nan")))
                     cs.running_max   = d.get("running_max")
                     cs.running_max_ts= float(d.get("running_max_ts", 0.0))
                     cs.obs_date      = d.get("obs_date", "")
@@ -365,6 +367,7 @@ class STWAEngine:
             with self._lock:
                 cs.regime       = regime
                 cs.last_obs_ts  = obs_ts
+                cs.last_temp    = temp_c
                 new_max = _new_max(running_max, temp_c)
                 if new_max != cs.running_max:
                     cs.running_max_ts = obs_ts
@@ -435,6 +438,7 @@ class STWAEngine:
 
             cs.x_hat    = float(self._X[idx])
             cs.last_obs_ts  = obs_ts
+            cs.last_temp    = temp_c
             new_max = _new_max(running_max, temp_c)
             if new_max != cs.running_max:
                 cs.running_max_ts = obs_ts
@@ -792,10 +796,20 @@ class STWAEngine:
 
             # Phase must be computed before MC so sigma damping is applied correctly
             phase = _phase(cs, t_close_map[city], now)
-            # Override: if running_max was updated within the last hour the day is
-            # still warming — POST_PEAK sigma suppression (×0.15) would be wrong.
+            # Override: if running_max was updated within the last hour AND the
+            # current temperature is still near the peak (decline < 0.5°C), the
+            # day is still active — POST_PEAK suppression (×0.15) would be wrong.
+            # Without the decline guard, a falling temperature that peaked recently
+            # would still get AT_PEAK sigma, inflating high-bucket probabilities.
             if phase == "POST_PEAK" and (now - cs.running_max_ts) < 3600:
-                phase = "AT_PEAK"
+                # Only override if current temperature is still near the peak.
+                # A decline ≥ 0.5°C below running_max means the day has peaked;
+                # keep POST_PEAK so sigma suppression correctly limits path spread.
+                temp_decline = ((cs.running_max or 0.0) - cs.last_temp
+                                if math.isfinite(cs.last_temp)
+                                else 0.0)
+                if temp_decline < 0.5:
+                    phase = "AT_PEAK"
 
             try:
                 probs = self._forecast_bucket_probs(city, now, t_close, buckets, phase=phase)
