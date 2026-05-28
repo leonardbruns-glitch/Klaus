@@ -2652,10 +2652,7 @@ class WeatherArb:
                 continue
 
             metar = self._icao_metar_cache.get(icao) or {}
-            # Use official_running_max_c (AWC/NWS METAR sources only) for lockout
-            # detection. This matches the WU/Polymarket oracle which only sees
-            # hourly METARs and SPECIs — not 1-min Synoptic ASOS readings.
-            running_max = metar.get("official_running_max_c")
+            running_max = metar.get("running_max_c")
             if running_max is None:
                 continue
 
@@ -3207,9 +3204,8 @@ class WeatherArb:
             if getattr(pos, "bond_entry_class", "") != "WEATHER_M1_PROBE":
                 continue
 
-            # Verify lockout from live METAR cache — official sources only
             metar    = self._icao_metar_cache.get(icao) or {}
-            live_max = metar.get("official_running_max_c")
+            live_max = metar.get("running_max_c")
             if live_max is None or live_max < hi_c + M1_DIP_REBUY_MIN_DEPTH_C:
                 continue
 
