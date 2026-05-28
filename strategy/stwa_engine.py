@@ -60,6 +60,7 @@ HOUR_BINS      = [(0, 6), (6, 12), (12, 18), (18, 24)]
 CITY_BUDGET_FRAC  = 0.05   # max fraction of bankroll per city
 CITY_BUDGET_MAX   = 15.0   # hard cap per city (USD)
 NEG_RISK_ARB_THR  = 0.92   # Σ YES ask < this → pure neg-risk arb available
+NEG_RISK_ARB_MIN  = 0.50   # minimum per-bucket stake for arb (below regular stake_min)
 PROB_SUM_MAX      = 1.35   # Σ p_model > this → MC bug, skip city
 
 # Sky rank → regime label (sky_rank 0=clear, 4=overcast)
@@ -653,7 +654,7 @@ class STWAEngine:
                     if ask_yes is None or not (0 < ask_yes < 1):
                         continue
                     stake = float(np.clip(round(k * ask_yes, 2),
-                                          self.stake_min, self.stake_max))
+                                          NEG_RISK_ARB_MIN, self.stake_max))
                     arb_signals.append(Signal(
                         city=city, bucket=(lo, hi), direction="YES",
                         token_id=yes_tok, p_model=round(p_m, 4),

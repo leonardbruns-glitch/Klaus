@@ -4367,16 +4367,28 @@ class WeatherArb:
             live_ask = clob_ask_live.get(sig.token_id)
             if live_ask is None:
                 continue
-            if live_ask < 0.05:  # resolved/illiquid market — no fills possible
-                continue
-            if abs(live_ask - sig.ask) > 0.05:
-                logger.debug("[STWA] skip %s %s — ask drifted %.3f→%.3f",
-                             sig.city, sig.direction, sig.ask, live_ask)
-                continue
 
-            p_win = (1.0 - sig.p_model) if sig.direction == "NO" else sig.p_model
-            if p_win - live_ask < EDGE_MIN:
-                continue
+            is_arb = (sig.confidence >= 1.0)  # NEG_RISK_ARB signals have confidence=1.0
+
+            if is_arb:
+                # Arb bucket: skip only if completely dead; wider drift tolerance.
+                # Do NOT apply edge check — guaranteed profit doesn't need model edge.
+                if live_ask < 0.005:
+                    continue
+                if abs(live_ask - sig.ask) > 0.15:
+                    logger.debug("[STWA] arb skip %s — ask drifted %.3f→%.3f",
+                                 sig.city, sig.ask, live_ask)
+                    continue
+            else:
+                if live_ask < 0.05:  # resolved/illiquid market — no fills possible
+                    continue
+                if abs(live_ask - sig.ask) > 0.05:
+                    logger.debug("[STWA] skip %s %s — ask drifted %.3f→%.3f",
+                                 sig.city, sig.direction, sig.ask, live_ask)
+                    continue
+                p_win = (1.0 - sig.p_model) if sig.direction == "NO" else sig.p_model
+                if p_win - live_ask < EDGE_MIN:
+                    continue
 
             # Block both YES and NO sides of this bucket — prevents opposite-direction
             # re-entry after model swings or restart clears _fired_tokens.
