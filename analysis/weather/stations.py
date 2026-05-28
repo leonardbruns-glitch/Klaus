@@ -86,4 +86,21 @@ STATIONS: dict[str, Station] = {
     "moscow":        Station("moscow",        "UUWW", "ru/moscow/UUWW",            55.5915,   37.2613,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Moscow"),
     "shenzhen":      Station("shenzhen",      "ZGSZ", "cn/shenzhen/ZGSZ",          22.6393,  113.8107,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
     "guangzhou":     Station("guangzhou",     "ZGGG", "cn/guangzhou/ZGGG",         23.3924,  113.2990,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+
+    # --- Wave-4 candidates (calibration run 2026-05-28, ERA5+GFS bias computed) ---
+    "ankara":        Station("ankara",        "LTAC", "tr/ankara/LTAC",            40.1281,   32.9951,"C", 1, _GLOBAL + _EU_NATIONAL, False, "Europe/Istanbul"),
+    "busan":         Station("busan",         "RKPK", "kr/busan/RKPK",             35.1795,  128.9382,"C", 1, _GLOBAL, False, "Asia/Seoul"),
+    "chengdu":       Station("chengdu",       "ZUUU", "cn/chengdu/ZUUU",           30.5785,  103.9473,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+    "chongqing":     Station("chongqing",     "ZUCK", "cn/chongqing/ZUCK",         29.7192,  106.6418,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+    "jeddah":        Station("jeddah",        "OEJN", "sa/jeddah/OEJN",            21.6796,   39.1565,"C", 1, _GLOBAL, False, "Asia/Riyadh"),
+    "jinan":         Station("jinan",         "ZSJN", "cn/jinan/ZSJN",             36.8572,  117.0160,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+    "karachi":       Station("karachi",       "OPKC", "pk/karachi/OPKC",           24.9065,   67.1608,"C", 1, _GLOBAL, False, "Asia/Karachi"),
+    "kuala-lumpur":  Station("kuala-lumpur",  "WMKK", "my/kuala-lumpur/WMKK",       2.7456,  101.7072,"C", 1, _GLOBAL, False, "Asia/Kuala_Lumpur"),
+    "lucknow":       Station("lucknow",       "VILK", "in/lucknow/VILK",           26.7606,   80.8893,"C", 1, _GLOBAL, False, "Asia/Kolkata"),
+    "manila":        Station("manila",        "RPLL", "ph/manila/RPLL",            14.5086,  121.0197,"C", 1, _GLOBAL, False, "Asia/Manila"),
+    "panama-city":   Station("panama-city",   "MPTO", "pa/panama-city/MPTO",        9.0714,  -79.3835,"C", 1, _GLOBAL, False, "America/Panama"),
+    "seoul":         Station("seoul",         "RKSI", "kr/incheon/RKSI",           37.4692,  126.4505,"C", 1, _GLOBAL, False, "Asia/Seoul"),
+    "wellington":    Station("wellington",    "NZWN", "nz/wellington/NZWN",       -41.3272,  174.8054,"C", 1, _GLOBAL, False, "Pacific/Auckland"),
+    "wuhan":         Station("wuhan",         "ZHHH", "cn/wuhan/ZHHH",             30.7838,  114.2081,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
+    "zhengzhou":     Station("zhengzhou",     "ZHCC", "cn/zhengzhou/ZHCC",         34.5197,  113.8408,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
 }
