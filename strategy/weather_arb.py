@@ -1791,7 +1791,7 @@ class WeatherArb:
             # city/date enters a different bucket (e.g. Atlanta 78-79°F then 80-81°F).
             _open_arb_tids = {
                 _tid for _tid, _p in getattr(self.bot.risk, "open_positions", {}).items()
-                if getattr(_p, "bond_entry_class", "") in ("WEATHER_ARB", "WEATHER_BRACKET")
+                if getattr(_p, "bond_entry_class", "") in ("WEATHER_ARB", "WEATHER_BRACKET", "WEATHER_STWA")
             }
             if _open_arb_tids:
                 for _mkt in markets:

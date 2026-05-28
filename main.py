@@ -168,7 +168,7 @@ def _save_cooldown_state(state: dict) -> None:
 _WEATHER_CLASSES_SET = frozenset({
     "WEATHER_ARB", "WEATHER_INTRADAY", "WEATHER_TAIL",
     "WEATHER_NOSIDE", "WEATHER_CITYCTR", "WEATHER_BRACKET",
-    "WEATHER_M1_PROBE",
+    "WEATHER_M1_PROBE", "WEATHER_STWA",
 })
 
 
