@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-28T08:13:49Z
+# Snapshot: 2026-05-28T08:29:11Z
 # Latest commit on klaus:
-4e7e7189 fix: raise M1β depth_c floor from 0.2 to 0.4°C
+55b30c98 fix: register WEATHER_STWA class in exit protection and dedup gates
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
