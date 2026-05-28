@@ -4365,6 +4365,12 @@ class WeatherArb:
             if not is_arb and sig.token_id in self._fired_tokens:
                 continue
 
+            # Arb dedup: if we already hold this exact token, skip — the arb
+            # for this bucket is already in the wallet. Without this, the arb
+            # re-fires every scan minute because it bypasses _fired_tokens above.
+            if is_arb and sig.token_id in getattr(self.bot.risk, "open_positions", {}):
+                continue
+
             entry = tok_to_entry.get(sig.token_id)
             if entry is None:
                 continue
