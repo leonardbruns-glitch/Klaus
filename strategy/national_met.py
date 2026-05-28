@@ -72,10 +72,12 @@ _FMI_STATIONS: dict[str, str] = {
 
 # ── Singapore NEA ──────────────────────────────────────────────────────────────
 # https://api-open.data.gov.sg/v2/real-time/api/air-temperature — no auth
-# Station S24 = Upper Changi Road North, 1.1 km from WSSS. ~2 min obs age.
+# S24 = Upper Changi Road North, 1.1 km from WSSS — NOT the airport instrument.
+# WU resolves against the official WSSS METAR station (AWC-sourced). Using S24
+# causes false lockouts when S24 diverges from the WSSS sensor. Removed.
 _NEA_URL = "https://api-open.data.gov.sg/v2/real-time/api/air-temperature"
 _NEA_STATIONS: dict[str, str] = {
-    "WSSS": "S24",  # Changi Airport
+    # WSSS removed — use AWC only (same source as WU resolution)
 }
 
 # ── IMGW Poland ───────────────────────────────────────────────────────────────
