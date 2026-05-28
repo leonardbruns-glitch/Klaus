@@ -459,12 +459,21 @@ class STWAEngine:
         regime:      str,
     ) -> list[Signal]:
         """
-        Portfolio LP allocation for a city's open buckets.
+        Horse-race Kelly allocation for a city's mutually exclusive buckets.
 
-        Replaces the independent per-bucket Kelly loop.  For each bucket picks
-        the positive-edge side (YES or NO), then greedily allocates a per-city
-        dollar budget in descending edge/ask order.  This is the exact optimum
-        for a linear objective with box + sum constraints (no solver needed).
+        Buckets are mutually exclusive: exactly one temperature range wins.
+        Independent Kelly over-stakes because it ignores cross-losses (when
+        bucket A wins you lose the bucket B stake).  The correct framework is
+        the Kelly horse race, whose optimal stakes satisfy:
+
+            x_i = s × (Q × p_c_i − ask_i)
+
+        where Q = (1 − Σask) / p_neither, s = bankroll − T (sideline cash),
+        T = bankroll × (Σp_c − Σask/Q), and p_c_i = p_win_i × confidence.
+
+        This collapses to standard Kelly for a single candidate.  Candidates
+        with non-positive horse-race stakes are dropped iteratively (converges
+        in ≤ N passes).
 
         Also detects pure neg-risk arb: Σ YES ask < NEG_RISK_ARB_THR means
         buying all YES tokens guarantees profit regardless of which bucket wins.
@@ -514,22 +523,43 @@ class STWAEngine:
         if not candidates:
             return []
 
-        # ── Greedy LP: sort by edge/ask (return per dollar), fill to budget ───
+        # ── Horse-race Kelly ──────────────────────────────────────────────────
         city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
-        candidates.sort(key=lambda x: -(x[4] / x[3]))  # edge/ask descending
+
+        # Attach confidence-adjusted win probability (p_c) to each candidate
+        working = []
+        for direction, tok, p_m, ask, edge, bucket in candidates:
+            p_win = p_m if direction == "YES" else (1.0 - p_m)
+            working.append((direction, tok, p_m, ask, edge, bucket, p_win * confidence))
+
+        # Iteratively drop non-positive stakes (converges in ≤ N passes)
+        active = working
+        raw_stakes: list[float] = []
+        for _ in range(len(working)):
+            p_sum = sum(w[6] for w in active)        # Σ p_c_i
+            a_sum = sum(w[3] for w in active)        # Σ ask_i
+            p3    = max(1.0 - p_sum, 1e-9)          # p(neither wins)
+            Q     = (1.0 - a_sum) / p3
+            T     = bankroll * max(0.0, p_sum - a_sum / Q)
+            s     = bankroll - T                     # sideline cash
+            raw_stakes = [s * (Q * w[6] - w[3]) for w in active]
+            if all(x > 0 for x in raw_stakes):
+                break
+            active = [w for w, x in zip(active, raw_stakes) if x > 0]
+            if not active:
+                return []
+
+        # Scale by kelly_frac, then fit to city_budget proportionally
+        total_scaled = sum(raw_stakes) * self.kelly_frac
+        budget_ratio = min(1.0, city_budget / total_scaled) if total_scaled > 0 else 0.0
 
         signals = []
-        remaining = city_budget
-        for direction, tok, p_m, ask, edge, bucket in candidates:
-            if remaining < self.stake_min:
-                break
-            p_win = p_m if direction == "YES" else (1.0 - p_m)
-            kelly = _kelly_stake(p_win, ask, confidence, bankroll,
-                                 self.kelly_frac, self.stake_min, self.stake_max)
-            alloc = min(kelly, remaining)
+        for w, x_raw in zip(active, raw_stakes):
+            direction, tok, p_m, ask, edge, bucket, _ = w
+            alloc = float(np.clip(x_raw * self.kelly_frac * budget_ratio,
+                                  self.stake_min, self.stake_max))
             if alloc < self.stake_min:
                 continue
-            remaining -= alloc
             signals.append(Signal(
                 city=city, bucket=bucket, direction=direction,
                 token_id=tok, p_model=round(p_m, 4),
