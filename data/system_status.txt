@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+f38a8a8f fix: STWA NMS feed uses official_running_max_c (AWC/NWS only)
+2cd3b8d0 Watchdog 2026-05-28T11:18:40Z: OK 0 alerts (3 anomalies, all within backoff)
+18467a95 Watchdog 2026-05-28T10:18:41Z: OK 0 alerts (3 anomalies, all within backoff)
+3ee91a0d Watchdog 2026-05-28T09:19:41Z: OK 0 alerts (3 anomalies in backoff; SHADOW_LOGGER_STALLED resolved)
+ab1c2c83 Validator 2026-05-28 — ready=1 rejected=0 stalled=0
 55b30c98 fix: register WEATHER_STWA class in exit protection and dedup gates
 1aa53637 fix: exclude WEATHER_M1_PROBE from PROFIT_TARGET(WS) exit path
 58d7be39 Watchdog 2026-05-28T08:21:35Z: HIGH 3 alerts (TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT; 6h backoff elapsed)
 8cf3dab4 fix: M1β watchlist staleness and double-fire on UTC midnight
 4e7e7189 fix: raise M1β depth_c floor from 0.2 to 0.4°C
-abbf89d0 fix: remove NEA S24 from WSSS — different physical station from WU oracle
-3b4fee29 VOLARB Audit 20260528-0615 — NO_PATCH (n=885, watch=7)
-b3c11ccf Watchdog 2026-05-28T06:20:00Z: OK 0 alerts (4 anomalies, all within backoff)
-6101519a fix: lockout scan rejects stale running_max_c from previous local day
-0ee326a9 revert: lockout uses running_max_c (SYNOP) not official_running_max_c
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   85G        8G  92% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   85G        8G  93% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-28 08:27:12 UTC
+ActiveEnterTimestamp=Thu 2026-05-28 11:22:00 UTC
 
 ## Open positions (count):
 0

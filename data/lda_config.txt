@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-28T11:15:28Z
+# Snapshot: 2026-05-28T11:30:33Z
 # Latest commit on klaus:
-55b30c98 fix: register WEATHER_STWA class in exit protection and dedup gates
+f38a8a8f fix: STWA NMS feed uses official_running_max_c (AWC/NWS only)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
