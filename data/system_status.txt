@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+d44644f0 fix: recalibrate NWP bias for all 51 STWA cities (2023-2025 GFS)
+2e1ab95e feat: add 15 new Polymarket cities — full STWA calibration
+4830b460 feat: execute NEG_RISK_ARB in STWA — buy all YES tokens when Σask < 0.92
 4499c9b2 fix: override POST_PEAK→AT_PEAK when running_max updated within last hour
 46c556b4 fix: STWA peak hours for 4 cities + Helsinki bias recalibration
 10daa0a0 Watchdog 2026-05-28T13:18:25Z: CRITICAL 1 alerts
@@ -9,15 +12,12 @@ ab02bc4b fix: split YES/NO pools in STWA allocation — independent Kelly for NO
 d98cb742 fix: horse-race Kelly replaces greedy LP in STWA city allocation
 4ef78e19 VOLARB Scout 2026-05-28T1246Z — NULL (n=887 frozen, all H1/H3/H5 DISCARD terminal)
 43a451c0 VOLARB Audit 20260528-1224 — NO_PATCH (n=885, watch=7, retired ~225h)
-0b61d089 Watchdog 2026-05-28T12:18:32Z: MEDIUM 1 alerts
-26cec6db feat: STWA LP portfolio allocation — replaces independent per-bucket Kelly
-83a3f9ec log: STWA go-live session — pre-anchor write-off and 3 dedup fixes
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        7G  93% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-28 14:00:18 UTC
+ActiveEnterTimestamp=Thu 2026-05-28 14:15:59 UTC
 
 ## Open positions (count):
 0
