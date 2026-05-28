@@ -840,7 +840,7 @@ class KlausBot:
                     finally:
                         self._exit_in_progress.discard(token_id)
                     return
-            if bid_price >= 0.99 and getattr(pos, "bond_entry_class", "") not in ("LDA", "CAS_LOWASK"):
+            if bid_price >= 0.99 and getattr(pos, "bond_entry_class", "") not in ("LDA", "CAS_LOWASK", "WEATHER_M1_PROBE"):
                 self._exit_in_progress.add(token_id)
                 logger.info(
                     "PROFIT_TARGET(WS) %s/%s | bid=%.4f ep=%.4f",
