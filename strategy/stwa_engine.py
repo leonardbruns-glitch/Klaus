@@ -86,8 +86,9 @@ class _CityState:
     # Kalman marginal posterior (marginal extracted from joint P matrix)
     x_hat:       float = 0.0     # posterior mean residual (°C)
     # Posterior variance stored in the joint P matrix; accessed via engine.P[idx, idx]
-    last_obs_ts: float = 0.0     # Unix timestamp of latest METAR
-    running_max: Optional[float] = None
+    last_obs_ts:    float = 0.0     # Unix timestamp of latest METAR
+    running_max:    Optional[float] = None
+    running_max_ts: float = 0.0     # Unix timestamp when running_max last increased
     regime:      str = "SUNNY"
     obs_count:   int = 0
     obs_date:    str = ""        # YYYY-MM-DD of the day running_max belongs to
@@ -286,7 +287,10 @@ class STWAEngine:
             with self._lock:
                 cs.regime       = regime
                 cs.last_obs_ts  = obs_ts
-                cs.running_max  = _new_max(running_max, temp_c)
+                new_max = _new_max(running_max, temp_c)
+                if new_max != cs.running_max:
+                    cs.running_max_ts = obs_ts
+                cs.running_max  = new_max
                 cs.obs_date     = today_str
             return
 
@@ -353,7 +357,10 @@ class STWAEngine:
 
             cs.x_hat    = float(self._X[idx])
             cs.last_obs_ts  = obs_ts
-            cs.running_max  = _new_max(running_max, temp_c)
+            new_max = _new_max(running_max, temp_c)
+            if new_max != cs.running_max:
+                cs.running_max_ts = obs_ts
+            cs.running_max  = new_max
             cs.regime       = regime
             cs.obs_date     = today_str
             cs.obs_count   += 1
@@ -632,6 +639,10 @@ class STWAEngine:
 
             # Phase must be computed before MC so sigma damping is applied correctly
             phase = _phase(cs, t_close_map[city], now)
+            # Override: if running_max was updated within the last hour the day is
+            # still warming — POST_PEAK sigma suppression (×0.15) would be wrong.
+            if phase == "POST_PEAK" and (now - cs.running_max_ts) < 3600:
+                phase = "AT_PEAK"
 
             try:
                 probs = self._forecast_bucket_probs(city, now, t_close, buckets, phase=phase)
