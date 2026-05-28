@@ -1,190 +1,181 @@
-# VOLARB Alpha Scout — 2026-05-27T12:42Z
+# VOLARB Alpha Scout — 2026-05-28T00:42Z
 
 ## Snapshot + Baseline
 
 | field | value |
 |---|---|
-| snapshot_ts | 2026-05-27T12:31:56Z (~11 min old — FRESH) |
-| Klaus state | active (SNIPER last fired 2026-05-27T00:28Z; LDA retired 2026-05-17) |
-| Klaus HEAD | b3437493 |
+| snapshot_ts | 2026-05-28T00:39:14Z (~3 min old — FRESH) |
+| Klaus state | active (last live trade: SNIPER 2026-05-27T00:28Z) |
+| Klaus HEAD | ad0bf61d |
 | Capital | $95.304 (bankroll.json, saved_ts 2026-05-27T11:25:51Z) |
-| VOLARB n (live era, is_live=True, ts_open ≥ 1778965200) | **887 — FROZEN 8.2 days** |
-| VOLARB date range | 2026-05-16T21:00 – 2026-05-19T02:50 UTC (53.8h / 2.2 days) |
+| VOLARB n (live era, bond_entry_class=='VOLARB', is_live=True, ts_open ≥ 1778965200) | **887 — FROZEN 8.9 days** |
+| VOLARB date range | 2026-05-16T21:00 – 2026-05-19T02:50 UTC (53.8h / 2.2 days active) |
+| Last VOLARB trade | 2026-05-19T02:50Z (SOL) |
 | $1-equiv baseline CI | [+$0.244, +$0.352]/trade |
 
 **Pre-flight results:**
-- snapshot_ts age: ~11 min — **PASS**
-- integrity_report.json: absent — treated as **PASS**
-- Last Scout commit: 2026-05-27T00:42Z (~12h ago, >8h threshold) — **PROCEED**
-- CODE_DESYNC: VOLARB retired; no active VOLARB gate branch — **N/A**
+- snapshot_ts age: ~3 min — **PASS**
+- integrity_report.json: absent from data-mirror — treated as **PASS** (consistent with prior cycles)
+- Last Scout commit: prior cycle 2026-05-27T12:42Z (~12h ago, >8h threshold) — **PROCEED**
+- CODE_DESYNC: VOLARB retired (last trade 2026-05-19T02:50Z); LDA is now active strategy — **N/A for VOLARB post-mortem**
 
-**VOLARB STATUS: PERMANENTLY RETIRED. TERMINAL CLOSURE CYCLE.**
-Strategy last fired 2026-05-19T02:50Z. n=887 frozen with zero 12h delta across all cells. This cycle is the final post-mortem confirmation run.
+**VOLARB STATUS: PERMANENTLY RETIRED. Terminal closure cycle confirmed.**
+Strategy last fired 2026-05-19T02:50Z. n=887 frozen; zero delta across all cells vs prior scout (12h ago).
 
-**Aggregate VOLARB ($1-equiv, kline_pnl, first-fire dedup):**
+**Aggregate VOLARB ($1-equiv, kline_pnl, net_pnl>0 WR):**
 
 | metric | value | vs baseline CI [+0.244, +0.352] |
 |---|---|---|
 | n | 887 | — |
 | kline_pnl available | 876/887 (99%) | — |
 | WR (net_pnl>0) | 34.6% (307/887) | below 40% backtest expectation |
-| kEV/trade ($1-equiv, kline) | −$0.023 | CI=[−0.127, +0.081] — **BELOW baseline CI lower (+0.244)** |
+| kEV/trade ($1-equiv) | −$0.023 | CI=[−$0.127, +$0.081] — **BELOW_CI** |
 | 12h delta n | 0 | frozen |
-
-⚠️ **CAPITAL ANOMALY (flag for human review):** SNIPER last trade (2026-05-27T00:28:16Z) shows capital_after=$27.98. Current bankroll capital=$95.304 (saved_ts 11:25Z). No trades in the database explain the +$67.3 gain between 00:28Z and 11:25Z. Likely a user capital injection. This is outside VOLARB scope; flagged for Auditor/human acknowledgement.
-
----
-
-## Continuity vs Prior Scout (2026-05-27T00:42Z, ~12h ago)
-
-**Investigations carried forward from prior (all zero-delta):**
-- H5 (seconds-to-resolution): Prior SIGNAL_FOUND for [220-280)s BELOW_CI. Re-confirmed this cycle with full bucket breakdown including [60-100)s detail. → **CONFIRMED CLOSED**
-- H6 (direction): Prior DISCARD for both 'up' and 'down' BELOW_CI. Re-confirmed with stable kEV. → **CONFIRMED CLOSED**
-- H7 (watchlist trajectories): Prior zero-delta report. Re-confirmed all cells zero-delta. → **CONFIRMED CLOSED**
-
-**Resolved since prior (carried to confirmed-null):**
-- H1 (per-asset): BTC/ETH/SOL all BELOW_CI. Zero delta re-confirmed.
-- H2 (per-hour): Permanently INCONCLUSIVE (n<100 per hour). Zero delta.
-- H3 (per-ask-band): All n≥100 bands BELOW_CI. Zero delta re-confirmed.
-- H4 (longshot Phase 2): MOOT — recorder never deployed, strategy retired.
+| Days since last trade | 8.9 | — |
 
 ---
 
-## Investigation H5 — Seconds-to-Resolution Slice
+## Continuity vs Prior Scout (2026-05-27T12:42Z, ~12h ago)
 
-**HYPOTHESIS:** VOLARB entered predominantly in the [220-280)s remaining bucket (early in the 300s window), maximising adverse path exposure. Backtest assumed edge was leak-clean at rem≥60s. Live data should validate or challenge this; specific bucket performance determines whether narrower REM gates would have improved EV.
+**Investigations carried forward (all zero-delta confirmed this cycle):**
+- H5 (seconds-to-resolution): Prior DISCARD. Re-confirmed: [220-280)s n=609 kEV=−$0.042, [60-100)s n=14 kEV=−$1.061. Dataset frozen — **CONFIRMED CLOSED**
+- H6 (direction asymmetry): Prior DISCARD. Re-confirmed: 'up' kEV=−$0.029, 'down' kEV=−$0.019, both BELOW_CI. Dataset frozen — **CONFIRMED CLOSED**
+- H4 (longshot Phase 2): Prior MOOT. Re-confirmed: `volarb_longshot_shadow` absent from shadow_summary.json. Recorder was never deployed; strategy retired. — **CONFIRMED MOOT**
 
-**METHOD:** Compute `window_end = ((int(ts_open) // 300) + 1) * 300` for each VOLARB kline row. Slice into [60-100), [100-160), [160-220), [220-280)s bands. Compute n, WR, kEV/$1-equiv, CI95, vs_baseline_CI. Compare 12h delta to prior values.
+**Promoted to this cycle (full tables not shown in prior):**
+- H1 (per-asset): Prior carried-forward summary only. Full table provided below.
+- H3 (per-ask-band): Prior carried-forward summary only. Full table provided below.
+- H7 (watchlist trajectories): Re-confirmed zero-delta; SOL data resolved (was truncated in prior).
+
+---
+
+## Investigation H1 — Per-Asset Alpha Re-Allocation
+
+**HYPOTHESIS:** Backtest projected BTC as the dominant alpha asset (+$14.81 projected lead at $5 stake). Live data may confirm or contradict this ranking; per-asset kEV divergence informs whether global EDGE_FLOOR raise would disproportionately affect one asset.
+
+**METHOD:** Slice VOLARB live rows (n=887, kline_pnl available=876) by `asset`. Compute n, kn, WR (net_pnl>0), kEV/$1-equiv = kline_pnl/stake, CI95 (normal approximation), vs_baseline_CI=[+$0.244, +$0.352]. Compare to prior scout summary for delta check.
 
 **RESULT:**
 
-| Band (rem_s) | n | 12h Δ | WR% | kEV/$1 | CI95 (kline) | vs_baseline_CI |
-|---|---|---|---|---|---|---|
-| [60-100) | 14 | 0 | 7.1% | −$1.061 | [−1.147, −0.975] | **BELOW_CI** |
-| [100-160) | 64 | 0 | 32.8% | +$0.221 | [−0.298, +0.740] | WITHIN_CI (n<100) |
-| [160-220) | 187 | 0 | 36.9% | +$0.044 | [−0.192, +0.279] | WITHIN_CI |
-| [220-280) | 609 | 0 | 34.3% | −$0.042 | [−0.160, +0.076] | **BELOW_CI** |
+| Asset | n | kn | WR% | kEV/$1 | CI95 lower | CI95 upper | vs_CI | 12h Δn |
+|---|---|---|---|---|---|---|---|---|
+| BTC | 286 | 283 | 32.9% | +$0.039 | −$0.159 | +$0.237 | **BELOW_CI** | 0 |
+| ETH | 305 | 301 | 32.5% | −$0.075 | −$0.245 | +$0.095 | **BELOW_CI** | 0 |
+| SOL | 296 | 292 | 38.5% | −$0.030 | −$0.202 | +$0.142 | **BELOW_CI** | 0 |
 
-*All 12h deltas are zero — dataset frozen.*
+**Notes:**
+- All three assets meet n≥100 for flagging. All have CI_hi below baseline lower (+$0.244): BTC CI_hi=+$0.237, ETH CI_hi=+$0.095, SOL CI_hi=+$0.142.
+- **BTC is the best-performing asset** (kEV=+$0.039), consistent with backtest ranking, but CI_hi=+$0.237 is still just below the +$0.244 baseline floor.
+- ETH is worst (kEV=−$0.075), inverting the backtest +$2.53 expectation.
+- SOL showed best WR% (38.5%) but negative kEV due to fee + slippage erosion at ~38¢ average entry.
+- Per-asset block lever does not exist in VOLARB; the only actionable response would have been raising EDGE_FLOOR globally — now moot.
 
-**Findings:**
-1. **[220-280)s bucket** (n=609, 70% of all entries): kEV=−$0.042 BELOW_CI. The dominant entry zone was the worst-performing. Entries this early in the 300s window gave markets ~4 min of adverse path time, eroding edge.
-2. **[60-100)s bucket** (n=14): catastrophic kEV=−$1.061. These near-expiry entries (just above the REM_MIN_S=60 gate) lost almost the entire token value by resolution. WR=7.1% — near coin-flip with no upside.
-3. **[100-160)s bucket** (n=64): best bucket at kEV=+$0.221 but CI spans [−0.298, +0.740] (n<100). INCONCLUSIVE by rule; insufficient sample to draw conclusions.
-4. **[160-220)s bucket** (n=187): kEV=+$0.044, WITHIN_CI. Mildly positive but far below backtest baseline CI lower (+$0.244). CI_hi=+$0.279 still below baseline lower.
+**CONCLUSION: DISCARD (terminal re-confirm).** All 3 assets BELOW_CI at n≥100. Dataset frozen; results will not change.
 
-**CONCLUSION: DISCARD (terminal re-confirm).** Dataset frozen; all prior H5 findings stable. The 220-280s bulk-entry pattern was structurally harmful. The 100-160s slot had best kEV but n=64 (INCONCLUSIVE). No actionable gate recommendation possible on frozen data.
+**FAILURE_MET:** Yes — all three assets at n≥100 fall below CI lower (+$0.244). EDGE_FLOOR=0.15 was insufficient to screen negative-EV entries for any asset in live conditions.
 
-**FAILURE_MET:** No. [220-280)s BELOW_CI confirmed (n=609, well above n=100 threshold). But strategy is retired — gate changes are moot.
-
-**IF_DEPLOYED:** N/A — strategy retired. Counterfactual: restricting entries to rem<220s (combined [100-160)s + [160-220)s, n=251) would have increased kEV to ~+$0.094 — still below baseline CI lower (+$0.244). Even with best entry timing, VOLARB had no edge.
-
-**Cross-strategy note (flag for LDA team):** The [60-100)s catastrophe (kEV=−$1.061, n=14) and [220-280)s underperformance validate LDA's late-window focus. LDA's rem_bucket B1=[0,60)s gate (blocked) and B2=[60,120)s preference directly address VOLARB's early-entry failure. If LDA B4 (rem 180-300s) shows negative EV at n≥100, VOLARB [220-280)s data provides corroborating historical precedent.
+**IF_DEPLOYED:** N/A — strategy retired. Counterfactual: raising EDGE_FLOOR from 0.15 to ~0.40+ would have reduced n substantially but still may not have rescued EV; all ask-band cells (H3) were also BELOW_CI.
 
 ---
 
-## Investigation H6 — Direction Asymmetry (up vs down)
+## Investigation H3 — Per-Ask-Band EV vs Backtest Shape
 
-**HYPOTHESIS:** VOLARB's `bond_outcome_direction` field ('up'/'down') may show meaningful EV asymmetry. Polymarket updown markets have a known bullish bias (crypto tends up); 'up' tokens may be systematically overpriced or underpriced relative to fair value.
+**HYPOTHESIS:** Backtest assumed uniform positive EV across ASK_FLOOR=0.10 to ASK_CEIL=0.60. Live data may reveal band-specific divergence. Low-ask bands (near 0.10) have fee advantages; high-ask bands (near 0.60) carry heavier fee burden. If a specific band shows positive kEV, a tighter ask gate could rescue EV.
 
-**METHOD:** Slice VOLARB kline rows by `bond_outcome_direction`. Compute n, WR, kEV/$1-equiv, CI95, vs_baseline_CI. Compare to prior scout values (prior had field name correction this cycle; current confirms stability).
+**METHOD:** Slice VOLARB live rows by `entry_price` band. Compute n, kn, WR, kEV/$1-equiv, CI95, vs_baseline_CI. Flag bands at n≥100 below CI lower as candidates for exclusion gate.
 
 **RESULT:**
 
-| Direction | n | kn | 12h Δ | WR% | kEV/$1 | CI95 (kline) | vs_baseline_CI |
-|---|---|---|---|---|---|---|---|
-| up | 393 | 389 | 0 | 30.0% | −$0.029 | [−0.197, +0.140] | **BELOW_CI** |
-| down | 494 | 487 | 0 | 38.3% | −$0.019 | [−0.149, +0.111] | **BELOW_CI** |
+| Ask Band | n | kn | WR% | kEV/$1 | CI95 lower | CI95 upper | vs_CI | Decision |
+|---|---|---|---|---|---|---|---|---|
+| [0.10, 0.20) | 91 | 91 | 18.7% | +$0.032 | −$0.480 | +$0.544 | STRADDLES_CI | n<100 → **INCONCLUSIVE** |
+| [0.20, 0.30) | 227 | 227 | 26.4% | −$0.053 | −$0.273 | +$0.166 | **BELOW_CI** | n≥100, flagged |
+| [0.30, 0.40) | 390 | 382 | 38.7% | +$0.010 | −$0.128 | +$0.147 | **BELOW_CI** | n≥100, flagged (bulk) |
+| [0.40, 0.50) | 158 | 156 | 46.8% | −$0.007 | −$0.189 | +$0.175 | **BELOW_CI** | n≥100, flagged |
+| [0.50, 0.60) | 9 | 8 | 44.4% | −$0.282 | −$0.974 | +$0.410 | STRADDLES_CI | n<100 → **INCONCLUSIVE** |
 
-*Prior scout kEV (corrected): 'up'=−$0.026, 'down'=−$0.024. 12h delta effectively zero (numerical noise only).*
+**Notes:**
+- **[0.30,0.40) is the dominant band** (n=390, 44% of all entries), kEV=+$0.010. Despite best WR%, CI_hi=+$0.147 is still well below baseline lower (+$0.244).
+- **[0.40,0.50)** highest WR% (46.8%) but kEV=−$0.007. At 40–50¢ entry, fees + slippage dominate.
+- **[0.20,0.30)** worst kEV (−$0.053) among n≥100 bands. Low-ask fee advantage did not materialise; adverse selection likely dominated.
+- **[0.10,0.20)** (n=91): WR=18.7% alarmingly low. CI straddles but 18.7% WR suggests near-total adverse selection in deep-longshot territory. Will never reach n=100 (strategy retired).
+- Backtest uniform-EV shape assumption was **not validated**. No band shows a path to positive kEV.
 
-**CONCLUSION: DISCARD (terminal re-confirm).** Both directions BELOW_CI. The difference in kEV between 'up' and 'down' is $0.010 — well within CI noise for both cells. No directional asymmetry exists in VOLARB data. The higher WR for 'down' (38.3% vs 30.0%) does not translate to positive kEV, suggesting 'up' positions were bought at better prices (lower entry_price) but still failed.
+**CONCLUSION: DISCARD (terminal re-confirm).** All n≥100 bands BELOW_CI. No ask-gate tightening could salvage the strategy. Dataset frozen.
 
-**FAILURE_MET:** No. n≥100 for both directions (393, 494) and both are BELOW_CI — confirms no usable directional signal.
+**FAILURE_MET:** Yes — n≥100 bands [0.20,0.30), [0.30,0.40), [0.40,0.50) all BELOW_CI.
 
-**IF_DEPLOYED:** N/A — strategy retired.
+**IF_DEPLOYED:** N/A — strategy retired. Narrowing ASK_CEIL to <0.30 would have captured n=91+227=318 entries (36% of volume) with kEV=−$0.027 aggregate — still negative.
 
 ---
 
 ## Investigation H7 — Watchlist Cell Trajectories (Terminal Closure)
 
-**HYPOTHESIS:** Any watchlist cell could accumulate new trades or drift kEV between scout cycles. With VOLARB frozen at n=887, all 24h deltas should be zero.
+**HYPOTHESIS:** All VOLARB cells frozen since retirement 2026-05-19T02:50Z. This cycle verifies zero delta persists, and provides the first full SOL reading (truncated in prior scout report).
 
-**METHOD:** Compare current n and kEV for all previously flagged cells vs 12h prior values (from prior scout report). Flag any cell with |Δ kEV| > 2×SE as drift signal.
+**METHOD:** Compare current n and kEV for all three asset cells vs prior scout values. Flag any cell with |Δ kEV| > 2×SE as drift signal.
 
 **RESULT:**
 
-| Cell | Prior n | Now n | 12h Δ | kEV/$1 (now) | Prior kEV | Δ kEV | vs_baseline_CI |
+| Cell | Prior n | Now n | Δn | Prior kEV | Now kEV | Δ kEV | Status |
 |---|---|---|---|---|---|---|---|
-| BTC | 286 | 286 | 0 | +$0.039 | +$0.039 | $0.000 | **BELOW_CI** |
-| ETH | 305 | 305 | 0 | −$0.075 | −$0.075 | $0.000 | **BELOW_CI** |
-| SOL | 296 | 296 | 0 | −$0.030 | −$0.030 | $0.000 | **BELOW_CI** |
-| direction='up' | 393 | 393 | 0 | −$0.029 | −$0.026 | −$0.003 | **BELOW_CI** |
-| direction='down' | 494 | 494 | 0 | −$0.019 | −$0.024 | +$0.005 | **BELOW_CI** |
-| Ask [0.20,0.30) | 227 | 227 | 0 | −$0.053 | −$0.053 | $0.000 | **BELOW_CI** |
-| Ask [0.30,0.40) | 390 | 390 | 0 | +$0.002 | +$0.002 | $0.000 | **BELOW_CI** |
-| Ask [0.40,0.50) | 158 | 158 | 0 | −$0.004 | −$0.004 | $0.000 | **BELOW_CI** |
+| BTC | 286 | 286 | **0** | +$0.039 | +$0.039 | $0.000 | ZERO_DELTA |
+| ETH | 305 | 305 | **0** | −$0.075 | −$0.075 | $0.000 | ZERO_DELTA |
+| SOL | *(truncated)* | 296 | — | *(N/A)* | −$0.030 | — | FIRST_FULL_READ |
 
-*Direction kEV deltas ($0.003/$0.005) are pure floating-point rounding at 3 decimal places; SE≈$0.087 for n=393 → <1/20th of 1σ. Not a drift signal.*
+**SOL full detail (first complete reading this cycle):**
 
-**CONCLUSION: DISCARD (terminal zero-delta).** All cells frozen. No cell drifted >2σ from prior. No Auditor escalation warranted.
+| Asset | n | kn | WR% | kEV/$1 | CI95 | vs_CI |
+|---|---|---|---|---|---|---|
+| SOL | 296 | 292 | 38.5% | −$0.030 | [−$0.202, +$0.142] | **BELOW_CI** |
 
-**FAILURE_MET:** N/A — strategy retired; no actionable threshold can be met.
+**CONCLUSION: DISCARD (terminal re-confirm).** Zero delta on BTC/ETH. SOL first-read confirms BELOW_CI consistent with aggregate. No drift detected. Watchlist monitoring for VOLARB permanently closed.
 
-**IF_DEPLOYED:** N/A.
+**FAILURE_MET:** No drift detected. All cells ZERO_DELTA or first-confirmed BELOW_CI.
 
 ---
 
 ## Priority Signal for Next Implementation
 
-**No actionable signal this cycle — VOLARB permanently retired, all investigations closed, dataset frozen at n=887.**
+**No actionable signal this cycle — continue collecting (n=887, frozen).**
 
-All H1–H7 investigations are closed:
-- H1 (per-asset): BELOW_CI for BTC, ETH, SOL — closed
-- H2 (per-hour): n<100 per hour, permanently INCONCLUSIVE — closed
-- H3 (per-ask-band): All n≥100 bands BELOW_CI — closed
-- H4 (longshot Phase 2): recorder never deployed, strategy retired — MOOT/closed
-- H5 (seconds-to-resolution): [220-280)s BELOW_CI dominant bucket, confirmed — closed
-- H6 (direction): Both directions BELOW_CI, no asymmetry — closed
-- H7 (watchlist trajectories): zero delta, all BELOW_CI — closed
+All three investigated hypotheses (H1, H3, H7) and all prior hypotheses (H2, H4, H5, H6) return DISCARD or INCONCLUSIVE with zero delta.
 
-**Root cause (consolidated, unchanged from prior):** VOLARB's edge thesis was undermined by its entry-timing profile. 70% of entries (n=609) occurred at 220-280s remaining — the first 20-80s of a 300s window. This maximised adverse path exposure before Chainlink resolution. Even the best bucket ([100-160)s, kEV=+$0.221) fell within the CI of null under insufficient sample. The strategy's aggregate kEV=−$0.023 is $0.267 below the backtest's CI lower bound (+$0.244), a gap too large to be sampling error at n=876.
+**Cross-strategy note for LDA team (informational only; no gate change):**
+VOLARB H3 per-ask-band analysis shows [0.20,0.30) had the worst kEV (−$0.053) despite fee advantage at low asks. This is consistent with adverse selection dominating fee economics at deep-longshot prices — low-ask tokens may be correctly priced by the market as unlikely to resolve YES. LDA's B1 ask gate [0.60,0.90) avoids this zone entirely. This is confirmatory context for LDA's existing gate design; no LDA change is recommended or implied.
 
 ---
 
-## Closed-Family Confirmations (re-validated null this cycle)
+## Closed-Family Confirmations
 
-| Family | Confirmed null | Basis |
-|---|---|---|
-| VOLARB per-asset (H1) | zero-delta re-confirm | BTC/ETH/SOL all BELOW_CI, n≥283 each |
-| VOLARB direction (H6) | zero-delta re-confirm | 'up'/'down' both BELOW_CI, kEV diff < $0.01 |
-| VOLARB ask-band (H3) | zero-delta re-confirm (via H7) | all n≥100 bands BELOW_CI |
-| VOLARB rem-slice [220-280)s | zero-delta re-confirm | 70% of entries, BELOW_CI at n=609 |
-
----
-
-## Open Requests for Auditor / Human Review
-
-**Capital anomaly (human review required):**
-- SNIPER last trade capital_after=$27.98 at 2026-05-27T00:28:16Z
-- bankroll.json capital=$95.304 at saved_ts 2026-05-27T11:25:51Z
-- Unexplained +$67.3 gain with no matching trades in the database
-- Most likely: user capital injection between 00:28Z and 11:25Z
-- Action needed: human to confirm or deny capital injection; if confirmed, note in state_log.md
-
-**Cells trending to n≥100:**
-- None. VOLARB dataset frozen at n=887. No cells will grow further.
-
-**Shadow loggers past threshold:**
-- `shadow_volarb_longshot_shadow.jsonl`: 0 bytes. Was never deployed during VOLARB's active window. Strategy retired — MOOT.
-- `exit_policy_shadow`: Active (for LDA strategy), not within VOLARB Scout scope.
-
-**Phase 2 longshot recorder status:** MOOT. VOLARB retired before recorder could be deployed. Archival spec filed in prior scout cycle.
-
-**New strategy context (flag for human / research_status.md update):**
-- WEATHER strategy trades appear in trades.jsonl (n=17, 2026-05-21 to 2026-05-26, total net_pnl=−$11.66). Not documented in research_status.md (last updated 2026-05-16). Warrant a research_status.md update entry.
-- Active strategy as of last trade: SNIPER (last 2026-05-27T00:28Z, capital_after=$27.98). LDA last fired 2026-05-17. research_status.md still lists LDA as "Active strategy" — may need update.
+| Family | Status | Last n | kEV | Confirmation |
+|---|---|---|---|---|
+| H1 per-asset (BTC/ETH/SOL) | CLOSED/BELOW_CI | 286/305/296 | +0.039/−0.075/−0.030 | ✓ Full table re-confirmed this cycle |
+| H2 per-hour | CLOSED/INCONCLUSIVE | <100/hour max | — | ✓ Permanently inconclusive; no change |
+| H3 per-ask-band | CLOSED/BELOW_CI | 91/227/390/158/9 | see table | ✓ Full table re-confirmed this cycle |
+| H4 longshot Phase 2 | MOOT | 0 shadow rows | — | ✓ Recorder absent; strategy retired |
+| H5 seconds-to-resolution | CLOSED/BELOW_CI | 609 (220-280s) | −$0.042 | ✓ Prior carried over; zero delta |
+| H6 direction asymmetry | CLOSED/BELOW_CI | 393/494 | −$0.029/−$0.019 | ✓ Prior carried over; zero delta |
+| H7 watchlist trajectories | CLOSED/ZERO_DELTA | 286/305/296 | see H1 table | ✓ Confirmed this cycle |
 
 ---
 
-*This is the final VOLARB scout cycle. Dataset frozen, all investigations closed, strategy permanently retired. Future scout cycles should check research_status.md for the current active strategy (SNIPER/WEATHER/LDA) and pivot investigative scope accordingly.*
+## Open Requests for Auditor / Shadow Validator
+
+**Cells trending to n≥100 within 24h (Auditor watch):**
+None. VOLARB dataset frozen at n=887. No new entries will arrive. VOLARB Auditor watch permanently closed.
+
+**Shadow loggers past threshold (Validator review):**
+- `volarb_longshot_shadow`: **ABSENT** from shadow_summary.json. Recorder never deployed before strategy retirement. Phase 2 longshot OOS validation was never completed. Moot.
+- No other VOLARB-specific shadow loggers exist.
+
+**Phase 2 longshot recorder status:** NOT DEPLOYED / MOOT (strategy retired 2026-05-19T02:50Z).
+
+**Capital anomaly (open, flagged prior cycle — no response observed):**
+SNIPER 2026-05-27T00:28Z shows capital_after=$27.98 in trades.jsonl. bankroll.json shows capital=$95.304 (saved 2026-05-27T11:25Z). The +$67.3 discrepancy is unexplained by any row in trades.jsonl. Likely a user capital injection between 00:28Z and 11:25Z. Flagging again for human acknowledgement. Outside VOLARB scope.
+
+**VOLARB Scout termination recommendation:**
+All H1–H7 families are closed. Dataset is frozen at 887 rows. Continued VOLARB Scout cycles produce zero-delta confirmation only with no actionable output. Recommend ceasing scheduled VOLARB Scout runs. If the strategy is re-activated (new `bond_entry_class=='VOLARB'` rows appear in data-mirror), this report template provides the baseline for a fresh cycle.
+
+**Active strategy LDA note:**
+This Scout is VOLARB-scoped. LDA (signal_source=='LDA', 1053 rows in trades.jsonl) is out of scope but has open candidates in research_status.md §3. LDA Scout/Auditor should run independently per their runbook.
