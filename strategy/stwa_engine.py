@@ -149,7 +149,14 @@ class STWAEngine:
         self._cal_log: dict[str, list[tuple[float, int]]] = {}
         self._suspended: set[str] = set()
 
+        # Persistence paths (same directory as params)
+        _base = self._params_path.parent.parent / "data"
+        self._state_kalman = _base / "stwa_kalman_state.npz"
+        self._state_cities = _base / "stwa_city_state.json"
+        self._save_counter: int = 0
+
         self._load_params()
+        self._restore_state()
 
     # ── Param loading ──────────────────────────────────────────────────────────
 
@@ -179,6 +186,58 @@ class STWAEngine:
                 self._cities[city] = _CityState(city=city, idx=idx)
 
         logger.info("[STWA] loaded params: %d cities, %dx%d covariance", N, N, N)
+
+    def _save_state(self) -> None:
+        """Persist Kalman X/P and per-city velocity state to disk."""
+        try:
+            np.savez_compressed(str(self._state_kalman), X=self._X, P=self._P)
+            city_data = {}
+            for city, cs in self._cities.items():
+                city_data[city] = {
+                    "x_hat": cs.x_hat, "last_obs_ts": cs.last_obs_ts,
+                    "running_max": cs.running_max, "running_max_ts": cs.running_max_ts,
+                    "obs_date": cs.obs_date, "regime": cs.regime,
+                    "obs_count": cs.obs_count,
+                    "v_hat": cs.v_hat, "pv_var": cs.pv_var,
+                    "obs_buf": cs.obs_buf,
+                }
+            with open(self._state_cities, "w") as f:
+                json.dump(city_data, f)
+        except Exception as e:
+            logger.debug("[STWA] state save failed: %s", e)
+
+    def _restore_state(self) -> None:
+        """Restore Kalman X/P and velocity state from disk if available."""
+        try:
+            if self._state_kalman.exists():
+                snap = np.load(str(self._state_kalman))
+                X_saved, P_saved = snap["X"], snap["P"]
+                if X_saved.shape == self._X.shape and P_saved.shape == self._P.shape:
+                    self._X = X_saved.astype(float)
+                    self._P = P_saved.astype(float)
+                    logger.info("[STWA] Kalman state restored from %s", self._state_kalman)
+                else:
+                    logger.info("[STWA] Kalman state shape mismatch — using prior")
+            if self._state_cities.exists():
+                with open(self._state_cities) as f:
+                    city_data = json.load(f)
+                for city, d in city_data.items():
+                    cs = self._cities.get(city)
+                    if cs is None:
+                        continue
+                    cs.x_hat         = float(d.get("x_hat", 0.0))
+                    cs.last_obs_ts   = float(d.get("last_obs_ts", 0.0))
+                    cs.running_max   = d.get("running_max")
+                    cs.running_max_ts= float(d.get("running_max_ts", 0.0))
+                    cs.obs_date      = d.get("obs_date", "")
+                    cs.regime        = d.get("regime", "SUNNY")
+                    cs.obs_count     = int(d.get("obs_count", 0))
+                    cs.v_hat         = float(d.get("v_hat", 0.0))
+                    cs.pv_var        = float(d.get("pv_var", VEL_PRIOR_VAR))
+                    cs.obs_buf       = [tuple(x) for x in d.get("obs_buf", [])]
+                logger.info("[STWA] city velocity state restored (%d cities)", len(city_data))
+        except Exception as e:
+            logger.info("[STWA] state restore failed (%s) — starting from prior", e)
 
     def reset_daily(self) -> None:
         """Reset all cities (legacy — prefer reset_city for per-city local midnight)."""
@@ -385,6 +444,11 @@ class STWAEngine:
             cs.obs_count   += 1
             cs.last_update_from_self = True
 
+            # Periodic state persistence (every 20 Kalman updates)
+            self._save_counter += 1
+            if self._save_counter % 20 == 0:
+                self._save_state()
+
             # ── Velocity Kalman update (OLS on RAW residuals, not x_hat) ────────
             # Raw residual y_obs is responsive; x_hat is Kalman-smoothed and lags.
             now_h = obs_ts / 3600.0
@@ -566,26 +630,38 @@ class STWAEngine:
             arb_edge = 1.0 - sum_ask
             city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
             k = city_budget / sum_ask   # equal shares per bucket
-            logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f edge=%.3f k=%.1f budget=$%.2f",
-                        city, sum_ask, arb_edge, k, city_budget)
-            arb_signals = []
+
+            # Depth check: clamp k so no bucket order exceeds available book depth
             for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
-                if ask_yes is None or not (0 < ask_yes < 1):
+                if not (ask_yes and 0 < ask_yes < 1):
                     continue
-                stake = float(np.clip(round(k * ask_yes, 2),
-                                      self.stake_min, self.stake_max))
-                arb_signals.append(Signal(
-                    city=city, bucket=(lo, hi), direction="YES",
-                    token_id=yes_tok, p_model=round(p_m, 4),
-                    ask=ask_yes, edge=round(arb_edge, 4),
-                    confidence=1.0, stake=stake,
-                    regime=regime, phase=phase,
-                    metar_age_s=round(metar_age, 1),
-                    kalman_var=round(p_var, 4),
-                    kriging_pct=round(kriging_pct, 3),
-                ))
-            if arb_signals:
-                return arb_signals
+                depth = (clob_books.get(yes_tok) or {}).get("usd_depth") or 0.0
+                if depth > 0 and k * ask_yes > depth:
+                    k = depth / ask_yes
+
+            if k * sum_ask < self.stake_min:
+                logger.debug("[STWA] NEG_RISK_ARB %s: insufficient depth (k=%.1f), skip", city, k)
+            else:
+                logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f edge=%.3f k=%.1f budget=$%.2f",
+                            city, sum_ask, arb_edge, k, city_budget)
+                arb_signals = []
+                for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+                    if ask_yes is None or not (0 < ask_yes < 1):
+                        continue
+                    stake = float(np.clip(round(k * ask_yes, 2),
+                                          self.stake_min, self.stake_max))
+                    arb_signals.append(Signal(
+                        city=city, bucket=(lo, hi), direction="YES",
+                        token_id=yes_tok, p_model=round(p_m, 4),
+                        ask=ask_yes, edge=round(arb_edge, 4),
+                        confidence=1.0, stake=stake,
+                        regime=regime, phase=phase,
+                        metar_age_s=round(metar_age, 1),
+                        kalman_var=round(p_var, 4),
+                        kriging_pct=round(kriging_pct, 3),
+                    ))
+                if arb_signals:
+                    return arb_signals
 
         # ── Per-bucket: pick the positive-edge side ──────────────────────────
         candidates = []
