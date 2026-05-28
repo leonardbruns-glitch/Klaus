@@ -459,21 +459,21 @@ class STWAEngine:
         regime:      str,
     ) -> list[Signal]:
         """
-        Horse-race Kelly allocation for a city's mutually exclusive buckets.
+        Kelly allocation for a city's active bucket candidates.
 
-        Buckets are mutually exclusive: exactly one temperature range wins.
-        Independent Kelly over-stakes because it ignores cross-losses (when
-        bucket A wins you lose the bucket B stake).  The correct framework is
-        the Kelly horse race, whose optimal stakes satisfy:
-
+        YES bets on different buckets are mutually exclusive (only one can win),
+        so they use horse-race Kelly:
             x_i = s × (Q × p_c_i − ask_i)
+            Q = (1 − Σask) / p_neither,  s = W − T,
+            T = W × (Σp_c − Σask/Q),  p_c_i = p_i × confidence
+        Collapses to standard Kelly for a single YES candidate.
 
-        where Q = (1 − Σask) / p_neither, s = bankroll − T (sideline cash),
-        T = bankroll × (Σp_c − Σask/Q), and p_c_i = p_win_i × confidence.
+        NO bets can win simultaneously (all NOs win except the one whose bucket
+        contains the actual max), so they use independent Kelly with the win
+        probability p_win = (1 − p_model) × confidence.
 
-        This collapses to standard Kelly for a single candidate.  Candidates
-        with non-positive horse-race stakes are dropped iteratively (converges
-        in ≤ N passes).
+        Both pools share the city budget; stakes are scaled proportionally if
+        their sum exceeds it.
 
         Also detects pure neg-risk arb: Σ YES ask < NEG_RISK_ARB_THR means
         buying all YES tokens guarantees profit regardless of which bucket wins.
@@ -523,40 +523,50 @@ class STWAEngine:
         if not candidates:
             return []
 
-        # ── Horse-race Kelly ──────────────────────────────────────────────────
+        # ── Split by direction ────────────────────────────────────────────────
         city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
+        yes_cands = [c for c in candidates if c[0] == "YES"]
+        no_cands  = [c for c in candidates if c[0] == "NO"]
 
-        # Attach confidence-adjusted win probability (p_c) to each candidate
-        working = []
-        for direction, tok, p_m, ask, edge, bucket in candidates:
-            p_win = p_m if direction == "YES" else (1.0 - p_m)
-            working.append((direction, tok, p_m, ask, edge, bucket, p_win * confidence))
+        # ── YES pool: horse-race Kelly ────────────────────────────────────────
+        yes_pairs: list[tuple] = []   # (candidate-tuple, raw_stake)
+        if yes_cands:
+            working = [(d, t, p, a, e, b, p * confidence)
+                       for d, t, p, a, e, b in yes_cands]
+            active = working
+            raw_stakes: list[float] = []
+            for _ in range(len(working)):
+                p_sum = sum(w[6] for w in active)
+                a_sum = sum(w[3] for w in active)
+                p3    = max(1.0 - p_sum, 1e-9)
+                Q     = (1.0 - a_sum) / p3
+                T     = bankroll * max(0.0, p_sum - a_sum / Q)
+                s     = bankroll - T
+                raw_stakes = [s * (Q * w[6] - w[3]) for w in active]
+                if all(x > 0 for x in raw_stakes):
+                    break
+                active = [w for w, x in zip(active, raw_stakes) if x > 0]
+                if not active:
+                    break
+            for w, x in zip(active, raw_stakes):
+                yes_pairs.append((w[:6], x * self.kelly_frac))
 
-        # Iteratively drop non-positive stakes (converges in ≤ N passes)
-        active = working
-        raw_stakes: list[float] = []
-        for _ in range(len(working)):
-            p_sum = sum(w[6] for w in active)        # Σ p_c_i
-            a_sum = sum(w[3] for w in active)        # Σ ask_i
-            p3    = max(1.0 - p_sum, 1e-9)          # p(neither wins)
-            Q     = (1.0 - a_sum) / p3
-            T     = bankroll * max(0.0, p_sum - a_sum / Q)
-            s     = bankroll - T                     # sideline cash
-            raw_stakes = [s * (Q * w[6] - w[3]) for w in active]
-            if all(x > 0 for x in raw_stakes):
-                break
-            active = [w for w, x in zip(active, raw_stakes) if x > 0]
-            if not active:
-                return []
+        # ── NO pool: independent Kelly (NOs can win simultaneously) ──────────
+        no_pairs: list[tuple] = []
+        for cand in no_cands:
+            d, t, p_m, ask, edge, bucket = cand
+            raw = _kelly_stake(1.0 - p_m, ask, confidence, bankroll,
+                               self.kelly_frac, self.stake_min, self.stake_max)
+            no_pairs.append((cand, raw))
 
-        # Scale by kelly_frac, then fit to city_budget proportionally
-        total_scaled = sum(raw_stakes) * self.kelly_frac
-        budget_ratio = min(1.0, city_budget / total_scaled) if total_scaled > 0 else 0.0
+        # ── Combine and scale to city_budget ─────────────────────────────────
+        all_pairs = yes_pairs + no_pairs
+        total = sum(r for _, r in all_pairs)
+        budget_ratio = min(1.0, city_budget / total) if total > 0 else 0.0
 
         signals = []
-        for w, x_raw in zip(active, raw_stakes):
-            direction, tok, p_m, ask, edge, bucket, _ = w
-            alloc = float(np.clip(x_raw * self.kelly_frac * budget_ratio,
+        for (direction, tok, p_m, ask, edge, bucket), raw_stake in all_pairs:
+            alloc = float(np.clip(raw_stake * budget_ratio,
                                   self.stake_min, self.stake_max))
             if alloc < self.stake_min:
                 continue
