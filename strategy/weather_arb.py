@@ -2655,6 +2655,11 @@ class WeatherArb:
             running_max = metar.get("running_max_c")
             if running_max is None:
                 continue
+            # Reject stale cache from previous local day — reset fires in
+            # merge_into_cache only when a new obs arrives, so at local midnight
+            # the cache still holds yesterday's running_max until the first poll.
+            if metar.get("running_max_date", "") != _local_today:
+                continue
 
             question = mkt.get("question", "")
             lo_c, hi_c, is_celsius = _parse_outcome(question)
@@ -3206,7 +3211,11 @@ class WeatherArb:
 
             metar    = self._icao_metar_cache.get(icao) or {}
             live_max = metar.get("running_max_c")
+            _tz_h    = ICAO_UTC_OFFSET_H.get(icao, 0)
+            _local_today = (now_utc + timedelta(hours=_tz_h)).date().isoformat()
             if live_max is None or live_max < hi_c + M1_DIP_REBUY_MIN_DEPTH_C:
+                continue
+            if metar.get("running_max_date", "") != _local_today:
                 continue
 
             # Restore watchlist entry if wiped by restart so BBO path resumes
