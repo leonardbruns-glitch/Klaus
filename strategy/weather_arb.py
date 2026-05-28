@@ -93,6 +93,7 @@ ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for h
 # MIN_FAIR_PROB=0.45 alone. Combined fair 55-90%; combined cost 0.15-0.45.
 # Live entry gated by BRACKET_ENABLED. Shadow validation target: n≥30 signals,
 # combined hit rate within ±0.10 of combined_fair_prob before flipping live.
+STWA_LIVE                = True   # True → live entries from Kalman engine; False → shadow only
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -4271,6 +4272,101 @@ class WeatherArb:
                 fh.write(json.dumps(row) + "\n")
 
         logger.info("[STWA] %d signal(s) logged to %s", len(signals), out_path)
+
+        if not STWA_LIVE:
+            return
+
+        # ── Live execution ────────────────────────────────────────────────────
+        # Build token → market dict lookup once for this scan cycle.
+        tok_to_entry: dict[str, dict] = {}
+        for _entry in self._today_markets_cache:
+            _tids = _parse_token_ids(_entry["mkt"].get("clobTokenIds", []))
+            for _tid in _tids:
+                tok_to_entry[_tid] = _entry
+
+        from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+        from execution.order_manager import OrderStatus
+
+        # Sort by edge desc; cap 2 entries per city to limit overexposure.
+        sigs_sorted = sorted(signals, key=lambda s: -s.edge)
+        city_fires: dict[str, int] = {}
+
+        for sig in sigs_sorted:
+            if sig.token_id in self._fired_tokens:
+                continue
+            if city_fires.get(sig.city, 0) >= 2:
+                continue
+            entry = tok_to_entry.get(sig.token_id)
+            if entry is None:
+                continue
+
+            # Use live CLOB ask; skip if it moved >0.05 since signal evaluation.
+            live_ask = clob_ask_live.get(sig.token_id)
+            if live_ask is None:
+                continue
+            if abs(live_ask - sig.ask) > 0.05:
+                logger.debug("[STWA] skip %s %s — ask drifted %.3f→%.3f",
+                             sig.city, sig.direction, sig.ask, live_ask)
+                continue
+
+            p_win = (1.0 - sig.p_model) if sig.direction == "NO" else sig.p_model
+            if p_win - live_ask < EDGE_MIN:
+                continue
+
+            self._fired_tokens.add(sig.token_id)
+            city_fires[sig.city] = city_fires.get(sig.city, 0) + 1
+
+            mkt       = entry["mkt"]
+            neg_risk  = mkt.get("negRisk", True)
+            cond_id   = mkt.get("conditionId", "")
+            direction = _Dir.BUY_NO if sig.direction == "NO" else _Dir.BUY_YES
+            bond_out  = "down" if sig.direction == "NO" else "up"
+
+            logger.info("[STWA] ENTER %s %s [%.1f,%.1f] p=%.3f ask=%.3f edge=%.3f stake=$%.2f",
+                        sig.city, sig.direction, sig.bucket[0], sig.bucket[1],
+                        sig.p_model, live_ask, p_win - live_ask, sig.stake)
+            try:
+                fill = await self.bot.orders.limit_buy(
+                    token_id=sig.token_id,
+                    intended_price=live_ask,
+                    stake_usd=sig.stake,
+                    direction=direction,
+                    neg_risk=neg_risk,
+                    fast_fail=False,
+                )
+            except Exception:
+                logger.exception("[STWA] order error %s", sig.city)
+                self._fired_tokens.discard(sig.token_id)
+                city_fires[sig.city] -= 1
+                continue
+
+            if fill.status == OrderStatus.FILLED and fill.total_size > 0:
+                fp = float(fill.avg_fill_price)
+                fs = float(fill.total_size)
+                self.bot.risk.open_position(
+                    token_id=sig.token_id,
+                    asset="WEATHER",
+                    direction=direction,
+                    stake=fs * fp,
+                    entry_price=fp,
+                    tpsl=_TPSL(take_profit=0.0, stop_loss=0.0,
+                                tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
+                    condition_id=cond_id,
+                    window_end_ts=0.0,
+                    is_bond=True,
+                    bond_outcome_direction=bond_out,
+                    bond_entry_class="WEATHER_STWA",
+                )
+                meta = self.bot._open_meta.setdefault(sig.token_id, {})
+                meta["signal_source"] = "WEATHER/%s/STWA" % sig.city
+                meta["city"] = sig.city
+                logger.info("[STWA] FILLED %s %s @%.3f shares=%.1f cost=$%.2f",
+                            sig.city, sig.direction, fp, fs, fp * fs)
+            else:
+                logger.info("[STWA] UNFILLED %s %s status=%s",
+                            sig.city, sig.direction, fill.status)
+                self._fired_tokens.discard(sig.token_id)
+                city_fires[sig.city] = max(0, city_fires.get(sig.city, 1) - 1)
 
     async def _enter_intraday(
         self, mkt: dict, fair_prob: float, poly_price: float,
