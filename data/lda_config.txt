@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-28T12:01:03Z
+# Snapshot: 2026-05-28T12:16:05Z
 # Latest commit on klaus:
-83a3f9ec log: STWA go-live session — pre-anchor write-off and 3 dedup fixes
+26cec6db feat: STWA LP portfolio allocation — replaces independent per-bucket Kelly
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
