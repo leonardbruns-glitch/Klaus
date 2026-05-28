@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-ad0bf61d fix: M1β lockout uses official_running_max_c (AWC/NWS METAR only)
-56c04a93 Watchdog 2026-05-27T21:18:34Z: OK 0 alerts (3 anomalies, all within backoff)
-bfeaabdd feat: AWC METAR batch — universal fallback for all ICAO airports globally
-0a87865b feat: M1β dip-rebuy — buy NO when market reprices on hourly METAR dip
-6c36d447 Watchdog 2026-05-27T20:18:17Z: OK 0 alerts (3 anomalies, all within backoff)
-84628b0f Watchdog 2026-05-27T19:19:00Z: HIGH 3 alerts (TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT; SHADOW_LOGGER_STALLED resolved)
-cd7e2cdb fix: per-city local time for STWA phase classification and Kalman reset
-ced231a6 fix: per-city local date in _today_markets_cache (not global UTC)
-2dad5ce9 fix: STWA POST_PEAK sigma damping + NWP 6h cache refresh
-fd0546c6 Watchdog 2026-05-27T17:19:00Z: OK 0 alerts (4 anomalies, all within backoff)
+6101519a fix: lockout scan rejects stale running_max_c from previous local day
+0ee326a9 revert: lockout uses running_max_c (SYNOP) not official_running_max_c
+dfb4963c Watchdog 2026-05-28T05:19:27Z: MEDIUM 1 alert (SHADOW_LOGGER_STALLED; 3 anomalies in backoff)
+b855e1d8 Watchdog 2026-05-28T04:20:14Z: OK 0 alerts (3 anomalies, all within backoff)
+952bbc61 Watchdog 2026-05-28T03:18:33Z: OK 0 alerts (3 anomalies, all within backoff)
+c5a4d9b2 Watchdog 2026-05-28T02:18:49Z: HIGH 3 alerts (TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT; 6h backoff elapsed)
+c124df52 Watchdog 2026-05-28T01:18:32Z: OK 0 alerts (3 anomalies, all within backoff)
+70775612 VOLARB Scout 2026-05-28T0042Z — NULL (all cells frozen, H1/H3/H7 BELOW_CI terminal re-confirm)
+11ebab75 Watchdog 2026-05-28T00:21:38Z: OK 0 alerts (3 anomalies, all within backoff)
+63a6ba2b VOLARB Audit 20260528-0018 — NO_PATCH (n=885, watch=7)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   85G        9G  92% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-05-27 21:25:57 UTC
+ActiveEnterTimestamp=Thu 2026-05-28 05:47:36 UTC
 
 ## Open positions (count):
 0
