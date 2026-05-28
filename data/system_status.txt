@@ -1,7 +1,10 @@
 ## klaus systemd:
-active
+deactivating
+unknown
 
 ## Last 10 commits on klaus:
+87d59cda fix: NEG_RISK_ARB was silently killed in execution loop
+344bc756 fix: POST_PEAK override requires temp within 0.5°C of running_max
 6028c3cb fix: Kalman state persistence + NEG_RISK_ARB depth check + 51-city order
 077d1c94 feat: 2D Langevin velocity state for STWA temperature residual process
 fd94ee45 Watchdog 2026-05-28T14:18:36Z: MEDIUM 3 active; BOT_DOWN resolved
@@ -10,14 +13,12 @@ d44644f0 fix: recalibrate NWP bias for all 51 STWA cities (2023-2025 GFS)
 4830b460 feat: execute NEG_RISK_ARB in STWA — buy all YES tokens when Σask < 0.92
 4499c9b2 fix: override POST_PEAK→AT_PEAK when running_max updated within last hour
 46c556b4 fix: STWA peak hours for 4 cities + Helsinki bias recalibration
-10daa0a0 Watchdog 2026-05-28T13:18:25Z: CRITICAL 1 alerts
-ab02bc4b fix: split YES/NO pools in STWA allocation — independent Kelly for NOs
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        7G  93% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-28 14:58:17 UTC
+ActiveEnterTimestamp=Thu 2026-05-28 15:12:04 UTC
 
 ## Open positions (count):
 0
