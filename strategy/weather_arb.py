@@ -4300,9 +4300,11 @@ class WeatherArb:
             if entry is None:
                 continue
 
-            # Use live CLOB ask; skip if it moved >0.05 since signal evaluation.
+            # Use live CLOB ask; skip dead markets and ask drift.
             live_ask = clob_ask_live.get(sig.token_id)
             if live_ask is None:
+                continue
+            if live_ask < 0.05:  # resolved/illiquid market — no fills possible
                 continue
             if abs(live_ask - sig.ask) > 0.05:
                 logger.debug("[STWA] skip %s %s — ask drifted %.3f→%.3f",
