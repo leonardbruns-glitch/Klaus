@@ -502,13 +502,35 @@ class STWAEngine:
             logger.debug("[STWA] LP %s: prob sum %.2f > %.2f — MC bug, skip", city, total_p, PROB_SUM_MAX)
             return []
 
-        # ── Neg-risk arb check ───────────────────────────────────────────────
-        valid_yes_asks = [a for *_, a, _ in entries if a is not None and a > 0]
+        # ── Neg-risk arb ─────────────────────────────────────────────────────
+        # If Σ YES ask < 1, buying one share of every YES token is guaranteed
+        # profit regardless of which bucket resolves: payoff = k × (1 − Σask).
+        valid_yes_asks = [a for *_, a, _ in entries if a is not None and 0 < a < 1]
         if len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < NEG_RISK_ARB_THR:
-            arb_edge = 1.0 - sum(valid_yes_asks)
-            logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f edge=%.3f",
-                        city, sum(valid_yes_asks), arb_edge)
-            # TODO: construct arb signals; for now fall through to greedy
+            sum_ask  = sum(valid_yes_asks)
+            arb_edge = 1.0 - sum_ask
+            city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
+            k = city_budget / sum_ask   # equal shares per bucket
+            logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f edge=%.3f k=%.1f budget=$%.2f",
+                        city, sum_ask, arb_edge, k, city_budget)
+            arb_signals = []
+            for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+                if ask_yes is None or not (0 < ask_yes < 1):
+                    continue
+                stake = float(np.clip(round(k * ask_yes, 2),
+                                      self.stake_min, self.stake_max))
+                arb_signals.append(Signal(
+                    city=city, bucket=(lo, hi), direction="YES",
+                    token_id=yes_tok, p_model=round(p_m, 4),
+                    ask=ask_yes, edge=round(arb_edge, 4),
+                    confidence=1.0, stake=stake,
+                    regime=regime, phase=phase,
+                    metar_age_s=round(metar_age, 1),
+                    kalman_var=round(p_var, 4),
+                    kriging_pct=round(kriging_pct, 3),
+                ))
+            if arb_signals:
+                return arb_signals
 
         # ── Per-bucket: pick the positive-edge side ──────────────────────────
         candidates = []
