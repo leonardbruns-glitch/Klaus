@@ -4357,26 +4357,40 @@ class WeatherArb:
         # LP already sized stakes and ordered signals by edge/ask.
         # No count cap — budget exhaustion in the engine is the natural limit.
         for sig in signals:
-            if sig.token_id in self._fired_tokens:
+            is_arb = (sig.confidence >= 1.0)  # NEG_RISK_ARB signals have confidence=1.0
+
+            # Arb bypasses _fired_tokens: we may already hold one side of a bucket
+            # (e.g. YES [30.8,31.9] from earlier today) and still need to fill it
+            # again as part of the arb structure.
+            if not is_arb and sig.token_id in self._fired_tokens:
                 continue
+
             entry = tok_to_entry.get(sig.token_id)
             if entry is None:
                 continue
+
+            # Opposite-direction dedup (regular signals only): if we already hold
+            # the other side of this bucket, skip to avoid cancelling positions.
+            if not is_arb:
+                mkt_tids = _parse_token_ids(entry["mkt"].get("clobTokenIds", []))
+                open_pos = getattr(self.bot.risk, "open_positions", {})
+                if any(t != sig.token_id and t in open_pos for t in mkt_tids):
+                    logger.debug("[STWA] skip %s %s — opposite direction already held",
+                                 sig.city, sig.direction)
+                    continue
 
             # Use live CLOB ask; skip dead markets and ask drift.
             live_ask = clob_ask_live.get(sig.token_id)
             if live_ask is None:
                 continue
 
-            is_arb = (sig.confidence >= 1.0)  # NEG_RISK_ARB signals have confidence=1.0
-
             if is_arb:
-                # Arb bucket: skip only if completely dead; wider drift tolerance.
-                # Do NOT apply edge check — guaranteed profit doesn't need model edge.
-                if live_ask < 0.005:
+                # Arb bucket: only kill if truly zero (ask=0 = resolved token).
+                # Near-zero asks (0.0005) are still fillable and part of the structure.
+                if live_ask <= 0:
                     continue
                 if abs(live_ask - sig.ask) > 0.15:
-                    logger.debug("[STWA] arb skip %s — ask drifted %.3f→%.3f",
+                    logger.debug("[STWA] arb skip %s — ask drifted %.4f→%.4f",
                                  sig.city, sig.ask, live_ask)
                     continue
             else:
