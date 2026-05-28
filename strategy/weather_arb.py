@@ -4273,13 +4273,21 @@ class WeatherArb:
             except (IndexError, ValueError):
                 continue
 
-            if lo_c is None or hi_c is None:
-                continue  # skip one-sided buckets (MC can't handle None bounds)
-            bucket_map.setdefault(slug, []).append((lo_c, hi_c, yes_tok, no_tok))
-            clob_books[yes_tok] = {"best_ask": yes_ask, "best_bid": max(0.0, yes_ask - 0.02), "usd_depth": 999.0}
+            # P0-A: include tail buckets with sentinel bounds so the MC's
+            # path_max integration covers (-∞, ∞). Without this the NEG_RISK_ARB
+            # detection assumes only-middle buckets are exhaustive — they aren't.
+            # The exhaustivity gate (Σp_model > 0.95 in engine) then refuses arb
+            # if any tail bucket is missing from this scan.
+            lo_c_eff = -999.0 if lo_c is None else lo_c
+            hi_c_eff = +999.0 if hi_c is None else hi_c
+            bucket_map.setdefault(slug, []).append((lo_c_eff, hi_c_eff, yes_tok, no_tok))
+            # usd_depth=0.0 marks "not yet fetched"; the engine will treat 0
+            # as "skip depth clamp". Real depth is fetched below for cities
+            # where an arb is plausible.
+            clob_books[yes_tok] = {"best_ask": yes_ask, "best_bid": max(0.0, yes_ask - 0.02), "usd_depth": 0.0}
             if no_tok:
                 no_ask = round(1.0 - yes_ask, 4)
-                clob_books[no_tok] = {"best_ask": no_ask, "best_bid": max(0.0, no_ask - 0.02), "usd_depth": 999.0}
+                clob_books[no_tok] = {"best_ask": no_ask, "best_bid": max(0.0, no_ask - 0.02), "usd_depth": 0.0}
 
             # t_close = unix ts of local midnight resolution (keyed by slug)
             end_date = mkt.get("endDate", "")[:10]
@@ -4289,6 +4297,54 @@ class WeatherArb:
 
         if not bucket_map:
             return
+
+        # P0-B: pre-fetch real CLOB top-of-book + depth for cities where an arb
+        # is plausible (Σ proxy YES ask < NEG_RISK_ARB_THR + 0.10 slack). Without
+        # this, the engine's NEG_RISK_ARB ran on stale Gamma prices and fake
+        # usd_depth=999, so the depth-clamp did nothing. Skipping low-arb-
+        # likelihood cities keeps the HTTP cost bounded (~5-10 cities × 9-11
+        # buckets ≈ 100 fetches per scan rather than 500+).
+        from strategy.stwa_engine import NEG_RISK_ARB_THR as _ARB_THR
+        arb_screen_thr = _ARB_THR + 0.10
+        cities_for_depth_fetch = []
+        for _slug, _bks in bucket_map.items():
+            _sum_yes = sum(
+                (clob_books.get(_yes) or {}).get("best_ask", 1.0)
+                for _lo, _hi, _yes, _no in _bks
+            )
+            if _sum_yes < arb_screen_thr:
+                cities_for_depth_fetch.append(_slug)
+
+        if cities_for_depth_fetch:
+            _toks_to_fetch = []
+            for _slug in cities_for_depth_fetch:
+                for _lo, _hi, _yes, _no in bucket_map[_slug]:
+                    _toks_to_fetch.append(_yes)
+                    if _no:
+                        _toks_to_fetch.append(_no)
+            # Parallel-fetch top-5 levels; aiohttp inside _fetch_book_levels
+            # creates its own session per call (ok for ~100 calls).
+            import asyncio as _aio
+            _books = await _aio.gather(
+                *[self._fetch_book_levels(_t, n=5) for _t in _toks_to_fetch],
+                return_exceptions=True,
+            )
+            _enriched = 0
+            for _tok, _b in zip(_toks_to_fetch, _books):
+                if isinstance(_b, Exception) or not isinstance(_b, dict):
+                    continue
+                _asks = _b.get("asks") or []
+                if not _asks:
+                    continue
+                _best_ask = _asks[0]["price"]
+                _depth = sum(a["price"] * a["size"] for a in _asks)
+                # Update if depth is meaningful (> $1) and price is fillable
+                if 0 < _best_ask < 1.0 and _depth > 0:
+                    clob_books[_tok]["best_ask"] = _best_ask
+                    clob_books[_tok]["usd_depth"] = round(_depth, 2)
+                    _enriched += 1
+            logger.info("[STWA] depth pre-fetch: %d/%d tokens enriched across %d arb-candidate cities",
+                        _enriched, len(_toks_to_fetch), len(cities_for_depth_fetch))
 
         try:
             signals = self._stwa.get_signals(
@@ -4420,8 +4476,10 @@ class WeatherArb:
             direction = _Dir.BUY_NO if sig.direction == "NO" else _Dir.BUY_YES
             bond_out  = "down" if sig.direction == "NO" else "up"
 
-            logger.info("[STWA] ENTER %s %s [%.1f,%.1f] p=%.3f ask=%.3f edge=%.3f stake=$%.2f",
-                        sig.city, sig.direction, sig.bucket[0], sig.bucket[1],
+            _lo_s = "−∞" if sig.bucket[0] <= -500 else f"{sig.bucket[0]:.1f}"
+            _hi_s = "+∞" if sig.bucket[1] >= 500  else f"{sig.bucket[1]:.1f}"
+            logger.info("[STWA] ENTER %s %s [%s,%s] p=%.3f ask=%.3f edge=%.3f stake=$%.2f",
+                        sig.city, sig.direction, _lo_s, _hi_s,
                         sig.p_model, live_ask, p_win - live_ask, sig.stake)
             try:
                 fill = await self.bot.orders.limit_buy(

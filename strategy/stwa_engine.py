@@ -59,8 +59,11 @@ HOUR_BINS      = [(0, 6), (6, 12), (12, 18), (18, 24)]
 # ── LP portfolio allocation ────────────────────────────────────────────────────
 CITY_BUDGET_FRAC  = 0.05   # max fraction of bankroll per city
 CITY_BUDGET_MAX   = 15.0   # hard cap per city (USD)
-NEG_RISK_ARB_THR  = 0.92   # Σ YES ask < this → pure neg-risk arb available
+NEG_RISK_ARB_THR  = 0.85   # Σ YES ask < this → pure neg-risk arb available
+                           # 0.85 leaves ~10pp for Polymarket fees (2% × 2 legs) + slippage
 NEG_RISK_ARB_MIN  = 0.50   # minimum per-bucket stake for arb (below regular stake_min)
+NEG_RISK_ARB_EXHAUSTIVITY = 0.95   # require Σ p_model > this to fire arb (proves bucket coverage)
+NEG_RISK_ARB_BUDGET_MUL   = 1.5    # abort arb if min-feasible cost > this × city_budget
 PROB_SUM_MAX      = 1.35   # Σ p_model > this → MC bug, skip city
 
 # Sky rank → regime label (sky_rank 0=clear, 4=overcast)
@@ -627,46 +630,88 @@ class STWAEngine:
             return []
 
         # ── Neg-risk arb ─────────────────────────────────────────────────────
-        # If Σ YES ask < 1, buying one share of every YES token is guaranteed
-        # profit regardless of which bucket resolves: payoff = k × (1 − Σask).
+        # If Σ YES ask < NEG_RISK_ARB_THR, buying k shares of every YES token
+        # gives guaranteed profit IF the buckets are exhaustive of the outcome
+        # space: payoff = k × (1 − Σask) regardless of which bucket resolves.
+        #
+        # Exhaustivity gate (P0-A): require Σ p_model ≥ EXHAUSTIVITY before
+        # firing — proves the buckets we see cover the outcome space. If a
+        # tail bucket is missing, the model still assigns it positive p, so
+        # Σ p_model on visible-only buckets falls below 0.95.
+        #
+        # Equal-shares preservation (P0-C): the arb math requires the SAME k
+        # for every bucket. Min-order constraints ($1 maker, 5 shares, 2¢
+        # ticks) impose a per-bucket lower bound. We raise the global k so
+        # every bucket clears its constraint; if the resulting total cost
+        # exceeds BUDGET_MUL × city_budget we abort instead of cliping.
+        MIN_ORDER_USD = 1.05   # CLOB $1 maker min + small buffer
+        MIN_ORDER_SHARES = 5.05
+
         valid_yes_asks = [a for *_, a, _ in entries if a is not None and 0 < a < 1]
         if len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < NEG_RISK_ARB_THR:
             sum_ask  = sum(valid_yes_asks)
+            sum_p    = sum(p for *_, p, _, _ in entries)
             arb_edge = 1.0 - sum_ask
             city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
-            k = city_budget / sum_ask   # equal shares per bucket
 
-            # Depth check: clamp k so no bucket order exceeds available book depth
-            for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
-                if not (ask_yes and 0 < ask_yes < 1):
-                    continue
-                depth = (clob_books.get(yes_tok) or {}).get("usd_depth") or 0.0
-                if depth > 0 and k * ask_yes > depth:
-                    k = depth / ask_yes
-
-            if k * sum_ask < self.stake_min:
-                logger.debug("[STWA] NEG_RISK_ARB %s: insufficient depth (k=%.1f), skip", city, k)
+            # Exhaustivity gate
+            if sum_p < NEG_RISK_ARB_EXHAUSTIVITY:
+                logger.debug("[STWA] NEG_RISK_ARB %s: NOT exhaustive (Σp_model=%.3f < %.3f) — skip arb",
+                             city, sum_p, NEG_RISK_ARB_EXHAUSTIVITY)
             else:
-                logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f edge=%.3f k=%.1f budget=$%.2f",
-                            city, sum_ask, arb_edge, k, city_budget)
-                arb_signals = []
+                # Equal-shares k: must satisfy min-order on EVERY bucket simultaneously
+                k_budget = city_budget / sum_ask
+                k_min_share = MIN_ORDER_SHARES
+                k_min_dollar = max(MIN_ORDER_USD / max(a, 1e-4)
+                                   for *_, a, _ in entries if a and 0 < a < 1)
+                k_feasible = max(k_min_share, k_min_dollar)
+
+                # Use the larger of budget-implied and feasibility-implied k
+                k = max(k_budget, k_feasible)
+
+                # Depth check: clamp k so no bucket order exceeds available book depth
                 for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
-                    if ask_yes is None or not (0 < ask_yes < 1):
+                    if not (ask_yes and 0 < ask_yes < 1):
                         continue
-                    stake = float(np.clip(round(k * ask_yes, 2),
-                                          NEG_RISK_ARB_MIN, self.stake_max))
-                    arb_signals.append(Signal(
-                        city=city, bucket=(lo, hi), direction="YES",
-                        token_id=yes_tok, p_model=round(p_m, 4),
-                        ask=ask_yes, edge=round(arb_edge, 4),
-                        confidence=1.0, stake=stake,
-                        regime=regime, phase=phase,
-                        metar_age_s=round(metar_age, 1),
-                        kalman_var=round(p_var, 4),
-                        kriging_pct=round(kriging_pct, 3),
-                    ))
-                if arb_signals:
-                    return arb_signals
+                    depth = (clob_books.get(yes_tok) or {}).get("usd_depth") or 0.0
+                    if depth > 0 and k * ask_yes > depth:
+                        k = depth / ask_yes
+
+                # After all clamps: verify min-order still satisfied on cheapest bucket
+                # If depth clamped k below feasibility, the arb is infeasible.
+                if k < k_feasible:
+                    logger.debug("[STWA] NEG_RISK_ARB %s: depth clamped k=%.1f below feasibility=%.1f — skip",
+                                 city, k, k_feasible)
+                elif k * sum_ask > city_budget * NEG_RISK_ARB_BUDGET_MUL:
+                    logger.info("[STWA] NEG_RISK_ARB %s: feasible cost $%.2f exceeds %.1fx budget $%.2f — skip",
+                                city, k * sum_ask, NEG_RISK_ARB_BUDGET_MUL, city_budget)
+                else:
+                    actual_cost = k * sum_ask
+                    actual_payoff = k * 1.0
+                    actual_edge = (actual_payoff - actual_cost) / actual_cost if actual_cost > 0 else 0.0
+                    logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f Σp=%.3f k=%.1f cost=$%.2f payoff=$%.2f edge=%.1f%%",
+                                city, sum_ask, sum_p, k, actual_cost, actual_payoff, actual_edge * 100)
+                    arb_signals = []
+                    for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+                        if ask_yes is None or not (0 < ask_yes < 1):
+                            continue
+                        # Equal-shares: same k for every bucket — DON'T clip.
+                        stake = round(k * ask_yes, 2)
+                        # Cap individual stake at stake_max ($20) as last-resort safety
+                        # but if any bucket needs > stake_max we'd already have aborted above.
+                        stake = min(stake, self.stake_max)
+                        arb_signals.append(Signal(
+                            city=city, bucket=(lo, hi), direction="YES",
+                            token_id=yes_tok, p_model=round(p_m, 4),
+                            ask=ask_yes, edge=round(arb_edge, 4),
+                            confidence=1.0, stake=stake,
+                            regime=regime, phase=phase,
+                            metar_age_s=round(metar_age, 1),
+                            kalman_var=round(p_var, 4),
+                            kriging_pct=round(kriging_pct, 3),
+                        ))
+                    if arb_signals:
+                        return arb_signals
 
         # ── Per-bucket: pick the positive-edge side ──────────────────────────
         candidates = []
