@@ -3587,7 +3587,7 @@ class WeatherArb:
                             _cached.get("dewpoint_c"),
                             SKY_RANK_MAP.get(_cached.get("sky_cover", "CLR"), 2),
                             _cache_ts,
-                            _cached.get("running_max_c"),
+                            _cached.get("official_running_max_c") or _cached.get("running_max_c"),
                             _cached.get("running_max_date", _now_str),
                         )
 
