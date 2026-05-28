@@ -43,6 +43,15 @@ N_PATHS        = 8_000   # Monte Carlo paths per city
 MC_STEP_S      = 300     # 5-minute simulation time step (seconds)
 EDGE_MIN       = 0.08    # minimum edge to generate a signal
 CONFIDENCE_MIN = 0.45    # minimum confidence score
+
+# ── 2D Langevin velocity state ─────────────────────────────────────────────────
+# Temperature residual X follows dX=V dt, dV=(−γV−κX)dt+σdW (damped harmonic OU).
+# γ damps the velocity; scipy.linalg.expm handles over/under/critically-damped.
+VELOCITY_GAMMA  = 1.5    # velocity damping coefficient (1/h)
+VEL_OBS_N       = 6      # OLS buffer depth (observations)
+VEL_PRIOR_VAR   = 4.0    # prior velocity variance ((°C/h)²) = (2 °C/h)²
+VEL_MIN_VAR     = 0.25   # posterior floor to prevent degeneracy ((°C/h)²)
+VEL_MIN_OBS_VAR = 0.50   # observation variance floor for numerical stability
 METAR_MAX_AGE  = 3600    # seconds — METAR stations report hourly; allow up to 60 min
 MIN_TIME_REM   = 1800    # don't fire within 30 min of market close
 HOUR_BINS      = [(0, 6), (6, 12), (12, 18), (18, 24)]
@@ -94,6 +103,10 @@ class _CityState:
     obs_date:    str = ""        # YYYY-MM-DD of the day running_max belongs to
     # For kriging contribution tracking
     last_update_from_self: bool = True
+    # 2D velocity state (Langevin)
+    v_hat:   float = 0.0          # posterior mean of dX/dt (°C/h)
+    pv_var:  float = VEL_PRIOR_VAR # posterior variance of v_hat ((°C/h)²)
+    obs_buf: list  = field(default_factory=list)  # [(t_h, x_hat), …] last VEL_OBS_N
 
 
 class STWAEngine:
@@ -177,6 +190,9 @@ class STWAEngine:
                 cs.running_max = None
                 cs.obs_date    = ""
                 cs.x_hat       = 0.0
+                cs.v_hat       = 0.0
+                cs.pv_var      = VEL_PRIOR_VAR
+                cs.obs_buf     = []
             self._nwp_cache.clear()
             self._nwp_date = ""
         logger.info("[STWA] full daily reset — Kalman state re-initialised")
@@ -196,6 +212,9 @@ class STWAEngine:
             cs.running_max = None
             cs.obs_date    = ""
             cs.x_hat       = 0.0
+            cs.v_hat       = 0.0
+            cs.pv_var      = VEL_PRIOR_VAR
+            cs.obs_buf     = []
             self._nwp_cache.pop(city, None)
         logger.info("[STWA] city reset at local midnight: %s", city)
 
@@ -366,6 +385,20 @@ class STWAEngine:
             cs.obs_count   += 1
             cs.last_update_from_self = True
 
+            # ── Velocity Kalman update (OLS on RAW residuals, not x_hat) ────────
+            # Raw residual y_obs is responsive; x_hat is Kalman-smoothed and lags.
+            now_h = obs_ts / 3600.0
+            cs.obs_buf.append((now_h, y_obs))
+            if len(cs.obs_buf) > VEL_OBS_N:
+                cs.obs_buf = cs.obs_buf[-VEL_OBS_N:]
+            if len(cs.obs_buf) >= 3:
+                v_obs, v_std = _ols_velocity(cs.obs_buf)
+                R_v = max(v_std ** 2, VEL_MIN_OBS_VAR)
+                K_v = cs.pv_var / (cs.pv_var + R_v)
+                cs.v_hat   += K_v * (v_obs - cs.v_hat)
+                cs.pv_var  *= (1.0 - K_v)
+                cs.pv_var   = max(cs.pv_var, VEL_MIN_VAR)
+
     # ── Running maximum distribution ───────────────────────────────────────────
 
     def _forecast_bucket_probs(
@@ -416,30 +449,52 @@ class STWAEngine:
         _PHASE_SIG_MUL = {"PRE_PEAK": 1.0, "AT_PEAK": 0.5, "POST_PEAK": 0.15}
         regime_mul = REGIME_SIGMA_MUL.get(cs.regime, 1.2) * _PHASE_SIG_MUL.get(phase, 1.0)
 
-        # Simulate N_PATHS OU residual paths with time-varying κ(t), σ(t)
-        rng    = np.random.default_rng(seed=int(t_now) % (2**31))
-        paths  = np.zeros((N_PATHS, n_steps), dtype=np.float32)
+        # Running maximum floor (needed for both initial condition and path_max)
+        M0 = cs.running_max if cs.running_max is not None else float("-inf")
 
-        # Sample initial state from Kalman posterior (propagates uncertainty correctly)
-        paths[:, 0] = rng.normal(x_hat, math.sqrt(max(p_var, 1e-6)), N_PATHS).astype(np.float32)
+        # Simulate N_PATHS 2D Langevin paths: dX=V dt, dV=(−γV−κX)dt+σdW
+        rng   = np.random.default_rng(seed=int(t_now) % (2**31))
+        paths = np.zeros((N_PATHS, n_steps), dtype=np.float32)
+
+        # Initial position: Kalman posterior, but hard-constrained by running_max.
+        # If running_max was set within the last hour the temperature WAS at M0
+        # recently — the Kalman sticky posterior may lie far below that due to
+        # transient dips, which would produce inconsistent path initialisation.
+        x_hat_eff = x_hat
+        if (M0 > float("-inf") and np.isfinite(mu_grid[0])
+                and (t_now - cs.running_max_ts) < 3600):
+            x_hat_eff = max(x_hat, M0 - float(mu_grid[0]))
+
+        paths[:, 0] = rng.normal(x_hat_eff, math.sqrt(max(p_var, 1e-6)),
+                                 N_PATHS).astype(np.float32)
+        v_now = rng.normal(cs.v_hat, math.sqrt(max(cs.pv_var, VEL_MIN_VAR)),
+                           N_PATHS).astype(np.float32)
+
+        _step_cache: dict = {}  # (kap, sig, dt_hr) → (F11,F12,F21,F22,L11,L21,L22)
 
         for i in range(n_steps - 1):
-            h_utc   = int((t_grid[i] % 86400) / 3600)
-            bin_i   = h_utc // 6
-            kap     = _get_kappa(st, h_utc)
-            sig     = _get_sigma(st, h_utc) * regime_mul
-            dt_hr   = (t_grid[i + 1] - t_grid[i]) / 3600.0
-            decay   = math.exp(-kap * dt_hr)
-            cond_v  = (sig ** 2 / (2 * kap)) * (1 - math.exp(-2 * kap * dt_hr))
-            cond_sd = math.sqrt(max(cond_v, 1e-8))
-            noise   = rng.normal(0, cond_sd, N_PATHS).astype(np.float32)
-            paths[:, i + 1] = paths[:, i] * decay + noise
+            h_utc = int((t_grid[i] % 86400) / 3600)
+            kap   = _get_kappa(st, h_utc)
+            sig   = _get_sigma(st, h_utc) * regime_mul
+            dt_hr = (t_grid[i + 1] - t_grid[i]) / 3600.0
+
+            ck = (round(kap, 4), round(sig, 4), round(dt_hr, 5))
+            if ck not in _step_cache:
+                _step_cache[ck] = _vel_step(kap, VELOCITY_GAMMA, sig, dt_hr)
+            F11, F12, F21, F22, L11, L21, L22 = _step_cache[ck]
+
+            n1 = rng.normal(0, 1, N_PATHS).astype(np.float32)
+            n2 = rng.normal(0, 1, N_PATHS).astype(np.float32)
+
+            new_x = (F11 * paths[:, i] + F12 * v_now + L11 * n1).astype(np.float32)
+            v_now = (F21 * paths[:, i] + F22 * v_now
+                     + L21 * n1 + L22 * n2).astype(np.float32)
+            paths[:, i + 1] = new_x
 
         # Temperature paths = residual + NWP diurnal
         T_paths = (paths + mu_grid.astype(np.float32)).astype(np.float32)  # (N, steps)
 
         # Running maximum: compete against already-observed max
-        M0 = cs.running_max if cs.running_max is not None else float("-inf")
         path_max = np.maximum(M0, T_paths.max(axis=1))  # (N,)
 
         # Bucket probabilities
@@ -779,6 +834,60 @@ class STWAEngine:
                 "suspended":  city in self._suspended,
             }
         return out
+
+
+# ── Velocity helpers ──────────────────────────────────────────────────────────
+
+def _ols_velocity(buf: list) -> tuple[float, float]:
+    """
+    OLS slope of (time_h, x_hat) buffer.  Returns (slope °C/h, slope_std °C/h).
+    """
+    ts = np.array([b[0] for b in buf], dtype=float)
+    xs = np.array([b[1] for b in buf], dtype=float)
+    t_bar = ts.mean()
+    Stt   = float(((ts - t_bar) ** 2).sum())
+    if Stt < 1e-9:
+        return 0.0, float("inf")
+    slope = float(((ts - t_bar) * xs).sum() / Stt)
+    xs_fit = xs.mean() + slope * (ts - t_bar)
+    rss    = float(((xs - xs_fit) ** 2).sum())
+    slope_std = math.sqrt(max(rss / max(len(buf) - 2, 1) / Stt, 1e-8))
+    return slope, slope_std
+
+
+def _vel_step(kap: float, gamma: float, sig: float, dt_hr: float
+              ) -> tuple[float, float, float, float, float, float, float]:
+    """
+    Exact 2D state transition for dX=V dt, dV=(−γV−κX)dt+σdW.
+
+    Uses scipy.linalg.expm for F = exp(A·Δt) and the Van Loan (1978) method
+    for the process-noise covariance Q = ∫₀^Δt exp(A·s)·B·Bᵀ·exp(Aᵀ·s) ds,
+    where A=[[0,1],[−κ,−γ]] and B=[0,σ]ᵀ.
+
+    Returns (F11,F12,F21,F22, L11,L21,L22) where L = chol(Q) lower-triangular,
+    so noise_x = L11·n1, noise_v = L21·n1 + L22·n2 with n1,n2 ~ N(0,1).
+    Works for all damping regimes (over-, under-, critically-damped).
+    """
+    from scipy.linalg import expm as _expm
+    A   = np.array([[0.0, 1.0], [-kap, -gamma]])
+    Q_c = np.array([[0.0, 0.0], [0.0, sig ** 2]])
+    # Van Loan: build block matrix M = [[-A, Q_c], [0, Aᵀ]]
+    M        = np.zeros((4, 4))
+    M[:2, :2] = -A
+    M[:2, 2:] = Q_c
+    M[2:, 2:] = A.T
+    eM  = _expm(M * dt_hr)
+    F   = _expm(A * dt_hr)
+    Q   = F @ eM[:2, 2:]     # Q_Δt = F · upper-right block of exp(M·Δt)
+    Q   = (Q + Q.T) / 2.0    # symmetrise (numerical hygiene)
+    # Cholesky of Q
+    try:
+        L = np.linalg.cholesky(Q + 1e-12 * np.eye(2))
+    except np.linalg.LinAlgError:
+        L = np.diag([math.sqrt(max(Q[0, 0], 1e-10)),
+                     math.sqrt(max(Q[1, 1], 1e-10))])
+    return (float(F[0, 0]), float(F[0, 1]), float(F[1, 0]), float(F[1, 1]),
+            float(L[0, 0]), float(L[1, 0]), float(L[1, 1]))
 
 
 # ── Pure helper functions ──────────────────────────────────────────────────────
