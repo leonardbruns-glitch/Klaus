@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+81ab6d5c fix: NEG_RISK_ARB re-fires after fill — check open_positions before entry
 5a818360 feat: full 51×51 Ledoit-Wolf spatial covariance for STWA
 786d280a fix: expand spatial covariance to 51×51 — all Wave-4 cities in Kalman
 0d849c3d fix: arb bypasses _fired_tokens + opposite-direction dedup for regular signals
@@ -11,13 +12,12 @@ c9339f8e fix: engine running_max must never decrease — floor against own accum
 344bc756 fix: POST_PEAK override requires temp within 0.5°C of running_max
 6028c3cb fix: Kalman state persistence + NEG_RISK_ARB depth check + 51-city order
 077d1c94 feat: 2D Langevin velocity state for STWA temperature residual process
-fd94ee45 Watchdog 2026-05-28T14:18:36Z: MEDIUM 3 active; BOT_DOWN resolved
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   87G        6G  94% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-28 20:18:54 UTC
+ActiveEnterTimestamp=Thu 2026-05-28 20:29:50 UTC
 
 ## Open positions (count):
 0
