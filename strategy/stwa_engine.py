@@ -41,7 +41,11 @@ logger = logging.getLogger(__name__)
 # ── Constants ──────────────────────────────────────────────────────────────────
 N_PATHS        = 8_000   # Monte Carlo paths per city
 MC_STEP_S      = 300     # 5-minute simulation time step (seconds)
-EDGE_MIN       = 0.08    # minimum edge to generate a signal
+EDGE_MIN       = 0.04    # absolute floor on edge (p_win − ask), risk-of-ruin safety
+KELLY_F_MIN    = 0.015   # minimum Kelly fraction to fire: f* = (p_c − ask)/(1 − ask)
+                         # 0.015 = 1.5% of bankroll. Scales with both p and ask:
+                         # high-ask bets (sells of unlikely YES) clear easily;
+                         # low-ask longshot bets need larger edge to clear.
 CONFIDENCE_MIN = 0.45    # minimum confidence score
 
 # ── 2D Langevin velocity state ─────────────────────────────────────────────────
@@ -714,20 +718,38 @@ class STWAEngine:
                         return arb_signals
 
         # ── Per-bucket: pick the positive-edge side ──────────────────────────
+        # Use composite gate: edge > EDGE_MIN (risk-of-ruin safety) AND
+        # Kelly fraction f* > KELLY_F_MIN (sizing-aware threshold). The
+        # Kelly gate scales naturally: high-ask sells need much less edge to
+        # be efficient than low-ask longshots.
+        def _kelly_f(p_win: float, ask: float, conf: float) -> float:
+            """Confidence-adjusted Kelly fraction. Returns 0 if non-positive."""
+            if ask is None or ask <= 0 or ask >= 1:
+                return 0.0
+            p_c = p_win * conf
+            b = (1.0 / ask) - 1.0
+            f = (p_c * b - (1.0 - p_c)) / b
+            return max(0.0, f)
+
         candidates = []
         for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
             edge_yes = (p_m - ask_yes) if ask_yes is not None else -1.0
             edge_no  = ((1.0 - p_m) - ask_no) if ask_no is not None else -1.0
+            f_yes = _kelly_f(p_m, ask_yes, confidence) if ask_yes else 0.0
+            f_no  = _kelly_f(1.0 - p_m, ask_no, confidence) if ask_no else 0.0
 
-            if edge_yes > EDGE_MIN and edge_no > EDGE_MIN:
-                # Both sides positive ↔ neg-risk within this bucket; pick better
-                if edge_yes / ask_yes >= edge_no / ask_no:
+            yes_ok = edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN
+            no_ok  = edge_no  > EDGE_MIN and f_no  > KELLY_F_MIN
+
+            if yes_ok and no_ok:
+                # Both sides positive ↔ neg-risk within this bucket; pick higher Kelly
+                if f_yes >= f_no:
                     candidates.append(("YES", yes_tok, p_m, ask_yes, edge_yes, (lo, hi)))
                 else:
                     candidates.append(("NO", no_tok, p_m, ask_no, edge_no, (lo, hi)))
-            elif edge_yes > EDGE_MIN:
+            elif yes_ok:
                 candidates.append(("YES", yes_tok, p_m, ask_yes, edge_yes, (lo, hi)))
-            elif edge_no > EDGE_MIN:
+            elif no_ok:
                 candidates.append(("NO", no_tok, p_m, ask_no, edge_no, (lo, hi)))
 
         if not candidates:
@@ -874,7 +896,13 @@ class STWAEngine:
                 kriging_pct = getattr(cs, "kriging_pct_last", 0.0)
 
             # Confidence factors
-            c_age      = math.exp(-0.15 * metar_age / 3600)
+            # c_age: phase-dependent freshness decay. At-peak we need tight
+            # METARs (15-min decay) because a 1°C swing in 60 min changes
+            # the bucket. Pre-peak the trajectory matters more than absolute
+            # value so 90-min decay is fine. Post-peak the day is settled
+            # so we tolerate more stale data.
+            _c_age_tau_min = {"PRE_PEAK": 90.0, "AT_PEAK": 15.0, "POST_PEAK": 120.0}.get(phase, 90.0)
+            c_age      = math.exp(-metar_age / 60.0 / _c_age_tau_min)
             c_variance = math.exp(-p_var / max(float(self._C[cs.idx, cs.idx]), 0.1))
             c_regime   = 1.0 if cs.regime == "SUNNY" else 0.75
             c_phase    = {"PRE_PEAK": 0.80, "AT_PEAK": 0.60, "POST_PEAK": 0.95}.get(phase, 0.80)

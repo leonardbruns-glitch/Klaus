@@ -1549,23 +1549,32 @@ class WeatherArb:
                             ens_mu = fc[_today_s][0] if (fc and _today_s in fc) else None
 
                             if ens_mu is not None and self._stwa is not None:
-                                # 3. Read STWA's per-month bias (uniform across hours)
+                                # 3. Read STWA's per-(month, hour) bias.
+                                # Old code used bias[month_0] uniformly, but the
+                                # bias table is per-hour with 1-2°C peak-to-trough
+                                # diurnal variation. Anchor against the bias AT THE
+                                # PEAK HOUR so the ensemble peak alignment is exact.
                                 _st_params = (self._stwa._params.get("stations", {})
                                               .get(slug, {}))
-                                # bias is stored as "{month}_{hour}" but is hour-uniform
-                                _bias = _st_params.get("bias", {}).get(
-                                    f"{_month}_0", 0.0)
+                                _bias_dict = _st_params.get("bias", {}) or {}
 
-                                # 4. Anchor: shift hourly so that after STWA adds its bias,
-                                #    the effective peak = ens_mu
-                                #    i.e. T_stored_peak = ens_mu − bias
-                                raw_peak = max(hourly.values())
-                                target_raw = ens_mu - _bias
-                                delta = target_raw - raw_peak
+                                # 4. Find the peak hour of the raw hourly forecast
+                                _h_peak = max(hourly, key=lambda h: hourly[h])
+                                _bias_at_peak = float(_bias_dict.get(
+                                    f"{_month}_{_h_peak}",
+                                    _bias_dict.get(f"{_month}_0", 0.0),
+                                ))
+
+                                # 5. Anchor: shift hourly so that at peak hour,
+                                #    T_raw + delta + bias[month, peak_h] = ens_mu
+                                #    → delta = ens_mu − bias_at_peak − raw_peak
+                                raw_peak = hourly[_h_peak]
+                                target_raw_at_peak = ens_mu - _bias_at_peak
+                                delta = target_raw_at_peak - raw_peak
                                 hourly = {h: t + delta for h, t in hourly.items()}
-                                logger.debug("[STWA] NWP anchor %s: raw_peak=%.1f ens_mu=%.1f "
-                                             "bias=%.2f delta=%.2f",
-                                             slug, raw_peak, ens_mu, _bias, delta)
+                                logger.debug("[STWA] NWP anchor %s: peak_h=%d raw_peak=%.1f ens_mu=%.1f "
+                                             "bias@peak=%.2f delta=%.2f",
+                                             slug, _h_peak, raw_peak, ens_mu, _bias_at_peak, delta)
 
                             self._stwa.update_nwp_forecast(slug, hourly)
                         except Exception:
