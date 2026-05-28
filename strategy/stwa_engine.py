@@ -369,7 +369,7 @@ class STWAEngine:
                 cs.regime       = regime
                 cs.last_obs_ts  = obs_ts
                 cs.last_temp    = temp_c
-                new_max = _new_max(running_max, temp_c)
+                new_max = _new_max(_new_max(cs.running_max, temp_c), running_max)
                 if new_max != cs.running_max:
                     cs.running_max_ts = obs_ts
                 cs.running_max  = new_max
