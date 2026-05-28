@@ -4478,9 +4478,12 @@ class WeatherArb:
 
             _lo_s = "−∞" if sig.bucket[0] <= -500 else f"{sig.bucket[0]:.1f}"
             _hi_s = "+∞" if sig.bucket[1] >= 500  else f"{sig.bucket[1]:.1f}"
+            # For regular signals, p_win was computed at the edge gate above.
+            # For arb, the meaningful edge is sig.edge (the arb_edge from engine).
+            _log_edge = sig.edge if is_arb else (p_win - live_ask)
             logger.info("[STWA] ENTER %s %s [%s,%s] p=%.3f ask=%.3f edge=%.3f stake=$%.2f",
                         sig.city, sig.direction, _lo_s, _hi_s,
-                        sig.p_model, live_ask, p_win - live_ask, sig.stake)
+                        sig.p_model, live_ask, _log_edge, sig.stake)
             try:
                 fill = await self.bot.orders.limit_buy(
                     token_id=sig.token_id,
