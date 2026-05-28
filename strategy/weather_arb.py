@@ -1502,17 +1502,50 @@ class WeatherArb:
                 now_ts = datetime.now(timezone.utc).timestamp()
 
                 # NWP refresh: on first run and every 6h
+                # Anchors single-model hourly shape to WEATHER_ARB 9-model BLUE ensemble peak.
                 if now_ts - _last_nwp_refresh >= _NWP_REFRESH_INTERVAL:
+                    from datetime import date as _dt_date, timedelta as _td
+                    _today_s  = _dt_date.today().isoformat()
+                    _tmrw_s   = (_dt_date.today() + _td(days=1)).isoformat()
+                    _month    = _dt_date.today().month
                     for slug, st in _STWA_STATIONS.items():
                         try:
+                            # 1. Hourly shape from single-model (Open-Meteo default)
                             hourly = await self._get_hourly_forecast(st.lat, st.lon)
-                            if hourly:
-                                self._stwa.update_nwp_forecast(slug, hourly)
+                            if not hourly:
+                                await asyncio.sleep(0.1)
+                                continue
+
+                            # 2. 9-model BLUE ensemble daily max for today
+                            fc = await self._get_forecast(st.lat, st.lon, _today_s, _tmrw_s, slug)
+                            ens_mu = fc[_today_s][0] if (fc and _today_s in fc) else None
+
+                            if ens_mu is not None and self._stwa is not None:
+                                # 3. Read STWA's per-month bias (uniform across hours)
+                                _st_params = (self._stwa._params.get("stations", {})
+                                              .get(slug, {}))
+                                # bias is stored as "{month}_{hour}" but is hour-uniform
+                                _bias = _st_params.get("bias", {}).get(
+                                    f"{_month}_0", 0.0)
+
+                                # 4. Anchor: shift hourly so that after STWA adds its bias,
+                                #    the effective peak = ens_mu
+                                #    i.e. T_stored_peak = ens_mu − bias
+                                raw_peak = max(hourly.values())
+                                target_raw = ens_mu - _bias
+                                delta = target_raw - raw_peak
+                                hourly = {h: t + delta for h, t in hourly.items()}
+                                logger.debug("[STWA] NWP anchor %s: raw_peak=%.1f ens_mu=%.1f "
+                                             "bias=%.2f delta=%.2f",
+                                             slug, raw_peak, ens_mu, _bias, delta)
+
+                            self._stwa.update_nwp_forecast(slug, hourly)
                         except Exception:
                             pass
                         await asyncio.sleep(0.1)  # gentle rate limit
                     _last_nwp_refresh = now_ts
-                    logger.info("[STWA] NWP cache refreshed for %d cities", len(_STWA_STATIONS))
+                    logger.info("[STWA] NWP cache refreshed for %d cities (ensemble-anchored)",
+                                len(_STWA_STATIONS))
 
                 # State snapshot logging (no CLOB needed)
                 rows = self._stwa.get_state_snapshot()
@@ -5793,7 +5826,7 @@ class WeatherArb:
 
                 from datetime import date as _date
                 _month = _date.fromisoformat(d).month
-                _slug = CITY_NAME_TO_SLUG.get(city, "")
+                _slug = CITY_NAME_TO_SLUG.get(city, city)  # accept display-name or slug directly
 
                 # Skill-weighted ensemble mean + BLUE combined sigma.
                 # Falls back to arithmetic mean + ASOS floor when skill matrix absent.
