@@ -4328,13 +4328,10 @@ class WeatherArb:
             self._stwa_city_fires_today.clear()
             self._stwa_fires_date = _today_str
 
-        # Sort by edge desc; cap 2 entries per city PER DAY to limit overexposure.
-        sigs_sorted = sorted(signals, key=lambda s: -s.edge)
-
-        for sig in sigs_sorted:
+        # LP already sized stakes and ordered signals by edge/ask.
+        # No count cap — budget exhaustion in the engine is the natural limit.
+        for sig in signals:
             if sig.token_id in self._fired_tokens:
-                continue
-            if self._stwa_city_fires_today.get(sig.city, 0) >= 2:
                 continue
             entry = tok_to_entry.get(sig.token_id)
             if entry is None:
@@ -4357,12 +4354,9 @@ class WeatherArb:
 
             # Block both YES and NO sides of this bucket — prevents opposite-direction
             # re-entry after model swings or restart clears _fired_tokens.
-            mkt       = entry["mkt"]
+            mkt = entry["mkt"]
             for _all_tid in _parse_token_ids(mkt.get("clobTokenIds", [])):
                 self._fired_tokens.add(_all_tid)
-            self._stwa_city_fires_today[sig.city] = (
-                self._stwa_city_fires_today.get(sig.city, 0) + 1
-            )
             neg_risk  = mkt.get("negRisk", True)
             cond_id   = mkt.get("conditionId", "")
             direction = _Dir.BUY_NO if sig.direction == "NO" else _Dir.BUY_YES
@@ -4411,10 +4405,6 @@ class WeatherArb:
             else:
                 logger.info("[STWA] UNFILLED %s %s status=%s",
                             sig.city, sig.direction, fill.status)
-                # Keep counterpart tokens blocked; only undo the city count.
-                self._stwa_city_fires_today[sig.city] = max(
-                    0, self._stwa_city_fires_today.get(sig.city, 1) - 1
-                )
 
     async def _enter_intraday(
         self, mkt: dict, fair_prob: float, poly_price: float,

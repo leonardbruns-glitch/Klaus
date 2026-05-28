@@ -47,6 +47,12 @@ METAR_MAX_AGE  = 3600    # seconds — METAR stations report hourly; allow up to
 MIN_TIME_REM   = 1800    # don't fire within 30 min of market close
 HOUR_BINS      = [(0, 6), (6, 12), (12, 18), (18, 24)]
 
+# ── LP portfolio allocation ────────────────────────────────────────────────────
+CITY_BUDGET_FRAC  = 0.05   # max fraction of bankroll per city
+CITY_BUDGET_MAX   = 15.0   # hard cap per city (USD)
+NEG_RISK_ARB_THR  = 0.92   # Σ YES ask < this → pure neg-risk arb available
+PROB_SUM_MAX      = 1.35   # Σ p_model > this → MC bug, skip city
+
 # Sky rank → regime label (sky_rank 0=clear, 4=overcast)
 #  sky_rank comes from the METAR cache (0=SKC/CLR, 1=FEW, 2=SCT, 3=BKN, 4=OVC/VV)
 REGIME_FROM_SKY = {0: "SUNNY", 1: "SUNNY", 2: "PARTLY_CLOUDY", 3: "CLOUDY", 4: "CLOUDY"}
@@ -438,6 +444,105 @@ class STWAEngine:
 
     # ── Signal generation ──────────────────────────────────────────────────────
 
+    def _lp_allocate_city(
+        self,
+        city:        str,
+        buckets_raw: list,    # [(lo, hi, yes_tok, no_tok), ...]
+        probs:       dict,    # {(lo,hi): p_model}
+        clob_books:  dict,
+        confidence:  float,
+        phase:       str,
+        bankroll:    float,
+        metar_age:   float,
+        p_var:       float,
+        kriging_pct: float,
+        regime:      str,
+    ) -> list[Signal]:
+        """
+        Portfolio LP allocation for a city's open buckets.
+
+        Replaces the independent per-bucket Kelly loop.  For each bucket picks
+        the positive-edge side (YES or NO), then greedily allocates a per-city
+        dollar budget in descending edge/ask order.  This is the exact optimum
+        for a linear objective with box + sum constraints (no solver needed).
+
+        Also detects pure neg-risk arb: Σ YES ask < NEG_RISK_ARB_THR means
+        buying all YES tokens guarantees profit regardless of which bucket wins.
+        """
+        # ── Build candidates ──────────────────────────────────────────────────
+        entries = []
+        for lo, hi, yes_tok, no_tok in buckets_raw:
+            p_m      = probs.get((lo, hi), 0.0)
+            ask_yes  = _book_ask(clob_books, yes_tok)
+            ask_no   = _book_ask(clob_books, no_tok)
+            entries.append((lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no))
+
+        if not entries:
+            return []
+
+        # ── Consistency gate ─────────────────────────────────────────────────
+        total_p = sum(p for *_, p, _, _ in entries)
+        if total_p > PROB_SUM_MAX:
+            logger.debug("[STWA] LP %s: prob sum %.2f > %.2f — MC bug, skip", city, total_p, PROB_SUM_MAX)
+            return []
+
+        # ── Neg-risk arb check ───────────────────────────────────────────────
+        valid_yes_asks = [a for *_, a, _ in entries if a is not None and a > 0]
+        if len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < NEG_RISK_ARB_THR:
+            arb_edge = 1.0 - sum(valid_yes_asks)
+            logger.info("[STWA] NEG_RISK_ARB %s: sum_ask=%.3f edge=%.3f",
+                        city, sum(valid_yes_asks), arb_edge)
+            # TODO: construct arb signals; for now fall through to greedy
+
+        # ── Per-bucket: pick the positive-edge side ──────────────────────────
+        candidates = []
+        for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+            edge_yes = (p_m - ask_yes) if ask_yes is not None else -1.0
+            edge_no  = ((1.0 - p_m) - ask_no) if ask_no is not None else -1.0
+
+            if edge_yes > EDGE_MIN and edge_no > EDGE_MIN:
+                # Both sides positive ↔ neg-risk within this bucket; pick better
+                if edge_yes / ask_yes >= edge_no / ask_no:
+                    candidates.append(("YES", yes_tok, p_m, ask_yes, edge_yes, (lo, hi)))
+                else:
+                    candidates.append(("NO", no_tok, p_m, ask_no, edge_no, (lo, hi)))
+            elif edge_yes > EDGE_MIN:
+                candidates.append(("YES", yes_tok, p_m, ask_yes, edge_yes, (lo, hi)))
+            elif edge_no > EDGE_MIN:
+                candidates.append(("NO", no_tok, p_m, ask_no, edge_no, (lo, hi)))
+
+        if not candidates:
+            return []
+
+        # ── Greedy LP: sort by edge/ask (return per dollar), fill to budget ───
+        city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
+        candidates.sort(key=lambda x: -(x[4] / x[3]))  # edge/ask descending
+
+        signals = []
+        remaining = city_budget
+        for direction, tok, p_m, ask, edge, bucket in candidates:
+            if remaining < self.stake_min:
+                break
+            p_win = p_m if direction == "YES" else (1.0 - p_m)
+            kelly = _kelly_stake(p_win, ask, confidence, bankroll,
+                                 self.kelly_frac, self.stake_min, self.stake_max)
+            alloc = min(kelly, remaining)
+            if alloc < self.stake_min:
+                continue
+            remaining -= alloc
+            signals.append(Signal(
+                city=city, bucket=bucket, direction=direction,
+                token_id=tok, p_model=round(p_m, 4),
+                ask=ask, edge=round(edge, 4),
+                confidence=round(confidence, 3), stake=round(alloc, 2),
+                regime=regime, phase=phase,
+                metar_age_s=round(metar_age, 1),
+                kalman_var=round(p_var, 4),
+                kriging_pct=round(kriging_pct, 3),
+            ))
+
+        return signals
+
     def get_signals(
         self,
         clob_books:  dict[str, dict],   # token_id → {"best_ask": float, "best_bid": float, "usd_depth": float}
@@ -499,17 +604,13 @@ class STWAEngine:
                 _g["mc"] += 1
                 continue
 
-            # Each bucket is an independent YES/NO binary market on Polymarket.
-            # Probabilities across open buckets do NOT need to sum to 1 — lower
-            # buckets may already be resolved/closed. Evaluate each independently.
-
             with self._lock:
-                idx   = cs.idx
-                p_var = float(self._P[idx, idx])
+                idx         = cs.idx
+                p_var       = float(self._P[idx, idx])
                 kriging_pct = getattr(cs, "kriging_pct_last", 0.0)
 
             # Confidence factors
-            c_age      = math.exp(-0.15 * metar_age / 3600)                   # 0→1.0, 20min→0.95
+            c_age      = math.exp(-0.15 * metar_age / 3600)
             c_variance = math.exp(-p_var / max(float(self._C[cs.idx, cs.idx]), 0.1))
             c_regime   = 1.0 if cs.regime == "SUNNY" else 0.75
             c_phase    = {"PRE_PEAK": 0.80, "AT_PEAK": 0.60, "POST_PEAK": 0.95}.get(phase, 0.80)
@@ -523,46 +624,16 @@ class STWAEngine:
                 _g["conf"] += 1
                 continue
 
-            for lo, hi, yes_tok, no_tok in buckets_raw:
-                p_m = probs.get((lo, hi), 0.0)
-
-                # YES signal: market underprices this bucket
-                ask_yes = _book_ask(clob_books, yes_tok)
-                if ask_yes is not None and (p_m - ask_yes) > EDGE_MIN:
-                    edge  = p_m - ask_yes
-                    stake = _kelly_stake(p_m, ask_yes, confidence, br, self.kelly_frac,
-                                         self.stake_min, self.stake_max)
-                    if stake >= self.stake_min:
-                        signals.append(Signal(
-                            city=city, bucket=(lo, hi), direction="YES",
-                            token_id=yes_tok, p_model=round(p_m, 4),
-                            ask=ask_yes, edge=round(edge, 4),
-                            confidence=round(confidence, 3), stake=round(stake, 2),
-                            regime=cs.regime, phase=phase,
-                            metar_age_s=round(metar_age, 1),
-                            kalman_var=round(p_var, 4),
-                            kriging_pct=round(kriging_pct, 3),
-                        ))
-
-                # NO signal: market overprices this bucket (p_model < 1 - ask_no)
-                ask_no = _book_ask(clob_books, no_tok)
-                if ask_no is not None:
-                    p_no = 1.0 - p_m
-                    if (p_no - ask_no) > EDGE_MIN:
-                        edge  = p_no - ask_no
-                        stake = _kelly_stake(p_no, ask_no, confidence, br, self.kelly_frac,
-                                             self.stake_min, self.stake_max)
-                        if stake >= self.stake_min:
-                            signals.append(Signal(
-                                city=city, bucket=(lo, hi), direction="NO",
-                                token_id=no_tok, p_model=round(p_m, 4),
-                                ask=ask_no, edge=round(edge, 4),
-                                confidence=round(confidence, 3), stake=round(stake, 2),
-                                regime=cs.regime, phase=phase,
-                                metar_age_s=round(metar_age, 1),
-                                kalman_var=round(p_var, 4),
-                                kriging_pct=round(kriging_pct, 3),
-                            ))
+            # LP portfolio allocation — replaces independent per-bucket Kelly.
+            city_signals = self._lp_allocate_city(
+                city=city, buckets_raw=buckets_raw, probs=probs,
+                clob_books=clob_books, confidence=confidence,
+                phase=phase, bankroll=br, metar_age=metar_age,
+                p_var=p_var, kriging_pct=kriging_pct, regime=cs.regime,
+            )
+            if not city_signals:
+                _g["edge"] += 1
+            signals.extend(city_signals)
 
         _g["ok"] = len(signals)
         logger.info("[STWA] gates: no_bkt=%d t_close=%d regime=%d fresh=%d mc=%d conf=%d edge=%d signals=%d",
