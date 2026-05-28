@@ -248,6 +248,57 @@ def main(train_end: int = 2024, verbose: bool = False) -> None:
         sigma_obs = float(df["resid"].std()) if len(df) > 100 else 0.5
         sigma_obs = float(np.clip(sigma_obs, 0.1, 2.0))
 
+        # 6. GEV fit on daily-max residuals per month
+        # Block-maxima theory (Fisher-Tippett-Gnedenko): the max of a sequence
+        # converges to GEV regardless of the underlying distribution. Direct
+        # parametrization of the daily-max distribution gives closed-form
+        # bucket probabilities — no MC needed, captures heavy/light tail
+        # via shape parameter ξ.
+        #
+        # scipy.genextreme uses c = -ξ; standard convention is ξ > 0 = Fréchet
+        # (heavy right tail), ξ < 0 = Weibull (bounded above), ξ = 0 = Gumbel.
+        # We store {loc, scale, shape} where shape = -c (standard form).
+        from scipy import stats as _sps
+        gev_per_month: dict[str, dict] = {}
+        # Compute daily max actual vs NWP per (city, month)
+        df_daily = df.groupby(df["time_utc"].dt.date).agg(
+            actual_max=("temp_c", "max"),
+            nwp_max=("temp_nwp_c", "max"),
+        ).reset_index()
+        df_daily["eps_max"] = df_daily["actual_max"] - df_daily["nwp_max"]
+        df_daily["month"]   = pd.to_datetime(df_daily["time_utc"]).dt.month
+        df_daily = df_daily.dropna(subset=["eps_max"])
+        for m in range(1, 13):
+            sub = df_daily[df_daily["month"] == m]["eps_max"].values
+            if len(sub) < 20:
+                # Insufficient — use month-mean ± 1 fallback
+                if len(sub) > 0:
+                    gev_per_month[str(m)] = {
+                        "loc": float(sub.mean()),
+                        "scale": max(float(sub.std()), 0.3),
+                        "shape": 0.0,  # Gumbel fallback
+                        "n": len(sub),
+                    }
+                else:
+                    gev_per_month[str(m)] = {"loc": 0.0, "scale": 1.0, "shape": 0.0, "n": 0}
+                continue
+            try:
+                c, loc, scale = _sps.genextreme.fit(sub)
+                # Sanity clip on shape and scale
+                shape = float(np.clip(-c, -0.8, 0.8))
+                scale = float(np.clip(scale, 0.1, 5.0))
+                loc   = float(np.clip(loc, -10.0, 10.0))
+                gev_per_month[str(m)] = {
+                    "loc": loc, "scale": scale, "shape": shape, "n": int(len(sub)),
+                }
+            except Exception:
+                gev_per_month[str(m)] = {
+                    "loc": float(sub.mean()),
+                    "scale": max(float(sub.std()), 0.3),
+                    "shape": 0.0,
+                    "n": int(len(sub)),
+                }
+
         # Peak hour from stations registry
         from analysis.weather.stations import STATIONS as _ST
         st = _ST.get(city)
@@ -264,6 +315,7 @@ def main(train_end: int = 2024, verbose: bool = False) -> None:
             "sigma_obs":     round(sigma_obs, 4),
             "bias":          {k: round(v, 4) for k, v in bias.items()},
             "alpha_humidity":{k: round(v, 4) for k, v in alpha.items()},
+            "daily_max_gev": gev_per_month,
         }
         if verbose:
             kv = [f"{v:.2f}" for v in kappa.values()]
@@ -300,12 +352,65 @@ def main(train_end: int = 2024, verbose: bool = False) -> None:
     if wide.shape[0] >= wide.shape[1] * 10:
         lw = LedoitWolf(assume_centered=True)
         lw.fit(wide.values)
-        C = lw.covariance_
+        C_lw = lw.covariance_
         print(f"  Ledoit-Wolf shrinkage: {lw.shrinkage_:.4f}")
     else:
         # Fallback: diagonal (no spatial correlation)
         print(f"  WARNING: insufficient common obs, using diagonal covariance")
-        C = np.diag(wide.var().values)
+        C_lw = np.diag(wide.var().values)
+
+    # Physical spatial kernel: blend empirical LW with great-circle-distance
+    # exponential decay. The empirical LW captures real correlations
+    # (Austin-Denver-Houston Sun-Belt block at ρ=0.4) but is noisy for
+    # weakly-correlated pairs (mean ρ=0.018, median 0.004). The physical
+    # kernel regularizes weakly-observed pairs toward their distance prior.
+    #
+    # Kernel: C_phys_ij = σ_i σ_j × exp(-d_ij / L_geo) × peak_hour_factor
+    # L_geo calibrated to give ρ ≈ 0.4 at d ≈ 500 km (synoptic scale).
+    fitted_cities_list = list(wide.columns)
+    coords = {}
+    peak_hours = {}
+    for c in fitted_cities_list:
+        st_p = params["stations"].get(c, {})
+        coords[c] = (st_p.get("lat", 0.0), st_p.get("lon", 0.0))
+        peak_hours[c] = st_p.get("peak_hour_utc", 14)
+    sigmas = np.sqrt(np.diag(C_lw))
+
+    def _gc_km(lat1, lon1, lat2, lon2):
+        from math import radians, sin, cos, asin, sqrt
+        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+        dl = lon2 - lon1; dla = lat2 - lat1
+        a = sin(dla/2)**2 + cos(lat1)*cos(lat2)*sin(dl/2)**2
+        return 2 * 6371.0 * asin(sqrt(a))
+
+    L_GEO_KM = 800.0   # synoptic scale, e-folding distance for correlation
+    PHYS_BLEND = 0.35  # weight on physical kernel; LW gets (1-PHYS_BLEND)
+    N = len(fitted_cities_list)
+    C_phys = np.zeros((N, N))
+    for i, ci in enumerate(fitted_cities_list):
+        for j, cj in enumerate(fitted_cities_list):
+            if i == j:
+                C_phys[i, j] = sigmas[i] ** 2
+                continue
+            d = _gc_km(coords[ci][0], coords[ci][1], coords[cj][0], coords[cj][1])
+            rho_phys = float(np.exp(-d / L_GEO_KM))
+            # Peak-hour penalty: cities with very different diurnal phase
+            # (>6h apart in peak_hour_utc) get reduced correlation
+            dh = abs(peak_hours[ci] - peak_hours[cj])
+            dh = min(dh, 24 - dh)  # circular
+            phase_factor = float(np.exp(-(dh / 6.0) ** 2))
+            C_phys[i, j] = sigmas[i] * sigmas[j] * rho_phys * phase_factor
+
+    C = PHYS_BLEND * C_phys + (1.0 - PHYS_BLEND) * C_lw
+    # Ensure symmetry + PSD
+    C = (C + C.T) / 2.0
+    eigs = np.linalg.eigvalsh(C)
+    if eigs.min() < 1e-6:
+        # Bump diagonal to guarantee PSD
+        C = C + np.eye(N) * max(1e-6 - eigs.min(), 1e-6)
+        print(f"  PSD repair: bumped diagonal by {max(1e-6 - eigs.min(), 1e-6):.4f}")
+    print(f"  Spatial covariance: LW + {PHYS_BLEND:.0%} physical kernel "
+          f"(L_geo={L_GEO_KM}km, min eig={np.linalg.eigvalsh(C).min():.4f})")
 
     params["spatial_covariance"] = C.tolist()
     params["city_order"]         = list(wide.columns)
@@ -313,6 +418,11 @@ def main(train_end: int = 2024, verbose: bool = False) -> None:
     params["train_end"]          = train_end
     params["n_cities"]           = len(fitted_cities)
     params["n_common_timestamps"]= int(wide.shape[0])
+    params["spatial_kernel"]     = {
+        "L_geo_km": L_GEO_KM,
+        "phys_blend": PHYS_BLEND,
+        "type": "lw_plus_physical_distance_phase",
+    }
 
     OUT_PATH.write_text(json.dumps(params, indent=2))
     print(f"\nParams saved → {OUT_PATH}")

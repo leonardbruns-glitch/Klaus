@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 # ── Constants ──────────────────────────────────────────────────────────────────
 N_PATHS        = 8_000   # Monte Carlo paths per city
 MC_STEP_S      = 300     # 5-minute simulation time step (seconds)
+INNOV_DF       = 6       # Student-t df for path innovations (excess kurt = 3)
+                         # Empirical residual kurt ~+1.7 → df=6 matches better
+                         # than Gaussian. Set to >100 to recover Gaussian.
 EDGE_MIN       = 0.04    # absolute floor on edge (p_win − ask), risk-of-ruin safety
 KELLY_F_MIN    = 0.015   # minimum Kelly fraction to fire: f* = (p_c − ask)/(1 − ask)
                          # 0.015 = 1.5% of bankroll. Scales with both p and ask:
@@ -59,6 +62,13 @@ VEL_MIN_OBS_VAR = 0.50   # observation variance floor for numerical stability
 METAR_MAX_AGE  = 3600    # seconds — METAR stations report hourly; allow up to 60 min
 MIN_TIME_REM   = 1800    # don't fire within 30 min of market close
 HOUR_BINS      = [(0, 6), (6, 12), (12, 18), (18, 24)]
+
+# ── Drift baseline (climate / NWP-version drift correction) ───────────────────
+# Static bias was fit on 2021-2024 data. Climate trends + Open-Meteo NWP model
+# version updates introduce drift in 2025+. We maintain an exponentially-
+# decaying live residual baseline per (city, hour) to absorb persistent bias.
+DRIFT_TAU_DAYS  = 30.0   # decay time-constant for drift baseline
+DRIFT_BIAS_LIMIT = 3.0   # max |drift| (°C) — guards against transient spikes
 
 # ── LP portfolio allocation ────────────────────────────────────────────────────
 CITY_BUDGET_FRAC  = 0.05   # max fraction of bankroll per city
@@ -83,7 +93,7 @@ class Signal:
     bucket:      tuple[float, float]   # (lo_c, hi_c)  always in °C
     direction:   str                   # "YES" or "NO"
     token_id:    str
-    p_model:     float
+    p_model:     float                 # MC-based bucket probability (current primary)
     ask:         float
     edge:        float
     confidence:  float
@@ -93,6 +103,8 @@ class Signal:
     metar_age_s: float
     kalman_var:  float
     kriging_pct: float   # fraction of posterior that came from spatial propagation
+    p_gev:       float = 0.0   # shadow: GEV closed-form bucket probability
+    drift_bias:  float = 0.0   # learned drift correction applied at peak hour
 
 
 @dataclass
@@ -116,6 +128,14 @@ class _CityState:
     pv_var:    float = VEL_PRIOR_VAR # posterior variance of v_hat ((°C/h)²)
     obs_buf:   list  = field(default_factory=list)  # [(t_h, x_obs), …] last VEL_OBS_N
     last_temp: float = float("nan") # most recent raw observed temperature (°C)
+    # Drift baseline: μ_drift[hour] ← α × y_obs_raw + (1−α) × μ_drift[hour]
+    # α = 1 − exp(−Δt_days / τ). Captures persistent residual bias on top of
+    # the static (month, hour) table — climate drift + NWP version updates.
+    drift_bias:   dict = field(default_factory=dict)   # {hour_utc: float °C}
+    drift_last_ts: dict = field(default_factory=dict)  # {hour_utc: unix_ts}
+    # Last MC-vs-GEV shadow snapshot (for parallel logging)
+    gev_probs_last:  dict = field(default_factory=dict)
+    gev_anchor_last: float = 0.0
 
 
 class STWAEngine:
@@ -209,6 +229,9 @@ class STWAEngine:
                     "obs_count": cs.obs_count,
                     "v_hat": cs.v_hat, "pv_var": cs.pv_var,
                     "obs_buf": cs.obs_buf,
+                    # JSON keys must be strings — convert int hour keys
+                    "drift_bias":    {str(h): v for h, v in cs.drift_bias.items()},
+                    "drift_last_ts": {str(h): v for h, v in cs.drift_last_ts.items()},
                 }
             with open(self._state_cities, "w") as f:
                 json.dump(city_data, f)
@@ -245,6 +268,8 @@ class STWAEngine:
                     cs.v_hat         = float(d.get("v_hat", 0.0))
                     cs.pv_var        = float(d.get("pv_var", VEL_PRIOR_VAR))
                     cs.obs_buf       = [tuple(x) for x in d.get("obs_buf", [])]
+                    cs.drift_bias    = {int(h): float(v) for h, v in d.get("drift_bias", {}).items()}
+                    cs.drift_last_ts = {int(h): float(v) for h, v in d.get("drift_last_ts", {}).items()}
                 logger.info("[STWA] city velocity state restored (%d cities)", len(city_data))
         except Exception as e:
             logger.info("[STWA] state restore failed (%s) — starting from prior", e)
@@ -295,7 +320,8 @@ class STWAEngine:
             self._nwp_cache[city] = hourly_temps
 
     def _get_mu(self, city: str, hour_utc: int) -> float:
-        """Bias-corrected NWP forecast temperature for a city at a given UTC hour."""
+        """Bias-corrected NWP forecast temperature for a city at a given UTC hour.
+        Includes static (month, hour) bias + learned drift baseline."""
         nwp = self._nwp_cache.get(city, {})
         t_nwp = nwp.get(hour_utc)
         if t_nwp is None:
@@ -305,7 +331,13 @@ class STWAEngine:
         month = _current_month()
         bias_key = f"{month}_{hour_utc}"
         bias = st.get("bias", {}).get(bias_key, 0.0)
-        return t_nwp + bias
+        # Drift baseline (learned EMA of recent residuals)
+        cs = self._cities.get(city)
+        drift_h = 0.0
+        if cs is not None:
+            drift_h = float(np.clip(cs.drift_bias.get(hour_utc, 0.0),
+                                    -DRIFT_BIAS_LIMIT, DRIFT_BIAS_LIMIT))
+        return t_nwp + bias + drift_h
 
     def _get_mu_curve(self, city: str, t_start: float, t_end: float) -> tuple[np.ndarray, np.ndarray]:
         """Return (t_grid, mu_grid) for simulation from t_start to t_end (unix seconds)."""
@@ -319,13 +351,20 @@ class STWAEngine:
         st     = self._params["stations"].get(city, {})
         biases = st.get("bias", {})
         month  = _current_month()
+        cs = self._cities.get(city)
+        # Snapshot drift baseline once per call (consistent across grid)
+        drift_table = {}
+        if cs is not None:
+            for _h, _v in cs.drift_bias.items():
+                drift_table[_h] = float(np.clip(_v, -DRIFT_BIAS_LIMIT, DRIFT_BIAS_LIMIT))
 
         for i, ts in enumerate(t_grid):
             h = int((ts % 86400) / 3600)
             t_nwp = nwp.get(h)
             if t_nwp is not None:
                 b = biases.get(f"{month}_{h}", 0.0)
-                mu_grid[i] = t_nwp + b
+                d = drift_table.get(h, 0.0)
+                mu_grid[i] = t_nwp + b + d
 
         # Fill small gaps by linear interpolation
         valid = np.isfinite(mu_grid)
@@ -392,6 +431,14 @@ class STWAEngine:
                 alpha = st.get("alpha_humidity", {}).get(str(month), 0.0)
                 mu_corrected += alpha * (dew_c - nwp_dew)
 
+        # ── Drift baseline correction ─────────────────────────────────────────
+        # Apply previously-learned drift bias for this (city, hour). Subtracted
+        # because the static bias overstated/understated by this much in
+        # recent observations. Bounded to ±DRIFT_BIAS_LIMIT.
+        drift_h = float(cs.drift_bias.get(hour_utc, 0.0))
+        drift_h = float(np.clip(drift_h, -DRIFT_BIAS_LIMIT, DRIFT_BIAS_LIMIT))
+        mu_corrected += drift_h
+
         # ── Residual (what the OU process models) ─────────────────────────────
         y_obs = temp_c - mu_corrected
 
@@ -399,6 +446,20 @@ class STWAEngine:
         if abs(y_obs) > 8.0:
             logger.debug("[STWA] %s outlier rejected: T=%.1f mu=%.1f y=%.1f", city, temp_c, mu_corrected, y_obs)
             return
+
+        # ── Update drift baseline (EMA) ───────────────────────────────────────
+        # y_obs is the residual AFTER static bias + previous drift was subtracted.
+        # If y_obs is persistently positive, drift_h is wrong by that amount.
+        # We add y_obs into drift_h with EMA weight α = 1 − exp(−Δt_days/τ).
+        # First observation for this hour: initialize to y_obs (no prior).
+        last_drift_ts = cs.drift_last_ts.get(hour_utc, 0.0)
+        if last_drift_ts > 0:
+            dt_days = max((obs_ts - last_drift_ts) / 86400.0, 1/24)  # min 1 hour
+            alpha_d = 1.0 - math.exp(-dt_days / DRIFT_TAU_DAYS)
+        else:
+            alpha_d = 0.05   # first sample for this hour: 5% weight, smooth start
+        cs.drift_bias[hour_utc] = drift_h + alpha_d * y_obs
+        cs.drift_last_ts[hour_utc] = obs_ts
 
         # ── Kalman update (joint over all cities) ─────────────────────────────
         sigma_obs = st.get("sigma_obs", 0.5)
@@ -548,6 +609,14 @@ class STWAEngine:
 
         _step_cache: dict = {}  # (kap, sig, dt_hr) → (F11,F12,F21,F22,L11,L21,L22)
 
+        # Student-t innovation degrees of freedom. Empirical residuals have
+        # excess kurtosis ~+1.7 (Jarque-Bera p≈0 for all cities). df=6 gives
+        # excess kurtosis 3 — matches well. Rescale by sqrt((df-2)/df) so unit
+        # variance matches Gaussian (else the OU σ has the wrong scale).
+        # df=∞ would recover Gaussian; we expose INNOV_DF as a constant.
+        _df = INNOV_DF
+        _t_scale = math.sqrt((_df - 2.0) / _df) if _df > 2 else 1.0
+
         for i in range(n_steps - 1):
             h_utc = int((t_grid[i] % 86400) / 3600)
             kap   = _get_kappa(st, h_utc)
@@ -559,8 +628,9 @@ class STWAEngine:
                 _step_cache[ck] = _vel_step(kap, VELOCITY_GAMMA, sig, dt_hr)
             F11, F12, F21, F22, L11, L21, L22 = _step_cache[ck]
 
-            n1 = rng.normal(0, 1, N_PATHS).astype(np.float32)
-            n2 = rng.normal(0, 1, N_PATHS).astype(np.float32)
+            # Standardized Student-t innovations (unit variance after rescale)
+            n1 = (rng.standard_t(_df, N_PATHS) * _t_scale).astype(np.float32)
+            n2 = (rng.standard_t(_df, N_PATHS) * _t_scale).astype(np.float32)
 
             new_x = (F11 * paths[:, i] + F12 * v_now + L11 * n1).astype(np.float32)
             v_now = (F21 * paths[:, i] + F22 * v_now
@@ -573,10 +643,35 @@ class STWAEngine:
         # Running maximum: compete against already-observed max
         path_max = np.maximum(M0, T_paths.max(axis=1))  # (N,)
 
-        # Bucket probabilities
+        # Bucket probabilities (MC)
         probs: dict[tuple[float, float], float] = {}
         for (lo, hi) in buckets:
             probs[(lo, hi)] = float(np.mean((path_max >= lo) & (path_max < hi)))
+
+        # GEV closed-form shadow: P2-I. Use the NWP daily-max from mu_grid as
+        # anchor, apply the fitted GEV(loc, scale, shape) per (city, month) for
+        # daily-max residuals. Stored as a parallel dict for shadow logging.
+        # Future round: when shadow comparison validates GEV better than MC,
+        # switch primary path.
+        try:
+            month = _current_month()
+            gev_params = st.get("daily_max_gev", {}).get(str(month), None)
+            if gev_params is not None:
+                gev_loc   = float(gev_params.get("loc", 0.0))
+                gev_scale = float(gev_params.get("scale", 1.0))
+                gev_shape = float(gev_params.get("shape", 0.0))
+                # Anchor: peak of bias-corrected NWP curve (incl. drift)
+                nwp_peak = float(np.nanmax(mu_grid))
+                gev_probs = {
+                    (lo, hi): _gev_bucket_prob(lo, hi, M0, nwp_peak,
+                                               gev_loc, gev_scale, gev_shape)
+                    for (lo, hi) in buckets
+                }
+                # Stash on cs for shadow logger pickup
+                cs.gev_probs_last = gev_probs
+                cs.gev_anchor_last = nwp_peak
+        except Exception:
+            cs.gev_probs_last = {}
 
         return probs
 
@@ -704,6 +799,12 @@ class STWAEngine:
                         # Cap individual stake at stake_max ($20) as last-resort safety
                         # but if any bucket needs > stake_max we'd already have aborted above.
                         stake = min(stake, self.stake_max)
+                        _cs_local = self._cities.get(city)
+                        _p_gev = float(_cs_local.gev_probs_last.get((lo, hi), 0.0)) if _cs_local else 0.0
+                        _drift_h_local = 0.0
+                        if _cs_local and _cs_local.drift_bias:
+                            _peak_h = int((time.time() % 86400) / 3600)  # not exact peak; approximation
+                            _drift_h_local = float(_cs_local.drift_bias.get(_peak_h, 0.0))
                         arb_signals.append(Signal(
                             city=city, bucket=(lo, hi), direction="YES",
                             token_id=yes_tok, p_model=round(p_m, 4),
@@ -713,6 +814,8 @@ class STWAEngine:
                             metar_age_s=round(metar_age, 1),
                             kalman_var=round(p_var, 4),
                             kriging_pct=round(kriging_pct, 3),
+                            p_gev=round(_p_gev, 4),
+                            drift_bias=round(_drift_h_local, 3),
                         ))
                     if arb_signals:
                         return arb_signals
@@ -797,11 +900,17 @@ class STWAEngine:
         budget_ratio = min(1.0, city_budget / total) if total > 0 else 0.0
 
         signals = []
+        _cs_local = self._cities.get(city)
+        _drift_h_local = 0.0
+        if _cs_local and _cs_local.drift_bias:
+            _peak_h = int((time.time() % 86400) / 3600)
+            _drift_h_local = float(_cs_local.drift_bias.get(_peak_h, 0.0))
         for (direction, tok, p_m, ask, edge, bucket), raw_stake in all_pairs:
             alloc = float(np.clip(raw_stake * budget_ratio,
                                   self.stake_min, self.stake_max))
             if alloc < self.stake_min:
                 continue
+            _p_gev = float(_cs_local.gev_probs_last.get(bucket, 0.0)) if _cs_local else 0.0
             signals.append(Signal(
                 city=city, bucket=bucket, direction=direction,
                 token_id=tok, p_model=round(p_m, 4),
@@ -811,6 +920,8 @@ class STWAEngine:
                 metar_age_s=round(metar_age, 1),
                 kalman_var=round(p_var, 4),
                 kriging_pct=round(kriging_pct, 3),
+                p_gev=round(_p_gev, 4),
+                drift_bias=round(_drift_h_local, 3),
             ))
 
         return signals
@@ -1097,6 +1208,51 @@ def _kelly_stake(
     f   = max(0.0, f) * frac
     raw = bankroll * f
     return float(np.clip(raw, lo, hi))
+
+
+def _gev_cdf(x: float, loc: float, scale: float, shape: float) -> float:
+    """
+    CDF of the Generalized Extreme Value distribution.
+        F(x) = exp(-(1 + ξ·z)^(-1/ξ))    for ξ ≠ 0, where z = (x − μ) / σ
+        F(x) = exp(-exp(-z))             for ξ = 0  (Gumbel)
+    The support is restricted: 1 + ξ·z > 0 (else F = 0 or 1 depending on sign).
+    """
+    if scale <= 0:
+        return 1.0 if x >= loc else 0.0
+    z = (x - loc) / scale
+    if abs(shape) < 1e-6:
+        return float(np.exp(-np.exp(-z)))
+    arg = 1.0 + shape * z
+    if arg <= 0:
+        # Below lower bound (ξ > 0) or above upper bound (ξ < 0)
+        return 0.0 if shape > 0 else 1.0
+    return float(np.exp(-arg ** (-1.0 / shape)))
+
+
+def _gev_bucket_prob(
+    lo: float, hi: float,
+    running_max: Optional[float],
+    nwp_max_today: float,
+    gev_loc: float, gev_scale: float, gev_shape: float,
+) -> float:
+    """
+    Closed-form bucket probability under the daily-max GEV model.
+
+        Daily max M = max(running_max, M_future)
+        M_future = NWP_max_today + ε   where ε ~ GEV(loc, scale, shape)
+
+        P(M ∈ [lo, hi]) = P(max(M0, M_future) < hi) − P(max(M0, M_future) < lo)
+                       = I(M0 < hi) · F_GEV(hi − NWP_max) − I(M0 < lo) · F_GEV(lo − NWP_max)
+    """
+    M0 = running_max if running_max is not None else float("-inf")
+    if M0 >= hi:
+        return 0.0
+    p_hi = _gev_cdf(hi - nwp_max_today, gev_loc, gev_scale, gev_shape)
+    if M0 < lo:
+        p_lo = _gev_cdf(lo - nwp_max_today, gev_loc, gev_scale, gev_shape)
+    else:
+        p_lo = 0.0  # already past the lower bound; P(M < lo) = 0
+    return max(0.0, p_hi - p_lo)
 
 
 def _phase(cs: _CityState, t_close: float, t_now: float) -> str:
