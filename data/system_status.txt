@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+4499c9b2 fix: override POST_PEAK→AT_PEAK when running_max updated within last hour
 46c556b4 fix: STWA peak hours for 4 cities + Helsinki bias recalibration
 10daa0a0 Watchdog 2026-05-28T13:18:25Z: CRITICAL 1 alerts
 ab02bc4b fix: split YES/NO pools in STWA allocation — independent Kelly for NOs
@@ -11,13 +12,12 @@ d98cb742 fix: horse-race Kelly replaces greedy LP in STWA city allocation
 0b61d089 Watchdog 2026-05-28T12:18:32Z: MEDIUM 1 alerts
 26cec6db feat: STWA LP portfolio allocation — replaces independent per-bucket Kelly
 83a3f9ec log: STWA go-live session — pre-anchor write-off and 3 dedup fixes
-77005d61 fix: STWA 3 dedup bugs — bucket cross-side, daily cap, restart bleed
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        8G  93% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        7G  93% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-28 13:32:20 UTC
+ActiveEnterTimestamp=Thu 2026-05-28 14:00:18 UTC
 
 ## Open positions (count):
 0
