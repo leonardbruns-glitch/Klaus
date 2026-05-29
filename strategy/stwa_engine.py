@@ -44,6 +44,15 @@ MC_STEP_S      = 300     # 5-minute simulation time step (seconds)
 INNOV_DF       = 6       # Student-t df for path innovations (excess kurt = 3)
                          # Empirical residual kurt ~+1.7 → df=6 matches better
                          # than Gaussian. Set to >100 to recover Gaussian.
+# Regular-YES kill switch. SUSPENDED 2026-05-29: calibration audit (n=349
+# resolved) showed regular-YES is 4.3× overconfident (predicted 0.326 vs actual
+# WR 0.075), rank-corr to outcomes −0.19 (anti-predictive), and loses to the
+# market on log-loss. Two structural defects compound it: (1) no cross-cycle
+# portfolio state → mutually-exclusive YES buckets accumulate across the day as
+# the forecast drifts (Helsinki: bought 15-17°C AM, 20-21°C PM); (2) miscalibrated
+# inputs. When False, _lp_allocate_city emits NO and NEG_RISK_ARB signals only.
+# Re-enable once p_model is recalibrated AND per-city-day portfolio sizing exists.
+STWA_REGULAR_YES_ENABLED = False
 EDGE_MIN       = 0.04    # absolute floor on edge (p_win − ask), risk-of-ruin safety
 KELLY_F_MIN    = 0.015   # minimum Kelly fraction to fire: f* = (p_c − ask)/(1 − ask)
                          # 0.015 = 1.5% of bankroll. Scales with both p and ask:
@@ -847,7 +856,7 @@ class STWAEngine:
             f_yes = _kelly_f(p_m, ask_yes, confidence) if ask_yes else 0.0
             f_no  = _kelly_f(1.0 - p_m, ask_no, confidence) if ask_no else 0.0
 
-            yes_ok = edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN
+            yes_ok = STWA_REGULAR_YES_ENABLED and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN
             no_ok  = edge_no  > EDGE_MIN and f_no  > KELLY_F_MIN
 
             if yes_ok and no_ok:
