@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-29T04:39:38Z
+# Snapshot: 2026-05-29T04:54:41Z
 # Latest commit on klaus:
-3c06bd6f fix(STWA P3 oracle audit): running_max must track official METAR high only
+b0d92cef fix(STWA): suspend regular-YES path — miscalibrated & -EV (keep arb + NO)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
