@@ -1,8 +1,8 @@
 ## klaus systemd:
-deactivating
-unknown
+active
 
 ## Last 10 commits on klaus:
+209a8eb6 feat(STWA): isotonic recalibration layer (staged) — YES re-enable gate met on history
 5ea6f9bb feat(STWA): promote PA-shrunk to primary daily-max pricer (data-backed)
 4817683f analysis(STWA): intraday-value decomposition — intraday must be shrunk to β≈0.3
 29458e3a analysis(STWA): pricer backtest + μ-bias diagnostic — refutes over-spread thesis
@@ -12,13 +12,12 @@ c1dd9499 feat(STWA Tier-3): joint 2N position-velocity Kalman (shadow, parallel 
 42042e38 feat(STWA Tier-1): widen neg-risk arb margin for multi-leg structures
 b0d92cef fix(STWA): suspend regular-YES path — miscalibrated & -EV (keep arb + NO)
 3c06bd6f fix(STWA P3 oracle audit): running_max must track official METAR high only
-f9d1a42d Watchdog 2026-05-29T03:18:48Z: OK (4 anomalies within backoff, no new alerts)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   89G        5G  96% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   89G        4G  96% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-05-29 05:36:34 UTC
+ActiveEnterTimestamp=Fri 2026-05-29 06:23:14 UTC
 
 ## Open positions (count):
 0
