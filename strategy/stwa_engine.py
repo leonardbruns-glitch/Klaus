@@ -150,6 +150,7 @@ class _CityState:
     # Last MC-vs-GEV shadow snapshot (for parallel logging)
     gev_probs_last:  dict = field(default_factory=dict)
     gev_anchor_last: float = 0.0
+    pa_probs_last:   dict = field(default_factory=dict)   # peak-anchored (Rice) shadow pricer
 
 
 class STWAEngine:
@@ -693,6 +694,39 @@ class STWAEngine:
         except Exception:
             cs.gev_probs_last = {}
 
+        # ── Peak-anchored shadow pricer (Rice up-crossing; P3 Tier-2) ─────────
+        # Deterministic moment propagation of the residual (mean, variance) along
+        # the grid using the SAME 2D transition the MC uses, then F_S via the
+        # up-crossing integral. Shadow-only — logged for calibration A/B vs MC/GEV.
+        try:
+            tg = np.asarray(t_grid, dtype=np.float64)
+            m_arr   = np.empty(n_steps, dtype=np.float64)
+            s2_arr  = np.empty(n_steps, dtype=np.float64)
+            mx, vx = float(x_hat_eff), float(cs.v_hat)
+            Pxx, Pxv, Pvv = max(p_var, 1e-6), 0.0, max(cs.pv_var, VEL_MIN_VAR)
+            m_arr[0], s2_arr[0] = mx, Pxx
+            for i in range(n_steps - 1):
+                h_utc = int((tg[i] % 86400) / 3600)
+                kap   = _get_kappa(st, h_utc)
+                sig   = _get_sigma(st, h_utc) * regime_mul
+                dt_hr = (tg[i + 1] - tg[i]) / 3600.0
+                ck    = (round(kap, 4), round(sig, 4), round(dt_hr, 5))
+                step  = _step_cache.get(ck)
+                if step is None:
+                    step = _vel_step(kap, VELOCITY_GAMMA, sig, dt_hr)
+                    _step_cache[ck] = step
+                F11, F12, F21, F22, L11, L21, L22 = step
+                mx, vx = F11 * mx + F12 * vx, F21 * mx + F22 * vx
+                nPxx = F11*F11*Pxx + 2*F11*F12*Pxv + F12*F12*Pvv + L11*L11
+                nPxv = F11*F21*Pxx + (F11*F22 + F12*F21)*Pxv + F12*F22*Pvv + L11*L21
+                nPvv = F21*F21*Pxx + 2*F21*F22*Pxv + F22*F22*Pvv + (L21*L21 + L22*L22)
+                Pxx, Pxv, Pvv = nPxx, nPxv, nPvv
+                m_arr[i + 1], s2_arr[i + 1] = mx, Pxx
+            cs.pa_probs_last = _peak_anchored_bucket_probs(
+                buckets, M0, mu_grid.astype(np.float64), m_arr, s2_arr)
+        except Exception:
+            cs.pa_probs_last = {}
+
         return probs
 
     # ── Signal generation ──────────────────────────────────────────────────────
@@ -967,6 +1001,7 @@ class STWAEngine:
             return []
 
         signals: list[Signal] = []
+        self._last_pricer_rows = []   # per-bucket MC/GEV/PA comparison for calibration log
         now = t_now or time.time()
         br  = bankroll or self.bankroll
 
@@ -1025,6 +1060,21 @@ class STWAEngine:
             if not probs:
                 _g["mc"] += 1
                 continue
+
+            # Per-bucket pricer comparison for calibration validation (shadow).
+            # Logged for EVERY priced bucket regardless of which signals fire,
+            # so the suspended-YES side still accumulates calibration data.
+            _gev_last = getattr(cs, "gev_probs_last", {}) or {}
+            _pa_last  = getattr(cs, "pa_probs_last", {}) or {}
+            for (lo, hi) in buckets:
+                self._last_pricer_rows.append({
+                    "city": city, "lo": lo, "hi": hi,
+                    "p_mc":  round(float(probs.get((lo, hi), 0.0)), 5),
+                    "p_gev": round(float(_gev_last.get((lo, hi), 0.0)), 5),
+                    "p_pa":  round(float(_pa_last.get((lo, hi), 0.0)), 5),
+                    "running_max": cs.running_max,
+                    "t_close": t_close, "phase": phase,
+                })
 
             with self._lock:
                 idx         = cs.idx
@@ -1278,6 +1328,59 @@ def _gev_bucket_prob(
     else:
         p_lo = 0.0  # already past the lower bound; P(M < lo) = 0
     return max(0.0, p_hi - p_lo)
+
+
+def _peak_anchored_bucket_probs(
+    buckets: list,
+    M0: float,
+    mu_grid: np.ndarray,
+    m_arr: np.ndarray,
+    s2_arr: np.ndarray,
+) -> dict:
+    """
+    Peak-anchored daily-max bucket probabilities.
+
+    The daily max is dominated by the diurnal peak: the deterministic NWP curve
+    μ(t) sweeps up to μ_peak, and the residual Y is a small mean-reverting
+    fluctuation, so to first order
+
+        daily_max ≈ μ_peak + Y(t*),   Y(t*) ~ N(m*, s*²),
+
+    where (m*, s*²) are the residual posterior mean/variance propagated to the
+    peak hour t*. Crucially s* stays bounded near the *stationary* residual std
+    (σ²/2γκ) — it does NOT inflate with horizon like the raw MC whole-day
+    path-max, which is the over-spread that made the MC 4.3× overconfident.
+
+    Single Gaussian CDF F_S(b)=Φ((b−μ_peak−m*)/s*) ⇒ bucket probabilities are
+    coherent by construction (a telescoping difference of one monotone CDF, so
+    they sum to ≤1). The observed running max M0 is a hard floor:
+    F_M(x)=1[x≥M0]·F_S(x),  p(lo,hi)=F_M(hi)−F_M(lo).
+
+    (This is the units-clean form of agent C's peak-window idea. The second-order
+    sup-correction — the max over the peak window slightly exceeds the point
+    value at t* — is intentionally omitted: it is a small upper-tail effect with
+    a fragile constant, and is left for a later refinement once the base
+    estimator is validated against resolution in shadow.)
+    """
+    n = len(mu_grid)
+    if n < 1:
+        return {}
+    i_peak  = int(np.argmax(mu_grid))
+    mu_peak = float(mu_grid[i_peak])
+    m_star  = float(m_arr[i_peak])
+    s_star  = math.sqrt(max(float(s2_arr[i_peak]), 1e-6))
+    center  = mu_peak + m_star
+    inv     = 1.0 / (s_star * math.sqrt(2.0))
+
+    def _F_S(b: float) -> float:
+        return 0.5 * (1.0 + math.erf((b - center) * inv))
+
+    probs: dict = {}
+    for (lo, hi) in buckets:
+        f_hi = _F_S(hi) if hi >= M0 else 0.0
+        f_lo = _F_S(lo) if lo >= M0 else 0.0
+        probs[(lo, hi)] = max(0.0, f_hi - f_lo)
+    return probs
 
 
 def _phase(cs: _CityState, t_close: float, t_now: float) -> str:

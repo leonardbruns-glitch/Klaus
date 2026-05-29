@@ -4370,13 +4370,24 @@ class WeatherArb:
             logger.exception("[STWA] get_signals error")
             return
 
-        if not signals:
-            return
-
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).date().isoformat()
         out_dir  = Path(__file__).parent.parent / "logs" / "shadow" / "hot" / today
         out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Per-bucket pricer comparison (MC vs GEV vs peak-anchored), logged for
+        # every priced city regardless of whether a signal fired — this is how
+        # the suspended-YES calibration gets validated before any re-enable.
+        _pricer_rows = getattr(self._stwa, "_last_pricer_rows", []) or []
+        if _pricer_rows:
+            with open(out_dir / "stwa_pricer_eval.jsonl", "a") as _pf:
+                for _r in _pricer_rows:
+                    _r2 = dict(_r); _r2["ts"] = now
+                    _pf.write(json.dumps(_r2) + "\n")
+
+        if not signals:
+            return
+
         out_path = out_dir / "stwa_signals.jsonl"
 
         # Fetch live CLOB ask for each signal token (top-of-book, 4s timeout).
