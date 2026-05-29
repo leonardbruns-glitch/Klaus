@@ -162,7 +162,8 @@ class _CityState:
     gev_anchor_last: float = 0.0
     mc_probs_last:   dict = field(default_factory=dict)   # raw Monte-Carlo (legacy; shadow A/B)
     pa_probs_last:   dict = field(default_factory=dict)   # peak-anchored (Rice) shadow pricer
-    ps_probs_last:   dict = field(default_factory=dict)   # PA-shrunk pricer (primary candidate)
+    ps_probs_last:   dict = field(default_factory=dict)   # PA-shrunk pricer (primary)
+    cal_probs_last:  dict = field(default_factory=dict)   # PA-shrunk after isotonic recal (staged; YES gate)
     # Joint 2N Kalman shadow estimates (Tier-3, shadow-only — not used live)
     x_hat_joint:  float = 0.0
     v_hat_joint:  float = 0.0
@@ -262,6 +263,23 @@ class STWAEngine:
                             len([k for k in self._peak_calib if not k.startswith("_")]))
             except Exception as e:
                 logger.warning("[STWA] peak calib load failed: %s", e)
+
+        # Isotonic recalibration map for PA-shrunk bucket probs (monotone g: p→p_cal).
+        # Fit on 2024 history (analysis/weather/stwa_isotonic_calib.py): PA-shrunk
+        # has positive rank-corr (+0.39) but is overconfident at high p; g squashes
+        # it (g(0.95)≈0.40), ECE 0.056→0.000. STAGED: applied to cal_probs_last for
+        # logging + the YES re-enable gate; live NO/arb still use raw coherent p_ps.
+        self._isotonic = None
+        _iso_path = self._params_path.parent / "stwa_isotonic.json"
+        if _iso_path.exists():
+            try:
+                _iso = json.load(open(_iso_path))
+                self._isotonic = (np.array(_iso["grid"], dtype=float),
+                                  np.array(_iso["calibrated"], dtype=float))
+                logger.info("[STWA] isotonic recal map loaded (max|g(p)-p|=%.2f)",
+                            float(_iso.get("fit", {}).get("near_identity_maxdev", 0.0)))
+            except Exception as e:
+                logger.warning("[STWA] isotonic load failed: %s", e)
 
         # Build city state registry
         for idx, city in enumerate(self._city_list):
@@ -823,6 +841,16 @@ class STWAEngine:
         except Exception:
             cs.ps_probs_last = {}
 
+        # Isotonic recalibration (STAGED): correct PA-shrunk's high-p overconfidence.
+        # Logged for live validation; becomes the YES sizing prob at re-enable.
+        if self._isotonic is not None and cs.ps_probs_last:
+            try:
+                _g, _y = self._isotonic
+                cs.cal_probs_last = {b: float(np.interp(p, _g, _y))
+                                     for b, p in cs.ps_probs_last.items()}
+            except Exception:
+                cs.cal_probs_last = {}
+
         if STWA_PRIMARY_PRICER == "PA_SHRUNK" and cs.ps_probs_last:
             return cs.ps_probs_last
         return probs
@@ -1166,6 +1194,7 @@ class STWAEngine:
             _gev_last = getattr(cs, "gev_probs_last", {}) or {}
             _pa_last  = getattr(cs, "pa_probs_last", {}) or {}
             _ps_last  = getattr(cs, "ps_probs_last", {}) or {}
+            _cal_last = getattr(cs, "cal_probs_last", {}) or {}
             for (lo, hi) in buckets:
                 self._last_pricer_rows.append({
                     "city": city, "lo": lo, "hi": hi,
@@ -1173,6 +1202,7 @@ class STWAEngine:
                     "p_gev": round(float(_gev_last.get((lo, hi), 0.0)), 5),
                     "p_pa":  round(float(_pa_last.get((lo, hi), 0.0)), 5),
                     "p_ps":  round(float(_ps_last.get((lo, hi), 0.0)), 5),
+                    "p_cal": round(float(_cal_last.get((lo, hi), 0.0)), 5),
                     "running_max": cs.running_max,
                     "t_close": t_close, "phase": phase,
                 })
