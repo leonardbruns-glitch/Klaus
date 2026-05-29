@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+3c06bd6f fix(STWA P3 oracle audit): running_max must track official METAR high only
+f9d1a42d Watchdog 2026-05-29T03:18:48Z: OK (4 anomalies within backoff, no new alerts)
+6aae0f98 Watchdog 2026-05-29T02:22:00Z: OK (4 anomalies within backoff, no new alerts)
+69dbe9c4 Watchdog 2026-05-29T01:19:11Z: MEDIUM 4 alerts (within backoff, no new issues)
 f9ff9577 feat(STWA P2): Student-t paths, GEV shadow, physical kernel, drift baseline
 eff1070e Watchdog 2026-05-28T21:19:24Z: MEDIUM 4 alerts
 6ba54d15 feat(STWA P1): math hardening — bias × hour, MoM κ/σ, phase c_age, Kelly gate
 a303cc39 fix: STWA log p_win undefined for arb signals
 8debbd09 fix(STWA P0): NEG_RISK_ARB structural integrity — 4 critical bugs
 81ab6d5c fix: NEG_RISK_ARB re-fires after fill — check open_positions before entry
-5a818360 feat: full 51×51 Ledoit-Wolf spatial covariance for STWA
-786d280a fix: expand spatial covariance to 51×51 — all Wave-4 cities in Kalman
-0d849c3d fix: arb bypasses _fired_tokens + opposite-direction dedup for regular signals
-c9339f8e fix: engine running_max must never decrease — floor against own accumulated max
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        5G  96% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-05-28 21:39:05 UTC
+ActiveEnterTimestamp=Fri 2026-05-29 04:12:46 UTC
 
 ## Open positions (count):
 0
