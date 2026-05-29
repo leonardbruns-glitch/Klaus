@@ -84,6 +84,11 @@ CITY_BUDGET_FRAC  = 0.05   # max fraction of bankroll per city
 CITY_BUDGET_MAX   = 15.0   # hard cap per city (USD)
 NEG_RISK_ARB_THR  = 0.85   # Σ YES ask < this → pure neg-risk arb available
                            # 0.85 leaves ~10pp for Polymarket fees (2% × 2 legs) + slippage
+NEG_RISK_ARB_THR_MULTILEG = 0.80   # ≥4 legs: wider Σask margin. Each extra leg
+                           # adds partial-fill risk — if one leg's ask drifts past
+                           # the ±0.15 fill gate after others fill, the book is left
+                           # unhedged and the guaranteed-payoff structure breaks.
+NEG_RISK_ARB_MULTILEG_N   = 4      # leg count at/above which the tighter THR applies
 NEG_RISK_ARB_MIN  = 0.50   # minimum per-bucket stake for arb (below regular stake_min)
 NEG_RISK_ARB_EXHAUSTIVITY = 0.95   # require Σ p_model > this to fire arb (proves bucket coverage)
 NEG_RISK_ARB_BUDGET_MUL   = 1.5    # abort arb if min-feasible cost > this × city_budget
@@ -762,7 +767,12 @@ class STWAEngine:
         MIN_ORDER_SHARES = 5.05
 
         valid_yes_asks = [a for *_, a, _ in entries if a is not None and 0 < a < 1]
-        if len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < NEG_RISK_ARB_THR:
+        # Leg-count-dependent margin: multi-leg arbs carry partial-fill risk, so
+        # require a wider Σask margin as the number of legs grows.
+        _arb_thr = (NEG_RISK_ARB_THR_MULTILEG
+                    if len(valid_yes_asks) >= NEG_RISK_ARB_MULTILEG_N
+                    else NEG_RISK_ARB_THR)
+        if len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < _arb_thr:
             sum_ask  = sum(valid_yes_asks)
             sum_p    = sum(p for *_, p, _, _ in entries)
             arb_edge = 1.0 - sum_ask
