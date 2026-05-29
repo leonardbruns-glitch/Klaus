@@ -94,6 +94,16 @@ NEG_RISK_ARB_EXHAUSTIVITY = 0.95   # require Σ p_model > this to fire arb (prov
 NEG_RISK_ARB_BUDGET_MUL   = 1.5    # abort arb if min-feasible cost > this × city_budget
 PROB_SUM_MAX      = 1.35   # Σ p_model > this → MC bug, skip city
 
+# Primary daily-max pricer that drives the allocator. "MC" = legacy 8000-path
+# Langevin (over-weights intraday → mis-located/overconfident, n=349 audit).
+# "PA_SHRUNK" = peak-anchored Gaussian center=NWP_peak+peak_bias+β·x_hat, β=0.30,
+# σ per-city — validated calibrated on 2024 ASOS vs ECMWF (n=12,835 city-days:
+# daily-max-error std 1.04°C, coverage 80%/97% within ±1σ/±2σ; intraday optimal
+# weight β≈0.3 vs the live pipeline's effective β≥1). MC/GEV/PA still logged in
+# shadow for ongoing live-resolution comparison. Calib: config/stwa_peak_calib.json.
+STWA_PRIMARY_PRICER = "PA_SHRUNK"   # "MC" | "PA_SHRUNK"
+PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3)
+
 # Sky rank → regime label (sky_rank 0=clear, 4=overcast)
 #  sky_rank comes from the METAR cache (0=SKC/CLR, 1=FEW, 2=SCT, 3=BKN, 4=OVC/VV)
 REGIME_FROM_SKY = {0: "SUNNY", 1: "SUNNY", 2: "PARTLY_CLOUDY", 3: "CLOUDY", 4: "CLOUDY"}
@@ -150,7 +160,9 @@ class _CityState:
     # Last MC-vs-GEV shadow snapshot (for parallel logging)
     gev_probs_last:  dict = field(default_factory=dict)
     gev_anchor_last: float = 0.0
+    mc_probs_last:   dict = field(default_factory=dict)   # raw Monte-Carlo (legacy; shadow A/B)
     pa_probs_last:   dict = field(default_factory=dict)   # peak-anchored (Rice) shadow pricer
+    ps_probs_last:   dict = field(default_factory=dict)   # PA-shrunk pricer (primary candidate)
     # Joint 2N Kalman shadow estimates (Tier-3, shadow-only — not used live)
     x_hat_joint:  float = 0.0
     v_hat_joint:  float = 0.0
@@ -239,6 +251,17 @@ class STWAEngine:
         self._Pj[N:, N:] = np.diag(np.maximum(_kap0 * np.diag(self._C), 1e-6))
         self._shadow_lock = threading.Lock()
         self._joint_FQ_cache: dict = {}   # (κ-bin, round(Δt,2)) → (F, Q)
+
+        # PA-shrunk pricer per-city calibration (peak_bias, sigma); pooled fallback.
+        self._peak_calib: dict = {}
+        _calib_path = self._params_path.parent / "stwa_peak_calib.json"
+        if _calib_path.exists():
+            try:
+                self._peak_calib = json.load(open(_calib_path))
+                logger.info("[STWA] peak calib loaded: %d cities",
+                            len([k for k in self._peak_calib if not k.startswith("_")]))
+            except Exception as e:
+                logger.warning("[STWA] peak calib load failed: %s", e)
 
         # Build city state registry
         for idx, city in enumerate(self._city_list):
@@ -725,6 +748,7 @@ class STWAEngine:
         probs: dict[tuple[float, float], float] = {}
         for (lo, hi) in buckets:
             probs[(lo, hi)] = float(np.mean((path_max >= lo) & (path_max < hi)))
+        cs.mc_probs_last = dict(probs)   # stash raw MC for shadow A/B (primary may differ)
 
         # GEV closed-form shadow: P2-I. Use the NWP daily-max from mu_grid as
         # anchor, apply the fitted GEV(loc, scale, shape) per (city, month) for
@@ -784,6 +808,23 @@ class STWAEngine:
         except Exception:
             cs.pa_probs_last = {}
 
+        # ── PA-shrunk pricer (PRIMARY candidate) ──────────────────────────────
+        # center = NWP_peak + per-city peak_bias + β·x_hat (β=0.30 shrinkage on
+        # the intraday residual). σ per-city empirical. Coherent + running-max
+        # floor. Data-validated calibrated (2024, n=12,835). Drives the allocator
+        # when STWA_PRIMARY_PRICER=="PA_SHRUNK"; MC still computed for shadow A/B.
+        try:
+            _cal = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
+            _center = (float(np.nanmax(mu_grid))
+                       + float(_cal.get("peak_bias", 0.0))
+                       + PA_SHRUNK_BETA * x_hat)
+            cs.ps_probs_last = _peak_shrunk_bucket_probs(
+                buckets, M0, _center, float(_cal.get("sigma", 1.1)))
+        except Exception:
+            cs.ps_probs_last = {}
+
+        if STWA_PRIMARY_PRICER == "PA_SHRUNK" and cs.ps_probs_last:
+            return cs.ps_probs_last
         return probs
 
     # ── Signal generation ──────────────────────────────────────────────────────
@@ -1121,14 +1162,17 @@ class STWAEngine:
             # Per-bucket pricer comparison for calibration validation (shadow).
             # Logged for EVERY priced bucket regardless of which signals fire,
             # so the suspended-YES side still accumulates calibration data.
+            _mc_last  = getattr(cs, "mc_probs_last", {}) or {}
             _gev_last = getattr(cs, "gev_probs_last", {}) or {}
             _pa_last  = getattr(cs, "pa_probs_last", {}) or {}
+            _ps_last  = getattr(cs, "ps_probs_last", {}) or {}
             for (lo, hi) in buckets:
                 self._last_pricer_rows.append({
                     "city": city, "lo": lo, "hi": hi,
-                    "p_mc":  round(float(probs.get((lo, hi), 0.0)), 5),
+                    "p_mc":  round(float(_mc_last.get((lo, hi), 0.0)), 5),
                     "p_gev": round(float(_gev_last.get((lo, hi), 0.0)), 5),
                     "p_pa":  round(float(_pa_last.get((lo, hi), 0.0)), 5),
+                    "p_ps":  round(float(_ps_last.get((lo, hi), 0.0)), 5),
                     "running_max": cs.running_max,
                     "t_close": t_close, "phase": phase,
                 })
@@ -1301,6 +1345,30 @@ def _vel_step(kap: float, gamma: float, sig: float, dt_hr: float
                      math.sqrt(max(Q[1, 1], 1e-10))])
     return (float(F[0, 0]), float(F[0, 1]), float(F[1, 0]), float(F[1, 1]),
             float(L[0, 0]), float(L[1, 0]), float(L[1, 1]))
+
+
+def _peak_shrunk_bucket_probs(buckets: list, M0: float, center: float, sigma: float) -> dict:
+    """
+    PA-shrunk daily-max bucket probabilities (PRIMARY candidate pricer).
+
+    daily_max ~ N(center, sigma²) with center = NWP_peak + peak_bias + β·x_hat
+    (β≈0.3 shrinkage on the intraday residual — the 2024 backtest shows the
+    morning anomaly mean-reverts ~70% by the peak, so the live pipeline's
+    effective β≥1 over-weights it and mis-locates). σ is the per-city empirical
+    daily-max-error std (~1.0-1.3°C). Single Gaussian CDF ⇒ coherent (Σ≤1);
+    hard running-max floor F_M(x)=1[x≥M0]·Φ((x−center)/σ).
+    """
+    inv = 1.0 / (max(sigma, 1e-3) * math.sqrt(2.0))
+
+    def _F_S(b: float) -> float:
+        return 0.5 * (1.0 + math.erf((b - center) * inv))
+
+    probs: dict = {}
+    for (lo, hi) in buckets:
+        f_hi = _F_S(hi) if hi >= M0 else 0.0
+        f_lo = _F_S(lo) if lo >= M0 else 0.0
+        probs[(lo, hi)] = max(0.0, f_hi - f_lo)
+    return probs
 
 
 def _joint_FQ(kappas: np.ndarray, gamma: float, C: np.ndarray, dt_hr: float):
