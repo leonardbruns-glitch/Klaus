@@ -3619,7 +3619,10 @@ class WeatherArb:
                             float(_dew) if _dew is not None else None,
                             _sky,
                             obs_time,
-                            new_max,
+                            # Official METAR max only (matches NMS caller + WU/PM
+                            # oracle); never the all-source new_max, which can be
+                            # lifted by sub-hourly Synoptic readings.
+                            cached.get("official_running_max_c") or new_max,
                             today_str,
                         )
                 except Exception:

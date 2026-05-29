@@ -415,7 +415,8 @@ class STWAEngine:
                 cs.regime       = regime
                 cs.last_obs_ts  = obs_ts
                 cs.last_temp    = temp_c
-                new_max = _new_max(_new_max(cs.running_max, temp_c), running_max)
+                # Official-max only — never fold temp_c (see Kalman branch).
+                new_max = _new_max(cs.running_max, running_max) if running_max is not None else cs.running_max
                 if new_max != cs.running_max:
                     cs.running_max_ts = obs_ts
                 cs.running_max  = new_max
@@ -508,7 +509,12 @@ class STWAEngine:
             cs.x_hat    = float(self._X[idx])
             cs.last_obs_ts  = obs_ts
             cs.last_temp    = temp_c
-            new_max = _new_max(running_max, temp_c)
+            # Running max must track ONLY the official METAR high the WU/PM
+            # oracle resolves against — the caller passes official_running_max_c.
+            # Never fold temp_c in: on the NMS path temp_c is a sub-hourly
+            # Synoptic/AMeDAS reading the oracle never sees, so maxing it into
+            # running_max would lift it above the official high (the M1β bug).
+            new_max = _new_max(cs.running_max, running_max) if running_max is not None else cs.running_max
             if new_max != cs.running_max:
                 cs.running_max_ts = obs_ts
             cs.running_max  = new_max
