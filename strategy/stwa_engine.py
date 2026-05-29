@@ -151,6 +151,10 @@ class _CityState:
     gev_probs_last:  dict = field(default_factory=dict)
     gev_anchor_last: float = 0.0
     pa_probs_last:   dict = field(default_factory=dict)   # peak-anchored (Rice) shadow pricer
+    # Joint 2N Kalman shadow estimates (Tier-3, shadow-only — not used live)
+    x_hat_joint:  float = 0.0
+    v_hat_joint:  float = 0.0
+    pv_var_joint: float = 0.0
 
 
 class STWAEngine:
@@ -223,6 +227,18 @@ class STWAEngine:
         # Initial Kalman state: X=0 (no anomaly), P=C (prior = spatial covariance)
         self._X = np.zeros(N)
         self._P = self._C.copy()
+
+        # Joint 2N shadow Kalman (Tier-3) — runs in PARALLEL, does NOT drive live
+        # state. State [X;V]; block prior position=C, velocity=diag(κ_i·C_ii)
+        # (stationary Var(V) of the inertial-OU). Not persisted; warms each start.
+        self._Sj = np.zeros(2 * N)
+        _kap0 = np.array([_get_kappa(self._params["stations"].get(c, {}), 0)
+                          for c in self._city_list])
+        self._Pj = np.zeros((2 * N, 2 * N))
+        self._Pj[:N, :N] = self._C
+        self._Pj[N:, N:] = np.diag(np.maximum(_kap0 * np.diag(self._C), 1e-6))
+        self._shadow_lock = threading.Lock()
+        self._joint_FQ_cache: dict = {}   # (κ-bin, round(Δt,2)) → (F, Q)
 
         # Build city state registry
         for idx, city in enumerate(self._city_list):
@@ -556,6 +572,47 @@ class STWAEngine:
                 cs.v_hat   += K_v * (v_obs - cs.v_hat)
                 cs.pv_var  *= (1.0 - K_v)
                 cs.pv_var   = max(cs.pv_var, VEL_MIN_VAR)
+
+        # ── Shadow joint 2N Kalman (Tier-3) ───────────────────────────────────
+        # Runs in PARALLEL to the live position-only filter + OLS velocity above.
+        # Drives NO live decision — logged via get_state_snapshot to compare the
+        # joint posterior velocity vs the OLS hack before any promotion. Uses a
+        # separate lock so it never adds latency to the live update path.
+        if getattr(self, "_Sj", None) is not None:
+            try:
+                with self._shadow_lock:
+                    Nn = len(self._city_list)
+                    # (F,Q) depend only on (6h κ-bin, Δt) → cache the costly
+                    # 204×204 Van Loan expm; steady state is cheap matmuls.
+                    _ck = (hour_utc // 6, round(dt_hours, 2))
+                    _fq = self._joint_FQ_cache.get(_ck)
+                    if _fq is None:
+                        kappas_j = np.array([
+                            _get_kappa(self._params["stations"].get(c, {}), hour_utc)
+                            for c in self._city_list
+                        ])
+                        _fq = _joint_FQ(kappas_j, VELOCITY_GAMMA, self._C, dt_hours)
+                        if len(self._joint_FQ_cache) < 600:
+                            self._joint_FQ_cache[_ck] = _fq
+                    Fj, Qj = _fq
+                    Sp = Fj @ self._Sj
+                    Pp = Fj @ self._Pj @ Fj.T + Qj
+                    hj = np.zeros(2 * Nn); hj[idx] = 1.0          # observe position of city idx
+                    Sden = float(hj @ Pp @ hj) + sigma_obs_eff ** 2
+                    Kj   = (Pp @ hj) / Sden
+                    innj = y_obs - float(Sp[idx])
+                    if abs(innj) / math.sqrt(Sden) <= 4.0:
+                        self._Sj = Sp + Kj * innj
+                        ImKH = np.eye(2 * Nn) - np.outer(Kj, hj)   # Joseph form (PSD-safe)
+                        self._Pj = ImKH @ Pp @ ImKH.T + np.outer(Kj, Kj) * (sigma_obs_eff ** 2)
+                    else:
+                        self._Sj, self._Pj = Sp, Pp
+                    self._Pj = (self._Pj + self._Pj.T) / 2.0
+                    cs.x_hat_joint  = float(self._Sj[idx])
+                    cs.v_hat_joint  = float(self._Sj[Nn + idx])
+                    cs.pv_var_joint = float(self._Pj[Nn + idx, Nn + idx])
+            except Exception as e:
+                logger.debug("[STWA] shadow joint Kalman %s: %s", city, e)
 
     # ── Running maximum distribution ───────────────────────────────────────────
 
@@ -1159,6 +1216,12 @@ class STWAEngine:
                 "metar_age_s":  round(now - cs.last_obs_ts) if cs.last_obs_ts > 0 else None,
                 "kalman_mu":    round(p_mu, 3),
                 "kalman_var":   round(p_var, 4),
+                # Tier-3 joint-2N-Kalman shadow vs live OLS velocity (for A/B)
+                "v_hat_ols":    round(cs.v_hat, 4),
+                "pv_var_ols":   round(cs.pv_var, 4),
+                "x_hat_joint":  round(cs.x_hat_joint, 3),
+                "v_hat_joint":  round(cs.v_hat_joint, 4),
+                "pv_var_joint": round(cs.pv_var_joint, 4),
                 "nwp_mu":       round(nwp_mu, 2) if math.isfinite(nwp_mu) else None,
                 "suspended":    city in self._suspended,
             })
@@ -1238,6 +1301,33 @@ def _vel_step(kap: float, gamma: float, sig: float, dt_hr: float
                      math.sqrt(max(Q[1, 1], 1e-10))])
     return (float(F[0, 0]), float(F[0, 1]), float(F[1, 0]), float(F[1, 1]),
             float(L[0, 0]), float(L[1, 0]), float(L[1, 1]))
+
+
+def _joint_FQ(kappas: np.ndarray, gamma: float, C: np.ndarray, dt_hr: float):
+    """
+    Joint 2N transition F=exp(A·Δt) and process-noise Q=∫₀^Δt e^{Aτ}Σe^{Aᵀτ}dτ
+    (Van Loan 1978) for the joint position-velocity OU field. State s=[X;V],
+    drift A=[[0,I],[−diag(κ),−γI]]; noise drives velocity only, with cross-city
+    covariance C_σ_ij = 2γ√(κ_iκ_j)·C_ij — chosen so the stationary position
+    covariance equals the empirical spatial covariance C exactly. Shadow-only.
+    """
+    from scipy.linalg import expm as _expm
+    N = len(kappas)
+    A = np.zeros((2 * N, 2 * N))
+    A[:N, N:] = np.eye(N)
+    A[N:, :N] = -np.diag(kappas)
+    A[N:, N:] = -gamma * np.eye(N)
+    sk = np.sqrt(np.maximum(kappas, 1e-9))
+    C_sigma = 2.0 * gamma * np.outer(sk, sk) * C        # 2γ√(κᵢκⱼ)·Cᵢⱼ
+    Sigma = np.zeros((2 * N, 2 * N))
+    Sigma[N:, N:] = C_sigma
+    F = _expm(A * dt_hr)
+    M = np.zeros((4 * N, 4 * N))
+    M[:2 * N, :2 * N] = -A
+    M[:2 * N, 2 * N:] = Sigma
+    M[2 * N:, 2 * N:] = A.T
+    Q = F @ _expm(M * dt_hr)[:2 * N, 2 * N:]
+    return F, (Q + Q.T) / 2.0
 
 
 # ── Pure helper functions ──────────────────────────────────────────────────────
