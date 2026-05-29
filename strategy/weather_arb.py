@@ -4358,6 +4358,21 @@ class WeatherArb:
             logger.info("[STWA] depth pre-fetch: %d/%d tokens enriched across %d arb-candidate cities",
                         _enriched, len(_toks_to_fetch), len(cities_for_depth_fetch))
 
+        # Tier-4: capital already deployed per city today (open WEATHER_STWA
+        # positions). Feeds the per-city-day budget R = budget − held_k so the
+        # allocator caps total city-day exposure instead of re-deploying the full
+        # budget every cycle (the cross-time multi-YES accumulation fix).
+        held_k_by_city: dict[str, float] = {}
+        _op = getattr(self.bot.risk, "open_positions", {})
+        for _tid, _pos in _op.items():
+            if getattr(_pos, "bond_entry_class", "") != "WEATHER_STWA":
+                continue
+            _c = (self.bot._open_meta.get(_tid, {}) or {}).get("city")
+            if not _c:
+                continue
+            _rem = getattr(_pos, "remaining_shares", 0.0) or 0.0
+            held_k_by_city[_c] = held_k_by_city.get(_c, 0.0) + _rem * _pos.entry_price
+
         try:
             signals = self._stwa.get_signals(
                 clob_books=clob_books,
@@ -4365,6 +4380,7 @@ class WeatherArb:
                 t_close_map=t_close_map,
                 bankroll=self._get_bankroll(),
                 t_now=now,
+                held_k_by_city=held_k_by_city,
             )
         except Exception:
             logger.exception("[STWA] get_signals error")

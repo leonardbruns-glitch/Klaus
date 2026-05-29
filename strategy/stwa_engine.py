@@ -870,6 +870,7 @@ class STWAEngine:
         p_var:       float,
         kriging_pct: float,
         regime:      str,
+        held_k:      float = 0.0,    # Tier-4: capital ($) already deployed in this city today
     ) -> list[Signal]:
         """
         Kelly allocation for a city's active bucket candidates.
@@ -936,7 +937,7 @@ class STWAEngine:
             sum_ask  = sum(valid_yes_asks)
             sum_p    = sum(p for *_, p, _, _ in entries)
             arb_edge = 1.0 - sum_ask
-            city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
+            city_budget = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)  # Tier-4: remaining day budget net of deployed capital
 
             # Exhaustivity gate
             if sum_p < NEG_RISK_ARB_EXHAUSTIVITY:
@@ -1118,6 +1119,7 @@ class STWAEngine:
         t_close_map: dict[str, float],  # city → unix ts of market close
         bankroll:    Optional[float]    = None,
         t_now:       Optional[float]    = None,
+        held_k_by_city: Optional[dict]  = None,   # Tier-4: $ deployed per city today
     ) -> list[Signal]:
         """
         For each active city, compute bucket probabilities and return signals
@@ -1239,6 +1241,7 @@ class STWAEngine:
                 clob_books=clob_books, confidence=confidence,
                 phase=phase, bankroll=br, metar_age=metar_age,
                 p_var=p_var, kriging_pct=kriging_pct, regime=cs.regime,
+                held_k=float((held_k_by_city or {}).get(city, 0.0)),
             )
             if not city_signals:
                 _g["edge"] += 1
