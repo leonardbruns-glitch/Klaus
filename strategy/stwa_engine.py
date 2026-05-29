@@ -52,7 +52,12 @@ INNOV_DF       = 6       # Student-t df for path innovations (excess kurt = 3)
 # the forecast drifts (Helsinki: bought 15-17°C AM, 20-21°C PM); (2) miscalibrated
 # inputs. When False, _lp_allocate_city emits NO and NEG_RISK_ARB signals only.
 # Re-enable once p_model is recalibrated AND per-city-day portfolio sizing exists.
-STWA_REGULAR_YES_ENABLED = False
+STWA_REGULAR_YES_ENABLED = True   # RE-ENABLED 2026-05-29 by user (full stakes), after PA-shrunk+isotonic
+                                  # recal wired into YES sizing (g squashes the overconfident raw high-p,
+                                  # so YES sizes off recalibrated win-prob, not the raw 0.95→really-0.40).
+                                  # NOTE: calibration validated on 2024 history (n≫100), NOT yet on LIVE
+                                  # 2026 resolution — user accepted this risk. Tier-4 budget cap + kelly_frac
+                                  # + stake_max + kill switches still bound exposure. Revert: set False.
 EDGE_MIN       = 0.04    # absolute floor on edge (p_win − ask), risk-of-ruin safety
 KELLY_F_MIN    = 0.015   # minimum Kelly fraction to fire: f* = (p_c − ask)/(1 − ask)
                          # 0.015 = 1.5% of bankroll. Scales with both p and ask:
@@ -871,6 +876,7 @@ class STWAEngine:
         kriging_pct: float,
         regime:      str,
         held_k:      float = 0.0,    # Tier-4: capital ($) already deployed in this city today
+        cal_probs:   Optional[dict] = None,   # isotonic-recalibrated per-bucket win-prob (YES/NO sizing)
     ) -> list[Signal]:
         """
         Kelly allocation for a city's active bucket candidates.
@@ -1022,10 +1028,15 @@ class STWAEngine:
 
         candidates = []
         for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
-            edge_yes = (p_m - ask_yes) if ask_yes is not None else -1.0
-            edge_no  = ((1.0 - p_m) - ask_no) if ask_no is not None else -1.0
-            f_yes = _kelly_f(p_m, ask_yes, confidence) if ask_yes else 0.0
-            f_no  = _kelly_f(1.0 - p_m, ask_no, confidence) if ask_no else 0.0
+            # Use isotonic-RECALIBRATED win-prob for edge + Kelly (raw p_m stays
+            # for the arb Σ-exhaustivity gate above). This is what prevents YES
+            # from over-paying on the raw overconfident high-p region (g squashes
+            # 0.95→0.40, so YES only fires where the recalibrated edge is real).
+            p_use = float((cal_probs or {}).get((lo, hi), p_m))
+            edge_yes = (p_use - ask_yes) if ask_yes is not None else -1.0
+            edge_no  = ((1.0 - p_use) - ask_no) if ask_no is not None else -1.0
+            f_yes = _kelly_f(p_use, ask_yes, confidence) if ask_yes else 0.0
+            f_no  = _kelly_f(1.0 - p_use, ask_no, confidence) if ask_no else 0.0
 
             yes_ok = STWA_REGULAR_YES_ENABLED and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN
             no_ok  = edge_no  > EDGE_MIN and f_no  > KELLY_F_MIN
@@ -1033,19 +1044,19 @@ class STWAEngine:
             if yes_ok and no_ok:
                 # Both sides positive ↔ neg-risk within this bucket; pick higher Kelly
                 if f_yes >= f_no:
-                    candidates.append(("YES", yes_tok, p_m, ask_yes, edge_yes, (lo, hi)))
+                    candidates.append(("YES", yes_tok, p_use, ask_yes, edge_yes, (lo, hi)))
                 else:
-                    candidates.append(("NO", no_tok, p_m, ask_no, edge_no, (lo, hi)))
+                    candidates.append(("NO", no_tok, p_use, ask_no, edge_no, (lo, hi)))
             elif yes_ok:
-                candidates.append(("YES", yes_tok, p_m, ask_yes, edge_yes, (lo, hi)))
+                candidates.append(("YES", yes_tok, p_use, ask_yes, edge_yes, (lo, hi)))
             elif no_ok:
-                candidates.append(("NO", no_tok, p_m, ask_no, edge_no, (lo, hi)))
+                candidates.append(("NO", no_tok, p_use, ask_no, edge_no, (lo, hi)))
 
         if not candidates:
             return []
 
         # ── Split by direction ────────────────────────────────────────────────
-        city_budget = min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX)
+        city_budget = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)  # Tier-4: remaining day budget net of deployed capital
         yes_cands = [c for c in candidates if c[0] == "YES"]
         no_cands  = [c for c in candidates if c[0] == "NO"]
 
@@ -1242,6 +1253,7 @@ class STWAEngine:
                 phase=phase, bankroll=br, metar_age=metar_age,
                 p_var=p_var, kriging_pct=kriging_pct, regime=cs.regime,
                 held_k=float((held_k_by_city or {}).get(city, 0.0)),
+                cal_probs=getattr(cs, "cal_probs_last", None),
             )
             if not city_signals:
                 _g["edge"] += 1
