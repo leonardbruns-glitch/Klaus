@@ -1,7 +1,11 @@
 ## klaus systemd:
-active
+deactivating
+unknown
 
 ## Last 10 commits on klaus:
+5ea6f9bb feat(STWA): promote PA-shrunk to primary daily-max pricer (data-backed)
+4817683f analysis(STWA): intraday-value decomposition — intraday must be shrunk to β≈0.3
+29458e3a analysis(STWA): pricer backtest + μ-bias diagnostic — refutes over-spread thesis
 c1dd9499 feat(STWA Tier-3): joint 2N position-velocity Kalman (shadow, parallel to live)
 343f0315 Watchdog 2026-05-29T05:09:54Z: HIGH 3 alerts
 0a960fa9 feat(STWA Tier-2): peak-anchored daily-max pricer (shadow + per-bucket eval log)
@@ -9,9 +13,6 @@ c1dd9499 feat(STWA Tier-3): joint 2N position-velocity Kalman (shadow, parallel 
 b0d92cef fix(STWA): suspend regular-YES path — miscalibrated & -EV (keep arb + NO)
 3c06bd6f fix(STWA P3 oracle audit): running_max must track official METAR high only
 f9d1a42d Watchdog 2026-05-29T03:18:48Z: OK (4 anomalies within backoff, no new alerts)
-6aae0f98 Watchdog 2026-05-29T02:22:00Z: OK (4 anomalies within backoff, no new alerts)
-69dbe9c4 Watchdog 2026-05-29T01:19:11Z: MEDIUM 4 alerts (within backoff, no new issues)
-f9ff9577 feat(STWA P2): Student-t paths, GEV shadow, physical kernel, drift baseline
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   89G        5G  96% /
