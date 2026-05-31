@@ -94,6 +94,7 @@ ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for h
 # Live entry gated by BRACKET_ENABLED. Shadow validation target: n≥30 signals,
 # combined hit rate within ±0.10 of combined_fair_prob before flipping live.
 STWA_LIVE                = True   # True → live entries from Kalman engine; False → shadow only
+STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-resolution STWA positions
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -1508,11 +1509,165 @@ class WeatherArb:
             self._stwa_shadow_task = asyncio.create_task(
                 self._stwa_shadow_loop(), name="stwa_shadow_loop"
             )
+        # Settle held-to-resolution STWA positions (PnL → bankroll + trades.jsonl).
+        # Spawned unconditionally so persisted WEATHER_STWA still settles even if
+        # the engine is disabled. Without this STWA is a write-only position book.
+        self._stwa_resolution_task = asyncio.create_task(
+            self._stwa_resolution_loop(), name="stwa_resolution_loop"
+        )
         try:
             from strategy.wis2_synop import start as _wis2_start
             _wis2_start()
         except Exception as _e:
             logger.warning("[WA] WIS2 subscriber failed to start: %s", _e)
+
+    async def _stwa_resolution_loop(self) -> None:
+        """Settle held-to-resolution WEATHER_STWA positions.
+
+        STWA's only exit is holding to the daily-max settlement, but nothing
+        else in the bot detects that settlement — so positions never close, PnL
+        never books, and the bankroll + kill switches stay blind (a write-only
+        position book). This loop polls Gamma for each open STWA market and,
+        once resolved (closed + a definitive 0/1 outcome), books the position
+        via risk.close_position so PnL reaches the bankroll AND trades.jsonl.
+        The first pass backfills any already-resolved positions.
+        """
+        await asyncio.sleep(90.0)  # let positions/feed settle after restart
+        while True:
+            try:
+                await self._stwa_resolve_once()
+            except Exception:
+                logger.exception("[STWA-RES] resolution poll failed")
+            await asyncio.sleep(STWA_RESOLUTION_POLL_SEC)
+
+    async def _stwa_fetch_market(self, sess, condition_id: str):
+        """Fetch one *resolved* market by condition_id from Gamma. None on any
+        failure. NOTE: Gamma's default /markets query HIDES closed markets
+        (returns []); closed=true is required to see resolved ones — which is
+        exactly what settlement needs (open markets correctly return nothing)."""
+        url = f"{GAMMA_BASE}/markets?condition_ids={condition_id}&closed=true"
+        try:
+            async with sess.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status != 200:
+                    return None
+                rows = await resp.json()
+                return rows[0] if rows else None
+        except Exception:
+            return None
+
+    async def _stwa_resolve_once(self) -> None:
+        """One pass: close every open WEATHER_STWA whose market has resolved."""
+        risk = getattr(self.bot, "risk", None)
+        if risk is None:
+            return
+        open_stwa = {
+            tid: pos
+            for tid, pos in list(getattr(risk, "open_positions", {}).items())
+            if getattr(pos, "bond_entry_class", "") == "WEATHER_STWA"
+            and getattr(pos, "condition_id", "")
+        }
+        if not open_stwa:
+            return
+
+        cond_ids = sorted({pos.condition_id for pos in open_stwa.values()})
+        markets: dict = {}
+        async with aiohttp.ClientSession() as sess:
+            BATCH = 10
+            for i in range(0, len(cond_ids), BATCH):
+                batch = cond_ids[i:i + BATCH]
+                results = await asyncio.gather(
+                    *[self._stwa_fetch_market(sess, c) for c in batch]
+                )
+                for c, m in zip(batch, results):
+                    if m:
+                        markets[c] = m
+
+        n_closed = 0
+        for tid, pos in open_stwa.items():
+            m = markets.get(pos.condition_id)
+            if not m or not m.get("closed", False):
+                continue
+            toks = _parse_token_ids(m.get("clobTokenIds", []))
+            praw = m.get("outcomePrices", "[]")
+            try:
+                prices = json.loads(praw) if isinstance(praw, str) else praw
+                prices = [float(p) for p in (prices or [])]
+            except Exception:
+                continue
+            if not toks or not prices or len(toks) != len(prices):
+                continue
+            # Require a definitive binary resolution: exactly one outcome ~1.0 and
+            # the rest ~0.0. Anything ambiguous (still 0.5/0.5, UMA dispute) is
+            # skipped and retried next cycle — never guess a settlement price.
+            if (sum(1 for p in prices if p >= 0.99) != 1
+                    or sum(1 for p in prices if p <= 0.01) != len(prices) - 1):
+                continue
+            try:
+                idx = toks.index(tid)
+            except ValueError:
+                continue
+            exit_price = 1.0 if prices[idx] >= 0.99 else 0.0
+            try:
+                self._stwa_close_resolved(tid, pos, exit_price)
+                n_closed += 1
+            except Exception:
+                logger.exception("[STWA-RES] close failed %s", str(tid)[:12])
+
+        if n_closed:
+            still = sum(
+                1 for p in risk.open_positions.values()
+                if getattr(p, "bond_entry_class", "") == "WEATHER_STWA"
+            )
+            logger.info("[STWA-RES] settled %d position(s); %d STWA still open",
+                        n_closed, still)
+
+    def _stwa_close_resolved(self, token_id: str, pos, exit_price: float) -> None:
+        """Book a resolved STWA position: PnL → bankroll (close_position) and a
+        row → trades.jsonl (record_trade). Polymarket redemption is fee-free, so
+        actual_fee=0.0 (else close_position would subtract a phantom fee)."""
+        meta = (self.bot._open_meta.get(token_id, {}) or {})
+        cap_before = self.bot.risk.bankroll.capital
+        pnl = self.bot.risk.close_position(
+            token_id, exit_price=exit_price, reason="STWA_RESOLVED", actual_fee=0.0,
+        )
+        if pnl is None:
+            return
+        logger.info("[STWA-RES] CLOSE %s %s @ %.1f | PnL=$%.2f (entry=%.3f shares=%.1f)",
+                    meta.get("city", pos.asset), pos.direction.name, exit_price,
+                    pnl, pos.entry_price, pos.shares)
+        try:
+            from strategy.momentum import SignalBreakdown, FeeZone
+            from config import CONFIG as _CFG
+            sig = SignalBreakdown(
+                direction=pos.direction, entry_price=pos.entry_price,
+                composite=0.0, confidence=0.0, breakout_score=0.0,
+                trend_score=0.0, volume_score=0.0, ob_score=0.0,
+                fee_zone=FeeZone.FAT_MIDDLE, external_boost=0.0,
+                reason="stwa_resolved",
+            )
+            extra = {k: v for k, v in meta.items() if str(k).startswith("weather_")}
+            extra["entered_correctly"] = exit_price >= 0.99
+            extra["kline_pnl"] = round(pnl, 4)
+            self.bot.analytics.record_trade(
+                token_id=token_id, asset=pos.asset, direction=pos.direction,
+                entry_price=pos.entry_price, exit_price=exit_price,
+                stake=pos.stake, shares=pos.shares,
+                entry_fill=None, exit_fills=[],
+                exit_reason="STWA_RESOLVED", signal=sig,
+                ts_open=meta.get("ts_open", pos.open_ts), ts_close=time.time(),
+                capital_before=cap_before,
+                heat_check_active=False,
+                consecutive_wins=self.bot.risk.bankroll.consecutive_wins,
+                net_pnl_actual=pnl, is_live=not _CFG.dry_run,
+                signal_source=meta.get("signal_source", "WEATHER/STWA"),
+                bond_entry_class="WEATHER_STWA",
+                bond_outcome_direction=getattr(pos, "bond_outcome_direction", ""),
+                extra_fields=extra,
+            )
+        except Exception:
+            logger.exception("[STWA-RES] record_trade failed %s", str(token_id)[:12])
+        self.bot._open_meta.pop(token_id, None)
+        self._fired_tokens.discard(token_id)
 
     async def _stwa_shadow_loop(self) -> None:
         """Every 30s: log STWA shadow signals. Every 6h: refresh NWP cache for all STWA cities."""
@@ -4381,6 +4536,11 @@ class WeatherArb:
         for _tid, _pos in _op.items():
             if getattr(_pos, "bond_entry_class", "") != "WEATHER_STWA":
                 continue
+            # Date-scope: only count today's deployment. Stale positions (>28h,
+            # awaiting the resolution loop) must not keep starving the per-city-day
+            # arb budget. The resolution loop closes them; this bridges the gap.
+            if (time.time() - getattr(_pos, "open_ts", 0.0)) > 100_800:
+                continue
             _c = (self.bot._open_meta.get(_tid, {}) or {}).get("city")
             if not _c:
                 continue
@@ -4444,6 +4604,17 @@ class WeatherArb:
         logger.info("[STWA] %d signal(s) logged to %s", len(signals), out_path)
 
         if not STWA_LIVE:
+            return
+
+        # Kill-switch gate (mirrors cas_lowask/volarb/LDA): never deploy capital
+        # while the shared bankroll is halted/ruined. NOTE: the thresholds are
+        # config-disabled today (max_daily_loss_pct=0, ruin_floor=0) so this is
+        # inert until the user re-arms them (a Tier-3 cross-strategy decision).
+        # The resolution loop is separate, so settlement still proceeds when halted.
+        _bk = self.bot.risk.bankroll
+        if _bk.is_ruined or _bk.is_halted:
+            logger.warning("[STWA] kill-switch active (halted=%s ruined=%s) — no entries this cycle",
+                           _bk.is_halted, _bk.is_ruined)
             return
 
         # ── Live execution ────────────────────────────────────────────────────

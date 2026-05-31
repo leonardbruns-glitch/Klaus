@@ -52,9 +52,10 @@ INNOV_DF       = 6       # Student-t df for path innovations (excess kurt = 3)
 # the forecast drifts (Helsinki: bought 15-17°C AM, 20-21°C PM); (2) miscalibrated
 # inputs. When False, _lp_allocate_city emits NO and NEG_RISK_ARB signals only.
 # Re-enable once p_model is recalibrated AND per-city-day portfolio sizing exists.
-STWA_REGULAR_YES_ENABLED = True   # RE-ENABLED 2026-05-29 by user (full stakes), after PA-shrunk+isotonic
-                                  # recal wired into YES sizing (g squashes the overconfident raw high-p,
-                                  # so YES sizes off recalibrated win-prob, not the raw 0.95→really-0.40).
+STWA_REGULAR_YES_ENABLED = False  # RE-SUSPENDED 2026-05-31: live audit shows it bleeding (−$5 realized
+                                  # @12% WR + ~−$28 open MTM; −EV/miscalibrated). Was True 2026-05-29
+                                  # (user full-stakes) on a 2024-history-only gate. Re-enable ONLY after
+                                  # live resolution n≥100 confirms p_cal calibration holds.
                                   # NOTE: calibration validated on 2024 history (n≫100), NOT yet on LIVE
                                   # 2026 resolution — user accepted this risk. Tier-4 budget cap + kelly_frac
                                   # + stake_max + kill switches still bound exposure. Revert: set False.
