@@ -1,24 +1,28 @@
-# VOLARB Alpha Scout — 2026-05-30T00:44Z
+# VOLARB Alpha Scout — 2026-05-31T00:43Z
 
 ## Snapshot + Baseline
 
 | field | value |
 |---|---|
-| snapshot_ts | 2026-05-30T00:37:23Z (~7 min old — FRESH) |
-| Klaus state | active (bankroll $95.304, saved_ts 2026-05-30T00:37:23Z) |
-| Klaus HEAD | efdfef73 |
-| Capital | $95.304 |
-| VOLARB live n | **887 — FROZEN 11.4 days** |
+| snapshot_ts | 2026-05-31T00:37:33Z (~5.5 min old — FRESH) |
+| Klaus state | active (bankroll $95.30, saved_ts 2026-05-27T11:26Z) |
+| Klaus HEAD | efdfef73 (matches system — CODE_DESYNC: PASS) |
+| Capital | $95.30 |
+| VOLARB live n | **887 — FROZEN 11.4 days** (Δn=0 vs prior cycle) |
 | VOLARB date range | 2026-05-16T21:00 – 2026-05-19T02:50 UTC (53.8h / 2.2 days active) |
 | Last VOLARB trade | 2026-05-19T02:50Z (SOL) |
 | $1-equiv baseline CI | [+$0.244, +$0.352]/trade |
+| LDA live n | 1053 trades (active strategy, not in scope) |
 
 **Pre-flight results:**
-- snapshot_ts age: ~7 min — **PASS**
+- snapshot_ts age: ~5.5 min — **PASS**
 - integrity_report.json: absent from data-mirror — treated as **PASS**
-- Last Scout commit: prior cycle 2026-05-28T12:46Z (~36h ago, ≥8h threshold) — **PROCEED**
-- CODE_DESYNC: VOLARB retired (last trade 2026-05-19T02:50Z); LDA now active — **N/A for post-mortem**
-- Delta vs prior scout: **Δn=0, dataset fully frozen** — all cell statistics identical to prior cycle
+- Last Scout commit: 2026-05-30T00:44Z (~24h ago, ≥8h threshold) — **PROCEED**
+- CODE_DESYNC: SNAPSHOT HEAD=efdfef73 matches system — **PASS**
+- Δn since prior scout: **Δn=0** — dataset permanently frozen at n=887
+
+**Incidental system alert (not in Scout mandate — flag to Watchdog):**
+- Disk 100% full: 92G/97G used, 1G free. Data writes at risk.
 
 **Aggregate VOLARB ($1-equiv, kline_pnl basis — canonical per research_status.md §1):**
 
@@ -28,135 +32,152 @@
 | kline_pnl available | 876/887 (99%) | — |
 | WR (kline_pnl>0) | 31.6% (277/876 kn) | below 40% backtest expectation |
 | kEV/trade ($1-equiv) | −$0.023 | CI=[−$0.127, +$0.081] — **BELOW_CI** |
-| Days since last trade | 11.4 | — |
-| 36h delta n | 0 | frozen |
+| Days since last trade | 11.9 | — |
+| 24h delta n | 0 | permanently frozen |
 
 ---
 
-## Continuity vs Prior Scout (2026-05-28T12:46Z, ~36h ago)
+## Continuity vs Prior Scout (2026-05-30T00:44Z, ~24h ago)
 
 **Investigations carried over (zero-delta confirmed):**
-- H1 (per-asset alpha): DISCARD terminal confirmed cycle 3 (prior). All three assets BELOW_CI. Zero-delta — terminal status stands.
-- H3 (per-ask-band): DISCARD terminal confirmed cycle 3 (prior). All n≥100 bands BELOW_CI. Zero-delta — terminal status stands.
-- H5 (seconds-to-resolution proxy): DISCARD confirmed prior cycle. Dominant band [220,280)s BELOW_CI. Zero-delta — terminal status stands.
-- H6 (direction asymmetry): DISCARD confirmed (both up n=393 and down n=494 BELOW_CI). Zero-delta.
-- H4 (longshot Phase 2): MOOT — shadow file 0 bytes, no volarb key in shadow_summary.
+- H1 (per-asset alpha): DISCARD terminal cycle 4 confirmed. Δn=0 — terminal stands.
+- H3 (per-ask-band): DISCARD terminal confirmed. Δn=0 — terminal stands.
+- H5 (seconds-to-resolution): DISCARD terminal confirmed prior cycle. Δn=0. Note: `term_remaining_s=0.0` for all VOLARB rows (field unpopulated at entry; residual analysis from prior cycles used computed proxy). Terminal stands.
+- H6 (direction asymmetry): DISCARD terminal confirmed cycle 4. Δn=0 — terminal stands.
+- H2 (per-hour, cross-LDA flag): DATA_MISSING in VOLARB (n<100 per hour); cross-LDA flag open → investigated this cycle (see H2 below).
+- H4 (Phase 2 longshot recorder): MOOT (0 bytes prior cycle) → investigated this cycle for formal closure (see H4 below).
 
-**Resolved/closed since prior:** None — all families already terminal. Dataset frozen.
-
-**New work this cycle:** H2 full 24-hour UTC breakdown (not run with this granularity in prior reports).
-
----
-
-## Investigations (3 selected: H1 terminal re-confirm, H2 new per-hour, H6 terminal re-confirm)
-
-### H1: Per-Asset Alpha (Terminal Re-confirm, Cycle 4)
-
-- **HYPOTHESIS:** Individual assets might show positive kEV above baseline CI despite aggregate being BELOW_CI.
-- **METHOD:** Slice VOLARB (n=887, kn=876) by `asset` field. kEV = kline_pnl/stake normalised to $1-equiv. Normal CI95. First-fire dedup by trade_id. n<100 = INCONCLUSIVE.
-- **RESULT:**
-
-| Asset | n | kn | WR% | kEV/$1 | CI95 lower | CI95 upper | vs_CI | Δn vs prior |
-|---|---|---|---|---|---|---|---|---|
-| BTC | 286 | 283 | 31.1% | +$0.039 | −$0.159 | +$0.237 | **BELOW_CI** | 0 |
-| ETH | 305 | 301 | 30.2% | −$0.075 | −$0.245 | +$0.095 | **BELOW_CI** | 0 |
-| SOL | 296 | 292 | 33.6% | −$0.030 | −$0.202 | +$0.142 | **BELOW_CI** | 0 |
-
-- **CONCLUSION: DISCARD (terminal re-confirm, cycle 4).** All three assets n≥100. All CI_hi below baseline lower (+$0.244). BTC best (kEV=+$0.039, CI_hi=+$0.237 — marginally below floor). ETH worst (kEV=−$0.075). Dataset permanently frozen — will not change.
-- **FAILURE_MET:** yes — all three n≥100 assets BELOW_CI.
-- **IF_DEPLOYED:** N/A — VOLARB strategy permanently retired.
+**Resolved/closed since prior:** None new. All families already terminal or MOOT.
 
 ---
 
-### H2: Per-Hour UTC EV Distribution (New This Cycle)
+## Investigations (3 selected: H7, H2-cross-LDA, H4)
 
-- **HYPOTHESIS:** Certain UTC hours may show positive kEV above baseline CI. Hours 01-02 UTC and 13-14 UTC (macro release) are primary candidates.
-- **METHOD:** Slice VOLARB (n=887) by `hour_utc` field (0-23). kEV = kline_pnl/stake at $1-equiv. Normal CI95. n<100 = INCONCLUSIVE. Active era: 2026-05-16T21:00 – 2026-05-19T02:50 (53.8h).
-- **DATA NOTE:** No hour reaches n≥100 in the VOLARB era. Max n=71 at H11. All cells INCONCLUSIVE by rule.
-- **RESULT (all INCONCLUSIVE; showing full table):**
+### H7: Watchlist Cell Trajectories
 
-| Hour UTC | n | kn | WR% | kEV/$1 | CI95 lower | CI95 upper | vs_CI |
-|---|---|---|---|---|---|---|---|
-| H00 | 39 | 39 | 28.2% | −$0.053 | −$0.556 | +$0.450 | INCONCLUSIVE (n<100) |
-| H01 | 66 | 66 | 45.5% | **+$0.389** | −$0.022 | +$0.800 | INCONCLUSIVE (n<100) |
-| H02 | 64 | 64 | 37.5% | +$0.064 | −$0.288 | +$0.415 | INCONCLUSIVE (n<100) |
-| H03 | 37 | 37 | 40.5% | +$0.120 | −$0.337 | +$0.578 | INCONCLUSIVE (n<100) |
-| H04 | 37 | 37 | 35.1% | −$0.001 | −$0.460 | +$0.457 | INCONCLUSIVE (n<100) |
-| H05 | 35 | 35 | 14.3% | −$0.536 | −$0.927 | −$0.145 | INCONCLUSIVE (n<100) |
-| H06 | 36 | 36 | 27.8% | −$0.135 | −$0.612 | +$0.342 | INCONCLUSIVE (n<100) |
-| H07 | 31 | 31 | 16.1% | −$0.332 | −$0.953 | +$0.288 | INCONCLUSIVE (n<100) |
-| H08 | 35 | 35 | 25.7% | +$0.255 | −$0.542 | +$1.053 | INCONCLUSIVE (n<100) |
-| H09 | 28 | 28 | 14.3% | −$0.452 | −$0.973 | +$0.070 | INCONCLUSIVE (n<100) |
-| H10 | 38 | 38 | 31.6% | −$0.061 | −$0.535 | +$0.413 | INCONCLUSIVE (n<100) |
-| H11 | 71 | 71 | 35.2% | +$0.097 | −$0.290 | +$0.485 | INCONCLUSIVE (n<100) |
-| H12 | 36 | 36 | 27.8% | −$0.226 | −$0.675 | +$0.223 | INCONCLUSIVE (n<100) |
-| H13 | 36 | 36 | 33.3% | +$0.017 | −$0.481 | +$0.515 | INCONCLUSIVE (n<100) |
-| H14 | 47 | 47 | 27.7% | −$0.249 | −$0.611 | +$0.113 | INCONCLUSIVE (n<100) |
-| H15 | 36 | 36 | 30.6% | +$0.154 | −$0.470 | +$0.779 | INCONCLUSIVE (n<100) |
-| H16 | 30 | 30 | 16.7% | −$0.551 | −$0.959 | −$0.144 | INCONCLUSIVE (n<100) |
-| H17 | 21 | 20 | 30.0% | −$0.242 | −$0.810 | +$0.326 | INCONCLUSIVE (n<100) |
-| H18 | 25 | 17 | 58.8% | **+$0.685** | −$0.032 | +$1.402 | INCONCLUSIVE (n<100) |
-| H19 | 0 | 0 | N/A | N/A | N/A | N/A | NO_DATA |
-| H20 | 3 | 3 | 100.0% | +$1.617 | +$1.478 | +$1.756 | INCONCLUSIVE (n<100) |
-| H21 | 39 | 37 | 43.2% | +$0.257 | −$0.235 | +$0.749 | INCONCLUSIVE (n<100) |
-| H22 | 40 | 40 | 30.0% | −$0.193 | −$0.590 | +$0.204 | INCONCLUSIVE (n<100) |
-| H23 | 57 | 57 | 28.1% | −$0.043 | −$0.505 | +$0.419 | INCONCLUSIVE (n<100) |
+**HYPOTHESIS:** Previously-flagged cells (per-asset, per-ask-band, direction) may show 24h drift away from their terminal DISCARD status.
 
-- **CONCLUSION: DATA_MISSING.** No hour cell reaches n≥100. All INCONCLUSIVE by rule — no CI test is valid. H01 point estimate (kEV=+$0.389, WR=45.5%, n=66) is the most interesting but CI lower = −$0.022 barely straddles zero. H05, H07, H09, H16 show severely negative kEV (WR ~14-17%) — potential adverse-hour pattern but again n<100. VOLARB is retired; these patterns cannot be actioned. **Cross-LDA flag:** H01 positive pattern warrants monitoring in the larger LDA dataset (n≈5891 live) where n≥100/hour is achievable.
-- **FAILURE_MET:** no — no cell has n≥100, so no CI test is valid. DATA_MISSING is the correct verdict.
+**METHOD:** Recompute all n≥100 cell statistics at current n=887. Compare to prior-cycle values. Δn=0 → no arithmetic change possible; statistical confirmation only.
+
+**RESULT:**
+
+*Per-asset (kline_pnl basis, $1-equiv):*
+
+| Asset | kn | WR% | kEV/$1 | CI95 | vs_CI | Δn vs prior |
+|---|---|---|---|---|---|---|
+| BTC | 283 | 31.1% | +$0.039 | [−$0.159, +$0.237] | **DISCARD** (CI_hi<+0.244) | 0 |
+| ETH | 301 | 30.2% | −$0.075 | [−$0.245, +$0.095] | **DISCARD** | 0 |
+| SOL | 292 | 33.6% | −$0.030 | [−$0.202, +$0.142] | **DISCARD** | 0 |
+
+*Per-ask-band (kline_pnl basis, $1-equiv):*
+
+| Band | kn | WR% | kEV/$1 | CI95 | vs_CI | Δn |
+|---|---|---|---|---|---|---|
+| [0.10, 0.20) | 91 | 15.4% | +$0.032 | [−$0.480, +$0.544] | INCONCLUSIVE (n<100) | 0 |
+| [0.20, 0.30) | 227 | 24.7% | −$0.053 | [−$0.273, +$0.166] | **DISCARD** | 0 |
+| [0.30, 0.40) | 382 | 35.6% | +$0.010 | [−$0.128, +$0.147] | **DISCARD** | 0 |
+| [0.40, 0.50) | 156 | 42.9% | −$0.007 | [−$0.189, +$0.175] | **DISCARD** | 0 |
+| [0.50, 0.60) | 8 | 37.5% | −$0.282 | [−$0.974, +$0.410] | INCONCLUSIVE (n<100) | 0 |
+
+*Direction asymmetry:*
+
+| Direction | kn | WR% | kEV/$1 | CI95 | vs_CI | Δn |
+|---|---|---|---|---|---|---|
+| up | 389 | 28.5% | −$0.029 | [−$0.197, +$0.140] | **DISCARD** | 0 |
+| down | 487 | 34.1% | −$0.019 | [−$0.149, +$0.111] | **DISCARD** | 0 |
+
+**CONCLUSION: DISCARD (terminal re-confirm, cycle 5).** Δn=0 across every cell. All n≥100 cells remain DISCARD (CI_hi < baseline lower +$0.244). No 24h drift possible. Watchlist cells are permanently terminal.
+
+**FAILURE_MET:** yes — all n≥100 cells DISCARD; dataset frozen.
+
+**IF_DEPLOYED:** N/A — VOLARB permanently retired.
 
 ---
 
-### H6: Direction Asymmetry — bond_outcome_direction (Terminal Re-confirm)
+### H2: Per-Hour Cross-LDA Follow-up (from prior cross-flag)
 
-- **HYPOTHESIS:** Entries in `up` direction may perform differently from `down` direction — potential for directional gate.
-- **METHOD:** Slice VOLARB by `bond_outcome_direction` field (up/down). kEV=$1-equiv. CI95. n<100=INCONCLUSIVE.
-- **RESULT:**
+**HYPOTHESIS:** Prior scout flagged H01 (kEV=+$0.389, n=66) and H18 (kEV=+$0.685, n=17) in VOLARB as positive outliers worth monitoring in LDA (n≈1053, sufficient for n≥100/hour). If these hours show positive kEV in LDA too, it would constitute a cross-strategy directional signal.
 
-| Direction | n | kn | WR% | kEV/$1 | CI95 lower | CI95 upper | vs_CI |
-|---|---|---|---|---|---|---|---|
-| down | 494 | 487 | 34.1% | −$0.019 | −$0.149 | +$0.111 | **BELOW_CI** |
-| up | 393 | 389 | 28.5% | −$0.029 | −$0.197 | +$0.140 | **BELOW_CI** |
+**METHOD:** Slice LDA trades (n=1053, kn=861) by UTC hour. Compute kEV = kline_pnl/stake normalized to $1-equiv. Normal CI95. n<100 per hour = INCONCLUSIVE. Check H01 and H18 specifically vs baseline CI.
 
-- **CONCLUSION: DISCARD (terminal re-confirm).** Both directions n≥100, both BELOW_CI. `down` entries marginally better WR (34.1% vs 28.5%) but kEV essentially flat (−$0.019 vs −$0.029) — no actionable asymmetry. Both CI_hi values (+$0.111, +$0.140) well below baseline floor (+$0.244). A direction gate cannot rescue the strategy.
-- **FAILURE_MET:** yes — both n≥100 directions BELOW_CI.
-- **IF_DEPLOYED:** N/A — strategy retired.
+**RESULT:**
+
+*Selected hours (cross-flag targets + notable cells):*
+
+| Hour UTC | LDA n | WR% | kEV/$1 | CI95 | vs_CI | VOLARB signal |
+|---|---|---|---|---|---|---|
+| H01 | 2 | 100.0% | +$0.194 | [+$0.064, +$0.325] | INCONCLUSIVE (n=2) | +$0.389 in VOLARB |
+| H14 | 71 | 71.8% | −$0.089 | [−$0.221, +$0.043] | INCONCLUSIVE (n<100) | — |
+| H17 | 74 | 68.9% | −$0.138 | [−$0.269, −$0.007] | INCONCLUSIVE (n<100) | — |
+| H18 | 55 | 74.5% | −$0.096 | [−$0.240, +$0.047] | INCONCLUSIVE (n<100) | +$0.685 in VOLARB |
+
+*No LDA hour reaches n≥100 (max n=74 at H17).* LDA aggregate: n=861, WR=70.8%, kEV=−$0.173, CI=[−$0.228, −$0.118]. LDA's negative kEV reflects its high-ask (0.75+) entry regime — structurally different from VOLARB's [0.10,0.60) range; do not compare on VOLARB baseline.
+
+**CONCLUSION: DATA_MISSING.** No LDA hour cell reaches n≥100. Cross-LDA validation is not viable at current LDA per-hour data density. H01 (n=2) and H18 (n=55, kEV=−$0.096) do not confirm the VOLARB positive patterns. **Closing the cross-LDA flag from prior scout.** Reopen only if: (a) LDA per-hour n reaches ≥100 AND (b) mandate expands to include LDA hourly audit.
+
+**FAILURE_MET:** no — no LDA hour has n≥100; CI test not valid. DATA_MISSING is correct verdict.
+
+**IF_DEPLOYED:** N/A — no actionable signal.
+
+---
+
+### H4: Phase 2 Longshot Recorder Status
+
+**HYPOTHESIS:** A `volarb_longshot_shadow.jsonl` recorder was proposed for tracking ask<0.10 VOLARB candidates with realized outcomes. Phase 2 gate prep requires n≥100 OOS at ask<0.10.
+
+**METHOD:** Check shadow_summary.json and data-mirror shadow directory for `volarb_longshot_shadow` key or file.
+
+**RESULT:**
+- `volarb_longshot_shadow.jsonl`: **absent** from `data/shadow/` on data-mirror
+- shadow_summary.json: no `volarb` or `longshot` key present
+- shadow_summary.json loggers: all dated `hot/2026-05-08/` (pre-VOLARB activation 2026-05-16)
+- VOLARB ask<0.10 cell: within live n=887, this sub-population has n=91 in [0.10,0.20) band — ask<0.10 cell size is unknown but likely n<91; cannot reach n≥100 OOS threshold
+
+**CONCLUSION: MOOT.** VOLARB strategy retired 2026-05-19 (11.9 days ago). Recorder was never deployed during VOLARB's 2.2-day active window. Dataset is frozen — no new VOLARB entries possible. Phase 2 longshot gate prep has no deployment target. **Formally close the Phase 2 longshot item.** No recorder spec needed.
+
+**FAILURE_MET:** N/A — strategy retired before threshold was reachable.
+
+**IF_DEPLOYED:** N/A.
 
 ---
 
 ## Priority Signal for Next Implementation
 
-**No actionable signal this cycle — continue collecting (n=887 FROZEN).**
+**No actionable signal this cycle — VOLARB dataset permanently frozen (n=887). All H-families either DISCARD terminal (cycles 1–5) or MOOT. Strategy retired 2026-05-19.**
 
-VOLARB is permanently retired. Complete post-mortem summary:
-- H1 (per-asset): DISCARD — all 3 assets BELOW_CI (n≥100 each)
-- H2 (per-hour): DATA_MISSING — no hour reaches n≥100; H01 shows positive point estimate but CI too wide
-- H3 (per-ask-band): DISCARD — all n≥100 bands BELOW_CI
-- H5 (timing proxy): DISCARD — dominant band [220,280)s BELOW_CI; [160,220)s straddles but kEV=+$0.044 too low
-- H6 (direction): DISCARD — both up/down BELOW_CI (n≥100 each)
-- H4 (longshot Phase 2): MOOT — shadow file 0 bytes, not deployed
-
-No cell from any H family shows ABOVE_CI or SIGNAL_FOUND at n≥100. The VOLARB post-mortem is conclusive: strategy had negative EV across all slices examined.
+**Recommendation to Auditor/Watchdog:** This is cycle 5 of zero-delta. VOLARB post-mortem is complete. The Scout agent assigned to this investigation pool has exhausted all viable hypotheses. Recommend halting VOLARB Scout cycles and redirecting Scout mandate to LDA (active strategy, n=1053 and growing) if further investigation is warranted.
 
 ---
 
-## Closed-family confirmations
+## Closed-Family Confirmations
 
-- **H1 per-asset alpha**: DISCARD — terminal (cycle 4 re-confirm, zero-delta)
-- **H3 per-ask-band**: DISCARD — terminal (cycle 4 re-confirm, zero-delta)
-- **H5 timing-proxy slice**: DISCARD — terminal (cycle 3 re-confirm, zero-delta)
-- **H6 direction asymmetry**: DISCARD — terminal (cycle 2 re-confirm, zero-delta)
-- **H4 longshot Phase 2**: MOOT — shadow not deployed, zero-delta
+Re-validated as null this cycle (Δn=0 prevents new conclusions; terminal statuses reconfirmed):
 
----
-
-## Open requests for Auditor / Shadow Validator
-
-- **Cells trending to n≥100 within next 24h:** None. VOLARB dataset is permanently frozen. No cell can reach n≥100 by organic growth.
-- **Shadow loggers past threshold:** None. `volarb_longshot_shadow.jsonl` = 0 bytes. No volarb key in `shadow_summary.json`.
-- **Phase 2 longshot recorder status:** NOT deployed — proposed in prior cycles, moot given VOLARB retirement.
-- **Cross-LDA watch (not a patch recommendation):** H01 UTC positive pattern in VOLARB (WR=45.5%, kEV=+$0.389, n=66 — inconclusive) warrants the Auditor checking LDA H01 cell size and EV. If LDA H01 is not already blocked and n≥100 with positive kEV, it may be an existing edge the LDA gate set has already captured or may need to capture.
+| Family | Status | Reconfirmed |
+|---|---|---|
+| H1 per-asset alpha | DISCARD terminal | cycle 5 (Δn=0) |
+| H2 per-hour UTC | DATA_MISSING + cross-LDA flag CLOSED | this cycle |
+| H3 per-ask-band | DISCARD terminal | cycle 5 (Δn=0) |
+| H4 Phase 2 longshot | MOOT | this cycle (formally closed) |
+| H5 sec-to-res | DISCARD terminal | cycle 5 (Δn=0) |
+| H6 direction asymmetry | DISCARD terminal | cycle 5 (Δn=0) |
+| H7 watchlist trajectories | DISCARD terminal | this cycle |
 
 ---
 
-*Generated by VOLARB Alpha Scout at 2026-05-30T00:44Z. Dataset frozen at n=887 (last trade 2026-05-19T02:50Z, 11.4 days ago). All VOLARB investigations terminal. No code was modified.*
+## Open Requests for Auditor / Shadow Validator
+
+**Cells trending to n≥100 within next 24h:**
+- None — VOLARB dataset frozen. No cells will cross any threshold.
+
+**Shadow loggers past threshold:**
+- volarb_longshot_shadow: never deployed, now MOOT (strategy retired).
+- No VOLARB-era shadow loggers exist in data-mirror.
+
+**Phase 2 longshot recorder status:** CLOSED (MOOT — see H4).
+
+**Auditor watch items from this cycle:**
+- None in VOLARB scope.
+- *Incidental:* Disk 100% full (92G/97G). If shadow/trade logging is failing silently, this is the likely cause. Watchdog should check `SHADOW_LOGGER_STALLED` alert.
+
+**Recommendation:** Halt VOLARB Scout (this report family). Rotate Scout mandate to LDA hourly audit once LDA reaches n≥100 per hour (current max n=74 at H17; at current LDA fire rate, estimate n≥100/hr in approximately 7–14 days for peak hours H13–H18).
