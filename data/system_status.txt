@@ -2,16 +2,16 @@
 active
 
 ## Last 10 commits on klaus:
-88962822 fix(STWA/lockout): actually populate official_running_max_c (oracle guard was a no-op)
-f41a6af1 fix(STWA): block ALL post-peak directional buys (user-directed)
-76c16059 fix(STWA): phase-gate regular-YES — block post-peak entries
-efdfef73 feat(STWA): re-enable regular-YES (user directive) with isotonic recal wired + budget-cap fix
-abfead12 feat(STWA Tier-4): per-city-day budget cap — bounds cross-time accumulation
-209a8eb6 feat(STWA): isotonic recalibration layer (staged) — YES re-enable gate met on history
-5ea6f9bb feat(STWA): promote PA-shrunk to primary daily-max pricer (data-backed)
-4817683f analysis(STWA): intraday-value decomposition — intraday must be shrunk to β≈0.3
-29458e3a analysis(STWA): pricer backtest + μ-bias diagnostic — refutes over-spread thesis
-c1dd9499 feat(STWA Tier-3): joint 2N position-velocity Kalman (shadow, parallel to live)
+7833cd86 fix(STWA): resolution poller — settle held-to-resolution positions
+ddf8ce21 fix(STWA/lockout): actually populate official_running_max_c (oracle guard was a no-op)
+c05630be fix(STWA): block ALL post-peak directional buys (user-directed)
+812537c9 fix(STWA): phase-gate regular-YES — block post-peak entries
+dc549d3a Watchdog 2026-05-31T04:21Z: HIGH 3 alerts
+4d2e150d Watchdog 2026-05-31T03:19:00Z: MEDIUM 1 alerts
+725ec324 Watchdog 2026-05-31T02:21:04Z: HIGH 3 alerts (backoff, no new issues)
+2abaf3d2 Watchdog 2026-05-31T01:20:46Z: HIGH 3 alerts
+9b2d9818 VOLARB Scout 2026-05-31T0043Z — dataset frozen Δn=0, all families terminal/MOOT, post-mortem complete
+b4420b7c Watchdog 2026-05-30T03:20:32Z: MEDIUM 3 alerts (backoff, no new fire)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   93G        0G 100% /
