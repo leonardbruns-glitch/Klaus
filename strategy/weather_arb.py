@@ -3527,6 +3527,7 @@ class WeatherArb:
             cached = self._icao_metar_cache.setdefault(icao, {
                 "running_max_c": None, "last_obs_time": 0, "prev_temp_c": None,
                 "running_max_date": today_str,
+                "official_running_max_c": None,
             })
             if obs_time <= cached.get("last_obs_time", 0):
                 continue  # not a new observation
@@ -3574,11 +3575,24 @@ class WeatherArb:
             # Reset running_max at midnight
             if cached.get("running_max_date") != today_str:
                 cached["running_max_c"] = None
+                cached["official_running_max_c"] = None
                 cached["running_max_date"] = today_str
 
             prev_temp = cached.get("temp_c")    # before this update — for rapid-rise detection
             prev_max  = cached.get("running_max_c")
             new_max   = temp_c if (prev_max is None or temp_c > prev_max) else prev_max
+
+            # OFFICIAL running max: built ONLY from this AWC/NWS hourly METAR's
+            # T-group-decoded temp_c (the exact source the WU/Polymarket oracle
+            # resolves against). Kept separate from running_max_c, which the NMS
+            # path (Synoptic/JMA, sub-hourly + whole-degree) also writes and which
+            # therefore over-counts the high. This is the field both on_metar
+            # callers already prefer via `official_running_max_c or running_max_c`,
+            # so populating it here is what actually wires the oracle guard that
+            # was previously a no-op (caused the LA/SF false-lockout losses).
+            prev_off = cached.get("official_running_max_c")
+            official_max = temp_c if (prev_off is None or temp_c > prev_off) else prev_off
+            cached["official_running_max_c"] = official_max
 
             sky_cover     = self._parse_sky_cover(rec.get("rawOb", ""))
             sky_factor    = self._sky_factor_from_layers(rec.get("rawOb", ""))
