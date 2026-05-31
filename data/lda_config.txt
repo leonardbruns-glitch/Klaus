@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-05-31T07:12:22Z
+# Snapshot: 2026-05-31T07:27:41Z
 # Latest commit on klaus:
-f41a6af1 fix(STWA): block ALL post-peak directional buys (user-directed)
+88962822 fix(STWA/lockout): actually populate official_running_max_c (oracle guard was a no-op)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

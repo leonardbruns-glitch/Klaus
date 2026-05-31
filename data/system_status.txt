@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+88962822 fix(STWA/lockout): actually populate official_running_max_c (oracle guard was a no-op)
 f41a6af1 fix(STWA): block ALL post-peak directional buys (user-directed)
 76c16059 fix(STWA): phase-gate regular-YES — block post-peak entries
 efdfef73 feat(STWA): re-enable regular-YES (user directive) with isotonic recal wired + budget-cap fix
@@ -11,13 +12,12 @@ abfead12 feat(STWA Tier-4): per-city-day budget cap — bounds cross-time accumu
 4817683f analysis(STWA): intraday-value decomposition — intraday must be shrunk to β≈0.3
 29458e3a analysis(STWA): pricer backtest + μ-bias diagnostic — refutes over-spread thesis
 c1dd9499 feat(STWA Tier-3): joint 2N position-velocity Kalman (shadow, parallel to live)
-343f0315 Watchdog 2026-05-29T05:09:54Z: HIGH 3 alerts
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   93G        0G 100% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   93G        1G 100% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-05-31 06:46:35 UTC
+ActiveEnterTimestamp=Sun 2026-05-31 07:26:52 UTC
 
 ## Open positions (count):
 0
