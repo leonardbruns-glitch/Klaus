@@ -1038,7 +1038,16 @@ class STWAEngine:
             f_yes = _kelly_f(p_use, ask_yes, confidence) if ask_yes else 0.0
             f_no  = _kelly_f(1.0 - p_use, ask_no, confidence) if ask_no else 0.0
 
-            yes_ok = STWA_REGULAR_YES_ENABLED and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN
+            # Phase-gate YES: block once past the diurnal peak. POST_PEAK means
+            # the daily max is already locked, so a YES bet is wagering the temp
+            # climbs past a peak it has already passed — physically near-hopeless.
+            # Measured (110 resolved, Gamma join 2026-05-31): EVENING/post-peak
+            # YES = 13% WR / -$36 = 76% of all STWA losses. NO is unaffected
+            # (it WINS post-peak on locked-out buckets). The line-1182 plateau
+            # guard already relabels a still-active POST_PEAK to AT_PEAK, so a
+            # genuine peak plateau still permits YES.
+            yes_ok = (STWA_REGULAR_YES_ENABLED and phase != "POST_PEAK"
+                      and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN)
             no_ok  = edge_no  > EDGE_MIN and f_no  > KELLY_F_MIN
 
             if yes_ok and no_ok:
