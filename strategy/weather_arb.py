@@ -95,6 +95,11 @@ ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for h
 # combined hit rate within ±0.10 of combined_fair_prob before flipping live.
 STWA_LIVE                = True   # True → live entries from Kalman engine; False → shadow only
 STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-resolution STWA positions
+# Held-to-resolution weather classes the poller settles. WEATHER_M1_PROBE (the live
+# LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
+# at bid>=0.999, so positions that never reach TP must be settled here or their (mostly
+# winning) PnL never banks — the same write-only gap STWA had.
+_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE")
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -1563,7 +1568,7 @@ class WeatherArb:
         open_stwa = {
             tid: pos
             for tid, pos in list(getattr(risk, "open_positions", {}).items())
-            if getattr(pos, "bond_entry_class", "") == "WEATHER_STWA"
+            if getattr(pos, "bond_entry_class", "") in _STWA_RESOLVE_CLASSES
             and getattr(pos, "condition_id", "")
         }
         if not open_stwa:
@@ -1616,7 +1621,7 @@ class WeatherArb:
         if n_closed:
             still = sum(
                 1 for p in risk.open_positions.values()
-                if getattr(p, "bond_entry_class", "") == "WEATHER_STWA"
+                if getattr(p, "bond_entry_class", "") in _STWA_RESOLVE_CLASSES
             )
             logger.info("[STWA-RES] settled %d position(s); %d STWA still open",
                         n_closed, still)
@@ -1660,7 +1665,7 @@ class WeatherArb:
                 consecutive_wins=self.bot.risk.bankroll.consecutive_wins,
                 net_pnl_actual=pnl, is_live=not _CFG.dry_run,
                 signal_source=meta.get("signal_source", "WEATHER/STWA"),
-                bond_entry_class="WEATHER_STWA",
+                bond_entry_class=getattr(pos, "bond_entry_class", "WEATHER_STWA"),
                 bond_outcome_direction=getattr(pos, "bond_outcome_direction", ""),
                 extra_fields=extra,
             )
