@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-01T05:12:13Z
+# Snapshot: 2026-06-01T05:27:32Z
 # Latest commit on klaus:
-2822affd fix(STWA): settle WEATHER_M1_PROBE via the resolution poller too
+b5eb53b5 fix(M1β): tighten lockout probe to the validated deep-lockout slice
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
