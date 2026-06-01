@@ -1057,6 +1057,53 @@ class STWAEngine:
             f = (p_c * b - (1.0 - p_c)) / b
             return max(0.0, f)
 
+        # ── Face 2: buy-all-NO neg-risk arb (model-free, calibration-free → no n-gate) ──
+        # Dual of the YES arb on the SAME coherence polytope: exactly one bucket
+        # wins ⇒ the other N−1 NO tokens pay 1. Buy equal k shares of every NO ⇒
+        # guaranteed profit when Σ NO ask < N−1. Guaranteed on ANY subset (a winner
+        # outside the visible buckets only ADDS a payoff), so no exhaustivity gate is
+        # needed. Buys NO on DISTINCT buckets — no same-bucket opposite-side conflict.
+        # Same min-order / depth / budget clamps as the YES arb. Fires only when the
+        # book underprices the NO side — a polytope face the Σ-YES<1 scan never sees.
+        valid_no_asks = [ask_no for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries
+                         if ask_no is not None and 0 < ask_no < 1]
+        n_legs = len(entries)
+        if len(valid_no_asks) == n_legs and n_legs >= 2 and sum(valid_no_asks) < float(n_legs - 1):
+            sum_ask_no  = sum(valid_no_asks)
+            payoff_no   = float(n_legs - 1)
+            city_budget = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)
+            k_feasible  = max(MIN_ORDER_SHARES,
+                              max(MIN_ORDER_USD / max(a, 1e-4) for a in valid_no_asks))
+            k = max(city_budget / sum_ask_no if sum_ask_no > 0 else 0.0, k_feasible)
+            # Depth clamp: no NO leg may exceed its book depth.
+            for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+                depth = (clob_books.get(no_tok) or {}).get("usd_depth") or 0.0
+                if depth > 0 and k * ask_no > depth:
+                    k = depth / ask_no
+            if k < k_feasible:
+                logger.debug("[STWA] NO_RISK_ARB %s: depth clamped k=%.1f < feasibility=%.1f — skip",
+                             city, k, k_feasible)
+            elif k * sum_ask_no > city_budget * NEG_RISK_ARB_BUDGET_MUL:
+                logger.info("[STWA] NO_RISK_ARB %s: cost $%.2f > %.1fx budget $%.2f — skip",
+                            city, k * sum_ask_no, NEG_RISK_ARB_BUDGET_MUL, city_budget)
+            else:
+                arb_edge_no = round((payoff_no - sum_ask_no) / sum_ask_no, 4)
+                logger.info("[STWA] NO_RISK_ARB %s: Σno_ask=%.3f N=%d k=%.1f cost=$%.2f payoff=$%.2f edge=%.1f%%",
+                            city, sum_ask_no, n_legs, k, k * sum_ask_no, k * payoff_no, arb_edge_no * 100)
+                no_arb_signals = []
+                for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+                    no_arb_signals.append(Signal(
+                        city=city, bucket=(lo, hi), direction="NO",
+                        token_id=no_tok, p_model=round(p_m, 4),
+                        ask=ask_no, edge=arb_edge_no, confidence=1.0,
+                        stake=min(round(k * ask_no, 2), self.stake_max),
+                        regime=regime, phase=phase,
+                        metar_age_s=round(metar_age, 1), kalman_var=round(p_var, 4),
+                        kriging_pct=round(kriging_pct, 3), p_gev=0.0, drift_bias=0.0,
+                    ))
+                if no_arb_signals:
+                    return no_arb_signals
+
         candidates = []
         for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
             # Use isotonic-RECALIBRATED win-prob for edge + Kelly (raw p_m stays
