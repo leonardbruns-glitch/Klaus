@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+5cc94e30 fix(bankroll): sync to true capital (cash + open positions) even with positions held
 8e6b54b6 docs(CLAUDE): sync STWA config — YES-only ladder (width-gated, pre-peak), engine-NO off→M1β, entry-capital thresholds
 849755c9 feat(STWA): width-gated pre-peak YES ladder; defer all NO to M1β
 0867f2e5 fix(M1β): tighten lockout probe to the validated deep-lockout slice
@@ -11,13 +12,12 @@ a0173cd8 Watchdog 2026-06-01T03:19Z: HIGH 1 alerts
 062a69b5 Watchdog 2026-06-01T02:19Z: CRITICAL 3 alerts (backoff; CAPITAL_DROP cleared)
 ffb798cd Watchdog 2026-06-01T01:19Z: CRITICAL 4 alerts
 2822affd fix(STWA): settle WEATHER_M1_PROBE via the resolution poller too
-5a23424f docs(STWA): validated strategy spec (evidence-grounded; the anti-Hermes)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        5G  96% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-01 08:16:55 UTC
+ActiveEnterTimestamp=Mon 2026-06-01 08:44:33 UTC
 
 ## Open positions (count):
 0
