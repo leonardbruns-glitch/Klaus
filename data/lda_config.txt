@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-01T08:14:03Z
+# Snapshot: 2026-06-01T08:29:11Z
 # Latest commit on klaus:
-849755c9 feat(STWA): width-gated pre-peak YES ladder; defer all NO to M1β
+8e6b54b6 docs(CLAUDE): sync STWA config — YES-only ladder (width-gated, pre-peak), engine-NO off→M1β, entry-capital thresholds
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

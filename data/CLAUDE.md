@@ -7,10 +7,12 @@ Trades Polymarket **daily-high-temperature** markets across 51 cities. A market 
 
 Engine: `strategy/stwa_engine.py`, driven by `strategy/weather_arb.py`. A 51-city joint Kalman filter over 2D Langevin temperature paths produces a forecast distribution for each city's daily max; bucket win-probabilities are priced, isotonically recalibrated, and sized by Kelly.
 
-Three live buy paths (`STWA_LIVE=True`):
-- **NEG_RISK_ARB** — when the YES asks spanning a city's buckets sum to < 0.85, buy the spanning set for a sub-$1 guaranteed payoff. **Model-independent — the only structurally sound, calibration-free edge.**
-- **regular-NO** — independent Kelly on buckets the model says won't be reached, sized on the isotonically-recalibrated win-prob.
-- **regular-YES** — horse-race Kelly across mutually-exclusive YES buckets. **RE-ENABLED 2026-05-29 by user directive (full stakes)** after the PA-shrunk pricer + isotonic recal landed. Calibration is validated on 2024 history only — **NOT yet live-confirmed at n≥100.** Monitor closely; revert with `STWA_REGULAR_YES_ENABLED=False`.
+Live structure (`STWA_LIVE=True`) — **asymmetric laddering** (updated 2026-06-01): the directional bucket-ladder is **YES-only**; NO is a single-locked-bucket lockout harvest, never a symmetric NO ladder.
+- **NEG_RISK_ARB** — when the YES asks spanning a city's buckets sum to < 0.85, buy the spanning set for a sub-$1 guaranteed payoff. **Model-independent — the only structurally sound, calibration-free edge.** Unaffected by any enable flag (returns before the candidate loop).
+- **regular-YES ladder** — horse-race Kelly across mutually-exclusive YES buckets (mode ± 1, the +EV band), **now WIDTH-GATED + PRE_PEAK ONLY**. RE-ENABLED 2026-06-01 by user directive. The width gate drops the YES pool unless the book-implied σ > `WIDTH_GATE_MARGIN`(1.10)×our per-city pricer σ — i.e. only fires when our forecast is tighter/better-located than the book (Regime-1); it stays dark overnight/stale (Regime-3, `s_M≈s_our`) where a ladder just pays vig. PRE_PEAK only (`_yes_phase_ok = phase=="PRE_PEAK"`): at/post-peak underperformed; that window is M1β's. Calibration validated on 2024 history only — **NOT yet live-confirmed at n≥100.** Revert: `STWA_REGULAR_YES_ENABLED=False`.
+- **engine model-NO — DISABLED** (`STWA_REGULAR_NO_ENABLED=False`, 2026-06-01): it double-fired with M1β on locked buckets (running-max floor ⇒ g(p)→0 ⇒ `edge_no=1−ask_no` clears on M1β's slice) and was the FLB-spread-walled speculative NO on unlocked tails. **All NO now flows through the validated M1β lockout-NO** (`weather_arb.py`, ~98% WR OOS) — which also owns the at/post-peak window. Revert: `STWA_REGULAR_NO_ENABLED=True`.
+
+**Entry capital (city-day budget `R = min(5%·bankroll,$15) − held`):** arb spine wakes ~$35–55 bankroll; first YES leg needs `R≥$3` (~$60 bankroll); full 3-leg YES ladder needs `R≥$9` (~$180); per-city budget caps at $15 (bankroll ≥ $300).
 
 Exit: **hold to resolution**. Tokens resolve 1.0/0.0 at daily-max settlement. No profit-target, no stop-loss — a weather position must ride intraday noise through to the diurnal peak.
 
@@ -68,25 +70,29 @@ The market resolves on the **daily max = sup of the temperature path over the re
 - **State estimate** — Kalman posterior on the residual `X` (the bias-corrected NWP forecast is the drift baseline). A joint `(X,V)` 2N Kalman runs in **shadow**; under hard-coded γ=1.5 its velocity is over-damped, so live still uses position-OU + OLS velocity. Tier-3b (joint κ,γ,σ MLE refit per city) is the real unlock.
 - **Pricer (`PA_SHRUNK`, primary; reversible to `MC`)** — daily-max center = bias-corrected NWP peak + per-city `peak_bias` + **β·(observed residual now)** with **β ≈ 0.30**: the morning anomaly mean-reverts ~70% by peak (head-to-head finding; naïve β=1 momentum is +20–25% *worse* than ignoring the obs). Spread σ ≈ 1.0–1.1°C per city (validated vs ASOS — spread was already right; the failure was **mis-location**, not mis-spread). Bucket probs = differences of ONE monotone CDF with a **running-max hard floor** ⇒ coherent, Σ = 1.
 - **Recalibration** — raw MC `p_model` was 4.3× overconfident (mean 0.326 vs WR 0.075; rank-corr −0.19, anti-predictive). PA-shrunk fixed the ordering (rank-corr +0.39) but stays overconfident for p>0.5; an isotonic map `g` (fit on 2024) maps raw→calibrated (Brier 0.128→0.114, ECE→0). **YES/NO sizing uses `g(p)`; arb uses raw `p` for the Σ-coverage gate** (range-coverage, robust to per-bucket miscalibration).
-- **Allocation** — horse-race Kelly for mutually-exclusive YES buckets; independent Kelly for NO; fraction 0.20. Bounded by a **per-city-day budget net of already-held capital** (Tier-4) so cross-time forecast drift can't accumulate mutually-exclusive YES buckets summing to >1.
+- **Allocation** — horse-race Kelly for mutually-exclusive YES buckets; fraction 0.20. (Engine independent-Kelly NO is DISABLED as of 2026-06-01 — all NO via M1β lockout harvest; the NO-sizing code remains but receives no candidates.) Bounded by a **per-city-day budget net of already-held capital** (Tier-4) so cross-time forecast drift can't accumulate mutually-exclusive YES buckets summing to >1. The YES ladder is further gated by the **width gate** (book σ > 1.10×our σ) and **PRE_PEAK only**.
 
 **Honest verdict:** only NEG_RISK_ARB is structurally sound and calibration-independent today (capacity-limited — needs Σask<1 windows + fillable depth). Directional YES/NO are the *path* to a viable edge after the math upgrades, not a guarantee. No "extreme profitability" claim is supported by current data; n≥100 live resolution decides.
 
 ---
 
-## CURRENT PARAMETERS (updated 2026-05-29)
+## CURRENT PARAMETERS (updated 2026-06-01)
 | Parameter | Value | Notes |
 |---|---|---|
 | Engine | STWA — 51-city joint Kalman | `strategy/stwa_engine.py` + `weather_arb.py` |
 | Live flag | `STWA_LIVE=True` | live entries from the Kalman engine |
-| Live paths | NEG_RISK_ARB + NO + YES | YES re-enabled 2026-05-29 (user; monitor) |
+| Live paths | NEG_RISK_ARB + YES (pre-peak, width-gated) | engine model-NO DISABLED → all NO via M1β lockout |
+| YES enable | `STWA_REGULAR_YES_ENABLED=True` | re-enabled 2026-06-01 (user); width-gated + PRE_PEAK only |
+| NO enable | `STWA_REGULAR_NO_ENABLED=False` | disabled 2026-06-01; double-fired w/ M1β + FLB trap |
+| Width gate | `WIDTH_GATE_MARGIN=1.10` | YES fires only if book σ > 1.10×our σ (`_book_implied_sigma`) |
+| YES phase | PRE_PEAK only | `_yes_phase_ok = phase=="PRE_PEAK"`; at/post-peak → M1β |
 | Primary pricer | `PA_SHRUNK` | center = NWP_peak + peak_bias + 0.30·x_hat; reversible to `MC` |
 | Intraday weight β | 0.30 | morning residual mean-reverts ~70% by peak (data-backed) |
-| Recalibration | isotonic `g` (`config/stwa_isotonic.json`) | YES+NO Kelly use `g(p)`; arb uses raw `p` |
+| Recalibration | isotonic `g` (`config/stwa_isotonic.json`) | YES Kelly uses `g(p)`; arb uses raw `p` |
 | Kelly fraction | 0.20 | of full Kelly |
 | Edge / Kelly floor | `EDGE_MIN=0.04`, `KELLY_F_MIN=0.015` | risk-of-ruin safety |
 | Stake | min $3, max $20 | `NEG_RISK_ARB_MIN` $0.50 |
-| City-day budget | min(5%·bankroll, $15) − held | Tier-4 cross-time cap |
+| City-day budget | min(5%·bankroll, $15) − held | Tier-4 cross-time cap. Entry: arb ~$35–55 bankroll; 1st YES leg ~$60; full ladder ~$180 |
 | Arb threshold | Σ YES ask < 0.85 (0.80 if ≥4 legs) | NEG_RISK_ARB |
 | Prob-sum guard | `PROB_SUM_MAX=1.35` | Σ p_model above → skip city (MC bug) |
 | Exit | hold to daily-max settlement | no PT, no SL |
