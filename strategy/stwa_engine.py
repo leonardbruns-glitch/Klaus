@@ -52,18 +52,37 @@ INNOV_DF       = 6       # Student-t df for path innovations (excess kurt = 3)
 # the forecast drifts (Helsinki: bought 15-17°C AM, 20-21°C PM); (2) miscalibrated
 # inputs. When False, _lp_allocate_city emits NO and NEG_RISK_ARB signals only.
 # Re-enable once p_model is recalibrated AND per-city-day portfolio sizing exists.
-STWA_REGULAR_YES_ENABLED = False  # RE-SUSPENDED 2026-05-31: live audit shows it bleeding (−$5 realized
-                                  # @12% WR + ~−$28 open MTM; −EV/miscalibrated). Was True 2026-05-29
-                                  # (user full-stakes) on a 2024-history-only gate. Re-enable ONLY after
-                                  # live resolution n≥100 confirms p_cal calibration holds.
-                                  # NOTE: calibration validated on 2024 history (n≫100), NOT yet on LIVE
-                                  # 2026 resolution — user accepted this risk. Tier-4 budget cap + kelly_frac
-                                  # + stake_max + kill switches still bound exposure. Revert: set False.
+STWA_REGULAR_YES_ENABLED = True   # RE-ENABLED 2026-06-01 (user directive): the directional YES ladder
+                                  # is now guarded by the WIDTH GATE (drops the YES horse-race pool unless
+                                  # book-implied σ > 1.10×our pricer σ) — the missing safety behind the
+                                  # 05-29→05-31 bleed (YES fired in Regime-3 where it just paid vig). YES
+                                  # is the ONLY directional bucket-ladder; engine model-NO is disabled
+                                  # (STWA_REGULAR_NO_ENABLED) so all NO flows through the validated M1β
+                                  # lockout harvest. Bounds: width gate + isotonic g(p) sizing + Tier-4
+                                  # city-day budget + kelly_frac 0.20 + stake_max. STILL UNCONFIRMED on
+                                  # LIVE 2026 resolution (calibration validated on 2024 history only) —
+                                  # monitor. Revert: set False.
+# Regular-NO kill switch. DISABLED 2026-06-01: the engine's model-edge NO is
+# (1) redundant — on locked buckets the running-max floor drives g(p)→0 so
+# edge_no=1−ask_no clears the gate on EXACTLY the buckets the validated M1β
+# lockout-NO harvest (weather_arb.py, ~98% WR OOS) already buys → double-fire;
+# and (2) the FLB-spread-walled speculative NO on UNLOCKED tail buckets (−EV;
+# the regular-NO that bled). All NO now flows through M1β; the engine keeps only
+# the directional YES ladder + NEG_RISK_ARB. Revert: set True.
+STWA_REGULAR_NO_ENABLED  = False
 EDGE_MIN       = 0.04    # absolute floor on edge (p_win − ask), risk-of-ruin safety
 KELLY_F_MIN    = 0.015   # minimum Kelly fraction to fire: f* = (p_c − ask)/(1 − ask)
                          # 0.015 = 1.5% of bankroll. Scales with both p and ask:
                          # high-ask bets (sells of unlikely YES) clear easily;
                          # low-ask longshot bets need larger edge to clear.
+WIDTH_GATE_MARGIN = 1.10 # YES ladder fires only when the book-implied σ exceeds
+                         # this × our per-city pricer σ. Edge on a directional
+                         # ladder requires s_M > (1+φ)·s_our (our forecast tighter
+                         # than the book); otherwise the ladder just pays vig
+                         # across legs (Regime-3, no width advantage). 1.10 ≈ a
+                         # fixed 10% overround proxy for (1+φ); conservative vs
+                         # typical Polymarket overrounds. Gates YES only — arb
+                         # spine (returns earlier) and NO pool are unaffected.
 CONFIDENCE_MIN = 0.45    # minimum confidence score
 
 # ── 2D Langevin velocity state ─────────────────────────────────────────────────
@@ -1039,20 +1058,22 @@ class STWAEngine:
             f_yes = _kelly_f(p_use, ask_yes, confidence) if ask_yes else 0.0
             f_no  = _kelly_f(1.0 - p_use, ask_no, confidence) if ask_no else 0.0
 
-            # Phase-gate ALL directional buys: block once past the diurnal peak.
-            # POST_PEAK means the daily max is already locked, so a directional
-            # model bet (either side) is just paying spread on a settled outcome.
+            # Phase gate. The directional YES ladder is PRE_PEAK ONLY (user
+            # directive 2026-06-01): AT_PEAK and POST_PEAK both underperformed
+            # on live resolution — the forecast edge is most decayed there and
+            # lockout dynamics dominate, so the only edge in the at/post-peak
+            # window is the M1β lockout-NO harvest (weather_arb), NOT this ladder.
             # Measured (110 resolved, Gamma join 2026-05-31): post-peak YES =
-            # 13% WR / -$36 (76% of all STWA loss); post-peak regular-NO = 53%
-            # WR / -$9 (also -EV; distinct from the validated LOCKOUT-NO edge).
-            # The line-1182 plateau guard relabels a still-active POST_PEAK to
-            # AT_PEAK, so a genuine peak plateau still permits entries.
+            # 13% WR / -$36 (76% of all STWA loss). Requiring strict PRE_PEAK
+            # also sidesteps the plateau guard that relabels POST_PEAK→AT_PEAK.
             # NEG_RISK_ARB is exempt — it returns before this loop and is a
             # timing-independent guaranteed-profit edge.
-            _phase_ok = phase != "POST_PEAK"
-            yes_ok = (STWA_REGULAR_YES_ENABLED and _phase_ok
+            _yes_phase_ok = phase == "PRE_PEAK"          # YES: pre-peak only
+            _no_phase_ok  = phase != "POST_PEAK"         # (NO path disabled below)
+            yes_ok = (STWA_REGULAR_YES_ENABLED and _yes_phase_ok
                       and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN)
-            no_ok  = (_phase_ok and edge_no > EDGE_MIN and f_no > KELLY_F_MIN)
+            no_ok  = (STWA_REGULAR_NO_ENABLED and _no_phase_ok
+                      and edge_no > EDGE_MIN and f_no > KELLY_F_MIN)
 
             if yes_ok and no_ok:
                 # Both sides positive ↔ neg-risk within this bucket; pick higher Kelly
@@ -1072,6 +1093,23 @@ class STWAEngine:
         city_budget = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)  # Tier-4: remaining day budget net of deployed capital
         yes_cands = [c for c in candidates if c[0] == "YES"]
         no_cands  = [c for c in candidates if c[0] == "NO"]
+
+        # ── Width gate (directional YES ladder only) ─────────────────────────
+        # A YES ladder carries edge only when the book-implied σ (s_M) is wider
+        # than our per-city pricer σ (s_our) by more than the overround — i.e.
+        # our forecast is tighter/better-located than the book. If s_M ≤
+        # WIDTH_GATE_MARGIN·s_our we have no width advantage (Regime-3), so the
+        # ladder would just pay vig across legs: drop the YES pool. NEG_RISK_ARB
+        # (returned earlier) and the NO pool (lockout harvest) are unaffected.
+        if yes_cands:
+            _cal_w = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
+            s_our  = float(_cal_w.get("sigma", 1.1))
+            s_book = _book_implied_sigma(entries)
+            if s_book is None or s_book <= WIDTH_GATE_MARGIN * s_our:
+                logger.debug("[STWA] width-gate %s: s_book=%s s_our=%.2f (need > %.2f×) — drop YES ladder",
+                             city, f"{s_book:.2f}" if s_book is not None else "NA",
+                             s_our, WIDTH_GATE_MARGIN)
+                yes_cands = []
 
         # ── YES pool: horse-race Kelly ────────────────────────────────────────
         yes_pairs: list[tuple] = []   # (candidate-tuple, raw_stake)
@@ -1487,6 +1525,43 @@ def _book_ask(books: dict, token_id: str) -> Optional[float]:
     if ask is None or ask <= 0 or ask >= 1:
         return None
     return float(ask)
+
+
+def _book_implied_sigma(entries: list) -> Optional[float]:
+    """Std (°C) of the YES-ask-implied daily-max distribution.
+
+    The YES asks across a city's buckets are an overround-inflated, discretized
+    forecast distribution. Normalizing the asks removes the overround φ (it
+    cancels), so the mass-weighted std of the bucket centers recovers the book's
+    implied σ (= s_M), Sheppard-corrected for bucket-width quantization.
+
+    Returns None if fewer than 3 priced buckets (can't estimate). Truncated tails
+    bias s_M DOWN, which only makes the width gate MORE conservative — safe.
+
+    entries: [(lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no), ...]
+    """
+    centers, weights = [], []
+    width = None
+    for lo, hi, _yt, _nt, _pm, ask_yes, _an in entries:
+        if ask_yes is None or not (0 < ask_yes < 1):
+            continue
+        centers.append(0.5 * (lo + hi))
+        weights.append(ask_yes)
+        if width is None:
+            width = abs(hi - lo)
+    if len(weights) < 3:
+        return None
+    w = np.array(weights, dtype=float)
+    c = np.array(centers, dtype=float)
+    wsum = w.sum()
+    if wsum <= 0:
+        return None
+    w = w / wsum
+    mu  = float((w * c).sum())
+    var = float((w * (c - mu) ** 2).sum())
+    if width:                       # Sheppard's correction for bucket discretization
+        var -= (width ** 2) / 12.0
+    return math.sqrt(var) if var > 1e-6 else None
 
 
 def _kelly_stake(
