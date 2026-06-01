@@ -460,43 +460,37 @@ class KlausBot:
         # GET /balance-allowance is not CF-blocked — works from any machine.
         # Corrects drift from manual trades, crashed sessions, or manual deposits.
         #
-        # GUARD: skip sync when LIVE positions exist from a previous session.
-        # The USDC balance only reflects unspent cash — it does NOT include the
-        # value of open token positions. Syncing while positions are open would
-        # set capital = (capital − value_of_open_tokens), incorrectly lowering it.
-        # Exception: positions loaded from file that have already expired are
-        # treated as closed (market resolved on-chain); sync is safe then.
+        # Sync capital = unspent USDC cash + value of open positions (cost basis:
+        # remaining_shares × entry_price — same convention as STWA held_k).
+        # fetch_usdc_balance() returns CASH ONLY, so we add the deployed position
+        # value back. This lets the bot reconcile to TRUE capital on every startup
+        # EVEN WITH POSITIONS OPEN, instead of freezing on a stale number and never
+        # seeing deposits (principle: always reflect real wallet state). Cost-basis
+        # slightly overcounts losers vs live MTM — accepted for a bankroll/sizing
+        # figure; it self-corrects to realized cash as positions resolve.
         now_ts = time.time()
-        live_positions = {
-            tid: pos for tid, pos in self.risk.open_positions.items()
-            if pos.window_end_ts <= 0 or pos.window_end_ts > now_ts - 30
-        }
         if not CONFIG.dry_run:
-            if live_positions:
-                logger.warning(
-                    "BANKROLL SYNC skipped: %d live positions in memory "
-                    "(balance = unspent cash only, would undercount capital)",
-                    len(live_positions),
-                )
-            else:
-                real_balance = self.orders.fetch_usdc_balance()
-                if real_balance is not None:
-                    tracked = self.risk.bankroll.capital
-                    delta = real_balance - tracked
-                    if abs(delta) > 0.05:  # $0.05 tolerance for rounding
-                        logger.warning(
-                            "BANKROLL SYNC: tracked=%.2f  actual=%.2f  delta=%+.2f — syncing to actual",
-                            tracked, real_balance, delta,
-                        )
-                    else:
-                        logger.info(
-                            "Bankroll verified: tracked=%.2f matches actual=%.2f",
-                            tracked, real_balance,
-                        )
-                    self.risk.bankroll.capital = real_balance
-                    self.risk.bankroll._save()
+            real_balance = self.orders.fetch_usdc_balance()
+            if real_balance is not None:
+                pos_value = sum(p.remaining_shares * p.entry_price
+                                for p in self.risk.open_positions.values())
+                true_capital = real_balance + pos_value
+                tracked = self.risk.bankroll.capital
+                delta = true_capital - tracked
+                if abs(delta) > 0.05:  # $0.05 tolerance for rounding
+                    logger.warning(
+                        "BANKROLL SYNC: tracked=%.2f  cash=%.2f + positions=%.2f = actual=%.2f  delta=%+.2f — syncing",
+                        tracked, real_balance, pos_value, true_capital, delta,
+                    )
                 else:
-                    logger.warning("BANKROLL SYNC failed: fetch_usdc_balance returned None — using tracked=%.2f", self.risk.bankroll.capital)
+                    logger.info(
+                        "Bankroll verified: tracked=%.2f matches cash+positions=%.2f",
+                        tracked, true_capital,
+                    )
+                self.risk.bankroll.capital = true_capital
+                self.risk.bankroll._save()
+            else:
+                logger.warning("BANKROLL SYNC failed: fetch_usdc_balance returned None — using tracked=%.2f", self.risk.bankroll.capital)
 
         logger.info("=" * 50)
         logger.info("Klaus Momentum Scalper — %s", mode)
@@ -6525,14 +6519,17 @@ class KlausBot:
                 # Drift sources: fee estimation errors, orphan sells, crash-recovery gaps.
                 # Auto-corrects large divergences; warns on small ones.
                 now = time.time()
-                has_open = bool(self.risk.open_positions)
                 if (now - _last_reconcile_ts >= _RECONCILE_INTERVAL
-                        and not CONFIG.dry_run
-                        and not has_open):  # only reconcile when flat — open positions distort USDC
+                        and not CONFIG.dry_run):
                     _last_reconcile_ts = now
                     actual_usdc = self.orders.fetch_usdc_balance()
                     if actual_usdc is not None:
                         internal = self.risk.bankroll.capital
+                        # capital = cash + open-position cost basis, so reconcile
+                        # works with positions open (always reflect real wallet).
+                        pos_value = sum(p.remaining_shares * p.entry_price
+                                        for p in self.risk.open_positions.values())
+                        actual_usdc = actual_usdc + pos_value
                         drift = actual_usdc - internal
                         if abs(drift) >= _RECONCILE_DRIFT_WARN:
                             logger.warning(
