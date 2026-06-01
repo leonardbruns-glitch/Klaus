@@ -2,16 +2,16 @@
 active
 
 ## Last 10 commits on klaus:
-b5eb53b5 fix(M1β): tighten lockout probe to the validated deep-lockout slice
+849755c9 feat(STWA): width-gated pre-peak YES ladder; defer all NO to M1β
+0867f2e5 fix(M1β): tighten lockout probe to the validated deep-lockout slice
+130dd955 Watchdog 2026-06-01T05:22Z: OK (3 anomalies in 6h backoff)
+5efcc593 Watchdog 2026-06-01T04:20Z: CRITICAL 3 alerts (backoff, 1 cleared)
+a0173cd8 Watchdog 2026-06-01T03:19Z: HIGH 1 alerts
+062a69b5 Watchdog 2026-06-01T02:19Z: CRITICAL 3 alerts (backoff; CAPITAL_DROP cleared)
+ffb798cd Watchdog 2026-06-01T01:19Z: CRITICAL 4 alerts
 2822affd fix(STWA): settle WEATHER_M1_PROBE via the resolution poller too
 5a23424f docs(STWA): validated strategy spec (evidence-grounded; the anti-Hermes)
 7833cd86 fix(STWA): resolution poller — settle held-to-resolution positions
-ddf8ce21 fix(STWA/lockout): actually populate official_running_max_c (oracle guard was a no-op)
-c05630be fix(STWA): block ALL post-peak directional buys (user-directed)
-812537c9 fix(STWA): phase-gate regular-YES — block post-peak entries
-dc549d3a Watchdog 2026-05-31T04:21Z: HIGH 3 alerts
-4d2e150d Watchdog 2026-05-31T03:19:00Z: MEDIUM 1 alerts
-725ec324 Watchdog 2026-05-31T02:21:04Z: HIGH 3 alerts (backoff, no new issues)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   94G        0G 100% /
