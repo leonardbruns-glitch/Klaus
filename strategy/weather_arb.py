@@ -184,8 +184,17 @@ M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
-M1_BETA_PROBE_MIN_DEPTH_C      = 0.4    # raised from 0.2: blocks single-spike Synoptic false lockouts (LA 0.39, SG 0.20 both losses)
-M1_BETA_PROBE_MAX_EDGE         = 0.95   # only block near-fully-resolved YES (no_ask_clob covers 1.0)
+M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # 2026-06-01: 0.4→0.5 — OOS margin gate (lockout_oos n=195):
+                                        # margin<0.5°C=72% WR (all 8 losses here), 0.5-1°C=98.2%, 1-2°C=100%.
+M1_BETA_PROBE_MAX_EDGE         = 0.95   # yes_bid staleness ceiling (no_ask floor below dominates)
+# 2026-06-01: VALIDATED-SLICE no_ask gate. Only fire when the market AGREES the
+# bucket is locked (NO expensive): no_ask ∈ [0.90, 0.97] = the deep-lockout slice
+# (settlement_lock OOS WR 95.9%, n=195). The old `no_ask_clob < 1.0` fired far
+# wider — including cheap-NO entries (e.g. 0.385) where the market disagrees; that
+# wide firing booked the live −$23.60 (false-lockouts NO→0). Upper 0.97 keeps
+# edge ≥ fee floor (1−0.97=0.03).
+M1_BETA_PROBE_NO_ASK_MIN       = 0.90
+M1_BETA_PROBE_NO_ASK_MAX       = 0.97
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
@@ -206,7 +215,12 @@ M1_BETA_PROBE_LAYERS = [
 # Dip-rebuy: market reprices YES up (hourly METAR misses peak) while 5-min ASOS
 # still confirms lockout.  Separate from the time-layer ladder — triggered by
 # price dip on an open position, not by time since first detection.
-M1_DIP_REBUY_ENABLED     = True
+M1_DIP_REBUY_ENABLED     = False  # 2026-06-01: DISABLED. Fires when no_ask ≤ 0.25 (market thinks
+                                  # YES ≥ 75%) on the strength of 5-min ASOS confirming lockout —
+                                  # i.e. it trusts the SUB-HOURLY feed the oracle-provenance rule
+                                  # forbids, and bets AGAINST the market on the validated slice's
+                                  # opposite side. This is the false-lockout generator; part of the
+                                  # live −$23.60. Re-enable only with official-hourly running_max gating.
 M1_DIP_REBUY_NO_ASK_MAX  = 0.25   # fire when NO ask ≤ this (market thinks YES ≥ 75%)
 M1_DIP_REBUY_MIN_DEPTH_C = 0.15   # live METAR cache must confirm this °C above hi_c
 M1_DIP_REBUY_STAKE_USD   = 5.0    # smaller than initial stake (correlated resolution)
@@ -2286,7 +2300,7 @@ class WeatherArb:
                             lvl[1] for lvl in no_ob.asks if lvl[0] <= cap
                         )
                     if (no_ask_clob is not None
-                            and no_ask_clob < 1.0
+                            and M1_BETA_PROBE_NO_ASK_MIN <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX
                             and no_depth_shares >= 5):
                         # Remove from watchlist to prevent race double-fire
                         # (REST path in _metar_lockout_scan may also check this token)
@@ -3200,7 +3214,13 @@ class WeatherArb:
             return
         if eff_yes_bid >= 0.50 and sec_since >= M1_BETA_PROBE_GAMMA_BLOCK_SEC:
             return
-        if no_ask_clob is None or no_ask_clob >= 1.0:
+        # VALIDATED-SLICE gate (2026-06-01): only fire when the market AGREES the
+        # bucket is locked — NO ask in the deep-lockout range [0.90, 0.97]. Below
+        # 0.90 the market still prices YES meaningfully (false-lockout zone, source
+        # of the live −$23.60); above 0.97 the edge < fee floor. Authoritative gate
+        # for BOTH the WS and REST (_metar_lockout_scan) firing paths.
+        if no_ask_clob is None or not (
+                M1_BETA_PROBE_NO_ASK_MIN <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX):
             return
 
         # === Layer selection (bypassed for DIP rebuys) ===
