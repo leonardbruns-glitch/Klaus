@@ -1086,6 +1086,28 @@ class STWAEngine:
             elif no_ok:
                 candidates.append(("NO", no_tok, p_use, ask_no, edge_no, (lo, hi)))
 
+        # ── Per-city YES diagnostic (logged for EVERY PRE_PEAK city reaching
+        # allocation, even with 0 candidates, so we can see exactly why YES does
+        # or doesn't fire: width gate, best available edge, budget). s_our/s_book
+        # are reused by the width gate below. ─────────────────────────────────
+        _cal_w = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
+        s_our  = float(_cal_w.get("sigma", 1.1))
+        s_book = _book_implied_sigma(entries)
+        _width_ok = (s_book is not None and s_book > WIDTH_GATE_MARGIN * s_our)
+        _best_yes_edge = max(
+            ((float((cal_probs or {}).get((lo, hi), p_m)) - a)
+             for lo, hi, _yt, _nt, p_m, a, _an in entries if a is not None),
+            default=-1.0)
+        _n_yes_cand = sum(1 for c in candidates if c[0] == "YES")
+        if phase == "PRE_PEAK":
+            _bud = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)
+            logger.info(
+                "[STWA] yes-eval %s phase=PRE_PEAK s_our=%.2f s_book=%s width_ok=%s "
+                "best_yes_edge=%+.3f n_yes_cand=%d yes_enabled=%s budget=$%.2f",
+                city, s_our, (f"{s_book:.2f}" if s_book is not None else "NA"),
+                _width_ok, _best_yes_edge, _n_yes_cand,
+                STWA_REGULAR_YES_ENABLED, _bud)
+
         if not candidates:
             return []
 
@@ -1101,15 +1123,11 @@ class STWAEngine:
         # WIDTH_GATE_MARGIN·s_our we have no width advantage (Regime-3), so the
         # ladder would just pay vig across legs: drop the YES pool. NEG_RISK_ARB
         # (returned earlier) and the NO pool (lockout harvest) are unaffected.
-        if yes_cands:
-            _cal_w = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
-            s_our  = float(_cal_w.get("sigma", 1.1))
-            s_book = _book_implied_sigma(entries)
-            if s_book is None or s_book <= WIDTH_GATE_MARGIN * s_our:
-                logger.debug("[STWA] width-gate %s: s_book=%s s_our=%.2f (need > %.2f×) — drop YES ladder",
-                             city, f"{s_book:.2f}" if s_book is not None else "NA",
-                             s_our, WIDTH_GATE_MARGIN)
-                yes_cands = []
+        if yes_cands and not _width_ok:   # _width_ok / s_our / s_book computed above
+            logger.debug("[STWA] width-gate %s: s_book=%s s_our=%.2f (need > %.2f×) — drop YES ladder",
+                         city, f"{s_book:.2f}" if s_book is not None else "NA",
+                         s_our, WIDTH_GATE_MARGIN)
+            yes_cands = []
 
         # ── YES pool: horse-race Kelly ────────────────────────────────────────
         yes_pairs: list[tuple] = []   # (candidate-tuple, raw_stake)
