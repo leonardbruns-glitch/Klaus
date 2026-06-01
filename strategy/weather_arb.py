@@ -193,8 +193,22 @@ M1_BETA_PROBE_MAX_EDGE         = 0.95   # yes_bid staleness ceiling (no_ask floo
 # wider — including cheap-NO entries (e.g. 0.385) where the market disagrees; that
 # wide firing booked the live −$23.60 (false-lockouts NO→0). Upper 0.97 keeps
 # edge ≥ fee floor (1−0.97=0.03).
-M1_BETA_PROBE_NO_ASK_MIN       = 0.90
+M1_BETA_PROBE_NO_ASK_MIN       = 0.70   # 2026-06-01: widened 0.90→0.70 (user, live). The
+                                        # [0.70,0.90) "fat-edge" band resolves NO 94.7% (n=38,
+                                        # /tmp/fatedge.py) at +$0.13/sh vs +$0.06 in [0.90,0.97].
+                                        # CAVEAT n<40 (trend, not proven). There the market only
+                                        # PARTLY confirms the lockout, so the legacy market-agreement
+                                        # safety is gone — the band is HARD-GATED below on a
+                                        # provenance-clean PHYSICAL margin (official AWC/NWS
+                                        # running_max ≥ FATEDGE_MIN_DEPTH_C past the ceiling ⇒ YES
+                                        # physically impossible). REST path only. Revert: 0.70→0.90.
 M1_BETA_PROBE_NO_ASK_MAX       = 0.97
+M1_BETA_PROBE_NO_ASK_MARKET_AGREE = 0.90  # at/above this no_ask the market itself confirms the
+                                        # lockout (legacy validated slice) → no clean-margin proof
+                                        # required. WS path stays pinned to [MARKET_AGREE, MAX].
+M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 1.0   # below MARKET_AGREE: require official running_max this
+                                        # many °C past the ceiling. False lockouts cluster <1°C
+                                        # (margin 0.5-1°C=33% WR vs ≥1°C=83%, /tmp/fatedge.py).
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
@@ -2300,7 +2314,7 @@ class WeatherArb:
                             lvl[1] for lvl in no_ob.asks if lvl[0] <= cap
                         )
                     if (no_ask_clob is not None
-                            and M1_BETA_PROBE_NO_ASK_MIN <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX
+                            and M1_BETA_PROBE_NO_ASK_MARKET_AGREE <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX
                             and no_depth_shares >= 5):
                         # Remove from watchlist to prevent race double-fire
                         # (REST path in _metar_lockout_scan may also check this token)
@@ -3114,6 +3128,7 @@ class WeatherArb:
                         no_ask_usd_at_implied=no_ask_usd_at_implied,
                         no_ask_usd_at_clob_implied=no_ask_usd_at_clob_implied,
                         seconds_to_close=seconds_to_close,
+                        official_running_max=metar.get("official_running_max_c"),
                     )
                 except Exception:
                     logger.exception("[M1β] probe error %s", city)
@@ -3173,6 +3188,7 @@ class WeatherArb:
         no_token_id: str, no_ask_clob, no_book: dict,
         no_ask_usd_at_implied: float, no_ask_usd_at_clob_implied=None,
         seconds_to_close,
+        official_running_max: float | None = None,
         override_layer: str | None = None,
         override_stake_usd: float | None = None,
     ) -> None:
@@ -3222,6 +3238,20 @@ class WeatherArb:
         if no_ask_clob is None or not (
                 M1_BETA_PROBE_NO_ASK_MIN <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX):
             return
+        # WIDENED fat-edge band [NO_ASK_MIN, NO_ASK_MARKET_AGREE) (2026-06-01): the
+        # market does NOT fully confirm the lockout here, so the legacy market-agreement
+        # safety is absent. Substitute a PROVENANCE-CLEAN physical proof: official
+        # (AWC/NWS-only) running_max ≥ FATEDGE_MIN_DEPTH_C past the ceiling ⇒ YES is
+        # physically impossible regardless of the stale quote. Fail-safe: no clean value
+        # in hand (e.g. WS path, no official obs yet) ⇒ skip — never trade the fat band
+        # on the contaminated feed (that booked the −$23.60 false-lockouts).
+        if no_ask_clob < M1_BETA_PROBE_NO_ASK_MARKET_AGREE:
+            _clean_margin = (
+                (official_running_max - hi_c)
+                if (official_running_max is not None and hi_c is not None) else None
+            )
+            if _clean_margin is None or _clean_margin < M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C:
+                return
 
         # === Layer selection (bypassed for DIP rebuys) ===
         if override_layer is not None:
