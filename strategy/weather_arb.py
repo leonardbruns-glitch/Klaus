@@ -4442,6 +4442,30 @@ class WeatherArb:
             _local_day = int((now + _tz_h * 3600) // 86400)
             _prev = self._stwa_city_last_local_day.get(_city, 0)
             if _prev and _local_day != _prev:
+                # Day rolled over → cs.running_max is the FINALISED official daily
+                # high for the day that just ended. Feed the self-learning skill
+                # matrix (closes the forecast↔actual loop) BEFORE reset_city wipes
+                # it. log_actual had no live producer since wu_monitor was retired
+                # (2026-05-31 resolution overhaul), so the matrix had been frozen
+                # since 2026-05-22. Provenance: running_max is official-hourly
+                # METAR/SPECI (AWC/NWS) only. valid_day is derived from _prev (the
+                # ended local day), NOT cs.obs_date, so a new-day METAR that already
+                # advanced obs_date can't mis-date the actual. (Midnight temps are
+                # near the daily min, so monotone running_max isn't contaminated.)
+                try:
+                    _cs = self._stwa._cities.get(_city)
+                    if _cs is not None and _cs.running_max is not None:
+                        _ended = _t.strftime("%Y-%m-%d", _t.gmtime(_prev * 86400))
+                        _aslug = CITY_NAME_TO_SLUG.get(_city, _city)
+                        from analysis.weather.live_accumulator import log_actual as _la
+                        _la(
+                            slug=f"stwa-actual-{_aslug}-{_ended}",
+                            city_slug=_aslug,
+                            valid_day=_ended,
+                            wu_high_c=float(_cs.running_max),
+                        )
+                except Exception:
+                    logger.debug("[STWA] skill-matrix log_actual hook failed for %s", _city, exc_info=True)
                 self._stwa.reset_city(_city)
             self._stwa_city_last_local_day[_city] = _local_day
 
