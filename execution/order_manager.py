@@ -152,6 +152,7 @@ class OrderStatus(Enum):
     PARTIAL = auto()
     CANCELLED = auto()
     FAILED = auto()
+    RESTING = auto()   # maker order posted, live on the book, not yet filled
 
 
 @dataclass
@@ -176,6 +177,7 @@ class OrderResult:
     slippage: float = 0.0
     error: str = ""
     raw: Dict[str, Any] = field(default_factory=dict)
+    order_id: str = ""   # CLOB order id — set for RESTING maker orders (track/cancel)
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +515,63 @@ class OrderManager:
             )
 
         return OrderResult(status=OrderStatus.FAILED, error="Entry not filled — price moved")
+
+    # ── MAKER primitive (step 2, 2026-06-01) ───────────────────────────────────
+    # Post a PASSIVE resting limit BUY and leave it on the book. Unlike limit_buy
+    # (a taker cascade that crosses the spread and cancels on no-fill), this rests
+    # at `price` and returns the order_id with status RESTING. The caller tracks the
+    # fill via the WS fill_tracker and pulls the order with cancel_order(). `price`
+    # MUST be non-crossing (≤ best ask) or it fills as a taker. NOTHING fires this
+    # yet — it is the execution primitive for the locked-bucket (adverse-selection-
+    # free) maker (step 3). On-book capital is bounded by the same 5-share/$1 min and
+    # 50%-of-bankroll guard in _submit_limit_order; startup cancel_all() reaps strays.
+    async def maker_buy(
+        self,
+        token_id: str,
+        price: float,
+        stake_usd: float,
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
+    ) -> OrderResult:
+        if CONFIG.dry_run:
+            return self._simulate_fill(token_id, price, stake_usd, OrderSide.BUY)
+        if stake_usd <= 0 or price <= 0:
+            return OrderResult(status=OrderStatus.FAILED, error="Invalid stake or price")
+        size = round(stake_usd / price, 2)
+        _now_ts = time.time()
+        if _now_ts - self._last_allowance_refresh_ts >= self._allowance_refresh_ttl_s:
+            try:
+                async with self._session_lock:
+                    await asyncio.to_thread(
+                        self._client.update_balance_allowance,
+                        BalanceAllowanceParams(
+                            asset_type=AssetType.COLLATERAL,
+                            signature_type=CONFIG.signature_type,
+                        ),
+                    )
+                self._last_allowance_refresh_ts = _now_ts
+            except Exception as _exc:
+                logger.warning("USDC allowance refresh failed (maker): %s", _exc)
+        try:
+            return await self._submit_limit_order(
+                token_id, OrderSide.BUY, round(price, 4), size,
+                neg_risk=neg_risk, tick_size=tick_size, passive=True,
+            )
+        except Exception as exc:
+            logger.error("maker_buy failed for %s: %s", token_id[:12], exc)
+            return OrderResult(status=OrderStatus.FAILED, error=str(exc))
+
+    async def cancel_order(self, order_id: str) -> bool:
+        """Cancel one resting order by id. True if the cancel call succeeded (or the
+        order was already gone). Used to pull resting maker quotes."""
+        if not order_id or self._client is None:
+            return False
+        try:
+            await asyncio.to_thread(self._client.cancel_orders, [order_id])
+            return True
+        except Exception as exc:
+            logger.warning("cancel_order %s failed: %s", str(order_id)[:12], exc)
+            return False
 
     # kept as alias for backward compatibility with main.py
     async def market_buy(
@@ -1134,6 +1193,7 @@ class OrderManager:
         tick_size: str = TICK_SIZE,
         order_type: "OrderType" = None,
         presigned: Optional[dict] = None,
+        passive: bool = False,
     ) -> OrderResult:
         if self._client is None:
             return OrderResult(status=OrderStatus.FAILED, error="No CLOB client")
@@ -1395,6 +1455,19 @@ class OrderManager:
 
             if status == "live":
                 order_id = resp.get("id", resp.get("orderID", ""))
+
+                # MAKER (passive=True): the order is RESTING on the book as intended.
+                # Do NOT wait-then-cancel (that's taker semantics) — return the order_id
+                # immediately so the caller tracks the fill (fill_tracker) and cancels via
+                # cancel_order() on its own schedule. Startup cancel_all() reaps any strays.
+                if passive and side == OrderSide.BUY:
+                    logger.info("MAKER resting %s @ %.4f size=%.4f order=%s",
+                                token_id[:12], price, size, str(order_id)[:12])
+                    return OrderResult(
+                        status=OrderStatus.RESTING, avg_fill_price=price, total_size=0.0,
+                        order_id=str(order_id),
+                        raw=resp if isinstance(resp, dict) else {},
+                    )
 
                 if side == OrderSide.BUY and order_id:
                     # BUY resting: ask moved above our limit right after signing.
