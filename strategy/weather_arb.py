@@ -222,8 +222,8 @@ M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 # strategy-drawdown halt) — it trips on BUG signatures: runaway resting exposure, a
 # failed/hung cancel, or bankroll < floor.
 MAKER_EXERCISE_ENABLED           = True    # shadow-log maker candidates on locked buckets
-MAKER_EXERCISE_LIVE              = False   # ⚠ real resting orders — flip only while watching
-MAKER_EXERCISE_STAKE_USD         = 4.0     # hard per-order cap (user)
+MAKER_EXERCISE_LIVE              = True    # ⚠ LIVE real resting orders (2026-06-01 stage-3, MONITORED)
+MAKER_EXERCISE_STAKE_USD         = 5.0     # per-order (user; raised from $4 — CLOB 5-share floor makes <~$4.5 unfillable at NO~0.9)
 MAKER_EXERCISE_MAX_ORDERS        = 5       # ≤5 real orders, first session (user)
 MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 1.0     # LIVE only: official running_max ≥ this °C past ceiling
 MAKER_BREAKER_MAX_EXPOSURE_USD   = 15.0    # trip if Σ resting maker stake exceeds this
@@ -3248,8 +3248,12 @@ class WeatherArb:
                         f"{margin:.2f}" if margin is not None else "?")
             return
 
-        # ── LIVE (monitored) — safest slice only: official-margin ≥ MIN_MARGIN_C ──
-        if margin is None or margin < MAKER_EXERCISE_LIVE_MIN_MARGIN_C:
+        # ── LIVE (monitored) — M1β's validated locked population only ──
+        # Caller already cleared M1β's provenance gate; fire on the market-agreed
+        # slice (no_ask ≥ 0.90, 95.6% OOS) OR the physical-proof fat band (margin ≥1°C).
+        _market_agreed = no_ask_clob is not None and no_ask_clob >= M1_BETA_PROBE_NO_ASK_MARKET_AGREE
+        _margin_clean  = margin is not None and margin >= MAKER_EXERCISE_LIVE_MIN_MARGIN_C
+        if not (_market_agreed or _margin_clean):
             return
         if self._maker_ex_orders >= MAKER_EXERCISE_MAX_ORDERS:
             return
