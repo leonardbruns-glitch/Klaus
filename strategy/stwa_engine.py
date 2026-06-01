@@ -83,6 +83,17 @@ WIDTH_GATE_MARGIN = 1.10 # YES ladder fires only when the book-implied σ exceed
                          # fixed 10% overround proxy for (1+φ); conservative vs
                          # typical Polymarket overrounds. Gates YES only — arb
                          # spine (returns earlier) and NO pool are unaffected.
+
+# ── MAKER SHADOW (log-only; 2026-06-01) ────────────────────────────────────────
+# Live weather books are thin/one-sided with fat spreads ($2M vol across cities,
+# but contested buckets show ~$350 standing liquidity at a 2.6–5¢ spread vs ~$29k
+# volume) → the scalable edge is PROVIDING liquidity, not taking. This recorder
+# logs, per bucket, our calibrated fair vs the live book + the two-sided quote we
+# WOULD post, so maker EV = fill×(resolution − quote) can be measured offline
+# BEFORE any real order. Zero capital. Prereq for the locked-bucket (adverse-
+# selection-free) live maker. Disable: MAKER_SHADOW_ENABLED=False.
+MAKER_SHADOW_ENABLED = True
+MAKER_HALF_SPREAD    = 0.02   # half-spread around calibrated fair for the shadow quote
 CONFIDENCE_MIN = 0.45    # minimum confidence score
 
 # ── 2D Langevin velocity state ─────────────────────────────────────────────────
@@ -1107,6 +1118,41 @@ class STWAEngine:
                 city, s_our, (f"{s_book:.2f}" if s_book is not None else "NA"),
                 _width_ok, _best_yes_edge, _n_yes_cand,
                 STWA_REGULAR_YES_ENABLED, _bud)
+
+        # ── MAKER SHADOW recorder (log-only, no capital) ──────────────────────
+        # Per bucket: our calibrated fair vs the live two-sided book + the quote
+        # we WOULD post. Runs for every bucket every scan (independent of the
+        # candidate early-return below). locked=(p_m==0 ⇒ below running-max floor):
+        # there the safe maker action is SELL YES (offer) — adverse-selection-free.
+        if MAKER_SHADOW_ENABLED and entries:
+            try:
+                _mk_dir = (Path(__file__).parent.parent / "logs" / "shadow"
+                           / "hot" / time.strftime("%Y-%m-%d", time.gmtime()))
+                _mk_dir.mkdir(parents=True, exist_ok=True)
+                _now = time.time()
+                _cal = cal_probs or {}
+                with (_mk_dir / "maker_shadow.jsonl").open("a") as _mf:
+                    for _lo, _hi, _yt, _nt, _pm, _ay, _an in entries:
+                        _fair = float(_cal.get((_lo, _hi), _pm))
+                        _yb = clob_books.get(_yt) or {}
+                        _nb = clob_books.get(_nt) or {}
+                        _bid = _yb.get("best_bid"); _ask = _yb.get("best_ask")
+                        _mf.write(json.dumps({
+                            "ts": _now, "city": city, "phase": phase,
+                            "lo": _lo, "hi": _hi, "yes_tok": _yt, "no_tok": _nt,
+                            "fair": round(_fair, 4),
+                            "yes_bid": _bid, "yes_ask": _ask,
+                            "yes_depth_usd": _yb.get("usd_depth"),
+                            "no_bid": _nb.get("best_bid"), "no_ask": _nb.get("best_ask"),
+                            "no_depth_usd": _nb.get("usd_depth"),
+                            "q_bid": round(max(0.01, _fair - MAKER_HALF_SPREAD), 4),
+                            "q_ask": round(min(0.99, _fair + MAKER_HALF_SPREAD), 4),
+                            "spread": (round(_ask - _bid, 4)
+                                       if (_bid is not None and _ask is not None) else None),
+                            "locked": (_pm == 0.0),
+                        }) + "\n")
+            except Exception:
+                logger.debug("[STWA] maker_shadow log fail", exc_info=True)
 
         if not candidates:
             return []
