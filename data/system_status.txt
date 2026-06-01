@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+3742ff6f feat(maker): stage 3 LIVE — locked-region first-exercise (real $5, monitored)
+74d84fc8 feat(maker): stages 1-2 — bug circuit-breaker + locked-region SHADOW-fire
+c955e4d8 feat(STWA): coherence arb Face 2 — buy-all-NO neg-risk (model-free)
 e630745c feat(maker): Phase-0 flow/overround probe — standalone read-only taker-flow poller
 4a6c490e feat(maker): step 2 — passive-rest + cancel execution primitive (inert)
 a0045631 feat(maker): live maker-shadow recorder (log-only) — first step toward the maker
@@ -9,15 +12,12 @@ e9e5038b feat(M1β): widen NO_ASK 0.90→0.70, fat band gated on provenance-clea
 16175420 fix(skill-matrix): revive log_actual — feed official daily high at day rollover
 e857f11d feat(STWA): per-city yes-eval diagnostic — log why YES does/doesn't fire
 5cc94e30 fix(bankroll): sync to true capital (cash + open positions) even with positions held
-8e6b54b6 docs(CLAUDE): sync STWA config — YES-only ladder (width-gated, pre-peak), engine-NO off→M1β, entry-capital thresholds
-849755c9 feat(STWA): width-gated pre-peak YES ladder; defer all NO to M1β
-0867f2e5 fix(M1β): tighten lockout probe to the validated deep-lockout slice
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   90G        3G  98% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   91G        3G  98% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-01 13:54:16 UTC
+ActiveEnterTimestamp=Mon 2026-06-01 20:22:12 UTC
 
 ## Open positions (count):
 0
