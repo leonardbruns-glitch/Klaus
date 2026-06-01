@@ -213,6 +213,22 @@ M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handl
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 
+# ── Locked-region MAKER first-exercise (2026-06-01, controlled / user-mandated) ──
+# Exercises the maker_buy primitive on PROVENANCE-CLEAN locked buckets (NO physically
+# certain ⇒ adverse selection = 0). SHADOW by default: logs the exact resting NO bid it
+# WOULD post on each locked bucket (proves gating/sizing/non-crossing price on live data,
+# ZERO real orders). Flip MAKER_EXERCISE_LIVE=True ONLY under live monitoring for the
+# $4-cap real first-exercise. The MakerCircuitBreaker is the sole net (user declined the
+# strategy-drawdown halt) — it trips on BUG signatures: runaway resting exposure, a
+# failed/hung cancel, or bankroll < floor.
+MAKER_EXERCISE_ENABLED           = True    # shadow-log maker candidates on locked buckets
+MAKER_EXERCISE_LIVE              = False   # ⚠ real resting orders — flip only while watching
+MAKER_EXERCISE_STAKE_USD         = 4.0     # hard per-order cap (user)
+MAKER_EXERCISE_MAX_ORDERS        = 5       # ≤5 real orders, first session (user)
+MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 1.0     # LIVE only: official running_max ≥ this °C past ceiling
+MAKER_BREAKER_MAX_EXPOSURE_USD   = 15.0    # trip if Σ resting maker stake exceeds this
+MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
+
 # Per-layer gates. One fire per (condition_id, layer) — bucket can fire up to 5 times
 # across its lifetime, never twice in the same layer.
 # This is multi-fire BY LAYER, not by time. Statistical clustering is by bucket.
@@ -3180,6 +3196,93 @@ class WeatherArb:
         except Exception:
             logger.exception("[M1β] state save failed")
 
+    async def _maker_locked_exercise(
+        self, *, city: str, no_token_id: str, no_book: dict,
+        no_ask_clob, hi_c, official_running_max, now_ts: float, now_utc,
+    ) -> None:
+        """Controlled first-exercise of the maker_buy primitive on a provenance-clean
+        locked bucket (caller already cleared M1β's gates ⇒ NO physically certain,
+        AS=0). SHADOW (default): log the resting NO bid we WOULD post. LIVE: post it
+        ($4 cap, ≤MAKER_EXERCISE_MAX_ORDERS, breaker-gated, official-margin ≥1°C only).
+        In-memory caps reset on restart — intended; stage 3 is monitored."""
+        if not hasattr(self, "_maker_breaker"):
+            from strategy.maker_breaker import MakerCircuitBreaker
+            self._maker_breaker = MakerCircuitBreaker(
+                MAKER_BREAKER_MAX_EXPOSURE_USD, MAKER_BREAKER_MIN_BANKROLL_USD)
+            self._maker_ex_seen: set = set()
+            self._maker_ex_orders: int = 0
+        if no_token_id in self._maker_ex_seen:
+            return
+        if no_ask_clob is None or no_ask_clob <= 0.02:
+            return
+        # Non-crossing resting NO bid: inside [no_bid, no_ask], strictly below the ask.
+        no_bid = (no_book or {}).get("best_bid")
+        if no_bid is not None and float(no_bid) > 0:
+            q_price = round((float(no_bid) + no_ask_clob) / 2.0, 2)
+        else:
+            q_price = round(no_ask_clob - 0.02, 2)
+        q_price = min(q_price, round(no_ask_clob - 0.01, 2))   # strictly non-crossing
+        q_price = max(0.01, q_price)
+        if q_price >= no_ask_clob:
+            return
+        size = round(MAKER_EXERCISE_STAKE_USD / q_price, 2)
+        margin = ((official_running_max - hi_c)
+                  if (official_running_max is not None and hi_c is not None) else None)
+        rec = {
+            "ts": round(now_ts), "city": city, "no_token": no_token_id,
+            "no_bid": no_bid, "no_ask": no_ask_clob, "q_price": q_price,
+            "size": size, "stake": MAKER_EXERCISE_STAKE_USD,
+            "clean_margin_c": (round(margin, 2) if margin is not None else None),
+            "live": MAKER_EXERCISE_LIVE, "orders_so_far": self._maker_ex_orders,
+        }
+        log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        if not MAKER_EXERCISE_LIVE:
+            self._maker_ex_seen.add(no_token_id)
+            rec["mode"] = "SHADOW"
+            with (log_dir / "maker_exercise.jsonl").open("a") as f:
+                f.write(json.dumps(rec) + "\n")
+            logger.info("[MAKER-EX] SHADOW %s NO bid @ %.2f (ask %.2f bid %s) size %.1f margin=%s",
+                        city, q_price, no_ask_clob, str(no_bid), size,
+                        f"{margin:.2f}" if margin is not None else "?")
+            return
+
+        # ── LIVE (monitored) — safest slice only: official-margin ≥ MIN_MARGIN_C ──
+        if margin is None or margin < MAKER_EXERCISE_LIVE_MIN_MARGIN_C:
+            return
+        if self._maker_ex_orders >= MAKER_EXERCISE_MAX_ORDERS:
+            return
+        risk = getattr(self.bot, "risk", None)
+        bankroll = float(getattr(getattr(risk, "bankroll", None), "capital", 0.0) or 0.0)
+        ok, reason = self._maker_breaker.precheck(bankroll, MAKER_EXERCISE_STAKE_USD)
+        if not ok:
+            logger.warning("[MAKER-EX] LIVE breaker blocked %s: %s", city, reason)
+            return
+        self._maker_ex_seen.add(no_token_id)
+        try:
+            from execution.order_manager import OrderStatus
+            result = await self.bot.orders.maker_buy(
+                token_id=no_token_id, price=q_price,
+                stake_usd=MAKER_EXERCISE_STAKE_USD, neg_risk=True)
+        except Exception as e:
+            logger.error("[MAKER-EX] LIVE maker_buy raised %s: %s", city, e)
+            return
+        self._maker_ex_orders += 1
+        oid = getattr(result, "order_id", "") or ""
+        status = getattr(result, "status", None)
+        if status == OrderStatus.RESTING and oid:
+            self._maker_breaker.register_resting(oid, MAKER_EXERCISE_STAKE_USD)
+        rec["mode"] = "LIVE"
+        rec["order_id"] = oid
+        rec["status"] = str(status)
+        with (log_dir / "maker_exercise.jsonl").open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+        logger.warning("[MAKER-EX] LIVE posted %s NO @ %.2f size %.1f order=%s status=%s (#%d/%d) exposure=$%.2f",
+                       city, q_price, size, str(oid)[:12], str(status),
+                       self._maker_ex_orders, MAKER_EXERCISE_MAX_ORDERS,
+                       self._maker_breaker.exposure_usd())
+
     async def _m1_beta_probe_evaluate(
         self, *, now_ts: float, now_utc, first_seen: float,
         mkt: dict, city: str, icao: str, end_date: str,
@@ -3252,6 +3355,21 @@ class WeatherArb:
             )
             if _clean_margin is None or _clean_margin < M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C:
                 return
+
+        # ── Locked-region MAKER first-exercise (controlled; shadow by default) ──
+        # The bucket has now cleared M1β's provenance gates ⇒ NO is physically
+        # certain (AS=0). Exercise the maker_buy primitive: shadow-logs the resting
+        # NO bid we'd post; in LIVE it posts $4 (breaker-gated, ≤5, margin ≥1°C).
+        if MAKER_EXERCISE_ENABLED:
+            try:
+                await self._maker_locked_exercise(
+                    city=city, no_token_id=no_token_id, no_book=no_book,
+                    no_ask_clob=no_ask_clob, hi_c=hi_c,
+                    official_running_max=official_running_max,
+                    now_ts=now_ts, now_utc=now_utc)
+            except Exception:
+                # A maker bug must NEVER disrupt the live M1β/scan path.
+                logger.debug("[MAKER-EX] exercise failed (isolated)", exc_info=True)
 
         # === Layer selection (bypassed for DIP rebuys) ===
         if override_layer is not None:
