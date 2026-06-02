@@ -229,6 +229,19 @@ MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 1.0     # LIVE only: official running_max ≥
 MAKER_BREAKER_MAX_EXPOSURE_USD   = 15.0    # trip if Σ resting maker stake exceeds this
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 
+# ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
+# Face 2 (buy-all-NO) is only ever eligible when Σyes_proxy>1 — the OPPOSITE of
+# the real-book depth-fetch screen (Σyes_proxy<0.95) — so it has NEVER been
+# evaluated on a real order book, only Gamma-proxy prices (no_ask=1−yes_gamma,
+# depth 0). On proxy data "Σno_ask<N−1" reduces to "Σyes>1" = the overround, not
+# a fillable arb. This probe fetches REAL CLOB books for the top eligible cities
+# and logs real Σno_ask + per-leg depth → answers "real arb or just vig?" before
+# any capital. Throttled + city-capped to bound HTTP. SHADOW only — no signals.
+NO_ARB_PROBE_ENABLED          = True
+NO_ARB_PROBE_INTERVAL_S       = 300.0   # at most once / 5 min
+NO_ARB_PROBE_MAX_CITIES       = 5       # ≤5 cities × ~11 legs ≈ 55 fetches / interval
+NO_ARB_PROBE_MIN_LEG_DEPTH_USD = 5.0    # a leg counts "fillable" only with ≥ this real ask depth
+
 # Per-layer gates. One fire per (condition_id, layer) — bucket can fire up to 5 times
 # across its lifetime, never twice in the same layer.
 # This is multi-fire BY LAYER, not by time. Statistical clustering is by bucket.
@@ -4830,6 +4843,14 @@ class WeatherArb:
             logger.info("[STWA] depth pre-fetch: %d/%d tokens enriched across %d arb-candidate cities",
                         _enriched, len(_toks_to_fetch), len(cities_for_depth_fetch))
 
+        # NO-arb real-book SHADOW probe (no capital): the Σyes<0.95 fetch above
+        # NEVER covers NO-arb-eligible cities (Σyes>1), so Face 2 has only ever
+        # seen Gamma-proxy prices. Measure the real book to see if an arb exists.
+        try:
+            await self._no_arb_shadow_probe(bucket_map, clob_books, now)
+        except Exception:
+            logger.debug("[NO-ARB-PROBE] probe failed (isolated)", exc_info=True)
+
         # Tier-4: capital already deployed per city today (open WEATHER_STWA
         # positions). Feeds the per-city-day budget R = budget − held_k so the
         # allocator caps total city-day exposure instead of re-deploying the full
@@ -5137,6 +5158,97 @@ class WeatherArb:
             return float(self.bot.risk.bankroll.capital)
         except Exception:
             return 30.0  # conservative fallback
+
+    async def _no_arb_shadow_probe(self, bucket_map: dict, clob_books: dict, now: float) -> None:
+        """SHADOW (no capital, no signals): fetch REAL CLOB books for the top
+        NO-arb-eligible cities and log real Σno_ask + per-leg fillable depth.
+
+        Rationale: Face 2's eligibility (Σno_proxy<N−1 ⟺ Σyes_proxy>1) is the
+        mathematical opposite of the real-book depth-fetch screen (Σyes_proxy<0.95),
+        so the NO-arb has only ever seen Gamma-proxy prices (no_ask=1−yes_gamma,
+        depth 0) where "arb" is just the overround. This measures the REAL book so
+        we can decide whether a fillable arb exists before risking capital.
+        Throttled (≤1/interval) + city-capped to bound HTTP cost.
+        """
+        if not NO_ARB_PROBE_ENABLED:
+            return
+        if now - getattr(self, "_no_arb_probe_last_ts", 0.0) < NO_ARB_PROBE_INTERVAL_S:
+            return
+        # Rank eligible cities by proxy NO-arb edge (most negative Σno−(N−1) first).
+        cand = []
+        for slug, bks in bucket_map.items():
+            legs = [(lo, hi, yt, nt) for (lo, hi, yt, nt) in bks if nt]
+            N = len(legs)
+            if N < 2:
+                continue
+            sum_no_proxy = sum((clob_books.get(nt) or {}).get("best_ask", 1.0) for *_, nt in legs)
+            if sum_no_proxy < N - 1:                       # NO-arb eligible on proxy
+                cand.append((sum_no_proxy - (N - 1), slug, legs, N, sum_no_proxy))
+        if not cand:
+            return
+        cand.sort(key=lambda x: x[0])
+        cand = cand[:NO_ARB_PROBE_MAX_CITIES]
+        self._no_arb_probe_last_ts = now
+
+        from datetime import datetime, timezone
+        import asyncio as _aio
+        today = datetime.now(timezone.utc).date().isoformat()
+        out_dir = Path(__file__).parent.parent / "logs" / "shadow" / "hot" / today
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        for _edge, slug, legs, N, sum_no_proxy in cand:
+            no_toks = [nt for *_, nt in legs]
+            books = await _aio.gather(
+                *[self._fetch_book_levels(t, n=5) for t in no_toks],
+                return_exceptions=True,
+            )
+            per_leg = []
+            real_sum_no = 0.0
+            n_fillable = 0
+            min_depth = None
+            ok_all = True
+            for (lo, hi, yt, nt), b in zip(legs, books):
+                if isinstance(b, Exception) or not isinstance(b, dict):
+                    ok_all = False
+                    real_sum_no += (clob_books.get(nt) or {}).get("best_ask", 1.0)  # fall back to proxy
+                    per_leg.append({"hi": hi, "no_ask": None, "depth": 0.0, "src": "err"})
+                    continue
+                asks = b.get("asks") or []
+                if not asks:
+                    ok_all = False
+                    real_sum_no += (clob_books.get(nt) or {}).get("best_ask", 1.0)
+                    per_leg.append({"hi": hi, "no_ask": None, "depth": 0.0, "src": "no_asks"})
+                    continue
+                ba = float(asks[0]["price"])
+                depth = round(sum(float(a["usd"]) for a in asks), 2)
+                real_sum_no += ba
+                min_depth = depth if min_depth is None else min(min_depth, depth)
+                if (0 < ba < 1) and depth >= NO_ARB_PROBE_MIN_LEG_DEPTH_USD:
+                    n_fillable += 1
+                else:
+                    ok_all = False
+                per_leg.append({"hi": hi, "no_ask": ba, "depth": depth, "src": "real"})
+            payoff = float(N - 1)
+            real_edge = round((payoff - real_sum_no) / real_sum_no, 4) if real_sum_no > 0 else None
+            real_arb = ok_all and (real_sum_no < payoff)
+            rec = {
+                "ts": round(now), "city": slug, "N": N,
+                "proxy_sum_no": round(sum_no_proxy, 4),
+                "real_sum_no": round(real_sum_no, 4),
+                "payoff_N_1": payoff, "real_edge": real_edge,
+                "n_legs_fillable": n_fillable, "all_legs_fillable": ok_all,
+                "min_leg_depth_usd": min_depth, "real_arb": real_arb,
+                "legs": per_leg,
+            }
+            try:
+                with (out_dir / "no_arb_probe.jsonl").open("a") as f:
+                    f.write(json.dumps(rec) + "\n")
+            except Exception:
+                logger.debug("[NO-ARB-PROBE] log write fail", exc_info=True)
+            logger.info("[NO-ARB-PROBE] %s N=%d proxyΣno=%.2f realΣno=%.2f payoff=%.0f edge=%s fillable=%d/%d all=%s ARB=%s",
+                        slug, N, sum_no_proxy, real_sum_no, payoff,
+                        f"{real_edge:.3f}" if real_edge is not None else "?",
+                        n_fillable, N, ok_all, real_arb)
 
     async def _fetch_book_levels(
         self, token_id: str, n: int = 3
