@@ -322,6 +322,14 @@ OFI_MAX_SEC_TO_CLOSE   = 21600  # ≤6h: stay in the intraday regime where the d
                                 # measured; excludes next-day/far-out speculative longshots
                                 # (the Taipei 38°C+ @14.7h case). Coarse — refine from
                                 # ofi_live.jsonl sec_to_close once v2 logs enough fires.
+# v2 active exit (drift-decay curve, 992 signals): drift dies when OFI dies — when OFI
+# is still strong@5m the 5→15m drift is +1.4c, when decayed it's +0.25c (≈nothing). So
+# exit on signal-decay, not a clock. Sell at bid (taker) → close_position (books once,
+# removes from open_positions; settler can't double-settle). Hold-to-resolution remains
+# the fallback if a position can't be cleanly sold (insufficient bid depth).
+OFI_EXIT_THRESH        = 0.50   # exit when (our-dir × current OFI) drops below this
+OFI_SCALP_TP           = 0.03   # or take profit early if bid ≥ entry + 3c
+OFI_TIME_CAP_S         = 1200   # backstop: force-consider exit at 20 min (momentum plateau)
 
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
 NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
@@ -3642,6 +3650,75 @@ class WeatherArb:
             logger.debug("[OFI] tape read failed", exc_info=True)
         return out
 
+    async def _ofi_manage_exits(self) -> None:
+        """v2 exit for WEATHER_OFI positions: leave when the OFI edge dies (our-dir OFI
+        < OFI_EXIT_THRESH), or scalp-TP (+OFI_SCALP_TP) hits, or the 20-min backstop.
+        Sell at bid (taker) then close_position (books PnL once + removes from
+        open_positions, so the settler can't double-settle). Only books on a confirmed
+        FULL fill; if bid depth < shares it waits (hold-to-resolution is the fallback) —
+        so no partial-fill accounting. Read-mostly + try/except: can't disturb STWA."""
+        if not OFI_LIVE_ENABLED:
+            return
+        import time as _t
+        now = _t.time()
+        try:
+            opens = [(t, p) for t, p in self.bot.risk.open_positions.items()
+                     if getattr(p, "bond_entry_class", "") == "WEATHER_OFI"]
+        except Exception:
+            return
+        if not opens:
+            return
+        from execution.order_manager import OrderStatus as _OS
+        from datetime import datetime as _dtx, timezone as _tzx
+        ofi_map = self._ofi_from_tape(now)
+        for tok, p in opens:
+            try:
+                cid = getattr(p, "condition_id", None)
+                held = now - getattr(p, "open_ts", now)
+                mydir = 1.0 if getattr(p, "bond_outcome_direction", "up") == "up" else -1.0
+                ofi = ofi_map.get(cid, (0.0, 0.0))[0]
+                signal_alive = (mydir * ofi) >= OFI_EXIT_THRESH
+                bk = await self._fetch_book_levels(tok, n=3)
+                bids = bk.get("bids") or []
+                if not bids:
+                    continue
+                bid = float(bids[0]["price"]); bidsz = float(bids[0]["size"])
+                entry = float(getattr(p, "entry_price", 0.0))
+                tp_hit = bid >= entry + OFI_SCALP_TP
+                time_up = held >= OFI_TIME_CAP_S
+                if signal_alive and not tp_hit and not time_up:
+                    continue  # edge still alive → hold
+                shares = float(getattr(p, "remaining_shares", 0.0) or 0.0)
+                if shares <= 0 or bidsz < shares:
+                    continue  # wait for full-exit depth; settler is the fallback
+                reason = "OFI_TP" if tp_hit else ("OFI_DECAY" if not signal_alive else "OFI_TIMECAP")
+                fill = await self.bot.orders.limit_sell(
+                    token_id=tok, price=round(bid, 4), size=shares, condition_id=cid)
+                filled = (getattr(fill, "status", None) == _OS.FILLED
+                          and float(getattr(fill, "total_size", 0) or 0) >= shares - 0.01)
+                if not filled:
+                    logger.info("[OFI] exit no-fill %s status=%s — retry next cycle",
+                                str(tok)[:10], getattr(fill, "status", None))
+                    continue
+                exitpx = float(getattr(fill, "avg_fill_price", bid) or bid)
+                pnl = self.bot.risk.close_position(
+                    tok, exit_price=exitpx, reason="WEATHER_OFI_EXIT", actual_fee=0.0)
+                logger.info("[OFI] EXIT %s %s held=%.0fs ofi=%.2f entry=%.3f exit=%.3f pnl=%.3f",
+                            reason, str(tok)[:10], held, ofi, entry, exitpx, pnl or 0.0)
+                try:
+                    _ld = Path("logs/shadow/hot") / _dtx.now(_tzx.utc).date().isoformat()
+                    _ld.mkdir(parents=True, exist_ok=True)
+                    (_ld / "ofi_live.jsonl").open("a").write(json.dumps({
+                        "ts": now, "record": "exit", "reason": reason, "cid": cid,
+                        "held_s": round(held), "ofi_now": round(ofi, 3),
+                        "entry": entry, "exit": round(exitpx, 4), "shares": shares,
+                        "pnl": round(pnl, 4) if pnl is not None else None,
+                    }) + "\n")
+                except Exception:
+                    pass
+            except Exception:
+                logger.debug("[OFI] exit failed %s", str(tok)[:10], exc_info=True)
+
     async def _m1_beta_probe_evaluate(
         self, *, now_ts: float, now_utc, first_seen: float,
         mkt: dict, city: str, icao: str, end_date: str,
@@ -4406,6 +4483,12 @@ class WeatherArb:
         """
         if not hasattr(self.bot, "_open_meta") or not hasattr(self.bot, "risk"):
             return
+
+        # v2: active OFI exits (signal-decay / scalp-TP / time-cap). Isolated.
+        try:
+            await self._ofi_manage_exits()
+        except Exception:
+            logger.debug("[OFI] manage_exits call failed", exc_info=True)
 
         from datetime import datetime, timezone
         for token_id, meta in list(self.bot._open_meta.items()):
