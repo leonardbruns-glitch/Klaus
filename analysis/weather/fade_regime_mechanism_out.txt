@@ -1,0 +1,28 @@
+building per-city-day peaks from data/stwa_asos.parquet ...
+city-days: 65,868   cities: 50
+
+=== mean PEAK CURVATURE (°C) by regime  [bigger = sharper peak = bigger fade gap] ===
+sky_t      clear(0-1)  partly(2)  cloudy(3-4)
+dew_t                                        
+humid(<4)       1.594      1.602        1.314
+mod(4-8)        1.776      1.739        1.682
+dry(>8)         1.738      1.769        1.872
+
+ cell counts:
+sky_t      clear(0-1)  partly(2)  cloudy(3-4)
+dew_t                                        
+humid(<4)        1884       1551         1893
+mod(4-8)         7514       6690         2585
+dry(>8)         18348      22724         2679
+
+ clear+dry  curv mean=1.738  n=18,348
+ cloudy+humid curv mean=1.314  n=1,893
+ => SHARPNESS RATIO clear-dry / cloudy-humid = 1.32x
+    (sampling gap ∝ curvature => fade EV ~1.32x larger on clear-dry days)
+
+=== marginals ===
+ by sky:    {'clear(0-1)': 1.738, 'partly(2)': 1.754, 'cloudy(3-4)': 1.656}
+ by dew:    {'humid(<4)': 1.497, 'mod(4-8)': 1.746, 'dry(>8)': 1.762}
+ corr(curv, sky_rank) = -0.013  (expect negative: cloudier=flatter)
+ corr(curv, dew_depr) = 0.036  (expect positive: drier=sharper)
+ corr(curv,sky) within amplitude quintiles (shape, not size): [np.float64(-0.086), np.float64(-0.001), np.float64(0.022), np.float64(0.041), np.float64(0.028)]
