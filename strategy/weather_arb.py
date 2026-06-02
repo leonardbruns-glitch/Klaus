@@ -266,6 +266,17 @@ M1_DIP_REBUY_ENABLED     = False  # 2026-06-01: DISABLED. Fires when no_ask ≤ 
                                   # live −$23.60. Re-enable only with official-hourly running_max gating.
 M1_DIP_REBUY_NO_ASK_MAX  = 0.25   # fire when NO ask ≤ this (market thinks YES ≥ 75%)
 M1_DIP_REBUY_MIN_DEPTH_C = 0.15   # live METAR cache must confirm this °C above hi_c
+
+# DIP-BUY SHADOW (2026-06-02, no capital) — the SAFE re-spec of dip-rebuy. The killed
+# dip-rebuy (above) trusted sub-hourly ASOS at no_ask≤0.25 = false-lockout generator.
+# This shadow logs cheap-NO candidates ONLY on a STRONG OFFICIAL lockout (official
+# running_max ≥ DIP_SHADOW_MIN_MARGIN_C past the ceiling, AWC/NWS-clean) — so the dip
+# is genuine NOISE, not real uncertainty (the Seoul 0.7 dip was thin-margin 0.5°C =
+# real uncertainty, NOT a clean buy). Logs broadly; sweep margin/dip thresholds + join
+# resolution offline before any live re-enable. Disable: DIP_SHADOW_ENABLED=False.
+DIP_SHADOW_ENABLED       = True
+DIP_SHADOW_MIN_MARGIN_C  = 1.0    # log at/above this OFFICIAL margin (sweep 1.0/1.5/2.0 offline)
+DIP_SHADOW_NO_ASK_MAX    = 0.95   # log when the real NO ask has dipped at/below this (a discount exists)
 M1_DIP_REBUY_STAKE_USD   = 5.0    # smaller than initial stake (correlated resolution)
 
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
@@ -3467,6 +3478,35 @@ class WeatherArb:
             return
         if not (M1_BETA_PROBE_MIN_SEC_SINCE <= sec_since < M1_BETA_PROBE_MAX_SEC_SINCE):
             return
+
+        # ── DIP-BUY SHADOW (no capital) — safe re-spec of the killed dip-rebuy ──
+        # Log cheap-NO candidates ONLY on a STRONG OFFICIAL lockout (official
+        # running_max well past the ceiling, AWC/NWS-clean ⇒ physically impossible),
+        # where a dip is NOISE not real uncertainty. Placed before the depth/edge/
+        # no_ask gates so it captures deep dips. Join resolution offline → confirm NO
+        # wins → only then re-enable dip-buy live on the validated (margin, dip) box.
+        if (DIP_SHADOW_ENABLED and override_layer is None
+                and official_running_max is not None and hi_c is not None
+                and no_ask_clob is not None and 0.02 < no_ask_clob <= DIP_SHADOW_NO_ASK_MAX
+                and (official_running_max - hi_c) >= DIP_SHADOW_MIN_MARGIN_C):
+            try:
+                _dd = Path("logs/shadow/hot") / now_utc.date().isoformat()
+                _dd.mkdir(parents=True, exist_ok=True)
+                _nbk = no_book or {}
+                with (_dd / "dip_shadow.jsonl").open("a") as _df:
+                    _df.write(json.dumps({
+                        "ts": round(now_ts), "city": city, "no_tok": no_token_id,
+                        "hi_c": hi_c,
+                        "official_running_max_c": round(float(official_running_max), 2),
+                        "official_margin_c": round(float(official_running_max) - hi_c, 2),
+                        "no_ask": no_ask_clob, "no_bid": _nbk.get("best_bid"),
+                        "no_depth_usd": _nbk.get("usd_depth"),
+                        "discount": round(1.0 - no_ask_clob, 4),
+                        "sec_to_close": seconds_to_close,
+                    }) + "\n")
+            except Exception:
+                logger.debug("[DIP-SHADOW] log fail", exc_info=True)
+
         if depth_c < M1_BETA_PROBE_MIN_DEPTH_C:
             return  # integer-bucket misclass guard
         # DIP layers bypass the MAX_EDGE gate: the whole point is buying when YES bid
