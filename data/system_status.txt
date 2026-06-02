@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+e54b547f research(alpha P2): velocity first-passage Stage-2 vs market = NEGATIVE
+950961bf research(alpha P2): velocity first-passage Stage-1 — thesis CONFIRMED (vs blind baseline)
 37cb11f7 feat(weather OFI): WS-direct trade feed (augment) — sub-second OFI vs 180s poll
 55ac2c79 fix(weather OFI): revert entry-window upper cap to old setting (user directive)
 e3a76178 feat(weather OFI v2): active signal-decay exit (sell, don't hold to daily res)
@@ -10,8 +12,6 @@ f1a36cfb feat(weather): WEATHER_OFI momentum entry LIVE-tiny (user GO-LIVE, Tier
 13476317 ops: nightly prune of dated shadow-log dirs (bound live-box disk)
 58bbadfb research(alpha): conservation-law cross-bucket edges + Edge-2 forward shadow logger
 dde168a8 research(alpha): Stage-2 thermo-vs-market = negative (-1.2c/contract; market already prices it)
-464740cf research(alpha): morning thermodynamic nowcast — dew point predicts level (+11% OOS) and variance of daily max
-5ee95235 research(alpha): Stage-2 climatology-vs-market EV = negative (market beats pure climatology)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   61G       33G  66% /
