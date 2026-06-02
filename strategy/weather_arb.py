@@ -1613,7 +1613,7 @@ class WeatherArb:
             price = fill_price if (fill_price and fill_price > 0) else float(ctx.get("q_price") or 0.0)
             prev = float(ctx.get("matched") or 0.0)
             if matched > prev + 1e-6 and matched > 0:
-                self._maker_register_fill(oid, ctx, matched, price)
+                self._maker_register_fill(oid, ctx, matched - prev, price)  # add the NEW shares only
                 ctx["matched"] = matched
             # Stop tracking once the order is no longer live on the book.
             fully_filled = matched > 0 and matched >= float(ctx.get("size") or 0.0) - 1e-6
@@ -1627,24 +1627,50 @@ class WeatherArb:
                         pass
                 resting.pop(oid, None)
 
-    def _maker_register_fill(self, oid: str, ctx: dict, matched: float, price: float) -> None:
-        """Register a filled maker NO bid as a held-to-resolution position. Mirrors
-        the M1β taker registration so the resolution poller settles it identically."""
+    def _maker_register_fill(self, oid: str, ctx: dict, add_shares: float, price: float) -> None:
+        """Book `add_shares` (the fill increment since the last poll) of a maker NO
+        bid into a held-to-resolution position. New token → open it. ALREADY tracked
+        (an M1β taker on the same bucket, or a prior maker partial) → ADD the shares
+        with a cost-blended entry_price so settlement counts the full fill
+        (close_position uses remaining_shares × (exit − entry_price))."""
         from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+        if add_shares <= 0:
+            return
         tid = ctx["token_id"]
         risk = self.bot.risk
-        if tid in getattr(risk, "open_positions", {}):
-            # Already tracked (e.g. an M1β taker on the same bucket, or a prior
-            # partial). CLOB accumulates the extra wallet shares; don't overwrite
-            # the existing PositionMeta with a smaller size. Log and move on.
-            logger.info("[MAKER-FILL] %s NO already tracked; maker matched=%.1f @ %.4f",
-                        ctx.get("city"), matched, price)
+        pos = getattr(risk, "open_positions", {}).get(tid)
+        if pos is not None:
+            # Blend the maker lot into the existing position (weighted-average cost).
+            old_sh = float(getattr(pos, "remaining_shares", 0.0) or 0.0)
+            old_entry = float(getattr(pos, "entry_price", price) or price)
+            new_sh = old_sh + add_shares
+            new_entry = ((old_sh * old_entry + add_shares * price) / new_sh) if new_sh > 0 else price
+            pos.remaining_shares = new_sh
+            try:
+                pos.shares = float(getattr(pos, "shares", old_sh) or old_sh) + add_shares
+            except Exception:
+                pass
+            pos.entry_price = round(new_entry, 6)
+            try:
+                pos.stake = round(float(getattr(pos, "stake", 0.0) or 0.0) + add_shares * price, 4)
+            except Exception:
+                pass
+            meta = self.bot._open_meta.setdefault(tid, {})
+            meta.setdefault("maker_fills", []).append(
+                {"oid": oid, "shares": round(add_shares, 2), "price": round(price, 4)})
+            try:
+                risk._save_positions()
+            except Exception:
+                pass
+            logger.warning("[MAKER-FILL] +%.1f maker sh @ %.4f → %s NO %s now shares=%.1f entry=%.4f",
+                           add_shares, price, ctx.get("city"), str(tid)[:12], new_sh, new_entry)
             return
+        # New position — the maker is the first fill on this token.
         risk.open_position(
             token_id=tid,
             asset="WEATHER",
             direction=_Dir.BUY_NO,
-            stake=matched * price,
+            stake=add_shares * price,
             entry_price=price,
             tpsl=_TPSL(take_profit=0.0, stop_loss=0.0,
                        tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
@@ -1663,8 +1689,8 @@ class WeatherArb:
         meta["bucket_lo_c"] = ctx.get("lo_c")
         meta["bucket_hi_c"] = ctx.get("hi_c")
         meta["maker_order_id"] = oid
-        logger.warning("[MAKER-FILL] registered %s NO %s matched=%.1f @ %.4f (cond=%s)",
-                       ctx.get("city"), str(tid)[:12], matched, price,
+        logger.warning("[MAKER-FILL] registered %s NO %s +%.1f @ %.4f (cond=%s)",
+                       ctx.get("city"), str(tid)[:12], add_shares, price,
                        str(ctx.get("condition_id"))[:10])
 
     async def _stwa_resolution_loop(self) -> None:
