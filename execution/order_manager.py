@@ -573,6 +573,30 @@ class OrderManager:
             logger.warning("cancel_order %s failed: %s", str(order_id)[:12], exc)
             return False
 
+    async def get_order_match(self, order_id: str):
+        """Poll a resting order's fill progress (REST — the source of truth across WS
+        reconnects). Returns (status_str, size_matched, avg_price); (None, 0.0, 0.0)
+        if the order can't be fetched. Used by the maker fill→position tracker to
+        detect when a resting maker order fills and register it as a held position."""
+        if not order_id or self._client is None:
+            return (None, 0.0, 0.0)
+        try:
+            info = await asyncio.to_thread(self._client.get_order, order_id)
+        except Exception as exc:
+            logger.debug("get_order_match %s failed: %s", str(order_id)[:12], exc)
+            return (None, 0.0, 0.0)
+        d = info if isinstance(info, dict) else (getattr(info, "__dict__", {}) or {})
+        status = str(d.get("status", "") or "")
+        try:
+            matched = float(d.get("size_matched", d.get("sizeMatched", 0)) or 0.0)
+        except Exception:
+            matched = 0.0
+        try:
+            price = float(d.get("price", 0) or 0.0)
+        except Exception:
+            price = 0.0
+        return (status, matched, price)
+
     # kept as alias for backward compatibility with main.py
     async def market_buy(
         self,

@@ -1570,6 +1570,90 @@ class WeatherArb:
         except Exception as _e:
             logger.warning("[WA] WIS2 subscriber failed to start: %s", _e)
 
+    async def _maker_reconcile_fills(self) -> None:
+        """Fill→position tracker for the locked-region maker.
+
+        maker_buy() posts a resting NO bid and returns RESTING — the fill lands
+        asynchronously (minutes/hours later) with no live waiter, so without this
+        a fill is invisible: it never becomes a risk.open_position, never reaches
+        the resolution poller, never books PnL (the old write-only-book failure).
+
+        This polls each tracked resting maker order via REST (get_order_match —
+        source of truth across WS reconnects) and, on any matched volume, registers
+        the position (tagged WEATHER_M1_PROBE so the existing settler closes it at
+        resolution). Terminal orders (filled/cancelled/expired) are dropped from the
+        tracker and released from the breaker's resting-exposure cap.
+        """
+        resting = getattr(self, "_maker_resting", None)
+        if not resting:
+            return
+        orders = getattr(self.bot, "orders", None)
+        risk = getattr(self.bot, "risk", None)
+        if orders is None or risk is None:
+            return
+        breaker = getattr(self, "_maker_breaker", None)
+        for oid in list(resting.keys()):
+            ctx = resting[oid]
+            status, matched, fill_price = await orders.get_order_match(oid)
+            if status is None:
+                continue  # transient fetch failure — retry next pass
+            price = fill_price if (fill_price and fill_price > 0) else float(ctx.get("q_price") or 0.0)
+            prev = float(ctx.get("matched") or 0.0)
+            if matched > prev + 1e-6 and matched > 0:
+                self._maker_register_fill(oid, ctx, matched, price)
+                ctx["matched"] = matched
+            # Stop tracking once the order is no longer live on the book.
+            fully_filled = matched > 0 and matched >= float(ctx.get("size") or 0.0) - 1e-6
+            terminal = status.upper() in (
+                "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "INVALID")
+            if fully_filled or terminal:
+                if breaker is not None:
+                    try:
+                        breaker.release(oid)
+                    except Exception:
+                        pass
+                resting.pop(oid, None)
+
+    def _maker_register_fill(self, oid: str, ctx: dict, matched: float, price: float) -> None:
+        """Register a filled maker NO bid as a held-to-resolution position. Mirrors
+        the M1β taker registration so the resolution poller settles it identically."""
+        from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+        tid = ctx["token_id"]
+        risk = self.bot.risk
+        if tid in getattr(risk, "open_positions", {}):
+            # Already tracked (e.g. an M1β taker on the same bucket, or a prior
+            # partial). CLOB accumulates the extra wallet shares; don't overwrite
+            # the existing PositionMeta with a smaller size. Log and move on.
+            logger.info("[MAKER-FILL] %s NO already tracked; maker matched=%.1f @ %.4f",
+                        ctx.get("city"), matched, price)
+            return
+        risk.open_position(
+            token_id=tid,
+            asset="WEATHER",
+            direction=_Dir.BUY_NO,
+            stake=matched * price,
+            entry_price=price,
+            tpsl=_TPSL(take_profit=0.0, stop_loss=0.0,
+                       tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
+            condition_id=ctx.get("condition_id", ""),
+            window_end_ts=0.0,
+            is_bond=True,
+            bond_outcome_direction="down",
+            bond_entry_class="WEATHER_M1_PROBE",
+        )
+        meta = self.bot._open_meta.setdefault(tid, {})
+        meta["signal_source"] = f"WEATHER/{ctx.get('city')}/WEATHER_MAKER"
+        meta["city"] = ctx.get("city")
+        meta["icao"] = ctx.get("icao")
+        meta["weather_question"] = ctx.get("question")
+        meta["weather_date"] = ctx.get("end_date")
+        meta["bucket_lo_c"] = ctx.get("lo_c")
+        meta["bucket_hi_c"] = ctx.get("hi_c")
+        meta["maker_order_id"] = oid
+        logger.warning("[MAKER-FILL] registered %s NO %s matched=%.1f @ %.4f (cond=%s)",
+                       ctx.get("city"), str(tid)[:12], matched, price,
+                       str(ctx.get("condition_id"))[:10])
+
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.
 
@@ -1583,6 +1667,10 @@ class WeatherArb:
         """
         await asyncio.sleep(90.0)  # let positions/feed settle after restart
         while True:
+            try:
+                await self._maker_reconcile_fills()
+            except Exception:
+                logger.exception("[MAKER-FILL] reconcile failed")
             try:
                 await self._stwa_resolve_once()
             except Exception:
@@ -3199,6 +3287,8 @@ class WeatherArb:
     async def _maker_locked_exercise(
         self, *, city: str, no_token_id: str, no_book: dict,
         no_ask_clob, hi_c, official_running_max, now_ts: float, now_utc,
+        icao: str = "", question: str = "", end_date: str = "",
+        lo_c=None, condition_id: str = "",
     ) -> None:
         """Controlled first-exercise of the maker_buy primitive on a provenance-clean
         locked bucket (caller already cleared M1β's gates ⇒ NO physically certain,
@@ -3211,6 +3301,9 @@ class WeatherArb:
                 MAKER_BREAKER_MAX_EXPOSURE_USD, MAKER_BREAKER_MIN_BANKROLL_USD)
             self._maker_ex_seen: set = set()
             self._maker_ex_orders: int = 0
+            # order_id → fill-tracking context; the resolution loop polls each and
+            # registers the position once it fills (the fill→position tracker).
+            self._maker_resting: dict = {}
         if no_token_id in self._maker_ex_seen:
             return
         if no_ask_clob is None or no_ask_clob <= 0.02:
@@ -3277,6 +3370,13 @@ class WeatherArb:
         status = getattr(result, "status", None)
         if status == OrderStatus.RESTING and oid:
             self._maker_breaker.register_resting(oid, MAKER_EXERCISE_STAKE_USD)
+            # Hand the order to the fill→position tracker (resolution loop polls it).
+            self._maker_resting[oid] = {
+                "token_id": no_token_id, "city": city, "icao": icao,
+                "question": question, "end_date": end_date,
+                "lo_c": lo_c, "hi_c": hi_c, "condition_id": condition_id,
+                "q_price": q_price, "size": size, "matched": 0.0,
+            }
         rec["mode"] = "LIVE"
         rec["order_id"] = oid
         rec["status"] = str(status)
@@ -3370,7 +3470,9 @@ class WeatherArb:
                     city=city, no_token_id=no_token_id, no_book=no_book,
                     no_ask_clob=no_ask_clob, hi_c=hi_c,
                     official_running_max=official_running_max,
-                    now_ts=now_ts, now_utc=now_utc)
+                    now_ts=now_ts, now_utc=now_utc,
+                    icao=icao, question=question, end_date=end_date,
+                    lo_c=lo_c, condition_id=mkt.get("conditionId", ""))
             except Exception:
                 # A maker bug must NEVER disrupt the live M1β/scan path.
                 logger.debug("[MAKER-EX] exercise failed (isolated)", exc_info=True)
