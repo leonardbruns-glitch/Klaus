@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+376772ce feat(dip): safe dip-buy SHADOW — cheap NO only on strong OFFICIAL lockout (no capital)
+762d1d6c feat(maker): uncap order count + raise breaker $15->$40 (Tier-3, user)
+7776eb01 fix(maker): add maker shares to already-tracked position (blend), don't skip
+456a2a2f fix(stations): panama-city MPTO->MPMG (resolution station) + audit confirms 46/47 already correct
+ec5b5a97 fix(fade): _lp_allocate_city has no 'cs' — look up city state explicitly
+e9723499 feat(fade): forward shadow logger + station-map audit for the resolution-bias edge
 a5e8c7e6 analysis(alpha): resolution hourly-sampling bias backtest — fade the physical-peak bin
 9ea1b89e analysis(no-arb): probe distribution summarizer
 94fb13a8 feat(no-arb): real-book SHADOW probe — measure if NO-arb is real or just vig
 0cea85aa feat(maker): fill→position tracker — async maker fills now register + settle
-5c8a6404 Watchdog 2026-06-02T05:18Z: MEDIUM 3 alerts (BOT_DOWN→OK)
-dc14f21e Watchdog 2026-06-02T04:19Z: OK 0 alerts
-895439be Watchdog 2026-06-02T03:18Z: HIGH 2 alerts (TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
-8fff876d Watchdog 2026-06-02T02:18:33Z: HIGH 1 alerts (CAPITAL_DROP)
-b19d7c14 Watchdog 2026-06-02T01:18:54Z: CRITICAL 3 alerts (BOT_DOWN, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT); CAPITAL_RUIN resolved
-3742ff6f feat(maker): stage 3 LIVE — locked-region first-exercise (real $5, monitored)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   92G        1G 100% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   93G        1G 100% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-02 05:54:44 UTC
+ActiveEnterTimestamp=Tue 2026-06-02 07:48:26 UTC
 
 ## Open positions (count):
 0
