@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+17583cf2 feat(fade): LIVE resolution-bias NO-buy on prime bin above official running_max (user go-live)
+e91d540c fix(fade): gate-independent fade recorder in weather_arb (real-book enriched)
+91bf1dae feat(fade): real-CLOB-book pre-fetch for fade-shadow — measure prime-bin fillability
 376772ce feat(dip): safe dip-buy SHADOW — cheap NO only on strong OFFICIAL lockout (no capital)
 762d1d6c feat(maker): uncap order count + raise breaker $15->$40 (Tier-3, user)
 7776eb01 fix(maker): add maker shares to already-tracked position (blend), don't skip
@@ -9,15 +12,12 @@ active
 ec5b5a97 fix(fade): _lp_allocate_city has no 'cs' — look up city state explicitly
 e9723499 feat(fade): forward shadow logger + station-map audit for the resolution-bias edge
 a5e8c7e6 analysis(alpha): resolution hourly-sampling bias backtest — fade the physical-peak bin
-9ea1b89e analysis(no-arb): probe distribution summarizer
-94fb13a8 feat(no-arb): real-book SHADOW probe — measure if NO-arb is real or just vig
-0cea85aa feat(maker): fill→position tracker — async maker fills now register + settle
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   93G        0G 100% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   94G        0G 100% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-02 07:48:26 UTC
+ActiveEnterTimestamp=Tue 2026-06-02 11:11:32 UTC
 
 ## Open positions (count):
 0
