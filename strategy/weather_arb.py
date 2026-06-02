@@ -318,10 +318,10 @@ OFI_MID_LO             = 0.15   # entry mid band (avoid pinned tails)
 OFI_MID_HI             = 0.85
 OFI_MIN_DEPTH_USD      = 20.0   # fillable depth on the entry side (so $2 fills)
 OFI_MIN_SEC_TO_CLOSE   = 120    # ≥2 min runway to resolution
-OFI_MAX_SEC_TO_CLOSE   = 21600  # ≤6h: stay in the intraday regime where the drift was
-                                # measured; excludes next-day/far-out speculative longshots
-                                # (the Taipei 38°C+ @14.7h case). Coarse — refine from
-                                # ofi_live.jsonl sec_to_close once v2 logs enough fires.
+OFI_MAX_SEC_TO_CLOSE   = 21600  # DISABLED 2026-06-02 (user directive): upper cap reverted to
+                                # old setting (no cap — any market ≥OFI_MIN to close is eligible);
+                                # the gate now only checks the lower bound. Constant kept so the
+                                # 6h cap can be re-enabled by restoring `or _stc > OFI_MAX_SEC_TO_CLOSE`.
 # v2 active exit (drift-decay curve, 992 signals): drift dies when OFI dies — when OFI
 # is still strong@5m the 5→15m drift is +1.4c, when decayed it's +0.25c (≈nothing). So
 # exit on signal-decay, not a clock. Sell at bid (taker) → close_position (books once,
@@ -5411,7 +5411,7 @@ class WeatherArb:
                                 _stc = (_ec - _now_utc_o).total_seconds()
                             except Exception:
                                 _stc = 9e9
-                            if _stc < OFI_MIN_SEC_TO_CLOSE or _stc > OFI_MAX_SEC_TO_CLOSE:
+                            if _stc < OFI_MIN_SEC_TO_CLOSE:
                                 continue
                             logger.info("[OFI] FIRE %s %s ofi=%+.2f vol=$%.0f mid=%.3f depth=$%.0f stc=%.0f",
                                         _city, ("YES" if _up else "NO"), _ofi, _vol, _mid, _depth, _stc)
