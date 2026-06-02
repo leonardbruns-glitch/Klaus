@@ -99,7 +99,7 @@ STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-re
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
 # at bid>=0.999, so positions that never reach TP must be settled here or their (mostly
 # winning) PnL never banks — the same write-only gap STWA had.
-_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE")
+_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI")
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -297,6 +297,27 @@ FADE_WIN_PRIOR         = 0.90   # Kelly win-prob prior — HAIRCUT from backtest
 FADE_KELLY_FRACTION    = 0.20   # of full Kelly (matches STWA)
 FADE_MIN_STAKE         = 3.0
 FADE_MAX_STAKE         = 20.0
+
+# ── WEATHER OFI MOMENTUM (live-tiny, user GO-LIVE 2026-06-02) ──────────────────
+# Per-bucket order-flow imbalance predicts resolution (research: edge2/conservation,
+# +3.3pp/contract net on actual Gamma resolution, 90 events). v1 = OFI entry, HOLD TO
+# RESOLUTION via the existing STWA settler (these are 5/15-min windows so the hold is
+# ≤window; the settler is the validated, accounting-safe path). The 15-min ACTIVE sell
+# (momentum scalp) is v2 — needs early-sell accounting; the resolution hold is its +EV
+# fallback. OFI read from the maker_flow.jsonl tail (the probe already polls weather
+# trades) → no new HTTP. ⚠ ON-RECORD DISSENT: validated on 2-3d backtest, n=0 LIVE;
+# user chose go-live-tiny over shadow-first. HARD CAPS bound blast radius to ~$20/day.
+OFI_LIVE_ENABLED       = True
+OFI_STAKE_USD          = 2.0    # tiny — this is a real-fill validation, not a size bet
+OFI_MAX_CONCURRENT     = 3      # max open WEATHER_OFI positions at once (≤$6 at risk)
+OFI_MAX_FIRES_DAY      = 10     # hard daily cap (≤$20 deployed/day); resets at UTC midnight
+OFI_MIN                = 0.75   # |rolling-OFI| trigger (strongly one-sided flow)
+OFI_WIN_S              = 300.0  # rolling OFI window (matches backtest)
+OFI_MIN_VOL_USD        = 100.0  # min rolling $-volume to trust the imbalance
+OFI_MID_LO             = 0.15   # entry mid band (avoid pinned tails)
+OFI_MID_HI             = 0.85
+OFI_MIN_DEPTH_USD      = 20.0   # fillable depth on the entry side (so $2 fills)
+OFI_MIN_SEC_TO_CLOSE   = 120    # ≥2 min runway to resolution
 
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
 NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
@@ -3569,6 +3590,54 @@ class WeatherArb:
         logger.info("[FADE] FILLED %s NO@%.4f size=%.1f stake=$%.2f",
                     city, fill_price, fill_size, fill_size * fill_price)
 
+    def _ofi_from_tape(self, now_ts: float) -> dict:
+        """Rolling OFI per condition_id from the maker_flow.jsonl tail (the probe's
+        weather trade feed) — no new HTTP. ask-side(+) = YES-buy pressure. Returns
+        {cid: (ofi, vol_usd)} for buckets with >= OFI_MIN_VOL_USD rolling volume."""
+        from datetime import datetime as _dt, timezone as _tz
+        out: dict = {}
+        try:
+            path = Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat() / "maker_flow.jsonl"
+            if not path.exists():
+                return out
+            sz = path.stat().st_size
+            with open(path, "rb") as fh:
+                if sz > 2_000_000:
+                    fh.seek(sz - 2_000_000)
+                    fh.readline()  # drop partial line
+                chunk = fh.read().decode("utf-8", "ignore")
+            agg: dict = {}
+            cutoff = now_ts - OFI_WIN_S
+            for line in chunk.splitlines():
+                if "highest-temperature" not in line:
+                    continue
+                try:
+                    r = json.loads(line)
+                    ts = float(r.get("timestamp"))
+                except (ValueError, TypeError):
+                    continue
+                if ts < cutoff:
+                    continue
+                cid = r.get("conditionId")
+                if not cid:
+                    continue
+                try:
+                    notion = float(r.get("price")) * float(r.get("size"))
+                except (TypeError, ValueError):
+                    continue
+                oc = str(r.get("outcome", "")).lower()
+                sd = str(r.get("side", "")).upper()
+                ask = (oc == "yes" and sd == "BUY") or (oc == "no" and sd == "SELL")
+                a = agg.setdefault(cid, [0.0, 0.0])
+                a[0] += notion if ask else -notion
+                a[1] += notion
+            for cid, (signed, vol) in agg.items():
+                if vol >= OFI_MIN_VOL_USD:
+                    out[cid] = (signed / vol, vol)
+        except Exception:
+            logger.debug("[OFI] tape read failed", exc_info=True)
+        return out
+
     async def _m1_beta_probe_evaluate(
         self, *, now_ts: float, now_utc, first_seen: float,
         mkt: dict, city: str, icao: str, end_date: str,
@@ -5197,6 +5266,112 @@ class WeatherArb:
                         logger.debug("[FADE] live fire failed (isolated) %s", _slug, exc_info=True)
         except Exception:
             logger.debug("[STWA] fade shadow recorder failed (isolated)", exc_info=True)
+
+        # ── WEATHER OFI MOMENTUM live fire (user GO-LIVE 2026-06-02; hold-to-res v1) ──
+        # OFI from the maker_flow tail → taker-buy the flow-aligned token, register
+        # WEATHER_OFI (settler holds to resolution = validated +EV on these ≤15-min
+        # windows). HARD CAPS: $2/fill, ≤3 concurrent, ≤10 fires/day, 1/bucket/day.
+        # On-record dissent: n=0 LIVE; user chose go-live-tiny over shadow-first.
+        try:
+            if OFI_LIVE_ENABLED:
+                from datetime import datetime as _dto, timezone as _tzo
+                from strategy.momentum import Direction as _DirO, TPSLLevels as _TPSLO
+                from execution.order_manager import OrderStatus as _OSO
+                _today = _dto.now(_tzo.utc).date().isoformat()
+                if getattr(self, "_ofi_day", None) != _today:
+                    self._ofi_day = _today
+                    self._ofi_fired = set()
+                    self._ofi_fires_today = 0
+                _open_ofi = sum(1 for _p in self.bot.risk.open_positions.values()
+                                if getattr(_p, "bond_entry_class", "") == "WEATHER_OFI")
+                if self._ofi_fires_today < OFI_MAX_FIRES_DAY and _open_ofi < OFI_MAX_CONCURRENT:
+                    _ofi_map = self._ofi_from_tape(now)
+                    _cid2mkt = {}
+                    for _e in (self._today_markets_cache or []):
+                        _m = _e.get("mkt") or {}
+                        _tids = _parse_token_ids(_m.get("clobTokenIds", []))
+                        _cid = _m.get("conditionId")
+                        if _cid and len(_tids) >= 2:
+                            _cid2mkt[_cid] = (_m, _e.get("city"), _e.get("icao"), _tids[0], _tids[1])
+                    _now_utc_o = _dto.now(_tzo.utc)
+                    for _cid, (_ofi, _vol) in _ofi_map.items():
+                        if abs(_ofi) < OFI_MIN or _cid in self._ofi_fired:
+                            continue
+                        if self._ofi_fires_today >= OFI_MAX_FIRES_DAY or _open_ofi >= OFI_MAX_CONCURRENT:
+                            break
+                        _mm = _cid2mkt.get(_cid)
+                        if not _mm:
+                            continue
+                        _mkt, _city, _icao, _yes, _no = _mm
+                        _up = _ofi > 0
+                        _tok = _yes if _up else _no
+                        _dir = _DirO.BUY_YES if _up else _DirO.BUY_NO
+                        if _tok in self.bot.risk.open_positions:
+                            continue
+                        try:
+                            _bk = await self._fetch_book_levels(_tok, n=5)
+                            _asks = _bk.get("asks") or []
+                            _bids = _bk.get("bids") or []
+                            if not _asks or not _bids:
+                                continue
+                            _ba = float(_asks[0]["price"]); _bb = float(_bids[0]["price"])
+                            _mid = 0.5 * (_ba + _bb)
+                            _depth = sum(float(_a["usd"]) for _a in _asks if float(_a["price"]) <= _ba + 0.03)
+                            if not (OFI_MID_LO <= _mid <= OFI_MID_HI) or _depth < OFI_MIN_DEPTH_USD:
+                                continue
+                            try:
+                                _ec = _dto.fromisoformat((_mkt.get("endDate") or "").replace("Z", "+00:00"))
+                                _stc = (_ec - _now_utc_o).total_seconds()
+                            except Exception:
+                                _stc = 9e9
+                            if _stc < OFI_MIN_SEC_TO_CLOSE:
+                                continue
+                            logger.info("[OFI] FIRE %s %s ofi=%+.2f vol=$%.0f mid=%.3f depth=$%.0f stc=%.0f",
+                                        _city, ("YES" if _up else "NO"), _ofi, _vol, _mid, _depth, _stc)
+                            _fill = await self.bot.orders.limit_buy(
+                                token_id=_tok, intended_price=_ba, stake_usd=OFI_STAKE_USD,
+                                direction=_dir, neg_risk=_mkt.get("negRisk", True), fast_fail=False,
+                            )
+                            self._ofi_fired.add(_cid)   # one attempt per bucket/day
+                            _filled = (_fill.status == _OSO.FILLED and _fill.total_size > 0)
+                            _fp = float(_fill.avg_fill_price) if _filled else None
+                            _fs = float(_fill.total_size) if _filled else 0.0
+                            try:
+                                _ld = Path("logs/shadow/hot") / _now_utc_o.date().isoformat()
+                                _ld.mkdir(parents=True, exist_ok=True)
+                                (_ld / "ofi_live.jsonl").open("a").write(json.dumps({
+                                    "ts": now, "city": _city, "cid": _cid, "dir": ("YES" if _up else "NO"),
+                                    "ofi": round(_ofi, 4), "vol_usd": round(_vol, 1), "mid": round(_mid, 4),
+                                    "best_ask": _ba, "depth_usd": round(_depth, 1), "sec_to_close": round(_stc),
+                                    "filled": _filled, "fill_price": _fp, "fill_size": _fs,
+                                    "question": _mkt.get("question", ""),
+                                }) + "\n")
+                            except Exception:
+                                pass
+                            if not _filled or _tok in self.bot.risk.open_positions:
+                                continue
+                            self.bot.risk.open_position(
+                                token_id=_tok, asset="WEATHER", direction=_dir,
+                                stake=_fs * _fp, entry_price=_fp,
+                                tpsl=_TPSLO(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
+                                condition_id=_cid, window_end_ts=0.0, is_bond=True,
+                                bond_outcome_direction=("up" if _up else "down"),
+                                bond_entry_class="WEATHER_OFI",
+                            )
+                            _meta = self.bot._open_meta.setdefault(_tok, {})
+                            _meta["signal_source"] = f"WEATHER/{_city}/WEATHER_OFI"
+                            _meta["city"] = _city
+                            _meta["icao"] = _icao
+                            _meta["weather_question"] = _mkt.get("question", "")
+                            _meta["weather_date"] = (_mkt.get("endDate") or "")[:10]
+                            self._ofi_fires_today += 1
+                            _open_ofi += 1
+                            logger.info("[OFI] FILLED %s %s @%.4f size=%.1f stake=$%.2f",
+                                        _city, ("YES" if _up else "NO"), _fp, _fs, _fs * _fp)
+                        except Exception:
+                            logger.debug("[OFI] live fire failed (isolated) %s", _cid, exc_info=True)
+        except Exception:
+            logger.debug("[OFI] block failed (isolated)", exc_info=True)
 
         # Tier-4: capital already deployed per city today (open WEATHER_STWA
         # positions). Feeds the per-city-day budget R = budget − held_k so the
