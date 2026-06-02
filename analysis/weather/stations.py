@@ -98,7 +98,7 @@ STATIONS: dict[str, Station] = {
     "kuala-lumpur":  Station("kuala-lumpur",  "WMKK", "my/kuala-lumpur/WMKK",       2.7456,  101.7072,"C", 1, _GLOBAL, False, "Asia/Kuala_Lumpur"),
     "lucknow":       Station("lucknow",       "VILK", "in/lucknow/VILK",           26.7606,   80.8893,"C", 1, _GLOBAL, False, "Asia/Kolkata"),
     "manila":        Station("manila",        "RPLL", "ph/manila/RPLL",            14.5086,  121.0197,"C", 1, _GLOBAL, False, "Asia/Manila"),
-    "panama-city":   Station("panama-city",   "MPTO", "pa/panama-city/MPTO",        9.0714,  -79.3835,"C", 1, _GLOBAL, False, "America/Panama"),
+    "panama-city":   Station("panama-city",   "MPMG", "pa/panama-city/MPMG",        8.967,   -79.555, "C", 1, _GLOBAL, False, "America/Panama"),  # 2026-06-02: resolves on MPMG (Albrook) per WU URL, not MPTO. NB MPMG is an AUTO station w/ frequently-missing temp — running_max may be sparse.
     "seoul":         Station("seoul",         "RKSI", "kr/incheon/RKSI",           37.4692,  126.4505,"C", 1, _GLOBAL, False, "Asia/Seoul"),
     "wellington":    Station("wellington",    "NZWN", "nz/wellington/NZWN",       -41.3272,  174.8054,"C", 1, _GLOBAL, False, "Pacific/Auckland"),
     "wuhan":         Station("wuhan",         "ZHHH", "cn/wuhan/ZHHH",             30.7838,  114.2081,"C", 1, _GLOBAL, False, "Asia/Shanghai"),
