@@ -1,0 +1,20 @@
+pricers built (vel-aware M, vel-blind B1); decision=peak+[0, 1]h THR=0.1
+  austin: 28 mkts, 56 decision pts
+  houston: 28 mkts, 56 decision pts
+  dallas: 27 mkts, 54 decision pts
+  chicago: 28 mkts, 56 decision pts
+  atlanta: 27 mkts, 54 decision pts
+
+=== velocity-BLIND (baseline) vs MARKET (decision peak+[0, 1]h) ===
+  trades=154 WR=34% meanEV=-0.0229/contract total=-3.53
+    BUY YES: n=58 WR=22% meanEV=+0.0298 total=+1.73
+    BUY NO: n=96 WR=42% meanEV=-0.0547 total=-5.25
+    |edge| low  half: n=77 meanEV=-0.0314 avg|edge|=0.20
+    |edge| high half: n=77 meanEV=-0.0144 avg|edge|=0.48
+
+=== velocity-AWARE (P2) vs MARKET (decision peak+[0, 1]h) ===
+  trades=156 WR=35% meanEV=-0.0257/contract total=-4.01
+    BUY YES: n=58 WR=24% meanEV=+0.0390 total=+2.26
+    BUY NO: n=98 WR=42% meanEV=-0.0640 total=-6.27
+    |edge| low  half: n=78 meanEV=-0.0628 avg|edge|=0.20
+    |edge| high half: n=78 meanEV=+0.0114 avg|edge|=0.46
