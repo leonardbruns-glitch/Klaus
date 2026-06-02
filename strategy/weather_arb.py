@@ -224,9 +224,9 @@ M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 MAKER_EXERCISE_ENABLED           = True    # shadow-log maker candidates on locked buckets
 MAKER_EXERCISE_LIVE              = True    # ⚠ LIVE real resting orders (2026-06-01 stage-3, MONITORED)
 MAKER_EXERCISE_STAKE_USD         = 5.0     # per-order (user; raised from $4 — CLOB 5-share floor makes <~$4.5 unfillable at NO~0.9)
-MAKER_EXERCISE_MAX_ORDERS        = 5       # ≤5 real orders, first session (user)
-MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 1.0     # LIVE only: official running_max ≥ this °C past ceiling
-MAKER_BREAKER_MAX_EXPOSURE_USD   = 15.0    # trip if Σ resting maker stake exceeds this
+MAKER_EXERCISE_MAX_ORDERS        = 100000  # effectively UNCAPPED (user 2026-06-02; order code proven). The margin≥1°C locked-slice gate + breaker are the real bounds. Revert: 5.
+MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 1.0     # LIVE only: official running_max ≥ this °C past ceiling (KEPT — the real throttle)
+MAKER_BREAKER_MAX_EXPOSURE_USD   = 40.0    # trip if Σ resting maker stake exceeds this (raised 15→40 by user 2026-06-02; ≤8 concurrent @ $5). NB bounds RESTING only — filled positions accumulate beyond it.
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 
 # ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
