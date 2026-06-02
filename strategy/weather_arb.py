@@ -5873,9 +5873,25 @@ class WeatherArb:
             return False
 
     def _get_bankroll(self) -> float:
-        """Current usable bankroll from the risk manager."""
+        """FREE DEPLOYABLE CASH = total equity − cost basis of open positions.
+
+        Sizing must reflect real liquid cash, not total account value. `capital`
+        counts held-to-resolution positions at cost basis (cash + positions), so
+        sizing off it over-deploys the shrinking free cash as positions accumulate
+        (2026-06-03: capital $117.69 = $53 cash + $64.53 in 9 open positions →
+        every Kelly sizer ran ~2.1× hot). Subtract the still-open cost basis
+        (remaining_shares × entry_price; fallback to recorded stake) so the base is
+        what can actually be deployed; it self-corrects toward `capital` as
+        positions resolve and cash returns. The risk-of-ruin floor still checks
+        total equity (bankroll.capital) directly — unchanged."""
         try:
-            return float(self.bot.risk.bankroll.capital)
+            cap = float(self.bot.risk.bankroll.capital)
+            held = 0.0
+            for pos in self.bot.risk.open_positions.values():
+                sh = float(getattr(pos, "remaining_shares", 0.0) or 0.0)
+                ep = float(getattr(pos, "entry_price", 0.0) or 0.0)
+                held += (sh * ep) if (sh > 0 and ep > 0) else float(getattr(pos, "stake", 0.0) or 0.0)
+            return max(0.0, cap - held)
         except Exception:
             return 30.0  # conservative fallback
 
