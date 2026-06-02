@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-02T21:18:51Z
+# Snapshot: 2026-06-02T21:33:53Z
 # Latest commit on klaus:
-f1a36cfb feat(weather): WEATHER_OFI momentum entry LIVE-tiny (user GO-LIVE, Tier-3)
+f2be15f9 fix(weather OFI): cap entry at sec_to_close<=6h (exclude next-day longshots)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
