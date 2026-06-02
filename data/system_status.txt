@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+dde168a8 research(alpha): Stage-2 thermo-vs-market = negative (-1.2c/contract; market already prices it)
+464740cf research(alpha): morning thermodynamic nowcast — dew point predicts level (+11% OOS) and variance of daily max
+5ee95235 research(alpha): Stage-2 climatology-vs-market EV = negative (market beats pure climatology)
 9cbbb532 research(alpha): remaining-rise climatology pricer — OOS beats Gaussian at every offset
 17583cf2 feat(fade): LIVE resolution-bias NO-buy on prime bin above official running_max (user go-live)
 e91d540c fix(fade): gate-independent fade recorder in weather_arb (real-book enriched)
@@ -9,9 +12,6 @@ e91d540c fix(fade): gate-independent fade recorder in weather_arb (real-book enr
 376772ce feat(dip): safe dip-buy SHADOW — cheap NO only on strong OFFICIAL lockout (no capital)
 762d1d6c feat(maker): uncap order count + raise breaker $15->$40 (Tier-3, user)
 7776eb01 fix(maker): add maker shares to already-tracked position (blend), don't skip
-456a2a2f fix(stations): panama-city MPTO->MPMG (resolution station) + audit confirms 46/47 already correct
-ec5b5a97 fix(fade): _lp_allocate_city has no 'cs' — look up city state explicitly
-e9723499 feat(fade): forward shadow logger + station-map audit for the resolution-bias edge
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   94G        0G 100% /
