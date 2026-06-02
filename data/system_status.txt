@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+e3a76178 feat(weather OFI v2): active signal-decay exit (sell, don't hold to daily res)
 f2be15f9 fix(weather OFI): cap entry at sec_to_close<=6h (exclude next-day longshots)
 f1a36cfb feat(weather): WEATHER_OFI momentum entry LIVE-tiny (user GO-LIVE, Tier-3)
 13476317 ops: nightly prune of dated shadow-log dirs (bound live-box disk)
@@ -11,13 +12,12 @@ dde168a8 research(alpha): Stage-2 thermo-vs-market = negative (-1.2c/contract; m
 5ee95235 research(alpha): Stage-2 climatology-vs-market EV = negative (market beats pure climatology)
 9cbbb532 research(alpha): remaining-rise climatology pricer — OOS beats Gaussian at every offset
 17583cf2 feat(fade): LIVE resolution-bias NO-buy on prime bin above official running_max (user go-live)
-e91d540c fix(fade): gate-independent fade recorder in weather_arb (real-book enriched)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   60G       33G  65% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-02 21:35:05 UTC
+ActiveEnterTimestamp=Tue 2026-06-02 21:41:51 UTC
 
 ## Open positions (count):
 0
