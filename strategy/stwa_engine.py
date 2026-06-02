@@ -1213,10 +1213,11 @@ class STWAEngine:
         # it are the fade targets (sub-hourly peak pokes in, book overprices ~22¢,
         # but they resolve NO ~99%). Log the LIVE NO ask now; join resolution by
         # no_tok offline → forward fade WR/EV (no look-ahead — all fields real-time).
+        _cs_fade = self._cities.get(city)
         if (FADE_SHADOW_ENABLED and entries and phase in ("AT_PEAK", "POST_PEAK")
-                and cs.running_max is not None):
+                and _cs_fade is not None and _cs_fade.running_max is not None):
             try:
-                _rm = float(cs.running_max)
+                _rm = float(_cs_fade.running_max)
                 _above = sorted(
                     [(lo, hi, yt, nt, pm, ay, an) for (lo, hi, yt, nt, pm, ay, an) in entries
                      if lo >= _rm], key=lambda e: e[0])[:3]
@@ -1228,7 +1229,7 @@ class STWAEngine:
                     _rec = {
                         "ts": time.time(), "city": city, "phase": phase,
                         "regime": regime, "running_max_c": round(_rm, 2),
-                        "rm_age_s": round(time.time() - cs.running_max_ts, 0),
+                        "rm_age_s": round(time.time() - _cs_fade.running_max_ts, 0),
                         "fade_bins": [{
                             "lo": lo, "hi": hi, "no_tok": nt,
                             "no_ask": (clob_books.get(nt) or {}).get("best_ask"),
