@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
+0cea85aa feat(maker): fill→position tracker — async maker fills now register + settle
+5c8a6404 Watchdog 2026-06-02T05:18Z: MEDIUM 3 alerts (BOT_DOWN→OK)
+dc14f21e Watchdog 2026-06-02T04:19Z: OK 0 alerts
+895439be Watchdog 2026-06-02T03:18Z: HIGH 2 alerts (TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
+8fff876d Watchdog 2026-06-02T02:18:33Z: HIGH 1 alerts (CAPITAL_DROP)
+b19d7c14 Watchdog 2026-06-02T01:18:54Z: CRITICAL 3 alerts (BOT_DOWN, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT); CAPITAL_RUIN resolved
 3742ff6f feat(maker): stage 3 LIVE — locked-region first-exercise (real $5, monitored)
 74d84fc8 feat(maker): stages 1-2 — bug circuit-breaker + locked-region SHADOW-fire
 c955e4d8 feat(STWA): coherence arb Face 2 — buy-all-NO neg-risk (model-free)
 e630745c feat(maker): Phase-0 flow/overround probe — standalone read-only taker-flow poller
-4a6c490e feat(maker): step 2 — passive-rest + cancel execution primitive (inert)
-a0045631 feat(maker): live maker-shadow recorder (log-only) — first step toward the maker
-e9e5038b feat(M1β): widen NO_ASK 0.90→0.70, fat band gated on provenance-clean physical margin
-16175420 fix(skill-matrix): revive log_actual — feed official daily high at day rollover
-e857f11d feat(STWA): per-city yes-eval diagnostic — log why YES does/doesn't fire
-5cc94e30 fix(bankroll): sync to true capital (cash + open positions) even with positions held
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   92G        1G 100% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-01 20:22:12 UTC
+ActiveEnterTimestamp=Tue 2026-06-02 05:36:12 UTC
 
 ## Open positions (count):
 0
