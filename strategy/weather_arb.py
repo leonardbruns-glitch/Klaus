@@ -4917,6 +4917,56 @@ class WeatherArb:
         except Exception:
             logger.debug("[NO-ARB-PROBE] probe failed (isolated)", exc_info=True)
 
+        # Fade-shadow real-book pre-fetch: same blind spot as the NO-arb probe.
+        # The Σyes<0.95 depth-prefetch never covers post-peak fade cities (the
+        # bins above running_max ⇒ Σyes≫1), so the fade logger has only ever seen
+        # Gamma-proxy NO (usd_depth=0, no_ask=complement) → fillability unmeasured.
+        # Fetch the REAL NO book for the up-to-2 bins immediately above
+        # running_max (the prime 22¢-mispriced fade target lives at rank_above=0)
+        # so the engine's fade logger records true no_ask/no_bid/depth. Post-peak
+        # only + ≤2 bins/city keeps HTTP cost bounded.
+        try:
+            from strategy.stwa_engine import _phase as _stwa_phase
+            _fade_toks: list[str] = []
+            for _slug, _bks in bucket_map.items():
+                _csf = (self._stwa._cities.get(_slug) if self._stwa else None)
+                if _csf is None or _csf.running_max is None or _slug not in t_close_map:
+                    continue
+                if _stwa_phase(_csf, t_close_map[_slug], now) not in ("AT_PEAK", "POST_PEAK"):
+                    continue
+                _rmf = float(_csf.running_max)
+                _abf = sorted([b for b in _bks if b[0] >= _rmf], key=lambda e: e[0])[:2]
+                for _lo, _hi, _y, _n in _abf:
+                    if _n:
+                        _fade_toks.append(_n)
+            if _fade_toks:
+                import asyncio as _aiof
+                _fbooks = await _aiof.gather(
+                    *[self._fetch_book_levels(_t, n=5) for _t in _fade_toks],
+                    return_exceptions=True,
+                )
+                _fenr = 0
+                for _tok, _fb in zip(_fade_toks, _fbooks):
+                    if isinstance(_fb, Exception) or not isinstance(_fb, dict):
+                        continue
+                    _fasks = _fb.get("asks") or []
+                    _fbids = _fb.get("bids") or []
+                    if not _fasks:
+                        continue
+                    _fba = _fasks[0]["price"]
+                    _fdepth = sum(a["price"] * a["size"] for a in _fasks)
+                    if 0 < _fba < 1.0 and _fdepth > 0:
+                        _ent = clob_books.setdefault(_tok, {})
+                        _ent["best_ask"] = _fba
+                        _ent["usd_depth"] = round(_fdepth, 2)
+                        if _fbids:
+                            _ent["best_bid"] = _fbids[0]["price"]
+                        _fenr += 1
+                logger.info("[STWA] fade depth pre-fetch: %d/%d NO tokens enriched",
+                            _fenr, len(_fade_toks))
+        except Exception:
+            logger.debug("[STWA] fade depth pre-fetch failed (isolated)", exc_info=True)
+
         # Tier-4: capital already deployed per city today (open WEATHER_STWA
         # positions). Feeds the per-city-day budget R = budget − held_k so the
         # allocator caps total city-day exposure instead of re-deploying the full
