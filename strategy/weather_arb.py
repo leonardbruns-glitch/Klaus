@@ -331,6 +331,16 @@ OFI_EXIT_THRESH        = 0.50   # exit when (our-dir × current OFI) drops below
 OFI_SCALP_TP           = 0.03   # or take profit early if bid ≥ entry + 3c
 OFI_TIME_CAP_S         = 1200   # backstop: force-consider exit at 20 min (momentum plateau)
 
+# ── OFI WS-direct trade feed (augment the 180s file poll; validated 2026-06-02) ──
+# CLOB market-WS last_trade_price push → sub-second OFI instead of ≤180s file lag.
+# Side-semantics verified identical to the data-api tape (ofi_ws_validate.py: 8/8
+# side+asset match). AUGMENT-only: an in-mem txhash-deduped buffer is MERGED into
+# _ofi_from_tape; the maker_flow.jsonl file stays canonical (still serves the other
+# tape consumers + is the silent fallback if the WS drops). False = pure file poll.
+OFI_WS_ENABLED         = True
+OFI_WS_URL             = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+OFI_WS_SUB_REFRESH_S   = 60.0   # re-derive the weather token universe from cache
+
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
 NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
 SALVAGE_MIN_BID     = 0.05   # only bother selling if bid > this (otherwise loss is tiny)
@@ -1482,6 +1492,11 @@ class WeatherArb:
             pass
         self._task: Optional[asyncio.Task] = None
         self._metar_task: Optional[asyncio.Task] = None
+        # OFI WS-direct trade buffer (augments the file tape; see OFI_WS_ENABLED).
+        self._ofi_ws_task: Optional[asyncio.Task] = None
+        self._ofi_ws_buf: dict[str, tuple] = {}   # txhash → (recv_ts, cid, ask_bool, notion)
+        self._ofi_ws_tok: dict[str, tuple] = {}   # token_id → (cid, "yes"|"no")  resolver
+        self._ofi_ws_subbed: set[str] = set()     # tokens already subscribed on the WS
         self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
         self._nwp_today_cache: dict[tuple, Optional[float]] = {}  # (lat2, lon2, date) → nwp_daily_max_c
 
@@ -1630,6 +1645,8 @@ class WeatherArb:
     def start(self) -> None:
         self._task = asyncio.create_task(self._loop(), name="weather_arb_loop")
         self._metar_task = asyncio.create_task(self._metar_loop(), name="weather_metar_loop")
+        if OFI_WS_ENABLED:
+            self._ofi_ws_task = asyncio.create_task(self._ofi_ws_loop(), name="weather_ofi_ws_loop")
         if self._stwa is not None:
             self._stwa_shadow_task = asyncio.create_task(
                 self._stwa_shadow_loop(), name="stwa_shadow_loop"
@@ -3603,52 +3620,146 @@ class WeatherArb:
                     city, fill_price, fill_size, fill_size * fill_price)
 
     def _ofi_from_tape(self, now_ts: float) -> dict:
-        """Rolling OFI per condition_id from the maker_flow.jsonl tail (the probe's
-        weather trade feed) — no new HTTP. ask-side(+) = YES-buy pressure. Returns
-        {cid: (ofi, vol_usd)} for buckets with >= OFI_MIN_VOL_USD rolling volume."""
+        """Rolling OFI per condition_id. Primary source = the maker_flow.jsonl tail
+        (the probe's weather trade feed); when OFI_WS_ENABLED the sub-second WS
+        last_trade_price buffer is MERGED in (txhash-deduped, file wins on a shared
+        hash) so the freshest ≤180s window isn't poll-stale. ask-side(+) = YES-buy
+        pressure. Returns {cid: (ofi, vol_usd)} for buckets with >= OFI_MIN_VOL_USD."""
         from datetime import datetime as _dt, timezone as _tz
         out: dict = {}
+        cutoff = now_ts - OFI_WIN_S
+        trades: dict = {}   # txhash → (cid, ask_bool, notion); dedups file ↔ WS
+        _fsynth = 0
         try:
             path = Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat() / "maker_flow.jsonl"
-            if not path.exists():
-                return out
-            sz = path.stat().st_size
-            with open(path, "rb") as fh:
-                if sz > 2_000_000:
-                    fh.seek(sz - 2_000_000)
-                    fh.readline()  # drop partial line
-                chunk = fh.read().decode("utf-8", "ignore")
-            agg: dict = {}
-            cutoff = now_ts - OFI_WIN_S
-            for line in chunk.splitlines():
-                if "highest-temperature" not in line:
-                    continue
-                try:
-                    r = json.loads(line)
-                    ts = float(r.get("timestamp"))
-                except (ValueError, TypeError):
-                    continue
-                if ts < cutoff:
-                    continue
-                cid = r.get("conditionId")
-                if not cid:
-                    continue
-                try:
-                    notion = float(r.get("price")) * float(r.get("size"))
-                except (TypeError, ValueError):
-                    continue
-                oc = str(r.get("outcome", "")).lower()
-                sd = str(r.get("side", "")).upper()
-                ask = (oc == "yes" and sd == "BUY") or (oc == "no" and sd == "SELL")
-                a = agg.setdefault(cid, [0.0, 0.0])
-                a[0] += notion if ask else -notion
-                a[1] += notion
-            for cid, (signed, vol) in agg.items():
-                if vol >= OFI_MIN_VOL_USD:
-                    out[cid] = (signed / vol, vol)
+            if path.exists():
+                sz = path.stat().st_size
+                with open(path, "rb") as fh:
+                    if sz > 2_000_000:
+                        fh.seek(sz - 2_000_000)
+                        fh.readline()  # drop partial line
+                    chunk = fh.read().decode("utf-8", "ignore")
+                for line in chunk.splitlines():
+                    if "highest-temperature" not in line:
+                        continue
+                    try:
+                        r = json.loads(line)
+                        ts = float(r.get("timestamp"))
+                    except (ValueError, TypeError):
+                        continue
+                    if ts < cutoff:
+                        continue
+                    cid = r.get("conditionId")
+                    if not cid:
+                        continue
+                    try:
+                        notion = float(r.get("price")) * float(r.get("size"))
+                    except (TypeError, ValueError):
+                        continue
+                    oc = str(r.get("outcome", "")).lower()
+                    sd = str(r.get("side", "")).upper()
+                    ask = (oc == "yes" and sd == "BUY") or (oc == "no" and sd == "SELL")
+                    th = (r.get("transactionHash") or "").lower()
+                    if not th:
+                        th = f"_f{_fsynth}"; _fsynth += 1
+                    trades[th] = (cid, ask, notion)
         except Exception:
             logger.debug("[OFI] tape read failed", exc_info=True)
+        # WS augment: merge the sub-second buffer (file wins on a shared txhash).
+        if OFI_WS_ENABLED and self._ofi_ws_buf:
+            for th, (rts, cid, ask, notion) in list(self._ofi_ws_buf.items()):
+                if rts < cutoff or not cid:
+                    continue
+                trades.setdefault(th, (cid, ask, notion))
+        agg: dict = {}
+        for cid, ask, notion in trades.values():
+            a = agg.setdefault(cid, [0.0, 0.0])
+            a[0] += notion if ask else -notion
+            a[1] += notion
+        for cid, (signed, vol) in agg.items():
+            if vol >= OFI_MIN_VOL_USD:
+                out[cid] = (signed / vol, vol)
         return out
+
+    def _ofi_ws_refresh_tokens(self) -> None:
+        """Rebuild token_id → (conditionId, yes/no) from the live markets cache so
+        the WS knows which weather tokens to subscribe + how to classify each fill."""
+        m: dict = {}
+        for e in (getattr(self, "_today_markets_cache", None) or []):
+            mk = e.get("mkt") or {}
+            cid = mk.get("conditionId")
+            tids = _parse_token_ids(mk.get("clobTokenIds", []))
+            if cid and len(tids) >= 2:
+                m[tids[0]] = (cid, "yes")
+                m[tids[1]] = (cid, "no")
+        self._ofi_ws_tok = m
+
+    def _ofi_ws_prune(self) -> None:
+        """Bound the in-mem buffer to ~2× the OFI window."""
+        cut = time.time() - OFI_WIN_S * 2
+        for th in [k for k, v in self._ofi_ws_buf.items() if v[0] < cut]:
+            self._ofi_ws_buf.pop(th, None)
+
+    async def _ofi_ws_loop(self) -> None:
+        """Background CLOB market-WS listener: subscribes the weather token universe
+        and maintains _ofi_ws_buf (txhash → (recv_ts, cid, ask_bool, notion)) from
+        last_trade_price pushes. Side-semantics validated (ofi_ws_validate.py). Pure
+        augment — never trades; _ofi_from_tape merges this buffer. Reconnects on drop;
+        any failure falls back silently to the file tape."""
+        if not OFI_WS_ENABLED:
+            return
+        while True:
+            try:
+                async with aiohttp.ClientSession() as sess:
+                    async with sess.ws_connect(OFI_WS_URL, timeout=20, heartbeat=10) as ws:
+                        self._ofi_ws_subbed = set()
+                        last_sub = 0.0
+                        logger.info("[OFI-WS] connected")
+                        while True:
+                            if time.time() - last_sub > OFI_WS_SUB_REFRESH_S:
+                                last_sub = time.time()
+                                self._ofi_ws_refresh_tokens()
+                                new = [t for t in self._ofi_ws_tok if t not in self._ofi_ws_subbed]
+                                for i in range(0, len(new), 200):
+                                    await ws.send_str(json.dumps({
+                                        "auth": {}, "type": "subscribe", "channel": "market",
+                                        "assets_ids": new[i:i + 200], "custom_feature_enabled": True}))
+                                    self._ofi_ws_subbed.update(new[i:i + 200])
+                                self._ofi_ws_prune()
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=2.0)
+                            except asyncio.TimeoutError:
+                                continue
+                            if msg.type == aiohttp.WSMsgType.TEXT:
+                                try:
+                                    evs = json.loads(msg.data)
+                                except Exception:
+                                    continue
+                                if not isinstance(evs, list):
+                                    evs = [evs]
+                                for ev in evs:
+                                    if ev.get("event_type", ev.get("type")) != "last_trade_price":
+                                        continue
+                                    th = (ev.get("transaction_hash") or ev.get("transactionHash") or "").lower()
+                                    if not th:
+                                        continue
+                                    res = self._ofi_ws_tok.get(str(ev.get("asset_id") or ev.get("asset") or ""))
+                                    if not res:
+                                        continue  # unknown token — file tape still catches it
+                                    cid, oc = res
+                                    sd = str(ev.get("side", "")).upper()
+                                    ask = (oc == "yes" and sd == "BUY") or (oc == "no" and sd == "SELL")
+                                    try:
+                                        notion = float(ev.get("price")) * float(ev.get("size"))
+                                    except (TypeError, ValueError):
+                                        continue
+                                    self._ofi_ws_buf[th] = (time.time(), cid, ask, notion)
+                            elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
+                                logger.info("[OFI-WS] socket closed/error %s", msg.type)
+                                break
+            except Exception:
+                logger.debug("[OFI-WS] loop error", exc_info=True)
+            await asyncio.sleep(5.0)  # reconnect backoff
 
     async def _ofi_manage_exits(self) -> None:
         """v2 exit for WEATHER_OFI positions: leave when the OFI edge dies (our-dir OFI
