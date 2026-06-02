@@ -93,6 +93,13 @@ WIDTH_GATE_MARGIN = 1.10 # YES ladder fires only when the book-implied σ exceed
 # BEFORE any real order. Zero capital. Prereq for the locked-bucket (adverse-
 # selection-free) live maker. Disable: MAKER_SHADOW_ENABLED=False.
 MAKER_SHADOW_ENABLED = True
+# FADE SHADOW (forward, no-look-ahead test of the resolution hourly-sampling edge,
+# 2026-06-02). Resolution = max of routine HOURLY METARs ≈ ~0.8°F below the true
+# diurnal peak; the bin just ABOVE running_max is where the sub-hourly peak pokes in
+# and the book overprices it (backtest n=244: that bin wins ~1% yet is priced ~22¢).
+# Post-peak, log the live NO ask on the bins above running_max → join resolution
+# offline → forward fade WR/EV with ZERO look-ahead. Log-only, no capital.
+FADE_SHADOW_ENABLED = True
 MAKER_HALF_SPREAD    = 0.02   # half-spread around calibrated fair for the shadow quote
 CONFIDENCE_MIN = 0.45    # minimum confidence score
 
@@ -1200,6 +1207,42 @@ class STWAEngine:
                         }) + "\n")
             except Exception:
                 logger.debug("[STWA] maker_shadow log fail", exc_info=True)
+
+        # ── FADE SHADOW (forward, no-look-ahead) ──────────────────────────────
+        # Post-peak the resolved high ≈ hourly running_max. The bin(s) just ABOVE
+        # it are the fade targets (sub-hourly peak pokes in, book overprices ~22¢,
+        # but they resolve NO ~99%). Log the LIVE NO ask now; join resolution by
+        # no_tok offline → forward fade WR/EV (no look-ahead — all fields real-time).
+        if (FADE_SHADOW_ENABLED and entries and phase in ("AT_PEAK", "POST_PEAK")
+                and cs.running_max is not None):
+            try:
+                _rm = float(cs.running_max)
+                _above = sorted(
+                    [(lo, hi, yt, nt, pm, ay, an) for (lo, hi, yt, nt, pm, ay, an) in entries
+                     if lo >= _rm], key=lambda e: e[0])[:3]
+                if _above:
+                    _fd_dir = (Path(__file__).parent.parent / "logs" / "shadow"
+                               / "hot" / time.strftime("%Y-%m-%d", time.gmtime()))
+                    _fd_dir.mkdir(parents=True, exist_ok=True)
+                    _cal = cal_probs or {}
+                    _rec = {
+                        "ts": time.time(), "city": city, "phase": phase,
+                        "regime": regime, "running_max_c": round(_rm, 2),
+                        "rm_age_s": round(time.time() - cs.running_max_ts, 0),
+                        "fade_bins": [{
+                            "lo": lo, "hi": hi, "no_tok": nt,
+                            "no_ask": (clob_books.get(nt) or {}).get("best_ask"),
+                            "no_bid": (clob_books.get(nt) or {}).get("best_bid"),
+                            "no_depth_usd": (clob_books.get(nt) or {}).get("usd_depth"),
+                            "yes_ask": (clob_books.get(yt) or {}).get("best_ask"),
+                            "fair": round(float(_cal.get((lo, hi), pm)), 4),
+                            "rank_above": i,  # 0 = bin immediately above running_max (prime)
+                        } for i, (lo, hi, yt, nt, pm, ay, an) in enumerate(_above)],
+                    }
+                    with (_fd_dir / "fade_shadow.jsonl").open("a") as _ff:
+                        _ff.write(json.dumps(_rec) + "\n")
+            except Exception:
+                logger.debug("[STWA] fade_shadow log fail", exc_info=True)
 
         if not candidates:
             return []
