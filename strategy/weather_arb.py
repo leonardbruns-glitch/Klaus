@@ -99,7 +99,7 @@ STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-re
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
 # at bid>=0.999, so positions that never reach TP must be settled here or their (mostly
 # winning) PnL never banks — the same write-only gap STWA had.
-_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE")
+_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE")
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -278,6 +278,25 @@ DIP_SHADOW_ENABLED       = True
 DIP_SHADOW_MIN_MARGIN_C  = 1.0    # log at/above this OFFICIAL margin (sweep 1.0/1.5/2.0 offline)
 DIP_SHADOW_NO_ASK_MAX    = 0.95   # log when the real NO ask has dipped at/below this (a discount exists)
 M1_DIP_REBUY_STAKE_USD   = 5.0    # smaller than initial stake (correlated resolution)
+
+# ── FADE live edge — resolution hourly-sampling bias (user GO-LIVE 2026-06-02) ──
+# Buy NO on the PRIME bin immediately ABOVE the OFFICIAL (AWC/NWS-clean) running_max,
+# POST_PEAK, where the book overprices a between-ob peak poke the routine hourly METAR
+# will miss → that bin resolves NO. Backtest n=244 (analysis/weather/resolution_bias_
+# backtest.py): prime bin wins NO ~98%, priced ~22¢ YES. ⚠ LIVE n=0 resolved — this is
+# semi-directional (YES is physically possible until the official high passes), NOT the
+# calibration-free lockout. On-record dissent: enabled by user directive over the n≥100
+# gate. Provenance gate (official running_max only) is NON-NEGOTIABLE (false-lockout lesson).
+FADE_LIVE_ENABLED      = True
+FADE_NO_ASK_MIN        = 0.55   # below this the market strongly expects YES = false-fade zone, skip
+FADE_NO_ASK_MAX        = 0.90   # user gate 2026-06-02 (mispricing ceiling)
+FADE_MAX_GAP_C         = 1.6    # bin lo at most this far above the official running_max (~1 bin)
+FADE_MIN_DEPTH_USD     = 10.0   # require this much fillable NO depth at/under our price
+FADE_MIN_SEC_TO_CLOSE  = 1800   # ≥30 min to resolution
+FADE_WIN_PRIOR         = 0.90   # Kelly win-prob prior — HAIRCUT from backtest 0.98 (live-unconfirmed)
+FADE_KELLY_FRACTION    = 0.20   # of full Kelly (matches STWA)
+FADE_MIN_STAKE         = 3.0
+FADE_MAX_STAKE         = 20.0
 
 # ── METAR-loop dynamic exits ──────────────────────────────────────────────────
 NOWCAST_EXIT_FLOOR  = 0.04   # sell existing position when nowcast P(bucket) drops below this
@@ -3437,6 +3456,119 @@ class WeatherArb:
                        self._maker_ex_orders, MAKER_EXERCISE_MAX_ORDERS,
                        self._maker_breaker.exposure_usd())
 
+    async def _fade_evaluate(
+        self, *, slug: str, city: str, icao: str, mkt: dict,
+        lo_c: float, hi_c: float, no_token_id: str,
+        no_ask: float, no_depth_usd: float, no_book: dict,
+        official_rm: float, phase: str, end_date: str, question: str,
+        now_ts: float, now_utc, seconds_to_close,
+    ) -> None:
+        """LIVE fade fire: buy NO on the prime bin immediately above the official
+        running_max (resolution hourly-sampling-bias edge). Gates already checked by
+        the caller; this does the authoritative dedup/sizing/order/registration.
+        Mirrors the M1β fill→register path (tag WEATHER_FADE so the existing settler
+        books it). Isolated — wrapped by the caller's try/except."""
+        risk = self.bot.risk
+        if not hasattr(self, "_fade_fired"):
+            self._fade_fired = set()
+        # Dedup: one fade per NO token; never double a token already held.
+        if no_token_id in self._fade_fired:
+            return
+        if no_token_id in getattr(risk, "open_positions", {}):
+            return
+
+        # Kelly size on the HAIRCUT prior (binary Kelly buying NO at price no_ask,
+        # payoff 1): f* = (p − ask)/(1 − ask). Clamp to [MIN,MAX] and to fillable depth.
+        bankroll = self._get_bankroll()
+        f_star = max(0.0, (FADE_WIN_PRIOR - no_ask) / (1.0 - no_ask))
+        stake = FADE_KELLY_FRACTION * f_star * bankroll
+        stake = max(FADE_MIN_STAKE, min(FADE_MAX_STAKE, stake))
+        stake = min(stake, float(no_depth_usd))      # never size above visible fill depth
+        if stake < FADE_MIN_STAKE:
+            return
+
+        intended_price = round(min(0.99, no_ask + 0.01), 4)
+        margin_c = round(float(lo_c) - float(official_rm), 3)
+        condition_id = mkt.get("conditionId", "") or mkt.get("condition_id", "")
+        neg_risk = mkt.get("negRisk", True)
+
+        log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "fade_live.jsonl"
+        pre = {
+            "record_type": "fade_live", "phase_rec": "submit", "ts": now_ts,
+            "city": city, "icao": icao, "end_date": end_date, "question": question,
+            "condition_id": condition_id, "no_token_id": no_token_id,
+            "bucket_lo_c": round(lo_c, 4), "bucket_hi_c": round(hi_c, 4),
+            "official_running_max_c": round(float(official_rm), 3),
+            "gap_above_official_c": margin_c, "diurnal_phase": phase,
+            "no_ask": round(no_ask, 4), "no_depth_usd": round(float(no_depth_usd), 2),
+            "intended_price": intended_price, "stake_usd": round(stake, 2),
+            "kelly_f_star": round(f_star, 4), "win_prior": FADE_WIN_PRIOR,
+            "sec_to_close": int(seconds_to_close) if seconds_to_close is not None else None,
+        }
+        try:
+            log_path.open("a").write(json.dumps(pre) + "\n")
+        except Exception:
+            logger.debug("[FADE] pre-log fail", exc_info=True)
+
+        from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+        from execution.order_manager import OrderStatus
+        logger.info("[FADE] FIRE %s bin[%.1f,%.1f] NO@%.3f stake=$%.1f off_rm=%.2f gap=%.2f°C %s",
+                    city, lo_c, hi_c, intended_price, stake, official_rm, margin_c, phase)
+        try:
+            fill = await self.bot.orders.limit_buy(
+                token_id=no_token_id, intended_price=intended_price,
+                stake_usd=stake, direction=_Dir.BUY_NO, neg_risk=neg_risk,
+                fast_fail=False,
+            )
+        except Exception as e:
+            logger.exception("[FADE] order error %s", city)
+            try:
+                log_path.open("a").write(json.dumps(
+                    {**pre, "phase_rec": "submit_error", "error": str(e)}) + "\n")
+            except Exception:
+                pass
+            return
+
+        # Count the attempt regardless of fill (one chance per token).
+        self._fade_fired.add(no_token_id)
+        filled = (fill.status == OrderStatus.FILLED and fill.total_size > 0)
+        fill_price = float(fill.avg_fill_price) if filled else None
+        fill_size = float(fill.total_size) if filled else 0.0
+        try:
+            log_path.open("a").write(json.dumps({
+                **pre, "phase_rec": "result", "filled": filled,
+                "fill_avg_price": fill_price, "fill_size_shares": fill_size,
+                "fill_status": str(fill.status),
+            }) + "\n")
+        except Exception:
+            pass
+
+        if not filled:
+            logger.info("[FADE] no-fill %s (status=%s)", city, fill.status)
+            return
+        if no_token_id in getattr(risk, "open_positions", {}):
+            return  # raced an M1β/other fill on same token — don't overwrite
+        risk.open_position(
+            token_id=no_token_id, asset="WEATHER", direction=_Dir.BUY_NO,
+            stake=fill_size * fill_price, entry_price=fill_price,
+            tpsl=_TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
+            condition_id=condition_id, window_end_ts=0.0, is_bond=True,
+            bond_outcome_direction="down", bond_entry_class="WEATHER_FADE",
+        )
+        meta = self.bot._open_meta.setdefault(no_token_id, {})
+        meta["signal_source"] = f"WEATHER/{city}/WEATHER_FADE"
+        meta["city"] = city
+        meta["icao"] = icao
+        meta["weather_question"] = question
+        meta["weather_date"] = end_date
+        meta["bucket_lo_c"] = lo_c
+        meta["bucket_hi_c"] = hi_c
+        meta["fade_first_signal_state"] = pre
+        logger.info("[FADE] FILLED %s NO@%.4f size=%.1f stake=$%.2f",
+                    city, fill_price, fill_size, fill_size * fill_price)
+
     async def _m1_beta_probe_evaluate(
         self, *, now_ts: float, now_utc, first_seen: float,
         mkt: dict, city: str, icao: str, end_date: str,
@@ -4996,6 +5128,73 @@ class WeatherArb:
                             } for _i, (_lo, _hi, _y, _n) in enumerate(_abf)],
                         }
                         _ff.write(json.dumps(_rec) + "\n")
+
+            # ── LIVE FADE FIRE (user GO-LIVE 2026-06-02) ─────────────────────
+            # Buy NO on the prime bin immediately above the OFFICIAL (AWC/NWS-clean)
+            # running_max, POST_PEAK only. Prime bin is selected RELATIVE TO OFFICIAL
+            # (provenance — never the possibly-contaminated engine running_max); the
+            # real-book depth gate is the fillability safety net. n=0 resolved live —
+            # dissent on record (see FADE_* constants). Per-city try so one fire
+            # error can't stop the others.
+            if FADE_LIVE_ENABLED and _fade_cands:
+                from datetime import datetime as _dtf, timezone as _tzf, timedelta as _tdf
+                from analysis.weather.stations import STATIONS as _FADE_ST
+                _now_utc = _dtf.now(_tzf.utc)
+                _tok2mkt = {}
+                for _e in (self._today_markets_cache or []):
+                    _m = _e.get("mkt") or {}
+                    _tids = _parse_token_ids(_m.get("clobTokenIds", []))
+                    if len(_tids) >= 2:
+                        _tok2mkt[_tids[1]] = (_m, _e.get("city"), _e.get("icao"))
+                for _slug, _csf, _abf in _fade_cands:
+                    try:
+                        if _stwa_phase(_csf, t_close_map[_slug], now) != "POST_PEAK":
+                            continue
+                        _st = _FADE_ST.get(_slug)
+                        _icao = getattr(_st, "icao", None) if _st else None
+                        if not _icao:
+                            continue
+                        _mc = self._icao_metar_cache.get(_icao) or {}
+                        _tzh = ICAO_UTC_OFFSET_H.get(_icao, 0)
+                        _ltoday = (_now_utc + _tdf(hours=_tzh)).date().isoformat()
+                        if _mc.get("running_max_date", "") != _ltoday:
+                            continue  # stale provenance — never fire on yesterday's high
+                        _off = _mc.get("official_running_max_c")
+                        if _off is None:
+                            continue  # no AWC/NWS-clean value in hand → skip (fail-safe)
+                        _pbins = sorted([b for b in bucket_map.get(_slug, []) if b[0] >= _off],
+                                        key=lambda e: e[0])
+                        if not _pbins:
+                            continue
+                        _lo, _hi, _y, _n = _pbins[0]   # prime = lowest bin above official high
+                        if not _n:
+                            continue
+                        if not (0.0 <= float(_lo) - float(_off) <= FADE_MAX_GAP_C):
+                            continue
+                        _bk = clob_books.get(_n) or {}
+                        _na = _bk.get("best_ask")
+                        _dep = _bk.get("usd_depth") or 0.0
+                        if _na is None or not (FADE_NO_ASK_MIN <= _na <= FADE_NO_ASK_MAX):
+                            continue
+                        if _dep < FADE_MIN_DEPTH_USD:
+                            continue  # real fillable depth required (proxy books fail here)
+                        _sec_close = (t_close_map.get(_slug, now) - now)
+                        if _sec_close < FADE_MIN_SEC_TO_CLOSE:
+                            continue
+                        _mm = _tok2mkt.get(_n)
+                        if not _mm:
+                            continue
+                        _mkt2, _cname, _icao2 = _mm
+                        await self._fade_evaluate(
+                            slug=_slug, city=_cname or _slug, icao=_icao, mkt=_mkt2,
+                            lo_c=float(_lo), hi_c=float(_hi), no_token_id=_n,
+                            no_ask=float(_na), no_depth_usd=float(_dep), no_book=_bk,
+                            official_rm=float(_off), phase="POST_PEAK",
+                            end_date=(_mkt2.get("endDate") or "")[:10],
+                            question=_mkt2.get("question", ""),
+                            now_ts=now, now_utc=_now_utc, seconds_to_close=_sec_close)
+                    except Exception:
+                        logger.debug("[FADE] live fire failed (isolated) %s", _slug, exc_info=True)
         except Exception:
             logger.debug("[STWA] fade shadow recorder failed (isolated)", exc_info=True)
 
