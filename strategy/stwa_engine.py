@@ -99,7 +99,7 @@ MAKER_SHADOW_ENABLED = True
 # and the book overprices it (backtest n=244: that bin wins ~1% yet is priced ~22¢).
 # Post-peak, log the live NO ask on the bins above running_max → join resolution
 # offline → forward fade WR/EV with ZERO look-ahead. Log-only, no capital.
-FADE_SHADOW_ENABLED = True
+FADE_SHADOW_ENABLED = False  # moved to weather_arb (gate-independent + real-book enriched)
 MAKER_HALF_SPREAD    = 0.02   # half-spread around calibrated fair for the shadow quote
 CONFIDENCE_MIN = 0.45    # minimum confidence score
 

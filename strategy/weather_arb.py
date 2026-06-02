@@ -4917,16 +4917,22 @@ class WeatherArb:
         except Exception:
             logger.debug("[NO-ARB-PROBE] probe failed (isolated)", exc_info=True)
 
-        # Fade-shadow real-book pre-fetch: same blind spot as the NO-arb probe.
-        # The Σyes<0.95 depth-prefetch never covers post-peak fade cities (the
-        # bins above running_max ⇒ Σyes≫1), so the fade logger has only ever seen
-        # Gamma-proxy NO (usd_depth=0, no_ask=complement) → fillability unmeasured.
-        # Fetch the REAL NO book for the up-to-2 bins immediately above
-        # running_max (the prime 22¢-mispriced fade target lives at rank_above=0)
-        # so the engine's fade logger records true no_ask/no_bid/depth. Post-peak
-        # only + ≤2 bins/city keeps HTTP cost bounded.
+        # Fade-shadow real-book recorder (gate-INDEPENDENT, no capital). Two prior
+        # blind spots, both fixed here:
+        #   (1) the engine's fade logger only sees Gamma-proxy NO (usd_depth=0,
+        #       no_ask=complement) — real CLOB books are fetched only for the
+        #       Σyes<0.95 arb screen, which never covers post-peak fade cities.
+        #   (2) that logger lives INSIDE the gated allocator, so it never runs for
+        #       the 13-14 cities/scan dropped on the regime gate (REGIME_FIRE) — but
+        #       the resolution-sampling-bias edge is NOT regime-dependent, so those
+        #       cities belong in the sample.
+        # Here we fetch the REAL NO book for the ≤3 bins immediately above
+        # running_max (prime fade target = rank_above 0) and write the fade row for
+        # EVERY post-peak city with a running_max, independent of trade-eligibility.
+        # Read-only/shadow: isolated in try/except, cannot disturb the live path.
         try:
             from strategy.stwa_engine import _phase as _stwa_phase
+            _fade_cands = []   # (slug, cs, [(lo,hi,yes_tok,no_tok), ...] top-3 above rm)
             _fade_toks: list[str] = []
             for _slug, _bks in bucket_map.items():
                 _csf = (self._stwa._cities.get(_slug) if self._stwa else None)
@@ -4935,8 +4941,11 @@ class WeatherArb:
                 if _stwa_phase(_csf, t_close_map[_slug], now) not in ("AT_PEAK", "POST_PEAK"):
                     continue
                 _rmf = float(_csf.running_max)
-                _abf = sorted([b for b in _bks if b[0] >= _rmf], key=lambda e: e[0])[:2]
-                for _lo, _hi, _y, _n in _abf:
+                _abf = sorted([b for b in _bks if b[0] >= _rmf], key=lambda e: e[0])[:3]
+                if not _abf:
+                    continue
+                _fade_cands.append((_slug, _csf, _abf))
+                for _lo, _hi, _y, _n in _abf[:2]:   # fetch real book for rank 0-1
                     if _n:
                         _fade_toks.append(_n)
             if _fade_toks:
@@ -4962,10 +4971,33 @@ class WeatherArb:
                         if _fbids:
                             _ent["best_bid"] = _fbids[0]["price"]
                         _fenr += 1
-                logger.info("[STWA] fade depth pre-fetch: %d/%d NO tokens enriched",
-                            _fenr, len(_fade_toks))
+                logger.info("[STWA] fade depth pre-fetch: %d/%d NO tokens enriched (%d cities)",
+                            _fenr, len(_fade_toks), len(_fade_cands))
+            if _fade_cands:
+                _fd_dir = (Path(__file__).parent.parent / "logs" / "shadow"
+                           / "hot" / time.strftime("%Y-%m-%d", time.gmtime()))
+                _fd_dir.mkdir(parents=True, exist_ok=True)
+                with (_fd_dir / "fade_shadow.jsonl").open("a") as _ff:
+                    for _slug, _csf, _abf in _fade_cands:
+                        _rec = {
+                            "ts": now, "city": _slug,
+                            "phase": _stwa_phase(_csf, t_close_map[_slug], now),
+                            "regime": getattr(_csf, "regime", None),
+                            "running_max_c": round(float(_csf.running_max), 2),
+                            "rm_age_s": round(now - getattr(_csf, "running_max_ts", now), 0),
+                            "fade_bins": [{
+                                "lo": _lo, "hi": _hi, "no_tok": _n,
+                                "no_ask": (clob_books.get(_n) or {}).get("best_ask"),
+                                "no_bid": (clob_books.get(_n) or {}).get("best_bid"),
+                                "no_depth_usd": (clob_books.get(_n) or {}).get("usd_depth"),
+                                "yes_ask": (clob_books.get(_y) or {}).get("best_ask"),
+                                "fair": None,
+                                "rank_above": _i,
+                            } for _i, (_lo, _hi, _y, _n) in enumerate(_abf)],
+                        }
+                        _ff.write(json.dumps(_rec) + "\n")
         except Exception:
-            logger.debug("[STWA] fade depth pre-fetch failed (isolated)", exc_info=True)
+            logger.debug("[STWA] fade shadow recorder failed (isolated)", exc_info=True)
 
         # Tier-4: capital already deployed per city today (open WEATHER_STWA
         # positions). Feeds the per-city-day budget R = budget − held_k so the
