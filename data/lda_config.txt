@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-02T21:48:54Z
+# Snapshot: 2026-06-02T22:03:58Z
 # Latest commit on klaus:
-e3a76178 feat(weather OFI v2): active signal-decay exit (sell, don't hold to daily res)
+55ac2c79 fix(weather OFI): revert entry-window upper cap to old setting (user directive)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
