@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+13476317 ops: nightly prune of dated shadow-log dirs (bound live-box disk)
+58bbadfb research(alpha): conservation-law cross-bucket edges + Edge-2 forward shadow logger
 dde168a8 research(alpha): Stage-2 thermo-vs-market = negative (-1.2c/contract; market already prices it)
 464740cf research(alpha): morning thermodynamic nowcast — dew point predicts level (+11% OOS) and variance of daily max
 5ee95235 research(alpha): Stage-2 climatology-vs-market EV = negative (market beats pure climatology)
@@ -10,11 +12,9 @@ dde168a8 research(alpha): Stage-2 thermo-vs-market = negative (-1.2c/contract; m
 e91d540c fix(fade): gate-independent fade recorder in weather_arb (real-book enriched)
 91bf1dae feat(fade): real-CLOB-book pre-fetch for fade-shadow — measure prime-bin fillability
 376772ce feat(dip): safe dip-buy SHADOW — cheap NO only on strong OFFICIAL lockout (no capital)
-762d1d6c feat(maker): uncap order count + raise breaker $15->$40 (Tier-3, user)
-7776eb01 fix(maker): add maker shares to already-tracked position (blend), don't skip
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   95G        0G 100% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   60G       33G  65% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Tue 2026-06-02 11:11:32 UTC
