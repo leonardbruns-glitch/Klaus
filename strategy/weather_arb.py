@@ -179,7 +179,8 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
 # Do NOT modify these to "tune" — this is a measurement experiment.
 M1_BETA_PROBE_ENABLED          = True
-M1_BETA_PROBE_STAKE_USD        = 10.0   # target stake; depth gate stays at $5 so partial fills allowed
+M1_BETA_PROBE_STAKE_USD        = 40.0   # 2026-06-03 user directive: 10→40/position; depth gate stays $5 (partial fills ok)
+M1_BETA_PROBE_MIN_SHARES       = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
@@ -296,7 +297,8 @@ FADE_MIN_SEC_TO_CLOSE  = 1800   # ≥30 min to resolution
 FADE_WIN_PRIOR         = 0.90   # Kelly win-prob prior — HAIRCUT from backtest 0.98 (live-unconfirmed)
 FADE_KELLY_FRACTION    = 0.20   # of full Kelly (matches STWA)
 FADE_MIN_STAKE         = 3.0
-FADE_MAX_STAKE         = 20.0
+FADE_MAX_STAKE         = 40.0   # 2026-06-03 user directive: 20→40/position (Kelly-clamped ceiling)
+FADE_MIN_SHARES        = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 
 # ── WEATHER OFI MOMENTUM (live-tiny, user GO-LIVE 2026-06-02) ──────────────────
 # Per-bucket order-flow imbalance predicts resolution (research: edge2/conservation,
@@ -307,7 +309,7 @@ FADE_MAX_STAKE         = 20.0
 # fallback. OFI read from the maker_flow.jsonl tail (the probe already polls weather
 # trades) → no new HTTP. ⚠ ON-RECORD DISSENT: validated on 2-3d backtest, n=0 LIVE;
 # user chose go-live-tiny over shadow-first. HARD CAPS bound blast radius to ~$20/day.
-OFI_LIVE_ENABLED       = True
+OFI_LIVE_ENABLED       = False  # 2026-06-03 user directive: turned OFF (not optimized)
 OFI_STAKE_USD          = 2.0    # tiny — this is a real-fill validation, not a size bet
 OFI_MAX_CONCURRENT     = 3      # max open WEATHER_OFI positions at once (≤$6 at risk)
 OFI_MAX_FIRES_DAY      = 10     # hard daily cap (≤$20 deployed/day); resets at UTC midnight
@@ -318,10 +320,10 @@ OFI_MID_LO             = 0.15   # entry mid band (avoid pinned tails)
 OFI_MID_HI             = 0.85
 OFI_MIN_DEPTH_USD      = 20.0   # fillable depth on the entry side (so $2 fills)
 OFI_MIN_SEC_TO_CLOSE   = 120    # ≥2 min runway to resolution
-OFI_MAX_SEC_TO_CLOSE   = 21600  # DISABLED 2026-06-02 (user directive): upper cap reverted to
-                                # old setting (no cap — any market ≥OFI_MIN to close is eligible);
-                                # the gate now only checks the lower bound. Constant kept so the
-                                # 6h cap can be re-enabled by restoring `or _stc > OFI_MAX_SEC_TO_CLOSE`.
+OFI_MAX_SEC_TO_CLOSE   = 21600  # DEAD CONSTANT. Upper-cap gate not wired (lower bound only).
+                                # 2026-06-03 horizon study (ofi_horizon.py): EDGE 2 signal lives
+                                # ENTIRELY >6h to close; a 6h cap would gate away ~all of it. Moot —
+                                # OFI is fully off (OFI_LIVE_ENABLED=False); kept for archaeology.
 # v2 active exit (drift-decay curve, 992 signals): drift dies when OFI dies — when OFI
 # is still strong@5m the 5→15m drift is +1.4c, when decayed it's +0.25c (≈nothing). So
 # exit on signal-decay, not a clock. Sell at bid (taker) → close_position (books once,
@@ -337,7 +339,7 @@ OFI_TIME_CAP_S         = 1200   # backstop: force-consider exit at 20 min (momen
 # side+asset match). AUGMENT-only: an in-mem txhash-deduped buffer is MERGED into
 # _ofi_from_tape; the maker_flow.jsonl file stays canonical (still serves the other
 # tape consumers + is the silent fallback if the WS drops). False = pure file poll.
-OFI_WS_ENABLED         = True
+OFI_WS_ENABLED         = False  # 2026-06-03: OFI off → no need to run the WS trade-feed augment
 OFI_WS_URL             = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 OFI_WS_SUB_REFRESH_S   = 60.0   # re-derive the weather token universe from cache
 
@@ -3527,14 +3529,11 @@ class WeatherArb:
         if no_token_id in getattr(risk, "open_positions", {}):
             return
 
-        # Kelly size on the HAIRCUT prior (binary Kelly buying NO at price no_ask,
-        # payoff 1): f* = (p − ask)/(1 − ask). Clamp to [MIN,MAX] and to fillable depth.
-        bankroll = self._get_bankroll()
-        f_star = max(0.0, (FADE_WIN_PRIOR - no_ask) / (1.0 - no_ask))
-        stake = FADE_KELLY_FRACTION * f_star * bankroll
-        stake = max(FADE_MIN_STAKE, min(FADE_MAX_STAKE, stake))
-        stake = min(stake, float(no_depth_usd))      # never size above visible fill depth
-        if stake < FADE_MIN_STAKE:
+        # 2026-06-03 user directive: fade sizes FLAT at FADE_MAX_STAKE (no Kelly haircut) —
+        # the ~98-99% backtest WR makes the prime-bin fade high-conviction. Bounded only by
+        # the visible fillable NO depth so we never over-size the book.
+        stake = min(FADE_MAX_STAKE, float(no_depth_usd))
+        if stake < FADE_MIN_SHARES * no_ask:      # fewer than 5 fillable shares → skip
             return
 
         intended_price = round(min(0.99, no_ask + 0.01), 4)
@@ -3968,7 +3967,7 @@ class WeatherArb:
         # === Layer-specific gates ===
         if eff_yes_bid < layer_min_edge:
             return
-        if (eff_depth or 0.0) < layer_min_depth:
+        if (eff_depth or 0.0) < M1_BETA_PROBE_MIN_SHARES * no_ask_clob:   # ≥5 fillable shares (partial fills ok)
             return
 
         st = self._m1_beta_probe_load_state()
@@ -5443,8 +5442,8 @@ class WeatherArb:
                         _dep = _bk.get("usd_depth") or 0.0
                         if _na is None or not (FADE_NO_ASK_MIN <= _na <= FADE_NO_ASK_MAX):
                             continue
-                        if _dep < FADE_MIN_DEPTH_USD:
-                            continue  # real fillable depth required (proxy books fail here)
+                        if _dep < FADE_MIN_SHARES * _na:
+                            continue  # need ≥5 fillable shares (still rejects proxy books w/ ~0 depth)
                         _sec_close = (t_close_map.get(_slug, now) - now)
                         if _sec_close < FADE_MIN_SEC_TO_CLOSE:
                             continue
