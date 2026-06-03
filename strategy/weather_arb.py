@@ -3672,6 +3672,10 @@ class WeatherArb:
             return
         if yes_token_id in getattr(risk, "open_positions", {}):
             return
+        # Hong Kong resolves against HK Observatory, not VHHH — blocked system-wide
+        # (M1β/fade do the same). The favorite calibration doesn't trust the HK oracle.
+        if icao == "VHHH":
+            return
         # Bounded flat stake (small — unvalidated edge), capped by visible fillable depth.
         stake = min(FAVYES_STAKE_USD, float(yes_depth_usd))
         if stake < FAVYES_MIN_SHARES * yes_ask:   # fewer than 5 fillable shares → skip
@@ -5682,6 +5686,8 @@ class WeatherArb:
                                 if not _mm:
                                     continue
                                 _mkt2, _cname, _icao2 = _mm
+                                if _icao2 == "VHHH":
+                                    continue   # Hong Kong blocked (HKO oracle ≠ VHHH)
                                 _csf2 = (self._stwa._cities.get(_slug) if self._stwa else None)
                                 _ph = (_fy_phase(_csf2, t_close_map[_slug], now)
                                        if (_csf2 is not None and _slug in t_close_map) else "NA")
