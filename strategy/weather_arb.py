@@ -2577,6 +2577,12 @@ class WeatherArb:
                                                   for lvl in (no_ob.asks if no_ob else [])]},
                                 no_ask_usd_at_implied=no_depth_usd,
                                 seconds_to_close=None,
+                                # PROVENANCE (2026-06-03): pass the AWC/NWS-clean official
+                                # running max so the WS deep-band fire also requires a
+                                # clean lockout margin; _m1_beta_probe_evaluate fail-safe
+                                # skips when none is in hand (was: official=None ⇒ fired
+                                # the deep band on contaminated running_max, zero check).
+                                official_running_max=(self._icao_metar_cache.get(w["icao"]) or {}).get("official_running_max_c"),
                             )
                         except Exception:
                             logger.exception("[M1β] WS entry evaluate failed %s", w["city"])
@@ -3864,7 +3870,16 @@ class WeatherArb:
         collapse correlated outcomes at the bucket-cluster level for WR/EV stats.
         """
         sec_since = int(now_ts - first_seen)
-        depth_c = running_max - (hi_c if hi_c is not None else running_max)
+        # PROVENANCE-CLEAN lockout proof (2026-06-03): depth_c is M1β's binding
+        # physical-lockout margin (the MIN_DEPTH_C gate). It MUST be derived from the
+        # AWC/NWS hourly-METAR oracle (official_running_max), NEVER the NMS-merged
+        # running_max which Synoptic 1-min ASOS inflates (the NYC +4.73°C false
+        # lockout; the LA/SF/Shenzhen losses were all inflated-running_max false
+        # lockouts). Fail-safe: no clean obs in hand ⇒ skip — never trade a lockout
+        # on contaminated sub-hourly data. Applies to every band + the WS path.
+        if official_running_max is None or hi_c is None:
+            return
+        depth_c = official_running_max - hi_c
 
         # Prefer CLOB prices over Gamma for all gates. Gamma bestBid lags the CLOB
         # on weather markets by minutes; using it causes depth caps that miss where
