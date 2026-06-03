@@ -93,6 +93,16 @@ WIDTH_GATE_MARGIN = 1.10 # YES ladder fires only when the book-implied σ exceed
 # global multiplier. Kept as a reversible global knob; the live loop refines per-month cells.
 SIGMA_CALIB_INFLATION = 1.0
 
+# Nowcast σ-collapse (2026-06-03). Once the running max M0 nears the forecast peak, the
+# remaining-rise uncertainty shrinks: σ_remaining ≈ 0.5×(daily_max − running_max), a ratio
+# stable across all leads in 4yr hourly ASOS (analysis/weather/nowcast_sigma.py: σ 1.99°C at
+# −4h → 0.52 at −1h → 0 at peak). So tighten the pricing σ toward 0.5×(center − M0) — only ever
+# SMALLER than the per-month forecast σ (capped), floored to stay humble, folding smoothly into
+# the running-max lockout as M0→center. Sharpens pricing exactly when the day is nearly decided.
+# Revert: set NOWCAST_REMAIN_RATIO huge (e.g. 99.0) so the per-month cap always wins.
+NOWCAST_REMAIN_RATIO = 0.5
+NOWCAST_SIGMA_FLOOR  = 0.25
+
 # ── MAKER SHADOW (log-only; 2026-06-01) ────────────────────────────────────────
 # Live weather books are thin/one-sided with fat spreads ($2M vol across cities,
 # but contested buckets show ~$350 standing liquidity at a 2.6–5¢ spread vs ~$29k
@@ -888,8 +898,14 @@ class STWAEngine:
             _center = (float(np.nanmax(mu_grid))
                        + float(_cal.get("peak_bias", 0.0))
                        + PA_SHRUNK_BETA * x_hat)
-            cs.ps_probs_last = _peak_shrunk_bucket_probs(
-                buckets, M0, _center, _peak_sigma_for(self._peak_calib, city, _current_month()))
+            _sig_fc = _peak_sigma_for(self._peak_calib, city, _current_month())
+            # Nowcast: shrink σ as the running max M0 approaches the forecast peak (remaining-
+            # rise uncertainty ≈ 0.5×(center − M0)). Only ever tighter than σ_fc; floored.
+            _sig = _sig_fc
+            if M0 is not None:
+                _sig = min(_sig_fc, max(NOWCAST_SIGMA_FLOOR,
+                                        NOWCAST_REMAIN_RATIO * max(0.0, _center - float(M0))))
+            cs.ps_probs_last = _peak_shrunk_bucket_probs(buckets, M0, _center, _sig)
         except Exception:
             cs.ps_probs_last = {}
 
