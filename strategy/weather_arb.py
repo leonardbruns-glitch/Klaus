@@ -315,7 +315,7 @@ FAVYES_MIN_ASK          = 0.60   # below = not a confident favorite; the underpr
 FAVYES_MAX_ASK          = 0.98   # above this the edge < fee
 FAVYES_STAKE_USD        = 5.0    # deliberately SMALL — n=10-19 unvalidated; scale only after live n≥100
 FAVYES_MIN_SHARES       = 5.0    # require ≥5 fillable YES shares (rejects proxy / thin books)
-FAVYES_MAX_DAILY_FIRES  = 5      # blast-radius cap (~$25/day at $5/fire)
+FAVYES_MAX_DAILY_FIRES  = 50     # 2026-06-03 user: 5→50/day to accumulate live n fast (n≈100 in ~2-3d). Nominal ~$250 but ~$55 free cash is the real cap (later fires no-fill until favorites resolve+recycle). Stake stays $5.
 FAVYES_MIN_SEC_TO_CLOSE = 3600   # ≥1h to resolution (standing days-out edge; skip the convergence tail)
 
 # ── WEATHER OFI MOMENTUM (live-tiny, user GO-LIVE 2026-06-02) ──────────────────
