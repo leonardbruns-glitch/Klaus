@@ -99,7 +99,7 @@ STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-re
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
 # at bid>=0.999, so positions that never reach TP must be settled here or their (mostly
 # winning) PnL never banks — the same write-only gap STWA had.
-_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI")
+_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI", "WEATHER_FAVYES")
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -299,6 +299,24 @@ FADE_KELLY_FRACTION    = 0.20   # of full Kelly (matches STWA)
 FADE_MIN_STAKE         = 3.0
 FADE_MAX_STAKE         = 40.0   # 2026-06-03 user directive: 20→40/position (Kelly-clamped ceiling)
 FADE_MIN_SHARES        = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
+
+# ── FAVORITE-YES live edge — favorite-longshot underpricing of confident OPEN-ENDED
+# tails (user GO-LIVE 2026-06-03, Tier-3 override of the n≥100 gate) ───────────────
+# Buy YES on open-ended cumulative-tail buckets ("X or higher"/"X or below") whose REAL
+# CLOB yes_ask is in [0.60,0.98]: the price→resolution calibration shows these resolve
+# YES 84-100% vs implied 69-95% (+0.13/ct). ⚠⚠ ON-RECORD DISSENT: n=10-19/band =
+# TREND-ONLY, FAR below the n≥100 act-gate (at n=16 a "100% WR" band has ~7% odds of
+# being luck even if the market is efficient — which it is on the forecast distribution).
+# NOT calibration-free; rides on the FLB persisting. Deployed BOUNDED (small stake +
+# daily cap) to accrue LIVE n with a small blast radius. Scale ONLY after live n≥100
+# confirms +EV. Revert: FAVYES_LIVE_ENABLED=False.
+FAVYES_LIVE_ENABLED     = True
+FAVYES_MIN_ASK          = 0.60   # below = not a confident favorite; the underpriced zone is [0.60,0.98]
+FAVYES_MAX_ASK          = 0.98   # above this the edge < fee
+FAVYES_STAKE_USD        = 5.0    # deliberately SMALL — n=10-19 unvalidated; scale only after live n≥100
+FAVYES_MIN_SHARES       = 5.0    # require ≥5 fillable YES shares (rejects proxy / thin books)
+FAVYES_MAX_DAILY_FIRES  = 5      # blast-radius cap (~$25/day at $5/fire)
+FAVYES_MIN_SEC_TO_CLOSE = 3600   # ≥1h to resolution (standing days-out edge; skip the convergence tail)
 
 # ── WEATHER OFI MOMENTUM (live-tiny, user GO-LIVE 2026-06-02) ──────────────────
 # Per-bucket order-flow imbalance predicts resolution (research: edge2/conservation,
@@ -3636,6 +3654,108 @@ class WeatherArb:
         logger.info("[FADE] FILLED %s NO@%.4f size=%.1f stake=$%.2f",
                     city, fill_price, fill_size, fill_size * fill_price)
 
+    async def _favorite_evaluate(
+        self, *, slug: str, city: str, icao: str, mkt: dict,
+        lo_c: float, hi_c: float, yes_token_id: str,
+        yes_ask: float, yes_depth_usd: float, phase: str,
+        end_date: str, question: str, now_ts: float, now_utc, seconds_to_close,
+    ) -> None:
+        """LIVE favorite-YES fire (user GO-LIVE 2026-06-03, Tier-3 override of n≥100):
+        buy YES on a confident OPEN-ENDED cumulative-tail bucket priced [0.60,0.98]
+        (favorite-longshot underpricing; n=10-19 TREND-ONLY ⇒ bounded deploy). Gates
+        already checked by the caller; this does dedup/sizing/order/registration. Tag
+        WEATHER_FAVYES so the existing settler books it. Isolated by caller try/except."""
+        risk = self.bot.risk
+        if not hasattr(self, "_favyes_fired"):
+            self._favyes_fired = set()
+        if yes_token_id in self._favyes_fired:
+            return
+        if yes_token_id in getattr(risk, "open_positions", {}):
+            return
+        # Bounded flat stake (small — unvalidated edge), capped by visible fillable depth.
+        stake = min(FAVYES_STAKE_USD, float(yes_depth_usd))
+        if stake < FAVYES_MIN_SHARES * yes_ask:   # fewer than 5 fillable shares → skip
+            return
+        intended_price = round(min(0.99, yes_ask + 0.01), 4)
+        condition_id = mkt.get("conditionId", "") or mkt.get("condition_id", "")
+        neg_risk = mkt.get("negRisk", True)
+
+        log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "favyes_live.jsonl"
+        pre = {
+            "record_type": "favyes_live", "phase_rec": "submit", "ts": now_ts,
+            "city": city, "icao": icao, "end_date": end_date, "question": question,
+            "condition_id": condition_id, "yes_token_id": yes_token_id,
+            "bucket_lo_c": round(lo_c, 4), "bucket_hi_c": round(hi_c, 4),
+            "yes_ask": round(yes_ask, 4), "yes_depth_usd": round(float(yes_depth_usd), 2),
+            "intended_price": intended_price, "stake_usd": round(stake, 2),
+            "diurnal_phase": phase,
+            "sec_to_close": int(seconds_to_close) if seconds_to_close is not None else None,
+        }
+        try:
+            log_path.open("a").write(json.dumps(pre) + "\n")
+        except Exception:
+            logger.debug("[FAVYES] pre-log fail", exc_info=True)
+
+        from strategy.momentum import Direction as _Dir, TPSLLevels as _TPSL
+        from execution.order_manager import OrderStatus
+        logger.info("[FAVYES] FIRE %s bin[%.1f,%.1f] YES@%.3f stake=$%.1f %s",
+                    city, lo_c, hi_c, intended_price, stake, phase)
+        try:
+            fill = await self.bot.orders.limit_buy(
+                token_id=yes_token_id, intended_price=intended_price,
+                stake_usd=stake, direction=_Dir.BUY_YES, neg_risk=neg_risk,
+                fast_fail=False,
+            )
+        except Exception as e:
+            logger.exception("[FAVYES] order error %s", city)
+            try:
+                log_path.open("a").write(json.dumps(
+                    {**pre, "phase_rec": "submit_error", "error": str(e)}) + "\n")
+            except Exception:
+                pass
+            return
+
+        # Count the attempt regardless of fill (one chance per token; bounds the daily cap).
+        self._favyes_fired.add(yes_token_id)
+        self._favyes_fires_today = getattr(self, "_favyes_fires_today", 0) + 1
+        filled = (fill.status == OrderStatus.FILLED and fill.total_size > 0)
+        fill_price = float(fill.avg_fill_price) if filled else None
+        fill_size = float(fill.total_size) if filled else 0.0
+        try:
+            log_path.open("a").write(json.dumps({
+                **pre, "phase_rec": "result", "filled": filled,
+                "fill_avg_price": fill_price, "fill_size_shares": fill_size,
+                "fill_status": str(fill.status),
+            }) + "\n")
+        except Exception:
+            pass
+
+        if not filled:
+            logger.info("[FAVYES] no-fill %s (status=%s)", city, fill.status)
+            return
+        if yes_token_id in getattr(risk, "open_positions", {}):
+            return  # raced another fill on same token — don't overwrite
+        risk.open_position(
+            token_id=yes_token_id, asset="WEATHER", direction=_Dir.BUY_YES,
+            stake=fill_size * fill_price, entry_price=fill_price,
+            tpsl=_TPSL(take_profit=0.0, stop_loss=0.0, tp_pct=0.0, sl_pct=0.0, risk_reward=0.0),
+            condition_id=condition_id, window_end_ts=0.0, is_bond=True,
+            bond_outcome_direction="up", bond_entry_class="WEATHER_FAVYES",
+        )
+        meta = self.bot._open_meta.setdefault(yes_token_id, {})
+        meta["signal_source"] = f"WEATHER/{city}/WEATHER_FAVYES"
+        meta["city"] = city
+        meta["icao"] = icao
+        meta["weather_question"] = question
+        meta["weather_date"] = end_date
+        meta["bucket_lo_c"] = lo_c
+        meta["bucket_hi_c"] = hi_c
+        meta["favyes_first_signal_state"] = pre
+        logger.info("[FAVYES] FILLED %s YES@%.4f size=%.1f stake=$%.2f",
+                    city, fill_price, fill_size, fill_size * fill_price)
+
     def _ofi_from_tape(self, now_ts: float) -> dict:
         """Rolling OFI per condition_id. Primary source = the maker_flow.jsonl tail
         (the probe's weather trade feed); when OFI_WS_ENABLED the sub-second WS
@@ -5490,6 +5610,93 @@ class WeatherArb:
                         logger.debug("[FADE] live fire failed (isolated) %s", _slug, exc_info=True)
         except Exception:
             logger.debug("[STWA] fade shadow recorder failed (isolated)", exc_info=True)
+
+        # ── FAVORITE-YES live fire (user GO-LIVE 2026-06-03, Tier-3 override of n≥100) ──
+        # Buy YES on confident OPEN-ENDED cumulative-tail buckets priced [0.60,0.98]
+        # (favorite-longshot underpricing; n=10-19 TREND-ONLY, dissent on record). Bounded:
+        # small flat stake + daily cap. Real-CLOB-book gated (Gamma proxy screens which
+        # tails to fetch; the real book confirms the ask + fillable depth). Isolated
+        # try/except — cannot disturb the live path.
+        if FAVYES_LIVE_ENABLED:
+            try:
+                _fy_today = time.strftime("%Y-%m-%d", time.gmtime())
+                if getattr(self, "_favyes_fires_date", "") != _fy_today:
+                    self._favyes_fires_date = _fy_today
+                    self._favyes_fires_today = 0
+                if getattr(self, "_favyes_fires_today", 0) < FAVYES_MAX_DAILY_FIRES:
+                    _fy_fired = getattr(self, "_favyes_fired", set())
+                    _fy_cands = []          # (slug, lo, hi, yes_tok)
+                    _fy_toks: list[str] = []
+                    for _slug, _bks in bucket_map.items():
+                        for _lo, _hi, _y, _n in _bks:
+                            if not _y or _y in _fy_fired:
+                                continue
+                            if not ((_lo <= -990.0) or (_hi >= 990.0)):
+                                continue   # OPEN-ENDED cumulative tails only
+                            _pa = (clob_books.get(_y) or {}).get("best_ask")
+                            if _pa is None or not (0.55 <= _pa <= 0.99):
+                                continue   # screen by Gamma proxy before paying for a real fetch
+                            _fy_cands.append((_slug, _lo, _hi, _y))
+                            _fy_toks.append(_y)
+                    if _fy_toks:
+                        import asyncio as _aiofy
+                        _fybooks = await _aiofy.gather(
+                            *[self._fetch_book_levels(_t, n=5) for _t in _fy_toks],
+                            return_exceptions=True)
+                        for _t, _fb in zip(_fy_toks, _fybooks):
+                            if isinstance(_fb, Exception) or not isinstance(_fb, dict):
+                                continue
+                            _asks = _fb.get("asks") or []
+                            if not _asks:
+                                continue
+                            _ba = _asks[0]["price"]
+                            _depth = sum(a["price"] * a["size"] for a in _asks)
+                            if 0 < _ba < 1.0 and _depth > 0:
+                                _e = clob_books.setdefault(_t, {})
+                                _e["best_ask"] = _ba
+                                _e["usd_depth"] = round(_depth, 2)
+                        from strategy.stwa_engine import _phase as _fy_phase
+                        from datetime import datetime as _dtfy, timezone as _tzfy
+                        _now_utc_fy = _dtfy.now(_tzfy.utc)
+                        _ytok2mkt = {}
+                        for _e2 in (self._today_markets_cache or []):
+                            _m = _e2.get("mkt") or {}
+                            _tids = _parse_token_ids(_m.get("clobTokenIds", []))
+                            if _tids:
+                                _ytok2mkt[_tids[0]] = (_m, _e2.get("city"), _e2.get("icao"))
+                        for _slug, _lo, _hi, _y in _fy_cands:
+                            if getattr(self, "_favyes_fires_today", 0) >= FAVYES_MAX_DAILY_FIRES:
+                                break
+                            try:
+                                _bk = clob_books.get(_y) or {}
+                                _ya = _bk.get("best_ask")
+                                _dep = _bk.get("usd_depth") or 0.0
+                                if _ya is None or not (FAVYES_MIN_ASK <= _ya <= FAVYES_MAX_ASK):
+                                    continue
+                                if _dep < FAVYES_MIN_SHARES * _ya:
+                                    continue   # need ≥5 fillable YES shares (rejects proxy/thin books)
+                                _sec_close = (t_close_map.get(_slug, now) - now)
+                                if _sec_close < FAVYES_MIN_SEC_TO_CLOSE:
+                                    continue
+                                _mm = _ytok2mkt.get(_y)
+                                if not _mm:
+                                    continue
+                                _mkt2, _cname, _icao2 = _mm
+                                _csf2 = (self._stwa._cities.get(_slug) if self._stwa else None)
+                                _ph = (_fy_phase(_csf2, t_close_map[_slug], now)
+                                       if (_csf2 is not None and _slug in t_close_map) else "NA")
+                                await self._favorite_evaluate(
+                                    slug=_slug, city=_cname or _slug, icao=_icao2 or "",
+                                    mkt=_mkt2, lo_c=float(_lo), hi_c=float(_hi),
+                                    yes_token_id=_y, yes_ask=float(_ya),
+                                    yes_depth_usd=float(_dep), phase=_ph,
+                                    end_date=(_mkt2.get("endDate") or "")[:10],
+                                    question=_mkt2.get("question", ""),
+                                    now_ts=now, now_utc=_now_utc_fy, seconds_to_close=_sec_close)
+                            except Exception:
+                                logger.debug("[FAVYES] live fire failed (isolated) %s", _slug, exc_info=True)
+            except Exception:
+                logger.debug("[FAVYES] recorder failed (isolated)", exc_info=True)
 
         # ── WEATHER OFI MOMENTUM live fire (user GO-LIVE 2026-06-02; hold-to-res v1) ──
         # OFI from the maker_flow tail → taker-buy the flow-aligned token, register
