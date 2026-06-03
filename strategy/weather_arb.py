@@ -533,6 +533,10 @@ MIN_MODELS_FOR_ENTRY = 4
 # Sigma inflation factor applied when fewer than MIN_MODELS_FOR_ENTRY were available.
 # Adds protection against the "fewer models → tighter spread → false confidence" failure.
 LOW_MODEL_SIGMA_INFLATION = 1.40
+# Local hour (city-local) after which the day's max is definitively final (past the
+# diurnal peak everywhere) — the gate for emitting a learning-loop `actual`. Logging at
+# 21:00 local guarantees the official daily high is settled and is robust to restarts.
+ACTUALS_MIN_LOCAL_HOUR = 21
 
 # US cities where we also fetch NWS NDFD as an additional source.
 # NWS NDFD incorporates HRRR (3km) and NAM internally — equivalent to adding
@@ -1596,6 +1600,9 @@ class WeatherArb:
         # Tracks the file position (byte offset) in forecast_actuals.jsonl so we only
         # process newly appended actual events each METAR cycle.
         self._wu_actuals_offset: int = 0
+        # Learning-loop producer dedup: {(city_slug, valid_day)} already emitted an
+        # `actual` for. Revives the dead skill-matrix feed (log_actual had no producer).
+        self._actuals_logged: set[tuple[str, str]] = set()
         # Upstream Oracle dedup: {city_slug|date_iso} already checked this run-day
         self._oracle_fired_dates: set[str] = set()
         # Seed _fired_tokens from any WEATHER positions already open in the risk manager
@@ -3044,6 +3051,7 @@ class WeatherArb:
                     _last_slow = _t.time()
                     await self._poll_metars()
                     await self._check_wu_transitions()
+                    await self._log_weather_actuals()
                     await self._oracle_metar_check()
                     try:
                         await self._metar_lockout_scan()
@@ -6335,6 +6343,44 @@ class WeatherArb:
             except Exception:
                 self._fired_tokens.discard(token_id)
                 logger.exception("[WA] tail sniper entry error %s", city)
+
+    async def _log_weather_actuals(self) -> None:
+        """Revive the self-learning loop: emit ONE provenance-clean `actual` per
+        (city, valid_day) once the day's diurnal peak is definitively past
+        (local hour ≥ ACTUALS_MIN_LOCAL_HOUR). The producer that fed
+        forecast_actuals.jsonl died in the 2026-05-31 resolution overhaul, freezing
+        the skill matrix. This re-wires it.
+
+        Source of truth = official_running_max_c (AWC/NWS hourly METAR only) — the
+        SAME oracle Polymarket resolves against. Never the sub-hourly running_max_c
+        (the M1β/P3 false-lockout lesson). Idempotent via self._actuals_logged.
+        """
+        from datetime import datetime, timezone, timedelta as _td
+        try:
+            from analysis.weather.live_accumulator import log_actual
+        except Exception:
+            return
+        now_utc = datetime.now(timezone.utc)
+        for icao, cached in list(self._icao_metar_cache.items()):
+            slug = ICAO_TO_SLUG.get(icao)
+            if not slug:
+                continue
+            official = cached.get("official_running_max_c")
+            valid_day = cached.get("running_max_date")
+            if official is None or not valid_day:
+                continue
+            key = (slug, valid_day)
+            if key in self._actuals_logged:
+                continue
+            tz_h = ICAO_UTC_OFFSET_H.get(icao, 0)
+            local_hour = (now_utc + _td(hours=tz_h)).hour
+            if local_hour < ACTUALS_MIN_LOCAL_HOUR:
+                continue  # not yet definitively post-peak — the max may still rise
+            self._actuals_logged.add(key)
+            try:
+                log_actual(slug, slug, valid_day, float(official))
+            except Exception:
+                logger.exception("[WA] log_actual emit failed %s %s", slug, valid_day)
 
     async def _check_wu_transitions(self) -> None:
         """
