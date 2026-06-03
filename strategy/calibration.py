@@ -34,7 +34,9 @@ SKILL_MATRIX_PATH = Path(__file__).parent / "skill_matrix.json"
 RELOAD_INTERVAL_S = 3600     # hot-swap matrix every hour if file changed
 
 # Models considered "AI/ML-class" — they have systematic biases worth tracking.
-AI_MODELS = frozenset({"ecmwf_aifs025", "gfs_graphcast025"})
+# 2026-06-03: live AIFS id is ecmwf_aifs025_single (bare id is history-only/null on /v1/forecast);
+# gfs_graphcast025 dropped (dead on live endpoint).
+AI_MODELS = frozenset({"ecmwf_aifs025_single"})
 
 # Default values used when calibration cell is missing.
 DEFAULT_SIGMA_C   = 1.0

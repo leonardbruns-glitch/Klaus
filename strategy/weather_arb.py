@@ -519,11 +519,15 @@ def _compute_scalp_tp(entry: float, fair: float) -> float:
 ELEVATION_THRESHOLD_M = 1500
 ELEVATION_SIGMA_FLOOR = 3.0  # Minimum sigma for mountain cities (vs 1.0 for sea level)
 
-# 7-model global ensemble. All models confirmed returning data for all validated cities
-# via Open-Meteo live + historical APIs (2026-05-20 probe).
-# GFS (NOAA), ICON (DWD), ECMWF IFS, GEM (CMC/Canada), JMA, UKMO, Météo-France.
-# Models that lack coverage for a region return null and are silently excluded.
-FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025,gem_seamless,jma_seamless,ukmo_seamless,meteofrance_seamless,ecmwf_aifs025,gfs_graphcast025"
+# 8-model global ensemble. All confirmed returning LIVE data via Open-Meteo (2026-06-03 probe).
+# GFS (NOAA), ICON (DWD), ECMWF IFS, GEM (CMC/Canada), JMA, UKMO, Météo-France, + ECMWF AIFS.
+# AIFS = the SOTA ML model; the LIVE id is `ecmwf_aifs025_single` — the bare `ecmwf_aifs025`
+# is history-only and returns null on /v1/forecast (that's why AIFS was silently absent from
+# the live ensemble). `gfs_graphcast025` REMOVED 2026-06-03: NOAA GraphCast returns null across
+# ±8d on the live endpoint (dead). Models lacking regional coverage return null → silently
+# excluded. AIFS has no skill-matrix entry yet → enters at W_FLOOR weight; the revived learning
+# loop measures its skill and up-weights it over time.
+FORECAST_MODELS = "gfs_seamless,icon_seamless,ecmwf_ifs025,gem_seamless,jma_seamless,ukmo_seamless,meteofrance_seamless,ecmwf_aifs025_single"
 
 # Minimum live models required for an STRAT_1/2 entry. Below this, σ_ens is unreliable:
 # the ensemble spread shrinks artificially when models drop out, faking conviction.

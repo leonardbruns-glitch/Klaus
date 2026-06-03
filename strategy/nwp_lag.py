@@ -49,8 +49,8 @@ logger = logging.getLogger(__name__)
 NWP_PUBLISH_SCHEDULE: dict[str, list[int]] = {
     "gfs_seamless":           [4, 10, 16, 22],   # 00/06/12/18Z + ~4h
     "ecmwf_ifs025":           [7, 19],           # 00/12Z + ~7h
-    "ecmwf_aifs025":          [7, 19],           # AIFS released same window as IFS
-    "gfs_graphcast025":       [5, 11, 17, 23],   # GraphCast follows GFS init + 1h
+    "ecmwf_aifs025_single":   [7, 19],           # AIFS (live id); released same window as IFS
+    "gfs_graphcast025":       [5, 11, 17, 23],   # GraphCast (dead on live endpoint 2026-06; kept for history)
     "icon_seamless":          [3, 9, 15, 21],    # 00/06/12/18Z + ~3h
     "jma_seamless":           [4, 10, 16, 22],
     "ukmo_seamless":          [6, 18],           # UKMO 00/12Z + ~6h
