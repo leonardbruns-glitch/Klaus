@@ -84,17 +84,14 @@ WIDTH_GATE_MARGIN = 1.10 # YES ladder fires only when the book-implied σ exceed
                          # typical Polymarket overrounds. Gates YES only — arb
                          # spine (returns earlier) and NO pool are unaffected.
 
-# EMOS variance inflation on the PA-shrunk pricing σ. The peak_calib σ was fit on
-# 2024 ASOS-vs-NWP error, which is far tighter than realized LIVE forecast error:
-# n=352 paired live city-days (analysis/weather/emos_recal.py) → standardized-residual
-# std 1.52 (realized RMSE 1.60°C vs pricing σ ~0.9–1.1°C), coverage ±1σ 58.8%. Applying
-# ×1.52 drives z-std→1.00 / ±1.96σ coverage 95.5% (residual bias only −0.19°C → peak_bias
-# still holds; σ is the whole miscalibration). STRICTLY risk-reducing: wider σ → less
-# overconfident bucket probs → smaller Kelly bets + harder width gate → suppresses the
-# directional-YES bleed. arb (raw-p coverage) + M1β (running-max) are σ-independent.
-# STOPGAP: a global factor pending per-city EMOS once the revived loop feeds n≥30/city.
-# Revert: set to 1.0.
-SIGMA_CALIB_INFLATION = 1.52
+# Global EMOS σ factor — RETIRED to 1.0 (2026-06-03). Calibration is now per-(city,month)
+# via peak_calib `sigma_monthly` (built from clean 2021-24 ASOS history; see _peak_sigma_for).
+# HISTORY: a ×1.52 was briefly deployed off 11 live days (emos_recal.py), but those used
+# metar_lockout running_max_c as the "actual" — sub-hourly/NMS-contaminated → inflated error →
+# a FALSE 1.52× "overconfidence". The clean 4yr ASOS history shows raw σ ≈ calibrated for this
+# season (z-std 0.92) with a ~2× SEASONAL swing → per-(city,month) σ is the right fix, not a
+# global multiplier. Kept as a reversible global knob; the live loop refines per-month cells.
+SIGMA_CALIB_INFLATION = 1.0
 
 # ── MAKER SHADOW (log-only; 2026-06-01) ────────────────────────────────────────
 # Live weather books are thin/one-sided with fat spreads ($2M vol across cities,
@@ -892,7 +889,7 @@ class STWAEngine:
                        + float(_cal.get("peak_bias", 0.0))
                        + PA_SHRUNK_BETA * x_hat)
             cs.ps_probs_last = _peak_shrunk_bucket_probs(
-                buckets, M0, _center, float(_cal.get("sigma", 1.1)) * SIGMA_CALIB_INFLATION)
+                buckets, M0, _center, _peak_sigma_for(self._peak_calib, city, _current_month()))
         except Exception:
             cs.ps_probs_last = {}
 
@@ -1168,7 +1165,7 @@ class STWAEngine:
         # or doesn't fire: width gate, best available edge, budget). s_our/s_book
         # are reused by the width gate below. ─────────────────────────────────
         _cal_w = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
-        s_our  = float(_cal_w.get("sigma", 1.1)) * SIGMA_CALIB_INFLATION
+        s_our  = _peak_sigma_for(self._peak_calib, city, _current_month())
         s_book = _book_implied_sigma(entries)
         _width_ok = (s_book is not None and s_book > WIDTH_GATE_MARGIN * s_our)
         _best_yes_edge = max(
@@ -1676,6 +1673,20 @@ def _get_sigma(st: dict, hour_utc: int) -> float:
 def _current_month() -> int:
     import datetime
     return datetime.datetime.utcnow().month
+
+
+def _peak_sigma_for(peak_calib: dict, city: str, month: int) -> float:
+    """Per-(city,month) PA-shrunk pricing σ. Tries the city's sigma_monthly, then the
+    _pooled monthly fallback, then the city's flat sigma (then 1.1). × the global EMOS
+    factor (now 1.0). Season-aware: daily-max forecast error swings ~2× across the year."""
+    cal = peak_calib.get(city) or peak_calib.get("_pooled", {})
+    for src in (cal, peak_calib.get("_pooled", {})):
+        sm = src.get("sigma_monthly") if isinstance(src, dict) else None
+        if isinstance(sm, dict):
+            v = sm.get(str(month)) or sm.get(month)
+            if v:
+                return float(v) * SIGMA_CALIB_INFLATION
+    return float(cal.get("sigma", 1.1)) * SIGMA_CALIB_INFLATION
 
 
 def _new_max(existing: Optional[float], temp_c: float) -> float:
