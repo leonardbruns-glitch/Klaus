@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+951975ae fix(weather OFI): commit the OFF switch — running process was still firing
 11b40e73 research: fade capacity funnel — coverage is liquidity-bound (12 cities have no CLOB book), not gate-bound
 82761fbc research(alpha P3): step front-run FALSIFIED (book reprices lockouts <30s, n=63k); alpha hunt 3/3 complete
 3066c779 fix(weather sizing): _get_bankroll = free cash, not total equity (user directive)
@@ -11,13 +12,12 @@ e54b547f research(alpha P2): velocity first-passage Stage-2 vs market = NEGATIVE
 37cb11f7 feat(weather OFI): WS-direct trade feed (augment) — sub-second OFI vs 180s poll
 55ac2c79 fix(weather OFI): revert entry-window upper cap to old setting (user directive)
 e3a76178 feat(weather OFI v2): active signal-decay exit (sell, don't hold to daily res)
-f2be15f9 fix(weather OFI): cap entry at sec_to_close<=6h (exclude next-day longshots)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   59G       34G  64% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-06-03 05:27:47 UTC
+ActiveEnterTimestamp=Wed 2026-06-03 06:38:20 UTC
 
 ## Open positions (count):
 0
