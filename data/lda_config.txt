@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-03T10:56:23Z
+# Snapshot: 2026-06-03T11:11:36Z
 # Latest commit on klaus:
-083dcfcc fix(weather): per-(city,month) pricing σ from clean 4yr history; retire global ×1.52
+3fbf78b4 feat(weather): nowcast σ-collapse — shrink pricing σ as running max nears forecast peak
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
