@@ -315,8 +315,23 @@ FAVYES_MIN_ASK          = 0.60   # below = not a confident favorite; the underpr
 FAVYES_MAX_ASK          = 0.98   # above this the edge < fee
 FAVYES_STAKE_USD        = 5.0    # deliberately SMALL — n=10-19 unvalidated; scale only after live n≥100
 FAVYES_MIN_SHARES       = 5.0    # require ≥5 fillable YES shares (rejects proxy / thin books)
-FAVYES_MAX_DAILY_FIRES  = 50     # 2026-06-03 user: 5→50/day to accumulate live n fast (n≈100 in ~2-3d). Nominal ~$250 but ~$55 free cash is the real cap (later fires no-fill until favorites resolve+recycle). Stake stays $5.
+FAVYES_MAX_DAILY_FIRES  = 10**9  # 2026-06-04 user: UNCAPPED. Real available USDC is now the only cap (per-token dedup happens only on a real fill, so cash freed by manual sells / 0.99 exits recycles into the next favorite). Stake stays $5.
 FAVYES_MIN_SEC_TO_CLOSE = 3600   # ≥1h to resolution (standing days-out edge; skip the convergence tail)
+
+# ── 0.99 EXIT (user 2026-06-04) ───────────────────────────────────────────────
+# Exit every held-to-resolution weather position once it can be sold at ≥$0.99,
+# to capture near-certain winners ~1¢ early and recycle the capital into new fires.
+# Implemented as a poll-then-taker sell (NOT a resting limit order): a resting sell
+# fills "externally" and the bot wouldn't book it, so the resolution loop would
+# double-count it (it books from the Gamma outcome with no balance check). Selling
+# at the bid and calling close_position() in the same step books PnL exactly once
+# and removes the token so the settler can't re-book it — the same discipline as
+# _ofi_manage_exits. Full-depth-gated (no partial-fill accounting); hold-to-
+# resolution stays the fallback for anything that never reaches 0.99.
+# Revert: EXIT099_ENABLED=False.
+EXIT099_ENABLED    = True
+EXIT099_PRICE      = 0.99   # sell once a ≥0.99 bid with enough depth is available
+EXIT099_MIN_SHARES = 5.0    # skip dust — sub-5-share exits aren't worth the order; they resolve on their own
 
 # ── WEATHER OFI MOMENTUM (live-tiny, user GO-LIVE 2026-06-02) ──────────────────
 # Per-bucket order-flow imbalance predicts resolution (research: edge2/conservation,
@@ -3095,6 +3110,10 @@ class WeatherArb:
                         await self._stwa_signal_scan()
                     if TAIL_SNIPER_ENABLED:
                         await self._tail_sniper_check()
+                    try:
+                        await self._exit_at_099()
+                    except Exception:
+                        logger.exception("[EXIT099] scan error")
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
@@ -3721,9 +3740,6 @@ class WeatherArb:
                 pass
             return
 
-        # Count the attempt regardless of fill (one chance per token; bounds the daily cap).
-        self._favyes_fired.add(yes_token_id)
-        self._favyes_fires_today = getattr(self, "_favyes_fires_today", 0) + 1
         filled = (fill.status == OrderStatus.FILLED and fill.total_size > 0)
         fill_price = float(fill.avg_fill_price) if filled else None
         fill_size = float(fill.total_size) if filled else 0.0
@@ -3737,8 +3753,14 @@ class WeatherArb:
             pass
 
         if not filled:
+            # Do NOT dedup on a no-fill: the usual cause is no free USDC right now.
+            # Leaving the token un-fired lets it fill on a later cycle once cash is
+            # freed (manual sells / 0.99 exits) — "fire whenever USDC is available."
             logger.info("[FAVYES] no-fill %s (status=%s)", city, fill.status)
             return
+        # Real fill → dedup this token for the day (one held position per favorite tail).
+        self._favyes_fired.add(yes_token_id)
+        self._favyes_fires_today = getattr(self, "_favyes_fires_today", 0) + 1
         if yes_token_id in getattr(risk, "open_positions", {}):
             return  # raced another fill on same token — don't overwrite
         risk.open_position(
@@ -3970,6 +3992,87 @@ class WeatherArb:
                     pass
             except Exception:
                 logger.debug("[OFI] exit failed %s", str(tok)[:10], exc_info=True)
+
+    async def _exit_at_099(self) -> None:
+        """Sell every held-to-resolution weather position once a ≥$0.99 bid with
+        enough depth exists, then close_position() inline — books PnL exactly once
+        and removes the token so the settler can't double-count it (it books from
+        the Gamma outcome with no balance check). Poll-then-taker, full-depth-gated
+        (no partial-fill accounting); hold-to-resolution is the fallback. Uses the
+        working _submit_limit_order primitive (orders.limit_sell does not exist).
+        Read-mostly + try/except: cannot disturb the rest of the engine."""
+        if not EXIT099_ENABLED:
+            return
+        risk = getattr(self.bot, "risk", None)
+        if risk is None:
+            return
+        try:
+            opens = [(t, p) for t, p in list(risk.open_positions.items())
+                     if getattr(p, "bond_entry_class", "") in _STWA_RESOLVE_CLASSES]
+        except Exception:
+            return
+        if not opens:
+            return
+        # token → negRisk (weather markets default to neg-risk) — avoid a wrong-exchange sell.
+        tok2neg: dict = {}
+        for _e in (self._today_markets_cache or []):
+            _m = _e.get("mkt") or {}
+            for _t in _parse_token_ids(_m.get("clobTokenIds", [])):
+                tok2neg[_t] = bool(_m.get("negRisk", True))
+        from execution.order_manager import OrderStatus as _OS, OrderSide as _OSide, OrderType as _OT
+        from datetime import datetime as _dtx, timezone as _tzx
+        import time as _t, math as _math
+        for tok, p in opens:
+            try:
+                shares = float(getattr(p, "remaining_shares", 0.0) or 0.0)
+                # A 0.99 price forces whole-share CLOB steps, so sell the floored whole
+                # amount; any sub-1-share remainder is dust that redeems at resolution.
+                # Flooring keeps the full-fill check exact (no partial-sell orphan).
+                sell_sh = float(_math.floor(shares))
+                if sell_sh < EXIT099_MIN_SHARES:
+                    continue
+                # Cheap pre-filter: skip the book fetch unless the cached bid is near 0.99.
+                cached_bid = float(getattr(p, "current_price", 0.0) or 0.0)
+                if cached_bid and cached_bid < EXIT099_PRICE - 0.01:
+                    continue
+                bk = await self._fetch_book_levels(tok, n=3)
+                bids = (bk or {}).get("bids") or []
+                if not bids:
+                    continue
+                bid = float(bids[0]["price"]); bidsz = float(bids[0]["size"])
+                if bid < EXIT099_PRICE or bidsz < sell_sh:
+                    continue   # need a ≥0.99 bid deep enough to clear the whole position
+                neg = tok2neg.get(tok, True)
+                await self.bot.orders.approve_token_for_sell(tok)
+                fill = await self.bot.orders._submit_limit_order(
+                    tok, _OSide.SELL, round(bid, 2), sell_sh,
+                    neg_risk=neg, order_type=_OT.GTC)
+                filled = (getattr(fill, "status", None) == _OS.FILLED
+                          and float(getattr(fill, "total_size", 0) or 0) >= sell_sh - 0.01)
+                if not filled:
+                    logger.info("[EXIT099] no-fill %s status=%s — retry next cycle",
+                                str(tok)[:10], getattr(fill, "status", None))
+                    continue
+                exitpx = float(getattr(fill, "avg_fill_price", bid) or bid)
+                cls = getattr(p, "bond_entry_class", "")
+                entry = float(getattr(p, "entry_price", 0.0) or 0.0)
+                pnl = self.bot.risk.close_position(
+                    tok, exit_price=exitpx, reason="WEATHER_EXIT099", actual_fee=0.0)
+                self.bot._open_meta.pop(tok, None)
+                logger.info("[EXIT099] EXIT %s %s shares=%.1f entry=%.3f exit=%.4f pnl=%.3f",
+                            cls, str(tok)[:10], shares, entry, exitpx, pnl or 0.0)
+                try:
+                    _ld = Path("logs/shadow/hot") / _dtx.now(_tzx.utc).date().isoformat()
+                    _ld.mkdir(parents=True, exist_ok=True)
+                    (_ld / "exit099_live.jsonl").open("a").write(json.dumps({
+                        "ts": _t.time(), "record": "exit099", "cls": cls, "token": tok,
+                        "shares": shares, "entry": entry, "exit": round(exitpx, 4),
+                        "pnl": round(pnl, 4) if pnl is not None else None,
+                    }) + "\n")
+                except Exception:
+                    pass
+            except Exception:
+                logger.debug("[EXIT099] exit failed %s", str(tok)[:10], exc_info=True)
 
     async def _m1_beta_probe_evaluate(
         self, *, now_ts: float, now_utc, first_seen: float,
@@ -6122,7 +6225,16 @@ class WeatherArb:
         (remaining_shares × entry_price; fallback to recorded stake) so the base is
         what can actually be deployed; it self-corrects toward `capital` as
         positions resolve and cash returns. The risk-of-ruin floor still checks
-        total equity (bankroll.capital) directly — unchanged."""
+        total equity (bankroll.capital) directly — unchanged.
+
+        2026-06-04 (user): prefer the LIVE CLOB USDC balance (cached ~45s) so the
+        bot sizes/fires off real available cash even when the user sells positions
+        manually between reconciles — those proceeds are invisible to capital−held
+        until the next 5-min reconcile. fetch_usdc_balance() returns free cash only,
+        which is exactly this quantity. Falls back to capital−held on fetch failure."""
+        _live = self._free_usdc_cached()
+        if _live is not None:
+            return _live
         try:
             cap = float(self.bot.risk.bankroll.capital)
             held = 0.0
@@ -6133,6 +6245,32 @@ class WeatherArb:
             return max(0.0, cap - held)
         except Exception:
             return 30.0  # conservative fallback
+
+    def _free_usdc_cached(self, ttl: float = 45.0) -> Optional[float]:
+        """Live free USDC from the CLOB (GET /balance-allowance), cached `ttl`s so
+        the weather loop blocks on the HTTP call at most once per window. Returns
+        None in dry-run or on a fetch failure with no prior cache — caller then
+        falls back to the capital−held estimate. A stale cached value beats None."""
+        try:
+            from config import CONFIG as _CFG
+            if _CFG.dry_run:
+                return None
+        except Exception:
+            pass
+        now = time.time()
+        ts = getattr(self, "_usdc_cache_ts", 0.0)
+        cached = getattr(self, "_usdc_cache_val", None)
+        if cached is not None and (now - ts) < ttl:
+            return cached
+        try:
+            bal = self.bot.orders.fetch_usdc_balance()
+        except Exception:
+            bal = None
+        if bal is None:
+            return cached  # keep the last good value if the fetch hiccups
+        self._usdc_cache_val = float(bal)
+        self._usdc_cache_ts = now
+        return self._usdc_cache_val
 
     async def _no_arb_shadow_probe(self, bucket_map: dict, clob_books: dict, now: float) -> None:
         """SHADOW (no capital, no signals): fetch REAL CLOB books for the top
