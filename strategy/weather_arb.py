@@ -4792,10 +4792,16 @@ class WeatherArb:
                             float(_dew) if _dew is not None else None,
                             _sky,
                             obs_time,
-                            # Official METAR max only (matches NMS caller + WU/PM
-                            # oracle); never the all-source new_max, which can be
-                            # lifted by sub-hourly Synoptic readings.
-                            cached.get("official_running_max_c") or new_max,
+                            # Official AWC/NWS METAR max ONLY — never fall back to the
+                            # shared all-source running_max_c. Gamma settle (2026-06-04)
+                            # proved running_max_c overshoots the true daily high by
+                            # +4..+13°C (Synoptic sub-hourly / wrong-station), and an
+                            # inflated M0 collapses the nowcast σ to the 0.25 floor
+                            # ⇒ false-confident favorites (the directional-YES bleed).
+                            # None when no clean obs yet → engine prices on forecast σ
+                            # (humble) instead of a contaminated lock. Note: `or` also
+                            # wrongly discarded a legitimate 0.0°C official high.
+                            cached.get("official_running_max_c"),
                             today_str,
                         )
                 except Exception:
@@ -4834,7 +4840,10 @@ class WeatherArb:
                             _cached.get("dewpoint_c"),
                             SKY_RANK_MAP.get(_cached.get("sky_cover", "CLR"), 2),
                             _cache_ts,
-                            _cached.get("official_running_max_c") or _cached.get("running_max_c"),
+                            # Official AWC/NWS max ONLY — drop the contaminated
+                            # all-source running_max_c fallback (Gamma settle: it
+                            # overshoots +4..+13°C → false σ-collapse). None ⇒ humble.
+                            _cached.get("official_running_max_c"),
                             _cached.get("running_max_date", _now_str),
                         )
 

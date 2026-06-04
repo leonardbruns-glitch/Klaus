@@ -84,6 +84,22 @@ WIDTH_GATE_MARGIN = 1.10 # YES ladder fires only when the book-implied σ exceed
                          # typical Polymarket overrounds. Gates YES only — arb
                          # spine (returns earlier) and NO pool are unaffected.
 
+# ── Per-city Kelly confidence weighting (2026-06-04) ──────────────────────────
+# The horse-race Kelly already sizes on edge, but the win-prob it uses is a POOLED
+# isotonic calibration — it does NOT know that a tight-σ city's confident bucket
+# genuinely wins more often. Scale the YES stake by per-(city,month) forecast σ
+# (peak_calib `sigma_monthly`, = `s_our`, clean 4yr ASOS): theoretical mode-bucket
+# WR ≈ 55% at σ=0.65 vs <30% at σ=1.4, and mode±1 band ≈ 93% at σ=0.80 vs <70%
+# above σ=1.4. So size UP where the model is accurate, DOWN where it's loose, and
+# fire NO directional YES at all where even the band can't clear vig.
+# w_city = clip(YES_SIGMA_REF / s_our, MIN, MAX); s_our > CUTOFF ⇒ drop YES pool.
+# Revert: YES_PERCITY_KELLY_ENABLED = False (restores flat kelly_frac sizing).
+YES_PERCITY_KELLY_ENABLED = True
+YES_SIGMA_REF    = 0.80   # pivot ≈ σ where mode±1 band hits ~93% (london-class)
+YES_SIGMA_CUTOFF = 1.40   # above this P(mode±1) < 70% → directional YES is -EV (SF/guangzhou/taipei/chengdu/chongqing)
+YES_WCITY_MIN    = 0.40   # floor: loosest still-eligible cities sized to 0.4×
+YES_WCITY_MAX    = 1.60   # cap: tightest cities sized to 1.6× (risk-of-ruin guard)
+
 # Global EMOS σ factor — RETIRED to 1.0 (2026-06-03). Calibration is now per-(city,month)
 # via peak_calib `sigma_monthly` (built from clean 2021-24 ASOS history; see _peak_sigma_for).
 # HISTORY: a ×1.52 was briefly deployed off 11 live days (emos_recal.py), but those used
@@ -1291,6 +1307,19 @@ class STWAEngine:
                          s_our, WIDTH_GATE_MARGIN)
             yes_cands = []
 
+        # ── Per-city confidence: σ-cutoff + stake weight ──────────────────────
+        # Cities whose forecast σ is too wide can't clear even the mode±1 band
+        # (P_band < 70% above σ≈1.40) → no directional YES there. Otherwise weight
+        # the YES stake by accuracy: w_city = clip(σ_ref/s_our). See constants.
+        w_city = 1.0
+        if YES_PERCITY_KELLY_ENABLED:
+            if yes_cands and s_our > YES_SIGMA_CUTOFF:
+                logger.debug("[STWA] σ-cutoff %s: s_our=%.2f > %.2f — drop YES (band <70%% WR)",
+                             city, s_our, YES_SIGMA_CUTOFF)
+                yes_cands = []
+            else:
+                w_city = min(YES_WCITY_MAX, max(YES_WCITY_MIN, YES_SIGMA_REF / max(s_our, 1e-6)))
+
         # ── YES pool: horse-race Kelly ────────────────────────────────────────
         yes_pairs: list[tuple] = []   # (candidate-tuple, raw_stake)
         if yes_cands:
@@ -1312,7 +1341,10 @@ class STWAEngine:
                 if not active:
                     break
             for w, x in zip(active, raw_stakes):
-                yes_pairs.append((w[:6], x * self.kelly_frac))
+                # Per-city confidence weight: concentrate YES capital in low-σ
+                # (accurate) cities, shrink it in loose ones. w_city=1.0 when the
+                # weighting is disabled.
+                yes_pairs.append((w[:6], x * self.kelly_frac * w_city))
 
         # ── NO pool: independent Kelly (NOs can win simultaneously) ──────────
         no_pairs: list[tuple] = []
