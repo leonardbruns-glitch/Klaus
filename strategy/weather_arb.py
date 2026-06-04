@@ -3695,6 +3695,23 @@ class WeatherArb:
         # (M1β/fade do the same). The favorite calibration doesn't trust the HK oracle.
         if icao == "VHHH":
             return
+        # Per-city confidence cutoff (2026-06-04): skip cities whose per-(city,month)
+        # forecast σ is too wide (> YES_SIGMA_CUTOFF, the SAME gate the engine YES
+        # ladder uses) — the favorite-longshot edge is thinnest exactly where our
+        # model is least accurate (SF/guangzhou/taipei/chengdu/chongqing; SF also has
+        # the microclimate/oracle problem). Keeps the two YES paths in sync.
+        try:
+            from strategy.stwa_engine import (_peak_sigma_for as _psf,
+                                              _current_month as _cm,
+                                              YES_SIGMA_CUTOFF as _SCUT)
+            _pc = getattr(self._stwa, "_peak_calib", {}) if self._stwa else {}
+            _sig = _psf(_pc, slug, _cm())
+            if _sig > _SCUT:
+                logger.debug("[FAVYES] σ-cutoff %s: σ=%.2f > %.2f — skip (model too loose)",
+                             city, _sig, _SCUT)
+                return
+        except Exception:
+            pass
         # Bounded flat stake (small — unvalidated edge), capped by visible fillable depth.
         stake = min(FAVYES_STAKE_USD, float(yes_depth_usd))
         if stake < FAVYES_MIN_SHARES * yes_ask:   # fewer than 5 fillable shares → skip
