@@ -193,7 +193,7 @@ PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3
 # before any live use. Derivation: analysis/weather/{dist_kalman_ev,multibucket_proof}.py.
 STWA_BAND_MODE      = True          # GO-LIVE 2026-06-05 (user): band YES only, min-stake staged
 BAND_SIGMA_FLOOR    = 0.90          # σ never collapses below this (kills σ-collapse)
-BAND_EV_MIN         = 0.15          # min gross EV (P_band/Σask − 1) to fire the band
+BAND_EV_MIN         = 0.08          # 2026-06-05 user: LOWERED 0.15->0.08 (fires thin edges — AGAINST my advice, unvalidated; daily halt is the only backstop)
 # Guardrails (added 2026-06-05 after the live misfire on stale near-zero asks):
 BAND_ASK_MIN        = 0.05          # ignore buckets cheaper than this (stale/illiquid/losing)
 BAND_EV_MAX         = 0.60          # EV above this = stale-ask artifact (efficient mkt ⇒ no 100%+ edge)
