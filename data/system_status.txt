@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+20e2781d perf(nms): concurrent poll_all + persistent keepalive session
+8796a02d fix(wis2): TLS on 8883 — plaintext 1883 stopped CONNACKing (feed dead 26h)
+5989d671 Watchdog 2026-06-05T14:19:46Z: OK TRADE_LOOP_SILENT→OK (3 persisting: VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
 30c13a74 feat(weather): NO-only favorite-longshot + EV-capped deep sweep + real NO depth
 a6b127fa feat(weather): favorite-longshot directional ladder = only strat (user)
 7e041336 Watchdog 2026-06-05T11:20:30Z: HIGH 1 alerts (TRADE_LOOP_SILENT)
@@ -9,15 +12,12 @@ a6b127fa feat(weather): favorite-longshot directional ladder = only strat (user)
 69b79f12 feat(weather band): log per-rank [p,ask,lo,hi] to test 'buy 2nd/3rd vs favorite'
 75fd2185 config(weather band): lower gate 0.15->0.08 + arm -$10/day halt (user override)
 ad886633 fix(weather band): guardrails after live misfire — ask-floor/EV-cap/interior/post-peak/depth
-cc7d3d73 feat(weather band): go-live wiring — band allocator + band-only flags (NOT yet restarted)
-6d8d26f5 feat(weather band step1): flag-gated β_h + σ-floor pricer (STWA_BAND_MODE, default off)
-d2c25c97 feat(weather theory): first-principles multi-bucket log-wealth proof + σ→0.2 refutation
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   64G       29G  69% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-06-05 12:17:28 UTC
+ActiveEnterTimestamp=Fri 2026-06-05 14:28:59 UTC
 
 ## Open positions (count):
 0
