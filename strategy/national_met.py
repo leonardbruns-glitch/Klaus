@@ -21,6 +21,7 @@ above it overwrite AWC observations automatically via merge_into_cache.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -668,14 +669,47 @@ def merge_into_cache(
     return True
 
 
+# ── Persistent HTTP session ──────────────────────────────────────────────────
+# One keepalive ClientSession reused across all poll cycles, instead of opening
+# (and tearing down) a fresh session per source group every 2s. Eliminates the
+# repeated DNS+TCP+TLS handshakes that dominated per-cycle ingestion latency.
+_session = None  # type: ignore[assignment]
+
+
+async def _get_session():
+    """Lazily create / reuse a single keepalive aiohttp session."""
+    global _session
+    import aiohttp
+    if _session is None or _session.closed:
+        _session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(
+                limit=32, ttl_dns_cache=300,
+                keepalive_timeout=30, enable_cleanup_closed=True,
+            )
+        )
+    return _session
+
+
+async def close_session() -> None:
+    """Close the shared session on shutdown (optional; OS reclaims at exit)."""
+    global _session
+    if _session is not None and not _session.closed:
+        await _session.close()
+    _session = None
+
+
 async def poll_all(
     icaos_needed: set[str],
     cache: dict,
     tz_offsets: dict[str, int],
 ) -> int:
-    """Poll all configured NMS sources + drain WIS2 decoded buffer."""
-    import aiohttp as _aiohttp
+    """Poll all configured NMS sources + drain WIS2 decoded buffer.
 
+    All HTTP source groups run concurrently on one shared keepalive session;
+    per-station REST fetches are gathered too. merge_into_cache is monotone by
+    obs_time, so merge order does not affect the result — AWC (stalest) still
+    loses to any fresher source exactly as before.
+    """
     updates = 0
 
     # ── Drain WIS2 push buffer first (zero HTTP cost, already decoded) ──
@@ -687,55 +721,69 @@ async def poll_all(
                     updates += 1
                     logger.info("[NMS] %s ← WIS2: %.1f°C  obs_age=%ds",
                                 icao, obs["temp_c"],
-                                int(__import__("time").time() - obs["obs_time"]))
+                                int(time.time() - obs["obs_time"]))
     except Exception as e:
         logger.debug("[NMS] WIS2 drain error: %s", e)
 
-    # ── Synoptic HF-ASOS batch (1-min, 2-5 min latency) — US stations ────
-    if _SYNOPTIC_TOKEN:
+    session = await _get_session()
+
+    # ── Synoptic HF-ASOS batch (US stations) ──
+    async def _synoptic() -> dict:
+        if not _SYNOPTIC_TOKEN:
+            return {}
         us_needed = icaos_needed & set(_SYNOPTIC_STATIONS)
-        if us_needed:
-            async with _aiohttp.ClientSession() as session:
-                batch = await fetch_synoptic_batch(session, us_needed)
-            for icao, obs in batch.items():
-                if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
-                    updates += 1
+        if not us_needed:
+            return {}
+        return await fetch_synoptic_batch(session, us_needed)
 
-    # ── JMA AMeDAS batch (10-min obs, ~9 min latency) — Japan ────────────
-    jma_needed = icaos_needed & set(_JMA_STATIONS)
-    if jma_needed:
-        async with _aiohttp.ClientSession() as session:
-            jma_batch = await _fetch_jma_batch(session)
-        for icao, obs in jma_batch.items():
-            if icao in jma_needed:
-                if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
-                    updates += 1
+    # ── JMA AMeDAS batch (Japan) ──
+    async def _jma() -> dict:
+        if not (icaos_needed & set(_JMA_STATIONS)):
+            return {}
+        jma_batch = await _fetch_jma_batch(session)
+        return {i: o for i, o in jma_batch.items() if i in icaos_needed}
 
-    # ── REST poll for stations in today's market cache ───────────────────
-    # Skip JMA sentinels (None fetcher) — handled by _fetch_jma_batch above
-    targets = (icaos_needed & set(_FETCHERS)) - set(_JMA_STATIONS)
-    if targets:
-        async with _aiohttp.ClientSession() as session:
-            for icao in targets:
-                fetcher = _FETCHERS[icao]
-                obs = await fetcher(session, icao)
-                if obs is not None:
-                    if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
-                        updates += 1
+    # ── Per-station REST fetchers (concurrent) ──
+    # Skip JMA sentinels (None fetcher) — handled by _fetch_jma_batch above.
+    async def _rest() -> dict:
+        targets = list((icaos_needed & set(_FETCHERS)) - set(_JMA_STATIONS))
+        if not targets:
+            return {}
+        results = await asyncio.gather(
+            *[_FETCHERS[i](session, i) for i in targets],
+            return_exceptions=True,
+        )
+        out: dict = {}
+        for icao, obs in zip(targets, results):
+            if isinstance(obs, dict):
+                out[icao] = obs
+            elif isinstance(obs, Exception):
+                logger.debug("[NMS] REST %s error: %s", icao, obs)
+        return out
 
-    # ── AWC METAR batch — universal fallback for all needed ICAOs ────────────
-    # Runs after all faster sources; stale obs are rejected by merge_into_cache.
-    try:
-        async with _aiohttp.ClientSession() as session:
-            awc_batch = await fetch_awc_batch(session, icaos_needed)
-        awc_updates = 0
-        for icao, obs in awc_batch.items():
+    # ── AWC METAR batch — universal fallback for all needed ICAOs ──
+    async def _awc() -> dict:
+        return await fetch_awc_batch(session, icaos_needed)
+
+    syn, jma, rest, awc = await asyncio.gather(
+        _synoptic(), _jma(), _rest(), _awc(),
+        return_exceptions=True,
+    )
+
+    # Merge in source-priority order (order-independent: merge is monotone).
+    awc_updates = 0
+    for label, batch in (("Synoptic", syn), ("JMA", jma), ("REST", rest), ("AWC", awc)):
+        if isinstance(batch, Exception):
+            logger.debug("[NMS] %s group error: %s", label, batch)
+            continue
+        for icao, obs in batch.items():
+            if obs is None:
+                continue
             if merge_into_cache(icao, obs, cache, tz_offsets.get(icao, 0)):
                 updates += 1
-                awc_updates += 1
-        if awc_batch:
-            logger.debug("[NMS] AWC batch: %d fetched, %d new updates", len(awc_batch), awc_updates)
-    except Exception as _e:
-        logger.debug("[NMS] AWC batch poll error: %s", _e)
+                if label == "AWC":
+                    awc_updates += 1
+    if isinstance(awc, dict) and awc:
+        logger.debug("[NMS] AWC batch: %d fetched, %d new updates", len(awc), awc_updates)
 
     return updates
