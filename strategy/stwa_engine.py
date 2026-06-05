@@ -1053,9 +1053,13 @@ class STWAEngine:
         band_ev = (p_band / sum_ask - 1.0) if sum_ask > 0 else -1.0
 
         fired = (p_band >= BAND_P_MIN and BAND_EV_MIN <= band_ev <= BAND_EV_MAX)
+        # per-rank [p, ask, lo, hi] for the top liquid interior buckets — lets the
+        # resolution join measure realized EV by RANK (tests "buy 2nd/3rd vs favorite").
+        ranked = [[round(e[4], 3), round(e[5], 3), e[0], e[1]]
+                  for e in sorted(valid, key=lambda x: -x[4])[:6]]
         _log("eval", local_h=h, sig_city=round(sig_city, 3), p_band=round(p_band, 4),
              sum_ask=round(sum_ask, 4), band_ev=round(band_ev, 4), fired=fired,
-             buckets=[(e[0], e[1]) for e in band])
+             buckets=[(e[0], e[1]) for e in band], ranked=ranked)
         if not fired:
             return []
 
