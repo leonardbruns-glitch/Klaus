@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+24768cea feat(weather band): log per-rank [p,ask,lo,hi] to test 'buy 2nd/3rd vs favorite'
+0bdf9001 config(weather band): lower gate 0.15->0.08 + arm -$10/day halt (user override)
 849d1ed5 fix(weather band): guardrails after live misfire — ask-floor/EV-cap/interior/post-peak/depth
 5995bad8 feat(weather band): go-live wiring — band allocator + band-only flags (NOT yet restarted)
 b0512b12 feat(weather band step1): flag-gated β_h + σ-floor pricer (STWA_BAND_MODE, default off)
@@ -10,14 +12,12 @@ e9bfa893 feat(weather): NWP backfill (51-city gfs) + YES strategy hypothesis tes
 b63117f0 feat(weather research): corrected directional-YES pricer + Matrix-Kelly (A/B candidate)
 d99310c7 fix(weather): re-source matrix actuals from Gamma settlement (kill learning-loop poison)
 74a6c098 fix(weather FAVYES): apply per-city σ-cutoff (skip σ>1.40 cities)
-14505049 fix(weather): stop contaminated running_max feeding σ-collapse + per-city Kelly weighting
-4bd2f30a feat(weather): uncap FAVYES daily fires + size on live USDC + 0.99 early-exit
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   63G       30G  68% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-06-05 10:06:35 UTC
+ActiveEnterTimestamp=Fri 2026-06-05 10:23:47 UTC
 
 ## Open positions (count):
 0
