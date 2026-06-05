@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-05T09:56:13Z
+# Snapshot: 2026-06-05T10:11:13Z
 # Latest commit on klaus:
-5995bad8 feat(weather band): go-live wiring — band allocator + band-only flags (NOT yet restarted)
+849d1ed5 fix(weather band): guardrails after live misfire — ask-floor/EV-cap/interior/post-peak/depth
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
