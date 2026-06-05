@@ -93,7 +93,7 @@ ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for h
 # MIN_FAIR_PROB=0.45 alone. Combined fair 55-90%; combined cost 0.15-0.45.
 # Live entry gated by BRACKET_ENABLED. Shadow validation target: n≥30 signals,
 # combined hit rate within ±0.10 of combined_fair_prob before flipping live.
-STWA_LIVE                = True   # True → live entries from Kalman engine; False → shadow only
+STWA_LIVE                = True  # 2026-06-05 re-deployed with band guardrails (ask-floor/EV-cap/interior/post-peak/depth)   # True → live entries from Kalman engine; False → shadow only
 STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-resolution STWA positions
 # Held-to-resolution weather classes the poller settles. WEATHER_M1_PROBE (the live
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes

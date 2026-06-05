@@ -194,6 +194,11 @@ PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3
 STWA_BAND_MODE      = True          # GO-LIVE 2026-06-05 (user): band YES only, min-stake staged
 BAND_SIGMA_FLOOR    = 0.90          # σ never collapses below this (kills σ-collapse)
 BAND_EV_MIN         = 0.15          # min gross EV (P_band/Σask − 1) to fire the band
+# Guardrails (added 2026-06-05 after the live misfire on stale near-zero asks):
+BAND_ASK_MIN        = 0.05          # ignore buckets cheaper than this (stale/illiquid/losing)
+BAND_EV_MAX         = 0.60          # EV above this = stale-ask artifact (efficient mkt ⇒ no 100%+ edge)
+BAND_P_MIN          = 0.50          # band must actually be likely (mode±1 ⇒ ~0.85; <0.50 = misaligned)
+BAND_HOUR_MAX       = 16            # peak window upper bound; after this the day's max is decided
 
 
 def _beta_h(local_hour):
@@ -986,53 +991,72 @@ class STWAEngine:
 
     # ── Signal generation ──────────────────────────────────────────────────────
 
-    def _band_allocate(self, city, entries, bankroll, held_k, phase, regime,
-                       metar_age, p_var, kriging_pct):
+    def _band_allocate(self, city, entries, clob_books, bankroll, held_k, phase,
+                       regime, metar_age, p_var, kriging_pct):
         """BAND MODE allocator — the new directional-YES strategy, ONLY.
 
-        Buys the mode±1 YES band (the horse-race where the skill lives: band WR≈0.88
-        vs single≈0.44), STAGED at min-stake, gated by:
-          • local hour ≥ 11 (pre-11am the morning anomaly is noise, β_h=0),
-          • per-city σ ≤ YES_SIGMA_CUTOFF (high-σ cities are coin-flips),
-          • gross band EV = P_band/Σask − 1 ≥ BAND_EV_MIN.
-        Arb and NO are OFF by construction (this returns before them). EVERY evaluation
-        is logged to band_alloc.jsonl — the live ask/EV dataset we never had. Sizing is
-        MIN-STAKE until that log confirms +EV at n≥100; Matrix-Kelly scaling comes after.
+        Buys the mode±1 YES band (the horse-race where the skill lives: band WR≈0.88 vs
+        single≈0.44), STAGED at min-stake. GUARDED (rebuilt 2026-06-05 after a live misfire
+        that bought near-worthless tail buckets the model overconfidently rated p=1.0):
+          • WINDOW: 11 ≤ local hour ≤ BAND_HOUR_MAX AND phase ≠ POST_PEAK — the band is a
+            PRE-peak→peak edge; after the peak the day's max is already decided.
+          • SKILL: per-city σ ≤ YES_SIGMA_CUTOFF (high-σ cities are coin-flips).
+          • LIQUIDITY: band legs must be INTERIOR (no open-ended [X,∞) tails) AND have a real
+            ask in [BAND_ASK_MIN, 0.95] AND book depth ≥ min-stake. This kills the $0.001-ask
+            stale-token fires outright.
+          • SANITY: P_band ≥ BAND_P_MIN and BAND_EV_MIN ≤ EV ≤ BAND_EV_MAX. An efficient
+            market (Brier≈0.01) never offers a true 100%+ edge — EV above the cap is a
+            stale-ask artifact (model says p=1.0, market says 0.001 ⇒ the market is right).
+        Arb + NO are OFF by construction. Every evaluation (fired or rejected, with reason)
+        logs to band_alloc.jsonl. Min-stake until that log confirms +EV at n≥100.
         """
         import json as _json, time as _time
         from datetime import datetime as _dt, timezone as _tz
         from pathlib import Path as _Path
 
+        def _log(reason, **kw):
+            try:
+                _d = _Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat()
+                _d.mkdir(parents=True, exist_ok=True)
+                with (_d / "band_alloc.jsonl").open("a") as _f:
+                    _f.write(_json.dumps({"ts": _time.time(), "city": city,
+                                          "reason": reason, **kw}) + "\n")
+            except Exception:
+                pass
+
+        # ── window: pre-peak → peak only ──
         h = _local_hour(city)
-        if h is None or h < 11:
+        if h is None or not (11 <= h <= BAND_HOUR_MAX) or phase == "POST_PEAK":
             return []
+        # ── skill: skip high-σ coin-flip cities ──
         sig_city = _peak_sigma_for(self._peak_calib, city, _current_month())
         if sig_city > YES_SIGMA_CUTOFF:
             return []
 
-        ents = sorted((e for e in entries if e[5] is not None and 0 < e[5] < 1),
-                      key=lambda e: e[0])           # valid YES asks, by bucket lo
-        if not ents:
+        # ── liquidity: interior buckets, real asks, fillable depth ──
+        def _depth_ok(yes_tok):
+            d = (clob_books.get(yes_tok) or {}).get("usd_depth")
+            return d is None or d >= self.stake_min      # unknown depth → defer to exec loop
+        valid = [e for e in entries
+                 if e[0] > -900.0 and e[1] < 900.0       # interior (no open-ended tails)
+                 and e[5] is not None and BAND_ASK_MIN <= e[5] <= 0.95
+                 and _depth_ok(e[2])]
+        if len(valid) < 2:                               # a band needs ≥2 liquid legs
+            _log("no_liquid_band", local_h=h, n_valid=len(valid))
             return []
-        mi = max(range(len(ents)), key=lambda i: ents[i][4])    # modal = max p_model
-        band = [ents[i] for i in (mi - 1, mi, mi + 1) if 0 <= i < len(ents)]
+
+        valid.sort(key=lambda e: e[0])
+        mi = max(range(len(valid)), key=lambda i: valid[i][4])     # modal = max p
+        band = [valid[i] for i in (mi - 1, mi, mi + 1) if 0 <= i < len(valid)]
         sum_ask = sum(e[5] for e in band)
         p_band = sum(e[4] for e in band)
         band_ev = (p_band / sum_ask - 1.0) if sum_ask > 0 else -1.0
 
-        try:                                         # log EVERY evaluation (the missing data)
-            _d = _Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat()
-            _d.mkdir(parents=True, exist_ok=True)
-            with (_d / "band_alloc.jsonl").open("a") as _f:
-                _f.write(_json.dumps({
-                    "ts": _time.time(), "city": city, "local_h": h, "sig_city": round(sig_city, 3),
-                    "p_band": round(p_band, 4), "sum_ask": round(sum_ask, 4),
-                    "band_ev": round(band_ev, 4), "fired": band_ev >= BAND_EV_MIN,
-                    "buckets": [(e[0], e[1]) for e in band]}) + "\n")
-        except Exception:
-            pass
-
-        if band_ev < BAND_EV_MIN:
+        fired = (p_band >= BAND_P_MIN and BAND_EV_MIN <= band_ev <= BAND_EV_MAX)
+        _log("eval", local_h=h, sig_city=round(sig_city, 3), p_band=round(p_band, 4),
+             sum_ask=round(sum_ask, 4), band_ev=round(band_ev, 4), fired=fired,
+             buckets=[(e[0], e[1]) for e in band])
+        if not fired:
             return []
 
         sigs = []
@@ -1101,7 +1125,7 @@ class STWAEngine:
 
         # ── BAND MODE: the new directional-YES strategy ONLY (arb + NO bypassed) ──
         if STWA_BAND_MODE:
-            return self._band_allocate(city, entries, bankroll, held_k,
+            return self._band_allocate(city, entries, clob_books, bankroll, held_k,
                                        phase, regime, metar_age, p_var, kriging_pct)
 
         # ── Neg-risk arb ─────────────────────────────────────────────────────
