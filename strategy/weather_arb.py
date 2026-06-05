@@ -179,7 +179,7 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # Purpose: measure fill rate, slippage, post-trade EV under real execution.
 # ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
 # Do NOT modify these to "tune" — this is a measurement experiment.
-M1_BETA_PROBE_ENABLED          = False  # 2026-06-05 user: BAND-only go-live (was 95-98% WR — re-enable to restore)
+M1_BETA_PROBE_ENABLED          = True   # 2026-06-05 user: RE-ENABLED. Validated slice (MIN_DEPTH_C=0.5 margin gate + dip-rebuy OFF + clean FATEDGE). Reliability analysis n=671: margin≥0.5 = 98.7% WR. Coexists w/ favorite-longshot NO (shared open_positions dedup).
 M1_BETA_PROBE_STAKE_USD        = 40.0   # 2026-06-03 user directive: 10→40/position; depth gate stays $5 (partial fills ok)
 M1_BETA_PROBE_MIN_SHARES       = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
