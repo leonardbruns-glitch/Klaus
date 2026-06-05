@@ -46,20 +46,15 @@ log = logging.getLogger("stwa_mk")
 
 EULER = 0.5772156649015329
 
-# ── measured per-city law + residual σ (gfs cities; dist_kalman_ev.py fits) ───────
-CITY_DIST: dict[str, dict] = {
-    "nyc":           {"dist": "skewnorm", "alpha":  1.395, "sigma": 0.823},
-    "chicago":       {"dist": "skewnorm", "alpha":  1.079, "sigma": 0.665},
-    "los-angeles":   {"dist": "norm",                       "sigma": 0.634},
-    "miami":         {"dist": "norm",                       "sigma": 0.760},
-    "san-francisco": {"dist": "gumbel_l",                   "sigma": 1.550},
-    "dallas":        {"dist": "skewnorm", "alpha":  1.324, "sigma": 0.826},
-    "houston":       {"dist": "skewnorm", "alpha":  1.243, "sigma": 0.717},
-    "seattle":       {"dist": "skewnorm", "alpha":  1.312, "sigma": 0.671},
-    "denver":        {"dist": "skewnorm", "alpha": -1.757, "sigma": 0.884},
-    "atlanta":       {"dist": "skewnorm", "alpha":  1.668, "sigma": 0.648},
-    "austin":        {"dist": "skewnorm", "alpha": -1.203, "sigma": 0.700},
-}
+# ── measured per-city law + residual σ — fitted for all 51 cities (gfs, clean) ────
+# config/stwa_city_dist.json built from data/stwa_asos.parquet + stwa_nwp(_gfs_global).
+import json as _json
+from pathlib import Path as _Path
+_CFG = _Path(__file__).parent.parent.parent / "config" / "stwa_city_dist.json"
+try:
+    CITY_DIST: dict[str, dict] = _json.loads(_CFG.read_text())
+except Exception:
+    CITY_DIST = {}
 DEFAULT_DIST = {"dist": "norm", "sigma": 1.10}     # honest fallback for un-fit cities
 
 # β_h and the variance-explained R²_h by local hour (measured, pooled gfs)
