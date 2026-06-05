@@ -191,8 +191,9 @@ PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3
 # to the legacy pricer. Allocator-side (band selection + Matrix-Kelly + arb/NO-off) is a
 # SEPARATE, not-yet-built step — this flag alone only fixes the PRICER. Validate in shadow
 # before any live use. Derivation: analysis/weather/{dist_kalman_ev,multibucket_proof}.py.
-STWA_BAND_MODE      = False
+STWA_BAND_MODE      = True          # GO-LIVE 2026-06-05 (user): band YES only, min-stake staged
 BAND_SIGMA_FLOOR    = 0.90          # σ never collapses below this (kills σ-collapse)
+BAND_EV_MIN         = 0.15          # min gross EV (P_band/Σask − 1) to fire the band
 
 
 def _beta_h(local_hour):
@@ -985,6 +986,66 @@ class STWAEngine:
 
     # ── Signal generation ──────────────────────────────────────────────────────
 
+    def _band_allocate(self, city, entries, bankroll, held_k, phase, regime,
+                       metar_age, p_var, kriging_pct):
+        """BAND MODE allocator — the new directional-YES strategy, ONLY.
+
+        Buys the mode±1 YES band (the horse-race where the skill lives: band WR≈0.88
+        vs single≈0.44), STAGED at min-stake, gated by:
+          • local hour ≥ 11 (pre-11am the morning anomaly is noise, β_h=0),
+          • per-city σ ≤ YES_SIGMA_CUTOFF (high-σ cities are coin-flips),
+          • gross band EV = P_band/Σask − 1 ≥ BAND_EV_MIN.
+        Arb and NO are OFF by construction (this returns before them). EVERY evaluation
+        is logged to band_alloc.jsonl — the live ask/EV dataset we never had. Sizing is
+        MIN-STAKE until that log confirms +EV at n≥100; Matrix-Kelly scaling comes after.
+        """
+        import json as _json, time as _time
+        from datetime import datetime as _dt, timezone as _tz
+        from pathlib import Path as _Path
+
+        h = _local_hour(city)
+        if h is None or h < 11:
+            return []
+        sig_city = _peak_sigma_for(self._peak_calib, city, _current_month())
+        if sig_city > YES_SIGMA_CUTOFF:
+            return []
+
+        ents = sorted((e for e in entries if e[5] is not None and 0 < e[5] < 1),
+                      key=lambda e: e[0])           # valid YES asks, by bucket lo
+        if not ents:
+            return []
+        mi = max(range(len(ents)), key=lambda i: ents[i][4])    # modal = max p_model
+        band = [ents[i] for i in (mi - 1, mi, mi + 1) if 0 <= i < len(ents)]
+        sum_ask = sum(e[5] for e in band)
+        p_band = sum(e[4] for e in band)
+        band_ev = (p_band / sum_ask - 1.0) if sum_ask > 0 else -1.0
+
+        try:                                         # log EVERY evaluation (the missing data)
+            _d = _Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat()
+            _d.mkdir(parents=True, exist_ok=True)
+            with (_d / "band_alloc.jsonl").open("a") as _f:
+                _f.write(_json.dumps({
+                    "ts": _time.time(), "city": city, "local_h": h, "sig_city": round(sig_city, 3),
+                    "p_band": round(p_band, 4), "sum_ask": round(sum_ask, 4),
+                    "band_ev": round(band_ev, 4), "fired": band_ev >= BAND_EV_MIN,
+                    "buckets": [(e[0], e[1]) for e in band]}) + "\n")
+        except Exception:
+            pass
+
+        if band_ev < BAND_EV_MIN:
+            return []
+
+        sigs = []
+        for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in band:
+            sigs.append(Signal(
+                city=city, bucket=(lo, hi), direction="YES", token_id=yes_tok,
+                p_model=round(p_m, 4), ask=ask_yes, edge=round(band_ev, 4),
+                confidence=round(p_band, 4), stake=self.stake_min,   # STAGED: min stake
+                regime=regime, phase=phase, metar_age_s=round(metar_age, 1),
+                kalman_var=round(p_var, 4), kriging_pct=round(kriging_pct, 3),
+                p_gev=0.0, drift_bias=0.0))
+        return sigs
+
     def _lp_allocate_city(
         self,
         city:        str,
@@ -1037,6 +1098,11 @@ class STWAEngine:
         if total_p > PROB_SUM_MAX:
             logger.debug("[STWA] LP %s: prob sum %.2f > %.2f — MC bug, skip", city, total_p, PROB_SUM_MAX)
             return []
+
+        # ── BAND MODE: the new directional-YES strategy ONLY (arb + NO bypassed) ──
+        if STWA_BAND_MODE:
+            return self._band_allocate(city, entries, bankroll, held_k,
+                                       phase, regime, metar_age, p_var, kriging_pct)
 
         # ── Neg-risk arb ─────────────────────────────────────────────────────
         # If Σ YES ask < NEG_RISK_ARB_THR, buying k shares of every YES token

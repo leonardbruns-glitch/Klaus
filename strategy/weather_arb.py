@@ -178,7 +178,7 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # Purpose: measure fill rate, slippage, post-trade EV under real execution.
 # ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
 # Do NOT modify these to "tune" — this is a measurement experiment.
-M1_BETA_PROBE_ENABLED          = True
+M1_BETA_PROBE_ENABLED          = False  # 2026-06-05 user: BAND-only go-live (was 95-98% WR — re-enable to restore)
 M1_BETA_PROBE_STAKE_USD        = 40.0   # 2026-06-03 user directive: 10→40/position; depth gate stays $5 (partial fills ok)
 M1_BETA_PROBE_MIN_SHARES       = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
@@ -288,7 +288,7 @@ M1_DIP_REBUY_STAKE_USD   = 5.0    # smaller than initial stake (correlated resol
 # semi-directional (YES is physically possible until the official high passes), NOT the
 # calibration-free lockout. On-record dissent: enabled by user directive over the n≥100
 # gate. Provenance gate (official running_max only) is NON-NEGOTIABLE (false-lockout lesson).
-FADE_LIVE_ENABLED      = True
+FADE_LIVE_ENABLED      = False  # 2026-06-05 user: BAND-only go-live
 FADE_NO_ASK_MIN        = 0.55   # below this the market strongly expects YES = false-fade zone, skip
 FADE_NO_ASK_MAX        = 0.90   # user gate 2026-06-02 (mispricing ceiling)
 FADE_MAX_GAP_C         = 1.6    # bin lo at most this far above the official running_max (~1 bin)
@@ -310,7 +310,7 @@ FADE_MIN_SHARES        = 5.0    # 2026-06-03 user directive: fire even on thin b
 # NOT calibration-free; rides on the FLB persisting. Deployed BOUNDED (small stake +
 # daily cap) to accrue LIVE n with a small blast radius. Scale ONLY after live n≥100
 # confirms +EV. Revert: FAVYES_LIVE_ENABLED=False.
-FAVYES_LIVE_ENABLED     = True
+FAVYES_LIVE_ENABLED     = False  # 2026-06-05 user: BAND-only go-live
 FAVYES_MIN_ASK          = 0.60   # below = not a confident favorite; the underpriced zone is [0.60,0.98]
 FAVYES_MAX_ASK          = 0.98   # above this the edge < fee
 FAVYES_STAKE_USD        = 5.0    # deliberately SMALL — n=10-19 unvalidated; scale only after live n≥100
