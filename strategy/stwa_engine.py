@@ -192,6 +192,9 @@ PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3
 # SEPARATE, not-yet-built step — this flag alone only fixes the PRICER. Validate in shadow
 # before any live use. Derivation: analysis/weather/{dist_kalman_ev,multibucket_proof}.py.
 STWA_BAND_MODE      = True          # GO-LIVE 2026-06-05 (user): band YES only, min-stake staged
+BAND_SHADOW         = True          # 2026-06-05 user: band → SHADOW (log evals, fire NO real capital);
+                                    #   NEG_RISK_ARB re-enabled alongside. Validate band EV at n≥100
+                                    #   via the band_alloc→Gamma join before flipping False.
 BAND_SIGMA_FLOOR    = 0.90          # σ never collapses below this (kills σ-collapse)
 BAND_EV_MIN         = 0.08          # 2026-06-05 user: LOWERED 0.15->0.08 (fires thin edges — AGAINST my advice, unvalidated; daily halt is the only backstop)
 # Guardrails (added 2026-06-05 after the live misfire on stale near-zero asks):
@@ -1059,8 +1062,15 @@ class STWAEngine:
                   for e in sorted(valid, key=lambda x: -x[4])[:6]]
         _log("eval", local_h=h, sig_city=round(sig_city, 3), p_band=round(p_band, 4),
              sum_ask=round(sum_ask, 4), band_ev=round(band_ev, 4), fired=fired,
+             shadow=BAND_SHADOW,
              buckets=[(e[0], e[1]) for e in band], ranked=ranked)
         if not fired:
+            return []
+        # SHADOW: log the would-fire band (fired=True above) but deploy NO real
+        # capital — the band edge is unvalidated (efficient-mkt prior, n<100). The
+        # band_alloc→Gamma join scores these would-fires; flip BAND_SHADOW=False
+        # only after n≥100 confirms +EV at the real ask. NEG_RISK_ARB still fires.
+        if BAND_SHADOW:
             return []
 
         sigs = []
@@ -1127,10 +1137,11 @@ class STWAEngine:
             logger.debug("[STWA] LP %s: prob sum %.2f > %.2f — MC bug, skip", city, total_p, PROB_SUM_MAX)
             return []
 
-        # ── BAND MODE: the new directional-YES strategy ONLY (arb + NO bypassed) ──
-        if STWA_BAND_MODE:
-            return self._band_allocate(city, entries, clob_books, bankroll, held_k,
-                                       phase, regime, metar_age, p_var, kriging_pct)
+        # ── BAND MODE: directional-YES band governs the DIRECTIONAL slot only.
+        # NEG_RISK_ARB (the calibration-free YES + NO neg-risk faces below) runs
+        # FIRST and is NOT bypassed — band only replaces the regular Kelly ladder.
+        # The band hand-off happens after the arb blocks (search BAND_MODE hand-off).
+        # ─────────────────────────────────────────────────────────────────────
 
         # ── Neg-risk arb ─────────────────────────────────────────────────────
         # If Σ YES ask < NEG_RISK_ARB_THR, buying k shares of every YES token
@@ -1289,6 +1300,13 @@ class STWAEngine:
                     ))
                 if no_arb_signals:
                     return no_arb_signals
+
+        # ── BAND_MODE hand-off: arb did not fire → band governs the directional
+        # slot (in place of the regular Kelly ladder). Under BAND_SHADOW it logs
+        # the eval and returns []; no directional capital is deployed. ──
+        if STWA_BAND_MODE:
+            return self._band_allocate(city, entries, clob_books, bankroll, held_k,
+                                       phase, regime, metar_age, p_var, kriging_pct)
 
         candidates = []
         for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
