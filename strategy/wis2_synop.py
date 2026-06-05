@@ -381,6 +381,10 @@ def _build_client() -> object:
     client.on_disconnect = on_disconnect
     client.on_message = on_message
     client.username_pw_set("everyone", "everyone")
+    # WIS2 Global Broker requires TLS on 8883; plaintext 1883 silently stopped
+    # completing the MQTT handshake (no CONNACK) — verified 2026-06-05. Default
+    # tls_set() = CERT_REQUIRED against the system CA bundle.
+    client.tls_set()
     return client
 
 
@@ -390,7 +394,7 @@ def _run_loop() -> None:
     import paho.mqtt.client as mqtt
 
     BROKER = "globalbroker.meteo.fr"
-    PORT   = 1883
+    PORT   = 8883   # TLS-only; plaintext 1883 no longer CONNACKs (verified 2026-06-05)
     RETRY  = 30   # seconds between reconnect attempts
 
     client = _build_client()
