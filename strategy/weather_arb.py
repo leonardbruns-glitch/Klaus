@@ -94,6 +94,7 @@ ASK_BAND_HI  = 0.29    # max entry price — OVERRIDE with BRACKET_ENABLED for h
 # Live entry gated by BRACKET_ENABLED. Shadow validation target: n≥30 signals,
 # combined hit rate within ±0.10 of combined_fair_prob before flipping live.
 STWA_LIVE                = True  # 2026-06-05 re-deployed with band guardrails (ask-floor/EV-cap/interior/post-peak/depth)   # True → live entries from Kalman engine; False → shadow only
+STWA_NO_SWEEP_EV_FLOOR   = 0.05  # favorite-longshot NO deep-sweep: walk the book up to (p_win − this); keeps ≥5pt edge after slippage
 STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-resolution STWA positions
 # Held-to-resolution weather classes the poller settles. WEATHER_M1_PROBE (the live
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
@@ -5545,7 +5546,7 @@ class WeatherArb:
         # usd_depth=999, so the depth-clamp did nothing. Skipping low-arb-
         # likelihood cities keeps the HTTP cost bounded (~5-10 cities × 9-11
         # buckets ≈ 100 fetches per scan rather than 500+).
-        from strategy.stwa_engine import NEG_RISK_ARB_THR as _ARB_THR
+        from strategy.stwa_engine import NEG_RISK_ARB_THR as _ARB_THR, PRICE_FLOOR as _PRICE_FLOOR
         arb_screen_thr = _ARB_THR + 0.10
         cities_for_depth_fetch = []
         for _slug, _bks in bucket_map.items():
@@ -5556,13 +5557,31 @@ class WeatherArb:
             if _sum_yes < arb_screen_thr:
                 cities_for_depth_fetch.append(_slug)
 
-        if cities_for_depth_fetch:
+        # Favorite-longshot NO: fetch real top-5 book for NO tokens whose proxy ask is
+        # in the actionable zone [PRICE_FLOOR, 0.96]. These cities (Σyes>1) are NEVER
+        # arb candidates, so their NO depth was previously never measured (logged 0.0).
+        # Bounded to FAV_NO_DEPTH_CAP tokens/scan, prioritized toward the peak-edge zone.
+        FAV_NO_DEPTH_CAP = 150
+        _fav_no = []
+        for _slug, _bks in bucket_map.items():
+            for _lo, _hi, _yes, _no in _bks:
+                if not _no:
+                    continue
+                _na = (clob_books.get(_no) or {}).get("best_ask")
+                if _na is not None and _PRICE_FLOOR <= _na <= 0.96:
+                    _fav_no.append((abs(_na - 0.65), _no))   # closest to peak-edge first
+        _fav_no.sort(key=lambda x: x[0])
+        _fav_no_toks = [t for _, t in _fav_no[:FAV_NO_DEPTH_CAP]]
+
+        if cities_for_depth_fetch or _fav_no_toks:
             _toks_to_fetch = []
             for _slug in cities_for_depth_fetch:
                 for _lo, _hi, _yes, _no in bucket_map[_slug]:
                     _toks_to_fetch.append(_yes)
                     if _no:
                         _toks_to_fetch.append(_no)
+            _toks_to_fetch.extend(_fav_no_toks)
+            _toks_to_fetch = list(dict.fromkeys(_toks_to_fetch))   # dedup, preserve order
             # Parallel-fetch top-5 levels; aiohttp inside _fetch_book_levels
             # creates its own session per call (ok for ~100 calls).
             import asyncio as _aio
@@ -5584,8 +5603,8 @@ class WeatherArb:
                     clob_books[_tok]["best_ask"] = _best_ask
                     clob_books[_tok]["usd_depth"] = round(_depth, 2)
                     _enriched += 1
-            logger.info("[STWA] depth pre-fetch: %d/%d tokens enriched across %d arb-candidate cities",
-                        _enriched, len(_toks_to_fetch), len(cities_for_depth_fetch))
+            logger.info("[STWA] depth pre-fetch: %d/%d tokens enriched (%d arb-cities + %d favorite-longshot NO)",
+                        _enriched, len(_toks_to_fetch), len(cities_for_depth_fetch), len(_fav_no_toks))
 
         # NO-arb real-book SHADOW probe (no capital): the Σyes<0.95 fetch above
         # NEVER covers NO-arb-eligible cities (Σyes>1), so Face 2 has only ever
@@ -6117,9 +6136,18 @@ class WeatherArb:
             # For regular signals, p_win was computed at the edge gate above.
             # For arb, the meaningful edge is sig.edge (the arb_edge from engine).
             _log_edge = sig.edge if is_arb else (p_win - live_ask)
-            logger.info("[STWA] ENTER %s %s [%s,%s] p=%.3f ask=%.3f edge=%.3f stake=$%.2f",
+            # EV-bounded deep sweep (favorite-longshot NO): walk the book up to the
+            # highest avg price that still keeps a STWA_NO_SWEEP_EV_FLOOR edge, so we
+            # fill real size across levels instead of just the (often thin) top ask.
+            # Depth auto-scales with edge: fat-edge NO sweeps deep, thin-edge buys at
+            # touch (ceiling ≤ live_ask ⇒ limit_buy uses max(intended, ceiling)).
+            _pc = None
+            if (not is_arb) and sig.direction == "NO":
+                _pc = round(p_win - STWA_NO_SWEEP_EV_FLOOR, 4)
+            logger.info("[STWA] ENTER %s %s [%s,%s] p=%.3f ask=%.3f edge=%.3f stake=$%.2f sweep_cap=%s",
                         sig.city, sig.direction, _lo_s, _hi_s,
-                        sig.p_model, live_ask, _log_edge, sig.stake)
+                        sig.p_model, live_ask, _log_edge, sig.stake,
+                        (f"{_pc:.3f}" if _pc is not None else "—"))
             try:
                 fill = await self.bot.orders.limit_buy(
                     token_id=sig.token_id,
@@ -6127,6 +6155,7 @@ class WeatherArb:
                     stake_usd=sig.stake,
                     direction=direction,
                     neg_risk=neg_risk,
+                    price_ceiling=_pc,
                     fast_fail=False,
                 )
             except Exception:

@@ -52,7 +52,10 @@ INNOV_DF       = 6       # Student-t df for path innovations (excess kurt = 3)
 # the forecast drifts (Helsinki: bought 15-17°C AM, 20-21°C PM); (2) miscalibrated
 # inputs. When False, _lp_allocate_city emits NO and NEG_RISK_ARB signals only.
 # Re-enable once p_model is recalibrated AND per-city-day portfolio sizing exists.
-STWA_REGULAR_YES_ENABLED = True   # RE-ENABLED 2026-06-01 (user directive): the directional YES ladder
+STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
+                                  # is −EV in EVERY ask bin (realized far below ask; e.g. ask 0.44→won 18%).
+                                  # YES-overpricing is the OTHER half of the favorite-longshot bias; only the
+                                  # NO side is +EV. Was: RE-ENABLED 2026-06-01 (user directive): the directional YES ladder
                                   # is now guarded by the WIDTH GATE (drops the YES horse-race pool unless
                                   # book-implied σ > 1.10×our pricer σ) — the missing safety behind the
                                   # 05-29→05-31 bleed (YES fired in Regime-3 where it just paid vig). YES

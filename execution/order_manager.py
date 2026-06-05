@@ -411,11 +411,18 @@ class OrderManager:
         tick_size: str = TICK_SIZE,
         fast_fail: bool = False,
         presigned: Optional[dict] = None,
+        price_ceiling: Optional[float] = None,
     ) -> OrderResult:
         """
         Place a limit buy at price * (1 + buffer), hard-capped at MAX_ENTRY_PRICE.
         Ported from old bot: min(price * 1.05, 0.30).
         Verifies fill before returning (status==matched + takingAmount > 0).
+
+        price_ceiling: if given, place a marketable limit AT this price (capped 0.99)
+        instead of intended_price*(1+buffer). A marketable limit sweeps every book
+        level up to the cap, so this is the EV-bounded deep-sweep: pass the highest
+        average price that still keeps the trade +EV and the order walks the book up
+        to it, filling whatever size is there. Used by the favorite-longshot NO ladder.
         """
         if CONFIG.dry_run:
             return self._simulate_fill(token_id, intended_price, stake_usd, OrderSide.BUY)
@@ -427,14 +434,19 @@ class OrderManager:
         # (0.27) before calling here; applying MAX_ENTRY_PRICE (0.30) here created ghost
         # orders at wrong prices for updown YES tokens trading at 0.50–0.92.
         price_ceil = 0.99
-        # Dynamic buffer: thin low-ask books move fast — bid more aggressively to cross immediately.
-        if intended_price < 0.35:
-            _buf = 0.15
-        elif intended_price < 0.55:
-            _buf = 0.10
+        if price_ceiling is not None:
+            # EV-bounded deep sweep: marketable limit AT the cap → walks every level
+            # up to it. Caller passes the max avg price that keeps the trade +EV.
+            limit_price = round(min(max(intended_price, price_ceiling), price_ceil), 4)
         else:
-            _buf = self.cfg.entry_price_buffer  # 0.05 default
-        limit_price = round(min(intended_price * (1 + _buf), price_ceil), 4)
+            # Dynamic buffer: thin low-ask books move fast — bid more aggressively to cross immediately.
+            if intended_price < 0.35:
+                _buf = 0.15
+            elif intended_price < 0.55:
+                _buf = 0.10
+            else:
+                _buf = self.cfg.entry_price_buffer  # 0.05 default
+            limit_price = round(min(intended_price * (1 + _buf), price_ceil), 4)
         size = round(stake_usd / limit_price, 2)
 
         # Refresh USDC allowance before buy — CLOB allowance depletes with each order
