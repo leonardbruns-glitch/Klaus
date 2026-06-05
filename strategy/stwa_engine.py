@@ -69,7 +69,13 @@ STWA_REGULAR_YES_ENABLED = True   # RE-ENABLED 2026-06-01 (user directive): the 
 # and (2) the FLB-spread-walled speculative NO on UNLOCKED tail buckets (−EV;
 # the regular-NO that bled). All NO now flows through M1β; the engine keeps only
 # the directional YES ladder + NEG_RISK_ARB. Revert: set True.
-STWA_REGULAR_NO_ENABLED  = False
+STWA_REGULAR_NO_ENABLED  = True   # RE-ENABLED 2026-06-05 (user): favorite-longshot NO harvest.
+                                  # Resolved-trade evidence (n=147, pre-fix model): BUY_NO is +EV in the
+                                  # CONFIDENT region only — [0.5,0.7) 63%/+$2.63, [0.7,0.9) 89%/+$7.25
+                                  # (n=37 ≥0.50, +$9.88, EV/sh +0.052, fee-positive, FILLED & resolved) —
+                                  # and bleeds in the cheap region — [0,0.3) −$24.81, [0.3,0.5) −$10.69.
+                                  # The PRICE_FLOOR (0.50) gate below surgically keeps the +EV slice and
+                                  # kills the bleed. M1β is OFF (no double-fire). Revert: set False.
 EDGE_MIN       = 0.04    # absolute floor on edge (p_win − ask), risk-of-ruin safety
 KELLY_F_MIN    = 0.015   # minimum Kelly fraction to fire: f* = (p_c − ask)/(1 − ask)
                          # 0.015 = 1.5% of bankroll. Scales with both p and ask:
@@ -191,10 +197,19 @@ PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3
 # to the legacy pricer. Allocator-side (band selection + Matrix-Kelly + arb/NO-off) is a
 # SEPARATE, not-yet-built step — this flag alone only fixes the PRICER. Validate in shadow
 # before any live use. Derivation: analysis/weather/{dist_kalman_ev,multibucket_proof}.py.
-STWA_BAND_MODE      = True          # GO-LIVE 2026-06-05 (user): band YES only, min-stake staged
-BAND_SHADOW         = True          # 2026-06-05 user: band → SHADOW (log evals, fire NO real capital);
-                                    #   NEG_RISK_ARB re-enabled alongside. Validate band EV at n≥100
-                                    #   via the band_alloc→Gamma join before flipping False.
+STWA_BAND_MODE      = False         # 2026-06-05 user: OFF — superseded by the favorite-longshot
+                                    #   directional ladder (regular YES/NO + PRICE_FLOOR) as the ONLY strat.
+BAND_SHADOW         = True          # (inert while STWA_BAND_MODE=False)
+# ── FAVORITE-LONGSHOT GO-LIVE (2026-06-05, user: "the only strat") ──
+# The single edge the resolved data supports: take the favorite side at a fillable
+# price, NEVER the cheap longshot. PRICE_FLOOR kills every fire below 0.50 — the
+# fee-death/longshot zone where ALL −$85 of our directional loss lived.
+PRICE_FLOOR         = 0.50          # only buy a token whose ask ≥ this (both YES and NO)
+YES_STAGE_MIN_STAKE = True          # YES-favorite is UNPROVEN on resolved data (n=5) → fire at min-stake
+                                    #   only, to collect clean post-fix n. NO-favorite (proven) sizes normally.
+STWA_NEG_RISK_ENABLED = False       # 2026-06-05 user "only strat": neg-risk arb OFF — it never executed as
+                                    #   intended (partial fills on phantom books → −$43.48 over n=15; 0
+                                    #   fillable arbs in 1947 probe rows). Revert: set True.
 BAND_SIGMA_FLOOR    = 0.90          # σ never collapses below this (kills σ-collapse)
 BAND_EV_MIN         = 0.08          # 2026-06-05 user: LOWERED 0.15->0.08 (fires thin edges — AGAINST my advice, unvalidated; daily halt is the only backstop)
 # Guardrails (added 2026-06-05 after the live misfire on stale near-zero asks):
@@ -1167,7 +1182,7 @@ class STWAEngine:
         _arb_thr = (NEG_RISK_ARB_THR_MULTILEG
                     if len(valid_yes_asks) >= NEG_RISK_ARB_MULTILEG_N
                     else NEG_RISK_ARB_THR)
-        if len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < _arb_thr:
+        if STWA_NEG_RISK_ENABLED and len(valid_yes_asks) == len(entries) and sum(valid_yes_asks) < _arb_thr:
             sum_ask  = sum(valid_yes_asks)
             sum_p    = sum(p for *_, p, _, _ in entries)
             arb_edge = 1.0 - sum_ask
@@ -1265,7 +1280,7 @@ class STWAEngine:
         valid_no_asks = [ask_no for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries
                          if ask_no is not None and 0 < ask_no < 1]
         n_legs = len(entries)
-        if len(valid_no_asks) == n_legs and n_legs >= 2 and sum(valid_no_asks) < float(n_legs - 1):
+        if STWA_NEG_RISK_ENABLED and len(valid_no_asks) == n_legs and n_legs >= 2 and sum(valid_no_asks) < float(n_legs - 1):
             sum_ask_no  = sum(valid_no_asks)
             payoff_no   = float(n_legs - 1)
             city_budget = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)
@@ -1332,9 +1347,14 @@ class STWAEngine:
             # timing-independent guaranteed-profit edge.
             _yes_phase_ok = phase == "PRE_PEAK"          # YES: pre-peak only
             _no_phase_ok  = phase != "POST_PEAK"         # (NO path disabled below)
-            yes_ok = (STWA_REGULAR_YES_ENABLED and _yes_phase_ok
+            # PRICE_FLOOR: only ever buy the FAVORITE side at a fillable price.
+            # Every dollar of our directional loss lived below 0.50 (fee-death /
+            # longshot zone); the +EV harvest is entirely at ask ≥ 0.50.
+            _yes_price_ok = ask_yes is not None and ask_yes >= PRICE_FLOOR
+            _no_price_ok  = ask_no  is not None and ask_no  >= PRICE_FLOOR
+            yes_ok = (STWA_REGULAR_YES_ENABLED and _yes_phase_ok and _yes_price_ok
                       and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN)
-            no_ok  = (STWA_REGULAR_NO_ENABLED and _no_phase_ok
+            no_ok  = (STWA_REGULAR_NO_ENABLED and _no_phase_ok and _no_price_ok
                       and edge_no > EDGE_MIN and f_no > KELLY_F_MIN)
 
             if yes_ok and no_ok:
@@ -1526,6 +1546,10 @@ class STWAEngine:
                                   self.stake_min, self.stake_max))
             if alloc < self.stake_min:
                 continue
+            # YES-favorite is unproven on resolved data (n=5) → stage at min-stake
+            # to accrue clean post-fix n without betting it. NO-favorite is proven.
+            if direction == "YES" and YES_STAGE_MIN_STAKE:
+                alloc = self.stake_min
             _p_gev = float(_cs_local.gev_probs_last.get(bucket, 0.0)) if _cs_local else 0.0
             signals.append(Signal(
                 city=city, bucket=bucket, direction=direction,
