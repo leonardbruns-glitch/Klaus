@@ -182,6 +182,46 @@ PROB_SUM_MAX      = 1.35   # Σ p_model > this → MC bug, skip city
 STWA_PRIMARY_PRICER = "PA_SHRUNK"   # "MC" | "PA_SHRUNK"
 PA_SHRUNK_BETA      = 0.30          # intraday-residual shrinkage (data-fit ~0.3)
 
+# ── BAND MODE (new directional-YES strategy, 2026-06-05) — DEFAULT OFF ─────────
+# When True, the pricer uses the empirically-derived time-varying anomaly gain β_h
+# (morning obs is noise → β=0 pre-11am; rises to 0.41 at peak) and the data-correct
+# σ-floor (σ_h = σ_fc·√(1−R²_h), floored at BAND_SIGMA_FLOOR) INSTEAD of the fixed
+# β=0.30 + nowcast σ-collapse (which forward_calibration showed = 2.32× overconfidence,
+# [0.9,1.0] bin claims .98 wins .23). Flag-gated: STWA_BAND_MODE=False ⇒ byte-identical
+# to the legacy pricer. Allocator-side (band selection + Matrix-Kelly + arb/NO-off) is a
+# SEPARATE, not-yet-built step — this flag alone only fixes the PRICER. Validate in shadow
+# before any live use. Derivation: analysis/weather/{dist_kalman_ev,multibucket_proof}.py.
+STWA_BAND_MODE      = False
+BAND_SIGMA_FLOOR    = 0.90          # σ never collapses below this (kills σ-collapse)
+
+
+def _beta_h(local_hour):
+    """EV-optimal anomaly gain by local hour (measured, dist_kalman_ev.py)."""
+    if local_hour is None or local_hour < 11: return 0.00
+    if local_hour < 13: return 0.30
+    if local_hour < 15: return 0.40
+    return 0.41
+
+
+def _r2_h(local_hour):
+    """Variance the morning obs explains by local hour (measured)."""
+    if local_hour is None or local_hour < 11: return 0.00
+    if local_hour < 13: return 0.14
+    if local_hour < 15: return 0.26
+    return 0.30
+
+
+def _local_hour(city):
+    """City-local clock hour, or None if the tz can't be resolved (safe fallback)."""
+    try:
+        from analysis.weather.stations import STATIONS
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timezone as _tz
+        tz = STATIONS[city].tz
+        return datetime.now(_tz.utc).astimezone(ZoneInfo(tz)).hour if tz else None
+    except Exception:
+        return None
+
 # Sky rank → regime label (sky_rank 0=clear, 4=overcast)
 #  sky_rank comes from the METAR cache (0=SKC/CLR, 1=FEW, 2=SCT, 3=BKN, 4=OVC/VV)
 REGIME_FROM_SKY = {0: "SUNNY", 1: "SUNNY", 2: "PARTLY_CLOUDY", 3: "CLOUDY", 4: "CLOUDY"}
@@ -911,16 +951,20 @@ class STWAEngine:
         # when STWA_PRIMARY_PRICER=="PA_SHRUNK"; MC still computed for shadow A/B.
         try:
             _cal = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
-            _center = (float(np.nanmax(mu_grid))
-                       + float(_cal.get("peak_bias", 0.0))
-                       + PA_SHRUNK_BETA * x_hat)
+            _base = float(np.nanmax(mu_grid)) + float(_cal.get("peak_bias", 0.0))
             _sig_fc = _peak_sigma_for(self._peak_calib, city, _current_month())
-            # Nowcast: shrink σ as the running max M0 approaches the forecast peak (remaining-
-            # rise uncertainty ≈ 0.5×(center − M0)). Only ever tighter than σ_fc; floored.
-            _sig = _sig_fc
-            if M0 is not None:
-                _sig = min(_sig_fc, max(NOWCAST_SIGMA_FLOOR,
-                                        NOWCAST_REMAIN_RATIO * max(0.0, _center - float(M0))))
+            if STWA_BAND_MODE:
+                # time-varying gain + data-correct σ-floor (no σ-collapse).
+                _h = _local_hour(city)
+                _center = _base + _beta_h(_h) * x_hat
+                _sig = max(BAND_SIGMA_FLOOR, _sig_fc * math.sqrt(1.0 - _r2_h(_h)))
+            else:
+                # legacy PA_SHRUNK: fixed β=0.30 + nowcast σ-collapse toward 0.5·(center−M0).
+                _center = _base + PA_SHRUNK_BETA * x_hat
+                _sig = _sig_fc
+                if M0 is not None:
+                    _sig = min(_sig_fc, max(NOWCAST_SIGMA_FLOOR,
+                                            NOWCAST_REMAIN_RATIO * max(0.0, _center - float(M0))))
             cs.ps_probs_last = _peak_shrunk_bucket_probs(buckets, M0, _center, _sig)
         except Exception:
             cs.ps_probs_last = {}
