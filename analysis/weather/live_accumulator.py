@@ -47,6 +47,13 @@ logger = logging.getLogger(__name__)
 
 LOGS_PATH = Path(__file__).parent.parent.parent / "logs" / "weather"
 ACTUALS_FILE = LOGS_PATH / "forecast_actuals.jsonl"
+# Gamma-settled actuals (analysis/weather/reconcile_actuals_gamma.py --write). When
+# present, these OVERRIDE the locally-accumulated official_running_max_c actuals per
+# (city, valid_day): official_running_max_c undershoots the true daily high by +2..+11°C
+# for non-US cities (project_running_max_oracle_broken), poisoning the learning loop.
+# Gamma/UMA settlement is the only truth. Override-when-present = opt-in (file absent
+# until reconciliation is run), reversible by deleting the file.
+GAMMA_ACTUALS_FILE = LOGS_PATH / "forecast_actuals_gamma.jsonl"
 SKILL_MATRIX_PATH = Path(__file__).parent.parent.parent / "strategy" / "skill_matrix.json"
 
 SIGMA_FLOOR = 0.30
@@ -141,6 +148,26 @@ def _pair_records(records: list[dict]) -> list[dict]:
             forecasts[key] = r
         elif r["event"] == "actual":
             actuals[key] = r
+
+    # Override with Gamma-settled actuals where available (the only true daily-high
+    # oracle; the contaminated official_running_max_c undershoots non-US cities).
+    n_override = 0
+    if GAMMA_ACTUALS_FILE.exists():
+        with GAMMA_ACTUALS_FILE.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("event") != "actual":
+                    continue
+                key = (r["city_slug"], r["valid_day"])
+                actuals[key] = r
+                n_override += 1
+        logger.info("[ACCUM] applied %d Gamma-settled actual overrides", n_override)
 
     paired = []
     for key, fc in forecasts.items():
@@ -291,10 +318,14 @@ def _print_diff(base: dict, merged: dict, paired: list[dict]) -> None:
         merged_city = merged.get(slug, {})
         print(f"\n  {slug}:")
         for model in sorted(merged_city.keys()):
+            if model.startswith("_"):
+                continue                      # _climatology etc. have no bias/sigma cells
             for month_str in sorted(merged_city[model].keys(), key=int):
                 b = base_city.get(model, {}).get(month_str, {})
                 m = merged_city[model][month_str]
-                if b:
+                if "bias" not in m:
+                    continue
+                if b and "bias" in b:
                     print(f"    {model} m{month_str}: bias {b['bias']:+.3f}→{m['bias']:+.3f}  "
                           f"sigma {b['sigma']:.3f}→{m['sigma']:.3f}  n {b['n']}→{m['n']}")
                 else:
