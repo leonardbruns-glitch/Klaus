@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-9052bdb4 feat(m1): re-enable M1β lockout-NO (validated slice, user)
-36cf4d6f Watchdog 2026-06-05T15:19:00Z: HIGH 3 alerts (TRADE_LOOP_SILENT→ANOMALY, VOLARB_ROLLING_DRAWDOWN re-confirm, SHADOW_LOGGER_STALLED re-confirm)
-20e2781d perf(nms): concurrent poll_all + persistent keepalive session
-8796a02d fix(wis2): TLS on 8883 — plaintext 1883 stopped CONNACKing (feed dead 26h)
-5989d671 Watchdog 2026-06-05T14:19:46Z: OK TRADE_LOOP_SILENT→OK (3 persisting: VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
-30c13a74 feat(weather): NO-only favorite-longshot + EV-capped deep sweep + real NO depth
-a6b127fa feat(weather): favorite-longshot directional ladder = only strat (user)
-7e041336 Watchdog 2026-06-05T11:20:30Z: HIGH 1 alerts (TRADE_LOOP_SILENT)
-129fd7ae fix(weather band): band→SHADOW + re-enable NEG_RISK_ARB (user)
-69b79f12 feat(weather band): log per-rank [p,ask,lo,hi] to test 'buy 2nd/3rd vs favorite'
+a98df812 fix(stwa): disable nowcast σ-collapse — hurts calibration on every metric
+2462cfb2 Watchdog 2026-06-06T06:19:14Z: HIGH 4 active (all in 6h backoff: TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
+eafa36e0 VOLARB Audit 20260606-0612 — NO_PATCH (n=885, watch=10)
+c6deda5e Watchdog 2026-06-06T05:19:40Z: HIGH 1 alerts (TRADE_LOOP_SILENT→ANOMALY)
+54cb6b4b Watchdog 2026-06-06T04:21:11Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN re-confirm, SHADOW_LOGGER_STALLED re-confirm)
+f3f058e5 Watchdog 2026-06-06T03:20:08Z: MEDIUM 1 alerts (VOLARB_TRADE_LOOP_SILENT re-confirm, TRADE_LOOP_SILENT→OK)
+d7f4f5d5 Watchdog 2026-06-05T22:19:08Z: HIGH 1 alerts (TRADE_LOOP_SILENT→ANOMALY)
+6efd5041 Watchdog 2026-06-05T21:20Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN re-confirm, SHADOW_LOGGER_STALLED re-confirm)
+367ae067 Watchdog 2026-06-05T20:18:53Z: OK 0 alerts (3 persisting in backoff: VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
+8a024dcc Watchdog 2026-06-05T19:21:49Z: MEDIUM 2 alerts (TRADE_LOOP_SILENT→OK, VOLARB_TRADE_LOOP_SILENT re-confirm)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-06-05 15:49:11 UTC
+ActiveEnterTimestamp=Sat 2026-06-06 22:19:34 UTC
 
 ## Open positions (count):
 0

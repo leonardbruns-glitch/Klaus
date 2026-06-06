@@ -87,8 +87,8 @@ The market resolves on the **daily max = sup of the temperature path over the re
 | Price floor | `PRICE_FLOOR=0.50` | only buy favorite side (YES/NO) at ask ≥ 0.50; bleed lived below 0.50 |
 | Primary pricer | `PA_SHRUNK` | center = NWP_peak + peak_bias + 0.30·x_hat; reversible to `MC` |
 | Intraday weight β | 0.30 | morning residual mean-reverts ~70% by peak (data-backed) |
-| Nowcast σ-collapse | floor 0.25 | shrink σ as running-max nears peak (06-03 f49f67bc) — ⚠ overconfident: model-certain buckets win ~17% live |
-| Recalibration | isotonic `g` (`config/stwa_isotonic.json`) | NO/YES Kelly uses `g(p)`; arb uses raw `p`. ⚠ map fit on flat-σ 2024, MISMATCHED to deployed σ-collapse; live-refit cron `stwa_isotonic_live_refit.py` (guarded) |
+| Nowcast σ-collapse | DISABLED 2026-06-06 (`NOWCAST_SIGMA_COLLAPSE=False`) | hurt calibration on every metric (Brier 0.181→0.129, ECE halved, rank-ρ up, 5× fewer false-certain buckets; n=53k–76k). σ now = validated per-month. Lockout certainty via running-max floor. Revert: True |
+| Recalibration | isotonic `g` (`config/stwa_isotonic.json`) | NO/YES Kelly uses `g(p)`; arb uses raw `p`. Map fit on flat-σ 2024 — now RE-ALIGNED (σ-collapse off). Live-refit cron `stwa_isotonic_live_refit.py` (guarded) keeps it current |
 | Kelly fraction | 0.20 | of full Kelly |
 | Edge / Kelly floor | `EDGE_MIN=0.04`, `KELLY_F_MIN=0.015` | risk-of-ruin safety |
 | Stake | min $3, max $20 | `NEG_RISK_ARB_MIN` $0.50 |
