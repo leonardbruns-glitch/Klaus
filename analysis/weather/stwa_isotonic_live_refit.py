@@ -44,7 +44,9 @@ MIN_CAL_DAYS   = 14       # distinct CALENDAR days of live data before auto-prom
                           #   (city-days are weather-correlated within a day → not independent)
 MIN_LIVE_NO    = 100      # live pairs in the model-NO region (p_ps<0.10) before auto-promote
 HOLDOUT_DAYS   = 3        # most-recent calendar days held OUT of the fit for the Brier guard
-LIVE_START     = "2026-06-03"   # first day actuals were produced (skill-matrix revive)
+LIVE_START     = "2026-06-07"   # first CLEAN no-collapse day (σ-collapse disabled 2026-06-06);
+                                # pre-06-07 pricer evals were priced under the old collapsed σ and
+                                # would teach the refit the wrong target.
 
 
 def _brier(p, y):

@@ -115,10 +115,11 @@ def build_historical_pairs():
             realized = day["temp_c"].max()
             month = int(day["month"].iloc[0])
             center = nwp_peak + pbias + BETA * resid_dec
-            # ── DEPLOYED σ path: per-(city,month) + nowcast collapse ──
-            sig_month = _sigma_month(city, month)
-            sig = min(sig_month, max(NOWCAST_SIGMA_FLOOR,
-                                     NOWCAST_REMAIN_RATIO * max(0.0, center - m0)))
+            # ── DEPLOYED σ path: per-(city,month), NO nowcast collapse ──
+            # (collapse disabled 2026-06-06, NOWCAST_SIGMA_COLLAPSE=False — it hurt
+            # calibration; the refit prior must match the deployed σ or it fits the
+            # wrong target.)
+            sig = _sigma_month(city, month)
             lo0 = np.floor(center - 5)
             for k in range(11):
                 blo, bhi = lo0 + k * BUCKET_W, lo0 + (k + 1) * BUCKET_W
