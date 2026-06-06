@@ -127,6 +127,16 @@ SIGMA_CALIB_INFLATION = 1.0
 # Revert: set NOWCAST_REMAIN_RATIO huge (e.g. 99.0) so the per-month cap always wins.
 NOWCAST_REMAIN_RATIO = 0.5
 NOWCAST_SIGMA_FLOOR  = 0.25
+# DISABLED 2026-06-06 (data): the collapse HURTS calibration on every metric. Backtest
+# (analysis/weather/stwa_sigma_collapse_backtest.py, n=53k–76k buckets, 12,821 days):
+# deployed collapse Brier 0.181 / ECE 0.106 / rank-ρ 0.339 vs NO-collapse 0.129 / 0.058 /
+# 0.393 — lower error, HALF the ECE, BETTER discrimination, and 5× fewer false-certain
+# (p≥.9) buckets (4,130→861, which only won 39%). (center−M0) is not remaining-max
+# uncertainty: it shrinks σ hardest just before the peak, where the residual rise has the
+# most leverage on which bucket wins → confident single-bucket picks that miss. Lockout
+# certainty is preserved separately by the running-max floor (bhi≥M0). Setting this False
+# ALSO re-aligns with the isotonic map (fit on flat-σ 2024). Revert: set True.
+NOWCAST_SIGMA_COLLAPSE = False
 
 # ── MAKER SHADOW (log-only; 2026-06-01) ────────────────────────────────────────
 # Live weather books are thin/one-sided with fat spreads ($2M vol across cities,
@@ -986,10 +996,12 @@ class STWAEngine:
                 _center = _base + _beta_h(_h) * x_hat
                 _sig = max(BAND_SIGMA_FLOOR, _sig_fc * math.sqrt(1.0 - _r2_h(_h)))
             else:
-                # legacy PA_SHRUNK: fixed β=0.30 + nowcast σ-collapse toward 0.5·(center−M0).
+                # legacy PA_SHRUNK: fixed β=0.30. Nowcast σ-collapse DISABLED 2026-06-06
+                # (NOWCAST_SIGMA_COLLAPSE=False) — it hurt calibration on every metric; σ now
+                # stays at the validated per-month value (lockout certainty via running-max floor).
                 _center = _base + PA_SHRUNK_BETA * x_hat
                 _sig = _sig_fc
-                if M0 is not None:
+                if NOWCAST_SIGMA_COLLAPSE and M0 is not None:
                     _sig = min(_sig_fc, max(NOWCAST_SIGMA_FLOOR,
                                             NOWCAST_REMAIN_RATIO * max(0.0, _center - float(M0))))
             cs.ps_probs_last = _peak_shrunk_bucket_probs(buckets, M0, _center, _sig)
