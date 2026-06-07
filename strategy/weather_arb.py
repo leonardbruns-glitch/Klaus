@@ -214,6 +214,15 @@ M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 1.0   # below MARKET_AGREE: require official
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
+# 2026-06-07 (Claude): ORACLE-CITY BLOCKLIST. The 06-05 M1β re-enable log flagged
+# — and lockout_exec_backtest re-confirmed — that wrong-oracle settlement cities
+# produce FALSE lockouts that resolve YES even at margin≥0.5°C, because our METAR
+# feed diverges from the resolution source: Tokyo (AMeDAS 44166 mis-mapped vs
+# RJTT/Haneda, +2.8°C false lockout), Hong Kong (HKO not WU), Shenzhen & Singapore
+# (sub-hourly sensor divergence). Block by settlement ICAO — checked at the single
+# _m1_beta_probe_evaluate chokepoint so both the WS and REST fire paths are gated.
+# Revert: set to empty set().
+M1_BETA_PROBE_ORACLE_BLOCK_ICAO = {"VHHH", "RJTT", "ZGSZ", "WSSS"}
 
 # ── Locked-region MAKER first-exercise (2026-06-01, controlled / user-mandated) ──
 # Exercises the maker_buy primitive on PROVENANCE-CLEAN locked buckets (NO physically
@@ -4115,6 +4124,12 @@ class WeatherArb:
         collapse correlated outcomes at the bucket-cluster level for WR/EV stats.
         """
         sec_since = int(now_ts - first_seen)
+        # 2026-06-07: oracle-city blocklist — skip wrong-oracle settlement cities
+        # whose METAR-derived lockout diverges from the resolution source (false
+        # lockouts that resolve YES even at margin≥0.5°C). Single chokepoint ⇒
+        # gates both WS and REST fire paths. See M1_BETA_PROBE_ORACLE_BLOCK_ICAO.
+        if icao in M1_BETA_PROBE_ORACLE_BLOCK_ICAO:
+            return
         # PROVENANCE-CLEAN lockout proof (2026-06-03): depth_c is M1β's binding
         # physical-lockout margin (the MIN_DEPTH_C gate). It MUST be derived from the
         # AWC/NWS hourly-METAR oracle (official_running_max), NEVER the NMS-merged

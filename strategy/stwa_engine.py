@@ -1161,6 +1161,9 @@ class STWAEngine:
         if not entries:
             return []
 
+        # Forward-ladder book snapshot (write-only, throttled) — capacity backtest data.
+        _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs)
+
         # ── Consistency gate ─────────────────────────────────────────────────
         total_p = sum(p for *_, p, _, _ in entries)
         if total_p > PROB_SUM_MAX:
@@ -1946,6 +1949,53 @@ def _book_ask(books: dict, token_id: str) -> Optional[float]:
     if ask is None or ask <= 0 or ask >= 1:
         return None
     return float(ask)
+
+
+# 2026-06-07 (Claude): FORWARD-LADDER BOOK LOGGER. Snapshots the FULL bucket
+# ladder (every bucket's yes/no ask + usd depth + p_model + p_cal) per city per
+# scan to logs/shadow/hot/<date>/stwa_ladder_book.jsonl. This is the data gap that
+# blocks backtesting the higher-capacity weather edges: pricer_eval logs probs but
+# NO book; metar_lockout logs the book only for already-locked buckets. With this,
+# the next-day model-update lag, favorite-longshot, and neg-risk-arb edges become
+# backtestable with REAL ask + depth + capacity. Write-only to logs/; throttled per
+# city. Revert: STWA_LADDER_LOG_ENABLED=False.
+STWA_LADDER_LOG_ENABLED  = True
+STWA_LADDER_LOG_INTERVAL = 120.0   # min seconds between snapshots per city
+_LADDER_LOG_LAST: dict = {}        # city -> last snapshot ts (module-level throttle)
+
+
+def _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs):
+    """Append one full-ladder book snapshot for capacity backtests (best-effort)."""
+    if not STWA_LADDER_LOG_ENABLED:
+        return
+    import json as _json, time as _time
+    now = _time.time()
+    if now - _LADDER_LOG_LAST.get(city, 0.0) < STWA_LADDER_LOG_INTERVAL:
+        return
+    _LADDER_LOG_LAST[city] = now
+    try:
+        from datetime import datetime as _dt, timezone as _tz
+        from pathlib import Path as _Path
+        d = _Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat()
+        d.mkdir(parents=True, exist_ok=True)
+        cp = cal_probs or {}
+        rows = []
+        for lo, hi, yes_tok, no_tok, p_m, ask_yes, ask_no in entries:
+            yb = clob_books.get(yes_tok) or {}
+            nb = clob_books.get(no_tok) or {}
+            rows.append({
+                "lo": lo, "hi": hi,
+                "p_model": round(p_m, 4),
+                "p_cal": round(cp.get((lo, hi), p_m), 4),
+                "ask_yes": ask_yes, "ask_no": ask_no,
+                "yes_depth_usd": yb.get("usd_depth"),
+                "no_depth_usd": nb.get("usd_depth"),
+            })
+        with (d / "stwa_ladder_book.jsonl").open("a") as f:
+            f.write(_json.dumps({"ts": now, "city": city, "phase": phase,
+                                 "regime": regime, "buckets": rows}) + "\n")
+    except Exception:
+        pass
 
 
 def _book_implied_sigma(entries: list) -> Optional[float]:
