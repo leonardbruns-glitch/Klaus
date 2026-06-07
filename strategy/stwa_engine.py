@@ -218,6 +218,14 @@ BAND_SHADOW         = True          # (inert while STWA_BAND_MODE=False)
 # price, NEVER the cheap longshot. PRICE_FLOOR kills every fire below 0.50 — the
 # fee-death/longshot zone where ALL −$85 of our directional loss lived.
 PRICE_FLOOR         = 0.50          # only buy a token whose ask ≥ this (both YES and NO)
+# 2026-06-07 (Claude): NO-side ASK BAND. Resolved weather NO split by ask band
+# (n=111, all-time): <0.70 → n=65 WR~0.35 −$58.70 (the bleeder); [0.70,0.85] →
+# n=18 WR 0.89 +$17.84 (the ONLY +EV slice — matches 06-06 scorecard + flb_calib);
+# ≥0.85 engine path overpays (−$10.77) and deep-lockout ≥0.90 is M1β's validated
+# job. Gate engine model-NO to [NO_FLOOR, NO_CEIL] instead of the shared 0.50 floor
+# (which kept the whole bleeder zone). Revert: NO_FLOOR=PRICE_FLOOR, NO_CEIL=1.0.
+NO_FLOOR            = 0.70
+NO_CEIL             = 0.88
 YES_STAGE_MIN_STAKE = True          # YES-favorite is UNPROVEN on resolved data (n=5) → fire at min-stake
                                     #   only, to collect clean post-fix n. NO-favorite (proven) sizes normally.
 STWA_NEG_RISK_ENABLED = False       # 2026-06-05 user "only strat": neg-risk arb OFF — it never executed as
@@ -1369,7 +1377,8 @@ class STWAEngine:
             # Every dollar of our directional loss lived below 0.50 (fee-death /
             # longshot zone); the +EV harvest is entirely at ask ≥ 0.50.
             _yes_price_ok = ask_yes is not None and ask_yes >= PRICE_FLOOR
-            _no_price_ok  = ask_no  is not None and ask_no  >= PRICE_FLOOR
+            # NO: band-gated to the only +EV slice (see NO_FLOOR/NO_CEIL note).
+            _no_price_ok  = ask_no  is not None and NO_FLOOR <= ask_no <= NO_CEIL
             yes_ok = (STWA_REGULAR_YES_ENABLED and _yes_phase_ok and _yes_price_ok
                       and edge_yes > EDGE_MIN and f_yes > KELLY_F_MIN)
             no_ok  = (STWA_REGULAR_NO_ENABLED and _no_phase_ok and _no_price_ok
