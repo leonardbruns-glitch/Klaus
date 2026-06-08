@@ -5468,6 +5468,18 @@ class WeatherArb:
             _tz_h = ICAO_UTC_OFFSET_H.get(_icao, 0)
             _local_day = int((now + _tz_h * 3600) // 86400)
             _prev = self._stwa_city_last_local_day.get(_city, 0)
+            if _prev == 0:
+                # Post-restart the in-memory tracker is empty, but cs.running_max
+                # may have been restored STALE from disk (a prior local day). Seed
+                # _prev from the local day the restored max actually belongs to
+                # (running_max_ts) so a carried-over max gets RESET, not suppressed
+                # by the first-sight guard. This was the 06-06→06-07 false-lockout
+                # bleed: a restart near local midnight froze yesterday's high all
+                # day, so every bucket below it became a false lockout that engine
+                # model-NO shorted at ~0.50 hours before peak (n=11, −$27.21).
+                _cs0 = self._stwa._cities.get(_city)
+                if _cs0 is not None and _cs0.running_max is not None and _cs0.running_max_ts:
+                    _prev = int((_cs0.running_max_ts + _tz_h * 3600) // 86400)
             if _prev and _local_day != _prev:
                 # Day rolled over → cs.running_max is the FINALISED official daily
                 # high for the day that just ended. Feed the self-learning skill
