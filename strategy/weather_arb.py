@@ -5464,6 +5464,11 @@ class WeatherArb:
         # Per-city local-midnight reset: fire reset_city() when each city's local day rolls over.
         for entry in self._today_markets_cache:
             _city = entry["city"]
+            # entry["city"] is the DISPLAY name from the market title ("Tel Aviv");
+            # the engine keys cities by SLUG ("tel-aviv"). reset_city/_cities.get
+            # must use the slug or they silently no-op (the reason reset_city never
+            # fired and running_max went stale across the local-day boundary).
+            _slug = CITY_NAME_TO_SLUG.get(_city, _city)
             _icao = entry.get("icao") or ""
             _tz_h = ICAO_UTC_OFFSET_H.get(_icao, 0)
             _local_day = int((now + _tz_h * 3600) // 86400)
@@ -5477,7 +5482,7 @@ class WeatherArb:
                 # bleed: a restart near local midnight froze yesterday's high all
                 # day, so every bucket below it became a false lockout that engine
                 # model-NO shorted at ~0.50 hours before peak (n=11, −$27.21).
-                _cs0 = self._stwa._cities.get(_city)
+                _cs0 = self._stwa._cities.get(_slug)
                 if _cs0 is not None and _cs0.running_max is not None and _cs0.running_max_ts:
                     _prev = int((_cs0.running_max_ts + _tz_h * 3600) // 86400)
             if _prev and _local_day != _prev:
@@ -5492,10 +5497,10 @@ class WeatherArb:
                 # advanced obs_date can't mis-date the actual. (Midnight temps are
                 # near the daily min, so monotone running_max isn't contaminated.)
                 try:
-                    _cs = self._stwa._cities.get(_city)
+                    _cs = self._stwa._cities.get(_slug)
                     if _cs is not None and _cs.running_max is not None:
                         _ended = _t.strftime("%Y-%m-%d", _t.gmtime(_prev * 86400))
-                        _aslug = CITY_NAME_TO_SLUG.get(_city, _city)
+                        _aslug = _slug
                         from analysis.weather.live_accumulator import log_actual as _la
                         _la(
                             slug=f"stwa-actual-{_aslug}-{_ended}",
@@ -5505,7 +5510,7 @@ class WeatherArb:
                         )
                 except Exception:
                     logger.debug("[STWA] skill-matrix log_actual hook failed for %s", _city, exc_info=True)
-                self._stwa.reset_city(_city)
+                self._stwa.reset_city(_slug)
             self._stwa_city_last_local_day[_city] = _local_day
 
         bucket_map:  dict[str, list]  = {}
