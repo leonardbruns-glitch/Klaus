@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-8feed8b6 feat(weather): next-day model-update edge shadow detector/validator
-967fafa0 fix(weather NO): band-gate engine model-NO to [0.70,0.88] — kill the sub-0.70 bleeder
-9f882a67 feat(weather): M1β oracle-city blocklist + forward-ladder book logger
+f606f5fa fix(weather): reset stale running_max across restart — kill false-lockout NO bleed
+4c3bc539 feat(weather): next-day model-update edge shadow detector/validator
+f71a6b83 fix(weather NO): band-gate engine model-NO to [0.70,0.88] — kill the sub-0.70 bleeder
+e68ee283 feat(weather): M1β oracle-city blocklist + forward-ladder book logger
+8a84dbd7 Watchdog 2026-06-08T05:20:24Z: MEDIUM 4 alerts (VOLARB_ROLLING_DRAWDOWN re-confirm, VOLARB_TRADE_LOOP_SILENT re-confirm, SHADOW_LOGGER_STALLED→ANOMALY, TRADE_LOOP_SILENT→OK)
+a0c72ed5 Watchdog 2026-06-07T06:19:01Z: HIGH 3 active (all in 6h backoff: TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT; SHADOW_LOGGER_STALLED->OK)
+5d2c16bf VOLARB Audit 20260607-0611 — NO_PATCH (n=885, watch=10)
+9f08cef8 Watchdog 2026-06-07T05:20:03Z: HIGH 1 alerts (TRADE_LOOP_SILENT→ANOMALY)
+c3a87ead Watchdog 2026-06-07T04:21:49Z: MEDIUM 3 active (TRADE_LOOP_SILENT→OK, VOLARB_ROLLING_DRAWDOWN re-confirm, VOLARB_TRADE_LOOP_SILENT re-confirm, SHADOW_LOGGER_STALLED re-confirm)
 84c5dbe7 config(stwa): promote no-collapse-matched isotonic map
-e8e54734 fix(stwa refit): match no-collapse σ — drop collapse from prior, clean LIVE_START
-a98df812 fix(stwa): disable nowcast σ-collapse — hurts calibration on every metric
-2462cfb2 Watchdog 2026-06-06T06:19:14Z: HIGH 4 active (all in 6h backoff: TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
-eafa36e0 VOLARB Audit 20260606-0612 — NO_PATCH (n=885, watch=10)
-c6deda5e Watchdog 2026-06-06T05:19:40Z: HIGH 1 alerts (TRADE_LOOP_SILENT→ANOMALY)
-54cb6b4b Watchdog 2026-06-06T04:21:11Z: MEDIUM 2 alerts (VOLARB_ROLLING_DRAWDOWN re-confirm, SHADOW_LOGGER_STALLED re-confirm)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  72% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Sun 2026-06-07 21:18:27 UTC
+ActiveEnterTimestamp=Mon 2026-06-08 05:52:08 UTC
 
 ## Open positions (count):
 0
