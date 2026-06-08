@@ -603,6 +603,37 @@ def covered_icaos() -> set[str]:
     return set(_FETCHERS.keys()) | wis2_icaos
 
 
+# ── Per-source obs receipt logger (Stage-0 feed-lead measurement) ────────────
+# Records the FIRST time each source delivers each physical observation
+# (keyed by icao+source+obs_valid_ts), tagged with our receipt wall-clock. The
+# analysis groups by (icao, obs_valid_ts): when two sources carry the SAME
+# hourly METAR, AWC_recv_ts − fastest_recv_ts is the tradeable lead over a
+# competitor on AWC's batch. Captures losers of the merge too — that's the point.
+_OBS_RECEIPT_SEEN: set = set()
+
+def _log_obs_receipt(icao: str, obs: dict) -> None:
+    try:
+        src = obs.get("source"); ovt = obs.get("last_obs_time")
+        if src is None or ovt is None:
+            return
+        key = (icao, src, round(float(ovt)))
+        if key in _OBS_RECEIPT_SEEN:
+            return
+        if len(_OBS_RECEIPT_SEEN) > 200_000:
+            _OBS_RECEIPT_SEEN.clear()
+        _OBS_RECEIPT_SEEN.add(key)
+        import json as _j
+        from pathlib import Path as _P
+        d = _P("logs/shadow/hot") / datetime.now(timezone.utc).date().isoformat()
+        d.mkdir(parents=True, exist_ok=True)
+        with (d / "obs_receipt.jsonl").open("a") as f:
+            f.write(_j.dumps({"recv_ts": time.time(), "icao": icao, "source": src,
+                              "obs_valid_ts": float(ovt),
+                              "temp_c": obs.get("temp_c")}) + "\n")
+    except Exception:
+        pass
+
+
 def merge_into_cache(
     icao: str,
     obs: dict,
@@ -618,6 +649,10 @@ def merge_into_cache(
     temp_c = obs.get("temp_c")
     if temp_c is None:
         return False
+
+    # Stage-0 feed-lead measurement: log every source's first delivery of this
+    # obs (before the staleness reject below, so AWC-delivers-late is captured).
+    _log_obs_receipt(icao, obs)
 
     now_utc = datetime.now(timezone.utc)
     today_str = (now_utc + timedelta(hours=tz_offset_h)).date().isoformat()
