@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+d1c8b6d8 feat(lockout/WS2): take daily-MIN lockout LIVE (bounded), confirm M1β enabled
+d8b956e5 feat(lockout/WS2): daily-MIN lockout shadow detector (stage-1, no capital)
 96641bd2 feat(lockout/WS1): loosen maker margin gate 1.0→0.5°C (align to validated reliability gate)
 9bbe9a06 Watchdog 2026-06-08T15:19:36Z: MEDIUM 3 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
 8435696f feat(weather): A1 dew-correction fix + A2 per-(city,month) peak_bias
@@ -10,14 +12,12 @@ d73a08d7 feat(nms): per-source obs receipt-time logging (Stage-0 feed-lead measu
 c5a701f2 feat(weather): stamp running_max + model_center + floored on NO signal rows
 20492dde Watchdog 2026-06-08T06:19:51Z: OK (3 anomalies in backoff)
 c05e73f2 VOLARB Audit 20260608-0613 — NO_PATCH (n=885, watch=10)
-b55e1a18 fix(weather): reset_city key mismatch — slug vs display name (reset never fired)
-f606f5fa fix(weather): reset stale running_max across restart — kill false-lockout NO bleed
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   68G       25G  74% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-08 15:27:26 UTC
+ActiveEnterTimestamp=Mon 2026-06-08 16:01:00 UTC
 
 ## Open positions (count):
 0
