@@ -318,16 +318,17 @@ M1_DIP_REBUY_STAKE_USD   = 5.0    # smaller than initial stake (correlated resol
 # semi-directional (YES is physically possible until the official high passes), NOT the
 # calibration-free lockout. On-record dissent: enabled by user directive over the n≥100
 # gate. Provenance gate (official running_max only) is NON-NEGOTIABLE (false-lockout lesson).
-FADE_LIVE_ENABLED      = False  # 2026-06-05 user: BAND-only go-live
+FADE_LIVE_ENABLED      = True   # 2026-06-08 RE-ENABLED (user). Gamma-join validated: prime-bin NO 93.7% (n=111),
+                                # tradeable slice (ask∈[0.55,0.90]+depth≥$10) 100% (n=13). $5 stake, oracle-clean gate. Revert: False
 FADE_NO_ASK_MIN        = 0.55   # below this the market strongly expects YES = false-fade zone, skip
-FADE_NO_ASK_MAX        = 0.90   # user gate 2026-06-02 (mispricing ceiling)
+FADE_NO_ASK_MAX        = 0.89   # 2026-06-08 user: entry NO-ask strictly < 0.9 (buy earlier/cheaper, more upside). Was 0.90
 FADE_MAX_GAP_C         = 1.6    # bin lo at most this far above the official running_max (~1 bin)
 FADE_MIN_DEPTH_USD     = 10.0   # require this much fillable NO depth at/under our price
 FADE_MIN_SEC_TO_CLOSE  = 1800   # ≥30 min to resolution
 FADE_WIN_PRIOR         = 0.90   # Kelly win-prob prior — HAIRCUT from backtest 0.98 (live-unconfirmed)
 FADE_KELLY_FRACTION    = 0.20   # of full Kelly (matches STWA)
 FADE_MIN_STAKE         = 3.0
-FADE_MAX_STAKE         = 40.0   # 2026-06-03 user directive: 20→40/position (Kelly-clamped ceiling)
+FADE_MAX_STAKE         = 5.0    # 2026-06-08: 40→5 — $70 capital; collect live resolved n at small blast radius. Was 40
 FADE_MIN_SHARES        = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 
 # ── FAVORITE-YES live edge — favorite-longshot underpricing of confident OPEN-ENDED
@@ -5913,6 +5914,8 @@ class WeatherArb:
                         _icao = getattr(_st, "icao", None) if _st else None
                         if not _icao:
                             continue
+                        if _icao in M1_BETA_PROBE_ORACLE_BLOCK_ICAO:
+                            continue  # 2026-06-08: oracle-clean gate — provenance-divergent cities (reuse M1β blocklist)
                         _mc = self._icao_metar_cache.get(_icao) or {}
                         _tzh = ICAO_UTC_OFFSET_H.get(_icao, 0)
                         _ltoday = (_now_utc + _tdf(hours=_tzh)).date().isoformat()
