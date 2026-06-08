@@ -1172,7 +1172,13 @@ class STWAEngine:
             return []
 
         # Forward-ladder book snapshot (write-only, throttled) — capacity backtest data.
-        _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs)
+        # Pass running_max + center so the next-day-edge detector can exclude
+        # floor-driven p_cal flips (lockout advances) and fire only on genuine
+        # forecast/center updates (the actual thesis).
+        _cs_lad = self._cities.get(city)
+        _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs,
+                         running_max=(_cs_lad.running_max if _cs_lad is not None else None),
+                         center=(_cs_lad.ps_center_last if _cs_lad is not None else None))
 
         # ── Consistency gate ─────────────────────────────────────────────────
         total_p = sum(p for *_, p, _, _ in entries)
@@ -1975,7 +1981,8 @@ STWA_LADDER_LOG_INTERVAL = 120.0   # min seconds between snapshots per city
 _LADDER_LOG_LAST: dict = {}        # city -> last snapshot ts (module-level throttle)
 
 
-def _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs):
+def _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs,
+                     running_max=None, center=None):
     """Append one full-ladder book snapshot for capacity backtests (best-effort)."""
     if not STWA_LADDER_LOG_ENABLED:
         return
@@ -2004,7 +2011,11 @@ def _log_ladder_book(city, entries, clob_books, phase, regime, cal_probs):
             })
         with (d / "stwa_ladder_book.jsonl").open("a") as f:
             f.write(_json.dumps({"ts": now, "city": city, "phase": phase,
-                                 "regime": regime, "buckets": rows}) + "\n")
+                                 "regime": regime,
+                                 "running_max": running_max,
+                                 "model_center": (round(center, 3)
+                                                  if isinstance(center, (int, float)) else None),
+                                 "buckets": rows}) + "\n")
     except Exception:
         pass
 
