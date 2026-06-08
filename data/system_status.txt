@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+d73a08d7 feat(nms): per-source obs receipt-time logging (Stage-0 feed-lead measurement)
 004c5211 feat(weather): next-day-edge detector v2 — forecast-center moves, not floor flips
 c5a701f2 feat(weather): stamp running_max + model_center + floored on NO signal rows
 20492dde Watchdog 2026-06-08T06:19:51Z: OK (3 anomalies in backoff)
@@ -11,13 +12,12 @@ f606f5fa fix(weather): reset stale running_max across restart — kill false-loc
 4c3bc539 feat(weather): next-day model-update edge shadow detector/validator
 f71a6b83 fix(weather NO): band-gate engine model-NO to [0.70,0.88] — kill the sub-0.70 bleeder
 e68ee283 feat(weather): M1β oracle-city blocklist + forward-ladder book logger
-8a84dbd7 Watchdog 2026-06-08T05:20:24Z: MEDIUM 4 alerts (VOLARB_ROLLING_DRAWDOWN re-confirm, VOLARB_TRADE_LOOP_SILENT re-confirm, SHADOW_LOGGER_STALLED→ANOMALY, TRADE_LOOP_SILENT→OK)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-08 06:37:29 UTC
+ActiveEnterTimestamp=Mon 2026-06-08 07:15:27 UTC
 
 ## Open positions (count):
 0
