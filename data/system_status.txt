@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+8435696f feat(weather): A1 dew-correction fix + A2 per-(city,month) peak_bias
 d73a08d7 feat(nms): per-source obs receipt-time logging (Stage-0 feed-lead measurement)
 004c5211 feat(weather): next-day-edge detector v2 — forecast-center moves, not floor flips
 c5a701f2 feat(weather): stamp running_max + model_center + floored on NO signal rows
@@ -11,13 +12,12 @@ b55e1a18 fix(weather): reset_city key mismatch — slug vs display name (reset n
 f606f5fa fix(weather): reset stale running_max across restart — kill false-lockout NO bleed
 4c3bc539 feat(weather): next-day model-update edge shadow detector/validator
 f71a6b83 fix(weather NO): band-gate engine model-NO to [0.70,0.88] — kill the sub-0.70 bleeder
-e68ee283 feat(weather): M1β oracle-city blocklist + forward-ladder book logger
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   68G       25G  73% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   68G       25G  74% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-08 14:20:45 UTC
+ActiveEnterTimestamp=Mon 2026-06-08 14:51:33 UTC
 
 ## Open positions (count):
 0
