@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-08T20:48:44Z
+# Snapshot: 2026-06-08T21:03:52Z
 # Latest commit on klaus:
-d1c8b6d8 feat(lockout/WS2): take daily-MIN lockout LIVE (bounded), confirm M1β enabled
+063a927e feat(fade): RE-ENABLE fade-NO live (Gamma-validated 93.7% n=111) — $5 stake, oracle-clean gate, ask<0.9
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
