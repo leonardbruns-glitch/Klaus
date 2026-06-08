@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+b55e1a18 fix(weather): reset_city key mismatch — slug vs display name (reset never fired)
 f606f5fa fix(weather): reset stale running_max across restart — kill false-lockout NO bleed
 4c3bc539 feat(weather): next-day model-update edge shadow detector/validator
 f71a6b83 fix(weather NO): band-gate engine model-NO to [0.70,0.88] — kill the sub-0.70 bleeder
@@ -11,13 +12,12 @@ a0c72ed5 Watchdog 2026-06-07T06:19:01Z: HIGH 3 active (all in 6h backoff: TRADE_
 5d2c16bf VOLARB Audit 20260607-0611 — NO_PATCH (n=885, watch=10)
 9f08cef8 Watchdog 2026-06-07T05:20:03Z: HIGH 1 alerts (TRADE_LOOP_SILENT→ANOMALY)
 c3a87ead Watchdog 2026-06-07T04:21:49Z: MEDIUM 3 active (TRADE_LOOP_SILENT→OK, VOLARB_ROLLING_DRAWDOWN re-confirm, VOLARB_TRADE_LOOP_SILENT re-confirm, SHADOW_LOGGER_STALLED re-confirm)
-84c5dbe7 config(stwa): promote no-collapse-matched isotonic map
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-08 05:52:08 UTC
+ActiveEnterTimestamp=Mon 2026-06-08 06:01:14 UTC
 
 ## Open positions (count):
 0
