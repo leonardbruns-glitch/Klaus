@@ -249,7 +249,16 @@ MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 # provenance + lock→Gamma-resolution WR (n≥100) BEFORE any live order, exactly how
 # max lockout was hardened. Live order-placement is a separate future flag.
 MIN_LOCKOUT_SHADOW_ENABLED = True
-MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # official running_min ≥ this °C BELOW the bucket floor
+MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °C below bucket floor
+# LIVE (2026-06-08, user): post real maker NO bids on locked min buckets, reusing
+# the proven _maker_locked_exercise machinery (maker = adverse-selection-free on a
+# physical lock; breaker + $5 stake + oracle-blocklist all inherited). Gated DEEPER
+# than the 0.5 shadow/max threshold because running_min provenance is NOT YET
+# validated against Gamma resolution — the one real risk (mirror of the running_max
+# overshoot bugs). Loosen toward 0.5 after the first clean min resolutions confirm
+# provenance. Revert live: MIN_LOCKOUT_LIVE=False.
+MIN_LOCKOUT_LIVE           = True
+MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 
 # ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
 # Face 2 (buy-all-NO) is only ever eligible when Σyes_proxy>1 — the OPPOSITE of
@@ -3204,15 +3213,17 @@ class WeatherArb:
                 continue
             ids = _parse_token_ids(mkt.get("clobTokenIds", []))
             no_tok = ids[1] if len(ids) > 1 else None
-            cands.append((entry, question, lo_c, hi_c, is_celsius, run_min, margin, no_tok, end_date))
+            cond_id = mkt.get("conditionId") or mkt.get("condition_id") or ""
+            cands.append((entry, question, lo_c, hi_c, is_celsius, run_min, margin, no_tok, end_date, cond_id))
         if not cands:
             return
 
         written = 0
+        live_fired = 0
         try:
             async with aiohttp.ClientSession() as sess:
-                for (entry, question, lo_c, hi_c, is_celsius, run_min, margin, no_tok, end_date) in cands:
-                    no_ask = None; depth_usd = 0.0
+                for (entry, question, lo_c, hi_c, is_celsius, run_min, margin, no_tok, end_date, cond_id) in cands:
+                    no_ask = None; best_bid = None; depth_usd = 0.0
                     if no_tok:
                         try:
                             async with sess.get(
@@ -3221,12 +3232,33 @@ class WeatherArb:
                                 if r.status == 200:
                                     b = await r.json()
                                     asks = b.get("asks") or []
+                                    bids = b.get("bids") or []
                                     if asks:
                                         no_ask = min(float(a["price"]) for a in asks)
                                         depth_usd = sum(float(a["price"]) * float(a["size"]) for a in asks
                                                         if abs(float(a["price"]) - no_ask) <= 0.05)
+                                    if bids:
+                                        best_bid = max(float(a["price"]) for a in bids)
                         except Exception:
                             pass
+                    # ── LIVE: post a maker NO bid on the locked min bucket ──────────
+                    # Reuse the proven _maker_locked_exercise (maker = AS-free on a
+                    # physical lock). Map min→max args so its internal margin compute
+                    # (official_running_max − hi_c) yields the MIN margin (lo_c − min).
+                    # Deeper gate than shadow: provenance still unvalidated.
+                    if (MIN_LOCKOUT_LIVE and no_ask is not None
+                            and margin >= MIN_LOCKOUT_LIVE_MIN_MARGIN_C):
+                        try:
+                            await self._maker_locked_exercise(
+                                city=entry.get("city"), no_token_id=no_tok,
+                                no_book={"best_bid": best_bid, "best_ask": no_ask},
+                                no_ask_clob=no_ask, hi_c=run_min,
+                                official_running_max=lo_c, now_ts=now_ts, now_utc=now_utc,
+                                icao=entry.get("icao") or "", question=question,
+                                end_date=end_date, lo_c=lo_c, condition_id=cond_id)
+                            live_fired += 1
+                        except Exception:
+                            logger.exception("[WA] min-lockout live maker error")
                     rec = {
                         "schema_version": 1, "record_type": "metar_min_lockout_candidate",
                         "ts_s": round(now_ts, 1), "ts_utc": now_utc.isoformat(),
@@ -3246,7 +3278,8 @@ class WeatherArb:
         except Exception:
             logger.exception("[WA] metar_min_lockout write error")
         if written:
-            logger.info("[WA] MIN_LOCKOUT shadow: %d locked min-bucket candidates this cycle", written)
+            logger.info("[WA] MIN_LOCKOUT: %d locked min-bucket candidates, %d live maker posts this cycle",
+                        written, live_fired)
 
     async def _metar_lockout_scan(self) -> None:
         """
