@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-08T21:33:56Z
+# Snapshot: 2026-06-08T21:49:04Z
 # Latest commit on klaus:
-ef5a7a48 feat(M1): restore firing — FATEDGE 1.0→0.5, NO-ask floor 0.70→0.05, stake 40→10; fix redeem retry-loop
+4a99ee6e feat(thermo): bounded thermo-ceiling MAKER on upper tail (user opt-in, monitored, dissent on record)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
