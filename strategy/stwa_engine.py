@@ -368,6 +368,10 @@ class STWAEngine:
 
         # NWP forecast cache: city → {hour_utc: temp_c}
         self._nwp_cache: dict[str, dict[int, float]] = {}
+        # NWP DEW-point forecast cache: city → {hour_utc: dew_c}. Separate from
+        # _nwp_cache (air temp) — the humidity correction (A1) regresses obs dew
+        # on (obs_dew − NWP_dew), so it must read THIS, never the air-temp cache.
+        self._nwp_dew_cache: dict[str, dict[int, float]] = {}
         self._nwp_date:  str = ""
 
         # Calibration log: city → [(p_model, outcome), ...]
@@ -524,6 +528,7 @@ class STWAEngine:
                 cs.pv_var      = VEL_PRIOR_VAR
                 cs.obs_buf     = []
             self._nwp_cache.clear()
+            self._nwp_dew_cache.clear()
             self._nwp_date = ""
         logger.info("[STWA] full daily reset — Kalman state re-initialised")
 
@@ -546,14 +551,20 @@ class STWAEngine:
             cs.pv_var      = VEL_PRIOR_VAR
             cs.obs_buf     = []
             self._nwp_cache.pop(city, None)
+            self._nwp_dew_cache.pop(city, None)
         logger.info("[STWA] city reset at local midnight: %s", city)
 
     # ── NWP forecast ───────────────────────────────────────────────────────────
 
-    def update_nwp_forecast(self, city: str, hourly_temps: dict[int, float]) -> None:
-        """Called by weather_arb when a fresh Open-Meteo forecast arrives."""
+    def update_nwp_forecast(self, city: str, hourly_temps: dict[int, float],
+                            hourly_dew: Optional[dict[int, float]] = None) -> None:
+        """Called by weather_arb when a fresh Open-Meteo forecast arrives.
+        hourly_dew (NWP dewpoint, °C) feeds the A1 humidity correction; when
+        absent the correction is skipped (≈ as good as the dew term off)."""
         with self._lock:
             self._nwp_cache[city] = hourly_temps
+            if hourly_dew is not None:
+                self._nwp_dew_cache[city] = hourly_dew
 
     def _get_mu(self, city: str, hour_utc: int) -> float:
         """Bias-corrected NWP forecast temperature for a city at a given UTC hour.
@@ -662,7 +673,9 @@ class STWAEngine:
         # ── Humidity correction ───────────────────────────────────────────────
         mu_corrected = mu_now
         if dew_c is not None and math.isfinite(dew_c):
-            nwp_dew = self._nwp_cache.get(city, {}).get(hour_utc)
+            # A1 fix: read the NWP DEW forecast (not the air-temp cache). alpha was
+            # fit on (obs_dew − NWP_dew); reading air temp here tripled center MSE.
+            nwp_dew = self._nwp_dew_cache.get(city, {}).get(hour_utc)
             if nwp_dew is not None:
                 month = _current_month()
                 alpha = st.get("alpha_humidity", {}).get(str(month), 0.0)
@@ -997,7 +1010,8 @@ class STWAEngine:
         # when STWA_PRIMARY_PRICER=="PA_SHRUNK"; MC still computed for shadow A/B.
         try:
             _cal = self._peak_calib.get(city) or self._peak_calib.get("_pooled", {})
-            _base = float(np.nanmax(mu_grid)) + float(_cal.get("peak_bias", 0.0))
+            # A2: per-(city,month) peak_bias (seasonal), falls back to scalar.
+            _base = float(np.nanmax(mu_grid)) + _peak_bias_for(self._peak_calib, city, _current_month())
             _sig_fc = _peak_sigma_for(self._peak_calib, city, _current_month())
             if STWA_BAND_MODE:
                 # time-varying gain + data-correct σ-floor (no σ-collapse).
@@ -1950,6 +1964,25 @@ def _peak_sigma_for(peak_calib: dict, city: str, month: int) -> float:
             if v:
                 return float(v) * SIGMA_CALIB_INFLATION
     return float(cal.get("sigma", 1.1)) * SIGMA_CALIB_INFLATION
+
+
+def _peak_bias_for(peak_calib: dict, city: str, month: int) -> float:
+    """Per-(city,month) PA-shrunk peak_bias (A2). Tries the city's peak_bias_monthly,
+    then the _pooled monthly fallback, then the city's flat scalar peak_bias (then 0.0).
+    The monthly values preserve each city's annual scalar level and add only the
+    seasonal deviation (daily-max residual swings by season)."""
+    cal = peak_calib.get(city) or peak_calib.get("_pooled", {})
+    bm = cal.get("peak_bias_monthly") if isinstance(cal, dict) else None
+    if isinstance(bm, dict):
+        v = bm.get(str(month), bm.get(month))
+        if v is not None:
+            return float(v)
+    pooled_bm = peak_calib.get("_pooled", {}).get("peak_bias_monthly")
+    if isinstance(pooled_bm, dict):
+        v = pooled_bm.get(str(month), pooled_bm.get(month))
+        if v is not None:
+            return float(v)
+    return float(cal.get("peak_bias", 0.0))
 
 
 def _new_max(existing: Optional[float], temp_c: float) -> float:

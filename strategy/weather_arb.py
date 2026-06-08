@@ -1550,7 +1550,7 @@ class WeatherArb:
         self._ofi_ws_buf: dict[str, tuple] = {}   # txhash → (recv_ts, cid, ask_bool, notion)
         self._ofi_ws_tok: dict[str, tuple] = {}   # token_id → (cid, "yes"|"no")  resolver
         self._ofi_ws_subbed: set[str] = set()     # tokens already subscribed on the WS
-        self._hourly_cache: dict[tuple, tuple] = {}  # (lat2, lon2, date) → {utc_hour: temp_c}
+        self._hourly_cache: dict[tuple, tuple] = {}  # key → ({utc_hour: temp_c}, {utc_hour: dew_c})
         self._nwp_today_cache: dict[tuple, Optional[float]] = {}  # (lat2, lon2, date) → nwp_daily_max_c
 
         # Universal per-ICAO METAR cache — populated by _refresh_all_metars(),
@@ -2006,7 +2006,7 @@ class WeatherArb:
                     for slug, st in _STWA_STATIONS.items():
                         try:
                             # 1. Hourly shape from single-model (Open-Meteo default)
-                            hourly = await self._get_hourly_forecast(st.lat, st.lon)
+                            hourly, hourly_dew = await self._get_hourly_forecast(st.lat, st.lon)
                             if not hourly:
                                 await asyncio.sleep(0.1)
                                 continue
@@ -2043,7 +2043,9 @@ class WeatherArb:
                                              "bias@peak=%.2f delta=%.2f",
                                              slug, _h_peak, raw_peak, ens_mu, _bias_at_peak, delta)
 
-                            self._stwa.update_nwp_forecast(slug, hourly)
+                            # dew is NOT anchored by the temp delta — it's a separate
+                            # variable feeding the humidity correction (A1 fix).
+                            self._stwa.update_nwp_forecast(slug, hourly, hourly_dew)
                         except Exception:
                             pass
                         await asyncio.sleep(0.1)  # gentle rate limit
@@ -7460,8 +7462,11 @@ class WeatherArb:
         })
         return cached
 
-    async def _get_hourly_forecast(self, lat: float, lon: float) -> dict[int, float]:
-        """Fetch today's hourly max-2m-temp forecast in UTC. Cached per station per 6h slot."""
+    async def _get_hourly_forecast(self, lat: float, lon: float) -> tuple[dict[int, float], dict[int, float]]:
+        """Fetch today's hourly 2m-temp + 2m-dewpoint forecast in UTC (°C).
+        Returns (temps, dews). Cached per station per 6h slot.
+        The dew forecast feeds the engine humidity correction (A1 fix): alpha was
+        fit on (obs_dew − NWP_dew), so the engine must read NWP dew, not air temp."""
         import time
         from datetime import date, datetime, timezone
         today = date.today().isoformat()
@@ -7473,28 +7478,34 @@ class WeatherArb:
         url = (
             f"https://api.open-meteo.com/v1/forecast"
             f"?latitude={lat:.4f}&longitude={lon:.4f}"
-            f"&hourly=temperature_2m&temperature_unit=celsius"
+            f"&hourly=temperature_2m,dew_point_2m&temperature_unit=celsius"
             f"&forecast_days=1&timezone=UTC"
         )
         try:
             async with aiohttp.ClientSession() as sess:
                 async with sess.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
                     if resp.status != 200:
-                        return {}
+                        return {}, {}
                     data = await resp.json()
             hourly = data.get("hourly", {})
             times = hourly.get("time", [])
             temps = hourly.get("temperature_2m", [])
+            dews  = hourly.get("dew_point_2m", [])
             result = {
                 datetime.fromisoformat(t).hour: float(v)
                 for t, v in zip(times, temps)
                 if v is not None
             }
-            self._hourly_cache[key] = result
-            return result
+            dew_result = {
+                datetime.fromisoformat(t).hour: float(v)
+                for t, v in zip(times, dews)
+                if v is not None
+            }
+            self._hourly_cache[key] = (result, dew_result)
+            return result, dew_result
         except Exception as e:
             logger.debug("[WA] hourly forecast error lat=%.2f: %s", lat, e)
-            return {}
+            return {}, {}
 
     @staticmethod
     def _compute_nowcast_mu_sigma(
@@ -7624,7 +7635,7 @@ class WeatherArb:
             peak_hour = cal_peak_hour
         else:
             # Fallback: Open-Meteo hourly forecast rise
-            hourly = await self._get_hourly_forecast(lat, lon)
+            hourly, _ = await self._get_hourly_forecast(lat, lon)
             if not hourly:
                 return running_max_c, 1.2
             fcst_now = hourly.get(current_hour, temp_c)
