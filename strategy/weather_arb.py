@@ -250,6 +250,12 @@ MAKER_EXERCISE_MAX_ORDERS        = 100000  # effectively UNCAPPED (user 2026-06-
 MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 0.5     # 2026-06-08 WS1: 1.0→0.5 — align to the VALIDATED lockout reliability gate (margin≥0.5°C + oracle-clean = 98.7% WR, n=671). The 1.0°C buffer was conservatism for false-locks; the oracle blocklist (deployed today) now handles those. Expands oracle-clean margin-path candidates ~6.4× (27→172 over 06-06/07), targeting the stale-book margin∈[0.5,1.0) buckets where the maker captures before reprice. Revert: 1.0
 MAKER_BREAKER_MAX_EXPOSURE_USD   = 40.0    # trip if Σ resting maker stake exceeds this (raised 15→40 by user 2026-06-02; ≤8 concurrent @ $5). NB bounds RESTING only — filled positions accumulate beyond it.
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
+MAKER_EXERCISE_MAX_BID           = 0.96    # 2026-06-09: don't rest a maker NO bid above this on a PHYSICAL lock.
+                                            # Fill-data (n=2 fills over 4d, both ≤0.94; median post 0.99 = ~0% fill) shows
+                                            # deep ~0.99 bids never fill (no NO-selling flow on a settled bucket) yet rest
+                                            # forever, consuming the $40 breaker (8×$5) and blocking productive posts. Skip
+                                            # them → reserve maker capacity for the fat-edge zone (≤0.96) where fills happen.
+                                            # Thermo exempt (its monitored experiment IS to rest deep early for the 4h reprice). Revert: 1.0.
 
 # ── Daily-MIN lockout (2026-06-08, WS2) — SHADOW only, NO capital ───────────────
 # Mirror of the validated daily-MAX lockout onto the daily-MINIMUM markets (which
@@ -3792,6 +3798,12 @@ class WeatherArb:
         q_price = min(q_price, round(no_ask_clob - 0.01, 2))   # strictly non-crossing
         q_price = max(0.01, q_price)
         if q_price >= no_ask_clob:
+            return
+        # 2026-06-09: skip dead-weight deep bids on PHYSICAL locks (≈0% fill at ~0.99, but they
+        # rest forever and burn the $40 breaker). Reserve maker for the fat-edge zone where
+        # NO-selling flow exists. Not seen-marked → re-posts if the book drops into range.
+        # Thermo exempt — it intentionally rests deep early to capture the 4h reprice.
+        if entry_class != "WEATHER_THERMO" and q_price > MAKER_EXERCISE_MAX_BID:
             return
         size = round(MAKER_EXERCISE_STAKE_USD / q_price, 2)
         margin = ((official_running_max - hi_c)
