@@ -100,7 +100,7 @@ STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-re
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
 # at bid>=0.999, so positions that never reach TP must be settled here or their (mostly
 # winning) PnL never banks — the same write-only gap STWA had.
-_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI", "WEATHER_FAVYES")
+_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI", "WEATHER_FAVYES", "WEATHER_THERMO")
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -270,6 +270,27 @@ MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °
 # provenance. Revert live: MIN_LOCKOUT_LIVE=False.
 MIN_LOCKOUT_LIVE           = True
 MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
+
+# ── Thermo-ceiling MAKER on the upper tail (2026-06-08, user opt-in, BOUNDED) ──────
+# Rest NO bids PRE-peak on buckets that are thermodynamically unreachable: a bucket whose
+# floor lo_c exceeds the p99 ceiling = running_max + p99·remaining_rise can't contain the
+# daily max ⇒ NO. Physics validated 97.2% Gamma WR (/tmp/thermo_econ.py), ~4h before peak,
+# 32 cities. Reuses _maker_locked_exercise via the min→max arg map (official_running_max=lo_c,
+# hi_c=ceiling ⇒ internal margin = lo_c−ceiling).
+# ⚠⚠ ON-RECORD DISSENT (anti-sycophancy): UNLIKE the running_max physical lock (WS1, AS=0),
+# this lock CAN reverse (~1% at p99) so the resting maker bid is exposed to WINNER'S CURSE —
+# it fills preferentially when a late surge crosses it down (the exact mechanism that
+# falsified maker-MVP). The taker econ join showed no_ask already ~0.998 at lock, so there is
+# NO cheap taker edge either. This is a MONITORED experiment to MEASURE the live fill-bias,
+# NOT a validated edge — likely marginal-to-negative EV. Bounded: p99 + 0.3°C margin, $5 stake,
+# daily cap, shared maker breaker ($40 exposure), isolated tag WEATHER_THERMO.
+# KILL CRITERION: if WEATHER_THERMO realized PnL is negative over the first ~20 resolved fills,
+# set THERMO_MAKER_LIVE=False. Revert anytime: THERMO_MAKER_LIVE=False (keeps shadow log).
+THERMO_MAKER_ENABLED       = True    # shadow-log thermo-ceiling upper-tail candidates
+THERMO_MAKER_LIVE          = True    # ⚠ post real resting NO bids (user opt-in, monitored)
+THERMO_MAKER_P99_K         = 2.33    # p99: ceiling = running_max + mean_rise·(1 + K·RR_CV)
+THERMO_MAKER_MIN_MARGIN_C  = 0.3     # bucket floor must exceed the p99 ceiling by this (rounding buffer)
+THERMO_MAKER_MAX_DAILY     = 8       # ≤8 live posts/day (×$5 ≈ the $40 breaker cap)
 
 # ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
 # Face 2 (buy-all-NO) is only ever eligible when Σyes_proxy>1 — the OPPOSITE of
@@ -1858,7 +1879,7 @@ class WeatherArb:
             window_end_ts=0.0,
             is_bond=True,
             bond_outcome_direction="down",
-            bond_entry_class="WEATHER_M1_PROBE",
+            bond_entry_class=ctx.get("entry_class", "WEATHER_M1_PROBE"),
         )
         meta = self.bot._open_meta.setdefault(tid, {})
         meta["signal_source"] = f"WEATHER/{ctx.get('city')}/WEATHER_MAKER"
@@ -3161,6 +3182,10 @@ class WeatherArb:
                     except Exception:
                         logger.exception("[WA] metar MIN lockout scan error")
                     try:
+                        await self._thermo_ceiling_maker_scan()   # bounded thermo-ceiling maker (monitored)
+                    except Exception:
+                        logger.exception("[WA] thermo-ceiling maker scan error")
+                    try:
                         await self._m1_dip_rebuy_scan()
                     except Exception:
                         logger.exception("[M1β-DIP] scan error")
@@ -3291,6 +3316,105 @@ class WeatherArb:
             logger.exception("[WA] metar_min_lockout write error")
         if written:
             logger.info("[WA] MIN_LOCKOUT: %d locked min-bucket candidates, %d live maker posts this cycle",
+                        written, live_fired)
+
+    async def _thermo_ceiling_maker_scan(self) -> None:
+        """Thermo-ceiling MAKER on the upper tail (BOUNDED, MONITORED — see THERMO_MAKER_*
+        dissent). Rests NO bids PRE-peak on buckets that are thermodynamically unreachable
+        (lo_c > running_max + p99·remaining_rise + buffer). Reuses _maker_locked_exercise via
+        the min→max arg map (official_running_max=lo_c, hi_c=ceiling ⇒ margin = lo_c−ceiling).
+        NO capital unless THERMO_MAKER_LIVE; logs every candidate to thermo_maker.jsonl. Tag
+        WEATHER_THERMO keeps PnL isolated so the kill criterion can be evaluated."""
+        if not (THERMO_MAKER_ENABLED and self._today_markets_cache):
+            return
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        import time as _time
+        now_utc = datetime.now(timezone.utc)
+        today_str = now_utc.date().isoformat()
+        log_dir = Path("logs/shadow/hot") / today_str
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "thermo_maker.jsonl"
+        now_ts = _time.time()
+        if getattr(self, "_thermo_fire_date", "") != today_str:
+            self._thermo_fire_date = today_str
+            self._thermo_fires_today = 0
+
+        written = 0
+        live_fired = 0
+        for entry in self._today_markets_cache:
+            mkt = entry.get("mkt") or {}
+            city = entry.get("city"); icao = entry.get("icao")
+            if not city or not icao:
+                continue
+            if icao in M1_BETA_PROBE_ORACLE_BLOCK_ICAO:        # wrong-oracle cities
+                continue
+            question = mkt.get("question", "")
+            if "highest" not in question.lower():               # MAX markets only (running_max semantics)
+                continue
+            lo_c, hi_c, is_celsius = _parse_outcome(question)
+            if lo_c is None:                                    # need a lower edge to lock from above
+                continue
+            end_date = (mkt.get("endDate") or "")[:10]
+            _tz_h = ICAO_UTC_OFFSET_H.get(icao, 0)
+            _local_today = (now_utc + timedelta(hours=_tz_h)).date().isoformat()
+            if end_date != _local_today:
+                continue
+            metar = self._icao_metar_cache.get(icao) or {}
+            rm = metar.get("official_running_max_c")            # PROVENANCE-CLEAN only
+            if rm is None:
+                continue
+            if metar.get("running_max_date", "") != _local_today:
+                continue
+            slug = (city or "").lower().replace(" ", "-")
+            month = now_utc.month; hour = now_utc.hour
+            peak_hour = CITY_PEAK_HOUR_UTC.get(slug, {}).get(month)
+            if peak_hour is None or hour >= peak_hour:          # PRE-peak only (the earliness window)
+                continue
+            mean_rise = CITY_REMAINING_RISE.get(slug, {}).get(month, {}).get(hour, 0.0)
+            if mean_rise <= 0:                                  # no rise data for this city/time
+                continue
+            # Pre-peak running_max ≈ current temp, so ceiling ≈ running_max + p99 remaining rise.
+            ceiling = rm + mean_rise * (1.0 + THERMO_MAKER_P99_K * RR_CV)
+            margin = lo_c - ceiling                             # how far the bucket floor is above the p99 max
+            if margin < THERMO_MAKER_MIN_MARGIN_C:
+                continue
+            ids = _parse_token_ids(mkt.get("clobTokenIds", []))
+            no_tok = ids[1] if len(ids) > 1 else None
+            if not no_tok:
+                continue
+            no_book = await self._fetch_book_levels(no_tok, n=3)
+            no_ask = (no_book["asks"][0]["price"] if no_book.get("asks") else None)
+            best_bid = (no_book["bids"][0]["price"] if no_book.get("bids") else None)
+            cond_id = mkt.get("conditionId") or mkt.get("condition_id") or ""
+            if (THERMO_MAKER_LIVE and no_ask is not None
+                    and self._thermo_fires_today < THERMO_MAKER_MAX_DAILY):
+                try:
+                    await self._maker_locked_exercise(
+                        city=city, no_token_id=no_tok,
+                        no_book={"best_bid": best_bid, "best_ask": no_ask},
+                        no_ask_clob=no_ask, hi_c=ceiling,
+                        official_running_max=lo_c, now_ts=now_ts, now_utc=now_utc,
+                        icao=icao, question=question, end_date=end_date,
+                        lo_c=lo_c, condition_id=cond_id, entry_class="WEATHER_THERMO")
+                    self._thermo_fires_today += 1
+                    live_fired += 1
+                except Exception:
+                    logger.exception("[THERMO] maker error %s", city)
+            rec = {
+                "schema_version": 1, "record_type": "thermo_maker_candidate",
+                "ts_s": round(now_ts, 1), "city": city, "icao": icao,
+                "token_id": no_tok, "question": question[:80],
+                "bucket_lo_c": round(lo_c, 3), "official_running_max_c": round(float(rm), 3),
+                "mean_rise_c": round(mean_rise, 3), "ceiling_c": round(ceiling, 3),
+                "margin_c": round(margin, 3), "hour_utc": hour, "peak_hour_utc": peak_hour,
+                "no_ask": no_ask, "end_date": end_date,
+            }
+            with open(log_path, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            written += 1
+        if written:
+            logger.info("[THERMO] %d upper-tail thermo-ceiling candidates, %d live maker posts this cycle",
                         written, live_fired)
 
     async def _metar_lockout_scan(self) -> None:
@@ -3639,7 +3763,7 @@ class WeatherArb:
         self, *, city: str, no_token_id: str, no_book: dict,
         no_ask_clob, hi_c, official_running_max, now_ts: float, now_utc,
         icao: str = "", question: str = "", end_date: str = "",
-        lo_c=None, condition_id: str = "",
+        lo_c=None, condition_id: str = "", entry_class: str = "WEATHER_M1_PROBE",
     ) -> None:
         """Controlled first-exercise of the maker_buy primitive on a provenance-clean
         locked bucket (caller already cleared M1β's gates ⇒ NO physically certain,
@@ -3727,6 +3851,7 @@ class WeatherArb:
                 "question": question, "end_date": end_date,
                 "lo_c": lo_c, "hi_c": hi_c, "condition_id": condition_id,
                 "q_price": q_price, "size": size, "matched": 0.0,
+                "entry_class": entry_class,
             }
         rec["mode"] = "LIVE"
         rec["order_id"] = oid
