@@ -240,6 +240,17 @@ MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 0.5     # 2026-06-08 WS1: 1.0→0.5 — align
 MAKER_BREAKER_MAX_EXPOSURE_USD   = 40.0    # trip if Σ resting maker stake exceeds this (raised 15→40 by user 2026-06-02; ≤8 concurrent @ $5). NB bounds RESTING only — filled positions accumulate beyond it.
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 
+# ── Daily-MIN lockout (2026-06-08, WS2) — SHADOW only, NO capital ───────────────
+# Mirror of the validated daily-MAX lockout onto the daily-MINIMUM markets (which
+# the bot already fetches via tag_slug=weather but discards at _parse_outcome). Min
+# is set near dawn; once recorded, official_running_min_c is monotone, so buckets
+# ABOVE it are physically NO-locked — in the MORNING (the dead window for max).
+# Stage-1 = SHADOW logger only (metar_min_lockout.jsonl) to validate running_min
+# provenance + lock→Gamma-resolution WR (n≥100) BEFORE any live order, exactly how
+# max lockout was hardened. Live order-placement is a separate future flag.
+MIN_LOCKOUT_SHADOW_ENABLED = True
+MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # official running_min ≥ this °C BELOW the bucket floor
+
 # ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
 # Face 2 (buy-all-NO) is only ever eligible when Σyes_proxy>1 — the OPPOSITE of
 # the real-book depth-fetch screen (Σyes_proxy<0.95) — so it has NEVER been
@@ -1480,6 +1491,18 @@ def _parse_outcome(question: str) -> tuple[Optional[float], Optional[float], boo
         return None, float(m.group(1)) + 0.5, True
 
     return None, None, False
+
+
+def _parse_min_outcome(question: str) -> tuple[Optional[float], Optional[float], bool]:
+    """Bucket edges (°C) for a daily-MINIMUM market. The bucket phrasing is
+    IDENTICAL to the daily-max markets ('be 70-71°F', 'be 22°C or below', …) —
+    only the leading statistic word differs — so we reuse _parse_outcome's
+    battle-tested regexes by neutralizing its highest-only guard word. Returns
+    (None, None, False) for non-min questions."""
+    ql = question.lower()
+    if not ("lowest" in ql or "coldest" in ql):
+        return None, None, False
+    return _parse_outcome(re.sub(r'lowest|coldest', 'be', question, flags=re.IGNORECASE))
 
 
 def _parse_token_ids(raw) -> list:
@@ -3113,6 +3136,10 @@ class WeatherArb:
                     except Exception:
                         logger.exception("[WA] metar lockout scan (nms) error")
                     try:
+                        await self._metar_min_lockout_scan()   # WS2 shadow — no capital
+                    except Exception:
+                        logger.exception("[WA] metar MIN lockout scan error")
+                    try:
                         await self._m1_dip_rebuy_scan()
                     except Exception:
                         logger.exception("[M1β-DIP] scan error")
@@ -3129,6 +3156,97 @@ class WeatherArb:
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
+
+    async def _metar_min_lockout_scan(self) -> None:
+        """SHADOW logger for daily-MINIMUM lockout (mirror of _metar_lockout_scan).
+        A min-market bucket is physically NO-locked once the official running MIN
+        (monotone, AWC/NWS-hourly) sits ≥MARGIN below the bucket's lower edge — the
+        daily min already undercut it, so it cannot contain the min. Logs to
+        metar_min_lockout.jsonl. NO capital. Min markets are already in
+        _today_markets_cache (tag_slug=weather); only _parse_outcome discards them."""
+        if not (MIN_LOCKOUT_SHADOW_ENABLED and self._today_markets_cache):
+            return
+        from datetime import datetime, timezone, timedelta
+        from pathlib import Path
+        import time as _time
+        now_utc  = datetime.now(timezone.utc)
+        today_str = now_utc.date().isoformat()
+        log_dir  = Path("logs/shadow/hot") / today_str
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "metar_min_lockout.jsonl"
+        now_ts   = _time.time()
+
+        cands = []
+        for entry in self._today_markets_cache:
+            mkt  = entry.get("mkt") or {}
+            city = entry.get("city"); icao = entry.get("icao")
+            if not city or not icao:
+                continue
+            if icao in M1_BETA_PROBE_ORACLE_BLOCK_ICAO:   # wrong-oracle cities (mirror M1β)
+                continue
+            question = mkt.get("question", "")
+            lo_c, hi_c, is_celsius = _parse_min_outcome(question)
+            if lo_c is None:        # only buckets with a lower edge can NO-lock from below
+                continue
+            end_date = (mkt.get("endDate") or "")[:10]
+            _tz_h = ICAO_UTC_OFFSET_H.get(icao, 0)
+            _local_today = (now_utc + timedelta(hours=_tz_h)).date().isoformat()
+            if end_date != _local_today:
+                continue
+            metar = self._icao_metar_cache.get(icao) or {}
+            run_min = metar.get("official_running_min_c")
+            if run_min is None:
+                continue
+            if metar.get("running_max_date", "") != _local_today:   # shared midnight key
+                continue
+            margin = lo_c - run_min        # min sits this far below the bucket floor
+            if margin < MIN_LOCKOUT_MIN_MARGIN_C:
+                continue
+            ids = _parse_token_ids(mkt.get("clobTokenIds", []))
+            no_tok = ids[1] if len(ids) > 1 else None
+            cands.append((entry, question, lo_c, hi_c, is_celsius, run_min, margin, no_tok, end_date))
+        if not cands:
+            return
+
+        written = 0
+        try:
+            async with aiohttp.ClientSession() as sess:
+                for (entry, question, lo_c, hi_c, is_celsius, run_min, margin, no_tok, end_date) in cands:
+                    no_ask = None; depth_usd = 0.0
+                    if no_tok:
+                        try:
+                            async with sess.get(
+                                f"https://clob.polymarket.com/book?token_id={no_tok}",
+                                timeout=aiohttp.ClientTimeout(total=6)) as r:
+                                if r.status == 200:
+                                    b = await r.json()
+                                    asks = b.get("asks") or []
+                                    if asks:
+                                        no_ask = min(float(a["price"]) for a in asks)
+                                        depth_usd = sum(float(a["price"]) * float(a["size"]) for a in asks
+                                                        if abs(float(a["price"]) - no_ask) <= 0.05)
+                        except Exception:
+                            pass
+                    rec = {
+                        "schema_version": 1, "record_type": "metar_min_lockout_candidate",
+                        "ts_s": round(now_ts, 1), "ts_utc": now_utc.isoformat(),
+                        "city": entry.get("city"), "icao": entry.get("icao"),
+                        "token_id": no_tok, "question": question,
+                        "bucket_lo_c": round(lo_c, 3),
+                        "bucket_hi_c": (round(hi_c, 3) if hi_c is not None else None),
+                        "is_celsius_market": is_celsius,
+                        "official_running_min_c": round(float(run_min), 3),
+                        "margin_c": round(float(margin), 3),
+                        "no_ask": no_ask, "no_depth_usd": round(depth_usd, 2),
+                        "end_date": end_date,
+                    }
+                    with open(log_path, "a") as f:
+                        f.write(json.dumps(rec) + "\n")
+                    written += 1
+        except Exception:
+            logger.exception("[WA] metar_min_lockout write error")
+        if written:
+            logger.info("[WA] MIN_LOCKOUT shadow: %d locked min-bucket candidates this cycle", written)
 
     async def _metar_lockout_scan(self) -> None:
         """
@@ -4722,6 +4840,7 @@ class WeatherArb:
                 "running_max_c": None, "last_obs_time": 0, "prev_temp_c": None,
                 "running_max_date": today_str,
                 "official_running_max_c": None,
+                "official_running_min_c": None,
             })
             if obs_time <= cached.get("last_obs_time", 0):
                 continue  # not a new observation
@@ -4770,6 +4889,7 @@ class WeatherArb:
             if cached.get("running_max_date") != today_str:
                 cached["running_max_c"] = None
                 cached["official_running_max_c"] = None
+                cached["official_running_min_c"] = None   # MIN-lockout (mirror)
                 cached["running_max_date"] = today_str
 
             prev_temp = cached.get("temp_c")    # before this update — for rapid-rise detection
@@ -4787,6 +4907,13 @@ class WeatherArb:
             prev_off = cached.get("official_running_max_c")
             official_max = temp_c if (prev_off is None or temp_c > prev_off) else prev_off
             cached["official_running_max_c"] = official_max
+            # OFFICIAL running MIN — same AWC/NWS-hourly provenance as official_max
+            # (the daily-min oracle). Tracked ONLY here (never from the NMS sub-hourly
+            # path), so a sub-hourly cold spike can't deflate it into a false NO-lock —
+            # the exact mirror of the running_max false-lockout bug class.
+            prev_off_min = cached.get("official_running_min_c")
+            official_min = temp_c if (prev_off_min is None or temp_c < prev_off_min) else prev_off_min
+            cached["official_running_min_c"] = official_min
 
             sky_cover     = self._parse_sky_cover(rec.get("rawOb", ""))
             sky_factor    = self._sky_factor_from_layers(rec.get("rawOb", ""))
