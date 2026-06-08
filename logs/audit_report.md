@@ -1,17 +1,17 @@
-# VOLARB Quantitative Audit — 2026-06-08 06:13 UTC
+# VOLARB Quantitative Audit — 2026-06-08 18:15 UTC
 
 ## Snapshot
 
 | field | value |
 |---|---|
-| snapshot_ts | 2026-06-08T05:56:07Z (17.6 min old — FRESH) |
+| snapshot_ts | 2026-06-08T18:02:51Z (12 min old — FRESH) |
 | Klaus state | active (systemd: active; running STWA/weather, 0 open positions) |
-| Capital | $51.06 (prior audit 2026-06-07T06:11Z: $60.95; Δ=**−$9.89** — STWA weather losses) |
-| VOLARB n (live era, post-dedup) | **885** (prior: 885, Δ=**0** — 20th consecutive audit with zero new unique trades; last unique trade 2026-05-19T02:50:33Z, ~603h retired) |
+| Capital | $70.00 (prior audit 2026-06-08T06:13Z: $51.06; Δ=**+$18.94** — STWA weather gains) |
+| VOLARB n (live era, post-dedup) | **885** (prior: 885, Δ=**0** — 21st consecutive audit with zero new unique trades; last unique trade 2026-05-19T02:50:33Z, ~615h retired) |
 | drift_status | OK — data-mirror has no `strategy/volarb.py`; mirror-file-present condition N/A |
 | Data window | 2026-05-16T21:00Z .. 2026-05-19T02:50Z (53h50m CLOSED) |
 | Open audit PRs | NONE (confirmed via GitHub MCP) |
-| Run | **20th consecutive audit** with Δ=0 new unique trades |
+| Run | **21st consecutive audit** with Δ=0 new unique trades |
 
 **STRATEGY STATUS: RETIRED.**
 - 2026-05-17 19:56 UTC: VOLARB entries disabled; CAS_LOWASK launched.
@@ -27,9 +27,9 @@
 
 | check | result |
 |---|---|
-| Snapshot age ≤ 45 min | PASS (17.6 min) |
+| Snapshot age ≤ 45 min | PASS (12 min) |
 | `system_status.txt` contains `active` | PASS |
-| `bankroll.json` capital non-zero | PASS ($51.06) |
+| `bankroll.json` capital non-zero | PASS ($70.00) |
 | Code drift guard | PASS — data-mirror has no `strategy/volarb.py`; condition N/A |
 | Open `audit/volarb-*` PRs | NONE |
 | STALE_MIRROR | NO |
@@ -40,8 +40,8 @@
 
 ## 6h Recency Cells (n≥10)
 
-Window: 2026-06-08T00:13Z .. 2026-06-08T06:13Z
-**VOLARB trades in window: 0** (strategy retired ~603h ago; last trade 2026-05-19T02:50:33Z)
+Window: 2026-06-08T12:02Z .. 2026-06-08T18:02Z
+**VOLARB trades in window: 0** (strategy retired ~615h ago; last trade 2026-05-19T02:50:33Z)
 
 | cell | n | WR | net_sum | EV | flag |
 |---|---|---|---|---|---|
@@ -111,7 +111,7 @@ No per-hour cell meets lever criteria at n<100 (threshold n≥100 required).
 - **ASK_CEIL probe [0.50,0.60):** n=8, EV=−$0.157, CI=[−$1.991, +$1.684] → NOT_LEVER (n=8 << 100 required; CI wide and straddles zero)
 - **REM_MAX_S probe [260,280):** n=0 — `term_remaining_s=0.0` for all 885 trades; REM field was not persisted in this data era. Probe inoperable on this dataset. NOT_LEVER.
 - **REM_MIN_S probe [60,80):** n=0 — same reason. NOT_LEVER.
-- **ASK_DEPTH_MULT probe:** no adverse-selection slippage field in this era's schema; n<200 required. NOT_LEVER.
+- **ASK_DEPTH_MULT probe:** no adverse-selection slippage field in this era's schema; n<200 required overall EV. NOT_LEVER.
 
 ---
 
@@ -124,11 +124,11 @@ All four patch conditions fail or are suppressed:
 2. ASK_CEIL lower (0.60→0.55): n=8 in [0.50,0.60) << 100 required.
 3. REM_MAX_S lower (280→260): n=0 in [260,280) — field not persisted in this era.
 4. REM_MIN_S raise (60→80): n=0 in [60,80) — field not persisted in this era.
-5. ASK_DEPTH_MULT raise: no slippage evidence + n=885 overall EV>0.
+5. ASK_DEPTH_MULT raise: no slippage evidence + overall EV>0.
 
 ---
 
-## Watchlist (40≤n<100, delta vs prior 2026-06-07T06:11Z)
+## Watchlist (40≤n<100, delta vs prior 2026-06-08T06:13Z)
 
 | cell | n | EV/trade | CI95 | delta vs prior |
 |---|---|---|---|---|
@@ -143,7 +143,7 @@ All four patch conditions fail or are suppressed:
 | H22 | 40 | −$0.137 | [−$0.768, +$0.540] | Δ=0 |
 | H23 | 57 | +$0.004 | [−$0.553, +$0.597] | Δ=0 |
 
-All Δ=0. Dataset is permanently frozen at n=885. Watchlist cells will never graduate to n≥100.
+All Δ=0. Dataset permanently frozen at n=885. Watchlist cells will never graduate to n≥100.
 
 ---
 
@@ -155,4 +155,4 @@ No cells marked as user-overridden for VOLARB.
 
 ## Note for User
 
-The VOLARB audit mandate is fully exhausted. Dataset frozen at n=885; strategy retired ~603h ago. **Recommend decommissioning this scheduled audit.** No further actionable signal exists; running it every 6h generates only noise commits.
+The VOLARB audit mandate is fully exhausted. Dataset frozen at n=885; strategy retired ~615h ago. **Recommend decommissioning this scheduled audit.** No further actionable signal exists; running it every 6h generates only noise commits.
