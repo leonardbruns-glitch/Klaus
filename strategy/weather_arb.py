@@ -180,7 +180,9 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
 # Do NOT modify these to "tune" — this is a measurement experiment.
 M1_BETA_PROBE_ENABLED          = True   # 2026-06-05 user: RE-ENABLED. Validated slice (MIN_DEPTH_C=0.5 margin gate + dip-rebuy OFF + clean FATEDGE). Reliability analysis n=671: margin≥0.5 = 98.7% WR. Coexists w/ favorite-longshot NO (shared open_positions dedup).
-M1_BETA_PROBE_STAKE_USD        = 40.0   # 2026-06-03 user directive: 10→40/position; depth gate stays $5 (partial fills ok)
+M1_BETA_PROBE_STAKE_USD        = 10.0   # 2026-06-08: 40→10 — removing the NO-ask floor enables cheap-NO fills; at $70 capital a $40
+                                        # loss on a false lock (~4.5%) would blow the $10 daily-halt (and 40 already exceeded the $20 max).
+                                        # $10 keeps single-trade risk within the ruin discipline. Was 40 (06-03). Revert: 40
 M1_BETA_PROBE_MIN_SHARES       = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
@@ -195,7 +197,12 @@ M1_BETA_PROBE_MAX_EDGE         = 0.95   # yes_bid staleness ceiling (no_ask floo
 # wider — including cheap-NO entries (e.g. 0.385) where the market disagrees; that
 # wide firing booked the live −$23.60 (false-lockouts NO→0). Upper 0.97 keeps
 # edge ≥ fee floor (1−0.97=0.03).
-M1_BETA_PROBE_NO_ASK_MIN       = 0.70   # 2026-06-01: widened 0.90→0.70 (user, live). The
+M1_BETA_PROBE_NO_ASK_MIN       = 0.05   # 2026-06-08: 0.70→0.05 (user) — on an oracle-clean margin≥0.5°C lock,
+                                        # NO resolves NO 95-100% at ANY ask (/tmp/floor_tests.py: <0.50=95.5% n=22, 0.50-0.70=100% n=11).
+                                        # The physical margin guarantees it, not the ask; the 0.70 floor only discarded the highest-edge
+                                        # cheap-NO fills. Sub-0.90 asks STILL require the clean FATEDGE margin (evaluate line ~4371) with a
+                                        # fail-safe skip — so cheap NO fires ONLY on a provenance-clean lock. Revert: 0.70.
+                                        # [prior] 2026-06-01: widened 0.90→0.70 (user, live). The
                                         # [0.70,0.90) "fat-edge" band resolves NO 94.7% (n=38,
                                         # /tmp/fatedge.py) at +$0.13/sh vs +$0.06 in [0.90,0.97].
                                         # CAVEAT n<40 (trend, not proven). There the market only
@@ -208,9 +215,13 @@ M1_BETA_PROBE_NO_ASK_MAX       = 0.97
 M1_BETA_PROBE_NO_ASK_MARKET_AGREE = 0.90  # at/above this no_ask the market itself confirms the
                                         # lockout (legacy validated slice) → no clean-margin proof
                                         # required. WS path stays pinned to [MARKET_AGREE, MAX].
-M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 1.0   # below MARKET_AGREE: require official running_max this
-                                        # many °C past the ceiling. False lockouts cluster <1°C
-                                        # (margin 0.5-1°C=33% WR vs ≥1°C=83%, /tmp/fatedge.py).
+M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 0.5   # 2026-06-08: 1.0→0.5 — the old 1.0 (and its "0.5-1°C=33% WR"
+                                        # rationale) was from the CONTAMINATED running_max era. Post
+                                        # official-METAR + oracle-blocklist re-measure (/tmp/margin_wr.py,
+                                        # oracle-clean Gamma join): margin 0.5-1.0°C = 98.3% WR (n=181),
+                                        # ≥1.0°C = 100%. 1.0 needlessly discarded the bulk of true locks
+                                        # (M1 taker stopped firing). <0.5°C still lossy (70-93%) so 0.5 is
+                                        # the floor. Aligns the taker gate to the maker gate (also 0.5). Revert: 1.0.
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"

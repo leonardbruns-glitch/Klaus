@@ -255,6 +255,12 @@ class Redeemer:
                         token_id[:12], cur_price,
                     )
                 return True  # stop retrying either way
+            if "invalid token id" in str(exc).lower():
+                # 2026-06-08: terminal — the CLOB can't sell this token (settled/invalid id).
+                # PM auto-redeems winners on-chain regardless. Was looping forever (14.5k
+                # errors/day on 26 stuck tokens) because this wasn't treated as terminal.
+                logger.info("REDEEM terminal (invalid token id) %s — done, PM auto-redeems", token_id[:12])
+                return True
             logger.warning("REDEEM CLOB sell failed %s: %s", token_id[:12], exc)
             return False
 
