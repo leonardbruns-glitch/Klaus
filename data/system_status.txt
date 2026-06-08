@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+7d9d85ca feat(maker): gate out dead-weight deep bids — free breaker capacity for fills
 b0cce129 feat(research): dense-obs forecast-edge validation harness (Synoptic mesonet)
 4a99ee6e feat(thermo): bounded thermo-ceiling MAKER on upper tail (user opt-in, monitored, dissent on record)
 ef5a7a48 feat(M1): restore firing — FATEDGE 1.0→0.5, NO-ask floor 0.70→0.05, stake 40→10; fix redeem retry-loop
@@ -11,13 +12,12 @@ d8b956e5 feat(lockout/WS2): daily-MIN lockout shadow detector (stage-1, no capit
 96641bd2 feat(lockout/WS1): loosen maker margin gate 1.0→0.5°C (align to validated reliability gate)
 9bbe9a06 Watchdog 2026-06-08T15:19:36Z: MEDIUM 3 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
 8435696f feat(weather): A1 dew-correction fix + A2 per-(city,month) peak_bias
-d73a08d7 feat(nms): per-source obs receipt-time logging (Stage-0 feed-lead measurement)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   70G       24G  75% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-08 21:42:31 UTC
+ActiveEnterTimestamp=Mon 2026-06-08 23:07:23 UTC
 
 ## Open positions (count):
 0
