@@ -1,25 +1,25 @@
-# VOLARB Quantitative Audit — 2026-06-07 06:11 UTC
+# VOLARB Quantitative Audit — 2026-06-08 06:13 UTC
 
 ## Snapshot
 
 | field | value |
 |---|---|
-| snapshot_ts | 2026-06-07T05:55:13Z (16 min old — FRESH) |
+| snapshot_ts | 2026-06-08T05:56:07Z (17.6 min old — FRESH) |
 | Klaus state | active (systemd: active; running STWA/weather, 0 open positions) |
-| Capital | $60.95 (prior audit 2026-06-06T06:12Z: $54.59; Δ=+$6.36 — STWA gains) |
-| VOLARB n (live era, deduped) | **885** (prior: 885, Δ=**0** — 19th consecutive audit with zero new unique trades; last unique trade 2026-05-19T02:50:33Z, ~580h retired) |
+| Capital | $51.06 (prior audit 2026-06-07T06:11Z: $60.95; Δ=**−$9.89** — STWA weather losses) |
+| VOLARB n (live era, post-dedup) | **885** (prior: 885, Δ=**0** — 20th consecutive audit with zero new unique trades; last unique trade 2026-05-19T02:50:33Z, ~603h retired) |
 | drift_status | OK — data-mirror has no `strategy/volarb.py`; mirror-file-present condition N/A |
 | Data window | 2026-05-16T21:00Z .. 2026-05-19T02:50Z (53h50m CLOSED) |
 | Open audit PRs | NONE (confirmed via GitHub MCP) |
-| Run | **19th consecutive audit** with Δ=0 new unique trades |
+| Run | **20th consecutive audit** with Δ=0 new unique trades |
 
 **STRATEGY STATUS: RETIRED.**
 - 2026-05-17 19:56 UTC: VOLARB entries disabled; CAS_LOWASK launched.
-- 2026-05-19: `volarb_strategy=None`, import removed, CLAUDE.md rewritten to CAS_LOWASK.
-- 2026-05-29: CLAUDE.md fully reoriented to STWA (weather arb). No crypto at all.
+- 2026-05-19: `volarb_strategy=None`, import removed, CLAUDE.md rewritten.
+- 2026-05-29: CLAUDE.md fully reoriented to STWA. No crypto running.
 - **Any parameter change to `strategy/volarb.py` has zero operational effect.** VPS does not run it.
-- Dev branch has `EDGE_FLOOR_BY_ASSET={"BTC":0.10,"ETH":0.10,"SOL":0.10}` + `EDGE_FLOOR_DEFAULT=0.10` (per-user instruction 2026-05-17 10:20 UTC). Audit prompt's scalar `EDGE_FLOOR = 0.15 → 0.17` is inapplicable as specified.
-- `term_remaining_s` = 0.0 for all 885 trades; REM probes (REM_MIN_S, REM_MAX_S) cannot be computed from this dataset.
+- `term_remaining_s = 0.0` for all 885 trades; REM probes (REM_MIN_S, REM_MAX_S) cannot be computed.
+- EDGE_FLOOR on dev branch is `EDGE_FLOOR_BY_ASSET={"BTC":0.10,"ETH":0.10,"SOL":0.10}` (per-asset dict), not scalar 0.15; the audit prompt's `0.15 → 0.17` raise is structurally inapplicable.
 
 ---
 
@@ -27,9 +27,9 @@
 
 | check | result |
 |---|---|
-| Snapshot age ≤ 45 min | PASS (16 min) |
+| Snapshot age ≤ 45 min | PASS (17.6 min) |
 | `system_status.txt` contains `active` | PASS |
-| `bankroll.json` capital non-zero | PASS ($60.95) |
+| `bankroll.json` capital non-zero | PASS ($51.06) |
 | Code drift guard | PASS — data-mirror has no `strategy/volarb.py`; condition N/A |
 | Open `audit/volarb-*` PRs | NONE |
 | STALE_MIRROR | NO |
@@ -40,8 +40,8 @@
 
 ## 6h Recency Cells (n≥10)
 
-Window: 2026-06-07T00:11Z .. 2026-06-07T06:11Z
-**VOLARB trades in window: 0** (strategy retired ~580h ago; last trade 2026-05-19T02:50:33Z)
+Window: 2026-06-08T00:13Z .. 2026-06-08T06:13Z
+**VOLARB trades in window: 0** (strategy retired ~603h ago; last trade 2026-05-19T02:50:33Z)
 
 | cell | n | WR | net_sum | EV | flag |
 |---|---|---|---|---|---|
@@ -63,104 +63,85 @@ Backtest $1-equiv baseline CI = [+$0.244, +$0.352].
 | PF | 1.061 | >1.3 | BELOW |
 | EV/trade | +$0.062 | +$0.298 mid | **BELOW CI lower (+$0.244)** |
 | sum net_pnl | +$54.69 | — | — |
-| CI95 EV/trade | [−$0.092, +$0.216] | [+$0.244, +$0.352] | **STRADDLES ZERO / BELOW BASELINE** |
+| CI95 EV/trade | [−$0.093, +$0.217] | [+$0.244, +$0.352] | **STRADDLES ZERO / BELOW BASELINE** |
 
 **EDGE_FLOOR raise criteria check** (n≥200 AND EV<+$0.10 AND PF<1.10 AND CI_lo<0):
-- n≥200 = YES (885) · EV<+$0.10 = YES (+$0.062) · PF<1.10 = YES (1.061) · CI_lo<0 = YES (−$0.092)
-- → All 4 criteria technically met. **SUPPRESSED — (1) strategy RETIRED: any edit to `strategy/volarb.py` has zero operational effect; (2) EDGE_FLOOR is a per-asset dict on dev branch (`EDGE_FLOOR_BY_ASSET`), not a scalar; the scalar `0.15→0.17` raise specified in the audit prompt is inapplicable as written.**
+- n≥200 = YES (885) · EV<+$0.10 = YES (+$0.062) · PF<1.10 = YES (1.061) · CI_lo<0 = YES (−$0.093)
+- → All 4 criteria technically met. **SUPPRESSED** — two grounds:
+  1. Strategy RETIRED on VPS since 2026-05-19: any edit to `strategy/volarb.py` has zero operational effect.
+  2. EDGE_FLOOR is a per-asset dict on dev branch (`EDGE_FLOOR_BY_ASSET`), not a scalar; the scalar `0.15→0.17` raise specified in the audit prompt is inapplicable as written.
 
 ### Per-Asset (all n≥100)
 
 | dimension | cell | n | WR% | PF | sum | EV/trade | CI95 | vs_baseline_CI | status |
 |---|---|---|---|---|---|---|---|---|---|
-| asset | BTC | 286 | 32.9 | 1.085 | +$23.74 | +$0.083 | [−$0.177, +$0.359] | EV below CI lower (+$0.244); CI straddles 0 | WATCHLIST |
-| asset | ETH | 305 | 32.5 | 0.966 | −$10.78 | −$0.035 | [−$0.303, +$0.236] | EV below CI lower; PF<1.0; CI straddles 0 | WATCHLIST |
-| asset | SOL | 294 | 38.8 | 1.140 | +$41.74 | +$0.142 | [−$0.128, +$0.414] | EV below CI lower (+$0.244); CI straddles 0 | WATCHLIST |
+| asset | BTC | 286 | 32.9 | 1.085 | +$23.74 | +$0.083 | [−$0.175, +$0.348] | BELOW CI lower; CI straddles 0 | WATCHLIST |
+| asset | ETH | 305 | 32.5 | 0.966 | −$10.78 | −$0.035 | [−$0.294, +$0.223] | BELOW CI lower; PF<1.0; CI straddles 0 | WATCHLIST |
+| asset | SOL | 294 | 38.8 | 1.140 | +$41.74 | +$0.142 | [−$0.125, +$0.410] | BELOW CI lower; CI straddles 0 | WATCHLIST |
 
-No per-asset cell meets BELOW criteria for a lever (CI_lo < 0 required; all three straddle zero — no lever on per-asset alone).
+No per-asset cell meets lever criteria (require CI_upper < 0; all three straddle zero).
 
-### Per-Hour UTC (all n<100 → COLLECTING or WATCHLIST, none actionable)
+### Per-Hour UTC (watchlist cells 40≤n<100 only; n<40 = COLLECTING omitted)
 
-| H | n | WR% | EV/trade | status |
-|---|---|---|---|---|
-| H00 | 39 | 35.9 | +$0.320 | COLLECTING |
-| H01 | 66 | 48.5 | +$0.784 | WATCHLIST (positive) |
-| H02 | 64 | 40.6 | +$0.196 | WATCHLIST |
-| H03 | 36 | 44.4 | +$0.372 | COLLECTING |
-| H04 | 37 | 32.4 | −$0.147 | COLLECTING |
-| H05 | 35 | 14.3 | −$0.861 | COLLECTING |
-| H06 | 35 | 31.4 | +$0.021 | COLLECTING |
-| H07 | 31 | 19.4 | −$0.439 | COLLECTING |
-| H08 | 35 | 28.6 | +$0.409 | COLLECTING |
-| H09 | 28 | 14.3 | −$0.563 | COLLECTING |
-| H10 | 38 | 34.2 | +$0.141 | COLLECTING |
-| H11 | 71 | 35.2 | +$0.191 | WATCHLIST |
-| H12 | 36 | 36.1 | −$0.033 | COLLECTING |
-| H13 | 36 | 33.3 | +$0.023 | COLLECTING |
-| H14 | 47 | 29.8 | −$0.108 | WATCHLIST |
-| H15 | 36 | 30.6 | −$0.124 | COLLECTING |
-| H16 | 30 | 16.7 | −$0.715 | COLLECTING |
-| H17 | 21 | 38.1 | −$0.388 | COLLECTING |
-| H18 | 25 | 60.0 | +$0.301 | COLLECTING |
-| H20 | 3 | 100.0 | +$3.016 | COLLECTING |
-| H21 | 39 | 51.3 | +$0.607 | COLLECTING |
-| H22 | 40 | 32.5 | −$0.137 | WATCHLIST |
-| H23 | 57 | 33.3 | +$0.004 | WATCHLIST |
+| H | n | WR% | EV/trade | CI95 | status |
+|---|---|---|---|---|---|
+| H01 | 66 | 48.5 | +$0.784 | [+$0.174, +$1.415] | WATCHLIST (positive — above baseline CI lower) |
+| H02 | 64 | 40.6 | +$0.196 | [−$0.360, +$0.796] | WATCHLIST |
+| H11 | 71 | 35.2 | +$0.191 | [−$0.356, +$0.743] | WATCHLIST |
+| H14 | 47 | 29.8 | −$0.107 | [−$0.694, +$0.492] | WATCHLIST (negative) |
+| H22 | 40 | 32.5 | −$0.137 | [−$0.768, +$0.540] | WATCHLIST (negative) |
+| H23 | 57 | 33.3 | +$0.004 | [−$0.553, +$0.597] | WATCHLIST |
 
-No per-hour cell reaches n≥100. Maximum is H01 (n=66). Dataset frozen — these cells will never cross the threshold.
+No per-hour cell meets lever criteria at n<100 (threshold n≥100 required).
 
 ### Per-Ask-Band
 
-| band | n | WR% | EV/trade | CI95 | vs_baseline_CI | status |
-|---|---|---|---|---|---|---|
-| [0.10, 0.20) | 91 | 18.7 | +$0.149 | [−$0.314, +$0.671] | below CI lower; CI straddles 0 | WATCHLIST |
-| [0.20, 0.30) | 227 | 26.4 | −$0.003 | [−$0.271, +$0.268] | below CI lower; CI straddles 0 | n≥100; CI straddles 0 — no lever |
-| [0.30, 0.40) | 390 | 38.7 | +$0.121 | [−$0.105, +$0.357] | below CI lower; CI straddles 0 | n≥100; CI straddles 0 — no lever |
-| [0.40, 0.50) | 157 | 47.1 | +$0.085 | [−$0.303, +$0.472] | below CI lower; CI straddles 0 | n≥100; CI straddles 0 — no lever |
-| [0.50, 0.60) | 8 | 50.0 | −$0.157 | [−$1.991, +$1.690] | n<100 | COLLECTING |
-
-No ask-band cell meets ASK_CEIL lever criteria (ASK_CEIL requires CI95 upper < 0; all bands have CI_hi > 0).
+| band | n | WR% | PF | sum | EV/trade | CI95 | vs_baseline_CI | status |
+|---|---|---|---|---|---|---|---|---|
+| [0.10,0.20) | 91 | 18.7 | 1.197 | +$13.60 | +$0.149 | [−$0.308, +$0.661] | BELOW CI lower | WATCHLIST |
+| [0.20,0.30) | 227 | 26.4 | 0.997 | −$0.73 | −$0.003 | [−$0.276, +$0.274] | BELOW CI lower; PF<1.0 | WATCHLIST (n≥100, CI straddles 0) |
+| [0.30,0.40) | 390 | 38.7 | 1.115 | +$46.99 | +$0.120 | [−$0.108, +$0.355] | BELOW CI lower | WATCHLIST (n≥100, CI straddles 0) |
+| [0.40,0.50) | 157 | 47.1 | 1.075 | +$13.38 | +$0.085 | [−$0.281, +$0.474] | BELOW CI lower | WATCHLIST (n≥100, CI straddles 0) |
+| [0.50,0.60) | 8 | 50.0 | 0.881 | −$1.25 | −$0.157 | [−$1.991, +$1.684] | BELOW CI lower | COLLECTING (n<40) |
 
 ---
 
 ## Lever Probes
 
-- **ASK_CEIL probe [0.50, 0.60):** n=8, EV=−$0.157, CI95=[−$1.99, +$1.69] → **INSUFFICIENT** (n=8 < 100). Not a lever candidate.
-- **REM_MAX_S probe [260, 280):** n=0 — `term_remaining_s`=0.0 for all 885 trades (field not populated in VOLARB era). **DATA ABSENT — cannot compute.**
-- **REM_MIN_S probe [60, 80):** n=0 — same. **DATA ABSENT — cannot compute.**
-- **ASK_DEPTH_MULT probe:** No adverse-selection slippage field logged. Overall EV=+$0.062 (positive, not degrading). **No evidence criterion met — not a lever candidate.**
+- **ASK_CEIL probe [0.50,0.60):** n=8, EV=−$0.157, CI=[−$1.991, +$1.684] → NOT_LEVER (n=8 << 100 required; CI wide and straddles zero)
+- **REM_MAX_S probe [260,280):** n=0 — `term_remaining_s=0.0` for all 885 trades; REM field was not persisted in this data era. Probe inoperable on this dataset. NOT_LEVER.
+- **REM_MIN_S probe [60,80):** n=0 — same reason. NOT_LEVER.
+- **ASK_DEPTH_MULT probe:** no adverse-selection slippage field in this era's schema; n<200 required. NOT_LEVER.
 
 ---
 
-## Proposed Patch
+## Proposed Patch (capped at 1)
 
-**No patch.**
+**no patch**
 
-Reasons (in priority order):
-1. **Strategy retired** — VOLARB has not fired since 2026-05-19T02:50Z (~580h). Any edit to `strategy/volarb.py` has zero operational effect.
-2. **EDGE_FLOOR lever inapplicable as specified** — dev branch uses `EDGE_FLOOR_BY_ASSET` dict, not a scalar; the `0.15→0.17` edit in the audit prompt cannot be applied.
-3. **REM probes impossible** — `term_remaining_s`=0.0 across all 885 trades; [260,280) and [60,80) cells contain n=0.
-4. **ASK_CEIL probe n=8** — three orders of magnitude below the n≥100 gate.
-5. **ASK_DEPTH_MULT** — no adverse-selection evidence; EV>0 overall.
-
-All 4 EDGE_FLOOR criteria are numerically satisfied but the patch is suppressed on grounds 1+2. Consistent with prior 18 audits.
+All four patch conditions fail or are suppressed:
+1. EDGE_FLOOR raise (0.15→0.17): criteria technically met (n=885, EV=+$0.062, PF=1.061, CI_lo=−$0.093) but **suppressed** — strategy RETIRED on VPS + EDGE_FLOOR is per-asset dict (not scalar 0.15).
+2. ASK_CEIL lower (0.60→0.55): n=8 in [0.50,0.60) << 100 required.
+3. REM_MAX_S lower (280→260): n=0 in [260,280) — field not persisted in this era.
+4. REM_MIN_S raise (60→80): n=0 in [60,80) — field not persisted in this era.
+5. ASK_DEPTH_MULT raise: no slippage evidence + n=885 overall EV>0.
 
 ---
 
-## Watchlist (40≤n<100, vs prior audit)
+## Watchlist (40≤n<100, delta vs prior 2026-06-07T06:11Z)
 
 | cell | n | EV/trade | CI95 | delta vs prior |
 |---|---|---|---|---|
-| asset: BTC | 286 | +$0.083 | [−$0.177, +$0.359] | Δ=0 |
-| asset: ETH | 305 | −$0.035 | [−$0.303, +$0.236] | Δ=0 |
-| asset: SOL | 294 | +$0.142 | [−$0.128, +$0.414] | Δ=0 |
-| ask [0.10,0.20) | 91 | +$0.149 | [−$0.314, +$0.671] | Δ=0 |
-| H01 | 66 | +$0.784 | — | Δ=0 |
-| H02 | 64 | +$0.196 | — | Δ=0 |
-| H11 | 71 | +$0.191 | — | Δ=0 |
-| H14 | 47 | −$0.108 | — | Δ=0 |
-| H22 | 40 | −$0.137 | — | Δ=0 |
-| H23 | 57 | +$0.004 | — | Δ=0 |
+| asset: BTC | 286 | +$0.083 | [−$0.175, +$0.348] | Δ=0 |
+| asset: ETH | 305 | −$0.035 | [−$0.294, +$0.223] | Δ=0 |
+| asset: SOL | 294 | +$0.142 | [−$0.125, +$0.410] | Δ=0 |
+| ask [0.10,0.20) | 91 | +$0.149 | [−$0.308, +$0.661] | Δ=0 |
+| H01 | 66 | +$0.784 | [+$0.174, +$1.415] | Δ=0 |
+| H02 | 64 | +$0.196 | [−$0.360, +$0.796] | Δ=0 |
+| H11 | 71 | +$0.191 | [−$0.356, +$0.743] | Δ=0 |
+| H14 | 47 | −$0.107 | [−$0.694, +$0.492] | Δ=0 |
+| H22 | 40 | −$0.137 | [−$0.768, +$0.540] | Δ=0 |
+| H23 | 57 | +$0.004 | [−$0.553, +$0.597] | Δ=0 |
 
 All Δ=0. Dataset is permanently frozen at n=885. Watchlist cells will never graduate to n≥100.
 
@@ -174,4 +155,4 @@ No cells marked as user-overridden for VOLARB.
 
 ## Note for User
 
-The VOLARB audit mandate is fully exhausted. The dataset is closed at n=885 and no new trades will ever arrive. Consider decommissioning this scheduled audit — there is no further actionable signal to extract.
+The VOLARB audit mandate is fully exhausted. Dataset frozen at n=885; strategy retired ~603h ago. **Recommend decommissioning this scheduled audit.** No further actionable signal exists; running it every 6h generates only noise commits.
