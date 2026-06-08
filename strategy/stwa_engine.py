@@ -326,6 +326,7 @@ class _CityState:
     mc_probs_last:   dict = field(default_factory=dict)   # raw Monte-Carlo (legacy; shadow A/B)
     pa_probs_last:   dict = field(default_factory=dict)   # peak-anchored (Rice) shadow pricer
     ps_probs_last:   dict = field(default_factory=dict)   # PA-shrunk pricer (primary)
+    ps_center_last:  float = 0.0   # PA-shrunk daily-max center (°C) — for NO floored/forecast audit
     cal_probs_last:  dict = field(default_factory=dict)   # PA-shrunk after isotonic recal (staged; YES gate)
     # Joint 2N Kalman shadow estimates (Tier-3, shadow-only — not used live)
     x_hat_joint:  float = 0.0
@@ -1013,6 +1014,7 @@ class STWAEngine:
                     _sig = min(_sig_fc, max(NOWCAST_SIGMA_FLOOR,
                                             NOWCAST_REMAIN_RATIO * max(0.0, _center - float(M0))))
             cs.ps_probs_last = _peak_shrunk_bucket_probs(buckets, M0, _center, _sig)
+            cs.ps_center_last = float(_center)
         except Exception:
             cs.ps_probs_last = {}
 

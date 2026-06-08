@@ -6062,6 +6062,17 @@ class WeatherArb:
                 row["ts"] = now
                 row["bucket"] = list(sig.bucket)
                 row["clob_ask_live"] = clob_ask_live.get(sig.token_id)
+                # NO floored/forecast audit: stamp the running-max (M0) and the
+                # PA-shrunk center at decision time so post-hoc classification is
+                # reliable (floored ⟺ running_max ≥ bucket_hi) without a fragile
+                # nearest-ts pricer_eval join. Lets us measure whether forecast-NO
+                # WR tracks per-city model error once clean (post-floor-fix) data
+                # accumulates. cs.city key is the slug, same as sig.city.
+                _cs = self._stwa._cities.get(sig.city)
+                _rm = _cs.running_max if _cs is not None else None
+                row["running_max"] = _rm
+                row["model_center"] = round(_cs.ps_center_last, 3) if _cs is not None else None
+                row["floored"] = (_rm is not None and _rm >= sig.bucket[1])
                 fh.write(json.dumps(row) + "\n")
 
         logger.info("[STWA] %d signal(s) logged to %s", len(signals), out_path)
