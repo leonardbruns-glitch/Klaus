@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-08T15:16:45Z
+# Snapshot: 2026-06-08T15:31:47Z
 # Latest commit on klaus:
-8435696f feat(weather): A1 dew-correction fix + A2 per-(city,month) peak_bias
+96641bd2 feat(lockout/WS1): loosen maker margin gate 1.0→0.5°C (align to validated reliability gate)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
