@@ -188,8 +188,15 @@ M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
-M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # 2026-06-01: 0.4→0.5 — OOS margin gate (lockout_oos n=195):
-                                        # margin<0.5°C=72% WR (all 8 losses here), 0.5-1°C=98.2%, 1-2°C=100%.
+M1_BETA_PROBE_MIN_DEPTH_C      = 0.2    # 2026-06-09 (user, LIVE): 0.5→0.2 — admit the [0.2,0.5)°C thin-margin
+                                        # band. Re-measure (lockout_reliability n=567, oracle-clean Gamma join):
+                                        # sub-0.5°C margin AND no_ask>=0.30 = 26/26 = 100% WR; every loser was
+                                        # margin<0.2°C OR a dust ask<0.05 (already gated). The fat-edge slice of
+                                        # this new band fires at any ask>=NO_ASK_MIN (0.05); the dust ask<0.05
+                                        # losers (0/4) are the real false-lockout tell and stay gated. CAVEAT
+                                        # n=24-28 (< the n>=100 rule) — explicit user override, $10 stake +
+                                        # monitored; daily-loss halt is the backstop.
+                                        # Revert: 0.5. [prior 2026-06-01: 0.4->0.5, margin<0.5=72% WR pre-fix.]
 M1_BETA_PROBE_MAX_EDGE         = 0.95   # yes_bid staleness ceiling (no_ask floor below dominates)
 # 2026-06-01: VALIDATED-SLICE no_ask gate. Only fire when the market AGREES the
 # bucket is locked (NO expensive): no_ask ∈ [0.90, 0.97] = the deep-lockout slice
@@ -215,13 +222,17 @@ M1_BETA_PROBE_NO_ASK_MAX       = 0.97
 M1_BETA_PROBE_NO_ASK_MARKET_AGREE = 0.90  # at/above this no_ask the market itself confirms the
                                         # lockout (legacy validated slice) → no clean-margin proof
                                         # required. WS path stays pinned to [MARKET_AGREE, MAX].
-M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 0.5   # 2026-06-08: 1.0→0.5 — the old 1.0 (and its "0.5-1°C=33% WR"
-                                        # rationale) was from the CONTAMINATED running_max era. Post
-                                        # official-METAR + oracle-blocklist re-measure (/tmp/margin_wr.py,
-                                        # oracle-clean Gamma join): margin 0.5-1.0°C = 98.3% WR (n=181),
-                                        # ≥1.0°C = 100%. 1.0 needlessly discarded the bulk of true locks
-                                        # (M1 taker stopped firing). <0.5°C still lossy (70-93%) so 0.5 is
-                                        # the floor. Aligns the taker gate to the maker gate (also 0.5). Revert: 1.0.
+M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 0.2   # 2026-06-09 (user, LIVE): 0.5→0.2 — the below-market-agree
+                                        # fat-edge band requires a PROVENANCE-CLEAN official-METAR margin this
+                                        # far past the ceiling. Re-measure (lockout_reliability n=567, oracle-
+                                        # clean Gamma join, /tmp/askfloor.py): margin [0.2,0.5)°C AND no_ask≥0.05
+                                        # = 24/24 = 100% WR (incl. the cheap [0.05,0.30) fills the market hasn't
+                                        # confirmed — official margin makes them physically locked). The ONLY
+                                        # thin-margin losers were dust ask<0.05 (0/4 — market ~95% against us =
+                                        # the real false-lockout tell), already gated by NO_ASK_MIN=0.05. The
+                                        # [0,0.2)°C band stays excluded (MIN_DEPTH_C). CAVEAT n=24-28 (< n≥100
+                                        # rule) — explicit user override, $10 stake, -$10/day halt backstop.
+                                        # Revert: 0.5. [prior 2026-06-08: 1.0→0.5; <0.5 looked lossy pre-fix.]
 M1_BETA_PROBE_GAMMA_BLOCK_SEC  = 99999  # γ-block disabled — depth gate handles thin books
 M1_BETA_PROBE_TP               = 0.999  # sell NO when bid >= this — recycle capital, don't wait for resolution
 M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
@@ -2665,8 +2676,14 @@ class WeatherArb:
                         no_depth_shares = sum(
                             lvl[1] for lvl in no_ob.asks if lvl[0] <= cap
                         )
+                    # 2026-06-09 (user): WS fast path widened MARKET_AGREE→NO_ASK_MIN so the
+                    # cheap-NO fat-edge band gets WS-speed fills instead of being ceded to the
+                    # slower REST scan (fill-rate gain on the highest-EV-per-$ fills). NOT a
+                    # safety loosening: _m1_beta_probe_evaluate re-applies the authoritative
+                    # official-METAR margin proof (oracle-blocklist + official_running_max +
+                    # MIN_DEPTH_C + FATEDGE) on every path. Revert: NO_ASK_MIN→NO_ASK_MARKET_AGREE.
                     if (no_ask_clob is not None
-                            and M1_BETA_PROBE_NO_ASK_MARKET_AGREE <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX
+                            and M1_BETA_PROBE_NO_ASK_MIN <= no_ask_clob <= M1_BETA_PROBE_NO_ASK_MAX
                             and no_depth_shares >= 5):
                         # Remove from watchlist to prevent race double-fire
                         # (REST path in _metar_lockout_scan may also check this token)
