@@ -3750,6 +3750,53 @@ class WeatherArb:
 
             question = mkt.get("question", "")
             lo_c, hi_c, is_celsius = _parse_outcome(question)
+
+            # ── TEMPORAL-LOCK SHADOW (P5, 2026-06-09) — no capital ──
+            # Buckets ABOVE the running max late in the local day: once the
+            # diurnal peak has passed, they become physically unreachable.
+            # Backtest (analysis/weather/temporal_lock_backtest.py, 72k
+            # city-days 2021-24 hourly = oracle resolution): P(final_max −
+            # run_max > 1.0°C | local hour ≥ 18) = 0.04–0.18% Apr–Oct but ~1%
+            # Dec–Jan (high-lat nocturnal warm advection: Helsinki/Moscow/NYC/
+            # Toronto worst) ⇒ any live gate must be month-aware. Shadow logs
+            # candidates wide (hour ≥ 15, gap ≥ 0.5°C) with gamma quotes so a
+            # resolution join + fillability analysis picks the live
+            # (hour, delta, month) gate. One record per (bucket, hour, day).
+            _lh = (now_utc + timedelta(hours=_tz_h)).hour
+            if (lo_c is not None and (hi_c is None or running_max < hi_c + 0.05)
+                    and _lh >= 15
+                    and (float(lo_c) - float(running_max)) >= 0.5):
+                if not hasattr(self, "_tlock_seen"):
+                    self._tlock_seen = set()
+                if len(self._tlock_seen) > 50000:
+                    self._tlock_seen.clear()
+                _tlk = (mkt.get("conditionId") or question, _local_today, _lh)
+                if _tlk not in self._tlock_seen:
+                    self._tlock_seen.add(_tlk)
+                    try:
+                        (log_dir / "temporal_lock.jsonl").open("a").write(json.dumps({
+                            "schema_version": 1,
+                            "record_type": "temporal_lock_candidate",
+                            "ts_utc": now_utc.isoformat(), "ts_s": int(now_ts),
+                            "city": city, "icao": icao, "end_date": end_date,
+                            "question": question,
+                            "local_hour": _lh, "month": now_utc.month,
+                            "bucket_lo_c_padded": round(float(lo_c), 4),
+                            "bucket_hi_c_padded": (round(float(hi_c), 4)
+                                                   if hi_c is not None else None),
+                            "running_max_c": round(float(running_max), 3),
+                            "official_running_max_c": (
+                                round(float(metar["official_running_max_c"]), 3)
+                                if metar.get("official_running_max_c") is not None
+                                else None),
+                            "gap_above_c": round(float(lo_c) - float(running_max), 3),
+                            "gamma_best_bid": mkt.get("bestBid"),
+                            "gamma_best_ask": mkt.get("bestAsk"),
+                            "is_celsius_market": is_celsius,
+                        }) + "\n")
+                    except Exception:
+                        pass
+
             # Need an upper bound to be "locked out from above"
             if hi_c is None:
                 continue
