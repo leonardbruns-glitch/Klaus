@@ -5322,6 +5322,14 @@ class WeatherArb:
         from datetime import datetime, timezone, timedelta as _td, date as _date
 
         new_obs_count = 0
+        # 2026-06-09 BUG FIX: AWC returns records NEWEST-FIRST. The monotone
+        # obs_time skip below ("not a new observation") then discarded every
+        # older record after the first — so the 24h restart backfill only ever
+        # ingested the single latest obs, wiping the day's running max on EVERY
+        # restart (Paris 06-09: cache 13.0 vs true daily max 19.0; lockout
+        # detection silently lost the whole pre-restart surface). Process
+        # oldest-first so the backfill replays the day chronologically.
+        records = sorted(records, key=lambda r: r.get("obsTime", 0) or 0)
         for rec in records:
             icao = rec.get("icaoId") or rec.get("stationId", "")
             if not icao:
