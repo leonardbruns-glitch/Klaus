@@ -1993,7 +1993,12 @@ class WeatherArb:
             return
         oid = getattr(result, "order_id", "") or ""
         status = getattr(result, "status", None)
-        if status == OrderStatus.RESTING and oid:
+        # 2026-06-09: FILLED must be tracked like RESTING — a maker bid that
+        # instantly matches (real CLOB ask below the stale Gamma ask) returns
+        # FILLED; marking only RESTING let the next 300s cycle re-post and
+        # DOUBLE-FILL the same leg (Munich 12.5-13.5 ×2), and the fill was
+        # invisible to _maker_reconcile_fills (untracked position).
+        if oid and status in (OrderStatus.RESTING, OrderStatus.FILLED):
             self._maker_ex_seen.add(tid)
             self._band_budget_spent += stake
             self._maker_breaker.register_resting(oid, stake)
