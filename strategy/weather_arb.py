@@ -1953,6 +1953,29 @@ class WeatherArb:
             self._maker_ex_orders = 0
             self._maker_resting = {}
         tid = sig.token_id
+        # ── RESTART-PROOF dedup state (2026-06-09: Munich triple-fill): the
+        # seen-set was in-memory only, so each deploy restart wiped it while the
+        # resting orders survived on the exchange — every restart re-posted the
+        # whole surface (3 restarts ⇒ 3 stacked fills/orders per leg). Persist
+        # posted tokens + daily spent to disk; reload last 4 days at init
+        # (d+1/d+2 quotes span days).
+        if not hasattr(self, "_band_state_loaded"):
+            self._band_state_loaded = True
+            try:
+                _st = json.load(open("logs/band_posted_state.json"))
+                _cut = (datetime.now(timezone.utc).date()
+                        - __import__("datetime").timedelta(days=4)).isoformat()
+                for _d, _v in _st.items():
+                    if _d >= _cut:
+                        self._maker_ex_seen.update(_v.get("tokens", []))
+                _today0 = datetime.now(timezone.utc).date().isoformat()
+                self._band_budget_date = _today0
+                self._band_budget_spent = float(
+                    _st.get(_today0, {}).get("spent", 0.0))
+            except FileNotFoundError:
+                pass
+            except Exception:
+                logger.exception("[STRUCT-BAND] state load failed")
         # ── DEDUP (2026-06-09, pre-live audit): the multiday scan re-runs every
         # BAND_MD_TTL=300s; without this, every cycle would STACK a fresh resting
         # bid on the same leg until the breaker jammed. One post per token per
@@ -2001,6 +2024,20 @@ class WeatherArb:
         if oid and status in (OrderStatus.RESTING, OrderStatus.FILLED):
             self._maker_ex_seen.add(tid)
             self._band_budget_spent += stake
+            # persist dedup state (restart-proof; see triple-fill note above)
+            try:
+                _today1 = datetime.now(timezone.utc).date().isoformat()
+                try:
+                    _st = json.load(open("logs/band_posted_state.json"))
+                except FileNotFoundError:
+                    _st = {}
+                _e = _st.setdefault(_today1, {"tokens": [], "spent": 0.0})
+                if tid not in _e["tokens"]:
+                    _e["tokens"].append(tid)
+                _e["spent"] = round(float(self._band_budget_spent), 2)
+                json.dump(_st, open("logs/band_posted_state.json", "w"))
+            except Exception:
+                logger.exception("[STRUCT-BAND] state persist failed")
             self._maker_breaker.register_resting(oid, stake)
             self._maker_resting[oid] = {
                 "token_id": tid, "city": sig.city, "icao": CITY_ICAO.get(sig.city),
