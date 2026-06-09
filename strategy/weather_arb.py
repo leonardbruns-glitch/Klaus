@@ -244,12 +244,29 @@ M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 # 2026-06-07 (Claude): ORACLE-CITY BLOCKLIST. The 06-05 M1β re-enable log flagged
 # — and lockout_exec_backtest re-confirmed — that wrong-oracle settlement cities
 # produce FALSE lockouts that resolve YES even at margin≥0.5°C, because our METAR
-# feed diverges from the resolution source: Tokyo (AMeDAS 44166 mis-mapped vs
-# RJTT/Haneda, +2.8°C false lockout), Hong Kong (HKO not WU), Shenzhen & Singapore
-# (sub-hourly sensor divergence). Block by settlement ICAO — checked at the single
-# _m1_beta_probe_evaluate chokepoint so both the WS and REST fire paths are gated.
-# Revert: set to empty set().
-M1_BETA_PROBE_ORACLE_BLOCK_ICAO = {"VHHH", "RJTT", "ZGSZ", "WSSS"}
+# feed diverges from the resolution source. Block by settlement ICAO — checked at
+# the single _m1_beta_probe_evaluate chokepoint so both WS and REST paths gate.
+#
+# 2026-06-09 ORACLE-MATCH CENSUS (analysis/weather/oracle_census_blocked.py,
+# 60 resolved Gamma days/city vs IEM METAR + HKO daily max):
+#   RJTT Tokyo     60/60 = 100%  -> UNBLOCKED. Market description names the WU
+#                                   RJTT/Haneda page; whole-deg C METAR == oracle.
+#                                   The 06-07 false lockout was OUR mis-mapped
+#                                   AMeDAS 44166 feed, fixed by the official-only
+#                                   provenance rule (official_running_max_c is
+#                                   AWC-METAR-only now).
+#   WSSS Singapore 60/60 = 100%  -> UNBLOCKED (2 apparent misses were truncated
+#                                   IEM fetches; per-day refetch matched exactly).
+#   VHHH Hong Kong VHHH-METAR 37% -> STAYS BLOCKED on the METAR feed. Oracle is
+#                                   the HKO OBSERVATORY (different station), one
+#                                   decimal, floor/range-containing buckets:
+#                                   HKO daily max matched 21/21 = 100%. Unblock
+#                                   requires an HKO feed + floor-aware padding
+#                                   (generic ±0.5 pad ⇒ false lockouts here).
+#   ZGSZ Shenzhen  16/60 = 27%   -> STAYS BLOCKED. WU "Bao'an" page is NOT the
+#                                   ZGSZ METAR (oracle reads 1-2°C warmer).
+# Revert: add "RJTT", "WSSS" back.
+M1_BETA_PROBE_ORACLE_BLOCK_ICAO = {"VHHH", "ZGSZ"}
 
 # ── Locked-region MAKER first-exercise (2026-06-01, controlled / user-mandated) ──
 # Exercises the maker_buy primitive on PROVENANCE-CLEAN locked buckets (NO physically
