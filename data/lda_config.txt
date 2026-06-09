@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-09T21:33:09Z
+# Snapshot: 2026-06-09T21:48:16Z
 # Latest commit on klaus:
-0027c12f chore(COUNT-LOCK): user directive — rain + earthquakes SHADOW ONLY, no live orders
+3fcb3cd6 fix(NMS): NWS 5-min non-METAR obs contaminated official_running_max — SF/ATL false lockouts
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin

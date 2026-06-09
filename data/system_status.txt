@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+3fcb3cd6 fix(NMS): NWS 5-min non-METAR obs contaminated official_running_max — SF/ATL false lockouts
 0027c12f chore(COUNT-LOCK): user directive — rain + earthquakes SHADOW ONLY, no live orders
 4ef070d7 feat(COUNT-LOCK): monotone-counter lockout scanner — earthquakes + monthly precip (new family, shadow + cron 5min)
 7957f58d fix(WA): 24h restart backfill ingested only the newest METAR — running max wiped on every restart
@@ -11,13 +12,12 @@ active
 4814bbfb feat(M1β): unblock RJTT+WSSS — oracle-match census 60/60 = 100% each
 c1840734 feat(M1β+STWA): squash unpushed 06-09 work — band multiday shadow, BAND_SUM_MAX 0.70, deep-slice stake $20
 4d83ef93 VOLARB Audit 20260609-1815 — NO_PATCH (n=885, Δ=0, watch=10, strategy RETIRED 23rd run)
-6ace82d5 feat(STWA): badatmath structural-band copy — maker-quoted over-dispersion harvest (SHADOW)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   72G       22G  78% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   72G       21G  78% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-09 20:51:04 UTC
+ActiveEnterTimestamp=Tue 2026-06-09 21:35:30 UTC
 
 ## Open positions (count):
 0
