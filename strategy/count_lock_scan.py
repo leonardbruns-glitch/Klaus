@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Monotone-counter lockout scanner (SHADOW — no orders).
 
+2026-06-09 USER DIRECTIVE: rain + earthquakes are SHADOW ONLY. Do not add an
+order path to this scanner and do not place manual count-lock trades without a
+new explicit user instruction. (The one $15 Seattle precip NO @ 0.94 placed
+06-09 pre-directive stays — riskless hold, redeems ~Jul 1.)
+
 Family DNA (same as M1B METAR lockout): a market resolves on a MONOTONE
 counter (earthquake count, cumulative precipitation). Once the counter crosses
 a bucket's ceiling the bucket is structurally dead — but books reprice with a
