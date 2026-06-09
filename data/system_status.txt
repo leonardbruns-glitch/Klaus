@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+7957f58d fix(WA): 24h restart backfill ingested only the newest METAR — running max wiped on every restart
 77180e85 feat(P5): temporal-lock shadow — above-max buckets post-peak (validated 72k city-days, no capital)
 23623e0e feat(M1β): HK unblocked via HKO-Observatory oracle feed (debounced 1-min, floor buckets)
 7e94e66f fix(WA): stale official running max across local midnight — false-lockout generator
@@ -11,13 +12,12 @@ c1840734 feat(M1β+STWA): squash unpushed 06-09 work — band multiday shadow, B
 6ace82d5 feat(STWA): badatmath structural-band copy — maker-quoted over-dispersion harvest (SHADOW)
 12dd0c0d feat(M1β): lower lockout depth gate 0.5→0.2°C + widen WS fast-path to cheap-NO
 c099d5d4 feat(maker): gate out dead-weight deep bids — free breaker capacity for fills
-401d3861 feat(research): dense-obs forecast-edge validation harness (Synoptic mesonet)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   72G       22G  78% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-09 20:46:47 UTC
+ActiveEnterTimestamp=Tue 2026-06-09 20:51:04 UTC
 
 ## Open positions (count):
 0

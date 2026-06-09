@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-09T20:48:05Z
+# Snapshot: 2026-06-09T21:03:08Z
 # Latest commit on klaus:
-77180e85 feat(P5): temporal-lock shadow — above-max buckets post-peak (validated 72k city-days, no capital)
+7957f58d fix(WA): 24h restart backfill ingested only the newest METAR — running max wiped on every restart
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
