@@ -256,7 +256,11 @@ BAND_HOUR_MAX       = 16            # peak window upper bound; after this the da
 # band quotes MAKER bids at BAND_QUOTE_FRAC of the spread above best-bid (never crosses),
 # sized bell-shaped, held to resolution. PX_MIN/CEIL gate which buckets we quote on.
 STWA_STRUCT_BAND    = True          # master ENABLE for the structural band path
-BAND_LIVE           = False         # 2026-06-10 user: BACK TO SHADOW "until u solve all this bugs" —
+BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge" — RE-FLIPPED LIVE after
+                                    # post-fix shadow verified clean (2,514 rows / 2h, 0 mode-containment
+                                    # violations, md_shadow firing d+1 candidates). Live = d+1/d+2 maker
+                                    # band only (BAND_MD_LIVE_MIN_DOUT=1, BAND_SAMEDAY_LIVE=False).
+                                    # [prior 2026-06-10 SHADOW note: BACK TO SHADOW "until u solve all this bugs" —
                                     # first live hours surfaced 4 defects (instant-FILLED untracked,
                                     # restart amnesia/duplicates, converged-ladder flank-only bands,
                                     # same-day path accidentally armed). All four are FIXED, but the
