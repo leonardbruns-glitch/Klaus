@@ -281,6 +281,9 @@ BAND_QUOTE_FRAC     = 0.34          # maker bid = best_bid + FRAC*(ask-bid): joi
 # as a maker — the single-day engine path only ever sees today's (collapsed) market.
 BAND_MD_HORIZON     = 2             # quote d, d+1, d+2 (days past local today)
 BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own Gamma fetch
+BAND_SAMEDAY_LIVE     = False       # 2026-06-09: BAND_LIVE accidentally armed the same-day engine band
+                                    # (11-16 local window) — d+0 is his weakest slice (+6.3%) and excluded
+                                    # by design; keep the same-day path SHADOW until validator says otherwise.
 BAND_MD_LIVE_MIN_DOUT = 1           # live quotes only for days_out ≥ this (d+0 stays shadow: his d+0
                                     # ROI +6.3% vs d+1 +14.4% / d+2 +22.8%, and our late-d+0 "bands"
                                     # are collapsed ladders — favorite above PX_CEIL ⇒ residual losers)
@@ -1532,7 +1535,7 @@ class STWAEngine:
             except Exception:
                 logger.debug("[STRUCT-BAND] alloc failed %s", city, exc_info=True)
                 _band_sigs = []
-            if BAND_LIVE:
+            if BAND_LIVE and BAND_SAMEDAY_LIVE:
                 return _band_sigs          # band governs the directional slot (YES); M1β-NO + arb still run
             # shadow: _struct_band_allocate logged its would-post quotes; fall through so
             # the current live regular-NO ladder keeps running until we flip BAND_LIVE.

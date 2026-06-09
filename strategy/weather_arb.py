@@ -2155,6 +2155,22 @@ class WeatherArb:
                        "n_interior": sum(1 for e in ladder if e[0] > -900 and e[1] < 900),
                        "n_valid": len(valid)})
                 continue
+            # ── MODE-CONTAINMENT gate (2026-06-09, user caught "only 1 temp per
+            # city"): if the GLOBAL ladder mode asks > PX_CEIL the ladder has
+            # CONVERGED — the favorite is no longer cheap and the in-window
+            # "band" is just the two flanks AROUND it (a hole in the middle).
+            # Flanks-only = buying the over-dispersed (overpriced) side WITHOUT
+            # the underpriced center: his dist-1 legs (−96%) without the dist-0
+            # leg (+432%). The Σ gate cannot see this. Skip converged ladders —
+            # the harvest only exists while the whole band incl. the mode is in
+            # the price window.
+            _global_mode_ask = max((e[3] for e in ladder
+                                    if e[0] > -900.0 and e[1] < 900.0
+                                    and e[3] is not None), default=0.0)
+            if _global_mode_ask > BAND_PX_CEIL:
+                _emit({"city": city, "date": ed, "days_out": days_out,
+                       "reason": "converged", "mode_ask": round(_global_mode_ask, 3)})
+                continue
             valid.sort(key=lambda e: e[0])
             mi = max(range(len(valid)), key=lambda i: valid[i][3])   # market mode = max ask
             band = [valid[i] for i in range(mi - BAND_WING, mi + BAND_WING + 1)
