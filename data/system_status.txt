@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+e32e3a7c chore(STRUCT-BAND): back to SHADOW (user) — all live orders cancelled, fixes stay in
+652f842e fix(STRUCT-BAND): mode-containment gate — never quote converged ladders (flanks-only bands)
+127c90f4 fix(STRUCT-BAND): restart-proof dedup — persist posted tokens + daily spent to disk
 e8ed3ce8 fix(STRUCT-BAND): track instant-FILLED maker posts — double-fill + invisible-position bug
 02dc6850 feat(STRUCT-BAND): remove training-wheel caps — daily budget off, breaker 40->150 (user: let it fire)
 b25e2ed8 feat(STRUCT-BAND): GO LIVE on d+1/d+2 maker band — full badatmath re-audit, micro-capped
@@ -9,15 +12,12 @@ b25e2ed8 feat(STRUCT-BAND): GO LIVE on d+1/d+2 maker band — full badatmath re-
 0027c12f chore(COUNT-LOCK): user directive — rain + earthquakes SHADOW ONLY, no live orders
 4ef070d7 feat(COUNT-LOCK): monotone-counter lockout scanner — earthquakes + monthly precip (new family, shadow + cron 5min)
 7957f58d fix(WA): 24h restart backfill ingested only the newest METAR — running max wiped on every restart
-77180e85 feat(P5): temporal-lock shadow — above-max buckets post-peak (validated 72k city-days, no capital)
-23623e0e feat(M1β): HK unblocked via HKO-Observatory oracle feed (debounced 1-min, floor buckets)
-7e94e66f fix(WA): stale official running max across local midnight — false-lockout generator
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   72G       21G  78% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-09 22:16:25 UTC
+ActiveEnterTimestamp=Tue 2026-06-09 22:34:42 UTC
 
 ## Open positions (count):
 0
