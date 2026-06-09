@@ -183,6 +183,11 @@ M1_BETA_PROBE_ENABLED          = True   # 2026-06-05 user: RE-ENABLED. Validated
 M1_BETA_PROBE_STAKE_USD        = 10.0   # 2026-06-08: 40→10 — removing the NO-ask floor enables cheap-NO fills; at $70 capital a $40
                                         # loss on a false lock (~4.5%) would blow the $10 daily-halt (and 40 already exceeded the $20 max).
                                         # $10 keeps single-trade risk within the ruin discipline. Was 40 (06-03). Revert: 40
+M1_BETA_PROBE_STAKE_DEEP_USD   = 20.0   # 2026-06-09 (user-approved): deep-clean slice only — depth_c>=0.5 AND
+                                        # no_ask in [0.50,0.96]. Evidence: offline join 98.3% WR n=422 on the
+                                        # >=0.5°C band; today's fills had 3-55x visible ask depth vs the $10
+                                        # stake. Within the defined $20 max. Thin band [0.2,0.5) and cheap
+                                        # fat-edge (ask<0.50) stay at $10. Revert: delete + branch below.
 M1_BETA_PROBE_MIN_SHARES       = 5.0    # 2026-06-03 user directive: fire even on thin books — floor = 5 fillable shares
 M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
@@ -1976,6 +1981,135 @@ class WeatherArb:
         logger.warning("[STRUCT-BAND] posted %s YES @ %.2f (ask %.2f) size %.1f order=%s status=%s exposure=$%.2f",
                        sig.city, q, live_ask, size, str(oid)[:12], str(status),
                        self._maker_breaker.exposure_usd())
+
+    async def _struct_band_multiday_shadow(self) -> None:
+        """BADATMATH multi-day band shadow (2026-06-09 rebuild).
+
+        WHY: the single-day engine path (_struct_band_allocate) only ever sees
+        TODAY's market — _refresh_today_markets drops d+1/d+2 at the fetch
+        (weather_arb.py:~5023) — and only quotes in the same-day peak window,
+        exactly where the over-dispersion band has already collapsed (asks pinned
+        0.001/0.996). badatmath quotes the ROLLING horizon d/d+1/d+2 as a maker,
+        days before resolution, where the daily high is genuinely uncertain and
+        the band is wide. That's the edge our copy was structurally blind to.
+
+        This scanner replicates it faithfully and in ISOLATION: its OWN multi-day
+        Gamma fetch, per-(city,date) ladders, NO peak-window gate, NO depth gate
+        (a maker POSTS depth, it does not require pre-existing ask-depth). SHADOW
+        only — logs would-post maker quotes per (city,date) to band_struct.jsonl
+        with days_out; emits no orders, touches no live path. Flip BAND_LIVE to act.
+        """
+        import time as _time
+        from strategy.stwa_engine import BAND_MD_TTL
+        if _time.time() - getattr(self, "_band_md_ts", 0.0) < BAND_MD_TTL:
+            return
+        self._band_md_ts = _time.time()
+
+        from strategy.stwa_engine import (
+            BAND_PX_MIN, BAND_PX_CEIL, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
+            BAND_BASE_STAKE, BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE)
+
+        events = await self._fetch_weather_events()
+        if not events:
+            return
+        _now_utc = datetime.now(timezone.utc)
+
+        # Group buckets by (city, end_date) for end_date in {today..today+HORIZON} local.
+        ladders: dict = {}
+        meta: dict = {}
+        for ev in events:
+            city = _parse_city(ev.get("title", ""))
+            if not city:
+                continue
+            icao = CITY_ICAO.get(city)
+            _tz_h = ICAO_UTC_OFFSET_H.get(icao or "", 0)
+            _local_today = (_now_utc + timedelta(hours=_tz_h)).date()
+            horizon = {(_local_today + timedelta(days=d)).isoformat()
+                       for d in range(BAND_MD_HORIZON + 1)}
+            for mkt in ev.get("markets", []):
+                ed = mkt.get("endDate", "")[:10]
+                if ed not in horizon or mkt.get("closed", False):
+                    continue
+                toks = _parse_token_ids(mkt.get("clobTokenIds", []))
+                if not toks:
+                    continue
+                lo_c, hi_c, _ = _parse_outcome(mkt.get("question", ""))
+                if lo_c is None and hi_c is None:
+                    continue
+                prices_raw = mkt.get("outcomePrices", '["0.5"]')
+                try:
+                    prices = (json.loads(prices_raw)
+                              if isinstance(prices_raw, str) else prices_raw)
+                    yes_ask = float(prices[0])
+                except (IndexError, ValueError, TypeError):
+                    continue
+                key = (city, ed)
+                ladders.setdefault(key, []).append((
+                    -999.0 if lo_c is None else lo_c,
+                    +999.0 if hi_c is None else hi_c, toks[0], yes_ask, mkt))
+                meta.setdefault(key, _local_today.isoformat())
+
+        out = Path("logs/shadow/hot") / _now_utc.date().isoformat()
+        out.mkdir(parents=True, exist_ok=True)
+
+        def _emit(rec: dict) -> None:
+            try:
+                with (out / "band_struct.jsonl").open("a") as f:
+                    f.write(json.dumps({"ts": _time.time(),
+                                        "record": "md_shadow", **rec}) + "\n")
+            except Exception:
+                pass
+
+        for (city, ed), ladder in ladders.items():
+            days_out = (date.fromisoformat(ed) - date.fromisoformat(meta[(city, ed)])).days
+            # interior buckets in the harvest price band — NO depth gate (a maker
+            # posts depth; requiring existing ask-depth killed every leg in the
+            # old path) and NO peak-window gate (the band lives days out, not at peak).
+            valid = [(e[0], e[1], e[2], e[3], e[4]) for e in ladder
+                     if e[0] > -900.0 and e[1] < 900.0
+                     and BAND_PX_MIN <= e[3] <= BAND_PX_CEIL]
+            if len(valid) < BAND_MIN_LEGS:
+                _emit({"city": city, "date": ed, "days_out": days_out, "reason": "no_band",
+                       "n_interior": sum(1 for e in ladder if e[0] > -900 and e[1] < 900),
+                       "n_valid": len(valid)})
+                continue
+            valid.sort(key=lambda e: e[0])
+            mi = max(range(len(valid)), key=lambda i: valid[i][3])   # market mode = max ask
+            band = [valid[i] for i in range(mi - BAND_WING, mi + BAND_WING + 1)
+                    if 0 <= i < len(valid)]
+            sum_ask = sum(e[3] for e in band)
+            if len(band) < BAND_MIN_LEGS or sum_ask >= BAND_SUM_MAX:
+                _emit({"city": city, "date": ed, "days_out": days_out, "reason": "sum_gate",
+                       "n": len(band), "sum_ask": round(sum_ask, 3)})
+                continue
+            mode_lo = valid[mi][0]
+            quotes = []
+            for lo, hi, tok, ay, mkt in band:
+                off = abs(int(round(lo - mode_lo)))
+                w = BAND_BELL[off] if off < len(BAND_BELL) else 0.0
+                if w <= 0.0:
+                    continue
+                stake = round(BAND_BASE_STAKE * w, 2)
+                bid = max(0.01, ay - 0.02)        # best-bid proxy (Gamma gives no book)
+                q = round(max(0.01, min(ay - 0.01,
+                                        bid + BAND_QUOTE_FRAC * max(0.0, ay - bid))), 3)
+                quotes.append({"lo": lo, "hi": hi, "ask": round(ay, 3),
+                               "bid_quote": q, "stake": stake, "off": off,
+                               "cid": mkt.get("conditionId", ""), "tok": tok})
+                # LIVE path (gated): hand each leg to the existing maker poster.
+                # Reuses _struct_band_post_maker (breaker-gated, non-crossing,
+                # held-to-resolution). Inert while BAND_LIVE=False.
+                if BAND_LIVE:
+                    import types as _types
+                    _sig = _types.SimpleNamespace(token_id=tok, quote_price=q,
+                                                  stake=stake, city=city, bucket=(lo, hi))
+                    try:
+                        await self._struct_band_post_maker(_sig, mkt, float(ay))
+                    except Exception as e:
+                        logger.error("[STRUCT-BAND-MD] live post failed %s: %s", city, e)
+            _emit({"city": city, "date": ed, "days_out": days_out, "reason": "fire",
+                   "mode_lo": mode_lo, "sum_ask": round(sum_ask, 3), "live": BAND_LIVE,
+                   "n_legs": len(quotes), "quotes": quotes})
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.
@@ -4658,7 +4792,12 @@ class WeatherArb:
 
         # Pre-fire log + order submission
         intended_price = round(min(0.99, no_ask_clob + 0.01), 4)
-        stake_usd = override_stake_usd if override_stake_usd is not None else M1_BETA_PROBE_STAKE_USD
+        if override_stake_usd is not None:
+            stake_usd = override_stake_usd
+        elif depth_c >= 0.5 and 0.50 <= no_ask_clob <= 0.96:
+            stake_usd = M1_BETA_PROBE_STAKE_DEEP_USD   # deep-clean slice (98.3% WR n=422)
+        else:
+            stake_usd = M1_BETA_PROBE_STAKE_USD
         submitted_ts = now_ts
         log_dir = Path("logs/shadow/hot") / now_utc.date().isoformat()
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -5849,6 +5988,13 @@ class WeatherArb:
         Uses Gamma outcomePrices as best_ask proxy — no live CLOB calls needed.
         Logs signals to logs/shadow/hot/{date}/stwa_signals.jsonl for validation.
         """
+        # Multi-day badatmath band shadow — runs independently of today's cache
+        # (it does its own d/d+1/d+2 fetch). Isolated, shadow-only, no live path.
+        try:
+            await self._struct_band_multiday_shadow()
+        except Exception:
+            logger.debug("[STRUCT-BAND-MD] multiday shadow failed", exc_info=True)
+
         if self._stwa is None or not self._today_markets_cache:
             return
 

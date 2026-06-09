@@ -1,0 +1,29 @@
+/root/Klaus/analysis/weather/maker_backtest.py:97: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  pm = s.groupby("cid").apply(lambda x: np.average(x.e, weights=x["size"]))
+/root/Klaus/analysis/weather/maker_backtest.py:97: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  pm = s.groupby("cid").apply(lambda x: np.average(x.e, weights=x["size"]))
+taker trades: 326,121 | locked cids in lockout log: 279
+provenance-gated locked cids (margin>=0.5C, good city): 225
+taker trades on gated locked buckets, post-lock: 8,493  notional $320,050
+
+PATH A: NO-BID  (capture taker SELL No)
+  flow pool $154,030 over 3d = $51,343/day across 199 markets
+  realized WR(maker-side win)=92%  avg taker price=0.929
+  GROSS maker pnl if we took ALL of it: $-401 (3d) = $-134/day
+  per-market edge/share = -0.002 [-0.010,+0.005]
+  incumbent book depth (median/mkt): NO-bid $25,382  YES-ask $59  (queue ahead of us)
+    if we capture 10% of flow: net $-13/day (after 0% fee)
+    if we capture 25% of flow: net $-33/day (after 0% fee)
+    if we capture 50% of flow: net $-67/day (after 0% fee)
+
+PATH B: SELL-YES(mint)  (capture taker BUY Yes)
+  flow pool $35,133 over 3d = $11,711/day across 116 markets
+  realized WR(maker-side win)=57%  avg taker price=0.415
+  GROSS maker pnl if we took ALL of it: $-2,722 (3d) = $-907/day
+  per-market edge/share = +0.016 [+0.002,+0.030]
+  incumbent book depth (median/mkt): NO-bid $15,307  YES-ask $47  (queue ahead of us)
+    if we capture 10% of flow: net $-91/day (after 0% fee)
+    if we capture 25% of flow: net $-227/day (after 0% fee)
+    if we capture 50% of flow: net $-454/day (after 0% fee)
+
+baseline to beat: validated TAKER path = 70% fill, ~$500 notional/burst, edge at NO<0.90 (settlement_lock_validation).

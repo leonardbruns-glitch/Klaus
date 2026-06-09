@@ -260,11 +260,18 @@ BAND_LIVE           = False         # 2026-06-09: logs the exact maker quotes it
 BAND_PX_CEIL        = 0.45          # never quote a YES leg whose ask is above this (badatmath p99=0.44; >0.50 = -EV)
 BAND_PX_MIN         = 0.06          # skip legs whose ask is below this (stale/illiquid; his <0.06 = dust)
 BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
-BAND_SUM_MAX        = 1.00          # fire only if Σ band ask < this (genuine sub-$1 over-dispersion band)
+BAND_SUM_MAX        = 0.70          # fire only if Σ band ask < this. 2026-06-09: tightened 1.00→0.70 from
+                                    # badatmath per-event band economics (n=582): band Σ<0.50 ROI +34%,
+                                    # 0.50-0.70 +12.7%, 0.70-0.85 +1.2% (marginal), ≥1.00 −52%. <0.70 isolates
+                                    # the genuine over-dispersion harvest; 1.00 admitted marginal/−EV bands.
 BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
 BAND_BASE_STAKE     = 8.0           # center-bucket $ target; wings scaled by bell weights below
 BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
 BAND_QUOTE_FRAC     = 0.34          # maker bid = best_bid + FRAC*(ask-bid): join the book just inside the spread
+# Multi-day shadow (2026-06-09 rebuild): badatmath quotes the ROLLING horizon d/d+1/d+2
+# as a maker — the single-day engine path only ever sees today's (collapsed) market.
+BAND_MD_HORIZON     = 2             # quote d, d+1, d+2 (days past local today)
+BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own Gamma fetch
 
 
 def _beta_h(local_hour):
