@@ -256,22 +256,36 @@ BAND_HOUR_MAX       = 16            # peak window upper bound; after this the da
 # band quotes MAKER bids at BAND_QUOTE_FRAC of the spread above best-bid (never crosses),
 # sized bell-shaped, held to resolution. PX_MIN/CEIL gate which buckets we quote on.
 STWA_STRUCT_BAND    = True          # master ENABLE for the structural band path
-BAND_LIVE           = False         # 2026-06-09: logs the exact maker quotes it would post; flip True to post real bids
+BAND_LIVE           = True          # 2026-06-09 LIVE (user: "exploit those structural inefficiencies now"
+                                    # after the full teardown re-audit). Live slice = d+1/d+2 ONLY (his
+                                    # resolved ROI by days-out: +6.3/+14.4/+22.8%), maker-only, breaker-
+                                    # gated, BAND_MD_DAILY_BUDGET-capped. Evidence: his n=8,043 resolved
+                                    # tokens ground truth; worst-case bound = Σask<0.70 vs mode±band hit
+                                    # ~0.84 ⇒ +EV even at ask-1¢ fills. Revert: False
 BAND_PX_CEIL        = 0.45          # never quote a YES leg whose ask is above this (badatmath p99=0.44; >0.50 = -EV)
-BAND_PX_MIN         = 0.06          # skip legs whose ask is below this (stale/illiquid; his <0.06 = dust)
+BAND_PX_MIN         = 0.10          # 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05) −11.9%,
+                                    # [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%. The 28d
+                                    # "wings +35%" was sample noise; wings are −EV. Revert: 0.06
 BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
 BAND_SUM_MAX        = 0.70          # fire only if Σ band ask < this. 2026-06-09: tightened 1.00→0.70 from
                                     # badatmath per-event band economics (n=582): band Σ<0.50 ROI +34%,
                                     # 0.50-0.70 +12.7%, 0.70-0.85 +1.2% (marginal), ≥1.00 −52%. <0.70 isolates
                                     # the genuine over-dispersion harvest; 1.00 admitted marginal/−EV bands.
 BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
-BAND_BASE_STAKE     = 8.0           # center-bucket $ target; wings scaled by bell weights below
+BAND_BASE_STAKE     = 3.0           # 2026-06-09: 8→3 for the live flip at $155 bankroll — max band
+                                    # = 3·(1+2·0.7+2·0.4) ≈ $9.60; his median per-bucket is $5.32
+                                    # (breadth over size). Scale only after validator n≥100. Was 8.0
 BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
 BAND_QUOTE_FRAC     = 0.34          # maker bid = best_bid + FRAC*(ask-bid): join the book just inside the spread
 # Multi-day shadow (2026-06-09 rebuild): badatmath quotes the ROLLING horizon d/d+1/d+2
 # as a maker — the single-day engine path only ever sees today's (collapsed) market.
 BAND_MD_HORIZON     = 2             # quote d, d+1, d+2 (days past local today)
 BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own Gamma fetch
+BAND_MD_LIVE_MIN_DOUT = 1           # live quotes only for days_out ≥ this (d+0 stays shadow: his d+0
+                                    # ROI +6.3% vs d+1 +14.4% / d+2 +22.8%, and our late-d+0 "bands"
+                                    # are collapsed ladders — favorite above PX_CEIL ⇒ residual losers)
+BAND_MD_DAILY_BUDGET  = 40.0        # max band $ POSTED per UTC day (bounds worst-case fills beyond
+                                    # the resting-only breaker); ~4 full bands/day at micro-stake
 
 
 def _beta_h(local_hour):

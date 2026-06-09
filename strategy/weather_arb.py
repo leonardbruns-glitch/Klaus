@@ -1943,6 +1943,7 @@ class WeatherArb:
         NO maker-exercise path but tags side=YES / WEATHER_STRUCT_BAND. Breaker-gated;
         non-crossing (bid strictly < live ask); held to resolution."""
         from execution.order_manager import OrderStatus
+        from strategy.stwa_engine import BAND_MD_DAILY_BUDGET
         # lazy-init the shared maker breaker + resting tracker (same objects the NO path uses)
         if not hasattr(self, "_maker_breaker"):
             from strategy.maker_breaker import MakerCircuitBreaker
@@ -1952,6 +1953,25 @@ class WeatherArb:
             self._maker_ex_orders = 0
             self._maker_resting = {}
         tid = sig.token_id
+        # ── DEDUP (2026-06-09, pre-live audit): the multiday scan re-runs every
+        # BAND_MD_TTL=300s; without this, every cycle would STACK a fresh resting
+        # bid on the same leg until the breaker jammed. One post per token per
+        # process lifetime; also skip if we already hold the leg.
+        if tid in self._maker_ex_seen:
+            return
+        if any(m.get("token_id") == tid for m in self._maker_resting.values()):
+            return
+        _risk0 = getattr(self.bot, "risk", None)
+        if _risk0 is not None and tid in getattr(_risk0, "open_positions", {}):
+            return
+        # ── daily band budget: bound worst-case fills, independent of the
+        # resting-only breaker. Resets at UTC midnight.
+        _today = datetime.now(timezone.utc).date().isoformat()
+        if getattr(self, "_band_budget_date", "") != _today:
+            self._band_budget_date = _today
+            self._band_budget_spent = 0.0
+        if self._band_budget_spent + float(sig.stake) > BAND_MD_DAILY_BUDGET:
+            return
         # non-crossing bid: engine quote, re-clamped strictly below the live ask
         q = round(min(float(sig.quote_price), round(live_ask - 0.01, 2)), 2)
         if q < 0.01 or q >= live_ask:
@@ -1974,6 +1994,8 @@ class WeatherArb:
         oid = getattr(result, "order_id", "") or ""
         status = getattr(result, "status", None)
         if status == OrderStatus.RESTING and oid:
+            self._maker_ex_seen.add(tid)
+            self._band_budget_spent += stake
             self._maker_breaker.register_resting(oid, stake)
             self._maker_resting[oid] = {
                 "token_id": tid, "city": sig.city, "icao": CITY_ICAO.get(sig.city),
@@ -2024,7 +2046,8 @@ class WeatherArb:
 
         from strategy.stwa_engine import (
             BAND_PX_MIN, BAND_PX_CEIL, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
-            BAND_BASE_STAKE, BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE)
+            BAND_BASE_STAKE, BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
+            BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for)
 
         events = await self._fetch_weather_events()
         if not events:
@@ -2100,6 +2123,23 @@ class WeatherArb:
                        "n": len(band), "sum_ask": round(sum_ask, 3)})
                 continue
             mode_lo = valid[mi][0]
+            # ── LIVE gates (2026-06-09 teardown re-audit) ──────────────────────
+            # days_out: his resolved ROI = d+0 +6.3% / d+1 +14.4% / d+2 +22.8%;
+            # late-d+0 "bands" on our books are collapsed ladders (the favorite
+            # sits above PX_CEIL so the residual losers masquerade as a band).
+            # Live only quotes d+1/d+2; d+0 keeps logging for the validator.
+            # σ window: his per-city table loses exactly where true dispersion
+            # dies (Singapore −16.7%) or explodes (coin-flip cities) — gate
+            # 0.95 ≤ σ(city,month) ≤ YES_SIGMA_CUTOFF.
+            _live_ok = BAND_LIVE and days_out >= BAND_MD_LIVE_MIN_DOUT
+            if _live_ok:
+                try:
+                    _calib = getattr(self._stwa, "_peak_calib", None) if self._stwa else None
+                    _sg = _peak_sigma_for(_calib, city, datetime.now(timezone.utc).month) if _calib else None
+                    if _sg is not None and not (0.95 <= _sg <= YES_SIGMA_CUTOFF):
+                        _live_ok = False
+                except Exception:
+                    pass
             quotes = []
             for lo, hi, tok, ay, mkt in band:
                 off = abs(int(round(lo - mode_lo)))
@@ -2116,7 +2156,7 @@ class WeatherArb:
                 # LIVE path (gated): hand each leg to the existing maker poster.
                 # Reuses _struct_band_post_maker (breaker-gated, non-crossing,
                 # held-to-resolution). Inert while BAND_LIVE=False.
-                if BAND_LIVE:
+                if _live_ok:
                     import types as _types
                     _sig = _types.SimpleNamespace(token_id=tok, quote_price=q,
                                                   stake=stake, city=city, bucket=(lo, hi))
