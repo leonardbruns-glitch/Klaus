@@ -100,7 +100,7 @@ STWA_RESOLUTION_POLL_SEC = 300    # how often to poll Gamma to settle held-to-re
 # LOCKOUT-NO edge, ~98% WR OOS-confirmed) also holds to resolution and only TP-closes
 # at bid>=0.999, so positions that never reach TP must be settled here or their (mostly
 # winning) PnL never banks — the same write-only gap STWA had.
-_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI", "WEATHER_FAVYES", "WEATHER_THERMO")
+_STWA_RESOLVE_CLASSES = ("WEATHER_STWA", "WEATHER_M1_PROBE", "WEATHER_FADE", "WEATHER_OFI", "WEATHER_FAVYES", "WEATHER_THERMO", "WEATHER_STRUCT_BAND")
 BRACKET_ENABLED          = False  # True → live entries; False → shadow only (when BRACKET_SHADOW)
 BRACKET_SHADOW           = True   # log [LADDER SHADOW] signals for validation
 BRACKET_COST_CAP         = 0.55   # reject bracket if Σ ask_i > this
@@ -1883,11 +1883,15 @@ class WeatherArb:
             logger.warning("[MAKER-FILL] +%.1f maker sh @ %.4f → %s NO %s now shares=%.1f entry=%.4f",
                            add_shares, price, ctx.get("city"), str(tid)[:12], new_sh, new_entry)
             return
-        # New position — the maker is the first fill on this token.
+        # New position — the maker is the first fill on this token. Direction-aware:
+        # STRUCT_BAND posts YES bids (ctx side="YES"); lockout/thermo are NO (default).
+        _side = str(ctx.get("side") or "NO").upper()
+        _dir  = _Dir.BUY_YES if _side == "YES" else _Dir.BUY_NO
+        _bod  = "up" if _side == "YES" else "down"
         risk.open_position(
             token_id=tid,
             asset="WEATHER",
-            direction=_Dir.BUY_NO,
+            direction=_dir,
             stake=add_shares * price,
             entry_price=price,
             tpsl=_TPSL(take_profit=0.0, stop_loss=0.0,
@@ -1895,7 +1899,7 @@ class WeatherArb:
             condition_id=ctx.get("condition_id", ""),
             window_end_ts=0.0,
             is_bond=True,
-            bond_outcome_direction="down",
+            bond_outcome_direction=_bod,
             bond_entry_class=ctx.get("entry_class", "WEATHER_M1_PROBE"),
         )
         meta = self.bot._open_meta.setdefault(tid, {})
@@ -1907,9 +1911,71 @@ class WeatherArb:
         meta["bucket_lo_c"] = ctx.get("lo_c")
         meta["bucket_hi_c"] = ctx.get("hi_c")
         meta["maker_order_id"] = oid
-        logger.warning("[MAKER-FILL] registered %s NO %s +%.1f @ %.4f (cond=%s)",
-                       ctx.get("city"), str(tid)[:12], add_shares, price,
+        logger.warning("[MAKER-FILL] registered %s %s %s +%.1f @ %.4f (cond=%s)",
+                       ctx.get("city"), _side, str(tid)[:12], add_shares, price,
                        str(ctx.get("condition_id"))[:10])
+
+    async def _struct_band_post_maker(self, sig, mkt: dict, live_ask: float) -> None:
+        """STRUCT_BAND (badatmath copy) — post ONE resting YES maker bid for a band leg
+        and hand it to the fill→position tracker (_maker_reconcile_fills). Mirrors the
+        NO maker-exercise path but tags side=YES / WEATHER_STRUCT_BAND. Breaker-gated;
+        non-crossing (bid strictly < live ask); held to resolution."""
+        from execution.order_manager import OrderStatus
+        # lazy-init the shared maker breaker + resting tracker (same objects the NO path uses)
+        if not hasattr(self, "_maker_breaker"):
+            from strategy.maker_breaker import MakerCircuitBreaker
+            self._maker_breaker = MakerCircuitBreaker(
+                MAKER_BREAKER_MAX_EXPOSURE_USD, MAKER_BREAKER_MIN_BANKROLL_USD)
+            self._maker_ex_seen = set()
+            self._maker_ex_orders = 0
+            self._maker_resting = {}
+        tid = sig.token_id
+        # non-crossing bid: engine quote, re-clamped strictly below the live ask
+        q = round(min(float(sig.quote_price), round(live_ask - 0.01, 2)), 2)
+        if q < 0.01 or q >= live_ask:
+            return
+        stake = float(sig.stake)
+        risk = getattr(self.bot, "risk", None)
+        bankroll = float(getattr(getattr(risk, "bankroll", None), "capital", 0.0) or 0.0)
+        ok, reason = self._maker_breaker.precheck(bankroll, stake)
+        if not ok:
+            logger.warning("[STRUCT-BAND] breaker blocked %s @ %.2f: %s", sig.city, q, reason)
+            return
+        size = round(stake / q, 2)
+        neg_risk = bool(mkt.get("negRisk", True))
+        try:
+            result = await self.bot.orders.maker_buy(
+                token_id=tid, price=q, stake_usd=stake, neg_risk=neg_risk)
+        except Exception as e:
+            logger.error("[STRUCT-BAND] maker_buy raised %s: %s", sig.city, e)
+            return
+        oid = getattr(result, "order_id", "") or ""
+        status = getattr(result, "status", None)
+        if status == OrderStatus.RESTING and oid:
+            self._maker_breaker.register_resting(oid, stake)
+            self._maker_resting[oid] = {
+                "token_id": tid, "city": sig.city, "icao": CITY_ICAO.get(sig.city),
+                "question": mkt.get("question", ""), "end_date": mkt.get("endDate", ""),
+                "lo_c": sig.bucket[0], "hi_c": sig.bucket[1],
+                "condition_id": mkt.get("conditionId", ""),
+                "q_price": q, "size": size, "matched": 0.0,
+                "side": "YES", "entry_class": "WEATHER_STRUCT_BAND",
+            }
+        try:
+            _ld = Path("logs/shadow/hot") / datetime.now(timezone.utc).date().isoformat()
+            _ld.mkdir(parents=True, exist_ok=True)
+            (_ld / "band_struct.jsonl").open("a").write(json.dumps({
+                "ts": time.time(), "record": "post", "city": sig.city, "token": tid,
+                "lo": sig.bucket[0], "hi": sig.bucket[1], "ask": round(live_ask, 3),
+                "q": q, "stake": round(stake, 2), "size": size,
+                "order_id": oid, "status": str(status),
+                "exposure": round(self._maker_breaker.exposure_usd(), 2),
+            }) + "\n")
+        except Exception:
+            pass
+        logger.warning("[STRUCT-BAND] posted %s YES @ %.2f (ask %.2f) size %.1f order=%s status=%s exposure=$%.2f",
+                       sig.city, q, live_ask, size, str(oid)[:12], str(status),
+                       self._maker_breaker.exposure_usd())
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.
@@ -6472,6 +6538,18 @@ class WeatherArb:
             # Use live CLOB ask; skip dead markets and ask drift.
             live_ask = clob_ask_live.get(sig.token_id)
             if live_ask is None:
+                continue
+
+            # ── STRUCT_BAND maker leg: post a RESTING bid (not a taker buy). The band
+            # is structural (engine-gated), so it bypasses the taker p_win edge-gate
+            # below (its p_model is 0). One resting quote per token/day (_fired_tokens).
+            if getattr(sig, "maker", False):
+                try:
+                    await self._struct_band_post_maker(sig, entry["mkt"], live_ask)
+                except Exception:
+                    logger.debug("[STRUCT-BAND] post failed %s", sig.city, exc_info=True)
+                for _t in _parse_token_ids(entry["mkt"].get("clobTokenIds", [])):
+                    self._fired_tokens.add(_t)
                 continue
 
             if is_arb:

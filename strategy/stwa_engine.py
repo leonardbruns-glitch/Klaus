@@ -239,6 +239,33 @@ BAND_EV_MAX         = 0.60          # EV above this = stale-ask artifact (effici
 BAND_P_MIN          = 0.50          # band must actually be likely (mode±1 ⇒ ~0.85; <0.50 = misaligned)
 BAND_HOUR_MAX       = 16            # peak window upper bound; after this the day's max is decided
 
+# ── BADATMATH STRUCTURAL BAND (2026-06-09) ────────────────────────────────────
+# Reverse-engineered from wallet 0x8fbd7cf5f806f563080864694415829f7229a959
+# ("badatmath."), ~$70→$7.8k/mo. EDGE = the market OVER-disperses the daily-high
+# (true σ≈1.3° < market-implied). Harvest: buy the contiguous near-MARKET-MODE YES
+# buckets priced in [BAND_PX_MIN, BAND_PX_CEIL]; one in-band winner repays the
+# sub-$1 band. STRUCTURAL — fires off the MARKET price ladder, NOT our (overconfident)
+# model prob. Validated on n=3583 resolved buckets, May AND June independently:
+# mkt-price 0.30-0.40 → win 50%, 0.22-0.30 → 33%, 0.15-0.22 → 27%, 0.10-0.15 → 16%
+# (every bin wins MORE than its price). Coverage: realized high in-band 73%.
+# ISOLATED from STWA_BAND_MODE (which also alters the pricer) — own flag, own path.
+# EXECUTION = MAKER (on-chain fact 2026-06-09): badatmath is 97.6% MAKER — 27,929 of
+# 28,429 fills are resting limit bids he POSTED and waited on (100% maker below ask
+# 0.10). His "fill price" IS a posted-bid price, not an ask. A TAKER copy pays the ask
+# and does NOT reproduce the edge (cf. Klaus's 0 fillable taker arbs / -$43). So the
+# band quotes MAKER bids at BAND_QUOTE_FRAC of the spread above best-bid (never crosses),
+# sized bell-shaped, held to resolution. PX_MIN/CEIL gate which buckets we quote on.
+STWA_STRUCT_BAND    = True          # master ENABLE for the structural band path
+BAND_LIVE           = False         # 2026-06-09: logs the exact maker quotes it would post; flip True to post real bids
+BAND_PX_CEIL        = 0.45          # never quote a YES leg whose ask is above this (badatmath p99=0.44; >0.50 = -EV)
+BAND_PX_MIN         = 0.06          # skip legs whose ask is below this (stale/illiquid; his <0.06 = dust)
+BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
+BAND_SUM_MAX        = 1.00          # fire only if Σ band ask < this (genuine sub-$1 over-dispersion band)
+BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
+BAND_BASE_STAKE     = 8.0           # center-bucket $ target; wings scaled by bell weights below
+BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
+BAND_QUOTE_FRAC     = 0.34          # maker bid = best_bid + FRAC*(ask-bid): join the book just inside the spread
+
 
 def _beta_h(local_hour):
     """EV-optimal anomaly gain by local hour (measured, dist_kalman_ev.py)."""
@@ -292,6 +319,8 @@ class Signal:
     kriging_pct: float   # fraction of posterior that came from spatial propagation
     p_gev:       float = 0.0   # shadow: GEV closed-form bucket probability
     drift_bias:  float = 0.0   # learned drift correction applied at peak hour
+    maker:       bool  = False # STRUCT_BAND: post a resting maker bid (not a taker market buy)
+    quote_price: float = 0.0   # STRUCT_BAND: the maker bid price to post (≤ ask, never crosses)
 
 
 @dataclass
@@ -1138,6 +1167,112 @@ class STWAEngine:
                 p_gev=0.0, drift_bias=0.0))
         return sigs
 
+    def _struct_band_allocate(self, city, entries, clob_books, bankroll, held_k, phase,
+                              regime, metar_age, p_var, kriging_pct):
+        """STRUCTURAL BAND (badatmath copy, 2026-06-09) — the over-dispersion harvest.
+
+        Buys a contiguous YES band centered on the MARKET mode (highest-ask interior
+        bucket), one bell-weighted MAKER bid per leg, held to resolution. STRUCTURAL:
+        it does NOT use our model prob to fire — only the market price ladder. The edge
+        is that the market over-disperses the daily high (true σ≈1.3°), so the near-mode
+        band collectively costs < its hit-probability. Validated n=3583, May+June.
+
+        Differs from _band_allocate (model-driven, mode±1, taker): wider (±BAND_WING),
+        bell-$ weighted, MAKER-quoted (he is 97.6% maker), price-gated [PX_MIN,PX_CEIL].
+        Fires only when Σ band ask < BAND_SUM_MAX (a genuine sub-$1 band). σ skill-gate
+        kept (Klaus improvement: skip coin-flip cities — he doesn't, it's free safety).
+        BAND_LIVE=False ⇒ logs the exact quotes it WOULD post (no capital); True ⇒ emits
+        maker-intent Signals for the weather_arb maker executor.
+        """
+        import json as _json, time as _time
+        from datetime import datetime as _dt, timezone as _tz
+        from pathlib import Path as _Path
+
+        def _log(reason, **kw):
+            try:
+                _d = _Path("logs/shadow/hot") / _dt.now(_tz.utc).date().isoformat()
+                _d.mkdir(parents=True, exist_ok=True)
+                with (_d / "band_struct.jsonl").open("a") as _f:
+                    _f.write(_json.dumps({"ts": _time.time(), "city": city,
+                                          "reason": reason, **kw}) + "\n")
+            except Exception:
+                pass
+
+        # ── window: pre-peak → peak only (the band is decided around the diurnal peak) ──
+        h = _local_hour(city)
+        if h is None or not (11 <= h <= BAND_HOUR_MAX) or phase == "POST_PEAK":
+            return []
+        # ── skill gate: skip high-σ coin-flip cities (free improvement over badatmath) ──
+        sig_city = _peak_sigma_for(self._peak_calib, city, _current_month())
+        if sig_city > YES_SIGMA_CUTOFF:
+            return []
+
+        # ── liquid interior buckets whose ASK is in the harvest band [PX_MIN, PX_CEIL] ──
+        valid = []
+        for lo, hi, yt, nt, p_m, ay, an in entries:
+            if lo <= -900.0 or hi >= 900.0:          # interior only (no open-ended tails)
+                continue
+            if ay is None or not (BAND_PX_MIN <= ay <= BAND_PX_CEIL):
+                continue
+            bk = clob_books.get(yt) or {}
+            bid = bk.get("best_bid"); depth = bk.get("usd_depth")
+            if depth is not None and depth < self.stake_min:
+                continue
+            valid.append((lo, hi, yt, nt, p_m, ay, an, bid))
+        if len(valid) < BAND_MIN_LEGS:
+            _log("no_band", local_h=h, n_valid=len(valid))
+            return []
+
+        # ── market mode = the dearest interior bucket we may quote; band = mode ± WING ──
+        valid.sort(key=lambda e: e[0])               # by temperature
+        mi = max(range(len(valid)), key=lambda i: valid[i][5])   # max ASK = market mode
+        band = [valid[i] for i in range(mi - BAND_WING, mi + BAND_WING + 1)
+                if 0 <= i < len(valid)]
+        sum_ask = sum(e[5] for e in band)
+        if len(band) < BAND_MIN_LEGS or sum_ask >= BAND_SUM_MAX:
+            _log("sum_gate", local_h=h, n=len(band), sum_ask=round(sum_ask, 3))
+            return []
+
+        # ── per-leg MAKER quote + bell-weighted stake (mode temperature = valid[mi][0]) ──
+        quotes = []
+        for lo, hi, yt, nt, p_m, ay, an, bid in band:
+            off = abs(int(round((lo - valid[mi][0]))))          # |offset from mode| in legs
+            w = BAND_BELL[off] if off < len(BAND_BELL) else 0.0
+            if w <= 0.0:
+                continue
+            stake = round(BAND_BASE_STAKE * w, 2)
+            # maker bid: join the book just inside the spread, never cross the ask
+            b = bid if (bid is not None and bid > 0) else max(0.01, ay - 0.02)
+            q = round(min(ay - 0.01, b + BAND_QUOTE_FRAC * max(0.0, ay - b)), 3)
+            q = max(0.01, q)
+            quotes.append((lo, hi, yt, ay, q, stake, off))
+
+        # budget cap: scale the band's quotes to the per-city-day budget (net of held)
+        city_budget = max(0.0, min(bankroll * CITY_BUDGET_FRAC, CITY_BUDGET_MAX) - held_k)
+        want = sum(q[5] for q in quotes)
+        scale = 1.0 if (want <= city_budget or want <= 0) else city_budget / want
+        quotes = [(lo, hi, yt, ay, q, round(max(self.stake_min, st * scale), 2), off)
+                  for (lo, hi, yt, ay, q, st, off) in quotes]
+
+        _log("fire", local_h=h, sig_city=round(sig_city, 3), mode_lo=valid[mi][0],
+             sum_ask=round(sum_ask, 3), live=BAND_LIVE, budget=round(city_budget, 2),
+             quotes=[{"lo": lo, "hi": hi, "ask": round(ay, 3), "bid_quote": q,
+                      "stake": st, "off": off} for (lo, hi, yt, ay, q, st, off) in quotes])
+
+        if not BAND_LIVE:
+            return []                                # shadow: logged the would-post quotes only
+
+        sigs = []
+        for lo, hi, yt, ay, q, st, off in quotes:
+            sigs.append(Signal(
+                city=city, bucket=(lo, hi), direction="YES", token_id=yt,
+                p_model=0.0, ask=ay,
+                edge=round(1.0 / sum_ask - 1.0, 4), confidence=round(sum_ask, 4),
+                stake=st, regime=regime, phase=phase, metar_age_s=round(metar_age, 1),
+                kalman_var=round(p_var, 4), kriging_pct=round(kriging_pct, 3),
+                p_gev=0.0, drift_bias=0.0, maker=True, quote_price=q))
+        return sigs
+
     def _lp_allocate_city(
         self,
         city:        str,
@@ -1367,6 +1502,18 @@ class STWAEngine:
         # ── BAND_MODE hand-off: arb did not fire → band governs the directional
         # slot (in place of the regular Kelly ladder). Under BAND_SHADOW it logs
         # the eval and returns []; no directional capital is deployed. ──
+        if STWA_STRUCT_BAND:
+            try:
+                _band_sigs = self._struct_band_allocate(city, entries, clob_books, bankroll,
+                                                        held_k, phase, regime, metar_age,
+                                                        p_var, kriging_pct)
+            except Exception:
+                logger.debug("[STRUCT-BAND] alloc failed %s", city, exc_info=True)
+                _band_sigs = []
+            if BAND_LIVE:
+                return _band_sigs          # band governs the directional slot (YES); M1β-NO + arb still run
+            # shadow: _struct_band_allocate logged its would-post quotes; fall through so
+            # the current live regular-NO ladder keeps running until we flip BAND_LIVE.
         if STWA_BAND_MODE:
             return self._band_allocate(city, entries, clob_books, bankroll, held_k,
                                        phase, regime, metar_age, p_var, kriging_pct)
