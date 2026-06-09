@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+e8ed3ce8 fix(STRUCT-BAND): track instant-FILLED maker posts — double-fill + invisible-position bug
+02dc6850 feat(STRUCT-BAND): remove training-wheel caps — daily budget off, breaker 40->150 (user: let it fire)
 b25e2ed8 feat(STRUCT-BAND): GO LIVE on d+1/d+2 maker band — full badatmath re-audit, micro-capped
 3fcb3cd6 fix(NMS): NWS 5-min non-METAR obs contaminated official_running_max — SF/ATL false lockouts
 0027c12f chore(COUNT-LOCK): user directive — rain + earthquakes SHADOW ONLY, no live orders
@@ -10,14 +12,12 @@ b25e2ed8 feat(STRUCT-BAND): GO LIVE on d+1/d+2 maker band — full badatmath re-
 77180e85 feat(P5): temporal-lock shadow — above-max buckets post-peak (validated 72k city-days, no capital)
 23623e0e feat(M1β): HK unblocked via HKO-Observatory oracle feed (debounced 1-min, floor buckets)
 7e94e66f fix(WA): stale official running max across local midnight — false-lockout generator
-4814bbfb feat(M1β): unblock RJTT+WSSS — oracle-match census 60/60 = 100% each
-c1840734 feat(M1β+STWA): squash unpushed 06-09 work — band multiday shadow, BAND_SUM_MAX 0.70, deep-slice stake $20
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   72G       21G  78% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-09 22:02:18 UTC
+ActiveEnterTimestamp=Tue 2026-06-09 22:16:25 UTC
 
 ## Open positions (count):
 0
