@@ -81,6 +81,59 @@ _NEA_STATIONS: dict[str, str] = {
     # WSSS removed — use AWC only (same source as WU resolution)
 }
 
+# ── HKO regional AWS 1-min (Hong Kong) ───────────────────────────────────────
+# THE resolution oracle for HK markets. HK does NOT resolve on the VHHH METAR:
+# the market description names the HKO Observatory "Absolute Daily Max" (one
+# decimal place). Oracle census 2026-06-09 (analysis/weather/oracle_census_
+# blocked.py): HKO daily max == Gamma winner bucket 21/21 = 100% under
+# floor/range-containing semantics; VHHH METAR only 37%. This CSV is the same
+# instrument's live 1-min record at one-decimal precision — the correct
+# provenance for HK lockout proofs (the AWC/NWS-only rule exists to match the
+# oracle's source; for HK, the oracle's source IS this feed).
+_HKO_URL = ("https://data.weather.gov.hk/weatherAPI/hko_data/"
+            "regional-weather/latest_1min_temperature.csv")
+_HKO_STATION = "HK Observatory"
+_HKO_MIN_INTERVAL_S = 60.0   # CSV updates once per minute — don't hammer it
+_hko_last_fetch = 0.0
+
+async def _fetch_hko(session, icao: str) -> Optional[dict]:
+    """Fetch the HKO Observatory 1-min one-decimal temperature (HK oracle)."""
+    global _hko_last_fetch
+    if icao != "VHHH":
+        return None
+    now = time.time()
+    if now - _hko_last_fetch < _HKO_MIN_INTERVAL_S:
+        return None
+    _hko_last_fetch = now
+    try:
+        import aiohttp
+        async with session.get(_HKO_URL, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+            if resp.status != 200:
+                logger.debug("[NMS] HKO HTTP %d", resp.status)
+                return None
+            text = await resp.text()
+    except Exception as exc:
+        logger.debug("[NMS] HKO error: %s", exc)
+        return None
+    try:
+        for ln in text.splitlines()[1:]:
+            parts = ln.split(",")
+            if len(parts) >= 3 and parts[1].strip() == _HKO_STATION:
+                obs_dt = datetime.strptime(parts[0].strip(), "%Y%m%d%H%M").replace(
+                    tzinfo=timezone(timedelta(hours=8)))     # timestamps are HKT
+                temp_c = float(parts[2])
+                if not (-5.0 < temp_c < 45.0):
+                    return None
+                obs_ts = obs_dt.timestamp()
+                return {"temp_c": temp_c, "obs_time": obs_ts,
+                        "last_obs_time": obs_ts,
+                        "utc_hour": obs_dt.astimezone(timezone.utc).hour,
+                        "source": "HKO"}
+    except (KeyError, TypeError, ValueError, IndexError) as exc:
+        logger.debug("[NMS] HKO parse error: %s", exc)
+    return None
+
+
 # ── IMGW Poland ───────────────────────────────────────────────────────────────
 # https://danepubliczne.imgw.pl/api/data/synop — no auth, hourly synoptic obs
 # Station 12375 = Warsaw Okecie (EPWA). Timestamps in UTC.
@@ -576,6 +629,7 @@ def _register() -> None:
         _FETCHERS[icao] = _fetch_fmi
     for icao in _NEA_STATIONS:
         _FETCHERS[icao] = _fetch_nea
+    _FETCHERS["VHHH"] = _fetch_hko   # HK oracle = HKO Observatory 1-min feed
     for icao in _IMGW_STATIONS:
         _FETCHERS[icao] = _fetch_imgw
     # NWS always registered as fallback; Synoptic batch runs first in poll_all()
@@ -691,6 +745,28 @@ def merge_into_cache(
         official_prev = entry.get("official_running_max_c")
         official_new = temp_c if (official_prev is None or temp_c > official_prev) else official_prev
         entry["official_running_max_c"] = official_new
+
+    # HK ORACLE (2026-06-09): official_running_max_hko_c — HK resolves on the
+    # HKO Observatory record, not VHHH METARs (census 21/21 vs 37%), so for HK
+    # this 1-min one-decimal feed IS the oracle-matching provenance. DEBOUNCED:
+    # the max only advances to min(two consecutive readings ≤5 min apart), so a
+    # single-sample instrument glitch can never create a false lockout. Side
+    # effect (documented): HKO 1-min obs are always freshest for VHHH, so the
+    # staleness check above starves official_running_max_c (AWC) for VHHH —
+    # acceptable, nothing trades HK off the METAR field (blocklist keeps every
+    # non-HKO HK path closed).
+    if obs.get("source") == "HKO":
+        if entry.get("hko_max_date") != today_str:
+            entry["official_running_max_hko_c"] = None
+            entry["_hko_prev"] = None
+            entry["hko_max_date"] = today_str
+        _prev = entry.get("_hko_prev")
+        if _prev and 0 < obs_ts - _prev[0] <= 300:
+            _cand = min(_prev[1], temp_c)
+            _cur = entry.get("official_running_max_hko_c")
+            if _cur is None or _cand > _cur:
+                entry["official_running_max_hko_c"] = _cand
+        entry["_hko_prev"] = (obs_ts, temp_c)
     if obs.get("dewpoint_c") is not None:
         entry["dewpoint_c"] = obs["dewpoint_c"]
     if obs.get("wind_speed_kt") is not None:

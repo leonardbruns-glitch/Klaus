@@ -4664,7 +4664,25 @@ class WeatherArb:
         # whose METAR-derived lockout diverges from the resolution source (false
         # lockouts that resolve YES even at margin≥0.5°C). Single chokepoint ⇒
         # gates both WS and REST fire paths. See M1_BETA_PROBE_ORACLE_BLOCK_ICAO.
-        if icao in M1_BETA_PROBE_ORACLE_BLOCK_ICAO:
+        #
+        # 2026-06-09 HK EXCEPTION: VHHH stays in the blocklist constant (so every
+        # OTHER lockout path — maker mirrors, min-lockout — remains closed), but
+        # THIS path may trade HK using the HKO-Observatory feed, which IS the HK
+        # oracle (census: HKO daily max == winner bucket 21/21; VHHH METAR 37%).
+        # Two substitutions, both mandatory:
+        #   1. proof max = official_running_max_hko_c (debounced 1-min HKO feed),
+        #      never the METAR-derived official_running_max passed in;
+        #   2. HK buckets are FLOOR/range-containing at one decimal — bucket "32"
+        #      covers [32.0, 33.0). hi_c arrives with the generic +0.5 pad, so the
+        #      true dead-line is another +0.5 above it.
+        if icao == "VHHH":
+            _hko_max = (self._icao_metar_cache.get("VHHH") or {}).get(
+                "official_running_max_hko_c")
+            if _hko_max is None or hi_c is None:
+                return
+            official_running_max = float(_hko_max)
+            hi_c = hi_c + 0.5
+        elif icao in M1_BETA_PROBE_ORACLE_BLOCK_ICAO:
             return
         # PROVENANCE-CLEAN lockout proof (2026-06-03): depth_c is M1β's binding
         # physical-lockout margin (the MIN_DEPTH_C gate). It MUST be derived from the
@@ -4688,9 +4706,8 @@ class WeatherArb:
         )
 
         # === Universal blocks (apply to every layer) ===
-        # Hong Kong resolves against HK Observatory, not VHHH — station mismatch confirmed.
-        if icao == "VHHH":
-            return
+        # (VHHH hard-block removed 2026-06-09 — HK now trades on the HKO-oracle
+        #  substitution above; the station mismatch was vs VHHH METAR, not HKO.)
         if not (M1_BETA_PROBE_MIN_SEC_SINCE <= sec_since < M1_BETA_PROBE_MAX_SEC_SINCE):
             return
 
