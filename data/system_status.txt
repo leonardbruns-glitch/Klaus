@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+e1faa04d feat(STWA): tighten BAND_SUM_MAX 1.00->0.70 to the +EV over-dispersion cutoff
 5ff5a9b7 feat(STWA): wire band multiday maker executor (gated) + resolution validator
 769eda65 fix(STWA): band multiday shadow dead on NameError — import BAND_MD_TTL
 43305a7f fix(STWA): badatmath band was same-day-blind — rebuild as isolated multi-day shadow
@@ -11,13 +12,12 @@ c099d5d4 feat(maker): gate out dead-weight deep bids — free breaker capacity f
 401d3861 feat(research): dense-obs forecast-edge validation harness (Synoptic mesonet)
 13205278 feat(thermo): bounded thermo-ceiling MAKER on upper tail (user opt-in, monitored, dissent on record)
 d6512269 feat(M1): restore firing — FATEDGE 1.0→0.5, NO-ask floor 0.70→0.05, stake 40→10; fix redeem retry-loop
-c3d355a1 feat(fade): RE-ENABLE fade-NO live (Gamma-validated 93.7% n=111) — $5 stake, oracle-clean gate, ask<0.9
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   70G       23G  76% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-09 15:54:04 UTC
+ActiveEnterTimestamp=Tue 2026-06-09 16:17:21 UTC
 
 ## Open positions (count):
 0
