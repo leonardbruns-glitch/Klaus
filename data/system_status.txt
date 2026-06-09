@@ -2,22 +2,22 @@
 active
 
 ## Last 10 commits on klaus:
-7d9d85ca feat(maker): gate out dead-weight deep bids — free breaker capacity for fills
-b0cce129 feat(research): dense-obs forecast-edge validation harness (Synoptic mesonet)
-4a99ee6e feat(thermo): bounded thermo-ceiling MAKER on upper tail (user opt-in, monitored, dissent on record)
-ef5a7a48 feat(M1): restore firing — FATEDGE 1.0→0.5, NO-ask floor 0.70→0.05, stake 40→10; fix redeem retry-loop
-063a927e feat(fade): RE-ENABLE fade-NO live (Gamma-validated 93.7% n=111) — $5 stake, oracle-clean gate, ask<0.9
-d1c8b6d8 feat(lockout/WS2): take daily-MIN lockout LIVE (bounded), confirm M1β enabled
-d8b956e5 feat(lockout/WS2): daily-MIN lockout shadow detector (stage-1, no capital)
-96641bd2 feat(lockout/WS1): loosen maker margin gate 1.0→0.5°C (align to validated reliability gate)
-9bbe9a06 Watchdog 2026-06-08T15:19:36Z: MEDIUM 3 alerts (VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT, SHADOW_LOGGER_STALLED)
-8435696f feat(weather): A1 dew-correction fix + A2 per-(city,month) peak_bias
+12dd0c0d feat(M1β): lower lockout depth gate 0.5→0.2°C + widen WS fast-path to cheap-NO
+c099d5d4 feat(maker): gate out dead-weight deep bids — free breaker capacity for fills
+401d3861 feat(research): dense-obs forecast-edge validation harness (Synoptic mesonet)
+13205278 feat(thermo): bounded thermo-ceiling MAKER on upper tail (user opt-in, monitored, dissent on record)
+d6512269 feat(M1): restore firing — FATEDGE 1.0→0.5, NO-ask floor 0.70→0.05, stake 40→10; fix redeem retry-loop
+c3d355a1 feat(fade): RE-ENABLE fade-NO live (Gamma-validated 93.7% n=111) — $5 stake, oracle-clean gate, ask<0.9
+16d3e327 Validator 2026-06-09 — ready=1 rejected=0 stalled=0
+b3c7fdfa Watchdog 2026-06-09T08:19:48Z: OK (3 anomalies in backoff)
+1285f828 Watchdog 2026-06-09T07:19:39Z: MEDIUM 3 alerts in backoff (TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
+b5285add Watchdog 2026-06-09T06:19:18Z: MEDIUM 3 alerts (TRADE_LOOP_SILENT, VOLARB_ROLLING_DRAWDOWN, VOLARB_TRADE_LOOP_SILENT)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   68G       25G  74% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   69G       25G  74% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-06-08 23:07:23 UTC
+ActiveEnterTimestamp=Tue 2026-06-09 10:25:54 UTC
 
 ## Open positions (count):
 0
