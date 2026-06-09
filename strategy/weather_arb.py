@@ -5226,6 +5226,16 @@ class WeatherArb:
             _c = self._icao_metar_cache[_icao]
             if _c.get("running_max_date") != _local_today:
                 _c["running_max_c"] = None
+                # 2026-06-09 BUG FIX: the official fields MUST be cleared here too.
+                # This pass flips running_max_date unconditionally, which made the
+                # per-observation reset below (the only place official_* was cleared)
+                # permanently dead — official_running_max_c carried YESTERDAY'S max
+                # into the new local day (a false-lockout generator for any process
+                # that survives a local midnight; frequent restarts masked it).
+                _c["official_running_max_c"] = None
+                _c["official_running_min_c"] = None
+                _c["official_running_max_hko_c"] = None   # HK oracle feed (mirror)
+                _c["_hko_prev"] = None
                 _c["running_max_date"] = _local_today
 
         hours = 1 if self._metar_backfill_done else 24
