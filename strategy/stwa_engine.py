@@ -284,8 +284,9 @@ BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own G
 BAND_MD_LIVE_MIN_DOUT = 1           # live quotes only for days_out ≥ this (d+0 stays shadow: his d+0
                                     # ROI +6.3% vs d+1 +14.4% / d+2 +22.8%, and our late-d+0 "bands"
                                     # are collapsed ladders — favorite above PX_CEIL ⇒ residual losers)
-BAND_MD_DAILY_BUDGET  = 40.0        # max band $ POSTED per UTC day (bounds worst-case fills beyond
-                                    # the resting-only breaker); ~4 full bands/day at micro-stake
+BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint it, let it fire" —
+                                    # daily posted-budget effectively OFF; bankroll + breaker are the
+                                    # only limits. Was 40.0 (first-hour training wheels).
 
 
 def _beta_h(local_hour):

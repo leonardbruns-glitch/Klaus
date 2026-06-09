@@ -281,7 +281,7 @@ MAKER_EXERCISE_LIVE              = True    # ⚠ LIVE real resting orders (2026-
 MAKER_EXERCISE_STAKE_USD         = 5.0     # per-order (user; raised from $4 — CLOB 5-share floor makes <~$4.5 unfillable at NO~0.9)
 MAKER_EXERCISE_MAX_ORDERS        = 100000  # effectively UNCAPPED (user 2026-06-02; order code proven). The margin≥1°C locked-slice gate + breaker are the real bounds. Revert: 5.
 MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 0.5     # 2026-06-08 WS1: 1.0→0.5 — align to the VALIDATED lockout reliability gate (margin≥0.5°C + oracle-clean = 98.7% WR, n=671). The 1.0°C buffer was conservatism for false-locks; the oracle blocklist (deployed today) now handles those. Expands oracle-clean margin-path candidates ~6.4× (27→172 over 06-06/07), targeting the stale-book margin∈[0.5,1.0) buckets where the maker captures before reprice. Revert: 1.0
-MAKER_BREAKER_MAX_EXPOSURE_USD   = 40.0    # trip if Σ resting maker stake exceeds this (raised 15→40 by user 2026-06-02; ≤8 concurrent @ $5). NB bounds RESTING only — filled positions accumulate beyond it.
+MAKER_BREAKER_MAX_EXPOSURE_USD   = 150.0   # 2026-06-09 user: "let it fire" — raised 40→150 (≈ full bankroll) so the d+1/d+2 band can quote the whole qualifying surface. Cash is the real limit; min-bankroll floor below unchanged. Was 40 (user 06-02).
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 MAKER_EXERCISE_MAX_BID           = 0.96    # 2026-06-09: don't rest a maker NO bid above this on a PHYSICAL lock.
                                             # Fill-data (n=2 fills over 4d, both ≤0.94; median post 0.99 = ~0% fill) shows
