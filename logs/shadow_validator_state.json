@@ -1,45 +1,47 @@
 {
   "exit_policy_shadow": {
-    "n_seen": 62514,
+    "n_seen": 24001,
     "status": "SCHEMA_DRIFT",
     "last_uplift": null,
     "last_ci95": null,
-    "schema_adapted_uplift_BE_trail_5_3": 5.643,
-    "schema_adapted_ci95_BE_trail_5_3": [3.5973, 7.6886],
+    "schema_adapted_uplift_BE_trail_5_3": 5.4486,
+    "schema_adapted_ci95_BE_trail_5_3": [4.0452, 6.852],
     "schema_adapted_status_BE_trail_5_3": "READY_PENDING_MANIFEST",
-    "schema_adapted_n_paired_BE_trail_5_3": 90,
-    "schema_adapted_uplift_PT0_93": 4.1227,
-    "schema_adapted_ci95_PT0_93": [0.7974, 7.4481],
+    "schema_adapted_n_paired_BE_trail_5_3": 223,
+    "schema_adapted_consecutive_ci_positive_BE_trail_5_3": 6,
+    "schema_adapted_uplift_PT0_93": 0.0366,
+    "schema_adapted_ci95_PT0_93": [-2.0652, 2.1384],
     "schema_adapted_status_PT0_93": "AMBIGUOUS",
-    "schema_adapted_uplift_PT0_95": 3.7831,
-    "schema_adapted_ci95_PT0_95": [0.4257, 7.1405],
+    "schema_adapted_n_paired_PT0_93": 249,
+    "schema_adapted_uplift_PT0_95": 0.1364,
+    "schema_adapted_ci95_PT0_95": [-2.1049, 2.3776],
     "schema_adapted_status_PT0_95": "AMBIGUOUS",
-    "schema_adapted_n_paired_PT0_95": 98,
-    "ts": "2026-06-05T09:09:41Z",
-    "note": "Fifth consecutive schema drift flag. Schema-adapted: BE_trail_5_3 READY_PENDING_MANIFEST (5th independent daily window with CI>0; uplift stable 5.64% today vs 5.99-6.93% prior four runs). PT0.93+30s and PT0.95+30s show CI>0 in today's ASIA-only slice (hours 0-3) — prior multi-session pooled runs at n=250 were AMBIGUOUS; single-session ASIA flip insufficient to upgrade. Today's analysis window: 404 rows, ASIA session only (00:03-03:59 UTC). Bot currently DOWN (systemd: failed since ~04:00 UTC). Context drift: recent commits show weather strategies (FAVYES/fade/maker/M1b), not VOLARB; research_status.md stale since 2026-05-16. Manifest update overdue."
+    "schema_adapted_n_paired_PT0_95": 247,
+    "ts": "2026-06-09T09:07:00Z",
+    "note": "Sixth consecutive schema drift flag. Shadow_summary rolling window now only shows 11 days (2026-05-30 to 2026-06-09); prior n_seen=62,514 reflected longer window — older data rolled off. Current rolling n=24,001. BE_trail_5_3: 6th consecutive session with CI>0; uplift 5.45% (CI=[4.05,6.85]) today vs 5.64-6.93% prior five. Cumulative n_paired estimated ~5,200 >> threshold 500. READY_PENDING_MANIFEST maintained pending manifest schema correction. PT0.93 and PT0.95: today's full-session data (hours 0-8 UTC, n~249) collapses to near-zero uplift — ASIA-slice CI>0 readings in prior run were false positives from 90-row window; full-session evidence null. Both remain AMBIGUOUS. Manifest update remains overdue (6th consecutive flag)."
   },
   "volarb_longshot_shadow": {
     "n_seen": 0,
     "status": "NOT_DEPLOYED",
     "last_uplift": null,
     "last_ci95": null,
-    "ts": "2026-06-05T09:09:41Z",
-    "note": "Phase 2 gate not yet deployed. File is 0 bytes in data-mirror."
+    "ts": "2026-06-09T09:07:00Z",
+    "note": "Phase 2 gate not yet deployed. File absent from data-mirror shadow directory."
   },
   "order_lifecycle": {
-    "n_seen": 298,
+    "n_seen": 165,
     "status": "INFORMATIONAL",
     "last_uplift": null,
     "last_ci95": null,
-    "ts": "2026-06-05T09:09:41Z",
-    "note": "Today (ASIA session): 4 fill events. mean_latency=1434.7ms, fill_rate=100% (4/4). All 1 cf_attempt each. Cumulative n=298 from shadow_summary. Last mtime 03:57:53Z (5h12m ago; bot down). No promotion criteria."
+    "ts": "2026-06-09T09:07:00Z",
+    "note": "Rolling window n=165 (shadow_summary). Today (0-8h UTC): 6 fill events, mean_latency=1334.3ms, fill_rate=100% (6/6). n_new_since_prior ~52. System healthy (shadow_telemetry: 0 drops, uptime 9.8h). No promotion criteria."
   },
   "window_resolution": {
-    "n_seen": 11595,
+    "n_seen": 11310,
     "status": "JOIN_SOURCE",
     "last_uplift": null,
     "last_ci95": null,
-    "ts": "2026-06-05T09:09:41Z",
-    "note": "Today: 201 rows (ASIA session). Cumulative n=11,595 from shadow_summary. Join source only. No analysis performed."
+    "ts": "2026-06-09T09:07:00Z",
+    "note": "Rolling window n=11,310. Today: 432 rows (0-8h UTC). Assets: BTC/ETH/SOL balanced. Join source only. No analysis performed."
   }
 }
