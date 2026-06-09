@@ -289,8 +289,19 @@ async def _fetch_nws(session, icao: str) -> Optional[dict]:
         obs_ts = obs_dt.timestamp()
         if not (-50.0 < temp_c < 55.0):
             return None
+        # 2026-06-09 BUG FIX (SF/Atlanta false lockouts): api.weather.gov
+        # /observations/latest interleaves true METARs/SPECIs (rawMessage
+        # present, tenth-degree T-group temps) with 5-MINUTE station obs
+        # (rawMessage null, WHOLE-DEGREE rounded). The 5-min obs are exactly
+        # the sub-hourly + rounding contamination the official provenance rule
+        # exists to exclude — KSFO read "20" at 20:10Z while no METAR ever
+        # exceeded 19.4 → official_running_max inflated → false lockout NO
+        # buys on the winning bucket. Only METAR-backed obs may carry the
+        # "NWS" label (admitted to official); 5-min obs are demoted to
+        # "NWS5" (detection running_max only, like Synoptic).
+        is_metar = bool(props.get("rawMessage"))
         return {"temp_c": temp_c, "obs_time": obs_ts, "last_obs_time": obs_ts,
-                "utc_hour": obs_dt.hour, "source": "NWS"}
+                "utc_hour": obs_dt.hour, "source": "NWS" if is_metar else "NWS5"}
     except (KeyError, TypeError, ValueError) as exc:
         logger.debug("[NMS] NWS %s parse error: %s", icao, exc)
     return None
