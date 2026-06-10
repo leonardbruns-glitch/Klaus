@@ -2208,11 +2208,13 @@ class WeatherArb:
                        ctx.get("city"), _side, str(tid)[:12], add_shares, price,
                        str(ctx.get("condition_id"))[:10])
 
-    async def _struct_band_post_maker(self, sig, mkt: dict, live_ask: float) -> None:
-        """STRUCT_BAND (badatmath copy) — post ONE resting YES maker bid for a band leg
-        and hand it to the fill→position tracker (_maker_reconcile_fills). Mirrors the
-        NO maker-exercise path but tags side=YES / WEATHER_STRUCT_BAND. Breaker-gated;
-        non-crossing (bid strictly < live ask); held to resolution."""
+    async def _struct_band_post_maker(self, sig, mkt: dict, live_ask: float,
+                                      side: str = "YES") -> None:
+        """STRUCT_BAND (badatmath copy) — post ONE resting maker bid for a band leg
+        and hand it to the fill→position tracker (_maker_reconcile_fills). side="YES"
+        for the mode-band legs, "NO" for the favorite-NO overlay (sig.token_id is
+        then the NO token and live_ask the real NO ask). Breaker-gated; non-crossing
+        (bid strictly < live ask); held to resolution."""
         from execution.order_manager import OrderStatus
         from strategy.stwa_engine import BAND_MD_DAILY_BUDGET
         # lazy-init the shared maker breaker + resting tracker (same objects the NO path uses)
@@ -2314,7 +2316,7 @@ class WeatherArb:
                 "lo_c": sig.bucket[0], "hi_c": sig.bucket[1],
                 "condition_id": mkt.get("conditionId", ""),
                 "q_price": q, "size": size, "matched": 0.0,
-                "side": "YES", "entry_class": "WEATHER_STRUCT_BAND",
+                "side": side, "entry_class": "WEATHER_STRUCT_BAND",
             }
             self._maker_resting_save()
             # Live BBO on the quoted leg (market-channel WS) — band tokens were
@@ -2328,6 +2330,7 @@ class WeatherArb:
             _ld.mkdir(parents=True, exist_ok=True)
             (_ld / "band_struct.jsonl").open("a").write(json.dumps({
                 "ts": time.time(), "record": "post", "city": sig.city, "token": tid,
+                "side": side,
                 "lo": sig.bucket[0], "hi": sig.bucket[1], "ask": round(live_ask, 3),
                 "q": q, "stake": round(stake, 2), "size": size,
                 "order_id": oid, "status": str(status),
@@ -2335,8 +2338,8 @@ class WeatherArb:
             }) + "\n")
         except Exception:
             pass
-        logger.warning("[STRUCT-BAND] posted %s YES @ %.2f (ask %.2f) size %.1f order=%s status=%s exposure=$%.2f",
-                       sig.city, q, live_ask, size, str(oid)[:12], str(status),
+        logger.warning("[STRUCT-BAND] posted %s %s @ %.2f (ask %.2f) size %.1f order=%s status=%s exposure=$%.2f",
+                       sig.city, side, q, live_ask, size, str(oid)[:12], str(status),
                        self._maker_breaker.exposure_usd())
 
     async def _struct_band_multiday_shadow(self) -> None:
@@ -2404,7 +2407,8 @@ class WeatherArb:
                 key = (city, ed)
                 ladders.setdefault(key, []).append((
                     -999.0 if lo_c is None else lo_c,
-                    +999.0 if hi_c is None else hi_c, toks[0], yes_ask, mkt))
+                    +999.0 if hi_c is None else hi_c, toks[0], yes_ask, mkt,
+                    toks[1] if len(toks) > 1 else ""))   # NO token (favorite-NO overlay)
                 meta.setdefault(key, _local_today.isoformat())
 
         out = Path("logs/shadow/hot") / _now_utc.date().isoformat()
@@ -2511,6 +2515,65 @@ class WeatherArb:
                 await self._struct_band_post_maker(_sig, _mkt, _ay)
             except Exception as e:
                 logger.error("[STRUCT-BAND-MD] live post failed %s: %s", _sig.city, e)
+
+        # ── FAVORITE-NO overlay (2026-06-10, user: "mirror badatmath fully") ──
+        # His second leg: maker NO bids 0.52-0.85 on favorite/shoulder buckets,
+        # d+0, added late in the market life (+$1.9k / 5.9% ROI / WR 68% of his
+        # +$7.4k). Price-band rule only — no lockout gate (M1β keeps that
+        # slice; per-token dedup in _struct_band_post_maker prevents overlap).
+        # Gamma proxy pre-filters candidates; the REAL CLOB NO book confirms
+        # before posting (proxy-only quoting was the stwa_ladder_book trap).
+        from strategy.stwa_engine import (BAND_NO_ENABLED, BAND_NO_MIN,
+                                          BAND_NO_MAX, BAND_NO_STAKE,
+                                          BAND_NO_DAILY_CAP)
+        if not (BAND_LIVE and BAND_NO_ENABLED):
+            return
+        _today_no = _now_utc.date().isoformat()
+        if getattr(self, "_band_no_date", "") != _today_no:
+            self._band_no_date = _today_no
+            self._band_no_spent = 0.0
+        _no_cands = []
+        for (city, ed), ladder in ladders.items():
+            days_out = (date.fromisoformat(ed)
+                        - date.fromisoformat(meta[(city, ed)])).days
+            if days_out != 0:
+                continue
+            for lo, hi, yt, ay, mkt, nt in ladder:
+                if lo <= -900.0 or hi >= 900.0 or not nt:
+                    continue
+                # proxy pre-filter (±slack): real book decides below
+                if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= BAND_NO_MAX + 0.05):
+                    continue
+                _no_cands.append((city, lo, hi, nt, mkt))
+        for city, lo, hi, nt, mkt in _no_cands[:40]:
+            if self._band_no_spent + BAND_NO_STAKE > BAND_NO_DAILY_CAP:
+                break
+            try:
+                _bk = await self._fetch_book_levels(nt, n=3)
+            except Exception:
+                continue
+            _asks = _bk.get("asks") or []
+            _bids = _bk.get("bids") or []
+            if not _asks:
+                continue
+            _na = float(_asks[0]["price"])
+            if not (BAND_NO_MIN <= _na <= BAND_NO_MAX):
+                continue
+            _nb = float(_bids[0]["price"]) if _bids else max(0.01, _na - 0.04)
+            _q = round(max(0.01, min(_na - 0.01,
+                                     _nb + BAND_QUOTE_FRAC * max(0.0, _na - _nb))), 3)
+            import types as _types
+            _sig = _types.SimpleNamespace(token_id=nt, quote_price=_q,
+                                          stake=BAND_NO_STAKE, city=city,
+                                          bucket=(lo, hi))
+            _pre = len(getattr(self, "_maker_resting", {}) or {})
+            try:
+                await self._struct_band_post_maker(_sig, mkt, _na, side="NO")
+            except Exception as e:
+                logger.error("[STRUCT-BAND-NO] post failed %s: %s", city, e)
+                continue
+            if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
+                self._band_no_spent += BAND_NO_STAKE
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.

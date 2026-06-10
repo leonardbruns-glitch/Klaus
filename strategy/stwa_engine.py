@@ -293,12 +293,29 @@ BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own G
 BAND_SAMEDAY_LIVE     = False       # 2026-06-09: BAND_LIVE accidentally armed the same-day engine band
                                     # (11-16 local window) — d+0 is his weakest slice (+6.3%) and excluded
                                     # by design; keep the same-day path SHADOW until validator says otherwise.
-BAND_MD_LIVE_MIN_DOUT = 1           # live quotes only for days_out ≥ this (d+0 stays shadow: his d+0
+BAND_MD_LIVE_MIN_DOUT = 0           # 2026-06-10 user ("mirror badatmath fully"): d+0 LIVE — his d+0 is
+                                    # +6.3% ROI and carries most of the fill volume (our 3 fills/220
+                                    # posts = d+1/d+2-only starvation). The converged-evening-d+0 risk
+                                    # that motivated the old =1 is now caught by the mode-containment
+                                    # gate (reason=converged). Was 1 (2026-06-10 00:05).
                                     # ROI +6.3% vs d+1 +14.4% / d+2 +22.8%, and our late-d+0 "bands"
                                     # are collapsed ladders — favorite above PX_CEIL ⇒ residual losers)
 BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint it, let it fire" —
                                     # daily posted-budget effectively OFF; bankroll + breaker are the
                                     # only limits. Was 40.0 (first-hour training wheels).
+
+# ── FAVORITE-NO overlay (2026-06-10, user: "mirror badatmath fully") ─────────
+# His second leg: maker NO bids on favorite/shoulder buckets priced 0.45-0.85,
+# added LATE in the market life (median NO fill nearer resolution than YES).
+# Ground truth: +$1,941 / 5.9% ROI / WR 68% of his +$7.4k (n=8,043 re-audit);
+# price curve NO 0.50-0.85 +5-6% steady, TROUGH 0.40-0.50 −1.3% ⇒ floor 0.52.
+# Price-band rule ONLY (no lockout requirement — M1β keeps the deep-certainty
+# slice; dedup prevents double-posting the same token). d+0 only.
+BAND_NO_ENABLED   = True
+BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
+BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
+BAND_NO_STAKE     = 2.6     # ≈5 shares at 0.52 (CLOB resting minimum)
+BAND_NO_DAILY_CAP = 12.0    # overlay's own daily cap — YES band keeps cash priority
 
 
 def _beta_h(local_hour):
@@ -1255,6 +1272,18 @@ class STWAEngine:
             valid.append((lo, hi, yt, nt, p_m, ay, an, bid))
         if len(valid) < BAND_MIN_LEGS:
             _log("no_band", local_h=h, n_valid=len(valid))
+            return []
+
+        # ── MODE-CONTAINMENT (2026-06-10): same gate as the multiday path — if the
+        # GLOBAL interior mode asks above PX_CEIL the ladder has CONVERGED; the
+        # in-window "band" is flanks around a hole (dist-1 −96% without dist-0
+        # +432%). The valid-list ≤PX_CEIL filter is blind to it. This path lacked
+        # the gate (state log 06-10 00:05 said "both paths" — it wasn't here).
+        _gmode = max((e[5] for e in entries
+                      if e[0] > -900.0 and e[1] < 900.0 and e[5] is not None),
+                     default=0.0)
+        if _gmode > BAND_PX_CEIL:
+            _log("converged", local_h=h, mode_ask=round(_gmode, 3))
             return []
 
         # ── market mode = the dearest interior bucket we may quote; band = mode ± WING ──
