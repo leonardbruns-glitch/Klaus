@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-10T11:43:51Z
+# Snapshot: 2026-06-10T11:59:02Z
 # Latest commit on klaus:
-f3b48a46 feat(MAKER-SELL): maker_sell primitive + RECYCLE099 resting 0.99 asks — the maker leg of the last-cent exit
+5a1a7468 feat(MINMAX): min/max coherence + min-lockout shadow scanner (read-only, cron */20)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
