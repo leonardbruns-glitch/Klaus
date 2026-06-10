@@ -1817,6 +1817,19 @@ class WeatherArb:
         self._stwa_resolution_task = asyncio.create_task(
             self._stwa_resolution_loop(), name="stwa_resolution_loop"
         )
+        # User-channel WS: real-time own-fill events → instant maker reconcile
+        # (vs the 300s poll) + durable user_ws.jsonl log + untracked-fill alarm.
+        # Idles harmlessly when creds are absent (dry-run / stub client).
+        try:
+            from data.user_ws import UserWsFeed
+            _om = getattr(self.bot, "orders", None)
+            self._user_ws = UserWsFeed(
+                lambda: getattr(getattr(_om, "_client", None), "creds", None),
+                on_trade=self._on_user_ws_trade,
+            )
+            self._user_ws.start()
+        except Exception as _e:
+            logger.warning("[WA] user WS feed failed to start: %s", _e)
         try:
             from strategy.wis2_synop import start as _wis2_start
             _wis2_start()
@@ -1866,6 +1879,31 @@ class WeatherArb:
                     except Exception:
                         pass
                 resting.pop(oid, None)
+
+    async def _on_user_ws_trade(self, ev: dict) -> None:
+        """User-channel WS fill event → run the idempotent maker reconcile NOW
+        (worst case was the 300s poll) and alarm on fills no tracker knows about
+        (the invisible-position class: restart amnesia, double-fills)."""
+        try:
+            tid = str(ev.get("asset_id") or "")
+            oids = {str(o.get("order_id") or o.get("id") or "")
+                    for o in (ev.get("maker_orders") or []) if isinstance(o, dict)}
+            oids.add(str(ev.get("taker_order_id") or ""))
+            resting = getattr(self, "_maker_resting", None) or {}
+            tracked_tokens = {m.get("token_id") for m in resting.values()}
+            if (oids & set(resting.keys())) or (tid and tid in tracked_tokens):
+                await self._maker_reconcile_fills()
+                return
+            risk = getattr(self.bot, "risk", None)
+            if (tid and risk is not None
+                    and tid not in getattr(risk, "open_positions", {})):
+                logger.warning(
+                    "[USER-WS] UNTRACKED FILL: token=%s side=%s price=%s size=%s "
+                    "status=%s trader_side=%s — no tracker entry, no open position",
+                    tid[:16], ev.get("side"), ev.get("price"), ev.get("size"),
+                    ev.get("status"), ev.get("trader_side"))
+        except Exception:
+            logger.exception("[USER-WS] trade handler failed")
 
     def _maker_register_fill(self, oid: str, ctx: dict, add_shares: float, price: float) -> None:
         """Book `add_shares` (the fill increment since the last poll) of a maker NO
@@ -2047,6 +2085,12 @@ class WeatherArb:
                 "q_price": q, "size": size, "matched": 0.0,
                 "side": "YES", "entry_class": "WEATHER_STRUCT_BAND",
             }
+            # Live BBO on the quoted leg (market-channel WS) — band tokens were
+            # the only maker surface NOT subscribed; lockout/bond paths already do this.
+            try:
+                self.bot.feed._clob_ws_sub_queue.put_nowait([tid])
+            except Exception:
+                pass
         try:
             _ld = Path("logs/shadow/hot") / datetime.now(timezone.utc).date().isoformat()
             _ld.mkdir(parents=True, exist_ok=True)
