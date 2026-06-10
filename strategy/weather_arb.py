@@ -4327,6 +4327,13 @@ class WeatherArb:
                 "bucket_hi_c_padded": round(hi_c, 4) if hi_c is not None else None,
                 "is_celsius_market": is_celsius,
                 "running_max_c": round(float(running_max), 3),
+                # official (AWC/NWS-only) running max — the oracle-provenance field.
+                # Without it the offline real-vs-trap split is impossible: 06-10
+                # join showed $29.7k of the naive broad-feed "harvest" was 5 false
+                # lockouts (HK/Tokyo sub-hourly feeds) vs $3.2k real.
+                "official_running_max_c": (
+                    round(float(metar["official_running_max_c"]), 3)
+                    if metar.get("official_running_max_c") is not None else None),
                 "asos_running_max_c": round(float(metar.get("running_max_c") or running_max), 3),
                 "temp_c": round(float(metar.get("temp_c") or 0.0), 3) or None,
                 "last_obs_ts": metar.get("last_obs_time"),
