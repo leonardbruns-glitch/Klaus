@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+3015ad3c feat(LOCKOUT-LOG): log official_running_max_c in metar_lockout records + mint-dump capacity validator
+0b177a45 VOLARB Audit 20260610-1822 — NO_PATCH (n=885, watch=9)
 cccf494c docs(STATE): weather resolution mechanics census — automated batch resolver, per-city timing constants
 5a1a7468 feat(MINMAX): min/max coherence + min-lockout shadow scanner (read-only, cron */20)
 a31d977a Research audit 2026-06-10T1130Z — forecast-calibration (engine model-NO) | best action: disable STWA_REGULAR_NO_ENABLED (14.3% WR vs 52.9% break-even, n=14, -$27.05)
@@ -10,11 +12,9 @@ f3b48a46 feat(MAKER-SELL): maker_sell primitive + RECYCLE099 resting 0.99 asks �
 e5e49db2 fix(MAKER): selective startup cancel + persistent resting-maker tracker — maker surface survives deploys
 b1fc1cf1 fix(FILL-TRACKER): send required text PING <10s on user WS — ends chronic silence-reconnect loop
 6c0192d6 feat(WS-USER): user-channel WS fill feed — instant maker reconcile, untracked-fill alarm, durable log
-de2d9389 VOLARB Audit 20260610-0613 — NO_PATCH (n=885, watch=9)
-7c1dd579 VOLARB Audit 20260610-0007 — NO_PATCH (n=885, watch=9)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   73G       20G  80% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   74G       20G  80% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Wed 2026-06-10 09:16:51 UTC
