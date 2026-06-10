@@ -282,6 +282,11 @@ MAKER_EXERCISE_STAKE_USD         = 5.0     # per-order (user; raised from $4 —
 MAKER_EXERCISE_MAX_ORDERS        = 100000  # effectively UNCAPPED (user 2026-06-02; order code proven). The margin≥1°C locked-slice gate + breaker are the real bounds. Revert: 5.
 MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 0.5     # 2026-06-08 WS1: 1.0→0.5 — align to the VALIDATED lockout reliability gate (margin≥0.5°C + oracle-clean = 98.7% WR, n=671). The 1.0°C buffer was conservatism for false-locks; the oracle blocklist (deployed today) now handles those. Expands oracle-clean margin-path candidates ~6.4× (27→172 over 06-06/07), targeting the stale-book margin∈[0.5,1.0) buckets where the maker captures before reprice. Revert: 1.0
 MAKER_BREAKER_MAX_EXPOSURE_USD   = 150.0   # 2026-06-09 user: "let it fire" — raised 40→150 (≈ full bankroll) so the d+1/d+2 band can quote the whole qualifying surface. Cash is the real limit; min-bankroll floor below unchanged. Was 40 (user 06-02).
+# Persisted resting-maker tracker (oid → ctx). Contract with OrderManager.start():
+# its keys are the open orders to KEEP at startup; everything else is a stray and
+# gets cancelled. Replaces the blanket startup cancel_all() that wiped the band's
+# quoted surface on every deploy (2026-06-10).
+MAKER_RESTING_STATE_PATH = "logs/maker_resting_state.json"
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 MAKER_EXERCISE_MAX_BID           = 0.96    # 2026-06-09: don't rest a maker NO bid above this on a PHYSICAL lock.
                                             # Fill-data (n=2 fills over 4d, both ≤0.94; median post 0.99 = ~0% fill) shows
@@ -1811,6 +1816,12 @@ class WeatherArb:
             self._stwa_shadow_task = asyncio.create_task(
                 self._stwa_shadow_loop(), name="stwa_shadow_loop"
             )
+        # Restore the persisted resting-maker tracker BEFORE the resolution loop
+        # starts reconciling — surviving orders keep tracking, downtime fills book.
+        try:
+            self._maker_state_init()
+        except Exception:
+            logger.exception("[WA] maker state init failed")
         # Settle held-to-resolution STWA positions (PnL → bankroll + trades.jsonl).
         # Spawned unconditionally so persisted WEATHER_STWA still settles even if
         # the engine is disabled. Without this STWA is a write-only position book.
@@ -1836,6 +1847,48 @@ class WeatherArb:
         except Exception as _e:
             logger.warning("[WA] WIS2 subscriber failed to start: %s", _e)
 
+    def _maker_state_init(self) -> None:
+        """Init the shared maker objects ONCE and restore the persisted resting
+        tracker. Maker orders now SURVIVE restarts (OrderManager startup cancel is
+        selective, keyed on this file), so restored entries keep reconciling fills,
+        count in the breaker's exposure, and keep the dedup seen-set truthful.
+        Orders that died while we were down are polled once by
+        _maker_reconcile_fills (get_order_match) — downtime fills get registered,
+        terminal entries dropped. Idempotent; called from start() and both lazy
+        post paths."""
+        if hasattr(self, "_maker_breaker"):
+            return
+        from strategy.maker_breaker import MakerCircuitBreaker
+        self._maker_breaker = MakerCircuitBreaker(
+            MAKER_BREAKER_MAX_EXPOSURE_USD, MAKER_BREAKER_MIN_BANKROLL_USD)
+        self._maker_ex_seen: set = set()
+        self._maker_ex_orders: int = 0
+        self._maker_resting: dict = {}
+        try:
+            st = json.load(open(MAKER_RESTING_STATE_PATH))
+            if isinstance(st, dict) and st:
+                self._maker_resting = st
+                for oid, ctx in st.items():
+                    stake = float(ctx.get("q_price") or 0.0) * float(ctx.get("size") or 0.0)
+                    try:
+                        self._maker_breaker.register_resting(oid, round(stake, 2))
+                    except Exception:
+                        pass
+                logger.info("[MAKER] restored %d resting maker orders from disk "
+                            "(exposure $%.2f)", len(st), self._maker_breaker.exposure_usd())
+        except FileNotFoundError:
+            pass
+        except Exception:
+            logger.exception("[MAKER] resting-state load failed — starting empty")
+
+    def _maker_resting_save(self) -> None:
+        """Persist the resting tracker. OrderManager.start() reads its KEYS to
+        decide which open orders survive startup (the rest are strays)."""
+        try:
+            Path(MAKER_RESTING_STATE_PATH).write_text(json.dumps(self._maker_resting))
+        except Exception:
+            logger.exception("[MAKER] resting-state save failed")
+
     async def _maker_reconcile_fills(self) -> None:
         """Fill→position tracker for the locked-region maker.
 
@@ -1858,6 +1911,7 @@ class WeatherArb:
         if orders is None or risk is None:
             return
         breaker = getattr(self, "_maker_breaker", None)
+        dirty = False
         for oid in list(resting.keys()):
             ctx = resting[oid]
             status, matched, fill_price = await orders.get_order_match(oid)
@@ -1868,6 +1922,7 @@ class WeatherArb:
             if matched > prev + 1e-6 and matched > 0:
                 self._maker_register_fill(oid, ctx, matched - prev, price)  # add the NEW shares only
                 ctx["matched"] = matched
+                dirty = True
             # Stop tracking once the order is no longer live on the book.
             fully_filled = matched > 0 and matched >= float(ctx.get("size") or 0.0) - 1e-6
             terminal = status.upper() in (
@@ -1879,6 +1934,9 @@ class WeatherArb:
                     except Exception:
                         pass
                 resting.pop(oid, None)
+                dirty = True
+        if dirty:
+            self._maker_resting_save()
 
     async def _on_user_ws_trade(self, ev: dict) -> None:
         """User-channel WS fill event → run the idempotent maker reconcile NOW
@@ -1983,13 +2041,7 @@ class WeatherArb:
         from execution.order_manager import OrderStatus
         from strategy.stwa_engine import BAND_MD_DAILY_BUDGET
         # lazy-init the shared maker breaker + resting tracker (same objects the NO path uses)
-        if not hasattr(self, "_maker_breaker"):
-            from strategy.maker_breaker import MakerCircuitBreaker
-            self._maker_breaker = MakerCircuitBreaker(
-                MAKER_BREAKER_MAX_EXPOSURE_USD, MAKER_BREAKER_MIN_BANKROLL_USD)
-            self._maker_ex_seen = set()
-            self._maker_ex_orders = 0
-            self._maker_resting = {}
+        self._maker_state_init()
         tid = sig.token_id
         # ── RESTART-PROOF dedup state (2026-06-09: Munich triple-fill): the
         # seen-set was in-memory only, so each deploy restart wiped it while the
@@ -2085,6 +2137,7 @@ class WeatherArb:
                 "q_price": q, "size": size, "matched": 0.0,
                 "side": "YES", "entry_class": "WEATHER_STRUCT_BAND",
             }
+            self._maker_resting_save()
             # Live BBO on the quoted leg (market-channel WS) — band tokens were
             # the only maker surface NOT subscribed; lockout/bond paths already do this.
             try:
@@ -4199,15 +4252,7 @@ class WeatherArb:
         AS=0). SHADOW (default): log the resting NO bid we WOULD post. LIVE: post it
         ($4 cap, ≤MAKER_EXERCISE_MAX_ORDERS, breaker-gated, official-margin ≥1°C only).
         In-memory caps reset on restart — intended; stage 3 is monitored."""
-        if not hasattr(self, "_maker_breaker"):
-            from strategy.maker_breaker import MakerCircuitBreaker
-            self._maker_breaker = MakerCircuitBreaker(
-                MAKER_BREAKER_MAX_EXPOSURE_USD, MAKER_BREAKER_MIN_BANKROLL_USD)
-            self._maker_ex_seen: set = set()
-            self._maker_ex_orders: int = 0
-            # order_id → fill-tracking context; the resolution loop polls each and
-            # registers the position once it fills (the fill→position tracker).
-            self._maker_resting: dict = {}
+        self._maker_state_init()
         if no_token_id in self._maker_ex_seen:
             return
         if no_ask_clob is None or no_ask_clob <= 0.02:
@@ -4288,6 +4333,7 @@ class WeatherArb:
                 "q_price": q_price, "size": size, "matched": 0.0,
                 "entry_class": entry_class,
             }
+            self._maker_resting_save()
         rec["mode"] = "LIVE"
         rec["order_id"] = oid
         rec["status"] = str(status)

@@ -291,14 +291,34 @@ class OrderManager:
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=10)
             )
-        # Cancel any resting GTC orders left over from previous sessions.
-        # Stale orders tie up USDC balance and trigger "not enough balance" errors.
+        # Selective startup cancel (2026-06-10): the old blanket cancel_all()
+        # wiped every resting MAKER order (band d+1/d+2 legs, M1β mirrors) on
+        # each deploy, while the band's persisted dedup then blocked re-posting
+        # for 4 days — the quoted surface was mostly off-book. Tracked maker
+        # orders (keys of logs/maker_resting_state.json, written by weather_arb)
+        # now SURVIVE; only unknown strays are cancelled. On any failure we
+        # KEEP orders (fail-safe for the maker surface; the user-channel WS
+        # alarms on untracked fills).
         if self._client is not None:
             try:
-                self._client.cancel_all()
-                logger.info("Startup: cancelled all stale open orders")
+                import json as _json
+                tracked: set = set()
+                try:
+                    with open("logs/maker_resting_state.json") as _f:
+                        tracked = set(_json.load(_f))
+                except FileNotFoundError:
+                    pass
+                open_orders = self._client.get_open_orders()
+                if isinstance(open_orders, dict):
+                    open_orders = open_orders.get("data", []) or []
+                strays = [str(o.get("id")) for o in open_orders
+                          if str(o.get("id")) not in tracked]
+                if strays:
+                    self._client.cancel_orders(strays)
+                logger.info("Startup: cancelled %d stray orders, kept %d tracked maker orders",
+                            len(strays), len(open_orders) - len(strays))
             except Exception as exc:
-                logger.debug("Startup cancel_all failed (may be none): %s", exc)
+                logger.warning("Startup selective cancel failed (keeping all open orders): %s", exc)
         await self._fill_tracker.start()
         if self._client is not None:
             self._allowance_keeper_task = asyncio.create_task(self._run_allowance_keeper())
