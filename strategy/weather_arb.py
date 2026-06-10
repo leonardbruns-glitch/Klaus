@@ -287,6 +287,10 @@ MAKER_BREAKER_MAX_EXPOSURE_USD   = 150.0   # 2026-06-09 user: "let it fire" — 
 # gets cancelled. Replaces the blanket startup cancel_all() that wiped the band's
 # quoted surface on every deploy (2026-06-10).
 MAKER_RESTING_STATE_PATH = "logs/maker_resting_state.json"
+# Cash cap on RESTING maker exposure (2026-06-10): the CLOB cancels the ENTIRE
+# open-order set when bid commitments exceed free USDC (18/18 band legs swept
+# at $50.10 resting vs $49.72 cash). Quote only what actual cash collateralizes.
+MAKER_CASH_FRAC = 0.90
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 MAKER_EXERCISE_MAX_BID           = 0.96    # 2026-06-09: don't rest a maker NO bid above this on a PHYSICAL lock.
                                             # Fill-data (n=2 fills over 4d, both ≤0.94; median post 0.99 = ~0% fill) shows
@@ -1881,6 +1885,21 @@ class WeatherArb:
         except Exception:
             logger.exception("[MAKER] resting-state load failed — starting empty")
 
+    def _maker_cash_gate(self, stake_usd: float) -> tuple:
+        """NON-LATCHING cash cap on resting maker exposure. Unlike the breaker
+        (which trips and latches on breach — bug protection), running out of
+        cash is normal: skip the leg, retry next cycle when cash frees up.
+        Returns (ok, reason)."""
+        free = getattr(getattr(self.bot, "orders", None), "last_usdc_balance", None)
+        if free is None or float(free) <= 0:
+            return True, ""   # no balance info — fall through to the breaker
+        cur = self._maker_breaker.exposure_usd() if hasattr(self, "_maker_breaker") else 0.0
+        cap = MAKER_CASH_FRAC * float(free)
+        if cur + float(stake_usd) > cap:
+            return False, (f"resting ${cur:.2f} + ${float(stake_usd):.2f} > "
+                           f"{MAKER_CASH_FRAC:.0%} of ${float(free):.2f} cash")
+        return True, ""
+
     def _maker_resting_save(self) -> None:
         """Persist the resting tracker. OrderManager.start() reads its KEYS to
         decide which open orders survive startup (the rest are strays)."""
@@ -2090,6 +2109,10 @@ class WeatherArb:
         if q < 0.01 or q >= live_ask:
             return
         stake = float(sig.stake)
+        ok_cash, why = self._maker_cash_gate(stake)
+        if not ok_cash:
+            logger.info("[STRUCT-BAND] cash gate: skip %s @ %.2f (%s)", sig.city, q, why)
+            return
         risk = getattr(self.bot, "risk", None)
         bankroll = float(getattr(getattr(risk, "bankroll", None), "capital", 0.0) or 0.0)
         ok, reason = self._maker_breaker.precheck(bankroll, stake)
@@ -2239,6 +2262,7 @@ class WeatherArb:
             except Exception:
                 pass
 
+        _live_legs: list = []   # (days_out, sum_ask, off, sig, mkt, ask) — posted sorted below
         for (city, ed), ladder in ladders.items():
             days_out = (date.fromisoformat(ed) - date.fromisoformat(meta[(city, ed)])).days
             # interior buckets in the harvest price band — NO depth gate (a maker
@@ -2308,20 +2332,29 @@ class WeatherArb:
                 quotes.append({"lo": lo, "hi": hi, "ask": round(ay, 3),
                                "bid_quote": q, "stake": stake, "off": off,
                                "cid": mkt.get("conditionId", ""), "tok": tok})
-                # LIVE path (gated): hand each leg to the existing maker poster.
-                # Reuses _struct_band_post_maker (breaker-gated, non-crossing,
-                # held-to-resolution). Inert while BAND_LIVE=False.
+                # LIVE path (gated): collect — posted SORTED after the scan so
+                # limited cash goes to the best legs first. Inert while
+                # BAND_LIVE=False.
                 if _live_ok:
                     import types as _types
                     _sig = _types.SimpleNamespace(token_id=tok, quote_price=q,
                                                   stake=stake, city=city, bucket=(lo, hi))
-                    try:
-                        await self._struct_band_post_maker(_sig, mkt, float(ay))
-                    except Exception as e:
-                        logger.error("[STRUCT-BAND-MD] live post failed %s: %s", city, e)
+                    _live_legs.append((days_out, sum_ask, off, _sig, mkt, float(ay)))
             _emit({"city": city, "date": ed, "days_out": days_out, "reason": "fire",
                    "mode_lo": mode_lo, "sum_ask": round(sum_ask, 3), "live": BAND_LIVE,
                    "n_legs": len(quotes), "quotes": quotes})
+        # ── Priority post under the cash cap (2026-06-10): cash is the binding
+        # constraint, so spend it best-first — d+2 before d+1 (resolved teardown
+        # ROI +22.8% vs +14.4%), then lowest Σask (deepest band discount), then
+        # center-out within a band (dist-0 carries the +432% conditional). The
+        # cash gate inside _struct_band_post_maker skips the tail non-latching;
+        # skipped legs retry next cycle as cash frees.
+        _live_legs.sort(key=lambda t: (-t[0], t[1], t[2]))
+        for _do, _sa, _off, _sig, _mkt, _ay in _live_legs:
+            try:
+                await self._struct_band_post_maker(_sig, _mkt, _ay)
+            except Exception as e:
+                logger.error("[STRUCT-BAND-MD] live post failed %s: %s", _sig.city, e)
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.
@@ -4304,6 +4337,10 @@ class WeatherArb:
         if not (_market_agreed or _margin_clean):
             return
         if self._maker_ex_orders >= MAKER_EXERCISE_MAX_ORDERS:
+            return
+        ok_cash, why = self._maker_cash_gate(MAKER_EXERCISE_STAKE_USD)
+        if not ok_cash:
+            logger.info("[MAKER-EX] cash gate: skip %s (%s)", city, why)
             return
         risk = getattr(self.bot, "risk", None)
         bankroll = float(getattr(getattr(risk, "bankroll", None), "capital", 0.0) or 0.0)

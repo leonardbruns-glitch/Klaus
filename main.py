@@ -6500,7 +6500,12 @@ class KlausBot:
             if _watchdog_ping is not None:
                 _watchdog_ping[0] = time.monotonic()
             try:
-                await self.orders.post_heartbeat()
+                # post_heartbeat() call removed 2026-06-10: it sent a FRESH uuid4
+                # every call — never a registered heartbeat — so every POST 400'd
+                # ("Invalid Heartbeat ID", 6.7k errors since the service rolled out
+                # 06-08). A REAL registered heartbeat would arm the CLOB dead-man
+                # switch (cancel all GTC orders on a 15s gap) — the opposite of
+                # what hold-to-resolution resting maker orders want.
                 await self._sweep_residuals()
                 # Periodic full scan: force_all=True every 5min catches orphans created
                 # mid-session (not just near window-close). Without this, an orphan can

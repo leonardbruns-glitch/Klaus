@@ -234,6 +234,7 @@ class OrderManager:
         self._client = _build_clob_client() if not CONFIG.dry_run else None
         self._session: Optional[aiohttp.ClientSession] = None
         self.fill_history: List[Fill] = []
+        self.last_usdc_balance: Optional[float] = None  # cached by fetch_usdc_balance()
         # Shadow pipeline for order lifecycle recording (set by main.py after pipeline starts).
         self._shadow_pipeline = None
         self._fill_tracker = FillTracker()
@@ -2249,6 +2250,10 @@ class OrderManager:
             raw = float(ba.get("balance", 0))
             # CLOB returns balance in micro-USDC (1 USDC = 1,000,000 units)
             usdc = raw / 1_000_000
+            # Cached for the maker cash gate (weather_arb._maker_cash_gate):
+            # resting bid commitments above free USDC get the WHOLE open-order
+            # set cancelled by the CLOB balance engine (2026-06-10, 18/18 swept).
+            self.last_usdc_balance = usdc
             logger.info("Polymarket USDC balance (actual): $%.4f", usdc)
             return usdc
         except Exception as exc:
