@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-10T20:18:51Z
+# Snapshot: 2026-06-10T20:34:06Z
 # Latest commit on klaus:
-ccbaab82 feat(RECYCLE099): tick-aware 0.999 last-cent asks on 0.001-tick weather books
+8cc513f9 feat(PEAKSCALP): winner-bucket convergence research — q-table + survivorship-free backtest
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
