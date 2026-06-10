@@ -443,6 +443,15 @@ FAVYES_MIN_SEC_TO_CLOSE = 3600   # ≥1h to resolution (standing days-out edge; 
 EXIT099_ENABLED    = True
 EXIT099_PRICE      = 0.99   # sell once a ≥0.99 bid with enough depth is available
 EXIT099_MIN_SHARES = 5.0    # skip dust — sub-5-share exits aren't worth the order; they resolve on their own
+# ── WINNER-RECYCLE (2026-06-10): the MAKER leg of the last-cent exit — rest a
+# 0.99 ask on every held weather position and let takers lift it (the $9-10k/mo
+# last-cent wallets are ≥96% maker; EXIT099 above is the taker leg and needs a
+# ≥0.99 BID to already exist). Selling at 0.99 is weakly dominant vs holding to
+# resolution (give up ≤1¢ when it wins, pure gain when it loses) and recycles
+# cash days earlier — cash is the band's binding constraint. Revert: False.
+RECYCLE099_ENABLED    = True
+RECYCLE099_PRICE      = 0.99
+RECYCLE099_MIN_SHARES = 5.0   # CLOB resting minimum (5 shares / $1 maker amount)
 
 # ── WEATHER OFI MOMENTUM (live-tiny, user GO-LIVE 2026-06-02) ──────────────────
 # Per-bucket order-flow imbalance predicts resolution (research: edge2/conservation,
@@ -1873,6 +1882,8 @@ class WeatherArb:
             if isinstance(st, dict) and st:
                 self._maker_resting = st
                 for oid, ctx in st.items():
+                    if str(ctx.get("side") or "") == "SELL_EXIT":
+                        continue   # share-backed asks consume no cash — keep them out of the cash cap
                     stake = float(ctx.get("q_price") or 0.0) * float(ctx.get("size") or 0.0)
                     try:
                         self._maker_breaker.register_resting(oid, round(stake, 2))
@@ -1929,10 +1940,29 @@ class WeatherArb:
         risk = getattr(self.bot, "risk", None)
         if orders is None or risk is None:
             return
+        # Re-entrancy guard: this runs from BOTH the 300s resolution loop and the
+        # user-WS fill callback. Two interleaved passes can each read a stale
+        # ctx["matched"], compute the same fill increment, and register it twice
+        # (double-booked BUY shares / double close attempts). Serialize.
+        if not hasattr(self, "_maker_reconcile_lock"):
+            self._maker_reconcile_lock = asyncio.Lock()
+        async with self._maker_reconcile_lock:
+            await self._maker_reconcile_fills_locked()
+
+    async def _maker_reconcile_fills_locked(self) -> None:
+        resting = self._maker_resting
+        orders = self.bot.orders
         breaker = getattr(self, "_maker_breaker", None)
         dirty = False
         for oid in list(resting.keys()):
             ctx = resting[oid]
+            if str(ctx.get("side") or "") == "SELL_EXIT":
+                drop, changed = await self._recycle_reconcile_one(oid, ctx)
+                if drop:
+                    resting.pop(oid, None)
+                if drop or changed:
+                    dirty = True
+                continue
             status, matched, fill_price = await orders.get_order_match(oid)
             if status is None:
                 continue  # transient fetch failure — retry next pass
@@ -1981,6 +2011,119 @@ class WeatherArb:
                     ev.get("status"), ev.get("trader_side"))
         except Exception:
             logger.exception("[USER-WS] trade handler failed")
+
+    async def _recycle_reconcile_one(self, oid: str, ctx: dict) -> tuple:
+        """SELL_EXIT leg of the maker reconcile. Books the exit EXACTLY ONCE on
+        full fill via risk.close_position (position popped → the resolution
+        settler skips it); cancels the stale ask when the settler resolved the
+        position first. Partial fills only update ctx — the position stays
+        intact until the ask FULLY fills, so no partial-close accounting exists
+        to drift. Returns (drop_entry, state_changed)."""
+        orders = self.bot.orders
+        risk = self.bot.risk
+        tid = ctx.get("token_id")
+        pos = getattr(risk, "open_positions", {}).get(tid)
+        if pos is None:
+            # Settler got there first — pull the ask. A partial maker-sell before
+            # resolution leaves bounded ledger drift (sold@0.99 vs booked outcome).
+            await orders.cancel_order(oid)
+            m = float(ctx.get("matched") or 0.0)
+            if m > 0:
+                logger.warning("[RECYCLE099] %s resolved with partial maker-sell %.1f sh — "
+                               "ledger drift ≤ $%.2f", str(tid)[:10], m, 0.99 * m)
+            return True, True
+        status, matched, fill_price = await orders.get_order_match(oid)
+        if status is None:
+            return False, False
+        changed = False
+        if matched > float(ctx.get("matched") or 0.0) + 1e-6:
+            ctx["matched"] = matched
+            changed = True
+        size = float(ctx.get("size") or 0.0)
+        fully = matched > 0 and matched >= size - 0.01
+        terminal = str(status).upper() in (
+            "CANCELED", "CANCELLED", "EXPIRED", "REJECTED", "INVALID")
+        if fully:
+            px = fill_price if (fill_price and fill_price > 0) else float(
+                ctx.get("q_price") or RECYCLE099_PRICE)
+            entry = float(getattr(pos, "entry_price", 0.0) or 0.0)
+            pnl = risk.close_position(tid, exit_price=px,
+                                      reason="WEATHER_RECYCLE099", actual_fee=0.0)
+            self.bot._open_meta.pop(tid, None)
+            logger.warning("[RECYCLE099] SOLD %s %.1f sh @ %.4f entry=%.3f pnl=%.3f "
+                           "(maker ask lifted)", str(tid)[:10], matched, px, entry, pnl or 0.0)
+            try:
+                _ld = Path("logs/shadow/hot") / datetime.now(timezone.utc).date().isoformat()
+                _ld.mkdir(parents=True, exist_ok=True)
+                (_ld / "exit099_live.jsonl").open("a").write(json.dumps({
+                    "ts": time.time(), "record": "recycle099", "token": tid,
+                    "shares": matched, "entry": entry, "exit": round(px, 4),
+                    "pnl": round(pnl, 4) if pnl is not None else None}) + "\n")
+            except Exception:
+                pass
+            return True, True
+        return (True, True) if terminal else (False, changed)
+
+    async def _winner_recycle_scan(self) -> None:
+        """Maker leg of the last-cent exit: rest a 0.99 GTC ask on every held
+        weather position (≥5 sh, one ask per token, restart-proof via the
+        persisted maker tracker). The taker leg (_exit_at_099) still catches
+        books that gap straight past 0.99 — it skips tokens we have asks on."""
+        if not RECYCLE099_ENABLED:
+            return
+        risk = getattr(self.bot, "risk", None)
+        orders = getattr(self.bot, "orders", None)
+        if risk is None or orders is None:
+            return
+        self._maker_state_init()
+        try:
+            opens = [(t, p) for t, p in list(risk.open_positions.items())
+                     if getattr(p, "bond_entry_class", "") in _STWA_RESOLVE_CLASSES]
+        except Exception:
+            return
+        if not opens:
+            return
+        import math as _math
+        asked = {c.get("token_id") for c in self._maker_resting.values()
+                 if str(c.get("side") or "") == "SELL_EXIT"}
+        tok2neg: dict = {}
+        for _e in (self._today_markets_cache or []):
+            _m = _e.get("mkt") or {}
+            for _t in _parse_token_ids(_m.get("clobTokenIds", [])):
+                tok2neg[_t] = bool(_m.get("negRisk", True))
+        from execution.order_manager import OrderStatus as _OS
+        for tok, p in opens:
+            try:
+                if tok in asked:
+                    continue
+                sell_sh = float(_math.floor(float(getattr(p, "remaining_shares", 0.0) or 0.0)))
+                if sell_sh < RECYCLE099_MIN_SHARES:
+                    continue
+                res = await orders.maker_sell(tok, RECYCLE099_PRICE, sell_sh,
+                                              neg_risk=tok2neg.get(tok, True))
+                oid = getattr(res, "order_id", "") or ""
+                status = getattr(res, "status", None)
+                if status == _OS.FILLED:
+                    # Crossed instantly (a ≥0.99 bid was already there) — book now.
+                    px = float(getattr(res, "avg_fill_price", RECYCLE099_PRICE)
+                               or RECYCLE099_PRICE)
+                    pnl = risk.close_position(tok, exit_price=px,
+                                              reason="WEATHER_RECYCLE099", actual_fee=0.0)
+                    self.bot._open_meta.pop(tok, None)
+                    logger.warning("[RECYCLE099] instant exit %s %.1f sh @ %.4f pnl=%.3f",
+                                   str(tok)[:10], sell_sh, px, pnl or 0.0)
+                    continue
+                if oid and status == _OS.RESTING:
+                    self._maker_resting[oid] = {
+                        "token_id": tok, "side": "SELL_EXIT",
+                        "q_price": RECYCLE099_PRICE, "size": sell_sh, "matched": 0.0,
+                        "entry_class": str(getattr(p, "bond_entry_class", "") or ""),
+                    }
+                    self._maker_resting_save()
+                    logger.info("[RECYCLE099] resting ask %s %.1f sh @ %.2f order=%s",
+                                str(tok)[:10], sell_sh, RECYCLE099_PRICE, str(oid)[:12])
+            except Exception:
+                logger.debug("[RECYCLE099] post failed %s", str(tok)[:10], exc_info=True)
 
     def _maker_register_fill(self, oid: str, ctx: dict, add_shares: float, price: float) -> None:
         """Book `add_shares` (the fill increment since the last poll) of a maker NO
@@ -3667,6 +3810,10 @@ class WeatherArb:
                         await self._exit_at_099()
                     except Exception:
                         logger.exception("[EXIT099] scan error")
+                    try:
+                        await self._winner_recycle_scan()
+                    except Exception:
+                        logger.exception("[RECYCLE099] scan error")
             except Exception:
                 logger.exception("[WA] metar loop error")
             await asyncio.sleep(METAR_POLL_INTERVAL)
@@ -4857,8 +5004,14 @@ class WeatherArb:
         from execution.order_manager import OrderStatus as _OS, OrderSide as _OSide, OrderType as _OT
         from datetime import datetime as _dtx, timezone as _tzx
         import time as _t, math as _math
+        # Tokens with a resting RECYCLE099 maker ask: their shares are committed
+        # on the book — a taker sell here would be rejected for balance. Skip.
+        _asked = {c.get("token_id") for c in getattr(self, "_maker_resting", {}).values()
+                  if str(c.get("side") or "") == "SELL_EXIT"}
         for tok, p in opens:
             try:
+                if tok in _asked:
+                    continue
                 shares = float(getattr(p, "remaining_shares", 0.0) or 0.0)
                 # A 0.99 price forces whole-share CLOB steps, so sell the floored whole
                 # amount; any sub-1-share remainder is dust that redeems at resolution.

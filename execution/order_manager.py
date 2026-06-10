@@ -594,6 +594,37 @@ class OrderManager:
             logger.error("maker_buy failed for %s: %s", token_id[:12], exc)
             return OrderResult(status=OrderStatus.FAILED, error=str(exc))
 
+    async def maker_sell(
+        self,
+        token_id: str,
+        price: float,
+        shares: float,
+        neg_risk: bool = False,
+        tick_size: str = TICK_SIZE,
+    ) -> OrderResult:
+        """Post a RESTING GTC ask for `shares` we already hold (maker side of an
+        exit). Returns RESTING with order_id, or FILLED if it crossed instantly.
+        Deliberately NOT named limit_sell: seven retired exit call-sites still
+        invoke orders.limit_sell() inside try/except — defining that name would
+        silently resurrect all of them (see project_limit_sell_missing). New
+        consumers must opt in to THIS method and own their fill accounting."""
+        if CONFIG.dry_run:
+            return self._simulate_fill(token_id, price, shares * price, OrderSide.SELL)
+        if shares <= 0 or price <= 0:
+            return OrderResult(status=OrderStatus.FAILED, error="Invalid shares or price")
+        try:
+            await self.approve_token_for_sell(token_id)
+        except Exception as _exc:
+            logger.warning("maker_sell token approval failed %s: %s", token_id[:12], _exc)
+        try:
+            return await self._submit_limit_order(
+                token_id, OrderSide.SELL, round(price, 4), shares,
+                neg_risk=neg_risk, tick_size=tick_size, passive=True,
+            )
+        except Exception as exc:
+            logger.error("maker_sell failed for %s: %s", token_id[:12], exc)
+            return OrderResult(status=OrderStatus.FAILED, error=str(exc))
+
     async def cancel_order(self, order_id: str) -> bool:
         """Cancel one resting order by id. True if the cancel call succeeded (or the
         order was already gone). Used to pull resting maker quotes."""
@@ -1517,9 +1548,12 @@ class OrderManager:
                 # Do NOT wait-then-cancel (that's taker semantics) — return the order_id
                 # immediately so the caller tracks the fill (fill_tracker) and cancels via
                 # cancel_order() on its own schedule. Startup cancel_all() reaps any strays.
-                if passive and side == OrderSide.BUY:
-                    logger.info("MAKER resting %s @ %.4f size=%.4f order=%s",
-                                token_id[:12], price, size, str(order_id)[:12])
+                if passive:
+                    # MAKER (both sides): order RESTING on the book as intended —
+                    # no wait-and-cancel. SELL added 2026-06-10 for maker_sell()
+                    # (resting 0.99 asks); BUY behavior unchanged.
+                    logger.info("MAKER resting %s %s @ %.4f size=%.4f order=%s",
+                                side.name, token_id[:12], price, size, str(order_id)[:12])
                     return OrderResult(
                         status=OrderStatus.RESTING, avg_fill_price=price, total_size=0.0,
                         order_id=str(order_id),
