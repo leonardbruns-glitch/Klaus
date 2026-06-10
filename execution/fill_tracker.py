@@ -207,16 +207,30 @@ class FillTracker:
                             if not self._running:
                                 break
                             try:
-                                msg = await asyncio.wait_for(ws.receive(), timeout=60.0)
+                                msg = await asyncio.wait_for(ws.receive(), timeout=9.0)
                             except asyncio.TimeoutError:
-                                # 60s silence — Cloudflare can silently drop the connection
-                                # without sending CLOSE. Reconnect proactively.
-                                logger.info(
-                                    "FillTracker: 60s silence on user WS — reconnecting"
-                                )
-                                break
+                                # The CLOB requires an application-level text PING
+                                # under every 10s — aiohttp's protocol-level
+                                # heartbeat does NOT count. Without it the server
+                                # goes silent and fills are missed (this was the
+                                # chronic "60s silence → reconnect" loop and the
+                                # dropped-fill-confirmation failures in main.py).
+                                try:
+                                    await ws.send_str("PING")
+                                except Exception:
+                                    break
+                                # PONGs update _last_msg_ts below, so this only
+                                # fires when even PONGs stop = connection truly dead.
+                                if asyncio.get_event_loop().time() - _last_msg_ts > 60.0:
+                                    logger.info(
+                                        "FillTracker: 60s without frames despite PINGs — reconnecting"
+                                    )
+                                    break
+                                continue
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 _last_msg_ts = asyncio.get_event_loop().time()
+                                if not msg.data or msg.data == "PONG":
+                                    continue
                                 try:
                                     payload = _json.loads(msg.data)
                                     events = payload if isinstance(payload, list) else [payload]
