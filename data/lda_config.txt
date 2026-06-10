@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-10T19:03:22Z
+# Snapshot: 2026-06-10T19:18:24Z
 # Latest commit on klaus:
-3015ad3c feat(LOCKOUT-LOG): log official_running_max_c in metar_lockout records + mint-dump capacity validator
+ccbaab82 feat(RECYCLE099): tick-aware 0.999 last-cent asks on 0.001-tick weather books
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
