@@ -2087,10 +2087,15 @@ class WeatherArb:
         asked = {c.get("token_id") for c in self._maker_resting.values()
                  if str(c.get("side") or "") == "SELL_EXIT"}
         tok2neg: dict = {}
+        tok2tick: dict = {}
         for _e in (self._today_markets_cache or []):
             _m = _e.get("mkt") or {}
             for _t in _parse_token_ids(_m.get("clobTokenIds", [])):
                 tok2neg[_t] = bool(_m.get("negRisk", True))
+                try:
+                    tok2tick[_t] = float(_m.get("orderPriceMinTickSize") or 0.01)
+                except (TypeError, ValueError):
+                    pass
         from execution.order_manager import OrderStatus as _OS
         for tok, p in opens:
             try:
@@ -2099,14 +2104,22 @@ class WeatherArb:
                 sell_sh = float(_math.floor(float(getattr(p, "remaining_shares", 0.0) or 0.0)))
                 if sell_sh < RECYCLE099_MIN_SHARES:
                     continue
-                res = await orders.maker_sell(tok, RECYCLE099_PRICE, sell_sh,
-                                              neg_risk=tok2neg.get(tok, True))
+                # Tick-aware last-cent ask: 813/1051 open weather buckets tick at
+                # 0.001 (gamma census 2026-06-10), and post-midnight taker flow
+                # pays ≥0.99 into already-decided buckets (HK Jun-7/8 winner:
+                # $0.9-1.3k/day) — the $9-10k/mo last-cent wallets rest 0.999,
+                # not 0.99. On 0.01-tick books keep 0.99.
+                _tick = tok2tick.get(tok, 0.01)
+                ask_px = 0.999 if _tick <= 0.001 else RECYCLE099_PRICE
+                res = await orders.maker_sell(tok, ask_px, sell_sh,
+                                              neg_risk=tok2neg.get(tok, True),
+                                              tick_size=("0.001" if _tick <= 0.001
+                                                         else "0.01"))
                 oid = getattr(res, "order_id", "") or ""
                 status = getattr(res, "status", None)
                 if status == _OS.FILLED:
                     # Crossed instantly (a ≥0.99 bid was already there) — book now.
-                    px = float(getattr(res, "avg_fill_price", RECYCLE099_PRICE)
-                               or RECYCLE099_PRICE)
+                    px = float(getattr(res, "avg_fill_price", ask_px) or ask_px)
                     pnl = risk.close_position(tok, exit_price=px,
                                               reason="WEATHER_RECYCLE099", actual_fee=0.0)
                     self.bot._open_meta.pop(tok, None)
@@ -2116,12 +2129,12 @@ class WeatherArb:
                 if oid and status == _OS.RESTING:
                     self._maker_resting[oid] = {
                         "token_id": tok, "side": "SELL_EXIT",
-                        "q_price": RECYCLE099_PRICE, "size": sell_sh, "matched": 0.0,
+                        "q_price": ask_px, "size": sell_sh, "matched": 0.0,
                         "entry_class": str(getattr(p, "bond_entry_class", "") or ""),
                     }
                     self._maker_resting_save()
-                    logger.info("[RECYCLE099] resting ask %s %.1f sh @ %.2f order=%s",
-                                str(tok)[:10], sell_sh, RECYCLE099_PRICE, str(oid)[:12])
+                    logger.info("[RECYCLE099] resting ask %s %.1f sh @ %.3f order=%s",
+                                str(tok)[:10], sell_sh, ask_px, str(oid)[:12])
             except Exception:
                 logger.debug("[RECYCLE099] post failed %s", str(tok)[:10], exc_info=True)
 
