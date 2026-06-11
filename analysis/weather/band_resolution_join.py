@@ -66,6 +66,16 @@ for f in sorted(glob.glob("logs/shadow/hot/*/band_struct.jsonl")):
                         "bid": float(r["bid_quote"]),
                         "ask": float(r["ask"]), "off": r.get("off"),
                         "days_out": r.get("days_out"), "city": r.get("city")})
+        elif r.get("reason") == "pair_fav":
+            # 2026-06-11 pair-intent favorite quoting: two legs, own slices
+            # (YES_PAIR/NO_PAIR) so they never pollute the band YES/NO stats.
+            cid = r.get("cid")
+            if not cid: continue
+            for side, key in (("YES_PAIR", "qy"), ("NO_PAIR", "qn")):
+                raw.append({"cid": cid, "side": side, "ts": ts,
+                            "bid": float(r[key]), "ask": float(r[key]),
+                            "off": 0, "days_out": r.get("days_out"),
+                            "city": r.get("city")})
 first = {}
 for L in sorted(raw, key=lambda x: x["ts"]):
     first.setdefault((L["cid"], L["days_out"], L["side"]), L)
@@ -97,14 +107,14 @@ def report(rows, label):
     n = len(rows)
     cost = sum(r["bid"] for r in rows)          # 1 share/leg notional
     win = sum(1 for r in rows
-              if res[r["cid"]] == (0 if r["side"] == "YES" else 1))
+              if res[r["cid"]] == (0 if r["side"].startswith("YES") else 1))
     payoff = win                                 # winners pay $1/share
     wr = win / n; impl = cost / n; roi = 100*(payoff-cost)/cost if cost else 0
     print(f"  {label:22} n={n:5d} WR={100*wr:5.1f}% quote={impl:5.3f} ROI={roi:6.1f}%")
 
 print(f"\nresolved legs: {sum(1 for l in legs if res.get(l['cid']) is not None)} / {len(legs)}")
 print("REALIZED (vs our maker quote, conditional on fill, deduped first-fire):")
-for side in ("YES", "NO"):
+for side in ("YES", "NO", "YES_PAIR", "NO_PAIR"):
     sl = [l for l in legs if l["side"] == side]
     if not sl:
         continue

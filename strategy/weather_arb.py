@@ -2318,6 +2318,7 @@ class WeatherArb:
                 "condition_id": mkt.get("conditionId", ""),
                 "q_price": q, "size": size, "matched": 0.0,
                 "side": side, "entry_class": "WEATHER_STRUCT_BAND",
+                "ts": time.time(),
             }
             self._maker_resting_save()
             # Live BBO on the quoted leg (market-channel WS) — band tokens were
@@ -2437,6 +2438,79 @@ class WeatherArb:
             except Exception:
                 pass
 
+    async def _band_quote_reclaim(self) -> None:
+        """DEAD-QUOTE RECLAIM (2026-06-11 audit): cancel band quotes that are
+        unfilled, old, and ≥ BAND_RECLAIM_BEHIND below the current touch —
+        someone outbid us and the book walked AWAY; the quote is just locking
+        cash-gate headroom. Quotes AT/near the touch get their age refreshed
+        (a quote only becomes reclaimable RECLAIM_AGE_S after it stops being
+        competitive). NEVER reprices toward a converged mode — quotes the book
+        walks THROUGH are the stale-band edge and keep resting. Partials kept."""
+        from strategy.stwa_engine import (BAND_RECLAIM_AGE_S, BAND_RECLAIM_BEHIND,
+                                          BAND_RECLAIM_PER_CYCLE)
+        import time as _time
+        self._maker_state_init()
+        now = _time.time()
+        cands = []
+        for oid, m in list((self._maker_resting or {}).items()):
+            if m.get("entry_class") != "WEATHER_STRUCT_BAND":
+                continue
+            if str(m.get("side", "")).upper() not in ("YES", "NO"):
+                continue
+            if float(m.get("matched", 0.0) or 0.0) > 0.0:
+                continue
+            ts = m.get("ts")
+            if ts is None:
+                m["ts"] = now          # grandfather pre-existing quotes
+                continue
+            if now - float(ts) < BAND_RECLAIM_AGE_S:
+                continue
+            cands.append((float(ts), oid, m))
+        if not cands:
+            self._maker_resting_save()
+            return
+        cands.sort()                    # oldest first; budget rotates the rest
+        checked = 0
+        for ts, oid, m in cands:
+            if checked >= BAND_RECLAIM_PER_CYCLE:
+                break
+            checked += 1
+            try:
+                bk = await self._fetch_book_levels(m["token_id"], n=1)
+            except Exception:
+                continue
+            bids = (bk or {}).get("bids") or []
+            if not bids:
+                continue
+            touch = float(bids[0]["price"])
+            q = float(m.get("q_price", 0.0) or 0.0)
+            if q > touch - BAND_RECLAIM_BEHIND:
+                m["ts"] = _time.time()  # still competitive — reset the clock
+                continue
+            try:
+                await self.bot.orders.cancel_order(oid)
+            except Exception:
+                logger.debug("[STRUCT-BAND] reclaim cancel failed %s",
+                             str(oid)[:12], exc_info=True)
+                continue
+            self._maker_breaker.release(oid)
+            self._maker_resting.pop(oid, None)
+            self._maker_ex_seen.discard(m["token_id"])
+            # drop from the restart-proof posted-state so the next cycle may
+            # re-quote this leg fresh at the new touch
+            try:
+                _st = json.load(open("logs/band_posted_state.json"))
+                for _v in _st.values():
+                    if m["token_id"] in (_v.get("tokens") or []):
+                        _v["tokens"].remove(m["token_id"])
+                json.dump(_st, open("logs/band_posted_state.json", "w"))
+            except Exception:
+                pass
+            logger.warning("[STRUCT-BAND] reclaimed dead quote %s %s @ %.2f "
+                           "(touch %.2f, age %.1fh)", m.get("city"),
+                           m.get("side"), q, touch, (now - ts) / 3600.0)
+        self._maker_resting_save()
+
     async def _struct_band_multiday_shadow(self) -> None:
         """BADATMATH multi-day band shadow (2026-06-09 rebuild).
 
@@ -2460,11 +2534,19 @@ class WeatherArb:
             return
         self._band_md_ts = _time.time()
 
+        # free dead-quote cash BEFORE this cycle's posting spends it
+        try:
+            await self._band_quote_reclaim()
+        except Exception:
+            logger.exception("[STRUCT-BAND] reclaim pass failed")
+
         from strategy.stwa_engine import (
             BAND_PX_MIN, BAND_PX_CEIL, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
             BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
             BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
-            BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes)
+            BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
+            BAND_REALBOOK_YES, BAND_PAIR_FAV_ENABLED, BAND_PAIR_FAV_YES_MIN,
+            BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX)
 
         events = await self._fetch_weather_events()
         if not events:
@@ -2523,7 +2605,8 @@ class WeatherArb:
             except Exception:
                 pass
 
-        _live_legs: list = []   # (days_out, sum_ask, off, sig, mkt, ask) — posted sorted below
+        _live_legs: list = []     # (days_out, sum_posted, off, sig, mkt, ask) — posted via unified queue
+        _conv_ladders: list = []  # converged ladders stashed for the PAIR_FAV pass
         for (city, ed), ladder in ladders.items():
             days_out = (date.fromisoformat(ed) - date.fromisoformat(meta[(city, ed)])).days
             # interior buckets in the harvest price band — NO depth gate (a maker
@@ -2552,17 +2635,30 @@ class WeatherArb:
             if _global_mode_ask > BAND_PX_CEIL:
                 _emit({"city": city, "date": ed, "days_out": days_out,
                        "reason": "converged", "mode_ask": round(_global_mode_ask, 3)})
+                # converged ladder = pair-fav territory (favorite bid both sides);
+                # stash for the PAIR_FAV pass below instead of dropping outright
+                _conv_ladders.append((days_out, city, ed, ladder))
                 continue
             valid.sort(key=lambda e: e[0])
             mi = max(range(len(valid)), key=lambda i: valid[i][3])   # market mode = max ask
+            mode_lo = valid[mi][0]
             band = [valid[i] for i in range(mi - BAND_WING, mi + BAND_WING + 1)
                     if 0 <= i < len(valid)]
             sum_ask = sum(e[3] for e in band)
-            if len(band) < BAND_MIN_LEGS or sum_ask >= BAND_SUM_MAX:
+            # ── 2026-06-11 BASKET-MISMATCH FIX: gate on the POSTED basket. The old
+            # gate summed the full ±WING band (5 legs) while live only posts
+            # |off| ≤ BAND_YES_MAX_OFF(_D0) — wings we deliberately don't buy were
+            # vetoing legs we do (63/112 ladders/cycle died here; YES surface was
+            # 2.7% of his universe). His off≤1 basket ROI is positive through
+            # Σ3 = 0.85 (see BAND_SUM_MAX note). Full-band Σ still logged.
+            _max_off_live = BAND_YES_MAX_OFF_D0 if days_out == 0 else BAND_YES_MAX_OFF
+            sum_posted = sum(e[3] for e in band
+                             if abs(int(round(e[0] - mode_lo))) <= _max_off_live)
+            if len(band) < BAND_MIN_LEGS or sum_posted >= BAND_SUM_MAX:
                 _emit({"city": city, "date": ed, "days_out": days_out, "reason": "sum_gate",
-                       "n": len(band), "sum_ask": round(sum_ask, 3)})
+                       "n": len(band), "sum_ask": round(sum_ask, 3),
+                       "sum_posted": round(sum_posted, 3)})
                 continue
-            mode_lo = valid[mi][0]
             # ── LIVE gates (2026-06-09 teardown re-audit) ──────────────────────
             # days_out: his resolved ROI = d+0 +6.3% / d+1 +14.4% / d+2 +22.8%;
             # late-d+0 "bands" on our books are collapsed ladders (the favorite
@@ -2608,22 +2704,15 @@ class WeatherArb:
                     _sig = _types.SimpleNamespace(token_id=tok, quote_price=q,
                                                   stake=stake, city=city, bucket=(lo, hi),
                                                   days_out=days_out)
-                    _live_legs.append((days_out, sum_ask, off, _sig, mkt, float(ay)))
+                    _live_legs.append((days_out, sum_posted, off, _sig, mkt, float(ay)))
             _emit({"city": city, "date": ed, "days_out": days_out, "reason": "fire",
-                   "mode_lo": mode_lo, "sum_ask": round(sum_ask, 3), "live": BAND_LIVE,
+                   "mode_lo": mode_lo, "sum_ask": round(sum_ask, 3),
+                   "sum_posted": round(sum_posted, 3), "live": BAND_LIVE,
                    "n_legs": len(quotes), "quotes": quotes})
-        # ── Priority post under the cash cap (2026-06-10): cash is the binding
-        # constraint, so spend it best-first — d+2 before d+1 (resolved teardown
-        # ROI +22.8% vs +14.4%), then lowest Σask (deepest band discount), then
-        # center-out within a band (dist-0 carries the +432% conditional). The
-        # cash gate inside _struct_band_post_maker skips the tail non-latching;
-        # skipped legs retry next cycle as cash frees.
-        _live_legs.sort(key=lambda t: (-t[0], t[1], t[2]))
-        for _do, _sa, _off, _sig, _mkt, _ay in _live_legs:
-            try:
-                await self._struct_band_post_maker(_sig, _mkt, _ay)
-            except Exception as e:
-                logger.error("[STRUCT-BAND-MD] live post failed %s: %s", _sig.city, e)
+        # YES legs are NOT posted here (2026-06-11 audit): YES-first posting ate
+        # the whole cash gate every cycle and starved the NO half (17 YES vs 2 NO
+        # resting; his book is ~50% NO). All sides now enter ONE ROI-ordered
+        # posting queue below — one list, one cash pool, best slice first.
 
         # ── PAIR MERGE (2026-06-11): held YES+NO on the same condition → $1/sh
         # via NegRiskAdapter through the proxy factory. Cash-velocity engine
@@ -2649,87 +2738,229 @@ class WeatherArb:
                                           BAND_NO_MAX,
                                           band_no_daily_cap, BAND_NO_MAX_DOUT,
                                           BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX)
-        if not (BAND_LIVE and BAND_NO_ENABLED):
+        if not BAND_LIVE:
             return
         _today_no = _now_utc.date().isoformat()
         if getattr(self, "_band_no_date", "") != _today_no:
             self._band_no_date = _today_no
             self._band_no_spent = 0.0
         _no_cands = []
-        for (city, ed), ladder in ladders.items():
-            days_out = (date.fromisoformat(ed)
-                        - date.fromisoformat(meta[(city, ed)])).days
-            if not (0 <= days_out <= BAND_NO_MAX_DOUT):
-                continue
-            _interior = sorted([e for e in ladder
-                                if e[0] > -900.0 and e[1] < 900.0], key=lambda e: e[0])
-            if not _interior:
-                continue
-            _mi = max(range(len(_interior)), key=lambda i: _interior[i][3])
-            for _i, (lo, hi, yt, ay, mkt, nt) in enumerate(_interior):
+        if BAND_NO_ENABLED:
+            for (city, ed), ladder in ladders.items():
+                days_out = (date.fromisoformat(ed)
+                            - date.fromisoformat(meta[(city, ed)])).days
+                if not (0 <= days_out <= BAND_NO_MAX_DOUT):
+                    continue
+                # 2026-06-11 audit: FULL ladder incl. EDGE buckets (or-below /
+                # or-higher) — his NO 0.52-0.85 on edges +5.7% (n=438) ≈ interiors
+                # +6.5% (n=3,877); the interior-only iteration silently excluded
+                # them. Sentinel lo values sort edges to the ends naturally.
+                _full = sorted(ladder, key=lambda e: (e[0], e[1]))
+                if not _full:
+                    continue
+                _mi = max(range(len(_full)), key=lambda i: _full[i][3])
+                for _i, (lo, hi, yt, ay, mkt, nt) in enumerate(_full):
+                    if not nt:
+                        continue
+                    _off = abs(_i - _mi)
+                    if BAND_NO_SKIP_OFF1 and _off == 1:
+                        continue
+                    # proxy pre-filter (±slack): real book decides below
+                    if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= BAND_NO_MAX + 0.05):
+                        continue
+                    _no_cands.append((days_out, _off, city, lo, hi, yt, nt, mkt))
+
+        # ── PAIR_FAV candidates (2026-06-11 audit): converged ladders carry his
+        # merge engine's core slice — bid BOTH sides of the favorite bucket at
+        # Σ ≤ BAND_PAIR_FAV_SUM_MAX. Favorite YES leg 0.45-0.70 = +20.1% (n=170);
+        # cheap-NO PAIR legs +52%/+74% May/Jun. Both +EV standalone; completion
+        # locks ≥10¢/sh + feeds merge velocity. Edge-bucket favorites included
+        # (each bucket is its own condition — merge works the same).
+        _pair_cands = []
+        if BAND_PAIR_FAV_ENABLED:
+            for days_out, city, ed, ladder in _conv_ladders:
+                _full = sorted(ladder, key=lambda e: (e[0], e[1]))
+                if not _full:
+                    continue
+                _mi = max(range(len(_full)), key=lambda i: _full[i][3])
+                lo, hi, yt, ay, mkt, nt = _full[_mi]
                 if not nt:
                     continue
-                _off = abs(_i - _mi)
-                if BAND_NO_SKIP_OFF1 and _off == 1:
+                # gamma pre-filter (±slack): real books decide below
+                if not (BAND_PAIR_FAV_YES_MIN - 0.05 <= ay
+                        <= BAND_PAIR_FAV_YES_MAX + 0.05):
                     continue
-                # proxy pre-filter (±slack): real book decides below
-                if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= BAND_NO_MAX + 0.05):
-                    continue
-                _no_cands.append((days_out, _off, city, lo, hi, yt, nt, mkt))
-        # his NO ROI by days_out: d+1 +12.4% > d+2 +5.9% > d+0 +1.5%
-        _no_cands.sort(key=lambda c: ({1: 0, 2: 1, 0: 2}.get(c[0], 3), c[1]))
+                _pair_cands.append((days_out, city, lo, hi, yt, nt, mkt))
+
+        # ── UNIFIED ROI-ORDERED POSTING QUEUE (2026-06-11 audit) ──────────────
+        # One list, one cash pool, spent best-slice-first by HIS post-inflection
+        # resolved ROI: d+2 YES +56.5% > d+1 YES +15.2% > d+1 NO +12.4% >
+        # PAIR_FAV (locked on completion; legs +20.1% / +52-74%) > d+2 NO +5.9%
+        # > d+0 YES mode (pair half, −3.4% standalone) > d+0 NO +1.5%.
+        # Tiebreak: lower Σ(posted) first (deeper band discount), then |off|.
+        _rank_yes = {2: 0, 1: 1, 0: 5}
+        _rank_no = {1: 2, 2: 4, 0: 6}
+        _queue = []
+        for _do, _sp, _off, _sig, _mkt, _ay in _live_legs:
+            _queue.append((_rank_yes.get(_do, 1), _sp, _off,
+                           ("YES", _do, _sig, _mkt, _ay)))
+        for _do, _off, city, lo, hi, yt, nt, mkt in _no_cands:
+            _queue.append((_rank_no.get(_do, 4), 0.0, _off,
+                           ("NO", _do, (city, lo, hi, yt, nt, mkt), None, None)))
+        for _do, city, lo, hi, yt, nt, mkt in _pair_cands:
+            _queue.append((3, 0.0, 0,
+                           ("PAIR", _do, (city, lo, hi, yt, nt, mkt), None, None)))
+        _queue.sort(key=lambda t: (t[0], t[1], t[2]))
         _no_cap = band_no_daily_cap(_capital)
-        for days_out, _off, city, lo, hi, yt, nt, mkt in _no_cands[:40]:
-            if self._band_no_spent + _stk_no > _no_cap:
+        _books_left = 80          # real-book fetch budget per cycle
+        _risk_band = getattr(self.bot, "risk", None)
+        _seen_band = getattr(self, "_maker_ex_seen", set())
+        import types as _types
+        for _rank, _spq, _offq, _item in _queue:
+            _kind = _item[0]
+            if _books_left <= 0:
                 break
-            try:
-                _bk = await self._fetch_book_levels(nt, n=3)
-            except Exception:
-                continue
-            _asks = _bk.get("asks") or []
-            _bids = _bk.get("bids") or []
-            if not _asks:
-                continue
-            _na = float(_asks[0]["price"])
-            if not (BAND_NO_MIN <= _na <= BAND_NO_MAX):
-                continue
-            _nb = float(_bids[0]["price"]) if _bids else max(0.01, _na - 0.04)
-            _q = round(max(0.01, min(_na - 0.01,
-                                     _nb + BAND_QUOTE_FRAC * max(0.0, _na - _nb))), 3)
-            # pair cap: if we quote/hold the YES side of this bucket, the two
-            # bids must sum ≤ BAND_PAIR_SUM_MAX (locked pair margin ≥ 8¢/sh)
-            _qy = None
-            _cid = mkt.get("conditionId", "")
-            for _m in (getattr(self, "_maker_resting", {}) or {}).values():
-                if (_m.get("condition_id") == _cid
-                        and str(_m.get("side", "YES")).upper() == "YES"):
-                    _qy = float(_m.get("q_price") or 0.0)
-                    break
-            if _qy is None:
-                _ypos = getattr(getattr(self.bot, "risk", None),
-                                "open_positions", {}).get(yt)
-                if _ypos is not None:
-                    _qy = float(getattr(_ypos, "entry_price", 0.0) or 0.0)
-            if _qy:
-                _q = min(_q, round(BAND_PAIR_SUM_MAX - _qy, 3))
-                if _q < 0.01:
+            if _kind == "YES":
+                _, _do, _sig, _mkt, _ay = _item
+                tid = _sig.token_id
+                if (tid in _seen_band
+                        or tid in getattr(_risk_band, "open_positions", {})):
                     continue
-            _emit({"city": city, "date": mkt.get("endDate", "")[:10],
-                   "days_out": days_out, "reason": "fire_no", "side": "NO",
-                   "off": _off, "ask": round(_na, 3), "bid_quote": _q,
-                   "pair_yes_q": _qy, "cid": _cid})
-            import types as _types
-            _sig = _types.SimpleNamespace(token_id=nt, quote_price=_q,
-                                          stake=_stk_no, city=city,
-                                          bucket=(lo, hi), days_out=days_out)
-            _pre = len(getattr(self, "_maker_resting", {}) or {})
-            try:
-                await self._struct_band_post_maker(_sig, mkt, _na, side="NO")
-            except Exception as e:
-                logger.error("[STRUCT-BAND-NO] post failed %s: %s", city, e)
-                continue
-            if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
-                self._band_no_spent += _stk_no
+                _ra = float(_ay)
+                if BAND_REALBOOK_YES:
+                    _books_left -= 1
+                    try:
+                        _bk = await self._fetch_book_levels(tid, n=1)
+                    except Exception:
+                        _bk = None
+                    if _bk and (_bk.get("asks") or []):
+                        _ra = float(_bk["asks"][0]["price"])
+                        # re-validate the price window on the REAL ask (gamma
+                        # proxies drift; crossing a stale proxy = taker fill)
+                        if not (BAND_PX_MIN <= _ra <= BAND_PX_CEIL):
+                            continue
+                        _rb = (float(_bk["bids"][0]["price"])
+                               if _bk.get("bids") else max(0.01, _ra - 0.02))
+                        # JOIN the touch (watcher n=741: he rests AT the touch;
+                        # improving donated ~1¢/sh ≈ 40% of the gross edge)
+                        _sig.quote_price = round(min(_rb, _ra - 0.01), 3)
+                        if _sig.quote_price < 0.01:
+                            continue
+                try:
+                    await self._struct_band_post_maker(_sig, _mkt, _ra)
+                except Exception as e:
+                    logger.error("[STRUCT-BAND-MD] live post failed %s: %s",
+                                 _sig.city, e)
+            elif _kind == "NO":
+                _, days_out, (city, lo, hi, yt, nt, mkt), _x, _y = _item
+                if self._band_no_spent + _stk_no > _no_cap:
+                    continue
+                if nt in _seen_band or nt in getattr(_risk_band, "open_positions", {}):
+                    continue
+                _books_left -= 1
+                try:
+                    _bk = await self._fetch_book_levels(nt, n=3)
+                except Exception:
+                    continue
+                _asks = _bk.get("asks") or []
+                _bids = _bk.get("bids") or []
+                if not _asks:
+                    continue
+                _na = float(_asks[0]["price"])
+                if not (BAND_NO_MIN <= _na <= BAND_NO_MAX):
+                    continue
+                _nb = float(_bids[0]["price"]) if _bids else max(0.01, _na - 0.04)
+                _q = round(max(0.01, min(_na - 0.01, _nb)), 3)   # join, never improve
+                # pair cap: if we quote/hold the YES side of this bucket, the two
+                # bids must sum ≤ BAND_PAIR_SUM_MAX (locked pair margin ≥ 8¢/sh)
+                _qy = None
+                _cid = mkt.get("conditionId", "")
+                for _m in (getattr(self, "_maker_resting", {}) or {}).values():
+                    if (_m.get("condition_id") == _cid
+                            and str(_m.get("side", "YES")).upper() == "YES"):
+                        _qy = float(_m.get("q_price") or 0.0)
+                        break
+                if _qy is None:
+                    _ypos = getattr(_risk_band, "open_positions", {}).get(yt)
+                    if _ypos is not None:
+                        _qy = float(getattr(_ypos, "entry_price", 0.0) or 0.0)
+                if _qy:
+                    _q = min(_q, round(BAND_PAIR_SUM_MAX - _qy, 3))
+                    if _q < 0.01:
+                        continue
+                _emit({"city": city, "date": mkt.get("endDate", "")[:10],
+                       "days_out": days_out, "reason": "fire_no", "side": "NO",
+                       "off": _offq, "ask": round(_na, 3), "bid_quote": _q,
+                       "pair_yes_q": _qy, "cid": _cid})
+                _sig = _types.SimpleNamespace(token_id=nt, quote_price=_q,
+                                              stake=_stk_no, city=city,
+                                              bucket=(lo, hi), days_out=days_out)
+                _pre = len(getattr(self, "_maker_resting", {}) or {})
+                try:
+                    await self._struct_band_post_maker(_sig, mkt, _na, side="NO")
+                except Exception as e:
+                    logger.error("[STRUCT-BAND-NO] post failed %s: %s", city, e)
+                    continue
+                if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
+                    self._band_no_spent += _stk_no
+            elif _kind == "PAIR":
+                _, days_out, (city, lo, hi, yt, nt, mkt), _x, _y = _item
+                if self._band_no_spent + _stk_no > _no_cap:
+                    continue
+                if yt in _seen_band or nt in _seen_band:
+                    continue
+                if (yt in getattr(_risk_band, "open_positions", {})
+                        or nt in getattr(_risk_band, "open_positions", {})):
+                    continue
+                if _books_left < 2:
+                    continue
+                _books_left -= 2
+                try:
+                    _bky = await self._fetch_book_levels(yt, n=1)
+                    _bkn = await self._fetch_book_levels(nt, n=1)
+                except Exception:
+                    continue
+                if not (_bky and (_bky.get("asks") or [])
+                        and _bkn and (_bkn.get("asks") or [])):
+                    continue
+                _ya = float(_bky["asks"][0]["price"])
+                _na = float(_bkn["asks"][0]["price"])
+                if not (BAND_PAIR_FAV_YES_MIN <= _ya <= BAND_PAIR_FAV_YES_MAX):
+                    continue
+                _yb = (float(_bky["bids"][0]["price"])
+                       if _bky.get("bids") else max(0.01, _ya - 0.02))
+                _nb = (float(_bkn["bids"][0]["price"])
+                       if _bkn.get("bids") else max(0.01, _na - 0.02))
+                _qy = round(min(_yb, _ya - 0.01), 3)
+                _qn = round(min(_nb, _na - 0.01,
+                                BAND_PAIR_FAV_SUM_MAX - _qy), 3)
+                if _qy < 0.01 or _qn < 0.01:
+                    continue
+                # equal SHARES per leg — merge consumes share-for-share
+                _shares = round((_stk_yes + _stk_no) / (_qy + _qn), 2)
+                if _shares < 5.0:
+                    continue          # CLOB resting minimum
+                _emit({"city": city, "date": mkt.get("endDate", "")[:10],
+                       "days_out": days_out, "reason": "pair_fav",
+                       "qy": _qy, "qn": _qn, "shares": _shares,
+                       "cid": mkt.get("conditionId", "")})
+                _sy = _types.SimpleNamespace(token_id=yt, quote_price=_qy,
+                                             stake=round(_shares * _qy, 2),
+                                             city=city, bucket=(lo, hi),
+                                             days_out=days_out)
+                _sn = _types.SimpleNamespace(token_id=nt, quote_price=_qn,
+                                             stake=round(_shares * _qn, 2),
+                                             city=city, bucket=(lo, hi),
+                                             days_out=days_out)
+                _pre = len(getattr(self, "_maker_resting", {}) or {})
+                try:
+                    await self._struct_band_post_maker(_sy, mkt, _ya)
+                    await self._struct_band_post_maker(_sn, mkt, _na, side="NO")
+                except Exception as e:
+                    logger.error("[STRUCT-BAND-PAIR] post failed %s: %s", city, e)
+                    continue
+                if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
+                    self._band_no_spent += round(_shares * _qn, 2)
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.

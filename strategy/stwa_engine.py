@@ -72,7 +72,12 @@ STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibrat
 # and (2) the FLB-spread-walled speculative NO on UNLOCKED tail buckets (−EV;
 # the regular-NO that bled). All NO now flows through M1β; the engine keeps only
 # the directional YES ladder + NEG_RISK_ARB. Revert: set True.
-STWA_REGULAR_NO_ENABLED  = True   # RE-ENABLED 2026-06-05 (user): favorite-longshot NO harvest.
+STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
+                                  # TAKER duplicate of the band's maker NO overlay (same 0.52-0.85
+                                  # favorite buckets) — when it does race the overlay it pays spread +
+                                  # 1.25% taker fee for a bucket the maker quote captures cheaper, and
+                                  # its open_positions fill then BLOCKS the maker pair leg. The validated
+                                  # +EV slice it targeted is fully covered by BAND_NO_*. Revert: True.
                                   # Resolved-trade evidence (n=147, pre-fix model): BUY_NO is +EV in the
                                   # CONFIDENT region only — [0.5,0.7) 63%/+$2.63, [0.7,0.9) 89%/+$7.25
                                   # (n=37 ≥0.50, +$9.88, EV/sh +0.052, fee-positive, FILLED & resolved) —
@@ -276,16 +281,27 @@ BAND_PX_MIN         = 0.10          # 2026-06-09: 0.06→0.10 — FULL-HIST reso
                                     # [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%. The 28d
                                     # "wings +35%" was sample noise; wings are −EV. Revert: 0.06
 BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
-BAND_SUM_MAX        = 0.70          # fire only if Σ band ask < this. 2026-06-09: tightened 1.00→0.70 from
-                                    # badatmath per-event band economics (n=582): band Σ<0.50 ROI +34%,
-                                    # 0.50-0.70 +12.7%, 0.70-0.85 +1.2% (marginal), ≥1.00 −52%. <0.70 isolates
-                                    # the genuine over-dispersion harvest; 1.00 admitted marginal/−EV bands.
+BAND_SUM_MAX        = 0.85          # fire only if Σ ask of the POSTED legs (|off| ≤ BAND_YES_MAX_OFF) < this.
+                                    # 2026-06-11 BASKET-MISMATCH FIX: the old 0.70 gate summed the full ±2
+                                    # band (5 legs) while v2 only POSTS off≤1 (3 legs) — gating a basket we
+                                    # don't buy killed 63/112 ladders/cycle (YES surface = 2.7% of his
+                                    # universe). His off≤1 3-leg basket ROI by Σ(fill px), post-05-04:
+                                    # <0.50 +57.4% (n=214) / 0.50-0.70 +39.0% (n=111) / 0.70-0.85 +13.0%
+                                    # (n=46 TREND) / ≥0.85 −27.9%. Monotone, positive through 0.85; we gate
+                                    # on ASKS (≥ fill px) so 0.85 is conservative-equivalent. The 0.70-0.85
+                                    # slice accumulates in the validator (sum3 logged). Was 0.70 (full band).
 BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
 BAND_BASE_STAKE     = 3.0           # 2026-06-09: 8→3 for the live flip at $155 bankroll — max band
                                     # = 3·(1+2·0.7+2·0.4) ≈ $9.60; his median per-bucket is $5.32
                                     # (breadth over size). Scale only after validator n≥100. Was 8.0
 BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
-BAND_QUOTE_FRAC     = 0.34          # maker bid = best_bid + FRAC*(ask-bid): join the book just inside the spread
+BAND_QUOTE_FRAC     = 0.34          # GAMMA-PROXY FALLBACK ONLY (no real book): bid = proxy_bid + FRAC*spread.
+BAND_REALBOOK_YES   = True          # 2026-06-11 (quote-watcher n=741 fill-joins, gate n≥100 PASSED): his
+                                    # median fill is AT the touch (fill_vs_best_bid = 0.000; deep-bid theory
+                                    # dead). YES legs now fetch the REAL CLOB book (the NO overlay always
+                                    # did) and JOIN the best bid — never improve. The old gamma-proxy
+                                    # bid (ask−0.02 + 0.34·spread) donated ~1¢/sh ≈ 40% of the 2.6¢ gross
+                                    # edge and occasionally CROSSED stale proxies (accidental taker fills).
 # ── 2026-06-11 re-audit (his own post-05-04 fills, all slices n≥100 unless noted;
 # state_log 11:55): he is a TWO-SIDED PAIR-QUOTER — YES+NO bids on the SAME bucket
 # (34-41% of buckets), pair Σ~0.79-0.87, both fill → MERGE → $1. Posting rules below
@@ -333,6 +349,35 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
                             # budget; the cash gate is the real constraint. Was 12.0
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
+# 2026-06-11 audit: overlay now includes EDGE buckets (or-below / or-higher) — his
+# NO 0.52-0.85 on edges = +5.7% (n=438) ≈ interiors +6.5% (n=3,877); they were
+# silently excluded by the interior-only iteration and they are his NO meat.
+
+# ── PAIR-INTENT FAVORITE QUOTING (2026-06-11 audit) ──────────────────────────
+# His merge engine's core slice was structurally UNREACHABLE for us: on converged
+# ladders (favorite ask > BAND_PX_CEIL) he bids BOTH sides of the favorite bucket
+# (YES ~0.45-0.70 + NO ~0.20-0.40, Σ ≤ ~0.90) → both fill → on-chain MERGE → $1.
+# Decision-grade on his post-05-04 fills: favorite YES leg 0.45-0.70 = +20.1%
+# (n=170); cheap-NO PAIR legs = +52% May / +74% Jun (vs SOLO cheap NO −66/−100% —
+# the pair context is what makes the cheap leg safe). Both legs are +EV standalone
+# AND a completed pair locks ≥ (1 − Σ) per share risk-free + feeds merge velocity.
+# Equal SHARES per leg (merge consumes share-for-share). Exempt from BAND_PX_CEIL
+# by design — the economics here are a locked merge, not a directional band.
+BAND_PAIR_FAV_ENABLED = True
+BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
+BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
+BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
+
+# ── DEAD-QUOTE RECLAIM (2026-06-11 audit) ────────────────────────────────────
+# One-post-per-token + no reprice = stale quotes the book walked AWAY from sit
+# for days consuming cash-gate headroom (resting commitments reduce free USDC).
+# Reclaim ONLY the harmless half: unfilled, old, and ≥ BEHIND below the current
+# touch (someone outbid us — we're not the market). NEVER reprice toward a
+# converged mode: quotes the book walks THROUGH are the stale-band edge (his
+# d+2 +56.5% > d+0 −3.4% ordering) and must keep resting.
+BAND_RECLAIM_AGE_S     = 6 * 3600   # min age before a quote is reclaimable
+BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
+BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
 
 # ── BANKROLL-PROPORTIONAL STAKES (2026-06-11, user go) ───────────────────────
 # Fixed $ stakes freeze compounding (growth goes linear between manual constant
