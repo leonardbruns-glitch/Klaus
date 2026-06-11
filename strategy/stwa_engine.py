@@ -286,6 +286,19 @@ BAND_BASE_STAKE     = 3.0           # 2026-06-09: 8→3 for the live flip at $15
                                     # (breadth over size). Scale only after validator n≥100. Was 8.0
 BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
 BAND_QUOTE_FRAC     = 0.34          # maker bid = best_bid + FRAC*(ask-bid): join the book just inside the spread
+# ── 2026-06-11 re-audit (his own post-05-04 fills, all slices n≥100 unless noted;
+# state_log 11:55): he is a TWO-SIDED PAIR-QUOTER — YES+NO bids on the SAME bucket
+# (34-41% of buckets), pair Σ~0.79-0.87, both fill → MERGE → $1. Posting rules below
+# encode his measured curve MINUS his measured bleeds:
+#   YES by |off|: 0 +26.8% (n=1146) / 1 +43.8% (n=1125) / 2 −8.5% (n=646) /
+#                 3 −72% (n=325) / 4 −56.5% (n=249)  ⇒ YES only |off|≤1
+#   NO  by |off|: 0 +23.2% (pair leg) / 1 −6.7% (n=1214) / ≥2 +13..+35%  ⇒ skip off1
+#   YES by dout:  d0 −3.4% (n=1531) / d1 +15.2% / d2 +56.5%  ⇒ d0 YES = pair leg only
+#   NO  by dout:  d1 +12.4% (n=996) > d2 +5.9% > d0 +1.5%    ⇒ extend overlay to d≤2
+BAND_YES_MAX_OFF    = 1             # YES legs only |off| ≤ this (wings flip to NO, they don't disappear)
+BAND_YES_MAX_OFF_D0 = 0             # d+0: YES only on the mode (the pair leg; standalone d0 YES is his bleed)
+BAND_PAIR_SUM_MAX   = 0.92          # same-bucket YES bid + NO bid hard cap ⇒ ≥$0.08/sh locked on a
+                                    # completed pair (merge or settlement); his median pair 0.788-0.873
 # Multi-day shadow (2026-06-09 rebuild): badatmath quotes the ROLLING horizon d/d+1/d+2
 # as a maker — the single-day engine path only ever sees today's (collapsed) market.
 BAND_MD_HORIZON     = 2             # quote d, d+1, d+2 (days past local today)
@@ -304,18 +317,33 @@ BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint
                                     # daily posted-budget effectively OFF; bankroll + breaker are the
                                     # only limits. Was 40.0 (first-hour training wheels).
 
-# ── FAVORITE-NO overlay (2026-06-10, user: "mirror badatmath fully") ─────────
-# His second leg: maker NO bids on favorite/shoulder buckets priced 0.45-0.85,
-# added LATE in the market life (median NO fill nearer resolution than YES).
-# Ground truth: +$1,941 / 5.9% ROI / WR 68% of his +$7.4k (n=8,043 re-audit);
-# price curve NO 0.50-0.85 +5-6% steady, TROUGH 0.40-0.50 −1.3% ⇒ floor 0.52.
-# Price-band rule ONLY (no lockout requirement — M1β keeps the deep-certainty
-# slice; dedup prevents double-posting the same token). d+0 only.
+# ── FAVORITE-NO overlay (2026-06-10; REWORKED 2026-06-11 per re-audit) ───────
+# His NO leg is HALF the book (~$18/event, equal to YES) and the other half of
+# the pair-quoting structure. Curve (post-05-04, n≥100): 0.50-0.65 +8.6%
+# (n=1009), 0.65-0.85 +11.2% (n=1165), >0.85 +5.3%; trough 0.35-0.50 −7.8%.
+# Offset rule: NEVER the ±1 shoulders (−6.7%, n=1214 — that's the underpriced-
+# YES slice, so its NO is overpriced); mode NO = pair leg, |off|≥2 = wing NO.
+# days_out: extended d+0-only → d+0..2 (his best NO slice is d+1 +12.4%).
 BAND_NO_ENABLED   = True
 BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
 BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
-BAND_NO_STAKE     = 2.6     # ≈5 shares at 0.52 (CLOB resting minimum)
-BAND_NO_DAILY_CAP = 12.0    # overlay's own daily cap — YES band keeps cash priority
+BAND_NO_STAKE     = 4.5     # 2026-06-11: 2.6→4.5 — his NO fill median $5.16 (4× his YES fill);
+                            # also keeps ≥5 shares (CLOB resting min) up to px 0.90. Was 2.6
+BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
+                            # budget; the cash gate is the real constraint. Was 12.0
+BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
+BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
+
+# ── PAIR MERGE (2026-06-11): held YES+NO on the same condition = $1/share at
+# resolution; NegRiskAdapter.mergePositions converts it to USDC NOW via the
+# proxy factory (execution/merger.py — on-chain path verified, adapter already
+# CTF-approved). His cash-velocity engine: 638 merges / ~50% of buy$ recycled
+# same-day (Jun 9-11 pull). Needs a few $ of POL gas in the EOA; ungated
+# otherwise — a merge is strictly cash-positive (no fee, no market risk).
+BAND_MERGE_ENABLED    = True
+BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
+BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
+                              # are better left to settle; merging them just spends gas)
 
 
 def _beta_h(local_hour):

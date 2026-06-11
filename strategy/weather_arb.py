@@ -2331,7 +2331,8 @@ class WeatherArb:
             _ld.mkdir(parents=True, exist_ok=True)
             (_ld / "band_struct.jsonl").open("a").write(json.dumps({
                 "ts": time.time(), "record": "post", "city": sig.city, "token": tid,
-                "side": side,
+                "side": side, "cid": mkt.get("conditionId", ""),
+                "days_out": getattr(sig, "days_out", None),
                 "lo": sig.bucket[0], "hi": sig.bucket[1], "ask": round(live_ask, 3),
                 "q": q, "stake": round(stake, 2), "size": size,
                 "order_id": oid, "status": str(status),
@@ -2342,6 +2343,99 @@ class WeatherArb:
         logger.warning("[STRUCT-BAND] posted %s %s @ %.2f (ask %.2f) size %.1f order=%s status=%s exposure=$%.2f",
                        sig.city, side, q, live_ask, size, str(oid)[:12], str(status),
                        self._maker_breaker.exposure_usd())
+
+    async def _band_merge_once(self) -> None:
+        """Find held YES+NO pairs on the same condition and merge them on-chain
+        to USDC (2026-06-11; see execution/merger.py for the verified path).
+
+        A completed pair pays $1/share at settlement no matter what — merging
+        realizes that dollar NOW and re-arms the cash-capped band. Per pair:
+        cancel any RECYCLE099 SELL_EXIT asks on both legs (they commit the
+        tokens), merge min(y, n) clamped to on-chain balances, then book the
+        fully-merged leg via close_position and decrement the partial leg
+        (exit split: each leg gets half the locked spread, Σ exits = 1)."""
+        from strategy.stwa_engine import (BAND_MERGE_ENABLED,
+                                          BAND_MERGE_MIN_SHARES,
+                                          BAND_MERGE_MIN_EDGE)
+        if not BAND_MERGE_ENABLED:
+            return
+        risk = getattr(self.bot, "risk", None)
+        if risk is None:
+            return
+        if not hasattr(self, "_merger"):
+            from execution.merger import ProxyMerger
+            from config import CONFIG as _CFG
+            self._merger = ProxyMerger(
+                private_key=_CFG.wallet_private_key or "",
+                proxy_wallet=_CFG.funder_address or "")
+        # group open weather positions by condition: cond -> side -> (tid, pos)
+        pairs: dict = {}
+        for tid, pos in list(getattr(risk, "open_positions", {}).items()):
+            if getattr(pos, "bond_entry_class", "") not in _STWA_RESOLVE_CLASSES:
+                continue
+            cond = getattr(pos, "condition_id", "") or ""
+            if not cond:
+                continue
+            side = "YES" if "YES" in str(getattr(pos, "direction", "")) else "NO"
+            pairs.setdefault(cond, {})[side] = (tid, pos)
+        for cond, sides in pairs.items():
+            if "YES" not in sides or "NO" not in sides:
+                continue
+            (yt, ypos), (nt, npos) = sides["YES"], sides["NO"]
+            ey = float(getattr(ypos, "entry_price", 0.0) or 0.0)
+            en = float(getattr(npos, "entry_price", 0.0) or 0.0)
+            edge = 1.0 - ey - en
+            if edge < BAND_MERGE_MIN_EDGE:
+                continue
+            m = min(float(getattr(ypos, "remaining_shares", 0.0) or 0.0),
+                    float(getattr(npos, "remaining_shares", 0.0) or 0.0))
+            if m < BAND_MERGE_MIN_SHARES:
+                continue
+            # cancel SELL_EXIT asks committing either leg's tokens
+            for oid, ctx in list((self._maker_resting or {}).items()):
+                if (str(ctx.get("side") or "") == "SELL_EXIT"
+                        and ctx.get("token_id") in (yt, nt)):
+                    try:
+                        await self.bot.orders.cancel_order(oid)
+                    except Exception:
+                        pass
+                    self._maker_resting.pop(oid, None)
+            self._maker_resting_save()
+            merged = await asyncio.to_thread(
+                self._merger.merge, cond, yt, nt, m, True)
+            if merged <= 0:
+                return  # gas/RPC gate — no point trying further pairs this pass
+            # book: each leg exits at entry + half the locked spread (Σ = 1)
+            exit_y = round(ey + edge / 2.0, 6)
+            exit_n = round(1.0 - exit_y, 6)
+            for tid, pos, ex in ((yt, ypos, exit_y), (nt, npos, exit_n)):
+                rem = float(getattr(pos, "remaining_shares", 0.0) or 0.0)
+                if merged >= rem - 0.01:           # full close
+                    self._stwa_close_resolved(tid, pos, ex, reason="BAND_MERGE")
+                else:                               # partial: decrement at cost
+                    entry = float(getattr(pos, "entry_price", 0.0) or 0.0)
+                    pos.remaining_shares = rem - merged
+                    try:
+                        pos.shares = float(getattr(pos, "shares", rem) or rem) - merged
+                        pos.stake = round(max(0.0, float(getattr(pos, "stake", 0.0) or 0.0)
+                                              - merged * entry), 4)
+                    except Exception:
+                        pass
+                    risk.bankroll.record_trade_result(merged * (ex - entry))
+                    risk._save_positions()
+                    logger.warning("[MERGE] partial %s: −%.2f sh @ exit %.3f "
+                                   "(%.2f sh remain)", str(tid)[:12], merged, ex,
+                                   pos.remaining_shares)
+            try:
+                _ld = Path("logs/shadow/hot") / datetime.now(timezone.utc).date().isoformat()
+                _ld.mkdir(parents=True, exist_ok=True)
+                (_ld / "band_struct.jsonl").open("a").write(json.dumps({
+                    "ts": time.time(), "record": "merge", "cid": cond,
+                    "shares": round(merged, 2), "entry_yes": ey, "entry_no": en,
+                    "edge": round(edge, 4),
+                    "locked_pnl": round(merged * edge, 4)}) + "\n")
+            except Exception:
+                pass
 
     async def _struct_band_multiday_shadow(self) -> None:
         """BADATMATH multi-day band shadow (2026-06-09 rebuild).
@@ -2369,7 +2463,8 @@ class WeatherArb:
         from strategy.stwa_engine import (
             BAND_PX_MIN, BAND_PX_CEIL, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
             BAND_BASE_STAKE, BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
-            BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for)
+            BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
+            BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0)
 
         events = await self._fetch_weather_events()
         if not events:
@@ -2496,10 +2591,18 @@ class WeatherArb:
                 # LIVE path (gated): collect — posted SORTED after the scan so
                 # limited cash goes to the best legs first. Inert while
                 # BAND_LIVE=False.
-                if _live_ok:
+                # 2026-06-11 offset rules (his own fills, n≥100): YES only
+                # |off|≤1 (off2/3/4 = −8.5/−72/−56.5%; wings get NO bids via the
+                # overlay instead); d+0 YES only on the mode (his d0 YES −3.4%
+                # n=1531 — the off0 leg survives as the merge-pair half).
+                # Shadow `quotes` above stays ALL offsets so the validator keeps
+                # accumulating the wing slices toward its own n≥100.
+                _max_off = BAND_YES_MAX_OFF_D0 if days_out == 0 else BAND_YES_MAX_OFF
+                if _live_ok and off <= _max_off:
                     import types as _types
                     _sig = _types.SimpleNamespace(token_id=tok, quote_price=q,
-                                                  stake=stake, city=city, bucket=(lo, hi))
+                                                  stake=stake, city=city, bucket=(lo, hi),
+                                                  days_out=days_out)
                     _live_legs.append((days_out, sum_ask, off, _sig, mkt, float(ay)))
             _emit({"city": city, "date": ed, "days_out": days_out, "reason": "fire",
                    "mode_lo": mode_lo, "sum_ask": round(sum_ask, 3), "live": BAND_LIVE,
@@ -2517,16 +2620,30 @@ class WeatherArb:
             except Exception as e:
                 logger.error("[STRUCT-BAND-MD] live post failed %s: %s", _sig.city, e)
 
-        # ── FAVORITE-NO overlay (2026-06-10, user: "mirror badatmath fully") ──
-        # His second leg: maker NO bids 0.52-0.85 on favorite/shoulder buckets,
-        # d+0, added late in the market life (+$1.9k / 5.9% ROI / WR 68% of his
-        # +$7.4k). Price-band rule only — no lockout gate (M1β keeps that
-        # slice; per-token dedup in _struct_band_post_maker prevents overlap).
-        # Gamma proxy pre-filters candidates; the REAL CLOB NO book confirms
-        # before posting (proxy-only quoting was the stwa_ladder_book trap).
+        # ── PAIR MERGE (2026-06-11): held YES+NO on the same condition → $1/sh
+        # via NegRiskAdapter through the proxy factory. Cash-velocity engine
+        # (his ~50% same-day recycle); strictly cash-positive, no market risk.
+        try:
+            await self._band_merge_once()
+        except Exception:
+            logger.exception("[MERGE] pass failed")
+
+        # ── FAVORITE-NO overlay (2026-06-10; REWORKED 2026-06-11 re-audit) ────
+        # He is a two-sided pair-quoter: NO is HALF the book and the other half
+        # of the same-bucket pair (YES bid + NO bid Σ<1 → both fill → merge $1).
+        # Rules from his own post-05-04 fills (n≥100 per slice, state_log 06-11):
+        #   price 0.52-0.85 (0.65-0.85 +11.2% is the meat; 0.35-0.50 trough −7.8%)
+        #   offset: mode NO = pair leg (+23.2%); SKIP ±1 shoulders (−6.7%,
+        #   n=1214); |off|≥2 = wing NO (+13..+35%) — the wings that lost as YES.
+        #   days_out d+0..2, posted d+1 first (his best NO slice +12.4%).
+        # Same-bucket pair cap: our YES bid + NO bid ≤ BAND_PAIR_SUM_MAX so a
+        # completed pair locks ≥8¢/share (merge or settlement pays $1).
+        # Gamma proxy pre-filters; the REAL CLOB NO book confirms before posting
+        # (proxy-only quoting was the stwa_ladder_book trap).
         from strategy.stwa_engine import (BAND_NO_ENABLED, BAND_NO_MIN,
                                           BAND_NO_MAX, BAND_NO_STAKE,
-                                          BAND_NO_DAILY_CAP)
+                                          BAND_NO_DAILY_CAP, BAND_NO_MAX_DOUT,
+                                          BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX)
         if not (BAND_LIVE and BAND_NO_ENABLED):
             return
         _today_no = _now_utc.date().isoformat()
@@ -2537,16 +2654,26 @@ class WeatherArb:
         for (city, ed), ladder in ladders.items():
             days_out = (date.fromisoformat(ed)
                         - date.fromisoformat(meta[(city, ed)])).days
-            if days_out != 0:
+            if not (0 <= days_out <= BAND_NO_MAX_DOUT):
                 continue
-            for lo, hi, yt, ay, mkt, nt in ladder:
-                if lo <= -900.0 or hi >= 900.0 or not nt:
+            _interior = sorted([e for e in ladder
+                                if e[0] > -900.0 and e[1] < 900.0], key=lambda e: e[0])
+            if not _interior:
+                continue
+            _mi = max(range(len(_interior)), key=lambda i: _interior[i][3])
+            for _i, (lo, hi, yt, ay, mkt, nt) in enumerate(_interior):
+                if not nt:
+                    continue
+                _off = abs(_i - _mi)
+                if BAND_NO_SKIP_OFF1 and _off == 1:
                     continue
                 # proxy pre-filter (±slack): real book decides below
                 if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= BAND_NO_MAX + 0.05):
                     continue
-                _no_cands.append((city, lo, hi, nt, mkt))
-        for city, lo, hi, nt, mkt in _no_cands[:40]:
+                _no_cands.append((days_out, _off, city, lo, hi, yt, nt, mkt))
+        # his NO ROI by days_out: d+1 +12.4% > d+2 +5.9% > d+0 +1.5%
+        _no_cands.sort(key=lambda c: ({1: 0, 2: 1, 0: 2}.get(c[0], 3), c[1]))
+        for days_out, _off, city, lo, hi, yt, nt, mkt in _no_cands[:40]:
             if self._band_no_spent + BAND_NO_STAKE > BAND_NO_DAILY_CAP:
                 break
             try:
@@ -2563,10 +2690,32 @@ class WeatherArb:
             _nb = float(_bids[0]["price"]) if _bids else max(0.01, _na - 0.04)
             _q = round(max(0.01, min(_na - 0.01,
                                      _nb + BAND_QUOTE_FRAC * max(0.0, _na - _nb))), 3)
+            # pair cap: if we quote/hold the YES side of this bucket, the two
+            # bids must sum ≤ BAND_PAIR_SUM_MAX (locked pair margin ≥ 8¢/sh)
+            _qy = None
+            _cid = mkt.get("conditionId", "")
+            for _m in (getattr(self, "_maker_resting", {}) or {}).values():
+                if (_m.get("condition_id") == _cid
+                        and str(_m.get("side", "YES")).upper() == "YES"):
+                    _qy = float(_m.get("q_price") or 0.0)
+                    break
+            if _qy is None:
+                _ypos = getattr(getattr(self.bot, "risk", None),
+                                "open_positions", {}).get(yt)
+                if _ypos is not None:
+                    _qy = float(getattr(_ypos, "entry_price", 0.0) or 0.0)
+            if _qy:
+                _q = min(_q, round(BAND_PAIR_SUM_MAX - _qy, 3))
+                if _q < 0.01:
+                    continue
+            _emit({"city": city, "date": mkt.get("endDate", "")[:10],
+                   "days_out": days_out, "reason": "fire_no", "side": "NO",
+                   "off": _off, "ask": round(_na, 3), "bid_quote": _q,
+                   "pair_yes_q": _qy, "cid": _cid})
             import types as _types
             _sig = _types.SimpleNamespace(token_id=nt, quote_price=_q,
                                           stake=BAND_NO_STAKE, city=city,
-                                          bucket=(lo, hi))
+                                          bucket=(lo, hi), days_out=days_out)
             _pre = len(getattr(self, "_maker_resting", {}) or {})
             try:
                 await self._struct_band_post_maker(_sig, mkt, _na, side="NO")
@@ -2680,14 +2829,16 @@ class WeatherArb:
             logger.info("[STWA-RES] settled %d position(s); %d STWA still open",
                         n_closed, still)
 
-    def _stwa_close_resolved(self, token_id: str, pos, exit_price: float) -> None:
+    def _stwa_close_resolved(self, token_id: str, pos, exit_price: float,
+                             reason: str = "STWA_RESOLVED") -> None:
         """Book a resolved STWA position: PnL → bankroll (close_position) and a
         row → trades.jsonl (record_trade). Polymarket redemption is fee-free, so
-        actual_fee=0.0 (else close_position would subtract a phantom fee)."""
+        actual_fee=0.0 (else close_position would subtract a phantom fee).
+        reason="BAND_MERGE" books an on-chain pair merge (also fee-free)."""
         meta = (self.bot._open_meta.get(token_id, {}) or {})
         cap_before = self.bot.risk.bankroll.capital
         pnl = self.bot.risk.close_position(
-            token_id, exit_price=exit_price, reason="STWA_RESOLVED", actual_fee=0.0,
+            token_id, exit_price=exit_price, reason=reason, actual_fee=0.0,
         )
         if pnl is None:
             return
@@ -2712,7 +2863,7 @@ class WeatherArb:
                 entry_price=pos.entry_price, exit_price=exit_price,
                 stake=pos.stake, shares=pos.shares,
                 entry_fill=None, exit_fills=[],
-                exit_reason="STWA_RESOLVED", signal=sig,
+                exit_reason=reason, signal=sig,
                 ts_open=meta.get("ts_open", pos.open_ts), ts_close=time.time(),
                 capital_before=cap_before,
                 heat_check_active=False,

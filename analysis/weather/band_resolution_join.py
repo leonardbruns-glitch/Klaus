@@ -36,21 +36,43 @@ def winner(op):
         pass
     return None
 
-# 1) collect would-post YES legs from every band_struct fire
-legs = []
+# 1) collect would-post legs from every band_struct fire.
+# 2026-06-11: DEDUPED to the FIRST fire per (cid, days_out, side) — the raw log
+# re-fires every ~300s rescan (~18×/market), which fire-weights the ROI toward
+# however long a market sat in the window (the "d+0 −35.5%" artifact, state_log
+# 06-11 10:30). The live executor posts ONCE per token (dedup seen-set), so
+# first-fire-per-market is what the book actually does. NO legs (reason=fire_no,
+# 2026-06-11 overlay rework) join the same way: NO wins when YES loses.
+raw = []
 for f in sorted(glob.glob("logs/shadow/hot/*/band_struct.jsonl")):
     for l in open(f):
         try: r = json.loads(l)
         except Exception: continue
-        if r.get("record") != "md_shadow" or r.get("reason") != "fire":
+        if r.get("record") != "md_shadow":
             continue
-        for q in r.get("quotes", []):
-            cid = q.get("cid")
+        ts = float(r.get("ts") or 0.0)
+        if r.get("reason") == "fire":
+            for q in r.get("quotes", []):
+                cid = q.get("cid")
+                if not cid: continue
+                raw.append({"cid": cid, "side": "YES", "ts": ts,
+                            "bid": float(q["bid_quote"]),
+                            "ask": float(q["ask"]), "off": q.get("off"),
+                            "days_out": r.get("days_out"), "city": r.get("city")})
+        elif r.get("reason") == "fire_no":
+            cid = r.get("cid")
             if not cid: continue
-            legs.append({"cid": cid, "bid": float(q["bid_quote"]),
-                         "ask": float(q["ask"]), "off": q.get("off"),
-                         "days_out": r.get("days_out"), "city": r.get("city")})
-print(f"band fire legs (with cid): {len(legs)}  unique markets: {len(set(l['cid'] for l in legs))}")
+            raw.append({"cid": cid, "side": "NO", "ts": ts,
+                        "bid": float(r["bid_quote"]),
+                        "ask": float(r["ask"]), "off": r.get("off"),
+                        "days_out": r.get("days_out"), "city": r.get("city")})
+first = {}
+for L in sorted(raw, key=lambda x: x["ts"]):
+    first.setdefault((L["cid"], L["days_out"], L["side"]), L)
+legs = list(first.values())
+print(f"fires: {len(raw)} raw → {len(legs)} deduped legs "
+      f"({sum(1 for l in legs if l['side']=='NO')} NO)  "
+      f"unique markets: {len(set(l['cid'] for l in legs))}")
 if not legs:
     print("no joinable legs yet — data-collection mode (shadow just started).")
     raise SystemExit
@@ -66,25 +88,31 @@ for i in range(0, len(cids), B):
         for m in d:
             res[m.get("conditionId")] = winner(m.get("outcomePrices"))
 
-# 3) realized WR / ROI vs the quoted bid (YES wins iff outcomeIndex 0 wins)
+# 3) realized WR / ROI vs the quoted bid. YES leg wins iff outcomeIndex 0 won;
+# NO leg wins iff outcomeIndex 1 won.
 def report(rows, label):
     rows = [r for r in rows if res.get(r["cid"]) is not None]
     if not rows:
         print(f"  {label}: 0 resolved"); return
     n = len(rows)
     cost = sum(r["bid"] for r in rows)          # 1 share/leg notional
-    win = sum(1 for r in rows if res[r["cid"]] == 0)
+    win = sum(1 for r in rows
+              if res[r["cid"]] == (0 if r["side"] == "YES" else 1))
     payoff = win                                 # winners pay $1/share
     wr = win / n; impl = cost / n; roi = 100*(payoff-cost)/cost if cost else 0
     print(f"  {label:22} n={n:5d} WR={100*wr:5.1f}% quote={impl:5.3f} ROI={roi:6.1f}%")
 
 print(f"\nresolved legs: {sum(1 for l in legs if res.get(l['cid']) is not None)} / {len(legs)}")
-print("REALIZED (vs our maker quote, conditional on fill):")
-report(legs, "ALL band legs")
-for d in sorted(set(l["days_out"] for l in legs)):
-    report([l for l in legs if l["days_out"] == d], f"days_out={d}")
-for o in sorted(set(l["off"] for l in legs if l["off"] is not None)):
-    report([l for l in legs if l["off"] == o], f"offset±{o} from mode")
+print("REALIZED (vs our maker quote, conditional on fill, deduped first-fire):")
+for side in ("YES", "NO"):
+    sl = [l for l in legs if l["side"] == side]
+    if not sl:
+        continue
+    report(sl, f"ALL {side} legs")
+    for d in sorted(set(l["days_out"] for l in sl)):
+        report([l for l in sl if l["days_out"] == d], f"  {side} days_out={d}")
+    for o in sorted(set(l["off"] for l in sl if l["off"] is not None)):
+        report([l for l in sl if l["off"] == o], f"  {side} offset±{o}")
 
 nres = sum(1 for l in legs if res.get(l['cid']) is not None)
 print(f"\nGATE: BAND_LIVE flip needs ROI>0 at n>=100. current resolved n={nres} "
