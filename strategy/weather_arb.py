@@ -2462,14 +2462,19 @@ class WeatherArb:
 
         from strategy.stwa_engine import (
             BAND_PX_MIN, BAND_PX_CEIL, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
-            BAND_BASE_STAKE, BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
+            BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
             BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
-            BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0)
+            BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes)
 
         events = await self._fetch_weather_events()
         if not events:
             return
         _now_utc = datetime.now(timezone.utc)
+        # bankroll-proportional stakes (2026-06-11): floors bind until ~$300-450
+        # capital (breadth eats first via the cash gate); recomputed per cycle
+        _capital = float(getattr(getattr(getattr(self.bot, "risk", None),
+                                         "bankroll", None), "capital", 0.0) or 0.0)
+        _stk_yes, _stk_no = band_stakes(_capital)
 
         # Group buckets by (city, end_date) for end_date in {today..today+HORIZON} local.
         ladders: dict = {}
@@ -2581,7 +2586,7 @@ class WeatherArb:
                 w = BAND_BELL[off] if off < len(BAND_BELL) else 0.0
                 if w <= 0.0:
                     continue
-                stake = round(BAND_BASE_STAKE * w, 2)
+                stake = round(_stk_yes * w, 2)
                 bid = max(0.01, ay - 0.02)        # best-bid proxy (Gamma gives no book)
                 q = round(max(0.01, min(ay - 0.01,
                                         bid + BAND_QUOTE_FRAC * max(0.0, ay - bid))), 3)
@@ -2641,7 +2646,7 @@ class WeatherArb:
         # Gamma proxy pre-filters; the REAL CLOB NO book confirms before posting
         # (proxy-only quoting was the stwa_ladder_book trap).
         from strategy.stwa_engine import (BAND_NO_ENABLED, BAND_NO_MIN,
-                                          BAND_NO_MAX, BAND_NO_STAKE,
+                                          BAND_NO_MAX,
                                           BAND_NO_DAILY_CAP, BAND_NO_MAX_DOUT,
                                           BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX)
         if not (BAND_LIVE and BAND_NO_ENABLED):
@@ -2674,7 +2679,7 @@ class WeatherArb:
         # his NO ROI by days_out: d+1 +12.4% > d+2 +5.9% > d+0 +1.5%
         _no_cands.sort(key=lambda c: ({1: 0, 2: 1, 0: 2}.get(c[0], 3), c[1]))
         for days_out, _off, city, lo, hi, yt, nt, mkt in _no_cands[:40]:
-            if self._band_no_spent + BAND_NO_STAKE > BAND_NO_DAILY_CAP:
+            if self._band_no_spent + _stk_no > BAND_NO_DAILY_CAP:
                 break
             try:
                 _bk = await self._fetch_book_levels(nt, n=3)
@@ -2714,7 +2719,7 @@ class WeatherArb:
                    "pair_yes_q": _qy, "cid": _cid})
             import types as _types
             _sig = _types.SimpleNamespace(token_id=nt, quote_price=_q,
-                                          stake=BAND_NO_STAKE, city=city,
+                                          stake=_stk_no, city=city,
                                           bucket=(lo, hi), days_out=days_out)
             _pre = len(getattr(self, "_maker_resting", {}) or {})
             try:
@@ -2723,7 +2728,7 @@ class WeatherArb:
                 logger.error("[STRUCT-BAND-NO] post failed %s: %s", city, e)
                 continue
             if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
-                self._band_no_spent += BAND_NO_STAKE
+                self._band_no_spent += _stk_no
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.

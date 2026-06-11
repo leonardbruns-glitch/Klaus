@@ -334,6 +334,27 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
 
+# ── BANKROLL-PROPORTIONAL STAKES (2026-06-11, user go) ───────────────────────
+# Fixed $ stakes freeze compounding (growth goes linear between manual constant
+# edits — BAND_BASE_STAKE's own history: "8→3 for the $155 bankroll") and are
+# anti-Kelly in drawdowns (fixed $ = rising fraction of a shrinking bankroll).
+# stake = clamp(capital·frac, floor, cap). Fracs calibrated so the FLOORS BIND
+# until ~$300-450 capital: below that every new dollar buys BREADTH via the
+# cash gate (badatmath's scaling axis — per-bucket $ flat across a 5× deploy
+# ramp); stakes only deepen once the surface saturates. In drawdowns stakes
+# shrink toward the floors (fractional-Kelly brake). Kill switches untouched.
+BAND_STAKE_FRAC_YES = 0.010
+BAND_STAKE_FRAC_NO  = 0.015
+BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
+
+
+def band_stakes(capital: float) -> tuple:
+    """(yes_base_stake, no_stake) for the current bankroll capital."""
+    c = max(0.0, float(capital or 0.0))
+    return (min(max(BAND_BASE_STAKE, c * BAND_STAKE_FRAC_YES), BAND_STAKE_MAX),
+            min(max(BAND_NO_STAKE, c * BAND_STAKE_FRAC_NO), BAND_STAKE_MAX))
+
+
 # ── PAIR MERGE (2026-06-11): held YES+NO on the same condition = $1/share at
 # resolution; NegRiskAdapter.mergePositions converts it to USDC NOW via the
 # proxy factory (execution/merger.py — on-chain path verified, adapter already
