@@ -2647,7 +2647,7 @@ class WeatherArb:
         # (proxy-only quoting was the stwa_ladder_book trap).
         from strategy.stwa_engine import (BAND_NO_ENABLED, BAND_NO_MIN,
                                           BAND_NO_MAX,
-                                          BAND_NO_DAILY_CAP, BAND_NO_MAX_DOUT,
+                                          band_no_daily_cap, BAND_NO_MAX_DOUT,
                                           BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX)
         if not (BAND_LIVE and BAND_NO_ENABLED):
             return
@@ -2678,8 +2678,9 @@ class WeatherArb:
                 _no_cands.append((days_out, _off, city, lo, hi, yt, nt, mkt))
         # his NO ROI by days_out: d+1 +12.4% > d+2 +5.9% > d+0 +1.5%
         _no_cands.sort(key=lambda c: ({1: 0, 2: 1, 0: 2}.get(c[0], 3), c[1]))
+        _no_cap = band_no_daily_cap(_capital)
         for days_out, _off, city, lo, hi, yt, nt, mkt in _no_cands[:40]:
-            if self._band_no_spent + _stk_no > BAND_NO_DAILY_CAP:
+            if self._band_no_spent + _stk_no > _no_cap:
                 break
             try:
                 _bk = await self._fetch_book_levels(nt, n=3)

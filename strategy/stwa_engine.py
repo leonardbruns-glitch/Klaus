@@ -346,6 +346,10 @@ BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −
 BAND_STAKE_FRAC_YES = 0.010
 BAND_STAKE_FRAC_NO  = 0.015
 BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
+BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
+                             # NO is the scarce pair leg (YES side is uncapped, pairs
+                             # need both); fixed $40 freezes pair formation as capital
+                             # compounds. Floor binds to ~$133 capital (0.30·133≈40).
 
 
 def band_stakes(capital: float) -> tuple:
@@ -353,6 +357,12 @@ def band_stakes(capital: float) -> tuple:
     c = max(0.0, float(capital or 0.0))
     return (min(max(BAND_BASE_STAKE, c * BAND_STAKE_FRAC_YES), BAND_STAKE_MAX),
             min(max(BAND_NO_STAKE, c * BAND_STAKE_FRAC_NO), BAND_STAKE_MAX))
+
+
+def band_no_daily_cap(capital: float) -> float:
+    """NO-overlay daily posting cap for the current bankroll capital."""
+    return max(BAND_NO_DAILY_CAP,
+               max(0.0, float(capital or 0.0)) * BAND_NO_CAP_FRAC)
 
 
 # ── PAIR MERGE (2026-06-11): held YES+NO on the same condition = $1/share at
