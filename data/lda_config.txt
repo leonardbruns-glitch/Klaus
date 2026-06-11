@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-11T20:03:09Z
+# Snapshot: 2026-06-11T20:18:09Z
 # Latest commit on klaus:
-a2a0553d feat(BAND-V3): max-extraction package — Σ-gate posted-basket fix (0.85), real-book join-touch YES quoting, unified ROI-ordered posting queue, NO overlay on full ladder incl. edges, pair-intent favorite quoting, dead-quote reclaim; retire taker model-NO
+5b28868f feat(PX-MIN-MD): days-out-aware YES floor — d+1/d+2 admit cheap shoulders to 0.03, d+0 keeps 0.10
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
