@@ -2173,8 +2173,9 @@ class WeatherArb:
                 risk._save_positions()
             except Exception:
                 pass
-            logger.warning("[MAKER-FILL] +%.1f maker sh @ %.4f → %s NO %s now shares=%.1f entry=%.4f",
-                           add_shares, price, ctx.get("city"), str(tid)[:12], new_sh, new_entry)
+            logger.warning("[MAKER-FILL] +%.1f maker sh @ %.4f → %s %s %s now shares=%.1f entry=%.4f",
+                           add_shares, price, ctx.get("city"),
+                           str(ctx.get("side") or "NO").upper(), str(tid)[:12], new_sh, new_entry)
             return
         # New position — the maker is the first fill on this token. Direction-aware:
         # STRUCT_BAND posts YES bids (ctx side="YES"); lockout/thermo are NO (default).
