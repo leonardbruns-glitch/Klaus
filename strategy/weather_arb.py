@@ -2546,7 +2546,7 @@ class WeatherArb:
             BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
             BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
             BAND_REALBOOK_YES, BAND_PAIR_FAV_ENABLED, BAND_PAIR_FAV_YES_MIN,
-            BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX)
+            BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX, BAND_PX_MIN_MD)
 
         events = await self._fetch_weather_events()
         if not events:
@@ -2612,9 +2612,13 @@ class WeatherArb:
             # interior buckets in the harvest price band — NO depth gate (a maker
             # posts depth; requiring existing ask-depth killed every leg in the
             # old path) and NO peak-window gate (the band lives days out, not at peak).
+            # days-out-aware price floor (2026-06-11, user challenge): d+1/d+2
+            # admit cheap shoulders down to BAND_PX_MIN_MD (+44.9% ex-explosion,
+            # n=652); d+0 keeps the 0.10 floor (cheap@d0 −7.4%, n=1364).
+            _px_min = BAND_PX_MIN if days_out == 0 else BAND_PX_MIN_MD
             valid = [(e[0], e[1], e[2], e[3], e[4]) for e in ladder
                      if e[0] > -900.0 and e[1] < 900.0
-                     and BAND_PX_MIN <= e[3] <= BAND_PX_CEIL]
+                     and _px_min <= e[3] <= BAND_PX_CEIL]
             if len(valid) < BAND_MIN_LEGS:
                 _emit({"city": city, "date": ed, "days_out": days_out, "reason": "no_band",
                        "n_interior": sum(1 for e in ladder if e[0] > -900 and e[1] < 900),
@@ -2836,8 +2840,10 @@ class WeatherArb:
                     if _bk and (_bk.get("asks") or []):
                         _ra = float(_bk["asks"][0]["price"])
                         # re-validate the price window on the REAL ask (gamma
-                        # proxies drift; crossing a stale proxy = taker fill)
-                        if not (BAND_PX_MIN <= _ra <= BAND_PX_CEIL):
+                        # proxies drift; crossing a stale proxy = taker fill);
+                        # days-out-aware floor matches the scan filter
+                        _pxm = BAND_PX_MIN if _do == 0 else BAND_PX_MIN_MD
+                        if not (_pxm <= _ra <= BAND_PX_CEIL):
                             continue
                         _rb = (float(_bk["bids"][0]["price"])
                                if _bk.get("bids") else max(0.01, _ra - 0.02))

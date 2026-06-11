@@ -277,9 +277,19 @@ BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge
                                     # tokens ground truth; worst-case bound = Σask<0.70 vs mode±band hit
                                     # ~0.84 ⇒ +EV even at ask-1¢ fills. Revert: False
 BAND_PX_CEIL        = 0.45          # never quote a YES leg whose ask is above this (badatmath p99=0.44; >0.50 = -EV)
-BAND_PX_MIN         = 0.10          # 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05) −11.9%,
-                                    # [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%. The 28d
-                                    # "wings +35%" was sample noise; wings are −EV. Revert: 0.06
+BAND_PX_MIN         = 0.10          # d+0 floor. 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05)
+                                    # −11.9%, [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%.
+                                    # d+0 cheap stays dead post-inflection too: 0.05-0.10@d0 −7.4% (n=1364).
+BAND_PX_MIN_MD      = 0.03          # 2026-06-11 (user challenged the 0.10 floor — user right): the 0.10
+                                    # floor was calibrated on the WING-polluted full-history curve BEFORE
+                                    # the off≤1 rule existed. Inside off≤1 at d+1/d+2 (the basket live
+                                    # actually posts), his cheap legs are the deepest-return trades in the
+                                    # book: px<0.10 @ d1/d2 = +120.1% (n=1592), still +44.9% (n=652) with
+                                    # the W23 explosion week EXCLUDED; positive 4 of 6 weeks (neg weeks =
+                                    # $137/$72 micro-samples). By price@d1: [0.05,0.10) +68.9% (n=776),
+                                    # <0.05 +337.9% (n=524). Mechanism = buying tomorrow's shoulders before
+                                    # the market prices them (revision mean-reversion + tail convexity).
+                                    # 0.03 floor avoids 0.01-0.02 dust where one tick = 50% of price.
 BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
 BAND_SUM_MAX        = 0.85          # fire only if Σ ask of the POSTED legs (|off| ≤ BAND_YES_MAX_OFF) < this.
                                     # 2026-06-11 BASKET-MISMATCH FIX: the old 0.70 gate summed the full ±2
