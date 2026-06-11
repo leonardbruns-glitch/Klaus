@@ -338,7 +338,12 @@ THERMO_MAKER_ENABLED       = True    # shadow-log thermo-ceiling upper-tail cand
 THERMO_MAKER_LIVE          = True    # ⚠ post real resting NO bids (user opt-in, monitored)
 THERMO_MAKER_P99_K         = 2.33    # p99: ceiling = running_max + mean_rise·(1 + K·RR_CV)
 THERMO_MAKER_MIN_MARGIN_C  = 0.3     # bucket floor must exceed the p99 ceiling by this (rounding buffer)
-THERMO_MAKER_MAX_DAILY     = 8       # ≤8 live posts/day (×$5 ≈ the $40 breaker cap)
+THERMO_MAKER_MAX_DAILY     = 3       # 2026-06-11: 8→3 (user challenge) — at 8×$5 = $40/day THERMO ate
+                                     # >half the $65 cash gate AHEAD of the band's ROI-ordered queue
+                                     # (execution order, not merit) with ZERO resolved fills (own kill
+                                     # gate needs 20). $15/day keeps validation data flowing; re-expand
+                                     # (possibly above band priority) only after the first 20 resolve
+                                     # clean — near-certain fast turns then EARN the bigger slice. Was 8
 
 # ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
 # Face 2 (buy-all-NO) is only ever eligible when Σyes_proxy>1 — the OPPOSITE of
