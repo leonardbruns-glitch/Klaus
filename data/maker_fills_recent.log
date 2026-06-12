@@ -461,3 +461,9 @@ Jun 12 17:29:54 vps python3[910142]: 2026-06-12 17:29:54,529 [WARNING] strategy.
 Jun 12 17:30:40 vps python3[910142]: 2026-06-12 17:30:40,379 [INFO] strategy.weather_arb: [STRUCT-BAND-Q] queue=253 posted=0 cash_preskip=203 books=0/80 yes_books=0/50 no_cands=124 pair_cands=15
 Jun 12 17:35:48 vps python3[910142]: 2026-06-12 17:35:48,427 [INFO] strategy.weather_arb: [STRUCT-BAND-Q] queue=246 posted=0 cash_preskip=196 books=0/80 yes_books=0/50 no_cands=122 pair_cands=16
 Jun 12 17:41:02 vps python3[910142]: 2026-06-12 17:41:02,480 [INFO] strategy.weather_arb: [STRUCT-BAND-Q] queue=250 posted=2 cash_preskip=199 books=2/80 yes_books=2/50 no_cands=123 pair_cands=16
+Jun 12 17:46:14 vps python3[910142]: 2026-06-12 17:46:14,041 [INFO] strategy.weather_arb: [STRUCT-BAND-Q] queue=252 posted=0 cash_preskip=203 books=0/80 yes_books=0/50 no_cands=126 pair_cands=17
+Jun 12 17:51:20 vps python3[910142]: 2026-06-12 17:51:20,681 [ERROR] strategy.weather_arb: [MAKER-FILL] reconcile failed
+Jun 12 17:51:21 vps python3[910142]: 2026-06-12 17:51:21,028 [INFO] strategy.weather_arb: [STRUCT-BAND-Q] queue=251 posted=2 cash_preskip=201 books=2/80 yes_books=2/50 no_cands=126 pair_cands=16
+Jun 12 17:51:45 vps python3[910142]: 2026-06-12 17:51:45,666 [WARNING] strategy.weather_arb: [MAKER-FILL] registered Ankara YES 102207603207 +15.0 @ 0.1400 (cond=0x99bd3c27)
+Jun 12 17:51:45 vps python3[910142]: 2026-06-12 17:51:45,676 [WARNING] strategy.weather_arb: [USER-WS] UNTRACKED FILL: token=4439174525217769 side=BUY price=0.86 size=49.48 status=MINED trader_side=MAKER — no tracker entry, no open position
+Jun 12 17:51:50 vps python3[910142]: 2026-06-12 17:51:50,118 [WARNING] strategy.weather_arb: [USER-WS] UNTRACKED FILL: token=4439174525217769 side=BUY price=0.86 size=49.48 status=CONFIRMED trader_side=MAKER — no tracker entry, no open position
