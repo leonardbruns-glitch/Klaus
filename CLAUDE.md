@@ -7,12 +7,15 @@ Trades Polymarket **daily-high-temperature** markets across 51 cities. A market 
 
 Engine: `strategy/stwa_engine.py`, driven by `strategy/weather_arb.py`. A 51-city joint Kalman filter over 2D Langevin temperature paths produces a forecast distribution for each city's daily max; bucket win-probabilities are priced, isotonically recalibrated, and sized by Kelly.
 
-Live structure (`STWA_LIVE=True`) — **favorite-longshot directional NO** (updated 2026-06-05, supersedes the YES-only laddering): the directional bucket path is now **NO-only** (engine model-NO), with the M1β lockout-NO coexisting and NEG_RISK_ARB always on. **YES is DISABLED.**
-- **NEG_RISK_ARB** — when the YES asks spanning a city's buckets sum to < 0.85, buy the spanning set for a sub-$1 guaranteed payoff. **Model-independent — the only structurally sound, calibration-free edge.** Unaffected by any enable flag (returns before the candidate loop).
-- **regular-YES ladder — DISABLED** (`STWA_REGULAR_YES_ENABLED=False`, 2026-06-05): the full-market calibration curve (n=1771) showed YES overconfident; σ-collapse makes it a disaster (model-certain buckets win ~17% live). Revert: `STWA_REGULAR_YES_ENABLED=True`.
-- **engine model-NO — ENABLED** (`STWA_REGULAR_NO_ENABLED=True`, RE-ENABLED 2026-06-05, user): favorite-longshot NO harvest. Buys NO on buckets the model gives low YES prob, gated by `PRICE_FLOOR=0.50` (only buy the favorite side at ask ≥ 0.50 — every dollar of directional loss lived below 0.50) and `EDGE_MIN=0.04`. Resolved-trade evidence (n=37 at ask≥0.50): +$9.88, EV/sh +0.052, fee-positive. **Live n still small (n≈12 joined, WR 67%, EV +$0.13/$1 — TREND-ONLY, < n≥100 gate.)** Coexists with M1β (both gate on `risk.open_positions` → no double-fills). Revert: `STWA_REGULAR_NO_ENABLED=False`.
+Live structure (updated 2026-06-12) — **BAND-first MAKER system** (badatmath mirror, BAND-V3 deployed 06-11). Flags in `strategy/stwa_engine.py` are AUTHORITATIVE (`data/band_config.txt` on the data-mirror snapshots them); this table drifts.
+- **STRUCT_BAND maker** (the core): one unified ROI-ordered posting queue, one cash pool — d+2 YES > d+1 YES > d+1 NO > PAIR_FAV > d+2 NO > d+0 YES(mode) > d+0 NO. Mode-centered YES band (off≤1 posted legs, Σ(posted) gate ≤0.85, real-book join-touch quoting, px floor 0.03 d+1/d+2 / 0.10 d+0, ceil ~0.45); favorite-NO overlay 0.52–0.85 on the FULL ladder incl. edge buckets (skip ±1 shoulders); PAIR_FAV both-sides quoting on converged favorites (Σ≤0.90). Cash gate `MAKER_CASH_FRAC=0.90`·free USDC (non-latching), breaker $150, dead-quote reclaim (≥6h old + ≥2¢ behind touch). NO-starvation fixed 06-12 (cash pre-check before book fetch, YES fetch sub-budget 50/80, NO rotation, `[STRUCT-BAND-Q]` cycle log).
+- **RECYCLE099** — resting 0.99/0.999 maker asks (`maker_sell`) on held winners; same-day convergence capital recycling.
+- **NEG_RISK_ARB** — Σ YES asks < 0.85 spanning set. Model-independent, always on (returns before the candidate loop).
+- **THERMO** upper-tail maker-NO — validating, capped $15/day until first 20 resolve clean.
+- **M1β lockout-NO** — official-METAR running-max lockouts, provenance-gated.
+- **Engine directional taker paths BOTH DISABLED**: `STWA_REGULAR_YES_ENABLED=False` (2026-06-05, σ-collapse disaster) and `STWA_REGULAR_NO_ENABLED=False` (2026-06-11, 0 fires in 48h + armed taker duplicate of the maker NO overlay). The 51-city Kalman engine currently allocates ~no live capital directly; band centers on the MARKET mode.
 
-**Entry capital (city-day budget `R = min(5%·bankroll,$15) − held`):** arb spine wakes ~$35–55 bankroll; first YES leg needs `R≥$3` (~$60 bankroll); full 3-leg YES ladder needs `R≥$9` (~$180); per-city budget caps at $15 (bankroll ≥ $300).
+**Scale-up gate:** `band_resolution_join.py` per-side n≥100 with CI clearing zero (gate-keeper routine tracks the full ledger daily).
 
 Exit: **hold to resolution**. Tokens resolve 1.0/0.0 at daily-max settlement. No profit-target, no stop-loss — a weather position must ride intraday noise through to the diurnal peak.
 
@@ -76,15 +79,17 @@ The market resolves on the **daily max = sup of the temperature path over the re
 
 ---
 
-## CURRENT PARAMETERS (updated 2026-06-01)
+## CURRENT PARAMETERS (updated 2026-06-12 — `stwa_engine.py` flags are authoritative, this table drifts)
 | Parameter | Value | Notes |
 |---|---|---|
-| Engine | STWA — 51-city joint Kalman | `strategy/stwa_engine.py` + `weather_arb.py` |
-| Live flag | `STWA_LIVE=True` | live entries from the Kalman engine |
-| Live paths | NEG_RISK_ARB + engine model-NO (favorite-longshot) + M1β lockout-NO | YES DISABLED 2026-06-05 |
-| YES enable | `STWA_REGULAR_YES_ENABLED=False` | DISABLED 2026-06-05 (user); overconfident + σ-collapse disaster |
-| NO enable | `STWA_REGULAR_NO_ENABLED=True` | RE-ENABLED 2026-06-05 (user); favorite-longshot NO harvest |
-| Price floor | `PRICE_FLOOR=0.50` | only buy favorite side (YES/NO) at ask ≥ 0.50; bleed lived below 0.50 |
+| Engine | STWA — 51-city joint Kalman | `strategy/stwa_engine.py` + `weather_arb.py`; allocates ~no live capital directly (band uses market mode) |
+| Live flag | `STWA_LIVE=True` + `BAND_LIVE=True` | maker band is the core live path |
+| Live paths | STRUCT_BAND maker (YES band + NO overlay + PAIR_FAV) + RECYCLE099 + NEG_RISK_ARB + THERMO (capped) + M1β lockout-NO | BAND-V3 2026-06-11 |
+| YES enable (taker) | `STWA_REGULAR_YES_ENABLED=False` | DISABLED 2026-06-05; σ-collapse disaster |
+| NO enable (taker) | `STWA_REGULAR_NO_ENABLED=False` | DISABLED 2026-06-11; armed taker duplicate of maker NO overlay |
+| Band Σ gate | Σ(posted legs) ≤ 0.85 | on the off≤1 basket actually posted, not the ±2 band |
+| Band px window | 0.03 (d+1/d+2) / 0.10 (d+0) to ~0.45 YES; NO 0.52–0.85 | real-book re-validated, join-touch never improve |
+| Maker cash gate | `MAKER_CASH_FRAC=0.90`·free USDC | non-latching; breaker $150; daily band budget unconstrained (user 06-09) |
 | Primary pricer | `PA_SHRUNK` | center = NWP_peak + peak_bias + 0.30·x_hat; reversible to `MC` |
 | Intraday weight β | 0.30 | morning residual mean-reverts ~70% by peak (data-backed) |
 | Nowcast σ-collapse | DISABLED 2026-06-06 (`NOWCAST_SIGMA_COLLAPSE=False`) | hurt calibration on every metric (Brier 0.181→0.129, ECE halved, rank-ρ up, 5× fewer false-certain buckets; n=53k–76k). σ now = validated per-month. Lockout certainty via running-max floor. Revert: True |
@@ -102,7 +107,7 @@ The market resolves on the **daily max = sup of the temperature path over the re
 
 ## WEATHER EDGE MAP — what's real, what's dead
 - **LIVE — STWA** (above). The primary engine.
-- **VALIDATED companion — LOCKOUT-NO** (settlement-lock): buy NO once `running_max` has passed a bucket's ceiling (physically impossible to resolve YES) while a stale YES bid persists. WR 94.6% raw / ~100% provenance-clean. But **low-capacity, late-window, patient** — fillable cheap NO mostly materializes >60 min into a lockout. Block Hong Kong (HKO oracle). Validators: `analysis/weather/lockout_{capacity,resolution_join}.py`.
+- **VALIDATED companion — LOCKOUT-NO** (settlement-lock): buy NO once `running_max` has passed a bucket's ceiling (physically impossible to resolve YES) while a stale YES bid persists. WR 94.6% raw / ~100% provenance-clean. **Execution timing: buy EARLY in the lockout** (2026-06-09 census superseded the old late-window advice); oracle blocklist {VHHH, ZGSZ}; HK live only via the HKO 1-min debounced feed. Validators: `analysis/weather/lockout_{capacity,resolution_join}.py`.
 - **DEAD-ENDS — do not rebuild** (all falsified on real data 2026-05-29):
   - *Fade-the-takers* — market is efficiently priced (Brier 0.011–0.015), taker flow is informed (follow, don't fade), and wallet edge does NOT persist (can't target "known losers").
   - *MM-fingerprinting meta-game* — ~10 competitive cross-market MMs, deterministic but boundary-pinned; collapses into the existing lockout edge, not a distinct alpha.
