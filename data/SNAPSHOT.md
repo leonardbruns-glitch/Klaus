@@ -2,7 +2,7 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-06-12T12:57:46Z |
+| snapshot_ts (UTC) | 2026-06-12T13:08:05Z |
 | klaus HEAD | 222bf5cf |
 | trades.jsonl rows | 7316 |
 | live rows | 7316 |
@@ -21,10 +21,17 @@ Single-commit rolling snapshot — do NOT merge or rebase from this branch.
 - `data/lda_config.txt`     — current LDA strategy parameters (from source)
 - `data/state_log.md`       — append-only user-decision log
 - `data/system_status.txt`  — klaus systemd, commits, disk, open positions
+- `data/integrity_report.json` — pre-flight data quality (read FIRST in agents)
 - `data/CLAUDE.md`          — repo CLAUDE.md (action tiers, rules)
 - `data/agent_context/`     — agent-readable ground truth (research_status.md, ...)
 - `data/shadow_summary.json`— per-logger index (n_rows, mtime, head/tail)
 - `data/shadow/*.jsonl`     — today's hot shadow logger files
+- `data/shadow/<date>/`     — last 5 days of band/maker loggers (band_struct,
+  exit099_live, basket_exit_shadow, thermo_maker, badatmath_watch, metar_lockout)
+- `data/maker_resting_state.json` — live resting maker orders (side, q_price, matched)
+- `data/band_posted_state.json`   — band posted-token dedup + daily spent
+- `data/maker_fills_recent.log`   — 7d fill tape ([MAKER-FILL]/[STRUCT-BAND-Q] journal lines)
+- `data/band_config.txt`    — live band/maker flags from stwa_engine.py
 - `data/paths.parquet`      — hold-path data (7d, if regen'd)
 - `data/entries.parquet`    — entry-state + outcomes (if regen'd)
 

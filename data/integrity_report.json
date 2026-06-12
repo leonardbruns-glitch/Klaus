@@ -1,0 +1,53 @@
+{
+  "assets": {
+    "BTC": 71,
+    "ETH": 55
+  },
+  "blocks_agent_run": false,
+  "era_boundary_utc": "2026-05-15T15:02:00Z",
+  "exit_reasons_top": {
+    "BOND_RESOLVED_NO": 20,
+    "GHOST_POSITION": 2,
+    "LDA_KLINE_WIN": 11,
+    "LDA_PT95": 87,
+    "LDA_PT95_EXT": 4,
+    "LDA_PT97": 2
+  },
+  "highest_severity": "HIGH",
+  "issues": {
+    "AGED_NO_RESOLUTION": {
+      "count": 69,
+      "denom_aged": 126,
+      "msg": "69/126 (54.8%) trades >6h old lack window_outcome_price (resolution may live in post_exit.jsonl)",
+      "pct": 54.8,
+      "severity": "HIGH"
+    },
+    "EMPTY_BOND_ENTRY_CLASS": {
+      "count": 8,
+      "msg": "8 LDA trades have empty bond_entry_class (restart-persistence bug \u2014 class-filtered queries miss these)",
+      "severity": "MEDIUM"
+    },
+    "GHOST_POSITION": {
+      "count": 2,
+      "msg": "2 GHOST_POSITION exits \u2014 exclude from analytics",
+      "severity": "MEDIUM"
+    },
+    "MISSING_DEDUP_KEYS": {
+      "count": 126,
+      "msg": "126/126 (100.0%) trades lack condition_id+window_end_ts in log (in-memory dedup still functional; per-window dedup from log impossible)",
+      "pct": 100.0,
+      "severity": "MEDIUM"
+    },
+    "NULL_KLINE_PNL": {
+      "count": 1,
+      "lda_kline_win_with_null": 0,
+      "msg": "1/126 (0.8%) trades have null kline_pnl",
+      "pct": 0.8,
+      "severity": "MEDIUM"
+    }
+  },
+  "lda_trades_all_eras": 1053,
+  "lda_trades_current_era": 126,
+  "snapshot_ts": "2026-06-12T13:10:12Z",
+  "trades_total": 7316
+}
