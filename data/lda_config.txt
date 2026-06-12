@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-12T13:08:05Z
+# Snapshot: 2026-06-12T13:23:06Z
 # Latest commit on klaus:
-222bf5cf fix(BAND): NO-starvation — cash pre-check before book fetch, YES fetch sub-budget 50/80, NO-candidate rotation, per-cycle queue log
+a1b05029 docs(CLAUDE.md): refresh to BAND-first reality + state_log routine portfolio entry
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
