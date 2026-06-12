@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+222bf5cf fix(BAND): NO-starvation — cash pre-check before book fetch, YES fetch sub-budget 50/80, NO-candidate rotation, per-cycle queue log
+84bab63b VOLARB Audit 20260612-1220 — NO_PATCH (n=885, watch=12)
+5743cfa5 Research audit 2026-06-12T1127Z — engine model-NO anti-predictive | best action: STWA_REGULAR_NO_ENABLED=False
 ef1c7ecd docs(STATE): lockout-salvage exit falsified — empty bid books at detection, $0.16 total salvage vs $10.46 losses
 d597d0b3 feat(BAND): pair-quote tape simulator — fill sim from maker_flow tape, zero capital
 fe48dbc7 VOLARB Audit 20260612-0616 — NO_PATCH (n=885, watch=12)
@@ -9,15 +12,12 @@ b20bf778 feat(STWA): basket exit shadow logger — cash-out value vs hold per he
 1f972730 VOLARB Audit 20260612-0020 — NO_PATCH (n=885, watch=12)
 bfa1a92d feat(THERMO): daily cap 8→3 — n=0 resolved path ate >50% of cash gate ahead of ROI queue by execution order
 5b28868f feat(PX-MIN-MD): days-out-aware YES floor — d+1/d+2 admit cheap shoulders to 0.03, d+0 keeps 0.10
-a2a0553d feat(BAND-V3): max-extraction package — Σ-gate posted-basket fix (0.85), real-book join-touch YES quoting, unified ROI-ordered posting queue, NO overlay on full ladder incl. edges, pair-intent favorite quoting, dead-quote reclaim; retire taker model-NO
-0e9f86b2 docs(STATE): full-system audit vs badatmath — 6 structural defects, Σ-gate basket mismatch headline
-fab914ac docs(STATE): correction — badatmath $200→$8k self-funded run verified; mechanism = ~1 full-equity turn/day at 10-20%/turn
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   76G       17G  83% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   77G       17G  83% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Fri 2026-06-12 06:15:35 UTC
+ActiveEnterTimestamp=Fri 2026-06-12 12:55:43 UTC
 
 ## Open positions (count):
 0
