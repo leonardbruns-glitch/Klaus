@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+ef1c7ecd docs(STATE): lockout-salvage exit falsified — empty bid books at detection, $0.16 total salvage vs $10.46 losses
 d597d0b3 feat(BAND): pair-quote tape simulator — fill sim from maker_flow tape, zero capital
 fe48dbc7 VOLARB Audit 20260612-0616 — NO_PATCH (n=885, watch=12)
 b20bf778 feat(STWA): basket exit shadow logger — cash-out value vs hold per held city basket
@@ -11,10 +12,9 @@ bfa1a92d feat(THERMO): daily cap 8→3 — n=0 resolved path ate >50% of cash ga
 a2a0553d feat(BAND-V3): max-extraction package — Σ-gate posted-basket fix (0.85), real-book join-touch YES quoting, unified ROI-ordered posting queue, NO overlay on full ladder incl. edges, pair-intent favorite quoting, dead-quote reclaim; retire taker model-NO
 0e9f86b2 docs(STATE): full-system audit vs badatmath — 6 structural defects, Σ-gate basket mismatch headline
 fab914ac docs(STATE): correction — badatmath $200→$8k self-funded run verified; mechanism = ~1 full-equity turn/day at 10-20%/turn
-608da785 docs(STATE): band-width + cheap-NO pair/solo verdicts; his real capital trajectory
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   76G       18G  82% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   75G       18G  82% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-06-12 06:15:35 UTC
