@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-12T19:10:16Z
+# Snapshot: 2026-06-12T19:25:19Z
 # Latest commit on klaus:
-f733ef5a feat(BAND): NO cash reservation — half of each cycle's maker-cash headroom off-limits to YES ranks
+dffc0c49 feat(PEAKSCALP): Phase-0 shadow — gate-pass + real-book logger for winner-bucket convergence scalp
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
