@@ -1889,7 +1889,11 @@ class WeatherArb:
                 for oid, ctx in st.items():
                     if str(ctx.get("side") or "") == "SELL_EXIT":
                         continue   # share-backed asks consume no cash — keep them out of the cash cap
-                    stake = float(ctx.get("q_price") or 0.0) * float(ctx.get("size") or 0.0)
+                    # NET of matched (2026-06-12): the filled portion already left
+                    # free USDC as a position — counting it as resting too would
+                    # double-tighten the cash gate.
+                    stake = float(ctx.get("q_price") or 0.0) * max(
+                        float(ctx.get("size") or 0.0) - float(ctx.get("matched") or 0.0), 0.0)
                     try:
                         self._maker_breaker.register_resting(oid, round(stake, 2))
                     except Exception:
@@ -1970,12 +1974,55 @@ class WeatherArb:
                 continue
             status, matched, fill_price = await orders.get_order_match(oid)
             if status is None:
+                # REAP (2026-06-12): a long-resolved market's order can't be
+                # fetched anymore — "retry next pass" loops forever and the entry
+                # pins breaker exposure (= cash-gate headroom) for days (3 stale
+                # entries were holding $10.20 of a $76 cap). Once >24h past the
+                # market's end_date (resolution is local-midnight +~1.6h, so noon-UTC
+                # end + 24h is past resolution in every timezone), cancel best-effort
+                # and drop the entry only if the cancel call confirms it's off-book.
+                _raw_end = str(ctx.get("end_date") or "")
+                try:
+                    if "T" in _raw_end:
+                        _end_dt = datetime.fromisoformat(_raw_end.replace("Z", "+00:00"))
+                    elif _raw_end:
+                        _end_dt = datetime.fromisoformat(_raw_end + "T12:00:00+00:00")
+                    else:
+                        _end_dt = None
+                except Exception:
+                    _end_dt = None
+                if (_end_dt is not None
+                        and (datetime.now(timezone.utc) - _end_dt).total_seconds() > 86400
+                        and await orders.cancel_order(oid)):
+                    if breaker is not None:
+                        try:
+                            breaker.release(oid)
+                        except Exception:
+                            pass
+                    resting.pop(oid, None)
+                    self._maker_ex_seen.discard(ctx.get("token_id"))
+                    dirty = True
+                    logger.warning(
+                        "[MAKER] reaped dead entry %s %s end=%s — released $%.2f resting exposure",
+                        ctx.get("city"), str(oid)[:12], _raw_end[:10],
+                        float(ctx.get("q_price") or 0.0) * max(
+                            float(ctx.get("size") or 0.0) - float(ctx.get("matched") or 0.0), 0.0))
                 continue  # transient fetch failure — retry next pass
             price = fill_price if (fill_price and fill_price > 0) else float(ctx.get("q_price") or 0.0)
             prev = float(ctx.get("matched") or 0.0)
             if matched > prev + 1e-6 and matched > 0:
                 self._maker_register_fill(oid, ctx, matched - prev, price)  # add the NEW shares only
                 ctx["matched"] = matched
+                if breaker is not None:
+                    # NET exposure (2026-06-12): the filled slice is now spent cash
+                    # (free USDC already dropped) — keep only the still-on-book
+                    # remainder in the resting cap or the gate counts it twice.
+                    try:
+                        breaker.register_resting(oid, round(
+                            float(ctx.get("q_price") or 0.0) * max(
+                                float(ctx.get("size") or 0.0) - matched, 0.0), 2))
+                    except Exception:
+                        pass
                 dirty = True
             # Stop tracking once the order is no longer live on the book.
             fully_filled = matched > 0 and matched >= float(ctx.get("size") or 0.0) - 1e-6
@@ -2778,6 +2825,15 @@ class WeatherArb:
                     if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= BAND_NO_MAX + 0.05):
                         continue
                     _no_cands.append((days_out, _off, city, lo, hi, yt, nt, mkt))
+        # 2026-06-12 NO-starvation fix: the sort below is deterministic, so the
+        # same first few NO candidates got whatever fetch budget remained every
+        # cycle and the tail was NEVER evaluated. Rotate per cycle so coverage
+        # sweeps the full set (stable sort keeps rotation within equal keys).
+        if _no_cands:
+            self._band_no_rot = (getattr(self, "_band_no_rot", 0) + 7) \
+                % len(_no_cands)
+            _no_cands = (_no_cands[self._band_no_rot:]
+                         + _no_cands[:self._band_no_rot])
 
         # ── PAIR_FAV candidates (2026-06-11 audit): converged ladders carry his
         # merge engine's core slice — bid BOTH sides of the favorite bucket at
@@ -2822,6 +2878,14 @@ class WeatherArb:
         _queue.sort(key=lambda t: (t[0], t[1], t[2]))
         _no_cap = band_no_daily_cap(_capital)
         _books_left = 80          # real-book fetch budget per cycle
+        # 2026-06-12 NO-starvation fix: YES ranks 0-1 consumed the whole fetch
+        # budget every cycle (cash-gate-skipped legs never enter the dedup set,
+        # so ~50 books re-burned per cycle on legs that could not post) — NO
+        # fired 0 times 04:00-12:00 UTC while YES posted all morning. YES gets
+        # a fetch sub-budget; cash is pre-checked BEFORE any fetch.
+        _books_yes = 50
+        _cash_preskip = 0
+        _seen_n0 = len(getattr(self, "_maker_ex_seen", set()) or set())
         _risk_band = getattr(self.bot, "risk", None)
         _seen_band = getattr(self, "_maker_ex_seen", set())
         import types as _types
@@ -2835,9 +2899,17 @@ class WeatherArb:
                 if (tid in _seen_band
                         or tid in getattr(_risk_band, "open_positions", {})):
                     continue
+                _okc, _ = self._maker_cash_gate(
+                    float(getattr(_sig, "stake", _stk_yes)))
+                if not _okc:
+                    _cash_preskip += 1
+                    continue
+                if _books_yes <= 0:
+                    continue   # YES sub-budget spent; leave fetches for NO/PAIR
                 _ra = float(_ay)
                 if BAND_REALBOOK_YES:
                     _books_left -= 1
+                    _books_yes -= 1
                     try:
                         _bk = await self._fetch_book_levels(tid, n=1)
                     except Exception:
@@ -2867,6 +2939,10 @@ class WeatherArb:
                 if self._band_no_spent + _stk_no > _no_cap:
                     continue
                 if nt in _seen_band or nt in getattr(_risk_band, "open_positions", {}):
+                    continue
+                _okc, _ = self._maker_cash_gate(_stk_no)
+                if not _okc:
+                    _cash_preskip += 1
                     continue
                 _books_left -= 1
                 try:
@@ -2923,6 +2999,10 @@ class WeatherArb:
                 if (yt in getattr(_risk_band, "open_positions", {})
                         or nt in getattr(_risk_band, "open_positions", {})):
                     continue
+                _okc, _ = self._maker_cash_gate(_stk_yes + _stk_no)
+                if not _okc:
+                    _cash_preskip += 1
+                    continue
                 if _books_left < 2:
                     continue
                 _books_left -= 2
@@ -2972,6 +3052,17 @@ class WeatherArb:
                     continue
                 if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
                     self._band_no_spent += round(_shares * _qn, 2)
+        # per-cycle visibility: the 06-12 starvation hunt was blind because
+        # every pre-fire death path was silent
+        if _queue:
+            logger.info(
+                "[STRUCT-BAND-Q] queue=%d posted=%d cash_preskip=%d "
+                "books=%d/80 yes_books=%d/50 no_cands=%d pair_cands=%d",
+                len(_queue),
+                max(0, len(getattr(self, "_maker_ex_seen", set()) or set())
+                    - _seen_n0),
+                _cash_preskip, 80 - _books_left, 50 - _books_yes,
+                len(_no_cands), len(_pair_cands))
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.
