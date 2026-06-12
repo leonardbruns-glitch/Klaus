@@ -68,6 +68,83 @@ if [ -d "$SHADOW_DIR/hot/$TODAY" ]; then
         -exec cp -f {} data/shadow/ \; 2>/dev/null || true
 fi
 
+# ── Band-era history (2026-06-12): resolution joins span d+2 entries, so the
+# cloud routines need the last 5 days of the band/maker loggers, not just
+# today. Bounded to the named small loggers, 10MB cap each.
+for i in 1 2 3 4 5; do
+    D=$(date -u -d "-$i day" +%Y-%m-%d)
+    [ -d "$SHADOW_DIR/hot/$D" ] || continue
+    mkdir -p "data/shadow/$D"
+    for f in exit099_live.jsonl basket_exit_shadow.jsonl \
+             thermo_maker.jsonl badatmath_watch.jsonl metar_lockout.jsonl; do
+        [ -f "$SHADOW_DIR/hot/$D/$f" ] && \
+            find "$SHADOW_DIR/hot/$D" -maxdepth 1 -name "$f" -size -10M \
+                -exec cp -f {} "data/shadow/$D/" \; 2>/dev/null || true
+    done
+done
+
+# band_struct grows past the 10MB cap on busy days (13MB on 06-12) and
+# stwa_pricer_eval is 40-80MB/day — ship a first-fire-deduped band extract
+# (all posts/reclaims + first fire per (city,date,reason,side,off)) and a
+# 1-in-50 pricer sample instead. Today + 5 days back.
+python3 - <<'PYEOF' || true
+import json, os, datetime
+SH = "/root/Klaus/logs/shadow/hot"
+today = datetime.datetime.now(datetime.timezone.utc).date()
+for i in range(0, 6):
+    d = (today - datetime.timedelta(days=i)).isoformat()
+    src = os.path.join(SH, d)
+    if not os.path.isdir(src):
+        continue
+    dst = os.path.join("data/shadow", d)
+    os.makedirs(dst, exist_ok=True)
+    bs = os.path.join(src, "band_struct.jsonl")
+    if os.path.isfile(bs):
+        seen = set()
+        with open(os.path.join(dst, "band_struct_lite.jsonl"), "w") as out:
+            for line in open(bs, errors="ignore"):
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if r.get("record") == "post" or "reclaim" in str(r.get("record", "")):
+                    out.write(line); continue
+                k = (r.get("city"), r.get("date"), r.get("reason"),
+                     r.get("side"), r.get("off"), r.get("days_out"))
+                if k in seen:
+                    continue
+                seen.add(k); out.write(line)
+PYEOF
+
+# pricer sample via awk (python line loop over 6x60MB blew the unit timeout)
+for i in 0 1 2 3 4 5; do
+    D=$(date -u -d "-$i day" +%Y-%m-%d)
+    PE="$SHADOW_DIR/hot/$D/stwa_pricer_eval.jsonl"
+    [ -f "$PE" ] || continue
+    mkdir -p "data/shadow/$D"
+    awk 'NR%50==1' "$PE" > "data/shadow/$D/stwa_pricer_eval_s50.jsonl" || true
+done
+
+# Maker surface state (resting orders + posted dedup) — routines audit fills,
+# NO-parity and quote age from these.
+for f in maker_resting_state.json band_posted_state.json; do
+    [ -f "$KLAUS/logs/$f" ] && cp -f "$KLAUS/logs/$f" "data/$f" || true
+done
+
+# Live fill tape: [MAKER-FILL] + queue-cycle + reaper lines from the journal
+# (bot.log rotates). Bounded.
+journalctl -u klaus --since "3 days ago" --no-pager 2>/dev/null \
+    | grep -aE 'MAKER-FILL|STRUCT-BAND-Q|reaped dead entry|UNTRACKED FILL' \
+    | tail -8000 > data/maker_fills_recent.log || true
+
+# Band/maker live config snapshot from source (flags drift faster than docs)
+{
+    echo "# Band/maker config (live, from strategy/stwa_engine.py)"
+    echo "# Snapshot: $SNAPSHOT_TS"
+    grep -nE "^(BAND_|MAKER_|THERMO_|STWA_REGULAR|STWA_LIVE|RECYCLE)[A-Z0-9_]* *=" \
+        "$KLAUS/strategy/stwa_engine.py" | head -60
+} > data/band_config.txt
+
 # Fast summary: wc -l for count (no Python iteration over GB files),
 # head/tail for excerpts. Filter to last 7 days OR hot/, skip backfill.
 python3 - <<'PYEOF' > data/shadow_summary.json 2>/dev/null || echo '{"loggers":{},"error":"index failed"}' > data/shadow_summary.json
@@ -197,6 +274,12 @@ Single-commit rolling snapshot — do NOT merge or rebase from this branch.
 - \`data/agent_context/\`     — agent-readable ground truth (research_status.md, ...)
 - \`data/shadow_summary.json\`— per-logger index (n_rows, mtime, head/tail)
 - \`data/shadow/*.jsonl\`     — today's hot shadow logger files
+- \`data/shadow/<date>/\`     — last 5 days of band/maker loggers (band_struct,
+  exit099_live, basket_exit_shadow, thermo_maker, badatmath_watch, metar_lockout)
+- \`data/maker_resting_state.json\` — live resting maker orders (side, q_price, matched)
+- \`data/band_posted_state.json\`   — band posted-token dedup + daily spent
+- \`data/maker_fills_recent.log\`   — 7d fill tape ([MAKER-FILL]/[STRUCT-BAND-Q] journal lines)
+- \`data/band_config.txt\`    — live band/maker flags from stwa_engine.py
 - \`data/paths.parquet\`      — hold-path data (7d, if regen'd)
 - \`data/entries.parquet\`    — entry-state + outcomes (if regen'd)
 
