@@ -1,220 +1,265 @@
-# Klaus Research Audit — 2026-06-11T10:30Z
+# Klaus Research Audit — 2026-06-12T11:27Z
 
-**Capital:** $91.77 | **Snapshot:** 2026-06-11T10:12:46Z (fresh, <18 min) | **Bot:** `active` (uptime since 2026-06-10 21:43 UTC)  
-**Strategy:** STWA-ONLY (badatmath full mirror deployed 2026-06-10 21:43 UTC — current config baseline)  
-**Data primacy note:** 214 of 216 resolved STWA trades are pre-Jun-9-21:55 oracle-integrity bugfix. Per standing rule, pre-fix losses are dead data and NOT cited as current expectancy below.
+**Snapshot**: 2026-06-12T11:27:09Z (fresh, 0.0h old) | Klaus: active (uptime 5.2h since 06:15 restart) | Capital: $225.67 | Trades.jsonl rows: 7,316
 
 ---
 
-## DATA PRIMACY CHECK
+## DATA PRIMACY — Pre-Report Confirmation
 
-**WEATHER_STWA resolved trades by config era (trades.jsonl):**
+**Live paths confirmed**: STWA_LIVE=True; NEG_RISK_ARB (always on) + engine model-NO (STWA_REGULAR_NO_ENABLED=True) + M1β lockout-NO + BAND pair-quoter (BAND_LIVE=True, since June 11 max-extraction package).
 
-| Era | n | WR | PnL | Status |
+**Config epoch**: YES disabled 2026-06-05; engine model-NO re-enabled 2026-06-05; BAND pair-quoter deployed live 2026-06-11. Pre-June-5 weather trades (n=92 in trades.jsonl) are DEAD DATA—not cited in expectancy.
+
+**Resolved WEATHER trades by config epoch**:
+
+| Epoch | n | WR | Net PnL | Dead? |
 |---|---|---|---|---|
-| Pre-Jun-9 10:25 (pre-M1β) | 0 | — | — | Dead |
-| Jun-9 10:25–21:55 (post-M1β, 3 oracle bugs present) | 214 | 35.6% | −$149.56 | Dead |
-| Jun-9 21:55–Jun-10 21:43 (oracle-clean, pre-band) | 0 | — | — | No resolved fills |
-| Jun-10 21:43+ (CURRENT CONFIG: d+0 live + fav-NO + oracle-clean) | 2 | 0% | −$1.72 | n=2, data-collection |
+| Pre-2026-06-05 (old config: YES ladder) | 92 | 5.4% | -$31.39 | **YES — dead data** |
+| 2026-06-05 to 2026-06-12 (current config) | 39 | 17.9% | -$55.05 | **ACTIVE — analyzed below** |
 
-**Conclusion:** Current-config resolved data n=2 (both STRUCT_BAND losses at $0.63+$1.09 stake). EV/WR for the current config is unmeasurable. The 214 pre-fix records include three compounding oracle bugs (NWS5 contamination, midnight reset wipe, backfill-wipe) that produced false lockouts and should not be cited.
+**Open positions (basket_exit_shadow)**: 12 cities, 15 legs, cost $38.68, liquidation value $29.49 (-23.8%), max-hold $143.78. Close windows: Jun 12 15:59 UTC and Jun 13 07:59 UTC.
 
-**WEATHER_M1_PROBE (pre-fix, all 31 trades):** WR=74.2%, net PnL=−$2.37, PF=0.97 on n=31 stake=$389.90. Near-breakeven despite false lockouts. Structure is correct; losses concentrated in high-ask entries during the oracle bug window (Jun-9 20:56 @ ask=0.813 is the identified KSFO NWS5 false lockout; Jun-9 21:20 @ ask=0.083 also suspect). DEAD DATA — informative only.
-
-**Today's live activity (Jun-11 00:00–10:12 UTC, post-current-config):**
-- RECYCLE099 exits: 6 fills, +$9.83 total (entries at 0.35, 0.69, 0.72, 0.74, 0.97, 0.99 → exits at 0.99/0.999). The 0.35-entry fill (+$5.50) is likely an oracle-clean M1β cheap-NO from Jun-10. Proof that exit mechanism is working.
-- Band posts: 18 RESTING orders, $38.40 stake, 11 cities (Seoul, Wellington, Tokyo, Qingdao, SF, Beijing, Jeddah, Ankara, Moscow, Chengdu, Cape Town). 15 YES + 3 NO.
-- M1β lockout candidates: 1,624 "both" (WS+REST) fires on 13 unique tokens. Depth: deep(≥0.5°C)=822, shallow(<0.2°C)=802. Zero thin-margin fires today.
-- System telemetry: 0 queue drops, flush p50=1.85ms, RSS=865 MB. Healthy.
+**Kill switch check**: WR=17.9% over 39 post-June5 resolved trades. **FLAG THRESHOLD BREACHED** (flag if <35% over 20 trades). Capital $225.67 >> ruin floor ($50). No daily halt triggered today.
 
 ---
 
-## SECTION 1: PRIMARY BOTTLENECK
+## POST-JUNE-5 RESOLVED STWA TRADES BY PATH
 
-**Bottleneck: Capital utilization (capital scale constraining fill breadth)**
+| Path | n | Direction | WR | Net PnL | Stake | EV/$ | Decision tier |
+|---|---|---|---|---|---|---|---|
+| WEATHER_STWA (engine model-NO) | 14 NO + 6 YES* | BUY_NO: 14 | 14.3% NO | -$39.16 | $49.16 | **-$0.797** | Trend only (n<100) |
+| WEATHER_STRUCT_BAND | 11 | YES: 8, NO: 3 | 18.2% | -$18.16 | $28.02 | **-$0.648** | Trend only (n<100) |
+| WEATHER_M1_PROBE (M1β lockout) | 5 | BUY_NO: 5 | 40.0% | +$12.66 | $42.84 | **+$0.295** | Trend only (n<100) |
+| WEATHER_THERMO (thermo-ceiling maker) | 2 | BUY_NO: 2 | 50.0% | -$5.56 | $11.06 | -$0.503 | Data-collection |
+| WEATHER_FAVYES | 1 | BUY_YES | 0.0% | -$4.82 | $4.82 | -$1.000 | Single data point |
 
-Rank justification (frequency > coverage > fills > **capital-util** wins):
-- Band capacity: today 18 resting orders at $38.40 stake. Badatmath at comparable config deploys ~$1,750 max working capital at 19% ROI = ~$332/mo. At $91.77 we project ~$17/mo band-edge if ROI transfers. The 10-19× gap is bankroll.
-- Frequency is NOT the binding constraint: 602 sub-0.70-Σask shadow band candidates fire today, but the band only posts when it can collateralize. The rest waits on resolution recycle.
-- Fill rate confirmed working: 6 RECYCLE099 exits today prove fills are landing. Cash recycling from the 0.35-entry position (+$5.50) is the right mechanism.
-- The Jun-10 09:00 audit confirmed: free USDC ~$49.7, band posted $50.10 resting → Polymarket swept all 18 legs. The cash/breaker mismatch (MAKER_BREAKER_MAX_EXPOSURE_USD=150 > free USDC) was the confirmed failure mode.
+*6 BUY_YES WEATHER_STWA on June 5 opened before YES flag fully propagated—not a current-config path.
 
-**Annual $ impact:** At badatmath's observed ROI and $91.77 compounding to $200-400 by year-end vs $400-800 at 2× current capital, the bottleneck costs ~$50-150/yr in forgone compounding. Not fatal, but limits velocity.
+**Critical pattern on engine model-NO (n=14 NO trades)**:
+- Entry prices concentrated at 0.50–0.56 (buying the "NO is favorable" side at PRICE_FLOOR gate)
+- 12/14 resolved YES (bucket WAS the daily max) → WR=14.3% on NO
+- Expected WR under random NO selection across weather buckets: ~70–80% (most buckets are not the daily max)
+- 14.3% WR is **5× worse than random**, indicating the model is **anti-predictive**: it consistently selects the bucket that becomes the daily high, then bets it won't be
 
----
-
-## SECTION 2: EXISTING-SYSTEM OPTIMIZATION
-
-### 2a. Dynamic band cash cap — HIGH priority
-**Issue:** MAKER_BREAKER_MAX_EXPOSURE_USD=150 > free USDC causes full-surface sweep (all legs cancelled) when band over-quotes. Confirmed Jun-10 09:00. Today's 18 posts are RESTING (free USDC > $38.40 currently), but risk persists intraday as positions consume capital.  
-**Fix:** Dynamic cap = `min(150, free_USDC * 0.9)` computed at band-post time from balance endpoint. Leg prioritization: d+2/lowest-Σ first.  
-**Δtrade-count:** 0 (same legs). **Δexpectancy:** prevents ~1-4 full-surface wipes/month = recovers ~$15-40/month opportunity cost. **Confidence:** High. **Effort:** 30 min.
-
-### 2b. On-chain MERGE recycling — MEDIUM priority
-**Issue:** Band YES+NO fills accumulate; each redeems independently at resolution. CLOB `convertPositions` could pair them instantly and free USDC same-day (badatmath does ~6-7× recycle/wk via this mechanism). Not yet built per state log.  
-**Δtrade-count:** 0 (same trades, faster recycle). **Annual $:** ~+$50-150 from compounding acceleration. **Confidence:** Medium (untested live). **Effort:** 2-4 hrs. Requires explicit user authorization.
-
-### 2c. research_status.md is 26 days stale — LOW risk
-**Issue:** `data/agent_context/research_status.md` last updated 2026-05-16, references LDA as active strategy. Scheduled agents (Scout, Auditor, Watchdog) will run wrong analysis against BOND/LDA schema. No live bot impact, but agent compute is wasted.  
-**Fix:** Update to reflect STWA-only, current shadow loggers (metar_lockout, band_struct, thermo_maker, temporal_lock, count_lock), M1β monitor mandate. **Effort:** 30 min.
-
-### 2d. Band d+0 fav-NO first fills — WATCH
-**Status:** 3 NO posts today at ask 0.69–0.72 (Seoul, Wellington, Tokyo). First d+0 fav-NO resolution expected Jun-11 local midnight. band_resolution_join cron 09:45 is accumulating. No action; watch.
+**BAND pair-quoter (n=11, post-June-9)**:
+- 8 BUY_YES all resolved 0.0 (0% YES WR)
+- 1 BAND_MERGE win +$0.27 (Taipei YES+NO pair → merged → $1)
+- 2 BUY_NO: 1 win (+$2.30), 1 loss (-$3.05)
+- Merge rate: 1/11 = 9% (vs badatmath's 34% in June); net: -$18.16 on $28.02 staked
 
 ---
 
-## SECTION 3: FREQUENCY EXPANSION
+## 1 — PRIMARY BOTTLENECK
 
-### 3a. PeakScalp (P5 temporal lock) — awaiting Phase 0 GO
-**Status:** Proposed 2026-06-10 20:45; research complete; user chose badatmath mirror as priority. Shadow Phase 0 still untriggered.  
-**Edge:** OOS WR=98.84% n=346 (gate=0.985), survivorship-free, model-free, calibration-free. Capacity: $350-598/day market-wide (EV-priced). Long tail of 40+ cities has no sub-obs-speed competitor.  
-**Δtrade-count:** +3-8/day. **Annual $:** $50-200 at current capital. **Confidence:** High on edge, medium on fillability (Phase 0 test resolves this). **Effort for Phase 0 shadow:** 2-4 hrs.
+**Engine model-NO calibration failure (anti-predictive bucket selection)**
 
-### 3b. Cities — HK (VHHH), Singapore (WSSS), Tokyo (RJTT) unblocked
-**Status:** All unblocked Jun-9 with oracle census verification. Live M1β monitoring VHHH via HKO feed (debounced 1-min). Impact: +5 fillable lockouts/day capacity confirmed for HK alone.
+Rank: **model calibration / direction signal quality**
 
-### 3c. Min-lockout family — SHADOW ONLY
-**Status:** 16,452 records Jun-11 in metar_min_lockout.jsonl. Zero "both" fires today. Physics validated (temporal_lock_backtest.py). Oracle-provenance rule applies. Per user directive: shadow only until ≥2 weeks of snapshots. On track.
+The PA-shrunk isotonic recalibration showed rank-corr +0.39 on 2024 backtest data. Live NO trades (n=14, June 5–8) show WR=14.3%—not merely unedged but reversed. The model selects buckets that are 5–6× more likely to be the daily high than a random bucket, then bets NO on them. Every dollar staked on this path destroys $0.80.
 
----
+WEATHER_STWA is responsible for -$39.16 of the -$55.05 total post-June5 loss (71%). It is the most active path by capital deployed ($49.16) and has the worst EV. The flag threshold is breached (WR=17.9% overall, 14.3% on this path). The recalibration did NOT transfer to live 2026 data.
 
-## SECTION 4: EXECUTION AUDIT
-
-**Fill probability:**
-- M1β: 1,624 "both" (WS+REST) fires on 13 unique tokens today. WS path + REST scan both operational. RECYCLE099 evidence confirms actual fills landing (6 exits today).
-- Maker exercise: 2 records Jun-11 (Tokyo, no_bid=0.982/0.997, q_price=0.97/0.99). These are M1β deep-lockout maker mirrors where no_ask is already 0.985/0.999 — small delta from 1.0, appropriate not to post.
-- Band: 18 posts, all RESTING. No balance sweeps today. Selective-cancel on restart confirmed working since Jun-10 08:35 (kept 15-17 tracked orders per deploy).
-
-**RECYCLE099 performance today:** 6 fills at avg entry 0.743 → avg exit 0.990/0.999. Net +$9.83. The tick-aware 0.999 is working (one fill: entry=0.97, exit=0.999, +$0.054 on 5 shares).
-
-**FillTracker PING:** No 60s-silence reconnect events since Jun-10 08:22. Confirmed healthy.
-
-**NMS feeds:** obs_receipt 2,003 records Jun-11, 0 failures. Feed pipeline clean.
-
-**Shadow telemetry (latest 10:12 UTC):** 0 drops, ~3,015 rows/min, queue 0.05% full, flush p50=1.85ms. No congestion.
+Second bottleneck: BAND merge rate (9% vs 34% target), but capital exposure is smaller.
 
 ---
 
-## SECTION 5: ASSUMPTION ATTACK
+## 2 — EXISTING SYSTEM OPTIMIZATION
 
-### A1: Oracle provenance is clean post-Jun-9-21:55
-**Load-bearing for:** Every M1β fill. A false lockout at ask=0.90 costs $9 on $10 stake.  
-**Why it could be wrong:** Three separate oracle bugs found on a SINGLE day (Jun-9). Manila and Lucknow were recently added to the city set without the same oracle census depth as RJTT/WSSS. The Open-Meteo gridpoint proxy re-introduced 1-2°C false errors in minmax_coherence until fixed Jun-10.  
-**Cheapest test:** Run oracle_census_blocked.py (60 resolved Gamma days vs IEM METAR) on Manila and Lucknow before any M1β live fills from those cities. 30 min/city. PA-3 below.
+### 2a. Engine model-NO: disable until direction signal is validated
+- **Issue**: All 14 NO entries at 0.50–0.56, losing 86% of the time. 14.3% WR is 5× worse than random NO selection.
+- **Δtrade-count if disabled**: −~1.8/day (current pace)
+- **Δexpectancy**: +$39.16 saved over this 8-day window; +~$1,400/yr at current pace
+- **Confidence**: HIGH (n=14, consistent, worse than random)
+- **Effort**: LOW (STWA_REGULAR_NO_ENABLED=False, one flag)
 
-### A2: Band ROI from badatmath ground truth transfers to Klaus
-**Load-bearing for:** BAND_LIVE=True being the right call at all.  
-**Why it could be wrong:** (a) Mode-containment gate was missing in one execution path until Jun-10 00:05 — could have admitted -96% dist-1 legs in the cleanup period. (b) His MERGE recycling means his capital-ROI denominator is 6-7× smaller than ours at equivalent gross profit. Our apparent ROI/week at equal gross profit is lower.  
-**Cheapest test:** band_resolution_join.py output at n≥100. Currently: n=2 post-current-config. ETA ~25 days at current fill rate.
+### 2b. BAND Σ-gate: verify v3 basket fix is working
+- **Issue**: Today's band_struct last record: reason="no_band", n_valid=0 at 11:26 UTC. June 11 v3 deployed Σ-gate fix (gate on Σ(posted legs, off≤1) instead of full ±2 band). But today's data shows near-zero firing.
+- **Possible causes**: (a) Markets not yet at tradeable phase (PRE_PEAK, too early); (b) Σ(posted legs) still exceeds 0.85 for available ladders; (c) d+1/d+2 days don't have tradeable depth yet
+- **Δtrade-count**: Unknown without parsing full band_struct; estimate 2–5× if gate is confirmed broken
+- **Δexpectancy**: +$200–$600/yr if BAND ROI stays near simulated +46%
+- **Confidence**: LOW (n=22 simulated gated slice, n=11 live)
+- **Effort**: LOW (diagnostic: parse band_struct "fire" vs "gate" ratio)
 
-### A3: RECYCLE099 maker asks get filled before resolution
-**Load-bearing for:** The exit strategy. If asks queue behind competitors, cash stays tied up longer.  
-**Why it could be wrong:** HighTempTation and Weatherstappen both rest 0.99 asks on convergence buckets (peak-window scalp, archetype confirmed Jun-9 22:00 research). They arrived at obs+1min vs our post-band posting. First-posted wins at equal price.  
-**Cheapest test:** Monitor fill latency (post → fill ts) from user_ws.jsonl. Currently: 148 WS records today with no trade events parsed (schema gap — event_type field not populated). Recommend checking user_ws schema to confirm fills are logging correctly.
+### 2c. BAND YES: 0.03 price floor (PX_MIN_MD) not yet producing live data
+- **Issue**: Deployed June 11. All 8 BAND YES fills at 0.10–0.33 predate this change. Sub-0.10 YES fills have not resolved yet.
+- **Expected Δtrade-count**: +~30% YES legs
+- **Annual $**: Unknown until first sub-0.10 YES batch resolves
+- **Confidence**: UNVALIDATED; accumulating
+- **Effort**: ZERO (already deployed)
 
----
-
-## SECTION 6: EXTEND EXISTING EDGE
-
-### 6a. PeakScalp (P5) — highest ROI/effort, pending Phase 0
-$350-598/day market-wide capacity (EV-priced), calibration-free, OOS-validated. Phase 0 shadow answers fillability in 3-5 days. The only edge that bypasses the capital constraint (small fixed stakes per city). P(Phase 0 confirms fillability) ≈ 70%.
-
-### 6b. Min-lockout daily minimum — ongoing shadow
-Daily minimum markets (100 open, confirmed Jun-9 22:00 venue scan). DNA identical to M1β: running_min monotonically non-increasing, dawn-lock is symmetric. 2 weeks of shadow data needed per directive. On track.
-
-### 6c. NHC hurricane count-lock — research done, no GO
-101 markets, $8.4M vol, fixed NHC advisory cadence. Same DNA as count-lock family (shadow-only per directive). User has not authorized shadow or live. **Annual $:** $10-50 (event-dependent, season June-November). Requires explicit authorization.
-
-### 6d. Maker rebates accrual
-Rebate rate: 25% of taker fees, paid daily pro-rata by `fee_equivalent = C · feeRate · p(1-p)`. Currently near zero (lifetime ~$10 band fills → cents below $1 floor). Will accrue at scale. No action now; passive.
+### 2d. NEG_RISK_ARB: partial-arb or threshold relaxation
+- **Issue**: 0 real fills in 670 scans today. 48 scans have real_edge > 0.01 but all_legs_fillable=False. The Σask < 0.85 condition is met but not all legs have book depth.
+- **Potential fix**: Accept partial arb coverage when Σ(fillable legs NO) is enough to guarantee profit with certainty (subset of legs already locked)
+- **Annual $**: From $0 currently; +$150–$400/yr if partial coverage triggers ~2/day
+- **Confidence**: LOW (adverse selection risk on partial fills)
+- **Effort**: MEDIUM
 
 ---
 
-## SECTION 7: PROPRIETARY EDGE RESEARCH
+## 3 — FREQUENCY EXPANSION
 
-**Dense-obs forecast KILLED (Jun-9):** Coastal +3.1% improvement over market baseline = 10× below fee floor. The market is efficient on public NWP+official current temp. This door is closed.
+**Do NOT expand frequency on engine model-NO path. Frequency multiplies negative EV.**
 
-**Only open proprietary edge:** PeakScalp information lag (obs → lockout → market lag 1-32 min). This is structural, not forecast-based. Already in the validation pipeline.
-
-**UMA description-edit watcher:** P(edge) ≈ 20%. Most weather markets resolve mechanically without description changes. Cost of monitoring: non-trivial. Defer until another edge is exhausted.
-
-**No new proprietary research warranted.** Compound the proven structural edges first.
-
----
-
-## SECTION 8: EXPERIMENTS (3, exactly)
-
-### E1: PeakScalp Phase 0 shadow (3-5 days)
-**Hypothesis:** Our NMS feeds identify gate-pass (q ≥ 0.985) within T+1-5 min of obs, and the real book shows a YES ask ≤ 0.20 at T+0 for ≥50% of gate-pass events.  
-**Data needed:** Shadow logger: (city, ts_gate_pass, q, real_yes_ask_T0, real_yes_ask_T1min, HighTempTation presence), joined to resolution 24h later.  
-**Time:** 3-5 days shadow + 1 day analysis. **Cost:** Zero.  
-**Success metric:** ≥50% of gate-pass events have fillable YES asks ≤ 0.20 at T+1 min, AND realized WR of those events ≥ 95%.  
-**Decision-if-yes:** GO Phase 1 ($5 stakes, ≤3 concurrent, kill switch WR<95% over 50 fills).  
-**Decision-if-no:** Defer PeakScalp; the latency window is narrower than model assumed.
-
-### E2: Band resolution validator first 100 legs
-**Hypothesis:** d+1/d+2 YES band bids resolve at ROI > 0 per badatmath ground truth (+14.4/+22.8%).  
-**Data needed:** band_resolution_join.py output (cron 09:45, already running). Needs n≥100.  
-**Time:** ~25 days at current fill rate. **Cost:** Zero (already running).  
-**Success metric:** n≥100 resolved YES band legs, ROI > 0, lower 95% CI > 0.  
-**Decision-if-yes:** Keep BAND_LIVE=True, increase stake and breadth.  
-**Decision-if-no (ROI < 0):** Set BAND_LIVE=False; audit by days-out and city.
-
-### E3: Post-fix M1β WR accumulation
-**Hypothesis:** With all oracle bugs fixed (post Jun-9 21:55), M1β fills achieve ≥ 90% WR on resolved WEATHER_M1_PROBE entries.  
-**Data needed:** trades.jsonl, filter `bond_entry_class == 'WEATHER_M1_PROBE'` AND `ts_open ≥ 1781042100`. Today n=0; needs ~20 days at current signal rate (~5 fires/day).  
-**Time:** ~20 days. **Cost:** Zero (already live).  
-**Success metric:** n≥40 post-fix M1β fills, WR ≥ 90%.  
-**Decision-if-yes:** Confirm edge; proceed to thin-margin slice validation.  
-**Decision-if-no (WR < 90%):** Audit by city and depth band; look for new oracle bug class in recently added cities.
+| Opportunity | Δtrade-count | Δexpectancy | Annual $ | Confidence | Effort |
+|---|---|---|---|---|---|
+| Min-lockout live enable (currently shadow) | +~5 fills/day | ~+$0.15/fill (if similar to max lockout) | +$250/yr | MEDIUM (n=0 resolved; needs validation join) | LOW (flag flip after validation) |
+| Expand THERMO maker daily cap after n≥20 resolve | +~2–3 fills/day | ~+4–7%/turn if ceiling math holds | +$100–$300/yr | LOW (n=2 resolved) | ZERO (already built; cap increase only) |
+| Peakscalp (PROPOSAL — no live path yet) | +TBD | Backtest gate OOS ~95%+ WR | Unknown | MEDIUM (model-free, needs user GO) | MEDIUM |
 
 ---
 
-## SECTION 9: SINGLE BEST ACTION
+## 4 — EXECUTION AUDIT
 
-**Recommendation: Authorize PeakScalp Phase 0 shadow build (PA-1)**
+**NEG_RISK_ARB fill probability**: 0/670 scans today = 0.0%. Not a fill-side problem; arb doesn't exist in fillable form.
 
-**Why #1:**
-1. Highest P(success) of any untried lever: OOS WR=98.84% n=346 is the only directional weather proof to pass n≥100 in this project. All other new edges are either shadow-only (min-lock, count-lock) or unvalidated.
-2. Answers the key remaining question (fillability) in 3-5 days vs 20-25 days for M1β/band validation.
-3. Zero capital risk (shadow-only Phase 0). Can run in parallel with band compounding and M1β accumulation.
-4. Bypasses the capital bottleneck: Phase 1 is $5/city, fits within daily M1β budget.
-5. Competition gap is real: HighTempTation covered 8/372 city-days = 2.2% of potential surface. We have feeds on 16 cities.
+**BAND maker orders today**: 1 live resting order (Beijing NO at 0.99, THERMO path, status=RESTING). maker_exercise.jsonl n=1 for the day — very low posting activity at 11:26 UTC.
 
-**Upside:** Phase 1 at $5/city × 3 concurrent × ~5 gates/day × 98.84% WR ≈ $3-8/day net added expectancy at current scale. Compounding: $91 → $120+ in 30 days with this running.  
-**Confidence:** 70% Phase 0 clears; 50% Phase 1 reaches steady state.  
-**First concrete step:** User types GO for Phase 0. Build shadow logger in weather_arb.py: on q-table gate-pass, log record to temporal_lock.jsonl with real-book snapshot. 2-4 hrs.
+**BAND current open positions** (basket_exit_shadow snapshot 11:26 UTC):
+- 12 cities, 15 legs, cost $38.68
+- Current bid-side liquidation: $29.49 (-23.8% of cost)
+- Max hold value: $143.78 (+271.7% of cost)
+- 1/12 baskets all_green (Moscow, $0.47 cost, $2.47 max)
+- Notable: Jeddah 2-leg basket, cost $5.34, max $52.48 (9.8× if both legs win)
 
----
+**Observation pipeline**: 1,535 obs today from 9 sources (AWC 60%, WIS2 12%, NWS 10%, JMA/HKO/FMI ~4.5% each). No dropped messages in shadow telemetry (0 dropped / 966k written). Memory stable at 725 MB RSS. System operational.
 
-## M1β MONITOR — Thin-Margin [0.2, 0.5)°C Lockout Slice
-
-**Mandate (deployed 2026-06-09 10:25):** MIN_DEPTH_C and FATEDGE_MIN_DEPTH_C lowered 0.5→0.2°C to admit thin-margin band. Backtest: 24/24 = 100% WR (n=24-28, explicit user override of n≥100 rule). WS fast-path widened to NO_ASK_MIN(0.05).
-
-**Live thin-margin status — post-fix (ts_open ≥ 1781042100, Jun-9 21:55):**
-- Resolved WEATHER_M1_PROBE trades: **n = 0** (zero fills have resolved post-bugfix)
-- Today's metar_lockout depth distribution: shallow(<0.2°C)=802, deep(≥0.5°C)=822, **thin[0.2-0.5)°C = 0**
-- Total WEATHER_M1_PROBE resolved lifetime (all pre-fix): n=31, WR=74.2%, net −$2.37
-
-**Why zero thin-margin fires today:** Jun-11 00:00–10:12 UTC covers Asia/Pacific early morning and European morning. In these hours, official_running_max has not yet accumulated sufficiently above bucket ceilings in most mid-latitude cities (peak hours are 13-21 local). Thin-margin fires will appear in the 10-20 UTC window when US and EU peak hours run.
-
-**DECISION: DATA-COLLECTION. n < 40 post-fix. No action on thin-margin slice. Report trend only.**
-
-**Risk flag:** After 30 days, if thin-margin filled trade count remains < 5, the oracle provenance filter (official_running_max only, no ASOS fallback in [0.2,0.5)°C band) may be over-excluding. Audit the metar_lockout fill_path distribution for depth=[0.2,0.5)°C at US peak hours specifically.
+**Entry fill timing**: All BAND fills appear to execute and reach trades.jsonl at resolution (correct behavior — "STWA fills reach trades.jsonl only at resolution"). The system_status "open positions count=0" likely reflects the risk.open_positions counter (taker fills only); BAND maker fills tracked separately.
 
 ---
 
-## PROPOSED ACTIONS (human review required — REPORT-ONLY session)
+## 5 — ASSUMPTION ATTACK
 
-| # | Action | Evidence | Risk | Effort |
+**Assumption 1: "PA-shrunk + isotonic recalibration produces predictive NO bucket selection"**
+- Evidence against: Live WR=14.3% on n=14 NO trades at 0.50–0.56 entry price. Rank-corr +0.39 (2024 backtest) did NOT transfer to live 2026. Worse than random by 5×.
+- Cheapest test: Join stwa_pricer_eval.jsonl (n=167k records) to gamma resolution. Compute Spearman rank-corr(p_cal, resolved_YES) and WR by p_cal decile. Cost: 2h analyst time.
+
+**Assumption 2: "BAND YES + NO pair posting replicates the badatmath merge mechanism"**
+- Evidence against: 9% merge rate (1/11) vs badatmath's 34%. 0/8 YES resolved YES. Either the YES leg is posted on non-mode buckets, or the YES book is too thin to get filled at profitable prices.
+- Cheapest test: Audit last 100 band_struct "fire_yes" entries: is the YES leg the mode bucket (highest p_cal rank) or an off-center bucket? Also check whether fills are happening or orders are stale-resting.
+
+**Assumption 3: "NEG_RISK_ARB fires with sufficient frequency to be a revenue contributor"**
+- Evidence against: 0 real fills across all dates. Median real_edge ≈ 0.001, never all_legs_fillable. The Σask < 0.85 condition in a liquid market is structurally unreachable.
+- Cheapest test: Pull 30-day historical Σ(YES ask per city) from gamma snapshots. Check if Σask < 0.85 AND all_legs_fillable ever occurred simultaneously. If never: the arb gate needs redesign for partial coverage.
+
+---
+
+## 6 — EXTEND EXISTING EDGE
+
+| Extension | Effort | Annual $ | P(success) |
+|---|---|---|---|
+| Min-lockout live (daily-low markets) | LOW | +$250/yr | MEDIUM — mechanism is sound (mirror of max-lockout), shadow has n~100k records Jun 8–12; needs resolution join for WR proof |
+| THERMO maker cap expansion (after n≥20 resolved) | ZERO | +$200–$400/yr | LOW until n≥20 resolved; 2/2 so far mixed (1 near-certain win, 1 loss at 0.81) |
+| Peakscalp (user GO required) | MEDIUM | Backtest +high ROI | MEDIUM — model-free mechanism; needs live test |
+
+---
+
+## 7 — PROPRIETARY EDGE RESEARCH
+
+**Only after 1–6. Directional engine is anti-predictive; extending a losing system is capital destruction.**
+
+One validated signal: **observation lead time edge** via multi-source NMS. 9 sources give 9–28 min lead. Currently moot because the direction signal itself is wrong—if model-NO were fixed, early obs would be the multiplier.
+
+Do not build new infra. Validate direction signal correctness via Experiment 1 first.
+
+---
+
+## 8 — THREE EXPERIMENTS
+
+### Experiment 1 (Cheap, Fast, High-VoI): Engine direction signal validation
+- **Hypothesis**: p_cal from PA-shrunk pricer has positive rank-correlation with actual daily-max YES resolution probability
+- **Data**: stwa_pricer_eval.jsonl (n=167k records today) joined to gamma resolution for same event_key
+- **Time**: 2 hours
+- **Cost**: $0
+- **Success metric**: rank-corr > +0.20 AND WR for p_cal > 0.60 buckets exceeds 60%
+- **If YES**: Direction signal works on YES side; investigate why NO selection fails specifically (entry timing? spread?)
+- **If NO (rank-corr ≤ 0.20 or negative)**: Model direction is noise; disable STWA_REGULAR_NO_ENABLED and do not re-enable without Tier-3b model refit
+
+### Experiment 2 (Cheap, Fast, High-VoI): BAND YES fill-quality audit
+- **Hypothesis**: BAND YES fills land on mode buckets (off=0) and the mechanism is correct but YES odds are too cheap to survive
+- **Data**: band_struct "fire_yes" events joined to fill prices and p_cal rank
+- **Time**: 1–2 hours
+- **Cost**: $0
+- **Success metric**: >50% of YES fills are the off=0 (mode) bucket
+- **If YES (fills on mode)**: YES edge is timing-dependent; consider posting YES closer to open
+- **If NO (fills on off≥1)**: Off-rule is filtering mode but allowing shoulders → band selection bug
+
+### Experiment 3 (Cheap, Medium, High-VoI): Min-lockout validation join
+- **Hypothesis**: metar_min_lockout candidates with margin_c ≥ 0.5°C and non-null no_ask resolve NO at ≥90% WR
+- **Data**: All hot/2026-06-08 through hot/2026-06-12 metar_min_lockout.jsonl records (n~100k) joined to gamma resolution via condition_id
+- **Time**: 4–6 hours
+- **Cost**: $0
+- **Success metric**: n≥100 fillable candidates with WR ≥ 90%
+- **If YES**: Enable MIN_LOCKOUT_LIVE=True; start at $0.50–$3/trade
+- **If NO**: Oracle provenance issue present in min-lockout; investigate before enabling
+
+---
+
+## 9 — SINGLE BEST ACTION
+
+**Disable engine model-NO path (STWA_REGULAR_NO_ENABLED=False)**
+
+Why #1: This path is anti-predictive (WR=14.3% on n=14, 5× worse than random), responsible for 71% of post-June5 losses (-$39.16), and actively destroying capital at -$0.80/$ staked. Every additional day it runs increases the damage. The fix is one flag. Capital is the bottleneck for all other strategies; protecting it is the prerequisite.
+
+Upside: Stops ~$1.75/day of capital destruction at current pace. Preserves capital for BAND pair-quoting and lockout paths that have structural logic.
+
+Confidence: HIGH — direction consistent across all 14 NO trades, no cherry-picking.
+
+First step: Set STWA_REGULAR_NO_ENABLED=False in config, then immediately run Experiment 1 (pricer_eval join) to determine whether re-enabling with a corrected recalibration is viable.
+
+---
+
+## STANDING MONITOR — M1β Thin-Margin Lockout Slice
+
+**Data availability**: m1_beta_probe.jsonl files visible in shadow_summary for hot/Jun 2, 3, 4, 6, 7, 9 only. No m1_beta_probe.jsonl detected after June 9. Possible explanations: (a) probe was retired/merged; (b) thin-margin fires ceased; (c) file logging bug. metar_min_lockout.jsonl (current log) has minimum margin_c = 0.5°C — the [0.2,0.5)°C band is below detection threshold.
+
+**Live n in [0.2,0.5)°C band**: Cannot isolate cleanly from available data. Proxy: WEATHER_M1_PROBE resolved trades (all BUY_NO):
+
+| Trade | Open | Entry price | Net PnL | Likely depth |
 |---|---|---|---|---|
-| **PA-1** | **Authorize PeakScalp Phase 0 shadow** | OOS WR=98.84% n=346, zero capital cost | None | 2-4 hrs |
-| **PA-2** | **Dynamic band cash cap**: `min(150, free_USDC * 0.9)` | Jun-10 09:00 full-surface sweep ($49.7 free, 18 legs swept) | Low | 30 min |
-| **PA-3** | **Oracle census Manila and Lucknow** before any M1β live fills from those cities | Open-Meteo false 1-2°C errors found Jun-10 in minmax scan | Medium if skipped | 30 min/city |
-| **PA-4** | **Update research_status.md** to STWA-only, current loggers | 26-day stale, scheduled agents running LDA schema | Low | 30 min |
-| **PA-5** | **On-chain MERGE recycling** (convertPositions) | Badatmath 6-7× recycle confirmed; our band holds pairs to resolution | Low-medium | 2-4 hrs |
-| **PA-6** | **User WS schema check**: confirm fill events are parsing (event_type field) | 148 WS records today, 0 trade events parsed — may be schema miss | Low | 15 min |
+| T1 | 2026-06-07 | 0.965 | -$10.62 | Deep lockout (≥0.5°C) → false lock |
+| T2 | 2026-06-07 | 0.918 | +$0.95 | Deep lockout → genuine win |
+| T3 | 2026-06-09 | 0.193 | +$35.50 | Thin margin candidate (cheap NO) |
+| T4 | 2026-06-09 | 0.813 | -$9.76 | Mid-depth → false lock |
+| T5 | 2026-06-09 | 0.083 | -$3.41 | Very thin / false lock |
+
+- **Live n**: 5 total (cannot isolate [0.2,0.5)°C cleanly); << n≥100 threshold
+- **WR**: 2/5 = 40% (dominated by one +$35.50 outlier)
+- **EV/share**: Cannot compute (share counts not logged separately)
+- **Trend**: Directionally mixed. The 2 false locks (0.965 and 0.083) suggest oracle-provenance issues persist in thin-margin zone.
+
+**DECISION**: n=5 << n=100. **Report trend only: mixed, no action.**
+
+**ANOMALY**: m1_beta_probe.jsonl absent after June 9. If the [0.2,0.5)°C probe is no longer running, the standing monitor has no data source. Engineering check needed: confirm whether the probe is logging to a different path or has been retired.
 
 ---
 
-*Audit 2026-06-11T10:30Z. Primary bottleneck: capital utilization. Best action: PeakScalp Phase 0 (PA-1).*
+## PROPOSED ACTIONS (human review)
+
+**ACTION-1 [URGENT]**: Disable engine model-NO path.
+```python
+# config.py
+STWA_REGULAR_NO_ENABLED = False
+```
+Evidence: WR=14.3% n=14 NO trades, EV/$ = -0.797. Anti-predictive, responsible for 71% of post-June5 losses. Tier-2 action (disable a buy path).
+
+**ACTION-2 [analysis, no deploy]**: Run Experiment 1 before re-enabling:
+```bash
+python3 analysis/weather/stwa_pricer_eval_join.py
+# Compute rank-corr(p_cal, resolved_YES) and WR per p_cal decile
+```
+Decision gate: if rank-corr > +0.20, investigate specific failure mode of NO entry; if ≤ 0, do not re-enable without model refit.
+
+**ACTION-3 [engineering check]**: Confirm m1_beta_probe.jsonl logging status.
+```bash
+# Run on VPS:
+ls -la /root/Klaus/logs/shadow/hot/$(date +%Y-%m-%d)/m1_beta_probe.jsonl
+```
+If missing: determine whether probe was retired intentionally or logging bug. If retired, close the M1β standing monitor. If bug, restore.
+
+**ACTION-4 [low urgency]**: Run min-lockout validation join (Experiment 3) and enable MIN_LOCKOUT_LIVE=True if WR ≥ 90% at n≥100.
+
+---
+
+## SUMMARY
+
+System is active and well-capitalized ($225.67). Primary threat: engine model-NO is anti-predictive on live data (WR=14.3%, n=14) and is the dominant capital drain (-$39.16 of -$55.05 post-June5 losses). Kill switch flag threshold is breached (WR=17.9% across 39 trades). BAND has 11 resolved trades trending negative. NEG_RISK_ARB finds 0 fillable opportunities. M1β probe appears absent after June 9. One positive signal: WEATHER_M1_PROBE trend at +$0.295/$ on n=5 (driven by outlier). Recommended immediate action: disable STWA_REGULAR_NO_ENABLED and run direction signal validation before any further NO trading.
