@@ -2793,7 +2793,8 @@ class WeatherArb:
         from strategy.stwa_engine import (BAND_NO_ENABLED, BAND_NO_MIN,
                                           BAND_NO_MAX,
                                           band_no_daily_cap, BAND_NO_MAX_DOUT,
-                                          BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX)
+                                          BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX,
+                                          BAND_NO_CASH_RESERVE)
         if not BAND_LIVE:
             return
         _today_no = _now_utc.date().isoformat()
@@ -2885,6 +2886,24 @@ class WeatherArb:
         # a fetch sub-budget; cash is pre-checked BEFORE any fetch.
         _books_yes = 50
         _cash_preskip = 0
+        # 2026-06-12 NO cash reservation (user directive — match his ~half-NO
+        # book): the strict rank order gave NO $0 of freed cash all day
+        # (75 YES / 0 NO posts) because ranks 0-1 absorb every freed dollar
+        # before rank 2 is reached. YES may consume at most
+        # (1 − BAND_NO_CASH_RESERVE) of this cycle's headroom; the remainder
+        # is only postable by the NO/PAIR ranks below.
+        _free_b = getattr(getattr(self.bot, "orders", None),
+                          "last_usdc_balance", None)
+        if _free_b is None or float(_free_b) <= 0:
+            _yes_cash_cap = float("inf")   # no balance info → old behavior
+        else:
+            _rest_b = (self._maker_breaker.exposure_usd()
+                       if hasattr(self, "_maker_breaker") else 0.0)
+            _yes_cash_cap = max(0.0, (MAKER_CASH_FRAC * float(_free_b)
+                                      - _rest_b)
+                                * (1.0 - BAND_NO_CASH_RESERVE))
+        _yes_cash_used = 0.0
+        _yes_resv_skip = 0
         _seen_n0 = len(getattr(self, "_maker_ex_seen", set()) or set())
         _risk_band = getattr(self.bot, "risk", None)
         _seen_band = getattr(self, "_maker_ex_seen", set())
@@ -2899,11 +2918,14 @@ class WeatherArb:
                 if (tid in _seen_band
                         or tid in getattr(_risk_band, "open_positions", {})):
                     continue
-                _okc, _ = self._maker_cash_gate(
-                    float(getattr(_sig, "stake", _stk_yes)))
+                _stk_this = float(getattr(_sig, "stake", _stk_yes))
+                _okc, _ = self._maker_cash_gate(_stk_this)
                 if not _okc:
                     _cash_preskip += 1
                     continue
+                if _yes_cash_used + _stk_this > _yes_cash_cap:
+                    _yes_resv_skip += 1
+                    continue   # reserved for NO/PAIR ranks this cycle
                 if _books_yes <= 0:
                     continue   # YES sub-budget spent; leave fetches for NO/PAIR
                 _ra = float(_ay)
@@ -2929,11 +2951,14 @@ class WeatherArb:
                         _sig.quote_price = round(min(_rb, _ra - 0.01), 3)
                         if _sig.quote_price < 0.01:
                             continue
+                _pre_y = len(getattr(self, "_maker_resting", {}) or {})
                 try:
                     await self._struct_band_post_maker(_sig, _mkt, _ra)
                 except Exception as e:
                     logger.error("[STRUCT-BAND-MD] live post failed %s: %s",
                                  _sig.city, e)
+                if len(getattr(self, "_maker_resting", {}) or {}) > _pre_y:
+                    _yes_cash_used += _stk_this
             elif _kind == "NO":
                 _, days_out, (city, lo, hi, yt, nt, mkt), _x, _y = _item
                 if self._band_no_spent + _stk_no > _no_cap:
@@ -3057,12 +3082,15 @@ class WeatherArb:
         if _queue:
             logger.info(
                 "[STRUCT-BAND-Q] queue=%d posted=%d cash_preskip=%d "
-                "books=%d/80 yes_books=%d/50 no_cands=%d pair_cands=%d",
+                "books=%d/80 yes_books=%d/50 no_cands=%d pair_cands=%d "
+                "yes_resv_skip=%d yes_cap=%.2f",
                 len(_queue),
                 max(0, len(getattr(self, "_maker_ex_seen", set()) or set())
                     - _seen_n0),
                 _cash_preskip, 80 - _books_left, 50 - _books_yes,
-                len(_no_cands), len(_pair_cands))
+                len(_no_cands), len(_pair_cands),
+                _yes_resv_skip,
+                _yes_cash_cap if _yes_cash_cap != float("inf") else -1.0)
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.

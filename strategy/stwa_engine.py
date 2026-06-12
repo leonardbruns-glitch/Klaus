@@ -359,6 +359,11 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
                             # budget; the cash gate is the real constraint. Was 12.0
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
+BAND_NO_CASH_RESERVE = 0.50  # 2026-06-12 (user directive — match his ~half-NO book): fraction of
+                             # each cycle's free maker-cash headroom OFF-LIMITS to YES ranks. The
+                             # strict ROI-rank queue gave NO $0 of freed cash (06-12: 75 YES posts,
+                             # 0 NO) while his 2d fill tape is NO-heavy (watch n=3001: NO $8.7k vs
+                             # YES $4.5k; per-event ~$19 YES + $18 NO). NO/PAIR ranks spend the rest.
 # 2026-06-11 audit: overlay now includes EDGE buckets (or-below / or-higher) — his
 # NO 0.52-0.85 on edges = +5.7% (n=438) ≈ interiors +6.5% (n=3,877); they were
 # silently excluded by the interior-only iteration and they are his NO meat.
