@@ -7540,6 +7540,20 @@ class WeatherArb:
                     _r2 = dict(_r); _r2["ts"] = now
                     _pf.write(json.dumps(_r2) + "\n")
 
+        # 2026-06-12 (Claude): BASKET EXIT SHADOW (write-only, no live behavior).
+        # Per held city basket, log the mirror-bid cash-out value (Σ sh·bid,
+        # bid = 1 − opposite-side ask) vs cost vs best-possible hold payoff.
+        # Purpose: accumulate n≥100 on the "cash green baskets at d+0 beats
+        # holding" hypothesis. Exit-dominance analysis 06-12: a guaranteed-
+        # dominant exit is impossible (Σ ladder bids pegged ≤0.999), but the
+        # EV question is open — ex-post 5/6 resolved basket-days favored
+        # exiting (n=8, trend-only). Revert: delete block + helper.
+        try:
+            self._log_basket_exit_shadow(out_dir, bucket_map, clob_books,
+                                         t_close_map, now)
+        except Exception:
+            logger.debug("[STWA] basket_exit_shadow log failed", exc_info=True)
+
         if not signals:
             return
 
@@ -7746,6 +7760,63 @@ class WeatherArb:
             else:
                 logger.info("[STWA] UNFILLED %s %s status=%s",
                             sig.city, sig.direction, fill.status)
+
+    _BASKET_EXIT_LOG_LAST: dict = {}   # city -> last log ts (throttle)
+
+    def _log_basket_exit_shadow(self, out_dir, bucket_map, clob_books,
+                                t_close_map, now) -> None:
+        """Write-only shadow: per held city basket, mirror-bid cash-out value
+        vs cost vs best-possible hold payoff (see 06-12 exit-dominance study).
+        bid(YES leg) = 1 − no_ask, bid(NO leg) = 1 − yes_ask; ask in (0,1)
+        required, else bid logged as None and excluded from cash_value."""
+        op = getattr(self.bot.risk, "open_positions", {})
+        if not op:
+            return
+        for city, bks in bucket_map.items():
+            if now - self._BASKET_EXIT_LOG_LAST.get(city, 0.0) < 120.0:
+                continue
+            legs = []
+            for lo, hi, yes_tok, no_tok in bks:
+                for tok, side, opp in ((yes_tok, "YES", no_tok),
+                                       (no_tok, "NO", yes_tok)):
+                    pos = op.get(tok)
+                    if pos is None or tok is None:
+                        continue
+                    sh = getattr(pos, "remaining_shares", 0.0) or 0.0
+                    if sh <= 0:
+                        continue
+                    ask_opp = (clob_books.get(opp) or {}).get("best_ask")
+                    bid = round(1.0 - ask_opp, 4) if ask_opp and 0 < ask_opp < 1 else None
+                    legs.append({
+                        "token": tok, "side": side, "lo": lo, "hi": hi,
+                        "sh": round(sh, 4), "entry": pos.entry_price,
+                        "bid": bid,
+                        "depth_usd": (clob_books.get(opp) or {}).get("usd_depth"),
+                        "cls": getattr(pos, "bond_entry_class", ""),
+                    })
+            if not legs:
+                continue
+            self._BASKET_EXIT_LOG_LAST[city] = now
+            cost = sum(l["sh"] * l["entry"] for l in legs)
+            cash = sum(l["sh"] * l["bid"] for l in legs if l["bid"] is not None)
+            # best possible hold payoff over all ladder outcomes
+            max_hold = 0.0
+            for lo, hi, _, _ in bks:
+                pay = sum(l["sh"] * (1.0 if (l["side"] == "YES") ==
+                                     (l["lo"] == lo and l["hi"] == hi) else 0.0)
+                          for l in legs)
+                max_hold = max(max_hold, pay)
+            all_green = all(l["bid"] is not None and l["bid"] > l["entry"]
+                            for l in legs)
+            with open(out_dir / "basket_exit_shadow.jsonl", "a") as f:
+                f.write(json.dumps({
+                    "ts": now, "city": city,
+                    "t_close": t_close_map.get(city),
+                    "n_legs": len(legs), "cost": round(cost, 4),
+                    "cash_value": round(cash, 4),
+                    "max_hold": round(max_hold, 4),
+                    "all_green": all_green, "legs": legs,
+                }) + "\n")
 
     async def _enter_intraday(
         self, mkt: dict, fair_prob: float, poly_price: float,
