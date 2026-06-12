@@ -291,6 +291,19 @@ MAKER_RESTING_STATE_PATH = "logs/maker_resting_state.json"
 # open-order set when bid commitments exceed free USDC (18/18 band legs swept
 # at $50.10 resting vs $49.72 cash). Quote only what actual cash collateralizes.
 MAKER_CASH_FRAC = 0.90
+# ── PEAKSCALP Phase-0 SHADOW (2026-06-12, user GO) ────────────────────────────
+# Winner-bucket convergence scalp candidate: once q(city, month, local_hour,
+# headroom-to-ceiling) ≥ gate for the bucket CONTAINING the OFFICIAL running
+# max, log gate-pass + real CLOB book. NO capital — Phase-0 measures
+# fillability (ask px/depth at gate-pass) and convergence latency (timed
+# follow-up snapshots) before any Phase-1 $5 fires. OOS gates: 0.985 → WR
+# 98.84% (n=346) / 0.995 → 99.42% (n=344); breakeven at 0.95 entry ≈ 95.1%.
+PEAKSCALP_SHADOW          = True
+PEAKSCALP_Q_PATH          = "config/peakscalp_q.json"
+PEAKSCALP_GATE            = 0.985   # log at the loose gate; analysis picks the live gate
+PEAKSCALP_BLOCK_ICAO      = {"VHHH", "ZGSZ"}  # q-table=IEM METAR ≠ their oracle
+PEAKSCALP_FOLLOWUP_SEC    = 900.0   # re-snapshot the book this long after gate-pass
+PEAKSCALP_FOLLOWUP_GAP    = 120.0   # min spacing between follow-up snapshots
 MAKER_BREAKER_MIN_BANKROLL_USD   = 30.0    # trip if bankroll craters below this
 MAKER_EXERCISE_MAX_BID           = 0.96    # 2026-06-09: don't rest a maker NO bid above this on a PHYSICAL lock.
                                             # Fill-data (n=2 fills over 4d, both ≤0.94; median post 0.99 = ~0% fill) shows
@@ -4627,6 +4640,30 @@ class WeatherArb:
             logger.info("[THERMO] %d upper-tail thermo-ceiling candidates, %d live maker posts this cycle",
                         written, live_fired)
 
+    def _peakscalp_q(self, slug: str, month: int, hour: int,
+                     headroom_c: float):
+        """q(city, month, local_hour, headroom) from config/peakscalp_q.json.
+        Same convention as analysis/weather/peakscalp_score_v2.py: take the max
+        q over headroom bins {0.2,0.4,0.6,1.0}°C that the actual headroom
+        covers (deeper-bin q is a lower bound for shallower headroom).
+        Returns None when the cell is missing (no 4yr obs for that slot)."""
+        if not hasattr(self, "_ps_qtab"):
+            try:
+                with open(PEAKSCALP_Q_PATH) as f:
+                    self._ps_qtab = json.load(f)
+            except Exception:
+                self._ps_qtab = {}
+        cell = (self._ps_qtab.get(slug, {}).get(f"m{month}", {})
+                or {}).get(f"h{hour}")
+        if not cell:
+            return None
+        best = None
+        for k, d in (("d02", 0.2), ("d04", 0.4), ("d06", 0.6), ("d10", 1.0)):
+            if d <= headroom_c + 1e-9 and k in cell:
+                v = cell[k]
+                best = v if best is None else max(best, v)
+        return best
+
     async def _metar_lockout_scan(self) -> None:
         """
         Shadow logger for the METAR_LOCKOUT strategy candidate.
@@ -4764,6 +4801,94 @@ class WeatherArb:
                             "gamma_best_ask": mkt.get("bestAsk"),
                             "is_celsius_market": is_celsius,
                         }) + "\n")
+                    except Exception:
+                        pass
+
+            # ── PEAKSCALP Phase-0 SHADOW (2026-06-12, user GO) — no capital ──
+            # Convergence-scalp candidate: the bucket CONTAINING the OFFICIAL
+            # running max passes q(city, month, local_hour, headroom) ≥ gate →
+            # log the real YES book at gate-pass plus timed follow-ups, so the
+            # join measures fillability (ask px/depth) and convergence latency.
+            # Provenance: official_running_max_c ONLY — the q-table is built on
+            # oracle-grade hourly obs; gating on the broad running_max here
+            # would recreate the false-lockout bug class.
+            if PEAKSCALP_SHADOW and icao not in PEAKSCALP_BLOCK_ICAO:
+                _ps_orm = metar.get("official_running_max_c")
+                _ps_tids = _parse_token_ids(mkt.get("clobTokenIds", []))
+                _ps_tid = _ps_tids[0] if _ps_tids else None
+                if not hasattr(self, "_ps_watch"):
+                    self._ps_watch, self._ps_seen = {}, set()
+                if len(self._ps_watch) > 500:
+                    self._ps_watch = {
+                        t: w for t, w in self._ps_watch.items()
+                        if now_ts - w["pass_ts"] <= PEAKSCALP_FOLLOWUP_SEC}
+                if len(self._ps_seen) > 50000:
+                    self._ps_seen.clear()
+                _ps_lt = now_utc + timedelta(hours=_tz_h)
+                _ps_in = (_ps_orm is not None and lo_c is not None
+                          and hi_c is not None
+                          and float(lo_c) <= float(_ps_orm) < float(hi_c))
+                _ps_head = (float(hi_c) - float(_ps_orm)) if _ps_in else None
+                _ps_q = (self._peakscalp_q(
+                             (city or "").lower().replace(" ", "-"),
+                             _ps_lt.month, _ps_lt.hour, _ps_head)
+                         if _ps_in else None)
+                _ps_w = self._ps_watch.get(_ps_tid) if _ps_tid else None
+                _ps_rec = None
+                if (_ps_w is not None
+                        and now_ts - _ps_w["pass_ts"] <= PEAKSCALP_FOLLOWUP_SEC
+                        and now_ts - _ps_w["last_snap"] >= PEAKSCALP_FOLLOWUP_GAP):
+                    _ps_rec = "followup"
+                elif (_ps_w is None and _ps_tid is not None and _ps_q is not None
+                      and _ps_q >= PEAKSCALP_GATE
+                      and (_ps_tid, _local_today) not in self._ps_seen):
+                    self._ps_seen.add((_ps_tid, _local_today))
+                    _ps_rec = "gate_pass"
+                if _ps_rec is not None:
+                    try:
+                        _ps_bk = await self._fetch_book_levels(_ps_tid, n=3)
+                    except Exception:
+                        _ps_bk = None
+                    if _ps_rec == "gate_pass":
+                        self._ps_watch[_ps_tid] = {"pass_ts": now_ts,
+                                                   "last_snap": now_ts}
+                    else:
+                        self._ps_watch[_ps_tid]["last_snap"] = now_ts
+                    try:
+                        (log_dir / "peakscalp_shadow.jsonl").open("a").write(
+                            json.dumps({
+                                "schema_version": 1,
+                                "record_type": f"peakscalp_{_ps_rec}",
+                                "ts_utc": now_utc.isoformat(),
+                                "ts_s": round(now_ts, 1),
+                                "city": city, "icao": icao,
+                                "end_date": end_date,
+                                "question": mkt.get("question", ""),
+                                "condition_id": mkt.get("conditionId"),
+                                "token_id": _ps_tid,
+                                "bucket_lo_c": (round(float(lo_c), 3)
+                                                if lo_c is not None else None),
+                                "bucket_hi_c": (round(float(hi_c), 3)
+                                                if hi_c is not None else None),
+                                "official_running_max_c": (
+                                    round(float(_ps_orm), 3)
+                                    if _ps_orm is not None else None),
+                                "running_max_c": round(float(running_max), 3),
+                                "headroom_c": (round(_ps_head, 3)
+                                               if _ps_head is not None else None),
+                                "local_hour": _ps_lt.hour,
+                                "local_month": _ps_lt.month,
+                                "q": _ps_q,
+                                "sec_since_pass": (
+                                    0.0 if _ps_rec == "gate_pass"
+                                    else round(now_ts
+                                               - self._ps_watch[_ps_tid]["pass_ts"], 1)),
+                                "gamma_best_bid": mkt.get("bestBid"),
+                                "gamma_best_ask": mkt.get("bestAsk"),
+                                "book_bids": (_ps_bk or {}).get("bids"),
+                                "book_asks": (_ps_bk or {}).get("asks"),
+                                "is_celsius_market": is_celsius,
+                            }) + "\n")
                     except Exception:
                         pass
 
