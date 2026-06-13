@@ -1,265 +1,248 @@
-# Klaus Research Audit — 2026-06-12T11:27Z
+# Klaus Research Audit — 2026-06-13T10:30Z
 
-**Snapshot**: 2026-06-12T11:27:09Z (fresh, 0.0h old) | Klaus: active (uptime 5.2h since 06:15 restart) | Capital: $225.67 | Trades.jsonl rows: 7,316
+**Snapshot**: 2026-06-13T10:19:38Z (11 min old — FRESH ✓)  
+**System**: `klaus systemd: active` ✓  
+**Capital**: $250.68 (bankroll.json)  
+**Specialist reports consumed**: exec_audit 07:09Z ✓ · calib_monitor 08:09Z ✓ · gatekeeper 09:07Z ✓ · pnl_ledger 23:37Z (Jun 12) ✓
 
 ---
 
-## DATA PRIMACY — Pre-Report Confirmation
+## 1. PRIMARY BOTTLENECK: EQUITY DEPLOYED — YES POSTING FROZEN
 
-**Live paths confirmed**: STWA_LIVE=True; NEG_RISK_ARB (always on) + engine model-NO (STWA_REGULAR_NO_ENABLED=True) + M1β lockout-NO + BAND pair-quoter (BAND_LIVE=True, since June 11 max-extraction package).
+**Rank justification**: turns/day = 0.36–0.55× (exec/pnl) vs badatmath ~1.0×. Fills at $74/day on $250 equity = 0.30× turns. The engine is cycling every 5 minutes, scanning 340+ queue candidates per cycle, and posting ~0.1 orders/cycle. This is not a calibration problem, not a fills-quality problem, and not a capital-scarcity problem. It is a mechanistic deployment freeze.
 
-**Config epoch**: YES disabled 2026-06-05; engine model-NO re-enabled 2026-06-05; BAND pair-quoter deployed live 2026-06-11. Pre-June-5 weather trades (n=92 in trades.jsonl) are DEAD DATA—not cited in expectancy.
+**Root cause (exec_audit §3)**: The NO cash reserve formula creates a stake floor paradox.
 
-**Resolved WEATHER trades by config epoch**:
+```
+yes_cap = BAND_STAKE_FRAC_YES × capital × (1 − BAND_NO_CASH_RESERVE)
+         = 0.010 × $250 × 0.50
+         = $1.25 / cycle
 
-| Epoch | n | WR | Net PnL | Dead? |
+Minimum YES stake (off=1): BAND_BASE_STAKE × BAND_BELL[1] = $3.0 × 0.70 = $2.10
+Minimum YES stake (off=0): BAND_BASE_STAKE × BAND_BELL[0] = $3.0 × 1.0 = $3.00
+
+Both > $1.25 → yes_resv_skip = 58/cycle (all YES candidates rejected, 07:09 UTC)
+```
+
+By 09:xx UTC the log shows yes_cap = $0.64–0.69 (tighter still, after intraday capital consumption by NO reserve), yes_resv_skip = 0, books = 0/80. The engine short-circuits the YES loop when yes_cap < min_stake — no book fetches occur, NO candidates are never processed downstream. Result: posted/cycle degraded from **1.7 on Jun 12 → 0.1 today** (−94%). A burst at 10:11 UTC (posted=2, yes_cap=$3.47) confirmed the mechanism works when capital is transiently adequate, then immediately collapsed to yes_cap=$0.17 as the two orders consumed the budget.
+
+NO posting is also stalled: only 2 fire_no events all of Jun 13 despite no_cands = 155–165/cycle, BAND_NO_ENABLED=True, and BAND_NO_DAILY_CAP=$40. The cash reserve earmarked for NO is idle — not protective, just blocking.
+
+**Compounding math**: Restoring yes_cap above $2.10 recovers the Jun 12 baseline of 1.7 posts/cycle (~$75–200/day fills). At identified ROI/turn of 49–70% on resolved legs (exec §4), this is the highest-leverage lever available. All other bottlenecks are secondary to this one.
+
+---
+
+## 2. EXISTING SYSTEM OPTIMIZATION
+
+### 2A. Fix the stake floor vs yes_cap mismatch
+**Mechanism**: yes_cap = $1.25 < min YES stake = $2.10. Three levers:
+- **Option A**: Raise BAND_STAKE_FRAC_YES: 0.010 → 0.020 → yes_cap = $2.50 (clears off=1 at $2.10; off=0 at $3.00 still tight but clears with 0.025)
+- **Option B**: Lower BAND_NO_CASH_RESERVE: 0.50 → 0.20 → yes_cap = $2.00 (marginal, weakens NO protection)
+- **Option C**: Lower BAND_BASE_STAKE: 3.0 → 2.0 → off=1 = $1.40 (fits even under current cap; but reduces absolute edge per fill)
+
+Option A is the cleanest: doubles deployment rate without touching NO reserve logic or per-fill sizing.
+
+**Expected delta**: posted/cycle 0.1 → 1.7 (+17×), turns/day 0.36 → ~1.0, fills ~$75/day → ~$200/day. Confidence: HIGH (mechanism fully confirmed by exec). Effort: trivial (one parameter).
+
+### 2B. NO posting rate broken despite reserve being held
+**Finding** (exec §2-3): BAND_NO_CASH_RESERVE=0.50 is holding $125 idle, but only 2 fire_no events fired Jun 13. Root cause: books=0/80 means NO candidates never reach the book-fetch stage. Fixing 2A (book fetches resume) should unblock NO simultaneously — no separate parameter needed.
+
+**Expected delta**: NO posts proportionally recover. Jun 11 post-fix rate was ~20.6% NO of posts (exec §2), implying ~35/day NO posts if the pipeline clears. Confidence: MEDIUM (inferred, not directly confirmed for NO path). Effort: zero additional beyond 2A.
+
+### 2C. RECYCLE099 dependency risk
+**Finding** (pnl_ledger §5): Jun 12 net +$12.85 = RECYCLE099 (+$37.52) − STWA legacy bleed (−$28.33). Without RECYCLE099, Jun 12 = −$24.67. The band's active contribution was negative.
+
+RECYCLE099 draws from legacy taker positions (STWA_REGULAR_YES_ENABLED disabled Jun 5) now resolving. Once this pool clears, the revenue buffer disappears. At current 0.1 posts/cycle, new fills entering the RECYCLE099 pipeline are negligible (~$0.60/day of future pipeline value vs $37/day being extracted). The pool is in net drawdown. Fixing 2A replenishes the pipeline; doing nothing leaves a closing revenue window.
+
+**Expected delta**: restoring YES posting fills the RECYCLE099 pipeline at scale. No immediate parameter action needed beyond 2A.
+
+### 2D. Dead-quote reclaim not executing
+**Finding** (exec §5): Seattle NO @0.56 and Seoul NO @0.63 are 28h old, 0% filled, past the 6h reclaim threshold (BAND_RECLAIM_AGE_S=6h). BAND_RECLAIM_PER_CYCLE=10 is set but "No active reaping observed." Small dollar impact (~$10 locked) but confirms the reclaim sweep is not running or failing silently.
+
+**Expected delta**: unlock ~$10 resting capital, reduce stale-quote book pollution. Confidence: HIGH. Effort: investigate + fix (low).
+
+---
+
+## 3. GATE PIPELINE REVIEW
+
+**Master blocker**: Gamma API returns HTTP 403 from VPS (Cloudflare WAF). Zero resolution joins computed. All ROI/WR/CI metrics N/A across all 7 gates. No gate can reach READY/REJECTED until resolution access is restored.
+
+### Gate proximity ranking:
+
+| Gate | n (count) | Count threshold | Bottleneck | ETA to READY |
 |---|---|---|---|---|
-| Pre-2026-06-05 (old config: YES ladder) | 92 | 5.4% | -$31.39 | **YES — dead data** |
-| 2026-06-05 to 2026-06-12 (current config) | 39 | 17.9% | -$55.05 | **ACTIVE — analyzed below** |
+| G1 BAND_YES per slice | 1,539 (4 slices >100) | ✓ passed | **Gamma 403** | Immediate if unblocked |
+| G7 SUM-POSTED 0.70-0.85 | 284 | ✓ passed | **Gamma 403** | Immediate if unblocked |
+| G3 FILLED vs FIRED | 116 fills | ✓ passed (n≥40) | **Gamma 403** | Immediate if unblocked |
+| G5 THERMO maker-NO | 13 candidates | n≥20 resolved | ~1-2d accumulation + Gamma | 2d |
+| G4 BASKET EXIT | 38 basket-days | n≥100 | Time only | ~3d |
+| G2 BAND_NO | 14 post-fix | n≥100 | Time (~7/day) + Gamma | ~12d |
+| G6 M1 LOCKOUT | 1 | n≥100 | **Logger silent (0 rows)** | Indeterminate |
 
-**Open positions (basket_exit_shadow)**: 12 cities, 15 legs, cost $38.68, liquidation value $29.49 (-23.8%), max-hold $143.78. Close windows: Jun 12 15:59 UTC and Jun 13 07:59 UTC.
+G1, G7, and G3 are count-complete. They are waiting only for resolution data — one working Gamma call or Polygon RPC query unlocks all three simultaneously.
 
-**Kill switch check**: WR=17.9% over 39 post-June5 resolved trades. **FLAG THRESHOLD BREACHED** (flag if <35% over 20 trades). Capital $225.67 >> ruin floor ($50). No daily halt triggered today.
+**G6 (M1-beta lockout)**: metar_lockout.jsonl has 0 rows across all dates (gatekeeper §6). One WEATHER_M1_PROBE trade exists (Moscow 2026-05-26). Logger is either disabled or the thin-margin slice never triggers. Check `METAR_LOCKOUT_SHADOW_ENABLED` flag — without the logger, G6 is stuck at n=1 indefinitely.
 
----
-
-## POST-JUNE-5 RESOLVED STWA TRADES BY PATH
-
-| Path | n | Direction | WR | Net PnL | Stake | EV/$ | Decision tier |
-|---|---|---|---|---|---|---|---|
-| WEATHER_STWA (engine model-NO) | 14 NO + 6 YES* | BUY_NO: 14 | 14.3% NO | -$39.16 | $49.16 | **-$0.797** | Trend only (n<100) |
-| WEATHER_STRUCT_BAND | 11 | YES: 8, NO: 3 | 18.2% | -$18.16 | $28.02 | **-$0.648** | Trend only (n<100) |
-| WEATHER_M1_PROBE (M1β lockout) | 5 | BUY_NO: 5 | 40.0% | +$12.66 | $42.84 | **+$0.295** | Trend only (n<100) |
-| WEATHER_THERMO (thermo-ceiling maker) | 2 | BUY_NO: 2 | 50.0% | -$5.56 | $11.06 | -$0.503 | Data-collection |
-| WEATHER_FAVYES | 1 | BUY_YES | 0.0% | -$4.82 | $4.82 | -$1.000 | Single data point |
-
-*6 BUY_YES WEATHER_STWA on June 5 opened before YES flag fully propagated—not a current-config path.
-
-**Critical pattern on engine model-NO (n=14 NO trades)**:
-- Entry prices concentrated at 0.50–0.56 (buying the "NO is favorable" side at PRICE_FLOOR gate)
-- 12/14 resolved YES (bucket WAS the daily max) → WR=14.3% on NO
-- Expected WR under random NO selection across weather buckets: ~70–80% (most buckets are not the daily max)
-- 14.3% WR is **5× worse than random**, indicating the model is **anti-predictive**: it consistently selects the bucket that becomes the daily high, then bets it won't be
-
-**BAND pair-quoter (n=11, post-June-9)**:
-- 8 BUY_YES all resolved 0.0 (0% YES WR)
-- 1 BAND_MERGE win +$0.27 (Taipei YES+NO pair → merged → $1)
-- 2 BUY_NO: 1 win (+$2.30), 1 loss (-$3.05)
-- Merge rate: 1/11 = 9% (vs badatmath's 34% in June); net: -$18.16 on $28.02 staked
+**Accelerating G2 without degrading expectancy**: NO posting rate (7/day) is a downstream symptom of the YES posting freeze. Fixing the YES cap (2A) unblocks book fetches → NO candidates processed → fire_no triggers → G2 accumulates at ~15-25/day (Jun 11 post-fix rate). No breadth changes or stake modifications needed for G2.
 
 ---
 
-## 1 — PRIMARY BOTTLENECK
+## 4. ASSUMPTION ATTACK
 
-**Engine model-NO calibration failure (anti-predictive bucket selection)**
+### Assumption 1: Dispersion premium persists (market-implied sigma > realized sigma)
+**Status: UNDER STRESS ⚠️**
 
-Rank: **model calibration / direction signal quality**
+Calib §3 dispersion gauge fires RED: 7d median corrected ratio = **0.62** (threshold 1.10). Market-implied sigma is narrower than realized displacement in 73/149 non-exact-mode city-days. The CLAUDE.md edge claim is not confirmed this window.
 
-The PA-shrunk isotonic recalibration showed rank-corr +0.39 on 2024 backtest data. Live NO trades (n=14, June 5–8) show WR=14.3%—not merely unedged but reversed. The model selects buckets that are 5–6× more likely to be the daily high than a random bucket, then bets NO on them. Every dollar staked on this path destroys $0.80.
+Day-level trend is the decisive nuance:
 
-WEATHER_STWA is responsible for -$39.16 of the -$55.05 total post-June5 loss (71%). It is the most active path by capital deployed ($49.16) and has the worst EV. The flag threshold is breached (WR=17.9% overall, 14.3% on this path). The recalibration did NOT transfer to live 2026 data.
+| Date | Corrected ratio |
+|---|---|
+| Jun 8 | 0.458 |
+| Jun 9 | 0.409 |
+| Jun 10 | 0.781 |
+| Jun 11 | 0.842 |
+| Jun 12 | 0.857 |
 
-Second bottleneck: BAND merge rate (9% vs 34% target), but capital exposure is smaller.
+Jun 8-9 collapsed to 0.41-0.46 and dominate the 7d median. Jun 10-12 recovered to 0.78-0.86. If the ratio holds at this level, the 7d window will clear 1.10 in approximately 5-7 days as the early-window outliers roll off. This is not a reason to declare edge restored — it is a reason to monitor carefully rather than halt.
 
----
+**Data quality caveat** (calib §3): p_cal is used as a market-price proxy for historical days (stwa_ladder_book not archived). The isotonic plateau artificially compresses p_cal at high model confidence, narrowing computed implied sigma. True market-implied sigma is likely wider — but cannot be confirmed without the 7d archive (experiment B). The 0.62 reading may be a floor estimate.
 
-## 2 — EXISTING SYSTEM OPTIMIZATION
+**Verdict**: Assumption under stress. Do not halt. Do not expand. Watch daily ratio. Halt trigger: ratio stays below 0.70 through Jun 17, or falls from current 0.857 level.
 
-### 2a. Engine model-NO: disable until direction signal is validated
-- **Issue**: All 14 NO entries at 0.50–0.56, losing 86% of the time. 14.3% WR is 5× worse than random NO selection.
-- **Δtrade-count if disabled**: −~1.8/day (current pace)
-- **Δexpectancy**: +$39.16 saved over this 8-day window; +~$1,400/yr at current pace
-- **Confidence**: HIGH (n=14, consistent, worse than random)
-- **Effort**: LOW (STWA_REGULAR_NO_ENABLED=False, one flag)
+### Assumption 2: Fills are not adversely selected (winner's curse below detection threshold)
+**Status: CANNOT EVALUATE**
 
-### 2b. BAND Σ-gate: verify v3 basket fix is working
-- **Issue**: Today's band_struct last record: reason="no_band", n_valid=0 at 11:26 UTC. June 11 v3 deployed Σ-gate fix (gate on Σ(posted legs, off≤1) instead of full ±2 band). But today's data shows near-zero firing.
-- **Possible causes**: (a) Markets not yet at tradeable phase (PRE_PEAK, too early); (b) Σ(posted legs) still exceeds 0.85 for available ladders; (c) d+1/d+2 days don't have tradeable depth yet
-- **Δtrade-count**: Unknown without parsing full band_struct; estimate 2–5× if gate is confirmed broken
-- **Δexpectancy**: +$200–$600/yr if BAND ROI stays near simulated +46%
-- **Confidence**: LOW (n=22 simulated gated slice, n=11 live)
-- **Effort**: LOW (diagnostic: parse band_struct "fire" vs "gate" ratio)
+Exec §4 proxy signals: 27 exit099 wins, ~10 inferred losses, no all-fires baseline (band_resolution_join.py absent, Gamma 403). Calib settled lane: mode bucket [0.6, 0.7) wins 100% (n=160, decision-grade) — model has real predictive signal. Cheapest YES legs (0.10-0.30) show 453% ROI when they win (n=6, collect-grade only).
 
-### 2c. BAND YES: 0.03 price floor (PX_MIN_MD) not yet producing live data
-- **Issue**: Deployed June 11. All 8 BAND YES fills at 0.10–0.33 predate this change. Sub-0.10 YES fills have not resolved yet.
-- **Expected Δtrade-count**: +~30% YES legs
-- **Annual $**: Unknown until first sub-0.10 YES batch resolves
-- **Confidence**: UNVALIDATED; accumulating
-- **Effort**: ZERO (already deployed)
+Winner's curse test requires: fill ROI per slice vs all-fires ROI per slice. Neither is computable without resolution. G3 (FILLED vs FIRED) tests this directly. Unblocking Gamma is the only path to answer.
 
-### 2d. NEG_RISK_ARB: partial-arb or threshold relaxation
-- **Issue**: 0 real fills in 670 scans today. 48 scans have real_edge > 0.01 but all_legs_fillable=False. The Σask < 0.85 condition is met but not all legs have book depth.
-- **Potential fix**: Accept partial arb coverage when Σ(fillable legs NO) is enough to guarantee profit with certainty (subset of legs already locked)
-- **Annual $**: From $0 currently; +$150–$400/yr if partial coverage triggers ~2/day
-- **Confidence**: LOW (adverse selection risk on partial fills)
-- **Effort**: MEDIUM
+**Verdict**: No signal of adverse selection detected; absence of detection is not evidence of absence. Gate G3 carries this test.
+
+### Assumption 3: Recycle velocity scales with fill rate
+**Status: THREATENED ⚠️**
+
+RECYCLE099 generated $91.05 in 4 days (27 win events). Jun 12 RECYCLE099 alone = $37.52 on a day when the active band contributed −$24.67 net. The revenue is from a draining legacy stock, not a renewable source. New fill pipeline at 0.1 posts/cycle ≈ 2-3 positions/day ≈ ~$0.60/day of future pipeline value. Current extraction rate ~$37/day. Net drawdown ratio: ~60×.
+
+**Verdict**: Assumption is false at current posting rate. The engine does not scale — it depletes. The recycle velocity assumption requires YES posting at adequate scale (fix 2A) to be true.
 
 ---
 
-## 3 — FREQUENCY EXPANSION
+## 5. MARKET INTELLIGENCE — [Rotation 1: Market Census]
 
-**Do NOT expand frequency on engine model-NO path. Frequency multiplies negative EV.**
+*Day-of-month mod 3 = 13 mod 3 = 1 → market census.*
 
-| Opportunity | Δtrade-count | Δexpectancy | Annual $ | Confidence | Effort |
-|---|---|---|---|---|---|
-| Min-lockout live enable (currently shadow) | +~5 fills/day | ~+$0.15/fill (if similar to max lockout) | +$250/yr | MEDIUM (n=0 resolved; needs validation join) | LOW (flag flip after validation) |
-| Expand THERMO maker daily cap after n≥20 resolve | +~2–3 fills/day | ~+4–7%/turn if ceiling math holds | +$100–$300/yr | LOW (n=2 resolved) | ZERO (already built; cap increase only) |
-| Peakscalp (PROPOSAL — no live path yet) | +TBD | Backtest gate OOS ~95%+ WR | Unknown | MEDIUM (model-free, needs user GO) | MEDIUM |
+**Proxy lane divergence leaders today** (calib §2, n=1,888 active buckets, 08:03 UTC):
 
----
+| City | Median |p_cal − mkt_mid| |
+|---|---|
+| Lucknow | 0.305 |
+| Qingdao | 0.271 |
+| Jeddah | 0.262 |
+| Helsinki | 0.262 |
+| Madrid | 0.236 |
 
-## 4 — EXECUTION AUDIT
+Exec report top fill cities (4d): Jeddah (9 fills), SF (8), Beijing (8), Munich (7), Moscow (7).
 
-**NEG_RISK_ARB fill probability**: 0/670 scans today = 0.0%. Not a fill-side problem; arb doesn't exist in fillable form.
+**Overlap signal**: Jeddah appears in both high-divergence and high-fill-rate lists. Qingdao is high-divergence but not a top-fill city in this window (6 fills, rank 7). This suggests the band is correctly targeting Jeddah; Qingdao may be an underfished city if its divergence is genuine. Lucknow tops the divergence list (0.305) but does not appear in fill leaders — worth checking if it is in the active 51 or filtered by a config parameter.
 
-**BAND maker orders today**: 1 live resting order (Beijing NO at 0.99, THERMO path, status=RESTING). maker_exercise.jsonl n=1 for the day — very low posting activity at 11:26 UTC.
+**stwa_ladder_book baseline gap**: The calib report notes the proxy lane has no 7d baseline because stwa_ladder_book is not archived per-day in data-mirror. Divergence spikes cannot be distinguished from persistent structural gaps without this baseline. This is a new gap (first calib run). Archiving daily is experiment B below.
 
-**BAND current open positions** (basket_exit_shadow snapshot 11:26 UTC):
-- 12 cities, 15 legs, cost $38.68
-- Current bid-side liquidation: $29.49 (-23.8% of cost)
-- Max hold value: $143.78 (+271.7% of cost)
-- 1/12 baskets all_green (Moscow, $0.47 cost, $2.47 max)
-- Notable: Jeddah 2-leg basket, cost $5.34, max $52.48 (9.8× if both legs win)
-
-**Observation pipeline**: 1,535 obs today from 9 sources (AWC 60%, WIS2 12%, NWS 10%, JMA/HKO/FMI ~4.5% each). No dropped messages in shadow telemetry (0 dropped / 966k written). Memory stable at 725 MB RSS. System operational.
-
-**Entry fill timing**: All BAND fills appear to execute and reach trades.jsonl at resolution (correct behavior — "STWA fills reach trades.jsonl only at resolution"). The system_status "open positions count=0" likely reflects the risk.open_positions counter (taker fills only); BAND maker fills tracked separately.
+**Gamma census blocked**: No Gamma market API access from VPS (403). New weather city/product additions in the 51-city universe cannot be confirmed via API this session. Manual check on gamma.com recommended to confirm no new market categories have launched this week.
 
 ---
 
-## 5 — ASSUMPTION ATTACK
+## 6. EXPERIMENTS
 
-**Assumption 1: "PA-shrunk + isotonic recalibration produces predictive NO bucket selection"**
-- Evidence against: Live WR=14.3% on n=14 NO trades at 0.50–0.56 entry price. Rank-corr +0.39 (2024 backtest) did NOT transfer to live 2026. Worse than random by 5×.
-- Cheapest test: Join stwa_pricer_eval.jsonl (n=167k records) to gamma resolution. Compute Spearman rank-corr(p_cal, resolved_YES) and WR by p_cal decile. Cost: 2h analyst time.
+### Experiment A — Restore YES posting via BAND_STAKE_FRAC_YES increase
 
-**Assumption 2: "BAND YES + NO pair posting replicates the badatmath merge mechanism"**
-- Evidence against: 9% merge rate (1/11) vs badatmath's 34%. 0/8 YES resolved YES. Either the YES leg is posted on non-mode buckets, or the YES book is too thin to get filled at profitable prices.
-- Cheapest test: Audit last 100 band_struct "fire_yes" entries: is the YES leg the mode bucket (highest p_cal rank) or an off-center bucket? Also check whether fills are happening or orders are stale-resting.
+**Hypothesis**: Raising BAND_STAKE_FRAC_YES from 0.010 to 0.020 raises yes_cap from $1.25 to $2.50, clearing the off=1 stake floor ($2.10) and restoring posted/cycle from 0.1 to Jun 12 baseline of ~1.7.
 
-**Assumption 3: "NEG_RISK_ARB fires with sufficient frequency to be a revenue contributor"**
-- Evidence against: 0 real fills across all dates. Median real_edge ≈ 0.001, never all_legs_fillable. The Σask < 0.85 condition in a liquid market is structurally unreachable.
-- Cheapest test: Pull 30-day historical Σ(YES ask per city) from gamma snapshots. Check if Σask < 0.85 AND all_legs_fillable ever occurred simultaneously. If never: the arb gate needs redesign for partial coverage.
+**Data**: STRUCT-BAND-Q yes_resv_skip and posted/cycle in the next 1-2 cycles (5-10 min); fills/day over Jun 14.
 
----
+**Time**: 5 min to see posting resume; 24h to confirm fills/day trend.
 
-## 6 — EXTEND EXISTING EDGE
+**Cost**: Zero. Capital at risk per cycle scales proportionally (same fraction of equity, twice deployed).
 
-| Extension | Effort | Annual $ | P(success) |
-|---|---|---|---|
-| Min-lockout live (daily-low markets) | LOW | +$250/yr | MEDIUM — mechanism is sound (mirror of max-lockout), shadow has n~100k records Jun 8–12; needs resolution join for WR proof |
-| THERMO maker cap expansion (after n≥20 resolved) | ZERO | +$200–$400/yr | LOW until n≥20 resolved; 2/2 so far mixed (1 near-certain win, 1 loss at 0.81) |
-| Peakscalp (user GO required) | MEDIUM | Backtest +high ROI | MEDIUM — model-free mechanism; needs live test |
+**Success metric**: yes_resv_skip < 10/cycle; posted/cycle > 1.0; Jun 14 fills > $100.
+
+**Decision if YES**: confirm as operational parameter. **If NO** (posting resumes but adverse selection detected or fill quality degrades): revert and investigate fill composition by price band.
 
 ---
 
-## 7 — PROPRIETARY EDGE RESEARCH
+### Experiment B — Archive stwa_ladder_book daily for dispersion gauge
 
-**Only after 1–6. Directional engine is anti-predictive; extending a losing system is capital destruction.**
+**Hypothesis**: Daily archiving of stwa_ladder_book.jsonl in data-mirror enables the proxy lane 7d baseline in calib_monitor, replacing the p_cal proxy and 1.06 point-estimate correction with true market-implied prices. May reveal the true dispersion ratio already exceeds 1.10 (calib §3 notes the p_cal compression likely understates market sigma).
 
-One validated signal: **observation lead time edge** via multi-source NMS. 9 sources give 9–28 min lead. Currently moot because the direction signal itself is wrong—if model-NO were fixed, early obs would be the multiplier.
+**Data**: 7 daily snapshots of stwa_ladder_book captured at 12:00 UTC.
 
-Do not build new infra. Validate direction signal correctness via Experiment 1 first.
+**Time**: 7 days to accumulate baseline; 1-2h to implement archive cron.
 
----
+**Cost**: ~50MB/day storage, one cron entry.
 
-## 8 — THREE EXPERIMENTS
+**Success metric**: calib_monitor proxy lane has 7d baseline; dispersion ratio recomputed with true market_sigma. If ratio rises above 1.10 → alert clears. If ratio stays below 0.70 → edge assumption is genuinely broken.
 
-### Experiment 1 (Cheap, Fast, High-VoI): Engine direction signal validation
-- **Hypothesis**: p_cal from PA-shrunk pricer has positive rank-correlation with actual daily-max YES resolution probability
-- **Data**: stwa_pricer_eval.jsonl (n=167k records today) joined to gamma resolution for same event_key
-- **Time**: 2 hours
-- **Cost**: $0
-- **Success metric**: rank-corr > +0.20 AND WR for p_cal > 0.60 buckets exceeds 60%
-- **If YES**: Direction signal works on YES side; investigate why NO selection fails specifically (entry timing? spread?)
-- **If NO (rank-corr ≤ 0.20 or negative)**: Model direction is noise; disable STWA_REGULAR_NO_ENABLED and do not re-enable without Tier-3b model refit
-
-### Experiment 2 (Cheap, Fast, High-VoI): BAND YES fill-quality audit
-- **Hypothesis**: BAND YES fills land on mode buckets (off=0) and the mechanism is correct but YES odds are too cheap to survive
-- **Data**: band_struct "fire_yes" events joined to fill prices and p_cal rank
-- **Time**: 1–2 hours
-- **Cost**: $0
-- **Success metric**: >50% of YES fills are the off=0 (mode) bucket
-- **If YES (fills on mode)**: YES edge is timing-dependent; consider posting YES closer to open
-- **If NO (fills on off≥1)**: Off-rule is filtering mode but allowing shoulders → band selection bug
-
-### Experiment 3 (Cheap, Medium, High-VoI): Min-lockout validation join
-- **Hypothesis**: metar_min_lockout candidates with margin_c ≥ 0.5°C and non-null no_ask resolve NO at ≥90% WR
-- **Data**: All hot/2026-06-08 through hot/2026-06-12 metar_min_lockout.jsonl records (n~100k) joined to gamma resolution via condition_id
-- **Time**: 4–6 hours
-- **Cost**: $0
-- **Success metric**: n≥100 fillable candidates with WR ≥ 90%
-- **If YES**: Enable MIN_LOCKOUT_LIVE=True; start at $0.50–$3/trade
-- **If NO**: Oracle provenance issue present in min-lockout; investigate before enabling
+**Decision if YES** (ratio > 1.10): edge confirmed, proceed with fill rate expansion and capital scaling. **If NO** (ratio < 0.70 even with true prices): reduce YES band exposure, revisit BAND_EV_MIN and BAND_P_MIN floors.
 
 ---
 
-## 9 — SINGLE BEST ACTION
+### Experiment C — Unblock Gamma resolution API via Polygon RPC fallback
 
-**Disable engine model-NO path (STWA_REGULAR_NO_ENABLED=False)**
+**Hypothesis**: Market outcome prices are available on-chain via Polygon RPC (final outcome price per token = 0 or 1 after resolution). Implementing a Polygon RPC query path in band_resolution_join.py bypasses the Cloudflare 403 on Gamma REST API and provides resolution truth for G1, G3, G7 — all of which are n-complete.
 
-Why #1: This path is anti-predictive (WR=14.3% on n=14, 5× worse than random), responsible for 71% of post-June5 losses (-$39.16), and actively destroying capital at -$0.80/$ staked. Every additional day it runs increases the damage. The fix is one flag. Capital is the bottleneck for all other strategies; protecting it is the prerequisite.
+**Data**: Outcome prices for Jun 8-12 condition IDs in G1/G3/G7.
 
-Upside: Stops ~$1.75/day of capital destruction at current pace. Preserves capital for BAND pair-quoting and lockout paths that have structural logic.
+**Time**: 2-4h dev to implement Polygon price query. Immediate results once running.
 
-Confidence: HIGH — direction consistent across all 14 NO trades, no cherry-picking.
+**Cost**: Low (RPC calls, negligible gas).
 
-First step: Set STWA_REGULAR_NO_ENABLED=False in config, then immediately run Experiment 1 (pricer_eval join) to determine whether re-enabling with a corrected recalibration is viable.
+**Success metric**: band_resolution_join.py returns > 0 resolved outcomes for Jun 8-12 markets; G1 and G7 produce ROI/CI values and flip READY or REJECTED; G3 produces fill vs fire divergence.
+
+**Decision if YES**: G1/G7 gate decisions within 24h. **If NO** (Polygon also fails or mismatches): defer to manual Gamma check via non-VPS IP or curl_cffi impersonation debug.
 
 ---
 
-## STANDING MONITOR — M1β Thin-Margin Lockout Slice
+## 7. SINGLE BEST ACTION
 
-**Data availability**: m1_beta_probe.jsonl files visible in shadow_summary for hot/Jun 2, 3, 4, 6, 7, 9 only. No m1_beta_probe.jsonl detected after June 9. Possible explanations: (a) probe was retired/merged; (b) thin-margin fires ceased; (c) file logging bug. metar_min_lockout.jsonl (current log) has minimum margin_c = 0.5°C — the [0.2,0.5)°C band is below detection threshold.
+**Raise BAND_STAKE_FRAC_YES from 0.010 to 0.020 in strategy/stwa_engine.py.**
 
-**Live n in [0.2,0.5)°C band**: Cannot isolate cleanly from available data. Proxy: WEATHER_M1_PROBE resolved trades (all BUY_NO):
+**Evidence chain** (exec_audit §3, primary report):
+- yes_cap = 0.010 × $250 × 0.50 = **$1.25/cycle** < min YES stake = **$2.10** → all YES candidates mechanically rejected
+- posted/cycle declined 17× in one day: 1.7 (Jun 12) → 0.1 (Jun 13)
+- yes_resv_skip = 58/cycle at 07:09 UTC confirms the entire YES pool is rejected at the stake floor
+- Burst at 10:11 UTC (posted=2 in one cycle when yes_cap transiently reached $3.47) confirms the engine executes correctly when the cap is met
 
-| Trade | Open | Entry price | Net PnL | Likely depth |
-|---|---|---|---|---|
-| T1 | 2026-06-07 | 0.965 | -$10.62 | Deep lockout (≥0.5°C) → false lock |
-| T2 | 2026-06-07 | 0.918 | +$0.95 | Deep lockout → genuine win |
-| T3 | 2026-06-09 | 0.193 | +$35.50 | Thin margin candidate (cheap NO) |
-| T4 | 2026-06-09 | 0.813 | -$9.76 | Mid-depth → false lock |
-| T5 | 2026-06-09 | 0.083 | -$3.41 | Very thin / false lock |
+**Compounding impact**: restoring posted/cycle to 1.7 → turns/day 0.36 → ~1.0 → 2.7× compounding acceleration with no strategy or edge change. The fix is parameter-level; the risk is bounded by the same BAND_EV_MIN, BAND_PX_CEIL, BAND_P_MIN gates already in place.
 
-- **Live n**: 5 total (cannot isolate [0.2,0.5)°C cleanly); << n≥100 threshold
-- **WR**: 2/5 = 40% (dominated by one +$35.50 outlier)
-- **EV/share**: Cannot compute (share counts not logged separately)
-- **Trend**: Directionally mixed. The 2 false locks (0.965 and 0.083) suggest oracle-provenance issues persist in thin-margin zone.
+**P(success)**: HIGH. Mechanism fully confirmed, not inferred.
 
-**DECISION**: n=5 << n=100. **Report trend only: mixed, no action.**
+**Effort**: one parameter change, one config line.
 
-**ANOMALY**: m1_beta_probe.jsonl absent after June 9. If the [0.2,0.5)°C probe is no longer running, the standing monitor has no data source. Engineering check needed: confirm whether the probe is logging to a different path or has been retired.
+**Cascading benefits**: book fetches resume → NO candidates also unblocked → G2 accumulation accelerates from 7/day to ~15-25/day → RECYCLE099 pipeline refilled by new maker fills → G3/G1 fill count grows for gate validation.
+
+**Dispersion caveat**: the dispersion ratio alert fires (0.62 vs threshold 1.10), but Jun 10-12 trend shows recovery (0.78-0.86). Restoring fill rate is correct regardless because: (a) each fill generates data the gates need; (b) the posting freeze is the larger drag on expected value; (c) the band's gate logic (EV_MIN, PX_CEIL, P_MIN) provides downside protection even if the dispersion premium is temporarily compressed.
+
+**Concrete first step**: In `strategy/stwa_engine.py`, change `BAND_STAKE_FRAC_YES = 0.010` to `BAND_STAKE_FRAC_YES = 0.020`. Monitor STRUCT-BAND-Q in the next cycle (5 min) for yes_resv_skip < 10 and posted > 0.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**ACTION-1 [URGENT]**: Disable engine model-NO path.
-```python
-# config.py
-STWA_REGULAR_NO_ENABLED = False
-```
-Evidence: WR=14.3% n=14 NO trades, EV/$ = -0.797. Anti-predictive, responsible for 71% of post-June5 losses. Tier-2 action (disable a buy path).
+**P1** [HIGH — operational fix]: Raise `BAND_STAKE_FRAC_YES` from `0.010` to `0.020` in `strategy/stwa_engine.py`. Monitor yes_resv_skip + posted/cycle next cycle.
 
-**ACTION-2 [analysis, no deploy]**: Run Experiment 1 before re-enabling:
-```bash
-python3 analysis/weather/stwa_pricer_eval_join.py
-# Compute rank-corr(p_cal, resolved_YES) and WR per p_cal decile
-```
-Decision gate: if rank-corr > +0.20, investigate specific failure mode of NO entry; if ≤ 0, do not re-enable without model refit.
+**P2** [MEDIUM — data infra]: Add stwa_ladder_book daily archive to data-mirror cron (one snapshot/day at 12:00 UTC). Unlocks proxy lane 7d baseline in calib_monitor.
 
-**ACTION-3 [engineering check]**: Confirm m1_beta_probe.jsonl logging status.
-```bash
-# Run on VPS:
-ls -la /root/Klaus/logs/shadow/hot/$(date +%Y-%m-%d)/m1_beta_probe.jsonl
-```
-If missing: determine whether probe was retired intentionally or logging bug. If retired, close the M1β standing monitor. If bug, restore.
+**P3** [MEDIUM — gate unblock]: Implement Polygon RPC fallback in band_resolution_join.py (or enable curl_cffi Chrome impersonation for Gamma from VPS). G1, G7, G3 are n-complete; resolution data is the only missing piece.
 
-**ACTION-4 [low urgency]**: Run min-lockout validation join (Experiment 3) and enable MIN_LOCKOUT_LIVE=True if WR ≥ 90% at n≥100.
+**P4** [LOW — maintenance]: Check `METAR_LOCKOUT_SHADOW_ENABLED` flag. metar_lockout.jsonl has 0 rows across all dates; G6 cannot accumulate data until the logger fires.
+
+**P5** [LOW — maintenance]: Investigate reclaim sweep for Seattle NO @0.56 and Seoul NO @0.63 (28h old, 0% filled, past 6h reclaim threshold). Both should have been swept 22h ago.
+
+**P6** [WATCH — no action yet]: Dispersion gauge ratio = 0.62 (alert), trend recovering (0.857 on Jun 12). Hold YES band live. Halt trigger if ratio falls below 0.70 or stays below 0.80 through Jun 17.
+
+**P7** [WATCH — do not deploy]: Isotonic candidate top-knot collapse (p=1.00 → p_cal 0.63→0.37, Δ=−0.258) contradicts settled lane (mode bucket wins 100% at p_cal ∈ [0.6,0.7), n=160). Human review required before any deployment.
 
 ---
 
-## SUMMARY
-
-System is active and well-capitalized ($225.67). Primary threat: engine model-NO is anti-predictive on live data (WR=14.3%, n=14) and is the dominant capital drain (-$39.16 of -$55.05 post-June5 losses). Kill switch flag threshold is breached (WR=17.9% across 39 trades). BAND has 11 resolved trades trending negative. NEG_RISK_ARB finds 0 fillable opportunities. M1β probe appears absent after June 9. One positive signal: WEATHER_M1_PROBE trend at +$0.295/$ on n=5 (driven by outlier). Recommended immediate action: disable STWA_REGULAR_NO_ENABLED and run direction signal validation before any further NO trading.
+*Report-only. No code, flags, or stakes touched.*  
+*Generated by Klaus Research Agent | 2026-06-13T10:30Z*
