@@ -1,0 +1,100 @@
+{
+  "BAND_YES": {
+    "n": 1539,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 0,
+    "note": "Top slice n=145 (d=2,off=1,pb=0.10-0.20); Gamma API 403 blocks resolution join",
+    "ts": "2026-06-13T09:22:09Z"
+  },
+  "BAND_NO_PAIR_FAV": {
+    "n": 14,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 0,
+    "note": "Post-fix count from 2026-06-12; 71 pre-fix legs excluded; ~7/day rate",
+    "ts": "2026-06-13T09:22:09Z"
+  },
+  "FILLED_VS_FIRED": {
+    "n": 116,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 0,
+    "note": "116 unique filled tokens (count > 40 threshold); resolution join blocked",
+    "ts": "2026-06-13T09:22:09Z"
+  },
+  "BASKET_EXIT": {
+    "n": 38,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 5,
+    "note": "38 city-date baskets; 5 resolved; 0 all_green resolved; ~25/day rate",
+    "ts": "2026-06-13T09:22:09Z"
+  },
+  "THERMO_MAKER_NO": {
+    "n": 13,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 0,
+    "note": "13 candidates with end_date < today; resolution join blocked (Gamma 403)",
+    "ts": "2026-06-13T09:22:09Z"
+  },
+  "M1_BETA_LOCKOUT": {
+    "n": 1,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 0,
+    "note": "metar_lockout.jsonl = 0 rows all dates; 1 M1_BETA_PROBE trade (Moscow May-26)",
+    "ts": "2026-06-13T09:22:09Z"
+  },
+  "SUM_POSTED_0.70_0.85": {
+    "n": 284,
+    "n_prev": 0,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [
+      null,
+      null
+    ],
+    "wr": null,
+    "resolved": 0,
+    "note": "284 deduped YES legs in sum_ask [0.70,0.85]; count > 100 threshold; resolution blocked",
+    "ts": "2026-06-13T09:22:09Z"
+  }
+}
