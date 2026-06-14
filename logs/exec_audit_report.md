@@ -1,212 +1,206 @@
-# Execution & Markout Audit — 2026-06-13T07:09Z
+# Band Execution & Markout Audit — 2026-06-14
 
-**Snapshot**: 2026-06-13T07:02:33Z (7 min old — FRESH)
-**System**: `klaus systemd: active` ✓
-**Data window**: Jun 10–Jun 13 07:09 UTC (partial day today)
-**n**: 125 registered fills (4d) — **TREND-GRADE** (40–99 = trend; 100+ = decision-grade at upper boundary)
+**Snapshot:** 2026-06-14T07:02:16Z — age <8 min ✓  
+**System:** `klaus systemd: active` ✓ (uptime since 2026-06-12 19:23 UTC)  
+**Capital:** $267.24 | **Data window:** 7d fill tape, 5d band_struct_lite, all resolved band trades
 
 ---
 
-## 1. FILL TAPE (24h + 7d)
+## 1. FILL TAPE
 
-### Daily fills (registered new-token fills only; 88 additional increment fills not double-counted)
+### 24h (since 2026-06-13 07:10 UTC)
+| Metric | Value |
+|---|---|
+| Total fill events | 66 |
+| $ filled | $97.90 |
+| YES fills | 46 events / $58.26 |
+| NO fills | 16 events / $50.21 |
+| NO share of $ | **51.4%** — healthy |
 
-| Date | Fills | YES | NO | NO-share | $ Filled |
-|------|------:|----:|---:|--------:|---------:|
-| Jun 10 | 15 | 12 | 3 | 20.0% | $29.59 |
-| Jun 11 | 51 | 30 | 21 | 41.2% | $143.08 |
-| Jun 12 | 47 | 42 | 5 | 10.6% | $99.49 |
-| Jun 13* | 12 | 8 | 4 | 33.3% | $27.62 |
-| **Total** | **125** | **92** | **33** | **26.4%** | **$299.78** |
+### 7d
+| Metric | Value |
+|---|---|
+| Total fill events | 239 |
+| $ filled | $336.90 |
+| Fills/day avg | 34.1/day / $48.13/day |
+| YES fills | 171 events / $226.97 |
+| NO fills | 47 events / $164.61 |
+| NO share of $ | **42.1%** — acceptable |
 
-*\* Partial — 0–07h UTC only*
+### Price Band Breakdown (7d)
+| Band | n | $ |
+|---|---|---|
+| <0.10 | 20 | $8.40 |
+| 0.10–0.30 | 124 | $170.80 |
+| 0.30–0.50 | 28 | $48.10 |
+| 0.50–0.85 | 46 | $164.28 |
 
-### By price band (4d total)
+Dominant band is 0.10–0.30 (YES legs) and 0.50–0.85 (NO legs at 0.52–0.85). Normal distribution for the strategy.
 
-| Band | Fills | YES | NO | $ |
-|------|------:|----:|---:|----|
-| <0.10 | 2 | 2 | 0 | $1.57 |
-| 0.10–0.30 | 71 | 71 | 0 | $111.86 |
-| 0.30–0.50 | 19 | 19 | 0 | $46.60 |
-| 0.50–0.85 | 22 | 0 | 22 | $77.75 |
-| >0.85 | 11 | 0 | 11 | $62.00 |
+### Top Fill Cities (7d by $)
+London ($40.91), Beijing ($32.93), Jeddah ($25.58), Munich ($23.13), Taipei ($21.12)
 
-**Structural finding**: YES fills are entirely in 0.10–0.50; NO fills are entirely in 0.50–0.99. Price bands are completely segregated by side — this is expected given BAND_PX_CEIL=0.45 (yes) and BAND_NO_MIN=0.52 (no).
+### Fill Rate by Day
+| Date | Posted Tokens | Token-Matched Fills | Fill Rate | $ Spent |
+|---|---|---|---|---|
+| 2026-06-11 | 16 | 16 | 100% | $56.4 |
+| 2026-06-12 | 42 | 42 | 100% | $216.3 |
+| 2026-06-13 | 42 | 42 | 100% | $174.0 |
+| 2026-06-14 | 11 | 3 | 27% | $36.3 |
 
-### Time-to-fill (approximate, n=99 city+side+price matched pairs)
+Jun 14 fill rate at 27% reflects a session still in progress at snapshot time (07:10 UTC). 100% fill rate on posted tokens Jun 11–13 indicates strong taker demand for the posted bids — which is itself an adverse-selection warning (see §4).
 
-| Band | n | Median TTF |
-|------|--:|----------:|
-| <0.10 | 2 | ~156 min |
-| 0.10–0.30 | 58 | 113 min |
-| 0.30–0.50 | 18 | 58 min |
-| 0.50–0.85 | 21 | 21 min |
-| **Overall** | **99** | **82 min** |
+### Time-to-Fill
+Matched sample n=5 (lite-file fire ts → first MAKER-FILL ts): median **1.7h**, all <6h. Low-n — trend only.
 
-NO legs (0.50–0.85) fill 5× faster than YES legs (0.10–0.30). YES legs at cheapest prices sit for ~113 min — long enough to span multiple resolve cycles for same-day markets.
-
-### Top cities by fills (4d)
-Jeddah (9), San Francisco (8), Beijing (8), Munich (7), Moscow (7), London (7), Qingdao (6), Taipei (6), Helsinki (6).
+### Reconcile Errors
+2 `[MAKER-FILL] reconcile failed` events (Jun 12 17:51 UTC, Jun 14 00:05 UTC). No apparent fill count impact; isolated incidents.
 
 ---
 
 ## 2. NO-PARITY MONITOR
 
-**Context**: NO-starvation bug fixed 2026-06-12 (commit `222bf5cf`). Fix added: cash pre-check before book fetch, YES fetch sub-budget 50/80, NO-candidate rotation, per-cycle queue log.
+### New Posts by Side (band_struct_lite fire/fire_no records)
+| Date | YES fires | NO fires | NO share | Status |
+|---|---|---|---|---|
+| 2026-06-11 | 110 | 71 | **39.2%** | LOW |
+| 2026-06-12 | 189 | 41 | **17.8%** | *** ALERT |
+| 2026-06-13 | 191 | 14 | **6.8%** | *** ALERT |
+| 2026-06-14 (07:10) | 135 | 4 | **2.9%** | *** ALERT |
 
-### New posts by side per day (band_struct_lite `record=post`)
+### Resting Book by Side (excl SELL_EXIT)
+| Side | Orders | Status |
+|---|---|---|
+| YES | 23 | — |
+| NO | 5 | — |
+| **NO share** | **17.9%** | *** ALERT (target ~50%) |
 
-| Date | Posts | YES | NO | NO-share | >=10 posts? | ALERT? |
-|------|------:|----:|---:|--------:|:-----------:|:------:|
-| Jun 10 | 170* | 2 | 4 | 2.4% | Y | YES |
-| Jun 11 | 68 | 54 | 14 | 20.6% | Y | YES |
-| Jun 12 | 85 | 82 | 3 | **3.5%** | Y | **YES** |
-| Jun 13 | 12 | 10 | 2 | 16.7% | N (n<10) | no |
-
-*\* Jun 10 format differs — `side` field absent from many records; counts understated.*
-
-**Jun 12 NO-share of posts: 3.5% — ALERT TRIGGERED** (threshold: <25% with >=10 posts).
-
-The NO-starvation fix partially restored NO on Jun 11 (20.6%) but then Jun 12 regressed to 3.5%. This is not a fix regression — it reflects the underlying stake-cap interaction (see §3).
-
-### Resting book parity (live, excl. SELL_EXIT)
-
-| Side | Count | $ Locked |
-|------|------:|---------:|
-| YES | 20 | $21.10 |
-| NO | 3 | $5.67 |
-| **NO share** | **13.0%** | **21.2%** |
-
-Target ~50%. Resting book is heavily YES-skewed. **ALERT: NO share of resting book = 13.0% (target ~50%).**
+### Diagnosis
+The NO-starvation fix committed 2026-06-12 (`fix(BAND): NO-starvation`) did NOT hold. NO share peaked at 39% on Jun 11 (pre-fix baseline), dropped to 18% on Jun 12 (fix day), and has continued declining: 6.8% Jun 13, 2.9% today. The fix introduced cash pre-checks and YES sub-budget (50/80 books), but NO candidate rotation is not producing sufficient fires relative to YES. The resting book reflects this: 5 NO vs 23 YES active bids. Today's full band_struct.jsonl has 5,302 YES fire records vs only 4 `fire_no` records — the NO candidate pool appears near-exhausted.
 
 ---
 
 ## 3. QUEUE HEALTH
 
-### STRUCT-BAND-Q summary by day
+### Per-Day Summary (from [STRUCT-BAND-Q] lines)
+| Date | Cycles | avg cash_preskip | avg books/80 | avg yes_books/50 | avg posted/cycle | books pinned | yes_books pinned |
+|---|---|---|---|---|---|---|---|
+| 2026-06-12 | 130 | $197 | 0.3 | 0.3 | 1.7 | 0% | 0% |
+| 2026-06-13 | 280 | $206 | 0.2 | 0.2 | 0.2 | 0% | 0% |
+| 2026-06-14 (07:10) | 82 | $215 | 0.1 | 0.1 | 0.1 | 0% | 0% |
 
-| Date | Cycles | mean posted/cycle | 0-posted% | cash_preskip | books/80 | yes_books/50 | yes_resv_skip | yes_cap |
-|------|-------:|------------------:|----------:|-------------:|---------:|-------------:|--------------:|--------:|
-| Jun 12 | 130 | 1.7 | 84% | 197 | 0.3 | 0.3 | 22 | $1.19 |
-| Jun 13 | 82 | **0.1** | **90%** | 229 | 0.1 | 0.1 | **58** | **$1.41** |
+### 24h Detail (n=279 cycles)
+- avg cash_preskip: **$202** — capital available (no cash starvation)
+- avg books used: **0.20/80** — far from fetch saturation ceiling
+- avg yes_books: **0.10/50** — far from YES sub-budget cap
+- avg posted/cycle: **0.20** — 55 total posts in 24h
+- Books pinned at 80: **0%**
+- YES books pinned at 50: **0%**
 
-**No fetch starvation**: books pinned at 0.3/80 and 0.1/80 — nowhere near the 80-cap ceiling. Gamma book fetches are healthy.
-
-**Deployment stall check**: cash_preskip=229 (>200) but posted/cycle=0.1 rather than strictly 0 — not a deployment stall, it's a stake-cap blockage (engine is running, just rejecting all candidates on cost).
-
-### Root cause of 90% zero-posted cycles today
-
-- `BAND_STAKE_FRAC_YES = 0.010` × `$249.10` = $2.49 per-cycle YES budget
-- `BAND_NO_CASH_RESERVE = 0.50` reserves half the budget → effective YES cap ≈ **$1.24–$1.41/cycle**
-- `BAND_YES_MAX_OFF = 1` → only off=0 ($3.00) and off=1 ($2.10) YES legs are eligible
-- **Both YES stake sizes ($3.00, $2.10) exceed yes_cap ($1.41) → all YES candidates rejected**
-- Result: yes_resv_skip=58/cycle (all candidates found, all blocked), posted=0.1/cycle
-- NO is also effectively stalled: only 2 `fire_no` events all day (Seattle NO 0.65, Dallas NO 0.57)
-
-**ALERT: Posted/cycle has declined 17× from Jun 12 (1.7) to Jun 13 (0.1). yes_resv_skip=58 is the binding constraint — the NO cash reserve combined with STAKE_FRAC_YES creates a stake floor that blocks all YES legs.**
+No fetch starvation or yes-book-cap regression detected. $202 avg cash_preskip with only 0.2 books/80 used strongly implies the binding limit is the candidate queue (not capital or fetch budget). The sharp decline in posted/cycle from 1.7 (Jun 12) to 0.1 (Jun 14) correlates directly with the NO fire-rate collapse — fewer unique valid candidates are clearing all gates per cycle.
 
 ---
 
-## 4. RESOLUTION MARKOUT (fill quality)
+## 4. RESOLUTION MARKOUT
 
-### Exit099 (recycle099) events — filled legs that resolved to winner
+### Methodology
+`trades.jsonl` filtered to `bond_entry_class=WEATHER_STRUCT_BAND` + `exit_reason=STWA_RESOLVED`. n=44 resolved legs (41 YES, 3 NO). Date range: Jun 10–13. Separately, `exit099_live.jsonl` tracks 0.99-recycle exits (n=35). Breakeven WR = entry price (market-efficient null). `band_resolution_join.py` not present; network calls not made. n=41 YES is at the trend/decision boundary (40–99 = trend only, <100 for decisions).
 
-| Date | n | Cost | PnL | ROI |
-|------|--:|-----:|----:|----:|
-| Jun 10 | 1 | $5.82 | $0.12 | 2.1% |
-| Jun 11 | 10 | $40.83 | $20.21 | 49.5% |
-| Jun 12 | 13 | $53.94 | $37.52 | 69.6% |
-| Jun 13 | 3 | $5.42 | $33.19 | 612.7% |
-| **Total** | **27** | **$106.00** | **$91.05** | **85.9%** |
+### YES Fills — Resolved (n=41)
+| Metric | Value |
+|---|---|
+| Win rate | **4.9%** (2/41 resolved YES) |
+| Avg entry price | **20.4¢** |
+| Breakeven WR | 20.4% |
+| Shortfall vs breakeven | **−15.6 pp** |
+| Adverse selection ratio | **0.24×** (observed WR / market-implied WR) |
+| EV per $1 staked | **−$0.76** |
+| Total resolved YES P&L | −$83.62 on $85.08 stake |
 
-*Jun 13 high ROI: 3 cheap entry wins (entry $0.13–$0.27 @ 0.99 exit).*
+**WINNER'S CURSE: CONFIRMED (trend-grade, n=41)**
 
-### By entry price band (resolved legs)
+The bot is filled on YES legs at 0.24× the market's implied probability. When the maker bid is 2¢ below the ask, informed takers hit the bid only when true probability is materially below the quoted price. The 100% token fill rate on all posted days reinforces this: every posted bid is getting hit, which in a market with any informed participants is a warning signal, not a success metric.
 
-| Entry band | n | Cost | PnL | ROI |
-|-----------|--:|-----:|----:|----:|
-| 0.10–0.30 | 6 | $12.17 | $55.15 | 453.3% |
-| 0.30–0.50 | 1 | $2.80 | $5.50 | 196.6% |
-| 0.50–0.85 | 12 | $50.25 | $29.22 | 58.2% |
-| >0.85 | 8 | $40.79 | $1.17 | 2.9% |
+### Recycle Offsets
+| Population | n | Cost | P&L | ROI |
+|---|---|---|---|---|
+| Resolved (STWA_RESOLVED) | 44 | $97.35 | −$79.13 | −81% |
+| Recycled at 0.99 | 35 | $132.40 | +$142.25 | +107% |
+| **Combined realized** | **79** | **$229.75** | **+$63.12** | **+27.5%** |
 
-Cheap YES legs (entry <0.30) produce the highest ROI per dollar when they win. Near-resolution NO entries (>0.85) are very low margin per dollar.
+The positive net result is driven entirely by the 0.99-recycle pathway. When the market moves in our direction early enough to exit before resolution, the positions are highly profitable. The resolved-at-zero YES legs are the ones where the taker was informed and we held to worthless expiry. Strategy is profitable now because the recycle rate is high — if recycle rate declines or if more positions are held to resolution, the adverse selection on filled legs will dominate.
 
-### Winner's curse assessment
+### Price Band Markout (YES, resolved)
+| Band | n | WR | Breakeven | Verdict |
+|---|---|---|---|---|
+| <0.10 | 1 | 0% | 4% | n/a |
+| 0.10–0.30 | 33 | **6%** | 18% | adversely selected |
+| 0.30–0.50 | 7 | **0%** | 33% | adversely selected |
 
-**Cannot compute**: `band_resolution_join.py` absent from codebase; `band_struct_lite` does not carry per-leg resolution outcomes. The all-fires baseline ROI (needed to detect selective adverse filling) is unavailable.
+The 0.30–0.50 band (n=7, WR=0%) is the worst slice. Seven fills, zero wins, 33¢ avg breakeven. These are likely shoulder legs (|off|=1) where `BAND_YES_MAX_OFF_D0=0` limits d+0 but multi-day shoulders may still pass. `BAND_PX_CEIL=0.45` allows these.
 
-**Proxy signals**:
-- 27 exit099 events = 27 wins. Zero explicit loss-exit events logged.
-- 10 untracked fills at price <0.10 totaling $52.95 — consistent with losing-leg residual value recovery at resolution (the opposite token paid to ~$0.03).
-- Win/loss proxy: 27 resolved wins vs ~10 resolved losses inferred from low-price untracked fills.
-- **No winner's curse signal detectable** at n=27, but sample too small to clear (need n≥40 per slice for the adverse-selection test; 0.50–0.85 NO band has n=12 — closest to threshold).
+### NO Fills — Resolved (n=3)
+Data collection only. WR=33% vs breakeven 57% — also below breakeven, but n=3.
 
 ---
 
 ## 5. DEAD-QUOTE RECLAIM
 
-| Metric | Value |
-|--------|------:|
-| "reaped dead entry" lines (7d tape) | 0 |
-| Reclaim events in band_struct_lite | 0 |
-| Quotes >24h old | 4 |
-| Quotes >48h old | 0 |
+### Reaped Lines
+`reaped dead entry`: **0 events** in 7d tape. Reclaim mechanism (`BAND_RECLAIM_AGE_S=21600`, 6h) has not triggered once in the observable window.
 
-**No 48h alert triggered** (threshold: >20 quotes older than 48h).
+### Age Distribution (active maker bids, excl SELL_EXIT)
+- Total active bids: 29
+- >24h old: **12**
+- >48h old: **7**
 
-Quotes >24h old (BAND_RECLAIM_AGE_S=6h = eligible after 6h):
+### Stale Positions on Past-Resolution Markets
+| City | Side | Price | Remaining Shares | Age | End Date |
+|---|---|---|---|---|---|
+| Seattle | NO | 0.56 | **4.64** | 59h | **2026-06-10** — resolved |
+| Seoul | NO | 0.63 | **4.13** | 59h | **2026-06-11** — resolved |
+| Guangzhou | YES | 0.15 | **8.82** | 59h | **2026-06-13** — resolved |
 
-| Age | City | Side | Price | Fill% | Question |
-|----|------|------|------:|------:|---------|
-| 28h | Seattle | NO | 0.56 | 0% | …highest temp between 64–65°F on June 12? |
-| 28h | Seoul | NO | 0.63 | 0% | …highest temp 22°C on June 13? |
-| 28h | Jeddah | YES | 0.04 | 100% | …highest temp 35°C on June 12? *(expired, fully filled)* |
-| 28h | Guangzhou | YES | 0.15 | 37% | …highest temp 31°C on June 13? |
+Three resting bids on markets that have already resolved. These cannot fill. Estimated stranded capital: ~$3.40 face at bid price. Additional >24h quotes with today end_date (Karachi YES remaining=5.72, Helsinki YES remaining=2.24) may also become dead by end of day.
 
-Seattle NO and Seoul NO: 28h old, 0% filled, CLOB bids likely stale or behind touch. Both are past the 6h reclaim threshold and should be candidates for the next reclaim sweep (BAND_RECLAIM_PER_CYCLE=10 rotating). **No active reaping observed — reclaim sweep may not be running or finding these orders.**
+SELL_EXIT orders: all 74 at age ≈0h (freshly placed at last restart) — no dead sell exits.
+
+**ALERT: Reclaim mechanism is not detecting past-end-date resting orders. 3 quotes are stranded on closed markets.**
 
 ---
 
 ## 6. CASH VELOCITY
 
-| Metric | Value | Benchmark |
-|--------|------:|----------:|
-| Capital (bankroll.json) | $249.10 | — |
-| Maker locked YES+NO | $26.77 | — |
-| SELL_EXIT pending (shares @ 0.99) | $686.07 | — |
-| Avg fills/day (Jun 10–12) | $90.72 | — |
-| Turns/day | **0.364** | ~1.0 (badatmath) |
-| Fills last 24h (partial to 07h) | $27.62 | — |
+| Metric | Value | Note |
+|---|---|---|
+| Capital | $267.24 | user-managed; 594 auto-corrections ($7,781 net), not pure bot P&L |
+| Active maker bids (YES/NO) | $39.59 | live inventory cost |
+| SELL_EXIT pending at 0.99 | $705.87 | unrealized; depends on takers hitting asks |
+| Fills 24h | $97.90 | registered fill events |
+| Turns/day | **0.37×** | vs badatmath benchmark ~1.0 |
+| Total posted spend (4d) | $483.00 | |
 
-**Turns/day = 0.364 — 2.7× below badatmath benchmark of ~1.0.**
-
-SELL_EXIT book ($686 in resting 0.99 asks, 70 orders, 693 shares) represents significant value awaiting resolution-triggered buyers. These are not capital deployed but capital earned waiting to settle. Untracked SELL_EXIT fills at >=0.98 over 4d: $5,637 — implying strong resolution flow, but through the untracked WS path.
-
-**Capital note (CAVEAT)**: `daily_start_capital=$15.95` in bankroll.json does not reflect actual capital. User sells manually. The $249.10 figure is what the bot tracks; do not infer ruin or PnL trend from this file alone.
+Turns/day at 0.37× reflects the posting velocity collapse (0.2 posts/cycle). Jun 12 posted 1.7/cycle; Jun 14 posts 0.1/cycle — a 17× reduction. Even at Jun 12's rate the turn was modest; at current rate it is 5× below benchmark. The $705.87 SELL_EXIT inventory would improve velocity if it clears, but no SELL_EXIT fills have registered in the resting state (matched=0 across all 74 orders).
 
 ---
 
 ## ALERTS
 
-| # | Alert | Triggered | Detail |
-|---|-------|:---------:|--------|
-| A1 | NO share of new posts <25% on day with >=10 posts | **YES** | Jun 12: 3.5% NO (85 posts). Starvation fix did not hold through Jun 12. |
-| A2 | Posted/cycle degradation | **YES** | Jun 12→13: 1.7→0.1 (-94%). YES stalled by yes_resv_skip=58/cycle (stake cap floor > yes_cap). |
-| A3 | NO share of resting book <50% | **YES** | 3 NO / 20 YES = 13% (target ~50%). Book is structurally YES-heavy. |
-| A4 | Dead quotes >48h | NO | 0 quotes >48h. |
-| A5 | Books pinned at 80 (fetch starvation) | NO | books=0.1–0.3/80. Fetch healthy. |
-| A6 | cash_preskip >200 sustained with posted=0 (deployment stall) | NO | cash_preskip=229 but posted=0.1/cycle — stake-cap blockage, not stall. |
-| A7 | Winner's curse (filled ROI << all-fires ROI) | CANNOT COMPUTE | No all-fires baseline. n=27 wins observed, inference limited. |
+| # | Alert | Severity |
+|---|---|---|
+| **A1** | NO share of new fires: 2.9% today, 6.8% Jun 13, 17.8% Jun 12 — declining every day since Jun 11 peak (39.2%). Jun 12 starvation fix did not hold. | **CRITICAL** |
+| **A2** | Resting book NO share: 17.9% (5 NO vs 23 YES). Target ~50%. | **HIGH** |
+| **A3** | WINNER'S CURSE on YES resolved fills: WR=4.9% vs 20.4% breakeven; adverse selection ratio 0.24×; EV=−$0.76/$1 (trend-grade, n=41) | **HIGH** |
+| **A4** | 3 resting maker bids on past-resolution markets (Seattle NO end=Jun-10, Seoul NO end=Jun-11, Guangzhou YES end=Jun-13); reclaim not triggering on closed markets | **MEDIUM** |
+
+No alerts for: books pinned at 80 (0%), YES books pinned at 50 (0%), cash_preskip >$200 with sustained zero posts (posts are low but nonzero), SELL_EXIT >24h (none), >20 quotes >48h (only 7).
 
 ---
 
-## SUMMARY
+## 3-LINE SUMMARY
 
-**Fills/day**: 31 avg (125 fills / 4 days); $75/day avg inflow; turns/day = 0.364 (2.7× below benchmark).
+**Fills/day:** 34/day, $48/day (7d avg); 100% token fill rate on all complete posting days; NO share of fill-$ is 51% in 24h (healthy in $-terms despite low absolute NO count).
 
-**NO-share**: 26.4% of fills across 4d (trend; n=125). Jun 12 post-parity: 3.5% NO of posts = ALERT. Fix from Jun 12 has not produced sustained NO parity in the posting layer. Resting book: 13% NO.
+**NO-share:** CRITICAL — new fires are 2.9% NO today (down from 39% on Jun 11), resting book is 17.9% NO; Jun 12 starvation fix is not holding and the NO candidate pool appears near-exhausted, driving the 17× collapse in posting velocity.
 
-**Binding execution constraint today**: `yes_resv_skip=58/cycle` caused by `BAND_STAKE_FRAC_YES×capital×(1−NO_CASH_RESERVE) ≈ $1.24 < BAND_BASE_STAKE_min($2.10)`. The NO cash reserve (0.50) combined with the YES per-cycle stake fraction creates a floor that blocks all BAND_YES_MAX_OFF=1 candidates. YES posting is functionally frozen. NO posting is also minimal (2 fire_no events all day). The bot is cycling but posting near-zero.
-
-*Report generated by exec-audit-agent, 2026-06-13T07:09Z*
+**Binding constraint:** YES winner's curse on resolved legs (WR=4.9% vs 20.4% breakeven, EV=−$0.76/$1) — current profitability depends entirely on the 0.99-recycle pathway; if recycle rate declines or more positions hold to resolution, the fill-quality deficit will dominate net P&L.
