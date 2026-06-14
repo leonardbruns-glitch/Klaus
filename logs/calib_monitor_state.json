@@ -1,24 +1,15 @@
 {
-  "date": "2026-06-13",
-  "brier7": 0.0147,
-  "ece7": 0.0326,
-  "rho7": 0.7835,
-  "disp_ratio7_model": 0.581,
-  "disp_ratio7_market_corrected": 0.616,
-  "disp_ratio_trend": {
-    "2026-06-08": 0.458,
-    "2026-06-09": 0.409,
-    "2026-06-10": 0.781,
-    "2026-06-11": 0.842,
-    "2026-06-12": 0.857
-  },
-  "n_settled_cells": 2033,
-  "n_city_days_dispersion": 149,
+  "date": "2026-06-14",
+  "brier7": 0.0682,
+  "ece7": 0.032,
+  "rho7": 0.366,
+  "disp_ratio7": 0.835,
+  "implied_sigma_median_c": 0.954,
+  "true_sigma_c": 1.447,
+  "positive_bias_c": 0.365,
+  "n_bucket_rows_s50": 2147,
+  "n_city_days_disp": 163,
   "alerts": [
-    "DISPERSION_RATIO_7D_0.62_below_1.10"
-  ],
-  "isotonic_candidate_maxdev": 0.258,
-  "isotonic_candidate_direction": "LOWER_at_top_knot",
-  "proxy_lane_median_divergence_today": 0.119,
-  "prior_state": null
+    "DISPERSION_ALERT: median_ratio=0.835 < 1.10, edge compressing"
+  ]
 }
