@@ -1,100 +1,79 @@
 {
   "BAND_YES": {
-    "n": 1539,
-    "n_prev": 0,
+    "n": 2116,
+    "n_prev": 1539,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Top slice n=145 (d=2,off=1,pb=0.10-0.20); Gamma API 403 blocks resolution join",
-    "ts": "2026-06-13T09:22:09Z"
+    "note": "2116 deduped YES legs; all live slices (d<=2,off<=1) n>=150 (min d=0/off=0 n=150); threshold MET but Gamma 403 blocks resolution join — cannot compute ROI/CI",
+    "ts": "2026-06-14T10:23:00Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 14,
-    "n_prev": 0,
+    "n": 24,
+    "n_prev": 14,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Post-fix count from 2026-06-12; 71 pre-fix legs excluded; ~7/day rate",
-    "ts": "2026-06-13T09:22:09Z"
+    "note": "24 post-fix NO legs (fix 2026-06-12 13:05 UTC; 77 pre-fix excluded); PAIR_FAV=0 legs; rate ~12.6/day; ETA ~6d (~Jun 20)",
+    "ts": "2026-06-14T10:23:00Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 116,
-    "n_prev": 0,
+    "n": 122,
+    "n_prev": 116,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "116 unique filled tokens (count > 40 threshold); resolution join blocked",
-    "ts": "2026-06-13T09:22:09Z"
+    "note": "122 unique CIDs filled (127 fill events, Jun 11-14); n>40 watch threshold MET; resolution join blocked; trades.jsonl resolution path biased toward losers (winners exit via RECYCLE099)",
+    "ts": "2026-06-14T10:23:00Z"
   },
   "BASKET_EXIT": {
-    "n": 38,
-    "n_prev": 0,
+    "n": 56,
+    "n_prev": 38,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
-    "resolved": 5,
-    "note": "38 city-date baskets; 5 resolved; 0 all_green resolved; ~25/day rate",
-    "ts": "2026-06-13T09:22:09Z"
+    "resolved": 32,
+    "note": "56 basket-days total; 32 resolved; 27 ever all_green; 15 resolved-and-all_green; rate ~18/day; ETA ~2.4d (~Jun 16-17); cash-out metric uncomputable (Gamma blocked)",
+    "ts": "2026-06-14T10:23:00Z"
   },
   "THERMO_MAKER_NO": {
-    "n": 13,
-    "n_prev": 0,
+    "n": 19,
+    "n_prev": 13,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "13 candidates with end_date < today; resolution join blocked (Gamma 403)",
-    "ts": "2026-06-13T09:22:09Z"
+    "note": "19 candidates past resolution date (6 new: Dallas x2, SF x4 on Jun 13); actual placed bets <=10 (cap 3/day x 2.5d); resolution join blocked (Gamma 403)",
+    "ts": "2026-06-14T10:23:00Z"
   },
   "M1_BETA_LOCKOUT": {
     "n": 1,
-    "n_prev": 0,
+    "n_prev": 1,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "metar_lockout.jsonl = 0 rows all dates; 1 M1_BETA_PROBE trade (Moscow May-26)",
-    "ts": "2026-06-13T09:22:09Z"
+    "note": "metar_lockout.jsonl = 0 rows across all 6 shadow days; 1 M1_BETA_PROBE trade (Moscow, net_pnl=-$1.65); strategy dormant",
+    "ts": "2026-06-14T10:23:00Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 284,
-    "n_prev": 0,
+    "n": 761,
+    "n_prev": 284,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "284 deduped YES legs in sum_ask [0.70,0.85]; count > 100 threshold; resolution blocked",
-    "ts": "2026-06-13T09:22:09Z"
+    "note": "761 deduped YES legs with sum_posted in [0.70,0.85] (proper V3 metric); 392 using sum_ask (prior-comparable: was 284); threshold MET; Gamma 403 blocks resolution join",
+    "ts": "2026-06-14T10:23:00Z"
   }
 }
