@@ -359,11 +359,13 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
                             # budget; the cash gate is the real constraint. Was 12.0
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-BAND_NO_CASH_RESERVE = 0.50  # 2026-06-12 (user directive — match his ~half-NO book): fraction of
-                             # each cycle's free maker-cash headroom OFF-LIMITS to YES ranks. The
-                             # strict ROI-rank queue gave NO $0 of freed cash (06-12: 75 YES posts,
-                             # 0 NO) while his 2d fill tape is NO-heavy (watch n=3001: NO $8.7k vs
-                             # YES $4.5k; per-event ~$19 YES + $18 NO). NO/PAIR ranks spend the rest.
+BAND_NO_CASH_RESERVE = 0.0   # 2026-06-15: UNRESERVE — unify the cash pool back to a strict ROI-rank
+                             # queue. The 06-12 0.50 reserve assumed our NO leg pays like his (+5-6%);
+                             # band_resolution_join.py (n=2024 resolved) now measures OUR NO ROI=-1.2%
+                             # (n=109, breakeven) vs YES ROI=+8.6% (n=1915) — reserving half the cash
+                             # for the breakeven leg starved the +EV leg. At ~$45 free USDC the split
+                             # also dropped both halves below min stake → posted=0 ~90% of cycles
+                             # (06-14 GAP AUDIT). Revert to 0.50 if NO ROI clears +0 at n>=100.
 # 2026-06-11 audit: overlay now includes EDGE buckets (or-below / or-higher) — his
 # NO 0.52-0.85 on edges = +5.7% (n=438) ≈ interiors +6.5% (n=3,877); they were
 # silently excluded by the interior-only iteration and they are his NO meat.
@@ -390,7 +392,11 @@ BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on comp
 # touch (someone outbid us — we're not the market). NEVER reprice toward a
 # converged mode: quotes the book walks THROUGH are the stale-band edge (his
 # d+2 +56.5% > d+0 −3.4% ordering) and must keep resting.
-BAND_RECLAIM_AGE_S     = 6 * 3600   # min age before a quote is reclaimable
+BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
+                                    # quotes were median ~13h stale, sitting median 4¢ (8 ticks) behind
+                                    # the live touch (147 of his fills landed above our bid). 6h age
+                                    # gate blocked the "≥2¢ behind touch" reclaim from chasing the
+                                    # touch; 2h lets it re-quote fresh. min age before reclaimable
 BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
 BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
 
