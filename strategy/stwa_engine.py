@@ -384,6 +384,15 @@ BAND_PAIR_FAV_ENABLED = True
 BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
 BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
 BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
+# 2026-06-15 PAIR-SHADOW (measure-only, no cash): for each near-mode YES band leg
+# we actually post, fetch the real NO book once and log the would-be NO pair leg +
+# merge margin. The 5 real merges to date were ACCIDENTAL band-YES (~0.27) + overlay-
+# NO (~0.61) overlaps (Σ 0.81-0.92, all +margin); PAIR_FAV proper posts ~0 (cash-
+# starved + aimed at converged favorites = one-sided flow). This logs the deliberate-
+# pair opportunity on the buckets where merges actually happen, so pair_shadow_join.py
+# can estimate co-fill rate + real margin toward n>=100 before any live PAIR re-rank.
+BAND_PAIR_SHADOW = True
+BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
 
 # ── DEAD-QUOTE RECLAIM (2026-06-11 audit) ────────────────────────────────────
 # One-post-per-token + no reprice = stale quotes the book walked AWAY from sit

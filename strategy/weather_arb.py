@@ -2611,7 +2611,8 @@ class WeatherArb:
             BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
             BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
             BAND_REALBOOK_YES, BAND_PAIR_FAV_ENABLED, BAND_PAIR_FAV_YES_MIN,
-            BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX, BAND_PX_MIN_MD)
+            BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX, BAND_PX_MIN_MD,
+            BAND_PAIR_SHADOW, BAND_PAIR_SHADOW_MARGIN)
 
         events = await self._fetch_weather_events()
         if not events:
@@ -2972,6 +2973,36 @@ class WeatherArb:
                                  _sig.city, e)
                 if len(getattr(self, "_maker_resting", {}) or {}) > _pre_y:
                     _yes_cash_used += _stk_this
+                    # ── PAIR-SHADOW (2026-06-15, measure-only): for each YES band
+                    # leg we actually posted, fetch the real NO book once and log
+                    # the would-be NO pair leg + merge margin on the SAME cond.
+                    # No cash, no effect on posting (fully wrapped). Offline
+                    # pair_shadow_join.py → deliberate-pair co-fill rate + margin.
+                    if BAND_PAIR_SHADOW and _books_left > 5:
+                        try:
+                            _nt = next((t for t in _parse_token_ids(
+                                _mkt.get("clobTokenIds", [])) if t != tid), None)
+                            if _nt:
+                                _books_left -= 1
+                                _nbk = await self._fetch_book_levels(_nt, n=1)
+                                _nbids = (_nbk or {}).get("bids") or []
+                                _nasks = (_nbk or {}).get("asks") or []
+                                if _nbids and _nasks:
+                                    _nbid = float(_nbids[0]["price"])
+                                    _nask = float(_nasks[0]["price"])
+                                    _nq = round(min(_nask - 0.01,
+                                                    _nbid - BAND_PAIR_SHADOW_MARGIN), 3)
+                                    _psum = round(_sig.quote_price + _nq, 3)
+                                    _emit({"reason": "pair_shadow",
+                                           "cid": _mkt.get("conditionId", ""),
+                                           "city": _sig.city, "days_out": _do,
+                                           "off": _offq, "yes_quote": _sig.quote_price,
+                                           "no_bid": _nbid, "no_ask": _nask,
+                                           "no_quote": _nq, "pair_sum": _psum,
+                                           "merge_margin": round(1.0 - _psum, 3),
+                                           "no_fillable": _nq >= _nbid})
+                        except Exception:
+                            pass
             elif _kind == "NO":
                 _, days_out, (city, lo, hi, yt, nt, mkt), _x, _y = _item
                 if self._band_no_spent + _stk_no > _no_cap:
