@@ -2,16 +2,16 @@
 active
 
 ## Last 10 commits on klaus:
-69552c12 docs(state_log): badatmath May-15 base corrected to ~$400 raw-ledger (user challenge) — verticality = velocity not capital
-dffc0c49 feat(PEAKSCALP): Phase-0 shadow — gate-pass + real-book logger for winner-bucket convergence scalp
-f733ef5a feat(BAND): NO cash reservation — half of each cycle's maker-cash headroom off-limits to YES ranks
-a1b05029 docs(CLAUDE.md): refresh to BAND-first reality + state_log routine portfolio entry
-aae95d8b feat(MIRROR): ship band-era data to cloud routines — 5d band_struct_lite (first-fire dedup + posts), pricer 1-in-50 sample, maker state files, 3d fill tape, band_config snapshot
-222bf5cf fix(BAND): NO-starvation — cash pre-check before book fetch, YES fetch sub-budget 50/80, NO-candidate rotation, per-cycle queue log
-84bab63b VOLARB Audit 20260612-1220 — NO_PATCH (n=885, watch=12)
-5743cfa5 Research audit 2026-06-12T1127Z — engine model-NO anti-predictive | best action: STWA_REGULAR_NO_ENABLED=False
-ef1c7ecd docs(STATE): lockout-salvage exit falsified — empty bid books at detection, $0.16 total salvage vs $10.46 losses
-d597d0b3 feat(BAND): pair-quote tape simulator — fill sim from maker_flow tape, zero capital
+9caaf67a feat(BAND): unreserve NO cash pool + 2h reclaim — YES is the +EV leg, NO breakeven
+412fe487 PnL ledger 2026-06-14 — day=+$20.63(+8.4%) turns=0.40 roi/turn=9.7% unexplained=+$9.85(MODEL_DEFICIENCY)
+11e9a137 Calib monitor 2026-06-14 — brier7=0.0682 disp_ratio=0.835 1 alert
+ea03b6f9 Gate-keeper 2026-06-14 — ready=0 rejected=0 collecting=7
+af6a9f3e Research audit 2026-06-14T1030Z — equity deployed (NO reserve blocking YES) | best action: BAND_NO_CASH_RESERVE 0.50→0.20
+c7455a36 Exec audit 2026-06-14 — fills=66 NO-share=2.9% 4 alerts
+29b61183 PnL ledger 2026-06-13 — day=+$37.50 turns=0.53 roi/turn=20.7% unexplained=+$7.48
+a0fb3837 Add .agent_ssh_key to .gitignore
+f6c0bd67 Research audit 2026-06-13T1030Z — YES posting frozen (yes_cap $1.25 < min stake $2.10) | best action: raise BAND_STAKE_FRAC_YES 0.010→0.020 to restore 1.7 posts/cycle
+c53a0d47 Gate-keeper 2026-06-13 — ready=0 rejected=0 collecting=7
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   75G       18G  82% /
