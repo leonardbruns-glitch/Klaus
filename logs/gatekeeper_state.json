@@ -1,58 +1,58 @@
 {
   "BAND_YES": {
-    "n": 2116,
-    "n_prev": 1539,
+    "n": 1381,
+    "n_prev": 2116,
     "status": "COLLECTING",
-    "roi": null,
+    "roi": 0.086,
     "ci95": [null, null],
     "wr": null,
-    "resolved": 0,
-    "note": "2116 deduped YES legs; all live slices (d<=2,off<=1) n>=150 (min d=0/off=0 n=150); threshold MET but Gamma 403 blocks resolution join — cannot compute ROI/CI",
-    "ts": "2026-06-14T10:23:00Z"
+    "resolved": 1915,
+    "note": "1381 unique cids first-fire deduped across Jun10-15 (per-cid strict dedup: 113+218+293+267+257+233). 233 new first-fires on Jun15 partial day (70% complete). METHODOLOGY NOTE: prior n=2116 used per-(cid,days_out) dedup, counting the same market in d+2 and d+1 slices separately. This run uses per-cid strict dedup giving 1381. Estimated per-(cid,days_out) equivalent: ~2540 (1381 x 1.84x). All live slices (d<=2, off<=1) remain >=100 on both methodologies. KEY UPDATE: band_resolution_join.py ran from VPS 2026-06-14 — YES ROI +8.6% (n=1915 resolved). CI95 uncomputable from container; estimated [+1%,+16%] at avg_entry=0.25 (borderline); [−0.2%,+17.4%] at avg_entry=0.20 (straddles zero). Cannot certify CI_lower>0. BAND_BASE_STAKE 3→1 + FRAC 0.010→0.005 on Jun15 05:51: YES breadth increased. Jun15 rate: 233 new first-fires in ~10.3h = ~23/h = ~550/day (vs prior 443/day; stake change visible).",
+    "ts": "2026-06-15T10:35:00Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 24,
-    "n_prev": 14,
+    "n": 37,
+    "n_prev": 24,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "24 post-fix NO legs (fix 2026-06-12 13:05 UTC; 77 pre-fix excluded); PAIR_FAV=0 legs; rate ~12.6/day; ETA ~6d (~Jun 20)",
-    "ts": "2026-06-14T10:23:00Z"
+    "note": "Estimated 37 post-fix NO legs (prior 24 + ~12.6/day x 1d). PAIR_FAV=0 confirmed (trades.jsonl WEATHER_FAVYES all pre-fix Jun04; PAIR-SHADOW logger added Jun15 05:37 for co-fill measurement). VPS join: aggregate NO ROI -1.2% (n=109 total incl pre-fix; post-fix subset n~37 not isolated). Rate ~12.6/day. ETA (100-37)/12.6 = ~5d (~Jun 20). maker_fills_recent.log: 40 unique NO CIDs filled (fires higher than fills).",
+    "ts": "2026-06-15T10:35:00Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 122,
-    "n_prev": 116,
+    "n": 142,
+    "n_prev": 122,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "122 unique CIDs filled (127 fill events, Jun 11-14); n>40 watch threshold MET; resolution join blocked; trades.jsonl resolution path biased toward losers (winners exit via RECYCLE099)",
-    "ts": "2026-06-14T10:23:00Z"
+    "note": "142 unique CIDs from maker_fills_recent.log (244 events, Jun12-15 rolling window): 105 YES + 40 NO (3 both-side fills). +20 vs prior 122 (+21 new Jun15 CIDs through 10:16 UTC, -1 Jun11 rolled off 7d window). Watch threshold n>=40 MET. STRUCT-BAND-Q: 810 cycles today, 132/810 posted YES (16.3%); yes_resv_skip=0 (reserve eliminated); yes_cap=0.00 most cycles. Winner's-curse metric uncomputable (Gamma 403). 5 RECYCLE099 exits today (entry 0.57-0.65, exit 0.99, PnL $2.44-3.36).",
+    "ts": "2026-06-15T10:35:00Z"
   },
   "BASKET_EXIT": {
-    "n": 56,
-    "n_prev": 38,
-    "status": "COLLECTING",
-    "roi": null,
-    "ci95": [null, null],
-    "wr": null,
-    "resolved": 32,
-    "note": "56 basket-days total; 32 resolved; 27 ever all_green; 15 resolved-and-all_green; rate ~18/day; ETA ~2.4d (~Jun 16-17); cash-out metric uncomputable (Gamma blocked)",
-    "ts": "2026-06-14T10:23:00Z"
-  },
-  "THERMO_MAKER_NO": {
-    "n": 19,
-    "n_prev": 13,
+    "n": 74,
+    "n_prev": 56,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "19 candidates past resolution date (6 new: Dallas x2, SF x4 on Jun 13); actual placed bets <=10 (cap 3/day x 2.5d); resolution join blocked (Gamma 403)",
-    "ts": "2026-06-14T10:23:00Z"
+    "note": "STRUCTURAL SCOPE CHANGE: basket_exit_shadow.jsonl now covers 22 cities (5322 unique city/t_close on Jun15 alone). Prior n=56 used narrower city set at ~18/day. 'n=74' estimates prior metric for ledger continuity (56+18x1d). Hot file resets daily; dated dirs lack historical basket_exit files. Today: 1172 all_green baskets (future t_close open), 339 resolved (all had all_green=False when closed), 0 resolved-and-all_green. Metric (cash-out vs hold) uncomputable (Gamma blocked). Gate definition needs refresh by human: new scope makes old 'n=100 basket-days' threshold ambiguous.",
+    "ts": "2026-06-15T10:35:00Z"
+  },
+  "THERMO_MAKER_NO": {
+    "n": 23,
+    "n_prev": 19,
+    "status": "COLLECTING",
+    "roi": null,
+    "ci95": [null, null],
+    "wr": null,
+    "resolved": 0,
+    "note": "~23 candidates past resolution date: prior 19 + 4 new Jun14 (Dallas, LA, SF, Toronto confirmed in today's hot file). Hot file resets daily; 10430 rows today (21 cities). Placed bets estimated <=12-15 (cap 3/day x 3.5d since Jun11 22:40). Kill gate = first 20 RESOLVED placed bets; not yet reached. No resolution/winner field in thermo_maker.jsonl; Gamma blocked. Approaching kill gate within ~3-5 calendar days.",
+    "ts": "2026-06-15T10:35:00Z"
   },
   "M1_BETA_LOCKOUT": {
     "n": 1,
@@ -62,18 +62,18 @@
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "metar_lockout.jsonl = 0 rows across all 6 shadow days; 1 M1_BETA_PROBE trade (Moscow, net_pnl=-$1.65); strategy dormant",
-    "ts": "2026-06-14T10:23:00Z"
+    "note": "Unchanged. metar_lockout.jsonl absent from all 6 dated shadow dirs. metar_min_lockout.jsonl (15771 rows) is minimum-temp lockout logger, NOT M1-beta gate (all margin_c>=0.5, zero [0.2,0.5) entries). 1 WEATHER_M1_PROBE trade (Moscow, -$1.65). Strategy dormant.",
+    "ts": "2026-06-15T10:35:00Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 761,
-    "n_prev": 284,
+    "n": 917,
+    "n_prev": 761,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "761 deduped YES legs with sum_posted in [0.70,0.85] (proper V3 metric); 392 using sum_ask (prior-comparable: was 284); threshold MET; Gamma 403 blocks resolution join",
-    "ts": "2026-06-14T10:23:00Z"
+    "note": "917 confirmed (per-cid first-fire dedup, first-fire sum_posted in [0.70,0.85]): Jun10=0 (no sum_posted field), Jun11=116, Jun12=223+116=339(cumul), Jun13=+209=548, Jun14=+234=782, Jun15=+135=917. Jun14 cumulative=782 vs prior 761 — only 21 off, consistent methodology confirmed. Jun15 adds 135 (partial day 70% complete, implied rate ~135/0.7~193/day). Threshold MET. Same resolution block as Gate 1.",
+    "ts": "2026-06-15T10:35:00Z"
   }
 }
