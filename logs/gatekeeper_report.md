@@ -253,3 +253,27 @@ The join result (−1.2%, n=109) covers pre-fix + post-fix NO legs combined. Pos
 
 **4. PAIR-SHADOW accumulation begins today**  
 Logger added Jun 15 05:37. Will measure co-fill rate (real NO fill vs YES posted in same bucket). Current data: 18 pair_cands per cycle visible in STRUCT-BAND-Q. First useful signal expected at n≥100 co-fill events (~5–10 days at current fill rate).
+
+---
+
+## Appendix: entries.parquet CI Analysis (post-commit addendum)
+
+`data/entries.parquet` (2.4 MB, 13,869 rows) was fetched and processed. **It is LDA kline strategy data from 2026-05-09 to 2026-05-15 — NOT band/weather resolution data.** The schema uses `rem_bucket` (seconds-to-expiry at entry), `binance_ret_5m_pct`, and LDA gate fields. It contains NO band-system fields (no `days_out`, no `sum_posted`, no `city`). The band_resolution_join.py output cited in state_log (+8.6% YES, n=1915) was computed on the VPS and used as verbal evidence in a Tier-2 commit — it was **not pushed to data-mirror in any machine-readable format**. Band gate CI remains unverifiable from this container.
+
+### LDA CI findings (from entries.parquet — out of scope for band gates; flag for LDA auditor)
+
+Statistically significant results (CI95 excludes zero, n≥100):
+
+| Slice | n | mean_roi | CI95 | Verdict |
+|---|---|---|---|---|
+| YES ask=[0.65,0.75) | 383 | −10.0% | [−17.1%, −3.0%] | REJECT: confirmed losing band |
+| NO ask=[0.10,0.20) | 601 | −22.2% | [−39.8%, −4.5%] | REJECT: cheap NO tokens lose |
+| YES rem_bucket=B1b (~97-120s) | 826 | −16.3% | [−31.8%, −0.8%] | NEGATIVE: early entries underperform B1a |
+| NO rem_bucket=B0b (~46s, inside guard) | 114 | −47.5% | [−57.2%, −37.9%] | STRONG REJECT: 60s no-trade guard validated |
+| NO sum_ask≥1.05 (wide spread) | 401 | −26.1% | [−35.2%, −17.0%] | REJECT: wide-spread NO legs are traps |
+| YES gate_all_pass | 418 | +2.5% | [−1.1%, +6.1%] | POSITIVE TREND — not yet significant (n=418, CI straddles 0) |
+
+Aggregate (all resolved): YES n=6838, ROI=−3.3%, CI=[−10.6%, +4.0%] — straddles zero.  
+Aggregate (all resolved): NO n=6841, ROI=+3.5%, CI=[−17.5%, +24.5%] — straddles zero.
+
+**These findings apply to the LDA strategy (May 2026 era), not to the current band/weather system.** The LDA strategy auditor should act on the YES [0.65,0.75) and B1b findings as Tier-1 candidates (n≥100 per pre-registered LDA rule). This gatekeeper takes no action; reporting only.
