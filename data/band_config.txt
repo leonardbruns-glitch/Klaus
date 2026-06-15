@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-06-15T05:46:39Z
+# Snapshot: 2026-06-15T06:01:39Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -18,39 +18,39 @@
 293:BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
 294:BAND_SUM_MAX        = 0.85          # fire only if Σ ask of the POSTED legs (|off| ≤ BAND_YES_MAX_OFF) < this.
 303:BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
-304:BAND_BASE_STAKE     = 3.0           # 2026-06-09: 8→3 for the live flip at $155 bankroll — max band
-307:BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
-308:BAND_QUOTE_FRAC     = 0.34          # GAMMA-PROXY FALLBACK ONLY (no real book): bid = proxy_bid + FRAC*spread.
-309:BAND_REALBOOK_YES   = True          # 2026-06-11 (quote-watcher n=741 fill-joins, gate n≥100 PASSED): his
-324:BAND_YES_MAX_OFF    = 1             # YES legs only |off| ≤ this (wings flip to NO, they don't disappear)
-325:BAND_YES_MAX_OFF_D0 = 0             # d+0: YES only on the mode (the pair leg; standalone d0 YES is his bleed)
-326:BAND_PAIR_SUM_MAX   = 0.92          # same-bucket YES bid + NO bid hard cap ⇒ ≥$0.08/sh locked on a
-330:BAND_MD_HORIZON     = 2             # quote d, d+1, d+2 (days past local today)
-331:BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own Gamma fetch
-332:BAND_SAMEDAY_LIVE     = False       # 2026-06-09: BAND_LIVE accidentally armed the same-day engine band
-335:BAND_MD_LIVE_MIN_DOUT = 0           # 2026-06-10 user ("mirror badatmath fully"): d+0 LIVE — his d+0 is
-342:BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint it, let it fire" —
-353:BAND_NO_ENABLED   = True
-354:BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
-355:BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
-356:BAND_NO_STAKE     = 4.5     # 2026-06-11: 2.6→4.5 — his NO fill median $5.16 (4× his YES fill);
-358:BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
-360:BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
-361:BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-362:BAND_NO_CASH_RESERVE = 0.0   # 2026-06-15: UNRESERVE — unify the cash pool back to a strict ROI-rank
-383:BAND_PAIR_FAV_ENABLED = True
-384:BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
-385:BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
-386:BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
-394:BAND_PAIR_SHADOW = True
-395:BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
-404:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
-409:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
-410:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
-421:BAND_STAKE_FRAC_YES = 0.010
-422:BAND_STAKE_FRAC_NO  = 0.015
-423:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
-424:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
-449:BAND_MERGE_ENABLED    = True
-450:BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
-451:BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
+304:BAND_BASE_STAKE     = 1.0           # 2026-06-15: 3→1 to the CLOB MINIMUM. His YES fills are $0.95-1.26
+311:BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
+312:BAND_QUOTE_FRAC     = 0.34          # GAMMA-PROXY FALLBACK ONLY (no real book): bid = proxy_bid + FRAC*spread.
+313:BAND_REALBOOK_YES   = True          # 2026-06-11 (quote-watcher n=741 fill-joins, gate n≥100 PASSED): his
+328:BAND_YES_MAX_OFF    = 1             # YES legs only |off| ≤ this (wings flip to NO, they don't disappear)
+329:BAND_YES_MAX_OFF_D0 = 0             # d+0: YES only on the mode (the pair leg; standalone d0 YES is his bleed)
+330:BAND_PAIR_SUM_MAX   = 0.92          # same-bucket YES bid + NO bid hard cap ⇒ ≥$0.08/sh locked on a
+334:BAND_MD_HORIZON     = 2             # quote d, d+1, d+2 (days past local today)
+335:BAND_MD_TTL         = 300           # multi-day shadow rescan cadence (s); own Gamma fetch
+336:BAND_SAMEDAY_LIVE     = False       # 2026-06-09: BAND_LIVE accidentally armed the same-day engine band
+339:BAND_MD_LIVE_MIN_DOUT = 0           # 2026-06-10 user ("mirror badatmath fully"): d+0 LIVE — his d+0 is
+346:BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint it, let it fire" —
+357:BAND_NO_ENABLED   = True
+358:BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
+359:BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
+360:BAND_NO_STAKE     = 4.5     # 2026-06-11: 2.6→4.5 — his NO fill median $5.16 (4× his YES fill);
+362:BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
+364:BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
+365:BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
+366:BAND_NO_CASH_RESERVE = 0.0   # 2026-06-15: UNRESERVE — unify the cash pool back to a strict ROI-rank
+387:BAND_PAIR_FAV_ENABLED = True
+388:BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
+389:BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
+390:BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
+398:BAND_PAIR_SHADOW = True
+399:BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
+408:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
+413:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
+414:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
+425:BAND_STAKE_FRAC_YES = 0.005   # 2026-06-15: 0.010→0.005 — breadth model. At 0.010 the YES base was
+430:BAND_STAKE_FRAC_NO  = 0.015
+431:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
+432:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
+457:BAND_MERGE_ENABLED    = True
+458:BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
+459:BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
