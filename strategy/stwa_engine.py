@@ -301,9 +301,13 @@ BAND_SUM_MAX        = 0.85          # fire only if Σ ask of the POSTED legs (|o
                                     # on ASKS (≥ fill px) so 0.85 is conservative-equivalent. The 0.70-0.85
                                     # slice accumulates in the validator (sum3 logged). Was 0.70 (full band).
 BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
-BAND_BASE_STAKE     = 3.0           # 2026-06-09: 8→3 for the live flip at $155 bankroll — max band
-                                    # = 3·(1+2·0.7+2·0.4) ≈ $9.60; his median per-bucket is $5.32
-                                    # (breadth over size). Scale only after validator n≥100. Was 8.0
+BAND_BASE_STAKE     = 1.0           # 2026-06-15: 3→1 to the CLOB MINIMUM. His YES fills are $0.95-1.26
+                                    # = AT the exchange floor (5 sh / $1); the $3 base posted 3× his
+                                    # size = 1/3 the breadth from the same cash, and blocked posting
+                                    # whenever yes_cap < $3 (the posted=0 freeze). Per-leg floor is
+                                    # max($1, 5×quote) — applied in weather_arb band loop. Deployment
+                                    # scales by BREADTH not stake size (his "bucket-$ flat, deploy 5×").
+                                    # Was 8.0 → 3.0 (06-09).
 BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
 BAND_QUOTE_FRAC     = 0.34          # GAMMA-PROXY FALLBACK ONLY (no real book): bid = proxy_bid + FRAC*spread.
 BAND_REALBOOK_YES   = True          # 2026-06-11 (quote-watcher n=741 fill-joins, gate n≥100 PASSED): his
@@ -418,7 +422,11 @@ BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
 # cash gate (badatmath's scaling axis — per-bucket $ flat across a 5× deploy
 # ramp); stakes only deepen once the surface saturates. In drawdowns stakes
 # shrink toward the floors (fractional-Kelly brake). Kill switches untouched.
-BAND_STAKE_FRAC_YES = 0.010
+BAND_STAKE_FRAC_YES = 0.005   # 2026-06-15: 0.010→0.005 — breadth model. At 0.010 the YES base was
+                              # $2.68 at $268 capital (≈ the old $3 floor), 3× his ~$1 fills. At
+                              # 0.005 the exchange-min floor max($1,5×q) binds through ~$250-450
+                              # capital, so YES posts AT the CLOB minimum (max breadth) and only
+                              # deepens above that. NO frac unchanged (its $4.5 floor is grounded).
 BAND_STAKE_FRAC_NO  = 0.015
 BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
 BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):

@@ -2756,6 +2756,11 @@ class WeatherArb:
                 bid = max(0.01, ay - 0.02)        # best-bid proxy (Gamma gives no book)
                 q = round(max(0.01, min(ay - 0.01,
                                         bid + BAND_QUOTE_FRAC * max(0.0, ay - bid))), 3)
+                # 2026-06-15 EXCHANGE-MIN floor (breadth): every order must clear the
+                # CLOB minimum max($1, 5 shares); below that it's rejected. His YES
+                # fills are $0.95-1.26 = AT this floor. The bell still tilts the mode
+                # heavier only where capital lifts _stk_yes·w above the floor.
+                stake = round(max(stake, 1.0, 5.0 * q + 0.01), 2)
                 quotes.append({"lo": lo, "hi": hi, "ask": round(ay, 3),
                                "bid_quote": q, "stake": stake, "off": off,
                                "cid": mkt.get("conditionId", ""), "tok": tok})
