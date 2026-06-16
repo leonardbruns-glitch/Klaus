@@ -1,15 +1,18 @@
 {
-  "date": "2026-06-14",
-  "brier7": 0.0682,
-  "ece7": 0.032,
-  "rho7": 0.366,
-  "disp_ratio7": 0.835,
-  "implied_sigma_median_c": 0.954,
-  "true_sigma_c": 1.447,
-  "positive_bias_c": 0.365,
-  "n_bucket_rows_s50": 2147,
-  "n_city_days_disp": 163,
+  "date": "2026-06-16",
+  "brier7": 0.0707,
+  "ece7": 0.0364,
+  "rho7": 0.3493,
+  "disp_ratio7": 0.5892,
+  "disp_ratio7_market": 0.4775,
+  "implied_sigma_median_c": 0.9571,
+  "true_sigma_c": 1.5501,
+  "positive_bias_c": 0.3066,
+  "n_bucket_rows_s50": 2068,
+  "n_city_days_disp": 181,
+  "isotonic_candidate_age_days": 7,
+  "isotonic_candidate_unchanged_since_prior_report": true,
   "alerts": [
-    "DISPERSION_ALERT: median_ratio=0.835 < 1.10, edge compressing"
+    "DISPERSION_ALERT: median_ratio=0.589 < 1.10, edge compressing further (prior report: 0.835)"
   ]
 }

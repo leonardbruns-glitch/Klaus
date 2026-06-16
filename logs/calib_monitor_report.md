@@ -1,22 +1,21 @@
 # Klaus Calibration & Dispersion Monitor Report
-**Date:** 2026-06-14  
-**Run time:** 2026-06-14T11:27Z  
-**Snapshot freshness:** 2026-06-14T11:19Z (8 min old — OK)  
-**System:** `klaus systemd: active`  
-**Data window:** 2026-06-09 → 2026-06-13 (5 resolved days) + 2026-06-14 partial  
+**Date:** 2026-06-16
+**Run time:** 2026-06-16T08:16Z
+**Snapshot freshness:** 2026-06-16T08:00:21Z (16 min old — OK)
+**System:** `klaus systemd: active`, 0 open positions, bankroll $236.24
+**Data window:** 2026-06-11 → 2026-06-15 (5 resolved days) + 2026-06-16 partial (proxy lane)
 
 ---
 
 ## ALERTS
 
-> ### DISPERSION ALERT — FIRES (persistent, day 2+)
-> **7d median dispersion ratio = 0.835** (uncorrected) / **0.710** (market-corrected).  
-> Both are below the 1.10 floor.  
+> ### DISPERSION ALERT — FIRES (persistent, now 3+ consecutive reports)
+> **7d median dispersion ratio = 0.589** (model-implied) / **0.478** (market-corrected, n=80, trend-only).
+> Both are below the 1.10 floor — and both are **worse** than the last report (2026-06-14: 0.835 model / 0.710 market-corrected).
 >
-> **The market-implied sigma (0.87°C) is BELOW the true sigma (1.45°C). The edge premise is inverted.**  
-> The band harvests premium by selling dispersion — that premium requires implied > true. It is not present in this 7-day window. Edge status: **decaying / not confirmed**.  
+> **The market/model-implied sigma (~0.96°C / ~0.73°C) is below the true sigma (1.55°C). The edge premise (implied dispersion > true dispersion) remains inverted.** The band sells dispersion premium that, on this evidence, is not there. Edge status: **decaying further, not recovering.**
 >
-> Prior report (2026-06-13): ratio 0.62 (same alert, same direction). This is not a one-day artifact.
+> Trend across reports: 06-13 ratio 0.62 → 06-14 ratio 0.835 (brief partial recovery) → **06-16 ratio 0.589** (the window now includes 06-14 and 06-15, both of which print at 0.50-0.52 individually — the recovery seen on 06-14 did not hold).
 
 No other pre-registered alerts fired (Brier, ECE, rho all clear on their own thresholds).
 
@@ -24,154 +23,141 @@ No other pre-registered alerts fired (Brier, ECE, rho all clear on their own thr
 
 ## METHOD NOTE
 
-**No Gamma API access** (Cloudflare WAF blocks this sandbox). Resolution proxy: for each city-day, outcome = the maximum `running_max` observed in POST_PEAK rows from the pricer_s50 sample. This is the same METAR-observed temperature used by the oracle (not price-drift inference), rounded to the nearest integer °C. Caveats: (1) may lag WU official high by 0-1 hour; (2) rounding to integer + 1.11°C bucket width creates discrete bias in Brier and Rho vs true winner-flag join. ECE is less sensitive to this. The dispersion gauge uses `stwa_ladder_book.jsonl` (live, available today) for the market-price correction.
+**No Gamma API access** (Cloudflare WAF returns HTTP 403 to this sandbox, confirmed again this run). Resolution proxy unchanged from prior reports: for each city-day, outcome = the maximum `running_max` observed in `POST_PEAK` pricer rows (the same METAR-observed running high the oracle uses), and the winning bucket is whichever `(lo,hi)` interval contains it. **Bug fix this run:** the top open-ended bucket uses `hi=999` as a sentinel (mirroring the `lo=-999` bottom bucket) — an earlier draft of this run's script only special-cased the bottom sentinel, which corrupted bucket-midpoint math for any city-day whose outcome or mode landed in the top bucket (true_sigma exploded to ~95°C before the fix). Caught via outlier inspection before committing; final numbers below use the corrected midpoint logic for both ends.
 
-**Prior state diff:** yesterday's Brier was 0.0147 vs today's 0.0682. The difference is primarily methodological: the prior run appears to have had higher resolution fidelity (mode bucket p_cal ~0.63 vs actual 100% hit rate). Today's computation assigns ~2.6% YES rate even in the [0.0, 0.1) p_cal bin, which inflates Brier. The ECE is stable (0.032 both days), suggesting calibration shape is consistent.
+**Market-side correction** uses `band_struct_lite.jsonl` "fire" rows (live maker quotes: `lo,hi,ask` per leg) instead of `stwa_ladder_book.jsonl` (not present in this session's data pull — only the files listed in this routine's SETUP block were fetched). This changes the market-corrected sample to city-days where the band actually quoted (n=80, conditioned on `BAND_LIVE` firing), vs the full ladder book in prior reports. Selection bias caveat: city-days with a live band fire are not a random subsample — treat the market-corrected figure as **trend-only (40-99)**, not decision-grade, this run.
 
 ---
 
 ## 1. SETTLED LANE
 
-**Coverage:** 2,147 deduped (city, date, bucket) s50-rows across 163 city-days (June 9-13, sampled 1-in-50). Full-log estimate: ~107,000 bucket evaluations. All decision-grade bins in the active (NO-target) region.
+**Coverage:** 2,068 deduped (city, date, bucket) s50-rows across 181 city-days (June 11-15, sampled 1-in-50). Full-log estimate: ~103,000 bucket evaluations.
 
-| Metric | Value | Threshold | Status | Prior (2026-06-13) |
+| Metric | Value | Threshold | Status | Prior (2026-06-14) |
 |---|---|---|---|---|
-| 7d Brier (p_cal) | **0.0682** | >0.15 = ALERT | clear | 0.0147 |
-| 7d ECE (p_cal) | **0.0320** | >0.05 = ALERT | clear | 0.0326 |
-| Spearman rho | **+0.366** | <0.15 = ALERT | clear | +0.784 |
+| 7d Brier (p_cal) | **0.0707** | >0.15 = ALERT | clear | 0.0682 |
+| 7d ECE (p_cal) | **0.0364** | >0.05 = ALERT | clear | 0.0320 |
+| Spearman rho | **+0.349** | <0.15 = ALERT | clear | +0.366 |
 | Reference Brier (2024-fit) | 0.114 | — | — | — |
 
-**Brier and Rho are degraded vs prior run.** Likely methodological (running_max integer rounding creates misclassification in high-confidence buckets). ECE stability at 0.032 supports this. No decision-grade calibration deterioration declared from this comparison.
+Brier, ECE, rho are all stable vs the prior report (within noise). No calibration-shape alert.
 
 ### Reliability Table (p_cal, 10 equal-width bins)
 
-| Bin | n (s50) | est. full-n | pred | actual | delta | Region | Grade |
-|---|---|---|---|---|---|---|---|
-| [0.0, 0.1) | 1,560 | 78,000 | 0.007 | 0.026 | +0.019 | NO-target | DECISION |
-| [0.1, 0.2) | 144 | 7,200 | 0.145 | 0.167 | +0.021 | NO-target | DECISION |
-| [0.2, 0.3) | 104 | 5,200 | 0.252 | 0.202 | -0.050 | MID | DECISION |
-| [0.3, 0.4) | 322 | 16,100 | 0.368 | 0.280 | -0.089 | MID | DECISION |
-| [0.4, 0.5) | 4 | 200 | 0.451 | 0.500 | +0.049 | HIGH | COLLECT |
-| [0.5, 0.6) | 5 | 250 | 0.566 | 1.000 | +0.434 | HIGH | COLLECT |
-| [0.6, 0.7) | 8 | 400 | 0.623 | 0.625 | +0.002 | HIGH | COLLECT |
+| Bin | n (s50) | est. full-n | pred | actual | delta | Grade |
+|---|---|---|---|---|---|---|
+| [0.0, 0.1) | 1,511 | 75,550 | 0.008 | 0.029 | +0.021 | DECISION |
+| [0.1, 0.2) | 137 | 6,850 | 0.144 | 0.197 | +0.053 | DECISION |
+| [0.2, 0.3) | 88 | 4,400 | 0.253 | 0.148 | -0.105 | TREND |
+| [0.3, 0.4) | 316 | 15,800 | 0.368 | 0.288 | -0.080 | DECISION |
+| [0.4, 0.5) | 4 | 200 | 0.451 | 0.500 | +0.049 | COLLECT |
+| [0.5, 0.6) | 6 | 300 | 0.549 | 0.500 | -0.049 | COLLECT |
+| [0.6, 0.7) | 6 | 300 | 0.630 | 0.500 | -0.130 | COLLECT |
 
-**Two decision-grade calibration findings:**
+**Two decision-grade findings, consistent with prior report:**
 
-1. **[0.0, 0.1) — model underestimates YES in the tail.** p_cal = 0.007 but actual YES rate = 2.6% (n_s50=1,560, est. n_full=78k). The model assigns near-zero but ~2.6% of "impossible" buckets still resolve YES. For NO trades in this region: EV = 0.974 × 0.03 - 0.026 × 0.97 = **+$0.004/share** — barely positive, extremely thin.
-
-2. **[0.3, 0.4) — model overconfident on shoulder buckets.** p_cal = 0.368 but actual = 0.280 (n_s50=322, est. n_full=16k, DECISION-grade). The isotonic plateau pushes all mid-confidence buckets to ~0.38. Shoulder YES trades at these prices are -EV under this calibration.
-
-**Systematic warm bias: mean error (resolved_mid - mode_mid) = +0.365°C.** Outcomes land systematically above the predicted mode. Model is forecasting temperatures slightly too cold across this 5-day window. Not in prior report — worth monitoring over 10+ city-days.
+1. **[0.0, 0.1) tail — model still underestimates YES.** p_cal=0.008 vs actual=0.029 (n_s50=1,511, DECISION). Same direction and similar magnitude as last report (+0.019). Persistent, thin tail edge.
+2. **[0.3, 0.4) shoulder — model still overconfident.** p_cal=0.368 vs actual=0.288 (n_s50=316, DECISION). The isotonic plateau (see Section 4) pushes mid-confidence buckets to ~0.37-0.38 regardless of true rate; this delta (-0.080) is essentially unchanged from the prior report's -0.089. **This is now a stable, repeated miscalibration across two consecutive decision-grade reports, not noise.**
 
 ---
 
 ## 2. PROXY LANE (Early Warning — Today, Unsettled)
 
-**Coverage:** 1,904 active PRE_PEAK bucket rows from today's pricer_s50 (2026-06-14, through 11:19 UTC).  
-**Market divergence source:** `stwa_ladder_book.jsonl` (390 PRE_PEAK snapshots, 387 valid ladders).
+**Coverage:** 1,778 active PRE_PEAK bucket rows from today's pricer_s50 (2026-06-16, through ~08:00 UTC).
+**Market divergence source:** `band_struct_lite.jsonl` "fire" quotes (matched by city + exact bucket + days_out), not the ladder-book archive used previously — **methodology change, not directly comparable to the 06-14 baseline.**
 
-| Metric | Value | 7d Baseline | Status |
-|---|---|---|---|
-| Median |p_cal - p_ps| (s50 proxy) | 0.0013 | 0.0006 | 2x baseline (minor) |
-| Market (ask_yes) implied sigma | **0.874°C** | (no archive) | Below true sigma |
-| Model (p_cal) implied sigma | 0.987°C | (no archive) | Below true sigma |
-| Market/model ratio | **0.850** | 1.060 (prior report) | SIGN FLIP |
+| days_out | n | median \|p_cal − ask\| |
+|---|---|---|
+| 0 | 299 | 0.1565 |
+| 1 | 184 | 0.1450 |
+| 2 | 193 | 0.1639 |
 
-**Market/model sign flip is the key proxy finding.** Prior report (2026-06-13) observed market sigma 6% WIDER than model (ratio=1.060). Today market is 15% NARROWER (ratio=0.850). The market has compressed toward even tighter implied distributions than the model. Consistent with the dispersion alert deteriorating rather than recovering.
+No 7d baseline exists for this exact metric (different market-price source than prior reports' `p_cal - p_ps` comparison). Treating this run as the new baseline for this metric going forward. Nothing here crosses a pre-registered threshold — informational only, not an early-warning spike.
 
 ---
 
 ## 3. DISPERSION GAUGE (Primary Edge Variable)
 
-**Source:** PRE_PEAK pricer_s50 ladders (last seen p_cal per bucket, per city-day) + running_max resolution proxy. Market correction from today's `stwa_ladder_book.jsonl` (PRE_PEAK, n=387).
+**Source:** last PRE_PEAK pricer_s50 snapshot per bucket per city-day (model side); last `band_struct_lite` "fire" quote per city-day (market side, n=80 of 181 city-days — only where the band actually quoted).
 
 | Quantity | Value | Notes |
 |---|---|---|
-| Implied sigma (p_cal, median) | **0.954°C** | Weighted std of bucket ladder |
-| Market implied sigma (ask_yes, median) | **0.874°C** | From ladder book, PRE_PEAK |
-| True sigma (std of realized errors) | **1.447°C** | Std of (resolved_mid - mode_mid) over 163 city-days |
-| Mean realized error (bias) | **+0.365°C** | Systematic warm miss |
-| Median per-city-day ratio (model) | **0.835** | Alert threshold: < 1.10 |
-| Market-corrected dispersion ratio | **0.710** | 0.835 x 0.850 market/model |
+| Implied sigma (p_cal, median) | **0.957°C** | Weighted std of bucket ladder, model side |
+| Market implied sigma (ask, median) | **0.732°C** | n=80, conditioned on band firing — selection bias caveat above |
+| True sigma (std of realized residuals) | **1.550°C** | std of (resolved_mid − mode_mid), n=181 city-days |
+| Mean realized residual (bias) | **+0.307°C** | Systematic warm miss, consistent direction with prior report (+0.365) |
+| **7d median dispersion ratio (model)** | **0.589** | n=115 city-days with nonzero realized error — DECISION-grade |
+| 7d median dispersion ratio (market-corrected) | **0.478** | n=80 — TREND-grade only (selection bias, see Method Note) |
 
-### DISPERSION ALERT FIRES
+### DISPERSION ALERT FIRES — and has worsened
 
-**The market-implied sigma (0.87°C) is below the true sigma (1.45°C).** The edge premise (implied > true) is inverted. The band harvests premium when the market is over-dispersed. It is not over-dispersed in this window.
+**Both the model-side and market-side dispersion ratios are below 1.10, and both are lower than the last report.** The market-implied sigma remains below the true sigma in every reading taken since this gauge was introduced. There is still no evidence of a recovered dispersion premium in this window.
 
-- Market assigns too much probability to the mode (under-dispersed)
-- Mode YES buckets are overpriced relative to reality
-- Tail YES buckets are underpriced (tails win more often than market implies)
-- The NO strategy on tails is buying at prices set under market-under-dispersion, where we bear higher-than-priced YES resolution risk
+### Per-Region (model ratio) — all sub-decision-grade, trend/collect only
 
-This is the same conclusion as yesterday's alert (ratio 0.62) but the uncorrected metric has improved from 0.62 to 0.835. The market-corrected number is worse today (0.710) because the market has tightened further relative to the model.
+| Region | n city-days | Median ratio |
+|---|---|---|
+| US | 33 (collect) | 0.532 |
+| EU | 32 (collect) | 0.597 |
+| ASIA | 43 (collect) | 0.631 |
 
-### By Region
+No region clears 1.10. Asia is the least-compressed but still well under threshold; sample sizes are all below the 40-city-day trend floor, so no regional conclusion is decision-grade.
 
-| Region | n | Implied sigma | True sigma | Ratio |
-|---|---|---|---|---|
-| US | 32 | 0.82°C | 1.71°C | 0.48 |
-| EU | 33 | 0.83°C | 1.14°C | 0.73 |
-| Asia | 98 | 1.02°C | 1.45°C | 0.71 |
+### Day-by-Day Trend (model ratio)
 
-All three regions are inverted. US is most inverted (0.48); EU is least inverted (0.73).
-
-### Day-by-Day Trend
-
-| Date | n city-days | Per-cd ratio (median) | True sigma (day) |
+| Date | n city-days | Median ratio | True sigma (day) |
 |---|---|---|---|
-| 2026-06-09 | 31 | 0.757 | 1.59°C |
-| 2026-06-10 | 33 | 0.926 | 1.48°C |
-| 2026-06-11 | 31 | 1.033 | 1.51°C |
-| 2026-06-12 | 33 | 0.790 | 1.29°C |
-| 2026-06-13 | 35 | 0.835 | 1.34°C |
+| 2026-06-11 | 19 | 0.728 | 1.64°C |
+| 2026-06-12 | 29 | 0.592 | 1.52°C |
+| 2026-06-13 | 20 | 0.667 | 1.36°C |
+| 2026-06-14 | 22 | 0.516 | 1.42°C |
+| 2026-06-15 | 25 | 0.504 | 1.75°C |
 
-2026-06-11 briefly crossed 1.0 (at 1.033). Jun 12-13 compressed back to 0.79-0.84. No sustained recovery above 1.10 in this 5-day window or in the prior report's 2026-06-08/09 readings (0.41-0.46).
+**The 06-14/06-15 readings (0.52, 0.50) are the two lowest in this window.** The brief partial recovery the 06-14 report saw at the start of its window (06-11 at 1.033 in that report's own day-by-day table) has not persisted — every day since has printed below 0.73 here, trending down rather than up. No day in the last 6 has cleared 1.10.
 
-**Recommendation (observe-only):** The guarded live-refit cron should evaluate whether edge conditions have been met before increasing position size. The dispersion premium has been absent or inverted for at least 6 consecutive days. The BAND_EV_MIN parameter is set at 0.08 (user lowered from 0.15 on 2026-06-05 against prior advice); this gate is now the primary stop against -EV dispersion trades.
+**Recommendation (observe-only):** the dispersion premium the band is built to harvest has now been absent or inverted for at least 6 consecutive resolved days, across two independent agent sessions, two different resolution methodologies, and (this run) a bug-fixed bucket-midpoint calculation. This is not a measurement artifact. `BAND_EV_MIN=0.08` is the only standing defense against firing into a market that is not actually over-dispersed; consider whether that gate alone is sufficient given the persistence of this signal. No config change made or implied by this report.
 
 ---
 
 ## 4. ISOTONIC STALENESS
 
-**Deployed:** `config/stwa_isotonic.json` (2024-fit, flat-sigma reference)  
+**Deployed:** `config/stwa_isotonic.json` (refit 2026-06-06T22:27Z)
 **Candidate:** `config/stwa_isotonic_candidate.json` (refit 2026-06-09T09:30Z, n_live=1037, 2 calendar days)
+
+**The candidate file is byte-identical to the one read in the 2026-06-14 report.** The live-refit cron has produced *zero* new candidates in the 7 days since 2026-06-09 — up from the "5 days, unusual" flagged last report. This is no longer just unusual; a cron that hasn't fired in a week is stalled, not slow.
 
 | p_raw | Deployed | Candidate | Delta | Direction |
 |---|---|---|---|---|
 | 0.00 | 0.0000 | 0.0175 | +0.018 | UP (NO-target) |
-| 0.05 | 0.0695 | 0.0758 | +0.006 | UP (NO-target) |
+| 0.05 | 0.0695 | 0.0758 | +0.006 | UP |
 | 0.10 | 0.1340 | 0.1408 | +0.007 | UP |
 | 0.15 | 0.1828 | 0.1828 | 0.000 | — |
 | 0.20 | 0.2663 | 0.2588 | -0.008 | DOWN |
-| 0.25-0.95 | 0.3557-0.3822 | 0.3535-0.3739 | ~-0.006 | DOWN (plateau tightens) |
+| 0.25–0.90 | 0.3557–0.3801 | 0.3535–0.3739 | ~-0.006 | DOWN (plateau tightens) |
+| 0.95 | 0.3822 | 0.3739 | -0.008 | DOWN |
 | **1.00** | **0.6316** | **0.3739** | **-0.258** | **DOWN — MATERIAL** |
 
-**Max absolute delta: 0.258 at p_raw=1.00. Staleness threshold exceeded (>0.05).**
+**Max absolute delta: 0.258 at p_raw=1.00, same as last report (unchanged data).** The tail-correction direction (candidate > deployed for p_raw<0.15) still moves the right way given Section 1's finding that the deep tail under-predicts YES — but since the cron is stalled, this correction isn't reaching production regardless of whether it would help.
 
-The p_raw=1.00 shift is the sole material deviation. Deployed maps "model certainty" to p_cal=0.63; candidate collapses to 0.37. Operationally significant only if p_model ever reaches exactly 1.0 in practice.
-
-**In the NO-target region (p_raw < 0.15), candidate moves p_cal slightly higher (+0.007 to +0.018).** This is the correct direction: actual YES rate in tails is 2.6% (settled lane), above deployed p_cal of 0.7%. Candidate at 1.75% (p_raw=0.00) is closer to observed reality but still below. This is an undershoot correction, not an overshoot.
-
-**Candidate freshness concern:** refit date 2026-06-09 (5 days ago), n_live=1,037, 2 calendar days. The live-refit cron has not produced a newer candidate since then. If running, it should update daily. The 5-day gap is unusual; the cron may have stalled silently or a data-availability gate is blocking it. At 5+ calendar days with no update, the candidate is effectively stale.
+**This run's note:** the staleness clock is now the more urgent issue than the staleness direction. Recommend (observe-only) checking whether the live-refit cron process is actually running on the VPS — this report cannot SSH to confirm, only observe that its output hasn't changed in a week.
 
 ---
 
 ## 5. STATE TRANSITIONS
 
-| Metric | Today | Prior (2026-06-13) | Change |
+| Metric | Today (06-16) | Prior (06-14) | Change |
 |---|---|---|---|
-| Brier7 | 0.0682 | 0.0147 | up (methodology gap) |
-| ECE7 | 0.0320 | 0.0326 | stable |
-| Rho7 | 0.3660 | 0.7835 | down (methodology gap) |
-| Dispersion ratio (uncorrected) | **0.835** | 0.581-0.616 | slight recovery, ALERT persists |
-| Dispersion ratio (market-corrected) | **0.710** | (not computed prior) | worse than uncorrected |
-| Market/model sigma ratio | **0.850** | **1.060** | sign flip — market tighter |
-| Isotonic candidate age | **5 days** | fresh | stale |
-| Alerts | **1 (Dispersion)** | 1 (Dispersion) | persistent |
+| Brier7 | 0.0707 | 0.0682 | stable |
+| ECE7 | 0.0364 | 0.0320 | stable |
+| Rho7 | 0.3490 | 0.3660 | stable |
+| Dispersion ratio (model) | **0.589** | 0.835 | **worse** |
+| Dispersion ratio (market-corrected) | **0.478** | 0.710 | **worse** (methodology also changed — see Method Note) |
+| Isotonic candidate age | **7 days, unchanged** | 5 days | stale → stalled |
+| Alerts | **1 (Dispersion)** | 1 (Dispersion) | persistent, deepening |
 
-**Dispersion alert has been persistent for at least 2 consecutive reports.** The uncorrected ratio is recovering (0.62 → 0.84) but not enough to clear 1.10. The market-corrected number is worsening (market tightened relative to model). ECE is stable, confirming calibration shape is not actively degrading even if the edge assumption has not been validated in this window.
+**Calibration shape (Brier/ECE/rho) is stable and not itself a concern.** The load-bearing quantity — dispersion ratio — is the one thing actively moving, and it is moving the wrong way: from an already-failing 0.835 down to 0.589 over two days. Combined with a stalled isotonic-refit cron, the bot is currently running on an aging calibration map against a market that is, on this data, not over-dispersed relative to true outcomes.
 
 ---
 
-*State written to logs/calib_monitor_state.json*  
+*State written to logs/calib_monitor_state.json*
 *REPORT-ONLY: no code, config, or strategy edits made or recommended.*
