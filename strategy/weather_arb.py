@@ -2877,23 +2877,31 @@ class WeatherArb:
                     continue
                 _pair_cands.append((days_out, city, lo, hi, yt, nt, mkt))
 
-        # ── UNIFIED ROI-ORDERED POSTING QUEUE (2026-06-11 audit) ──────────────
-        # One list, one cash pool, spent best-slice-first by HIS post-inflection
-        # resolved ROI: d+2 YES +56.5% > d+1 YES +15.2% > d+1 NO +12.4% >
-        # PAIR_FAV (locked on completion; legs +20.1% / +52-74%) > d+2 NO +5.9%
-        # > d+0 YES mode (pair half, −3.4% standalone) > d+0 NO +1.5%.
+        # ── UNIFIED VELOCITY-ORDERED POSTING QUEUE (2026-06-16 rerank) ─────────
+        # Ordered by ROI per CAPITAL-DAY (compounding rate), not ROI/trade — the
+        # binding constraint is turnover, not per-bet edge (badatmath compounded
+        # ~$200->$10k in 20d via ~daily turnover, not bigger bets). From the
+        # n=2740 band_resolution_join (conditional-on-fill selection ROI):
+        #   PAIR_FAV : risk-free, SAME-DAY mergeable -> highest velocity. rank 0
+        #   d+1 YES  : +8.5%/trade / 1d = +8.5%/cap-day. rank 1
+        #   d+2 YES  : +16.0%/trade / 2d = +8.0%/cap-day (locks capital 2x). rank 2
+        #   d+1 NO   : +3.3%/trade / 1d = +3.3%/cap-day; resolves fast +
+        #              realized-positive (diversifier). rank 3
+        #   d+2 NO : rank 4    d+0 YES : rank 5    d+0 NO : rank 6
+        # Was d+2-YES-first (06-11): slowest capital + held-loser sink ranked
+        # FIRST -> drained the book into 2-day longshots that mostly resolve $0.
         # Tiebreak: lower Σ(posted) first (deeper band discount), then |off|.
-        _rank_yes = {2: 0, 1: 1, 0: 5}
-        _rank_no = {1: 2, 2: 4, 0: 6}
+        _rank_yes = {1: 1, 2: 2, 0: 5}
+        _rank_no = {1: 3, 2: 4, 0: 6}
         _queue = []
         for _do, _sp, _off, _sig, _mkt, _ay in _live_legs:
-            _queue.append((_rank_yes.get(_do, 1), _sp, _off,
+            _queue.append((_rank_yes.get(_do, 2), _sp, _off,
                            ("YES", _do, _sig, _mkt, _ay)))
         for _do, _off, city, lo, hi, yt, nt, mkt in _no_cands:
             _queue.append((_rank_no.get(_do, 4), 0.0, _off,
                            ("NO", _do, (city, lo, hi, yt, nt, mkt), None, None)))
         for _do, city, lo, hi, yt, nt, mkt in _pair_cands:
-            _queue.append((3, 0.0, 0,
+            _queue.append((0, 0.0, 0,
                            ("PAIR", _do, (city, lo, hi, yt, nt, mkt), None, None)))
         _queue.sort(key=lambda t: (t[0], t[1], t[2]))
         _no_cap = band_no_daily_cap(_capital)

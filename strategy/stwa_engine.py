@@ -363,13 +363,15 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
                             # budget; the cash gate is the real constraint. Was 12.0
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-BAND_NO_CASH_RESERVE = 0.0   # 2026-06-15: UNRESERVE — unify the cash pool back to a strict ROI-rank
-                             # queue. The 06-12 0.50 reserve assumed our NO leg pays like his (+5-6%);
-                             # band_resolution_join.py (n=2024 resolved) now measures OUR NO ROI=-1.2%
-                             # (n=109, breakeven) vs YES ROI=+8.6% (n=1915) — reserving half the cash
-                             # for the breakeven leg starved the +EV leg. At ~$45 free USDC the split
-                             # also dropped both halves below min stake → posted=0 ~90% of cycles
-                             # (06-14 GAP AUDIT). Revert to 0.50 if NO ROI clears +0 at n>=100.
+BAND_NO_CASH_RESERVE = 0.25  # 2026-06-16: 0.0->0.25 (velocity re-balance, see weather_arb queue rerank).
+                             # The 06-15 unreserve ("YES +8.6% vs NO -1.2%") read band_resolution_join's
+                             # CONDITIONAL-ON-FILL selection ROI — NOT realized cash. Recent realized
+                             # (recycle-attributed, 06-09->16): NO +$39 vs YES -$20 (regime inversion +
+                             # adverse fill). NO also resolves d+1 (fast recycle) and is realized-positive,
+                             # so a MODEST reserve keeps the fast/diversifying NO leg planted without
+                             # over-rotating to a +3.3%-selection leg. Not 0.40 (that abandons YES, which
+                             # the n=2740 selection data still favors). Revisit once realized-fill ROI by
+                             # side is measurable at n>=100. Revert: 0.0 (YES-only) / 0.50 (his half-NO book).
 # 2026-06-11 audit: overlay now includes EDGE buckets (or-below / or-higher) — his
 # NO 0.52-0.85 on edges = +5.7% (n=438) ≈ interiors +6.5% (n=3,877); they were
 # silently excluded by the interior-only iteration and they are his NO meat.
