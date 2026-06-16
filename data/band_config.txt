@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-06-16T10:01:26Z
+# Snapshot: 2026-06-16T10:16:37Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -37,20 +37,20 @@
 362:BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
 364:BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 365:BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-366:BAND_NO_CASH_RESERVE = 0.0   # 2026-06-15: UNRESERVE — unify the cash pool back to a strict ROI-rank
-387:BAND_PAIR_FAV_ENABLED = True
-388:BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
-389:BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
-390:BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
-398:BAND_PAIR_SHADOW = True
-399:BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
-408:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
-413:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
-414:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
-425:BAND_STAKE_FRAC_YES = 0.005   # 2026-06-15: 0.010→0.005 — breadth model. At 0.010 the YES base was
-430:BAND_STAKE_FRAC_NO  = 0.015
-431:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
-432:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
-457:BAND_MERGE_ENABLED    = True
-458:BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
-459:BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
+366:BAND_NO_CASH_RESERVE = 0.25  # 2026-06-16: 0.0->0.25 (velocity re-balance, see weather_arb queue rerank).
+389:BAND_PAIR_FAV_ENABLED = True
+390:BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
+391:BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
+392:BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
+400:BAND_PAIR_SHADOW = True
+401:BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
+410:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
+415:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
+416:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
+427:BAND_STAKE_FRAC_YES = 0.005   # 2026-06-15: 0.010→0.005 — breadth model. At 0.010 the YES base was
+432:BAND_STAKE_FRAC_NO  = 0.015
+433:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
+434:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
+459:BAND_MERGE_ENABLED    = True
+460:BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
+461:BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
