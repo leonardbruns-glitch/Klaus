@@ -1,211 +1,166 @@
-# Exec Audit — 2026-06-15T10:31Z
+# Exec Audit — 2026-06-16T07:21Z
 
-**Snapshot age:** 0.2h (fresh)  
-**System status:** `active` (bot uptime since 2026-06-15 05:52 UTC)  
-**Capital (bankroll.json):** $270.83 | bankroll is CAVEAT — manual sells not modeled  
-**Band config authoritative source:** `band_config.txt` (2026-06-15 snapshot)
+**Snapshot age:** 0.35h (fresh; SNAPSHOT.md ts=2026-06-16T07:00:08Z)
+**System status:** `active` (bot uptime since 2026-06-15 05:52 UTC)
+**Capital (bankroll.json):** $236.24 | bankroll is CAVEAT — manual sells not modeled, do not infer PnL/ruin from this alone
+**Band config authoritative source:** `band_config.txt` (snapshot 2026-06-16T07:00:08Z)
+**Data window:** fill-tape (`maker_fills_recent.log`) only covers 2026-06-13 08:17Z → 2026-06-16 07:01Z (70.7h, not a full 7d — log retention is shorter than the 7d journal nominally promised). band_struct_lite posts available 2026-06-11 → 2026-06-16 (6 days).
 
 ---
 
-## Section 1 — Fill Tape (24h + 7d)
+## Section 1 — Fill Tape
 
-### Registered fills (`[MAKER-FILL] registered` lines)
+### 24h (to 07:14Z)
 
-| Date | YES fills | YES $ | NO fills | NO $ | Total fills | Total $ | NO-share |
-|---|---|---|---|---|---|---|---|
-| 2026-06-12 | 27 | $48.6 | 4 | $19.2 | 31 | $67.8 | 12.9% |
-| 2026-06-13 | 27 | $51.8 | 15 | $47.7 | 42 | $99.5 | 35.7% |
-| 2026-06-14 | 30 | $52.8 | 13 | $47.7 | 43 | $100.5 | 30.2% |
-| 2026-06-15 (partial to 10:31Z) | 14 | $15.9 | 3 | $9.9 | 17 | $25.8 | 17.6% |
+- **Fills:** 120 | **$ filled:** $116.83
+- **By side:** YES=119 ($112.75) | NO=1 ($4.08)
+- **By price band:** <0.10: 18 | 0.10–0.30: 75 | 0.30–0.50: 26 | 0.50–0.85: 1
+- **Top cities:** Beijing 7, London 7, Jeddah 6, Taipei 6, Seoul 6, Chengdu 5, Helsinki 5, Guangzhou 5, Paris 5, Istanbul 5
 
-**7-day totals:** 133 registered fills; steady-state ~40–43/day on Jun 13–14.
+### Available window (70.7h, labeled "7d" but is actually 2.9 days)
 
-### 24h breakdown (last 24h to 10:31Z)
+- **Fills:** 271 | **$ filled:** $395.84
+- **By side:** YES=224 ($254.51) | NO=47 ($141.34)
+- **By price band:** <0.10: 28 | 0.10–0.30: 153 | 0.30–0.50: 44 | 0.50–0.85: 46
+- **By day:** 06-13: 55 | 06-14: 81 | 06-15: 110 | 06-16 (partial): 25
 
-- **Fills:** 54 (YES=40, NO=14)  
-- **$ filled:** YES=$60.44, NO=$51.76, **Total=$112.20**
+### Fill rate (posted tokens with ≥1 fill anywhere in the fill-log window)
 
-**By price band (24h):**
+| Date | Posted tokens | Filled | Rate |
+|---|---|---|---|
+| 06-11 | 61 | 0 | 0.0% (predates fill-log retention) |
+| 06-12 | 67 | 6 | 9.0% (mostly predates retention) |
+| 06-13 | 51 | 37 | 72.5% |
+| 06-14 | 73 | 49 | 67.1% |
+| 06-15 | 108 | 82 | 75.9% |
+| 06-16 (partial) | 24 | 11 | 45.8% |
 
-| Band | n | $ |
-|---|---|---|
-| <0.10 | 5 | $3.66 |
-| 0.10–0.30 | 26 | $37.47 |
-| 0.30–0.50 | 10 | $24.21 |
-| 0.50–0.85 | 13 | $46.86 |
+Fill-log only goes back to 06-13 08:17Z, so 06-11/06-12 rates are not meaningful (denominator real, numerator censored). 06-13 through 06-15 show a healthy 67–76% same-window fill rate.
 
-**Top cities (24h):** Jeddah 5, London 5, Chongqing 4, Helsinki 3, Taipei 3, Guangzhou 3, Chengdu 3, Beijing 3, Warsaw 3.
+### Time-to-fill (post ts → first MAKER-FILL ts, joined on 12-digit token prefix — fill-log truncates `token_id` to its first 12 digits)
 
-### UNTRACKED fills (`[USER-WS] UNTRACKED FILL`)
-
-- **7d CONFIRMED:** 146 — nearly equal volume to registered (133)  
-- **24h CONFIRMED:** 58  
-- **24h untracked notional:** $2,860 (BUT: majority are high-price SELL_EXIT resolution payouts and NO complement fills at 0.70–0.99, not new maker exposure)
-
-| Price range | 7d count |
-|---|---|
-| <0.50 | 30 |
-| 0.50–0.70 | 17 |
-| 0.70–0.85 | 40 |
-| 0.85–0.99 | 20 |
-| ≥0.99 | 39 |
-
-The ≥0.85 bucket (59 events) are SELL_EXIT fills and resolution payouts. The 0.70–0.85 bucket likely represents the NO complement fills when YES positions fill (YES at 0.20 → NO complement buy-through at 0.78). None of these appear to be new maker exposure being missed, but the `UNTRACKED` log entry remains an accounting gap.
+n=178: **median = 169 min (2.8h)** | p25 = 52 min | p75 = 7.1h | max = 44.0h
 
 ---
 
 ## Section 2 — NO-Parity Monitor
 
-### New posts by side (from `band_struct_lite` `post` records)
+### New posts by side per day (`band_struct_lite` `post` records)
 
-| Date | YES posts | NO posts | Total | NO-share | Alert? |
+| Date | YES | NO | Total | NO-share | Alert (n≥10, <25%)? |
 |---|---|---|---|---|---|
-| 2026-06-10 | 2 | 4 | 6 | 66.7% | — (n<10) |
-| 2026-06-11 | 54 | 14 | 68 | 20.6% | ⚠ ALERT |
-| 2026-06-12 | 82 | 3 | 85 | 3.5% | ⚠ ALERT |
-| 2026-06-13 | 43 | 16 | 59 | 27.1% | OK |
-| 2026-06-14 | 67 | 20 | 87 | 23.0% | ⚠ ALERT |
-| 2026-06-15 | 62 | 4 | 66 | 6.1% | ⚠ ALERT |
+| 06-11 | 54 | 14 | 68 | 20.6% | ⚠ ALERT |
+| 06-12 | 82 | 3 | 85 | 3.5% | ⚠ ALERT |
+| 06-13 | 43 | 16 | 59 | 27.1% | OK |
+| 06-14 | 67 | 20 | 87 | 23.0% | ⚠ ALERT |
+| 06-15 | 178 | 4 | 182 | 2.2% | ⚠ ALERT |
+| 06-16 (partial) | 26 | 0 | 26 | 0.0% | ⚠ ALERT |
 
-### FIRE records (first-fire per `(cid, side)`)
+### Hourly breakdown around the 06-15 cash-policy changes
 
-| Date | YES fire | NO fire | Total | NO-share | Alert? |
-|---|---|---|---|---|---|
-| 2026-06-10 | 47 | 0 | 47 | 0.0% | ⚠ ALERT |
-| 2026-06-11 | 110 | 71 | 181 | 39.2% | OK |
-| 2026-06-12 | 189 | 41 | 230 | 17.8% | ⚠ ALERT |
-| 2026-06-13 | 190 | 14 | 204 | 6.9% | ⚠ ALERT |
-| 2026-06-14 | 193 | 18 | 211 | 8.5% | ⚠ ALERT |
-| 2026-06-15 | 136 | 4 | 140 | 2.9% | ⚠ ALERT |
+NO-share by UTC hour, 06-14 → 06-15:
 
-### Resting book (live, excluding SELL_EXIT)
+```
+06-14 (spotty, ranging 0–50% across the day, broadly consistent with the post-fix baseline)
+06-15 00:00–05:00   NO-share 0–50% (small samples)
+06-15 06:00 onward  NO-share = 0.0% EVERY hour through end of day (16 consecutive hourly buckets, 0 NO posts)
+06-16 (all hours so far)  NO-share = 0.0%
+```
 
-- YES resting: 43 orders, **$40.67**  
-- NO resting: 5 orders, **$12.95**  
-- NO $ share in resting: **24.2%** (marginally below 25% target)
+**Root cause identified:** commit `9caaf67a` (2026-06-15 04:56Z, "unreserve NO cash pool... YES is the +EV leg, NO breakeven") removed the `BAND_NO_CASH_RESERVE` protection that the 06-12 NO-starvation fix (`222bf5cf`) and the 06-12 `f733ef5a` follow-up had put in place. `ba59e945` (06-15 05:51Z, "YES stake to CLOB exchange minimum — breadth not size") landed ~1h later, shrinking YES per-slot stake to fit more YES candidates into the same cash budget. From 06-15 06:00Z onward, **NO-share of new posts has been a flat 0%** for ~25 consecutive hours (174 YES posts, 1 NO post total in that span). This is a full relapse — worse than the original bug the 06-12 fix addressed, and confirms the 06-12 fix's protection mechanism (cash reservation) was the only thing holding NO-share up, not a structural fix to candidate generation.
 
-**Verdict:** The NO-starvation fix committed on 2026-06-12 is NOT holding. Post NO-share has collapsed to 6.1% today and the fire-side NO-share is 2.9% — the most starved it has been in the observed window. Jun 11 shows a single well-balanced day (39% NO fire-share) then immediate regression. The `BAND_NO_CASH_RESERVE=0.0` change on 2026-06-15 (unreserving NO cash pool) should theoretically help, but Jun 15 data is already worse. Likely cause: YES markets vastly outnumber qualifying NO markets in the CLOB; NO candidates average 155–165/cycle while posted NO barely registers.
+### Resting book (excl. SELL_EXIT)
+
+YES=36 | NO=4 | None=1 → **NO-share = 9.8%**, consistent with the post-side collapse — the live book has been skewed toward YES for days and is not self-correcting.
 
 ---
 
 ## Section 3 — Queue Health
 
-Source: `[STRUCT-BAND-Q]` lines; new fields `yes_resv_skip` and `yes_cap` present from Jun 15 onward.
+| Date | Cycles | mean cash_preskip | mean books | mean yes_books | posted/cycle | pinned books=80 | pinned yes_books=50 | posted=0 & cash>200 |
+|---|---|---|---|---|---|---|---|---|
+| 06-13 | 187 | 194.4 | 0.2/80 | 0.2/50 | 0.23 | 0/187 | 0/187 | 94/187 (50%) |
+| 06-14 | 279 | 163.7 | 0.3/80 | 0.2/50 | 0.31 | 0/279 | 0/279 | 106/279 (38%) |
+| 06-15 | 280 | 233.4 | 1.2/80 | 0.6/50 | 1.82 | 0/280 | 0/280 | 136/280 (49%) |
+| 06-16 (partial) | 82 | 245.3 | 0.7/80 | 0.3/50 | 0.33 | 0/82 | 0/82 | 55/82 (67%) |
 
-### Per-day aggregates
-
-| Date | Cycles | avg cash_preskip | avg books/80 | avg yes_books/50 | avg posted/cycle | books pinned @80 | yes_books pinned @50 |
-|---|---|---|---|---|---|---|---|
-| 2026-06-12 | 130 | 196.6 | 0.3 | 0.3 | 1.70 | 0 | 0 |
-| 2026-06-13 | 280 | 205.7 | 0.2 | 0.2 | 0.21 | 0 | 0 |
-| 2026-06-14 | 279 | 163.7 | 0.3 | 0.2 | 0.31 | 0 | 0 |
-| 2026-06-15 | 121 | 247.0 | 0.9 | 0.5 | 3.25 | 0 | 0 |
-
-**No fetch starvation** (books never pinned at 80, yes_books never pinned at 50).
-
-### Cash > 200 with posted = 0
-
-| Date | Cycles triggered | % of total |
-|---|---|---|
-| 2026-06-12 | 71/130 | 54.6% |
-| 2026-06-13 | 151/280 | 53.9% |
-| 2026-06-14 | 106/279 | 38.0% |
-| 2026-06-15 | 63/121 | 52.1% |
-
-These cycles have high available cash but no new valid markets to post — the queue of 280–340 markets is mostly already-covered. This is NOT a deployment stall (the bot posts in other cycles of the same day and no_cands is 130–165/cycle) but reflects low daily posting throughput relative to the market universe covered.
-
-### Jun 15 hour-by-hour (new `yes_resv_skip` field)
-
-| UTC hour | avg yes_cap | resv_skip/hr | cycles w/ post |
-|---|---|---|---|
-| 00–04 | 0.6–2.0 | 267–952 | 0–1/12 |
-| 05 | 2.70 | 140 | 4/12 |
-| 06–10 | 1.1–2.1 | 0 | 3–4/12 |
-
-At midnight the YES capacity budget (`yes_cap`) is nearly exhausted from prior-day posting, so the bot hits `yes_resv_skip` on almost every candidate until the budget recharges. The 05:00 burst (avg_posted=28 driven by new-market discovery) confirms normal operation resuming after budget recycle.
+No book-fetch-starvation regression (`books`/`yes_books` never pinned at the 80/50 cap on any day). No day has `posted=0` for the entire day, so the deployment-stall alert (cash_preskip>200 sustained, posted=0 all day) does **not** fire. Context only: roughly 40–65% of individual cycles post nothing despite cash_preskip>200 — this is consistent with most of the candidate queue already being covered (no_cands/pair_cands stay in the 150–190 range all period) rather than a fetch problem.
 
 ---
 
 ## Section 4 — Resolution Markout (Fill Quality)
 
-**Network status:** Gamma API returns HTTP 403 → `band_resolution_join.py` cannot be run; all-fires comparison unavailable.
+**Network status:** `gamma-api.polymarket.com` and `clob.polymarket.com` both return `403 Host not in allowlist` from this sandbox — `band_resolution_join.py` (which needs live Gamma resolution lookups) cannot run. All-fires simulated ROI is therefore **unavailable this run**, same limitation as the 06-15 audit. This is reported honestly rather than fabricated.
 
-**Proxy:** trades.jsonl WEATHER `STWA_RESOLVED` events, June 10+ (n=82 resolved positions: 68 YES, 14 NO).
+**Proxy used (same as prior audit):** `trades.jsonl` `STWA_RESOLVED` exits since 2026-06-10, n=119 (98 YES, 21 NO) — these are actual resolved BAND positions, i.e. realized ROI **conditional on fill** (the half of the winner's-curse test we can compute without the API).
 
-### YES resolved (n=68, trend-grade at 40–99)
+### BUY_YES (n=98, trend-grade, bordering decision-grade)
 
-| Price band | n | Wins | WR | Breakeven WR | avg ROI |
+| Price band | n | WR | breakeven (avg entry) | avg ROI | total PnL |
 |---|---|---|---|---|---|
-| <0.10 | 2 | 0 | 0.0% | ~6% | −100% |
-| 0.10–0.30 | 50 | 2 | 4.0% | ~19.3% | −79.3% |
-| 0.30–0.50 | 16 | 1 | 6.2% | ~33.1% | −81.1% |
-| **Combined** | **68** | **3** | **4.4%** | ~**18%** | **~−80%** |
+| <0.10 | 4 | 0.0% | ~6.5% | −100.0% | −$8.40 |
+| 0.10–0.30 | 77 | 5.2% | ~19.5% | −86.0% | −$144.17 |
+| 0.30–0.50 | 17 | 5.9% | ~33.1% | −95.3% | −$44.03 |
+| **Combined** | **98** | **5.1%** | **~21.4%** | **−88.4%** | **−$196.60** |
 
-### NO resolved (n=14, data-collection grade)
+### BUY_NO (n=21, data-collection grade)
 
-- WR = 21.4% (3/14); breakeven ~46% (avg NO entry 0.57); avg ROI ≈ −17.6%
-- n too small for conclusions; trend is below breakeven.
-
-### Exit099 winners (separate accounting)
-
-- **52 `recycle099` events** across Jun 10–15: total P&L **$249.09**  
-- Avg per event: $4.79 (entries ranging 0.04–0.97, exits at 0.99)
-- These are the winning YES legs — entry at low price, held to near-resolution, sold at 0.99.
+| Price band | n | WR | breakeven | avg ROI | total PnL |
+|---|---|---|---|---|---|
+| <0.10 | 1 | 0.0% | ~8.3% | −100.0% | −$3.41 |
+| 0.50–0.85 | 18 | 16.7% | ~61.0% | −81.5% | −$63.52 |
+| >0.85 | 2 | 50.0% | ~98.0% | −49.0% | −$5.28 |
+| **Combined** | **21** | **19.0%** | **~62.0%** | **−78.4%** | **−$72.22** |
 
 ### Winner's-curse assessment
 
-At n=68 YES positions (trend-grade, not yet decision-grade):  
-- Fill-conditional WR (4.4%) is **≈ 4.5× below breakeven** in the 0.10–0.30 band  
-- This is consistent with **adverse selection (winner's curse)**: the bot is getting filled when better-informed sellers cross the spread — the true probability of the event is materially lower than the badatmath model price  
-- Counter-evidence: exit099 shows $249 in profits on the small fraction that do resolve YES, suggesting the model does identify the correct bucket; the problem is low base-rate events  
-- Full winner's-curse verdict requires all-fires comparison (Gamma API blocked). **Flag: possible winner's curse, confirm at n≥100 with API access.**
+YES fill-conditional WR is **5.1% against a quoted-price-implied breakeven of ~21.4%** — a ~4× gap, n=98 (just under the n=100 decision gate, but consistent with yesterday's n=68/WR=4.4% reading and now larger). This is the same signal repeating and strengthening: **plainly, this looks like winner's curse.** The bot is filled selectively on the wrong side — fills happen when the market already knows the temperature bucket is unlikely, i.e. resting bids get picked off by better-informed flow as the event approaches resolution. NO side shows the same pattern (WR 19% vs ~62% breakeven) though n=21 is data-collection grade only.
+
+Caveat: this proxy measures realized-ROI-conditional-on-fill only. It does NOT establish the "all-fires" comparator required to formally confirm winner's curse per the protocol (Gamma API blocked). But two consecutive daily reads at growing n, both showing WR roughly a quarter of breakeven, is strong directional evidence and should not be waved off as noise.
 
 ---
 
 ## Section 5 — Dead-Quote Reclaim
 
-- **"reaped dead entry" lines in fill tape:** 0 (reclaim not logging to fill tape, or zero reclaims occurred)
-- **`BAND_RECLAIM_AGE_S`:** 2h (reduced from 6h as of today)
-- **Resting quotes >24h old:** 18  
-- **Resting quotes >48h old:** 14 (threshold: >20 → **alert NOT triggered**)
-- **Oldest resting quote:** 86.6h (Seattle None, end_date=2026-06-10 — expired market)
-- **Stale orders (end_date before today):** 15 orders with `end_date ≤ 2026-06-14`, mostly fully matched (matched≈size) or zero-shares expired markets
+- **"reaped dead entry" lines in fill tape:** 0 (none in the available 70.7h window)
+- **`BAND_RECLAIM_AGE_S`:** 7200s (2h, per band_config.txt)
+- **Resting quotes >24h old:** 19
+- **Resting quotes >48h old:** 16 (alert threshold is >20 → **not triggered**)
+- **Oldest resting quotes:** 107.3h (~4.5 days) — Seoul NO and Seattle NO, both `matched=0.0` (never filled at all), both for markets whose `end_date` (06-10/06-11) has long passed.
 
-The 2h reclaim tightening is very recent (today's config change). The 14 quotes >48h and 15 stale-end-date orders should be swept by the new 2h window in the next reclaim cycle. Monitoring recommended to confirm the 2h reclaim actually fires and the stale orders are cleaned.
+Two genuinely dead, zero-fill quotes are sitting at ~4.5× the `BAND_RECLAIM_AGE_S` config value with zero reclaim activity logged anywhere in the available window. Raw count doesn't cross the pre-registered >20-quotes-over-48h alert, so no alert fires, but the complete absence of any reclaim log line despite a 2h configured age and several quotes 50× past that age is worth a flag for next run if it persists.
 
 ---
 
 ## Section 6 — Cash Velocity
 
-| Metric | Value | Benchmark |
-|---|---|---|
-| Capital | $270.83 | — |
-| Active maker resting (YES+NO) | $53.62 | — |
-| SELL_EXIT resting (at 0.99) | $682.11 | — |
-| Fills $ today (partial 10:31Z) | $25.82 | — |
-| Fills $/day (Jun 13–14 avg) | ~$105/day | — |
-| **Turns/day** | **0.41** | **~1.0 (badatmath)** |
+| Metric | Value |
+|---|---|
+| Capital (bankroll.json) | $236.24 |
+| Resting $ (Σ q_price×(size−matched), excl. SELL_EXIT) | $38.33 |
+| Deployed at cost (Σ q_price×matched, excl. SELL_EXIT) | $49.57 |
+| Fills $ last 24h | $116.83 |
+| **Turns/day (fills$ ÷ capital)** | **0.49** |
+| Benchmark (badatmath) | ~1.0 turn/day at 10–20% ROI/turn |
 
-The $682 SELL_EXIT resting is large relative to capital ($270) — this represents resolved-or-nearly-resolved positions sitting at exit bids of $0.99 waiting to be swept. These are not new maker exposure but do represent a large volume of orders in the book.
-
-**Turns at 0.41/day** is 59% below the badatmath benchmark of 1.0. The breadth-over-size shift (BAND_STAKE_FRAC_YES 0.010→0.005 today; BAND_BASE_STAKE 3→1 also today) will reduce per-stake $ but increase fill count — expect turns ratio to remain well below 1.0 until NO coverage improves meaningfully.
+Turns/day at 0.49 is roughly half the badatmath benchmark. Combined with the NO-share collapse (Section 2) and the small per-stake size (`BAND_BASE_STAKE`=$1, `BAND_STAKE_FRAC_YES`=0.005), capital is being deployed in many small YES-only slices rather than the more symmetric, larger-notional flow the benchmark mirror implies.
 
 ---
 
-## ALERTS
+## ALERTS (pre-registered, fired)
 
-**1. ⚠ NO-SHARE ALERT (FIRED, repeated):** NO-share of new posts < 25% on Jun 12 (3.5%, n=85), Jun 14 (23.0%, n=87), Jun 15 (6.1%, n=66). NO starvation persists despite the 2026-06-12 fix. Today is the worst day on record (2.9% NO fire-share). The `BAND_NO_CASH_RESERVE=0.0` change has not yet improved this — the constraint appears to be market structure (very few qualifying NO positions, not cash availability). The `BAND_NO_SKIP_OFF1=True` gate and `BAND_NO_MIN=0.52` floor may be eliminating most NO candidates.
+1. **NO-SHARE ALERT — fired 5 of 6 days, now total collapse.** NO-share of new posts <25% on 06-11 (20.6%), 06-12 (3.5%), 06-14 (23.0%), 06-15 (2.2%), 06-16 (0.0%). From 06-15 06:00Z onward NO-share has been **flat 0%** for ~25 consecutive hours (174 YES vs 1 NO posted). Traced to commit `9caaf67a` (unreserve NO cash pool, 06-15 04:56Z) + `ba59e945` (YES min-stake breadth, 06-15 05:51Z). The 06-12 NO-starvation fix's effectiveness depended entirely on the cash reservation these commits removed — this is a regression to a worse state than pre-fix, not a new bug.
 
-**2. ⚠ WINNER'S CURSE FLAG (PENDING CONFIRMATION):** YES fill-conditional WR = 4.4% across all price bands vs breakeven ~18%. At n=68 (trend-grade). ROI at 0.10–0.30 band: −79.3%. This implies the fills are occurring on events that the CLOB has already discounted below the bot's quote price — classic adverse selection. Full confirmation requires Gamma API all-fires comparison (currently blocked). Bot is getting filled when smart money is selling; winning positions (exit099 $249) do exist but are too rare.
+2. **WINNER'S-CURSE FLAG — repeated, strengthening.** YES fill-conditional WR=5.1% vs breakeven~21.4% (n=98, just under the n=100 gate but consistent with and larger than yesterday's n=68/4.4% reading). All-fires comparison still blocked (Gamma/CLOB API both return 403 in this sandbox) so this isn't yet the full protocol-required confirmation, but two consecutive growing-n reads at ~1/4 of breakeven WR is a real signal, not noise.
 
-**3. ⚠ CASH>200/POSTED=0 CYCLES (INFORMATIONAL):** 38–54% of cycles across all days show high available cash but zero posts. NOT a deployment stall — the bot does post in other cycles. Cause: the market universe is largely already covered, and yes_cap budget is exhausted late UTC night. No action needed if confirmed expected.
+No queue-fetch-starvation alert, no deployment-stall alert, no dead-quote->20-over-48h alert this run.
 
 ---
 
 ## 3-Line Summary
 
-**Fills/day:** 40–43 registered fills/day (stable Jun 13–15); $100–112/day; 0.41 turns/day (41% of badatmath benchmark). Fill count is solid but dollar velocity lags.
+**Fills/day:** ~95–110/day on full days (06-13 through 06-15), $100–135/day notional, 0.49 turns/day (49% of the badatmath 1.0 benchmark).
 
-**NO-share:** 6.1% today — structural NO starvation is NOT fixed. Jun 12 commit claimed to fix it; it relapsed immediately. The resting book has only 5 NO orders vs 43 YES. This is the book symmetry problem, not a cash problem.
+**NO-share:** 0.0% for the last ~25 hours straight — total NO-side starvation, caused by the 06-15 cash-unreserve + YES-min-stake commits undoing the 06-12 fix's protection.
 
-**Binding execution constraint today:** NO-starvation is limiting book symmetry and likely the +EV hedge against YES adverse selection; secondary constraint is the pending winner's-curse signal on YES (WR 4.4% vs 18% breakeven at n=68, Gamma API confirmation blocked).
+**Binding execution constraint today:** NO-parity collapse (book is now ~98% YES by new-post count) is the dominant execution problem; the still-unconfirmed-but-recurring YES winner's-curse signal (WR 5.1% vs ~21% breakeven, n=98) is the second, and the two compound — the bot is overweighting the leg with the weaker resolved-fill quality.
