@@ -2653,7 +2653,8 @@ class WeatherArb:
             BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
             BAND_REALBOOK_YES, BAND_PAIR_FAV_ENABLED, BAND_PAIR_FAV_YES_MIN,
             BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX, BAND_PX_MIN_MD,
-            BAND_PAIR_SHADOW, BAND_PAIR_SHADOW_MARGIN)
+            BAND_PAIR_SHADOW, BAND_PAIR_SHADOW_MARGIN,
+            BAND_PAIR_SAMEBUCKET, BAND_PAIR_SB_MAX_BEHIND)
 
         events = await self._fetch_weather_events()
         if not events:
@@ -3032,7 +3033,7 @@ class WeatherArb:
                     # the would-be NO pair leg + merge margin on the SAME cond.
                     # No cash, no effect on posting (fully wrapped). Offline
                     # pair_shadow_join.py → deliberate-pair co-fill rate + margin.
-                    if BAND_PAIR_SHADOW and _books_left > 5:
+                    if (BAND_PAIR_SHADOW or BAND_PAIR_SAMEBUCKET) and _books_left > 5:
                         try:
                             _nt = next((t for t in _parse_token_ids(
                                 _mkt.get("clobTokenIds", [])) if t != tid), None)
@@ -3044,8 +3045,11 @@ class WeatherArb:
                                 if _nbids and _nasks:
                                     _nbid = float(_nbids[0]["price"])
                                     _nask = float(_nasks[0]["price"])
-                                    _nq = round(min(_nask - 0.01,
-                                                    _nbid - BAND_PAIR_SHADOW_MARGIN), 3)
+                                    # join the NO touch, then bid down ONLY as far as
+                                    # needed to lock the merge margin (Σ bids ≤ cap)
+                                    _ntouch = round(min(_nask - 0.01, _nbid), 3)
+                                    _nq = round(min(_ntouch,
+                                                    BAND_PAIR_SUM_MAX - _sig.quote_price), 3)
                                     _psum = round(_sig.quote_price + _nq, 3)
                                     _emit({"reason": "pair_shadow",
                                            "cid": _mkt.get("conditionId", ""),
@@ -3055,6 +3059,50 @@ class WeatherArb:
                                            "no_quote": _nq, "pair_sum": _psum,
                                            "merge_margin": round(1.0 - _psum, 3),
                                            "no_fillable": _nq >= _nbid})
+                                    # ── LIVE same-bucket pairing (badatmath co-fill
+                                    # engine): post the NO leg on the SAME bucket so the
+                                    # pair can merge to $1. Gates: ≥8¢ merge margin
+                                    # (Σ bids ≤ cap), NO bid within MAX_BEHIND of touch
+                                    # (fill-prob floor), cash + NO daily cap + dedup.
+                                    # Either leg alone is a validated YES-band / favorite-
+                                    # NO position, so downside is bounded.
+                                    if (BAND_PAIR_SAMEBUCKET and BAND_LIVE
+                                            and _nq >= 0.01
+                                            and _psum <= BAND_PAIR_SUM_MAX
+                                            and (_ntouch - _nq) <= BAND_PAIR_SB_MAX_BEHIND
+                                            and _nt not in _seen_band
+                                            and _nt not in getattr(
+                                                _risk_band, "open_positions", {})
+                                            and self._band_no_spent + _stk_no <= _no_cap):
+                                        _okp, _ = self._maker_cash_gate(_stk_no)
+                                        if _okp:
+                                            _np_sig = _types.SimpleNamespace(
+                                                token_id=_nt, quote_price=_nq,
+                                                stake=_stk_no, city=_sig.city,
+                                                bucket=getattr(_sig, "bucket", None),
+                                                days_out=_do)
+                                            _pre_n = len(getattr(
+                                                self, "_maker_resting", {}) or {})
+                                            try:
+                                                await self._struct_band_post_maker(
+                                                    _np_sig, _mkt, _nask, side="NO")
+                                            except Exception as e:
+                                                logger.error(
+                                                    "[STRUCT-BAND-PAIRSB] %s: %s",
+                                                    _sig.city, e)
+                                            if len(getattr(self, "_maker_resting", {})
+                                                   or {}) > _pre_n:
+                                                self._band_no_spent += _stk_no
+                                                _emit({"reason": "pair_samebucket",
+                                                       "cid": _mkt.get(
+                                                           "conditionId", ""),
+                                                       "city": _sig.city,
+                                                       "days_out": _do, "off": _offq,
+                                                       "yes_quote": _sig.quote_price,
+                                                       "no_quote": _nq,
+                                                       "pair_sum": _psum,
+                                                       "merge_margin": round(
+                                                           1.0 - _psum, 3)})
                         except Exception:
                             pass
             elif _kind == "NO":

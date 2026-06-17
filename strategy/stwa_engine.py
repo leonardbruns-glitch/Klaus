@@ -399,6 +399,20 @@ BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on comp
 # can estimate co-fill rate + real margin toward n>=100 before any live PAIR re-rank.
 BAND_PAIR_SHADOW = True
 BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
+# 2026-06-17 SAME-BUCKET PAIRING (LIVE) — the badatmath co-fill engine. The 31-day
+# re-derivation (n=42,470 buys/7,955 resolved, analysis/weather/badatmath_audit/
+# TEARDOWN_31D.md) showed his merge velocity comes from quoting BOTH sides of the SAME
+# near-mode/shoulder bucket: 40% of his buckets are two-sided (Σ bids ~0.79-0.87) → merge
+# $1. Ours co-fill ~5% because the YES band (near-mode) and the favorite-NO overlay target
+# DISJOINT buckets. This flag posts a NO pair-leg on each YES band leg we post, bid down
+# only as far as needed to lock the merge margin (Σ bids ≤ BAND_PAIR_SUM_MAX = 0.92, ≥8¢/sh).
+# Either leg alone is already a validated position (YES band +7.6% / favorite-NO +3.7%,
+# n>=100 gate 06-17), and a completed pair merges to $1 calibration-free — so downside is
+# bounded. Shares the NO daily cap; posts ahead of the standalone NO overlay (mergeable
+# first). Revert: False (pair_shadow logging continues either way). Caveat: co-fill RATE is
+# conditional-on-fill — pair_samebucket emits validate it live toward his 40%.
+BAND_PAIR_SAMEBUCKET = True
+BAND_PAIR_SB_MAX_BEHIND = 0.10  # skip the NO pair-leg if locking the margin needs a bid > this below the NO touch (fill-prob floor)
 
 # ── DEAD-QUOTE RECLAIM (2026-06-11 audit) ────────────────────────────────────
 # One-post-per-token + no reprice = stale quotes the book walked AWAY from sit
