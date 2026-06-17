@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-17T06:29:46Z
+# Snapshot: 2026-06-17T06:44:59Z
 # Latest commit on klaus:
-64bf5083 feat(BAND): velocity-rank posting queue + restore NO reserve 0.25
+32d7e87d fix(BAND): reclaim phantom maker exposure from server-side-cancelled BUYs
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
