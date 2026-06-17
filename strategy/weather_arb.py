@@ -2858,7 +2858,9 @@ class WeatherArb:
                                           BAND_NO_MAX,
                                           band_no_daily_cap, BAND_NO_MAX_DOUT,
                                           BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX,
-                                          BAND_NO_CASH_RESERVE)
+                                          BAND_NO_CASH_RESERVE,
+                                          BAND_PROPORTIONAL_QUEUE,
+                                          BAND_CELL_WEIGHTS)
         if not BAND_LIVE:
             return
         _today_no = _now_utc.date().isoformat()
@@ -2976,6 +2978,34 @@ class WeatherArb:
                                 * (1.0 - BAND_NO_CASH_RESERVE))
         _yes_cash_used = 0.0
         _yes_resv_skip = 0
+        # ── PROPORTIONAL per-cell budgets (copy badatmath: blanket BOTH books × all
+        # horizons, let fills decide the mix). Supersedes the single YES/NO reserve
+        # above when on. Soft caps (BAND_CELL_WEIGHTS sum>1) so an empty cell spills
+        # to others; the _maker_cash_gate stays the hard global cap. Each cell gets a
+        # guaranteed floor ⇒ NO ranks + d+2 no longer starve.
+        _cell_spent: dict = {}
+        _cell_budget = None
+        if BAND_PROPORTIONAL_QUEUE and _free_b and float(_free_b) > 0:
+            _rb_c = (self._maker_breaker.exposure_usd()
+                     if hasattr(self, "_maker_breaker") else 0.0)
+            _headroom = max(0.0, MAKER_CASH_FRAC * float(_free_b) - _rb_c)
+            _cell_budget = {k: _headroom * v for k, v in BAND_CELL_WEIGHTS.items()}
+
+        def _cell_of(kind, do):
+            return (kind, 0) if kind == "PAIR" else (kind, int(do))
+
+        def _cell_ok(kind, do, stake):
+            if _cell_budget is None:
+                return True
+            cell = _cell_of(kind, do)
+            cap = _cell_budget.get(cell)
+            if cap is None:                       # unexpected horizon → d+2 cap
+                cap = _cell_budget.get((kind, 2), 0.0)
+            return _cell_spent.get(cell, 0.0) + float(stake) <= cap
+
+        def _cell_charge(kind, do, stake):
+            cell = _cell_of(kind, do)
+            _cell_spent[cell] = _cell_spent.get(cell, 0.0) + float(stake)
         _seen_n0 = len(getattr(self, "_maker_ex_seen", set()) or set())
         _risk_band = getattr(self.bot, "risk", None)
         _seen_band = getattr(self, "_maker_ex_seen", set())
@@ -2995,7 +3025,11 @@ class WeatherArb:
                 if not _okc:
                     _cash_preskip += 1
                     continue
-                if _yes_cash_used + _stk_this > _yes_cash_cap:
+                if _cell_budget is not None:
+                    if not _cell_ok("YES", _do, _stk_this):
+                        _yes_resv_skip += 1
+                        continue   # this YES cell's proportional budget is spent
+                elif _yes_cash_used + _stk_this > _yes_cash_cap:
                     _yes_resv_skip += 1
                     continue   # reserved for NO/PAIR ranks this cycle
                 if _books_yes <= 0:
@@ -3031,6 +3065,7 @@ class WeatherArb:
                                  _sig.city, e)
                 if len(getattr(self, "_maker_resting", {}) or {}) > _pre_y:
                     _yes_cash_used += _stk_this
+                    _cell_charge("YES", _do, _stk_this)
                     # ── PAIR-SHADOW (2026-06-15, measure-only): for each YES band
                     # leg we actually posted, fetch the real NO book once and log
                     # the would-be NO pair leg + merge margin on the SAME cond.
@@ -3076,7 +3111,8 @@ class WeatherArb:
                                             and _nt not in _seen_band
                                             and _nt not in getattr(
                                                 _risk_band, "open_positions", {})
-                                            and self._band_no_spent + _stk_no <= _no_cap):
+                                            and self._band_no_spent + _stk_no <= _no_cap
+                                            and _cell_ok("NO", _do, _stk_no)):
                                         _okp, _ = self._maker_cash_gate(_stk_no)
                                         if _okp:
                                             _np_sig = _types.SimpleNamespace(
@@ -3096,6 +3132,7 @@ class WeatherArb:
                                             if len(getattr(self, "_maker_resting", {})
                                                    or {}) > _pre_n:
                                                 self._band_no_spent += _stk_no
+                                                _cell_charge("NO", _do, _stk_no)
                                                 _emit({"reason": "pair_samebucket",
                                                        "cid": _mkt.get(
                                                            "conditionId", ""),
@@ -3118,6 +3155,8 @@ class WeatherArb:
                 if not _okc:
                     _cash_preskip += 1
                     continue
+                if not _cell_ok("NO", days_out, _stk_no):
+                    continue   # this NO cell's proportional budget is spent
                 _books_left -= 1
                 try:
                     _bk = await self._fetch_book_levels(nt, n=3)
@@ -3164,6 +3203,7 @@ class WeatherArb:
                     continue
                 if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
                     self._band_no_spent += _stk_no
+                    _cell_charge("NO", days_out, _stk_no)
             elif _kind == "PAIR":
                 _, days_out, (city, lo, hi, yt, nt, mkt), _x, _y = _item
                 if self._band_no_spent + _stk_no > _no_cap:
@@ -3177,6 +3217,8 @@ class WeatherArb:
                 if not _okc:
                     _cash_preskip += 1
                     continue
+                if not _cell_ok("PAIR", days_out, _stk_yes + _stk_no):
+                    continue   # PAIR cell's proportional budget is spent
                 if _books_left < 2:
                     continue
                 _books_left -= 2
@@ -3226,20 +3268,24 @@ class WeatherArb:
                     continue
                 if len(getattr(self, "_maker_resting", {}) or {}) > _pre:
                     self._band_no_spent += round(_shares * _qn, 2)
+                    _cell_charge("PAIR", days_out, _stk_yes + _stk_no)
         # per-cycle visibility: the 06-12 starvation hunt was blind because
         # every pre-fire death path was silent
         if _queue:
+            _cells_str = (" ".join(f"{k[0][0]}{k[1]}=${v:.0f}"
+                                   for k, v in sorted(_cell_spent.items()))
+                          if _cell_budget is not None else "rank")
             logger.info(
                 "[STRUCT-BAND-Q] queue=%d posted=%d cash_preskip=%d "
                 "books=%d/80 yes_books=%d/50 no_cands=%d pair_cands=%d "
-                "yes_resv_skip=%d yes_cap=%.2f",
+                "yes_resv_skip=%d mode=%s cells[%s]",
                 len(_queue),
                 max(0, len(getattr(self, "_maker_ex_seen", set()) or set())
                     - _seen_n0),
                 _cash_preskip, 80 - _books_left, 50 - _books_yes,
                 len(_no_cands), len(_pair_cands),
                 _yes_resv_skip,
-                _yes_cash_cap if _yes_cash_cap != float("inf") else -1.0)
+                "prop" if _cell_budget is not None else "rank", _cells_str)
 
     async def _stwa_resolution_loop(self) -> None:
         """Settle held-to-resolution WEATHER_STWA positions.

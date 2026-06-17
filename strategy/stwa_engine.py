@@ -372,6 +372,24 @@ BAND_NO_CASH_RESERVE = 0.25  # 2026-06-16: 0.0->0.25 (velocity re-balance, see w
                              # over-rotating to a +3.3%-selection leg. Not 0.40 (that abandons YES, which
                              # the n=2740 selection data still favors). Revisit once realized-fill ROI by
                              # side is measurable at n>=100. Revert: 0.0 (YES-only) / 0.50 (his half-NO book).
+# ── PROPORTIONAL POSTING (2026-06-17) — copy badatmath's "post BOTH books across all
+# 3 horizons, let fills decide the mix" instead of strict-rank "drain rank-1 first"
+# (which structurally starved NO ranks 3,4,6 and d+2 — measured 13% NO vs his ~50%).
+# He has NO fixed YES/NO ranking: he blankets the surface (his deploy ≈ d0/d1/d2 40/40/20,
+# YES/NO ≈ 50/50) and the realized split emerges from which side the market hits. We can't
+# post his whole surface at our cash, so we allocate the cycle's headroom across 6 cells
+# (YES/NO × d0/d1/d2) + PAIR by SOFT weights (sum>1 so empty cells spill; the global cash
+# gate is the hard cap). Weights lean to ROI/cap-day (his d+1 YES +18.7%, d+0 YES +12.2%,
+# d+2 YES +19.2%/2d; NO d+1 +6.1%, d+2 +6.7%, d+0 +0.3% breakeven) but every cell gets a
+# guaranteed floor ⇒ NO/d+2 no longer starve. ⚠ ON-RECORD: proportional blanketing spreads
+# our scarce cash thinner than the velocity-rank ⇒ may LOWER turns/day while cash-bound;
+# user directive (copy his composition). Revert: BAND_PROPORTIONAL_QUEUE=False (→ strict rank).
+BAND_PROPORTIONAL_QUEUE = True
+BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
+    ("PAIR", 0): 0.20,
+    ("YES", 1): 0.24, ("YES", 0): 0.18, ("YES", 2): 0.16,
+    ("NO", 1): 0.22,  ("NO", 2): 0.14,  ("NO", 0): 0.10,
+}
 # 2026-06-11 audit: overlay now includes EDGE buckets (or-below / or-higher) — his
 # NO 0.52-0.85 on edges = +5.7% (n=438) ≈ interiors +6.5% (n=3,877); they were
 # silently excluded by the interior-only iteration and they are his NO meat.
