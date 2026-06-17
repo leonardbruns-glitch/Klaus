@@ -661,6 +661,31 @@ class OrderManager:
             price = 0.0
         return (status, matched, price)
 
+    async def get_open_order_ids(self):
+        """Live set of resting order-ids on the CLOB — the source of truth for
+        'is this order still on the book'. Returns a set of id strings, or None
+        if the fetch fails (callers MUST treat None as 'unknown' and release
+        nothing). Used by the maker reconcile to reclaim phantom breaker exposure
+        from BUYs the CLOB balance engine cancelled server-side (neither a fill
+        nor a bot cancel, so get_order 404s and the old path pinned exposure for
+        days)."""
+        if self._client is None:
+            return None
+        try:
+            oo = await asyncio.to_thread(self._client.get_open_orders)
+        except Exception as exc:
+            logger.debug("get_open_order_ids failed: %s", exc)
+            return None
+        rows = oo if isinstance(oo, list) else (
+            (oo or {}).get("data") or (oo or {}).get("orders") or [])
+        ids = set()
+        for o in rows:
+            d = o if isinstance(o, dict) else (getattr(o, "__dict__", {}) or {})
+            oid = d.get("id")
+            if oid:
+                ids.add(str(oid))
+        return ids
+
     # kept as alias for backward compatibility with main.py
     async def market_buy(
         self,

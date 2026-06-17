@@ -291,6 +291,11 @@ MAKER_RESTING_STATE_PATH = "logs/maker_resting_state.json"
 # open-order set when bid commitments exceed free USDC (18/18 band legs swept
 # at $50.10 resting vs $49.72 cash). Quote only what actual cash collateralizes.
 MAKER_CASH_FRAC = 0.90
+# Off-book reclaim grace (2026-06-17): when a tracked BUY is gone from BOTH the
+# per-order endpoint (get_order 404s → status None) AND the live open-order set,
+# release its phantom breaker exposure — but not within this window of placement,
+# so a just-posted order momentarily missing from a snapshot isn't dropped.
+MAKER_OFFBOOK_GRACE_SEC = 120.0
 # ── PEAKSCALP Phase-0 SHADOW (2026-06-12, user GO) ────────────────────────────
 # Winner-bucket convergence scalp candidate: once q(city, month, local_hour,
 # headroom-to-ceiling) ≥ gate for the bucket CONTAINING the OFFICIAL running
@@ -1976,6 +1981,14 @@ class WeatherArb:
         orders = self.bot.orders
         breaker = getattr(self, "_maker_breaker", None)
         dirty = False
+        # Live open-order set (source of truth). Phantom breaker exposure builds
+        # up when the CLOB balance engine cancels resting BUYs server-side: that
+        # is neither a fill nor a bot cancel, get_order then 404s (status None),
+        # and the only release path was a >24h-past-end_date reap — so exposure
+        # stayed pinned for days, strangling the cash gate (2026-06-17: ~$22 of
+        # ~33 dead ids phantom while ~$27 of free USDC sat idle, posted=0). A
+        # SUCCESSFUL fetch lets us release ids that are confirmably off-book now.
+        _live_ids = await orders.get_open_order_ids()
         for oid in list(resting.keys()):
             ctx = resting[oid]
             if str(ctx.get("side") or "") == "SELL_EXIT":
@@ -1987,6 +2000,34 @@ class WeatherArb:
                 continue
             status, matched, fill_price = await orders.get_order_match(oid)
             if status is None:
+                # Off-book reclaim (2026-06-17): status None means get_order
+                # RAISED (order not individually fetchable → truly gone, not just
+                # paginated out). If a SUCCESSFUL live-book fetch also lacks the
+                # id, the order is off-book now (server-side sweep / cancel) — two
+                # independent signals — so release the phantom resting exposure
+                # immediately instead of waiting 24h past end_date. Grace window
+                # guards against a just-posted order momentarily absent from a
+                # snapshot. Both signals required: if the open-book fetch failed
+                # (_live_ids is None) we fall through to the end_date reap.
+                _age = time.time() - float(ctx.get("ts") or 0.0)
+                if (_live_ids is not None and oid not in _live_ids
+                        and _age > MAKER_OFFBOOK_GRACE_SEC):
+                    if breaker is not None:
+                        try:
+                            breaker.release(oid)
+                        except Exception:
+                            pass
+                    resting.pop(oid, None)
+                    self._maker_ex_seen.discard(ctx.get("token_id"))
+                    dirty = True
+                    logger.warning(
+                        "[MAKER] off-book reclaim %s %s — released $%.2f phantom "
+                        "resting exposure (gone from live book + get_order 404)",
+                        ctx.get("city"), str(oid)[:12],
+                        float(ctx.get("q_price") or 0.0) * max(
+                            float(ctx.get("size") or 0.0)
+                            - float(ctx.get("matched") or 0.0), 0.0))
+                    continue
                 # REAP (2026-06-12): a long-resolved market's order can't be
                 # fetched anymore — "retry next pass" loops forever and the entry
                 # pins breaker exposure (= cash-gate headroom) for days (3 stale
