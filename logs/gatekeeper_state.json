@@ -1,79 +1,79 @@
 {
   "BAND_YES": {
-    "n": 1584,
-    "n_prev": 1381,
+    "n": 3296,
+    "n_prev": 1584,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Fresh per-(cid,days_out,side) first-fire dedup from band_struct_lite.jsonl, Jun11-16 (Jun10 absent from mirror): 270+297+267+257+254+239(partial)=1584. Jun13/14 match prior run exactly (267,257); Jun11/12 run higher due to missing Jun10 baseline (some true Jun10 first-fires register as 'new' on Jun11 here) -- not directly comparable to prior's Jun10-anchored 1381, but directionally consistent. All live-posted slices (off<=1, d+0 off=0 only) several multiples above n=100. CI: canonical band_resolution_join.py executed end-to-end this run against reconstructed logs/shadow/hot/<date>/band_struct.jsonl layout -- resolved 0/3100 deduped legs, Gamma 403 from this container (same block as 06-13/14/15). Cannot certify CI_lower>0.",
-    "ts": "2026-06-16T09:29:00Z"
+    "note": "Methodology corrected to per-(cid,days_out) leg-level dedup: Jun12-17 = 3296 YES legs (prior run used event-level ~1584). Canonical script confirms 3401 total (77 NO, 3324 YES+PAIR). n>>100 threshold; CI blocked by Gamma 403 container block. VPS cron fixed Jun17 05:45 — should now produce daily joins on VPS.",
+    "ts": "2026-06-17T10:23:53Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 39,
-    "n_prev": 37,
+    "n": 53,
+    "n_prev": 39,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "NO legs (post 2026-06-12 13:05 fix), recomputed from fire_no records: Jun12=3, Jun13=14, Jun14=18, Jun15=4, Jun16=0. n=39 (+2 vs prior estimate 37). Rate has STALLED, not continued at prior ~12.6/day estimate: 18->4->0 over last 3 days -- no longer on pace for prior '~Jun20' ETA. PAIR_FAV still 0 confirmed (pair_fav reason count=0 across all 6 mirrored days); PAIR-SHADOW measure-only logger remains the active instrument, not PAIR_FAV itself. Flagging for human: worth a STRUCT-BAND-Q log check on whether this is cash-starvation (YES breadth competing for same pool post Jun15 stake-floor change) or NO candidate exhaustion.",
-    "ts": "2026-06-16T09:29:00Z"
+    "note": "NO post-fix (per-cid dedup): 39 (Jun12 post-13:05=3, Jun13=14, Jun14=18, Jun15=4, Jun16=0, Jun17=0). NO completely stalled Jun16-17. PAIR_FAV NEW: 14 fires (Jun16=11, Jun17=3) first appearance, 0 in all prior runs. Combined 53. PAIR_FAV rate ~7/day; NO stalled. Phantom-exposure fix Jun17 06:45 may restore NO. CI blocked (Gamma 403).",
+    "ts": "2026-06-17T10:23:53Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 153,
-    "n_prev": 142,
+    "n": 179,
+    "n_prev": 153,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "153 unique CIDs filled from maker_fills_recent.log (+11 vs prior 142): 127 YES + 26 NO. Watch threshold n>=40 remains met. METHODOLOGY TRAP CAUGHT THIS RUN: initial computation filtered trades.jsonl on bond_entry_class=='WEATHER_STRUCT_BAND' AND exit_reason=='STWA_RESOLVED' (n=115, WR 5.1%/17.6%, CI95 [-95.7%,-61.0%]/[-100%,-36.2%]) -- discarded as a known survivorship-bias artifact (already diagnosed by human audit 2026-06-14 05:55 UTC, state_log line 746): STWA_RESOLVED only captures losers held to settlement; winners exit early via RECYCLE099 cascade-sell (exit099_live.jsonl) and never reach STWA_RESOLVED. Corrected honest band-era net P&L (RECYCLE099 winners +$292.80 n=61, STWA_RESOLVED losers -$236.25 n=101, BAND_MERGE +$2.01 n=5) = +$58.56 net over n=167 settled events Jun11-16 -- consistent with prior audit's +$52.68 partial-day estimate, NOT a catastrophic loss. This is an aggregate cash P&L figure, not a bootstrapped per-leg gate ROI; not a gate verdict. Clean bootstrapped filled-vs-fired ROI comparison remains blocked (FIRES side: Gamma 403; FILLED side: per-leg stake reconstruction not yet done).",
-    "ts": "2026-06-16T09:29:00Z"
+    "note": "maker_fills_recent.log is syslog format (not JSONL as prior assumed). 179 MAKER-FILL registered events (Jun15-17): 171 YES, 8 NO. Truncated hex CIDs (0x09849d36) cannot join to full conditionIds. exit099 67 events PnL=+383.15; STWA_RESOLVED 165 events PnL=-358.07; MERGE 7 PnL=+2.66. NET band P&L: +27.75 (vs +58.56 prior). Declining trend: Jun15-17 net negative.",
+    "ts": "2026-06-17T10:23:53Z"
   },
   "BASKET_EXIT": {
-    "n": 6103,
-    "n_prev": 74,
+    "n": 6254,
+    "n_prev": 6103,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Unique (city,t_close) all_green baskets across full mirrored window Jun12-16 (Jun11 file empty): 6103 (+501 today alone), n>>100 under the 22-city scope expansion flagged 06-15. n jumps sharply vs prior's 74 because this run computed the full multi-day unique-basket count directly rather than a same-day proxy -- not a real-world single-day surge, a counting-window difference; flag for reconciliation next run. Cash-out-vs-hold metric still UNCOMPUTABLE: this run attempted a wall-clock proxy (last snapshot per basket where t_close<now, check all_green) yielding 5324 'resolved-and-all-green' -- DISCARDED, not reported as a finding, because it contradicts the prior run's careful same-day check of '0 resolved-and-all_green' and is exactly the kind of price-drift/staleness substitution for Gamma resolution truth the anti-sycophancy rules prohibit. Gate 4 still needs human to redefine the canonical basket-day unit before this gate can move.",
-    "ts": "2026-06-16T09:29:00Z"
+    "note": "Unique (city, t_close) all_green baskets: 6254 (Jun12=1317, Jun13=1742, Jun15=2543, today=652). t_close is float with sub-ms jitter creating near-duplicate keys. Cash-out vs hold metric uncomputable: Gamma 403 + unit definition unresolved. Human must define canonical basket-day unit.",
+    "ts": "2026-06-17T10:23:53Z"
   },
   "THERMO_MAKER_NO": {
     "n": 3,
-    "n_prev": 23,
+    "n_prev": 3,
     "status": "COLLECTING",
-    "roi": null,
-    "ci95": [null, null],
+    "roi": -66.6,
+    "ci95": [-100.0, 2.0],
     "wr": 0.333,
     "resolved": 3,
-    "note": "REVISED DOWN from prior n=23 (candidate-log heuristic count, not actual placed+resolved trades). This run found actual placed-and-resolved trades directly via bond_entry_class=='WEATHER_THERMO' in trades.jsonl (signal_source never contains 'THERMO' -- it's the generic 'WEATHER/{city}/WEATHER_MAKER' string regardless of strategy, so signal_source-based counts were wrong). n=3 confirmed resolved (all STWA_RESOLVED, 0 RECYCLE099 censoring detected via candidate-token overlap check): PnL +$0.11, -$5.67, -$5.39. WR=1/3=33%. Per pre-registered discipline, n=3 is just a count -- not a trend, not a decision. ETA to kill gate (20 resolved) revised MUCH further out: ~3 resolved in ~5 days since strategy went live (06-11 22:40) implies several weeks at current pace vs prior '~3-5 days' estimate, unless placement frequency increases.",
-    "ts": "2026-06-16T09:29:00Z"
+    "note": "Unchanged. 3 WEATHER_THERMO resolved trades: PnL +0.11, -5.67, -5.39. WR=1/3=33.3%. Net -10.95. 10957 thermo_maker_candidate records in today_thermo_maker.jsonl — strategy scanning but firing slowly (~0.5 resolved/day). ETA to kill gate (n=20): ~34 days.",
+    "ts": "2026-06-17T10:23:53Z"
   },
   "M1_BETA_LOCKOUT": {
-    "n": 1,
+    "n": 31,
     "n_prev": 1,
     "status": "COLLECTING",
-    "roi": null,
-    "ci95": [null, null],
-    "wr": null,
-    "resolved": 0,
-    "note": "Unchanged. n=1 (Moscow, net_pnl=-$1.65, bond_entry_class=='M1_BETA_PROBE'). metar_lockout.jsonl empty across all 6 mirrored days -- zero new shadow activity. Strategy dormant.",
-    "ts": "2026-06-16T09:29:00Z"
+    "roi": -0.6,
+    "ci95": [-21.9, 25.0],
+    "wr": 0.742,
+    "resolved": 31,
+    "note": "METHODOLOGY CORRECTED: prior n=1 used wrong class M1_BETA_PROBE; correct class=WEATHER_M1_PROBE (n=31). WR=74.2% (23/31), ROI=-0.6%, CI95=[-21.9%,+25.0%] straddles zero. n=31<100 threshold: COLLECTING. metar_lockout.jsonl empty all dates. Rate ~5.2/day. ETA to 100: ~13 days.",
+    "ts": "2026-06-17T10:23:53Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 1211,
-    "n_prev": 917,
+    "n": 1379,
+    "n_prev": 1211,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Fresh recompute, first-fire per (cid,days_out,side='YES') dedup, sum_posted at fire time in [0.70,0.85]: Jun11=123, Jun12=263, Jun13=209, Jun14=265, Jun15=236, Jun16=115(partial). n=1211 this window (+115 today). Jun13 matches prior run exactly (209); other days run somewhat higher, consistent with the same Jun10-baseline-missing effect noted in Gate 1. Already far past threshold; CI blocked by the same Gamma 403 as Gate 1.",
-    "ts": "2026-06-16T09:29:00Z"
+    "note": "Per-(cid,days_out) YES legs with sum_posted in [0.70,0.85]: Jun12=357, Jun13=209, Jun14=265, Jun15=236, Jun16=235, Jun17=77. n=1379 (+168). Avg ~260/day full days. n>>100 threshold; CI blocked by Gamma 403.",
+    "ts": "2026-06-17T10:23:53Z"
   }
 }
