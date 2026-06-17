@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-06-17T11:01:38Z
+# Snapshot: 2026-06-17T11:16:39Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -54,5 +54,5 @@
 447:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
 448:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
 473:BAND_MERGE_ENABLED    = True
-474:BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
-475:BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
+474:BAND_MERGE_MIN_SHARES = 3.0   # 2026-06-17: 5→3 (velocity). With same-bucket pairing live, pairs
+479:BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
