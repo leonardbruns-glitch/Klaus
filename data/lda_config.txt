@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-17T10:46:21Z
+# Snapshot: 2026-06-17T11:01:38Z
 # Latest commit on klaus:
-32d7e87d fix(BAND): reclaim phantom maker exposure from server-side-cancelled BUYs
+fa61ea69 feat(BAND): same-bucket pair-quoting — post NO leg on each YES band leg (badatmath co-fill engine)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
