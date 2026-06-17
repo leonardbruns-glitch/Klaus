@@ -2779,15 +2779,18 @@ class WeatherArb:
             # σ window: his per-city table loses exactly where true dispersion
             # dies (Singapore −16.7%) or explodes (coin-flip cities) — gate
             # 0.95 ≤ σ(city,month) ≤ YES_SIGMA_CUTOFF.
+            # 2026-06-17 σ-SKILL GATE REMOVED (analysis/weather/badatmath_audit/
+            # gate_audit.py): replayed on his n=1,126 resolved near-mode YES fills,
+            # the σ∉[0.95,1.40] slice this gate rejected was +11.8% ROI ($21.3k =
+            # 55% of his near-mode volume). It EXCLUDED his best cities (London
+            # σ0.82 +74%, Amsterdam 0.66 +64%, Paris 0.87 +49%, Taipei 1.54 +33%)
+            # while ADMITTING losers (Wuhan σ1.38 −27%) ⇒ σ is anti-predictive of
+            # band ROI. The gate was inherited from the directional single-bucket
+            # YES path, but the dispersion BAND harvest is RICHEST at low σ (a tight
+            # true distribution is exactly where the market over-disperses most).
+            # Convergence + Σ + price gates already protect the −EV slices
+            # (convergence-rejected near-mode YES verified at −34.5%). Revert: git.
             _live_ok = BAND_LIVE and days_out >= BAND_MD_LIVE_MIN_DOUT
-            if _live_ok:
-                try:
-                    _calib = getattr(self._stwa, "_peak_calib", None) if self._stwa else None
-                    _sg = _peak_sigma_for(_calib, city, datetime.now(timezone.utc).month) if _calib else None
-                    if _sg is not None and not (0.95 <= _sg <= YES_SIGMA_CUTOFF):
-                        _live_ok = False
-                except Exception:
-                    pass
             quotes = []
             for lo, hi, tok, ay, mkt in band:
                 off = abs(int(round(lo - mode_lo)))
