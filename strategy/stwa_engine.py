@@ -471,7 +471,11 @@ def band_no_daily_cap(capital: float) -> float:
 # same-day (Jun 9-11 pull). Needs a few $ of POL gas in the EOA; ungated
 # otherwise — a merge is strictly cash-positive (no fee, no market risk).
 BAND_MERGE_ENABLED    = True
-BAND_MERGE_MIN_SHARES = 5.0   # don't bother below this (gas ~$0.01-0.03/tx)
+BAND_MERGE_MIN_SHARES = 3.0   # 2026-06-17: 5→3 (velocity). With same-bucket pairing live, pairs
+                              # rarely co-fill both legs fully ⇒ mergeable overlap min(yes_sh,no_sh)
+                              # is often 3-5; at 5 those partial pairs waited for resolution instead
+                              # of recycling. A 3-share merge frees $3 cash + locks ≥8¢/sh (our pairs
+                              # are Σ≤0.92) for ~$0.02 gas. BAND_MERGE_MIN_EDGE 0.03 still skips dust.
 BAND_MERGE_MIN_EDGE   = 0.03  # require 1 − entry_y − entry_n ≥ this (pairs near Σ=1
                               # are better left to settle; merging them just spends gas)
 
