@@ -276,7 +276,10 @@ BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge
                                     # gated, BAND_MD_DAILY_BUDGET-capped. Evidence: his n=8,043 resolved
                                     # tokens ground truth; worst-case bound = Σask<0.70 vs mode±band hit
                                     # ~0.84 ⇒ +EV even at ask-1¢ fills. Revert: False
-BAND_PX_CEIL        = 0.45          # never quote a YES leg whose ask is above this (badatmath p99=0.44; >0.50 = -EV)
+BAND_PX_CEIL        = 0.25          # 2026-06-18 (user): 0.45→0.25. OUR realized net by entry-px (band_net_attribution.py):
+                                    # [0.10,0.22] +35% but [0.22,0.45] −10..−28% — our upper YES band is −EV (adverse fill on
+                                    # near-mode YES that converges away; CONTRADICTS badatmath's +19% there). Ceiling 0.25 keeps
+                                    # the working cheap-YES zone, cuts the bleed. PAIR_FAV is EXEMPT (merge-intent, own window). Was 0.45.
 BAND_PX_MIN         = 0.10          # d+0 floor. 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05)
                                     # −11.9%, [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%.
                                     # d+0 cheap stays dead post-inflection too: 0.05-0.10@d0 −7.4% (n=1364).
@@ -397,12 +400,16 @@ BAND_NO_CASH_RESERVE = 0.0   # 2026-06-18: 0.25->0.0 — LIVE-MEASURED [STRUCT-B
 BAND_PROPORTIONAL_QUEUE = True
 BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
     ("PAIR", 0): 0.20,
-    ("YES", 0): 0.24, ("YES", 2): 0.22, ("YES", 1): 0.12,  # 2026-06-18: per-CAPITAL-DAY re-weight.
+    ("YES", 0): 0.14, ("YES", 2): 0.14, ("YES", 1): 0.08,  # 2026-06-18 (user): REDIRECT VOL TO FAV-NO.
+    # YES sum .58→.36, NO sum .44→.64. Our realized YES net −4.9% (n=299) vs NO +7.2% (n=97) — lean on the
+    # working leg. (Earlier 06-18 per-capital-day re-weight superseded; days-out tilt kept proportionally.)
     # D6 days-out ROI (decision-grade, verifier-confirmed): d+0 YES +19.8% resolves SAME-DAY (fastest
     # recycle ⇒ velocity, the binding gap) > d+2 +30.4% (highest edge, his most under-funded leg) >>
     # d+1 +7.2% (weakest edge AND a 1-day cash lock). Old weights over-funded d+1 (the worst per-cap-day
     # leg). Spill (cell sum>1) covers d+0 mode-only scarcity / converged-favorite skips.
-    ("NO", 1): 0.27,  ("NO", 2): 0.17,  ("NO", 0): 0.0,   # 2026-06-18: d+0 NO standalone overlay is
+    ("NO", 1): 0.38,  ("NO", 2): 0.26,  ("NO", 0): 0.0,   # 2026-06-18 (user): NO sum .44→.64 — redirect
+    # volume from the −EV upper YES band to the +EV favorite-NO (realized +7.2%). d+0 NO still 0 (−EV). Prior:
+    # 2026-06-18: d+0 NO standalone overlay is
     # PROVEN −EV (badatmath d+0 NO −3.2%, n=1563) → weight 0; the 0.10 spilled to the +EV d+1/d+2 NO
     # horizons (+7.9%/+10.9%). d+0 PAIR legs are unaffected (separate ("PAIR",0) cell).
 }
