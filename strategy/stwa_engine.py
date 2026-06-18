@@ -276,10 +276,12 @@ BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge
                                     # gated, BAND_MD_DAILY_BUDGET-capped. Evidence: his n=8,043 resolved
                                     # tokens ground truth; worst-case bound = Σask<0.70 vs mode±band hit
                                     # ~0.84 ⇒ +EV even at ask-1¢ fills. Revert: False
-BAND_PX_CEIL        = 0.25          # 2026-06-18 (user): 0.45→0.25. OUR realized net by entry-px (band_net_attribution.py):
-                                    # [0.10,0.22] +35% but [0.22,0.45] −10..−28% — our upper YES band is −EV (adverse fill on
-                                    # near-mode YES that converges away; CONTRADICTS badatmath's +19% there). Ceiling 0.25 keeps
-                                    # the working cheap-YES zone, cuts the bleed. PAIR_FAV is EXEMPT (merge-intent, own window). Was 0.45.
+BAND_PX_CEIL        = 0.44          # 2026-06-18 (user): 0.25→0.44 — RE-ADMIT the full near-mode YES band. Reverses the
+                                    # 11:45 cut (0.45→0.25, made on realized [0.22,0.45] −10..−28%) now that the posture is
+                                    # different: d+2-prioritized breadth + off±2 wings + cheap off2 unfloored, fed into merge,
+                                    # NOT the bleeding upper-band-near-mode-converging-away leg. ⚠ re-admits the [0.25,0.44]
+                                    # slice that bled in the n<100 attribution — watch band_net_attribution.py by entry-px.
+                                    # PAIR_FAV is EXEMPT (merge-intent, own window). Was 0.25 (was 0.45 before that).
 BAND_PX_MIN         = 0.10          # d+0 floor. 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05)
                                     # −11.9%, [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%.
                                     # d+0 cheap stays dead post-inflection too: 0.05-0.10@d0 −7.4% (n=1364).
@@ -293,6 +295,11 @@ BAND_PX_MIN_MD      = 0.03          # 2026-06-11 (user challenged the 0.10 floor
                                     # <0.05 +337.9% (n=524). Mechanism = buying tomorrow's shoulders before
                                     # the market prices them (revision mean-reversion + tail convexity).
                                     # 0.03 floor avoids 0.01-0.02 dust where one tick = 50% of price.
+BAND_PX_MIN_OFF2_D2 = 0.01          # 2026-06-18 (user "off2 should have no limit at d+2 min ask"): the off2
+                                    # (mode±2) YES wing at d+2 has NO min-ask floor — postable down to the CLOB
+                                    # tick (0.01). These are the deepest, cheapest, longest-lead shoulders =
+                                    # max tail convexity + merge-pair fodder; <0.05@d1/d2 was +337.9% (n=524).
+                                    # off0/off1 at d+2 KEEP the 0.03 floor (live gate); only |off|≥2 d+2 unfloored.
 BAND_WING           = 2            # band = market-mode ± this (≤5 legs, his median width 5°)
 BAND_SUM_MAX        = 0.85          # fire only if Σ ask of the POSTED legs (|off| ≤ BAND_YES_MAX_OFF) < this.
                                     # 2026-06-11 BASKET-MISMATCH FIX: the old 0.70 gate summed the full ±2
@@ -375,7 +382,12 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
                             # budget; the cash gate is the real constraint. Was 12.0
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-BAND_NO_CASH_RESERVE = 0.0   # 2026-06-18: 0.25->0.0 — LIVE-MEASURED [STRUCT-BAND-Q] yes_resv_skip=78-82/cycle:
+BAND_NO_CASH_RESERVE = 0.30  # 2026-06-18 (user days-out-priority queue): 0.0->0.30. With BAND_PROPORTIONAL_QUEUE
+                             # back OFF (strict rank), the reserve is the ONLY mechanism that funds the favorite-NO
+                             # leg — w/o it, rank-0 d+2 YES eats 100% of headroom and "and the nofav" never fires.
+                             # 0.30 = YES gets 70% of cycle headroom (primary: "buy all the yes"), favorite-NO 30%
+                             # (secondary, but planted at every days-out tranche). Replaces the 11:45 NO-heavy CELL
+                             # weights (dormant while proportional=OFF). Revert: 0.0 (YES-only). Prior note (0.0):
                              # the reserve cap was the BINDING throttle, rejecting ~80 +EV YES legs/cycle (the
                              # legs that FEED same-bucket pairs→merge→same-day recycle; merges=0 today, the freeze
                              # loop). Proportional cell weights already split the book (NO≈.46); the reserve was a
@@ -401,7 +413,11 @@ BAND_NO_CASH_RESERVE = 0.0   # 2026-06-18: 0.25->0.0 — LIVE-MEASURED [STRUCT-B
 # guaranteed floor ⇒ NO/d+2 no longer starve. ⚠ ON-RECORD: proportional blanketing spreads
 # our scarce cash thinner than the velocity-rank ⇒ may LOWER turns/day while cash-bound;
 # user directive (copy his composition). Revert: BAND_PROPORTIONAL_QUEUE=False (→ strict rank).
-BAND_PROPORTIONAL_QUEUE = True
+BAND_PROPORTIONAL_QUEUE = False   # 2026-06-18 (user days-out priority): True->False. Proportional HARD-CAPS each
+                                  # cell at its weight (no real spill) → it PREVENTS prioritizing d+2 (caps it). User
+                                  # wants capital prioritized d+2 > d+1 > d+0 (sequential), so revert to STRICT RANK
+                                  # (queue sorted by _rank_yes/_rank_no, d+2 first) + BAND_NO_CASH_RESERVE for the NO
+                                  # leg. Cell weights below now DORMANT. Revert: True.
 BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
     ("PAIR", 0): 0.20,
     ("YES", 0): 0.14, ("YES", 2): 0.14, ("YES", 1): 0.08,  # 2026-06-18 (user): REDIRECT VOL TO FAV-NO.

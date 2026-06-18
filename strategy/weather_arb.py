@@ -2653,6 +2653,7 @@ class WeatherArb:
             BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
             BAND_REALBOOK_YES, BAND_PAIR_FAV_ENABLED, BAND_PAIR_FAV_YES_MIN,
             BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX, BAND_PX_MIN_MD,
+            BAND_PX_MIN_OFF2_D2,
             BAND_PAIR_SHADOW, BAND_PAIR_SHADOW_MARGIN,
             BAND_PAIR_SAMEBUCKET, BAND_PAIR_SB_MAX_BEHIND)
 
@@ -2723,7 +2724,14 @@ class WeatherArb:
             # days-out-aware price floor (2026-06-11, user challenge): d+1/d+2
             # admit cheap shoulders down to BAND_PX_MIN_MD (+44.9% ex-explosion,
             # n=652); d+0 keeps the 0.10 floor (cheap@d0 −7.4%, n=1364).
-            _px_min = BAND_PX_MIN if days_out == 0 else BAND_PX_MIN_MD
+            # 2026-06-18 (user): at d+2 drop the scan floor to the CLOB tick so deep
+            # cheap off2 wings ENTER the band (they were pre-filtered out below 0.03).
+            # off0/off1 at d+2 are re-floored at the live gate (BAND_PX_MIN_MD); only
+            # |off|≥2 actually posts below 0.03. Mode = max-ask, unaffected by admitting
+            # cheaper buckets; this just makes index-distance == degree-distance.
+            _px_min = (BAND_PX_MIN if days_out == 0
+                       else BAND_PX_MIN_OFF2_D2 if days_out == 2
+                       else BAND_PX_MIN_MD)
             valid = [(e[0], e[1], e[2], e[3], e[4]) for e in ladder
                      if e[0] > -900.0 and e[1] < 900.0
                      and _px_min <= e[3] <= BAND_PX_CEIL]
@@ -2929,17 +2937,18 @@ class WeatherArb:
         # binding constraint is turnover, not per-bet edge (badatmath compounded
         # ~$200->$10k in 20d via ~daily turnover, not bigger bets). From the
         # n=2740 band_resolution_join (conditional-on-fill selection ROI):
-        #   PAIR_FAV : risk-free, SAME-DAY mergeable -> highest velocity. rank 0
-        #   d+1 YES  : +8.5%/trade / 1d = +8.5%/cap-day. rank 1
-        #   d+2 YES  : +16.0%/trade / 2d = +8.0%/cap-day (locks capital 2x). rank 2
-        #   d+1 NO   : +3.3%/trade / 1d = +3.3%/cap-day; resolves fast +
-        #              realized-positive (diversifier). rank 3
-        #   d+2 NO : rank 4    d+0 YES : rank 5    d+0 NO : rank 6
-        # Was d+2-YES-first (06-11): slowest capital + held-loser sink ranked
-        # FIRST -> drained the book into 2-day longshots that mostly resolve $0.
+        # 2026-06-18 (user) DAYS-OUT CAPITAL PRIORITY — fund d+2 first, then d+1,
+        # then d+0; within each days-out, YES (mode + off±2) then favorite-NO. The
+        # NO leg is funded out of BAND_NO_CASH_RESERVE so d+2 YES (rank 0) can't
+        # starve "and the nofav (d+2)". PAIR_FAV de-prioritized to LAST (rank 6):
+        # "merge comes with more capital deployed which needs more legs first" —
+        # let merge emerge from co-filled directional legs, don't spend scarce
+        # cash chasing converged-favorite pairs now.
+        #   d+2 YES rank 0  >  d+2 NO rank 1  >  d+1 YES rank 2  >  d+1 NO rank 3
+        #   >  d+0 YES rank 4  >  d+0 NO rank 5  >  PAIR_FAV rank 6
         # Tiebreak: lower Σ(posted) first (deeper band discount), then |off|.
-        _rank_yes = {1: 1, 2: 2, 0: 5}
-        _rank_no = {1: 3, 2: 4, 0: 6}
+        _rank_yes = {2: 0, 1: 2, 0: 4}
+        _rank_no = {2: 1, 1: 3, 0: 5}
         _queue = []
         for _do, _sp, _off, _sig, _mkt, _ay in _live_legs:
             _queue.append((_rank_yes.get(_do, 2), _sp, _off,
@@ -2948,7 +2957,7 @@ class WeatherArb:
             _queue.append((_rank_no.get(_do, 4), 0.0, _off,
                            ("NO", _do, (city, lo, hi, yt, nt, mkt), None, None)))
         for _do, city, lo, hi, yt, nt, mkt in _pair_cands:
-            _queue.append((0, 0.0, 0,
+            _queue.append((6, 0.0, 0,
                            ("PAIR", _do, (city, lo, hi, yt, nt, mkt), None, None)))
         _queue.sort(key=lambda t: (t[0], t[1], t[2]))
         _no_cap = band_no_daily_cap(_capital)
@@ -3047,7 +3056,15 @@ class WeatherArb:
                         # re-validate the price window on the REAL ask (gamma
                         # proxies drift; crossing a stale proxy = taker fill);
                         # days-out-aware floor matches the scan filter
-                        _pxm = BAND_PX_MIN if _do == 0 else BAND_PX_MIN_MD
+                        # 2026-06-18 (user): off2 (|off|≥2) at d+2 has NO min-ask floor
+                        # (post down to the CLOB tick); off0/off1 keep the 0.03 d+1/d+2
+                        # floor; d+0 keeps 0.10.
+                        if _do == 0:
+                            _pxm = BAND_PX_MIN
+                        elif _do == 2 and _offq >= 2:
+                            _pxm = BAND_PX_MIN_OFF2_D2
+                        else:
+                            _pxm = BAND_PX_MIN_MD
                         if not (_pxm <= _ra <= BAND_PX_CEIL):
                             continue
                         _rb = (float(_bk["bids"][0]["price"])
