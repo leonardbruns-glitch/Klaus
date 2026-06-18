@@ -392,7 +392,11 @@ BAND_NO_CASH_RESERVE = 0.0   # 2026-06-18: 0.25->0.0 — LIVE-MEASURED [STRUCT-B
 BAND_PROPORTIONAL_QUEUE = True
 BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
     ("PAIR", 0): 0.20,
-    ("YES", 1): 0.24, ("YES", 0): 0.18, ("YES", 2): 0.16,
+    ("YES", 0): 0.24, ("YES", 2): 0.22, ("YES", 1): 0.12,  # 2026-06-18: per-CAPITAL-DAY re-weight.
+    # D6 days-out ROI (decision-grade, verifier-confirmed): d+0 YES +19.8% resolves SAME-DAY (fastest
+    # recycle ⇒ velocity, the binding gap) > d+2 +30.4% (highest edge, his most under-funded leg) >>
+    # d+1 +7.2% (weakest edge AND a 1-day cash lock). Old weights over-funded d+1 (the worst per-cap-day
+    # leg). Spill (cell sum>1) covers d+0 mode-only scarcity / converged-favorite skips.
     ("NO", 1): 0.27,  ("NO", 2): 0.17,  ("NO", 0): 0.0,   # 2026-06-18: d+0 NO standalone overlay is
     # PROVEN −EV (badatmath d+0 NO −3.2%, n=1563) → weight 0; the 0.10 spilled to the +EV d+1/d+2 NO
     # horizons (+7.9%/+10.9%). d+0 PAIR legs are unaffected (separate ("PAIR",0) cell).
