@@ -332,7 +332,11 @@ BAND_REALBOOK_YES   = True          # 2026-06-11 (quote-watcher n=741 fill-joins
 #   NO  by |off|: 0 +23.2% (pair leg) / 1 −6.7% (n=1214) / ≥2 +13..+35%  ⇒ skip off1
 #   YES by dout:  d0 −3.4% (n=1531) / d1 +15.2% / d2 +56.5%  ⇒ d0 YES = pair leg only
 #   NO  by dout:  d1 +12.4% (n=996) > d2 +5.9% > d0 +1.5%    ⇒ extend overlay to d≤2
-BAND_YES_MAX_OFF    = 1             # YES legs only |off| ≤ this (wings flip to NO, they don't disappear)
+BAND_YES_MAX_OFF    = 2             # 2026-06-18 (user "add the off he does — we do only 2, he does more"):
+                                    # 1→2. Post YES at mode±2 (5 buckets, his p75 width) on d+1/d+2. SAFE because
+                                    # off2 = far-from-mode = CHEAP, so with PX_CEIL=0.25 these land in OUR +35%-realized
+                                    # cheap-YES zone [0.05,0.22], not the −EV upper band. Our off2 conditional +6.4%/+14.8%.
+                                    # d+0 still mode-only (BAND_YES_MAX_OFF_D0=0 — his d+0 YES bleed). Was 1.
 BAND_YES_MAX_OFF_D0 = 0             # d+0: YES only on the mode (the pair leg; standalone d0 YES is his bleed)
 BAND_PAIR_SUM_MAX   = 0.92          # same-bucket YES bid + NO bid hard cap ⇒ ≥$0.08/sh locked on a
                                     # completed pair (merge or settlement); his median pair 0.788-0.873
