@@ -363,7 +363,12 @@ BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at 
                             # budget; the cash gate is the real constraint. Was 12.0
 BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
 BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-BAND_NO_CASH_RESERVE = 0.25  # 2026-06-16: 0.0->0.25 (velocity re-balance, see weather_arb queue rerank).
+BAND_NO_CASH_RESERVE = 0.0   # 2026-06-18: 0.25->0.0 — LIVE-MEASURED [STRUCT-BAND-Q] yes_resv_skip=78-82/cycle:
+                             # the reserve cap was the BINDING throttle, rejecting ~80 +EV YES legs/cycle (the
+                             # legs that FEED same-bucket pairs→merge→same-day recycle; merges=0 today, the freeze
+                             # loop). Proportional cell weights already split the book (NO≈.46); the reserve was a
+                             # redundant 2nd YES throttle fighting the proportional design. Decision-grade
+                             # band_resolution_join (n=3,418) favors YES +7.6%. Was 0.25 (2026-06-16, see below):
                              # The 06-15 unreserve ("YES +8.6% vs NO -1.2%") read band_resolution_join's
                              # CONDITIONAL-ON-FILL selection ROI — NOT realized cash. Recent realized
                              # (recycle-attributed, 06-09->16): NO +$39 vs YES -$20 (regime inversion +
@@ -388,7 +393,9 @@ BAND_PROPORTIONAL_QUEUE = True
 BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
     ("PAIR", 0): 0.20,
     ("YES", 1): 0.24, ("YES", 0): 0.18, ("YES", 2): 0.16,
-    ("NO", 1): 0.22,  ("NO", 2): 0.14,  ("NO", 0): 0.10,
+    ("NO", 1): 0.27,  ("NO", 2): 0.17,  ("NO", 0): 0.0,   # 2026-06-18: d+0 NO standalone overlay is
+    # PROVEN −EV (badatmath d+0 NO −3.2%, n=1563) → weight 0; the 0.10 spilled to the +EV d+1/d+2 NO
+    # horizons (+7.9%/+10.9%). d+0 PAIR legs are unaffected (separate ("PAIR",0) cell).
 }
 # 2026-06-11 audit: overlay now includes EDGE buckets (or-below / or-higher) — his
 # NO 0.52-0.85 on edges = +5.7% (n=438) ≈ interiors +6.5% (n=3,877); they were
