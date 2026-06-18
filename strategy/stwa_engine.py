@@ -475,6 +475,47 @@ BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the s
 BAND_PAIR_SAMEBUCKET = True
 BAND_PAIR_SB_MAX_BEHIND = 0.10  # skip the NO pair-leg if locking the margin needs a bid > this below the NO touch (fill-prob floor)
 
+# ── CAPITAL-PHASE LADDER (2026-06-18, user "ready for all phases, no code touch as
+# capital grows") ────────────────────────────────────────────────────────────────
+# The band replicates badatmath's A→D capital evolution. MOST breadth scaling is
+# ALREADY automatic: the strict-rank queue + per-cycle cash gate fill d+2 → d+1 → d+0
+# and size stakes (band_stakes) as free cash compounds — no phase logic needed for
+# that. This ladder makes the REMAINING capital-dependent knobs functions of the live
+# bankroll so the bot self-advances without edits:
+#   P1 (cap < P2): d+2-first directional, favorite-NO 0.52-0.85, YES-primary 70/30.
+#   P2 (P2≤cap<P3): balance toward 50/50 (favorite-NO is the steady +EV leg); tail-NO
+#                   0.85-0.95 begins SHADOW-logging (zero cash) to accrue the n≥100
+#                   validation badatmath's June tail-NO had but OUR book has not.
+#   P3 (cap ≥ P3): tail-NO wings + wider same-bucket pair cap = his merge-velocity
+#                  engine — but LIVE only once BAND_TAILNO_VALIDATED (see below).
+BAND_PHASE2_CAPITAL   = 600.0    # ≈2.4× today's ~$250; enough free cash to fill >1 days-out tranche/cycle
+BAND_PHASE3_CAPITAL   = 2000.0   # ≈ badatmath's June tail-NO / industrial-merge scale
+BAND_TAILNO_VALIDATED = False    # tail-NO 0.85-0.95 is UNVALIDATED on OUR fills. CLAUDE.md rule #2
+                                 # ("never conclude edge from <100 trades/bucket. Never.") forbids a blind
+                                 # live deploy — so even at P3 the wings stay SHADOW (log, no post) until
+                                 # band_net_attribution.py confirms the 0.85-0.95 slice n≥100 +EV, then this
+                                 # flips True. The ONE deliberate gate; everything else auto-scales by capital.
+
+def band_phase(capital):
+    """Live bankroll → the band knobs that scale with capital. Pure function of
+    `capital` (total equity, cash + positions at cost). Returns a dict so callers
+    read named keys; all thresholds/values are module constants above."""
+    cap = float(capital or 0.0)
+    ph = 3 if cap >= BAND_PHASE3_CAPITAL else 2 if cap >= BAND_PHASE2_CAPITAL else 1
+    no_reserve    = {1: 0.30, 2: 0.40, 3: 0.50}[ph]          # YES-primary → his ~50/50 at scale
+    tailno_shadow = ph >= 2                                   # collect the n≥100 validation as cap grows
+    tailno_live   = (ph >= 3) and BAND_TAILNO_VALIDATED       # wings POST only when validated
+    return {
+        "phase":         ph,
+        "no_reserve":    no_reserve,
+        "no_max_live":   0.95 if tailno_live else BAND_NO_MAX,        # buckets we POST NO on
+        "no_scan_max":   0.95 if (tailno_shadow or tailno_live)       # buckets we EVALUATE (shadow incl.)
+                         else BAND_NO_MAX,
+        "pair_sum":      0.96 if tailno_live else BAND_PAIR_SUM_MAX,  # widen so 0.05-YES+0.90-NO wings merge
+        "tailno_shadow": tailno_shadow,
+        "tailno_live":   tailno_live,
+    }
+
 # ── DEAD-QUOTE RECLAIM (2026-06-11 audit) ────────────────────────────────────
 # One-post-per-token + no reprice = stale quotes the book walked AWAY from sit
 # for days consuming cash-gate headroom (resting commitments reduce free USDC).

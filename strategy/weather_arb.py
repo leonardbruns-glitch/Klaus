@@ -2666,6 +2666,18 @@ class WeatherArb:
         _capital = float(getattr(getattr(getattr(self.bot, "risk", None),
                                          "bankroll", None), "capital", 0.0) or 0.0)
         _stk_yes, _stk_no = band_stakes(_capital)
+        # 2026-06-18 CAPITAL-PHASE LADDER (user "ready for all phases"): the
+        # capital-dependent knobs (YES/NO balance, tail-NO wing expansion + pair cap)
+        # are now functions of the live bankroll — they advance on their own as cash
+        # compounds, no code edit. Breadth (d+2→d+1→d+0 fill) is already automatic via
+        # strict rank + the cash gate.
+        from strategy.stwa_engine import band_phase as _band_phase
+        _ph = _band_phase(_capital)
+        _no_reserve = _ph["no_reserve"]
+        _no_max_live = _ph["no_max_live"]      # NO buckets we POST (favorite band, +wings at P3-validated)
+        _no_scan_max = _ph["no_scan_max"]      # NO buckets we EVALUATE (incl. tail-NO shadow at P2+)
+        _pair_sum = _ph["pair_sum"]            # same-bucket pair Σ cap (widens for wing merges at P3-live)
+        _tailno_shadow = _ph["tailno_shadow"]
 
         # Group buckets by (city, end_date) for end_date in {today..today+HORIZON} local.
         ladders: dict = {}
@@ -2897,7 +2909,7 @@ class WeatherArb:
                     if BAND_NO_SKIP_OFF1 and _off == 1:
                         continue
                     # proxy pre-filter (±slack): real book decides below
-                    if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= BAND_NO_MAX + 0.05):
+                    if not (BAND_NO_MIN - 0.10 <= 1.0 - ay <= _no_scan_max + 0.05):
                         continue
                     _no_cands.append((days_out, _off, city, lo, hi, yt, nt, mkt))
         # 2026-06-12 NO-starvation fix: the sort below is deterministic, so the
@@ -2984,7 +2996,7 @@ class WeatherArb:
                        if hasattr(self, "_maker_breaker") else 0.0)
             _yes_cash_cap = max(0.0, (MAKER_CASH_FRAC * float(_free_b)
                                       - _rest_b)
-                                * (1.0 - BAND_NO_CASH_RESERVE))
+                                * (1.0 - _no_reserve))
         _yes_cash_used = 0.0
         _yes_resv_skip = 0
         # ── PROPORTIONAL per-cell budgets (copy badatmath: blanket BOTH books × all
@@ -3104,7 +3116,7 @@ class WeatherArb:
                                     # needed to lock the merge margin (Σ bids ≤ cap)
                                     _ntouch = round(min(_nask - 0.01, _nbid), 3)
                                     _nq = round(min(_ntouch,
-                                                    BAND_PAIR_SUM_MAX - _sig.quote_price), 3)
+                                                    _pair_sum - _sig.quote_price), 3)
                                     _psum = round(_sig.quote_price + _nq, 3)
                                     _emit({"reason": "pair_shadow",
                                            "cid": _mkt.get("conditionId", ""),
@@ -3123,7 +3135,7 @@ class WeatherArb:
                                     # NO position, so downside is bounded.
                                     if (BAND_PAIR_SAMEBUCKET and BAND_LIVE
                                             and _nq >= 0.01
-                                            and _psum <= BAND_PAIR_SUM_MAX
+                                            and _psum <= _pair_sum
                                             and (_ntouch - _nq) <= BAND_PAIR_SB_MAX_BEHIND
                                             and _nt not in _seen_band
                                             and _nt not in getattr(
@@ -3184,7 +3196,16 @@ class WeatherArb:
                 if not _asks:
                     continue
                 _na = float(_asks[0]["price"])
-                if not (BAND_NO_MIN <= _na <= BAND_NO_MAX):
+                # tail-NO (above the live favorite-NO ceiling): SHADOW-log at P2+ to
+                # accrue the n≥100 validation, but do NOT post until P3 + validated
+                # (_no_max_live rises to 0.95 only then). CLAUDE.md rule #2.
+                if _na > _no_max_live:
+                    if _tailno_shadow and BAND_NO_MIN <= _na <= 0.95:
+                        _emit({"city": city, "date": mkt.get("endDate", "")[:10],
+                               "days_out": days_out, "reason": "tailno_shadow",
+                               "side": "NO", "off": _offq, "ask": round(_na, 3)})
+                    continue
+                if not (BAND_NO_MIN <= _na):
                     continue
                 _nb = float(_bids[0]["price"]) if _bids else max(0.01, _na - 0.04)
                 _q = round(max(0.01, min(_na - 0.01, _nb)), 3)   # join, never improve
@@ -3202,7 +3223,7 @@ class WeatherArb:
                     if _ypos is not None:
                         _qy = float(getattr(_ypos, "entry_price", 0.0) or 0.0)
                 if _qy:
-                    _q = min(_q, round(BAND_PAIR_SUM_MAX - _qy, 3))
+                    _q = min(_q, round(_pair_sum - _qy, 3))
                     if _q < 0.01:
                         continue
                 _emit({"city": city, "date": mkt.get("endDate", "")[:10],
@@ -3293,9 +3314,12 @@ class WeatherArb:
                                    for k, v in sorted(_cell_spent.items()))
                           if _cell_budget is not None else "rank")
             logger.info(
-                "[STRUCT-BAND-Q] queue=%d posted=%d cash_preskip=%d "
+                "[STRUCT-BAND-Q] cap=$%.0f phase=%d no_resv=%.2f tailno=%s "
+                "queue=%d posted=%d cash_preskip=%d "
                 "books=%d/80 yes_books=%d/50 no_cands=%d pair_cands=%d "
                 "yes_resv_skip=%d mode=%s cells[%s]",
+                _capital, _ph["phase"], _no_reserve,
+                ("live" if _ph["tailno_live"] else "shadow" if _tailno_shadow else "off"),
                 len(_queue),
                 max(0, len(getattr(self, "_maker_ex_seen", set()) or set())
                     - _seen_n0),
