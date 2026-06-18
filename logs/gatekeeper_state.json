@@ -1,79 +1,79 @@
 {
   "BAND_YES": {
-    "n": 3296,
-    "n_prev": 1584,
+    "n": 4372,
+    "n_prev": 3296,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Methodology corrected to per-(cid,days_out) leg-level dedup: Jun12-17 = 3296 YES legs (prior run used event-level ~1584). Canonical script confirms 3401 total (77 NO, 3324 YES+PAIR). n>>100 threshold; CI blocked by Gamma 403 container block. VPS cron fixed Jun17 05:45 — should now produce daily joins on VPS.",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "Unique (cid,days_out) legs from md_shadow reason=fire events, first-fire dedup per day, Jun13-18: 776+809+765+800+679+543=4372. Jun12 absent from data-mirror. n>>100; CI blocked by Gamma 403 from container. VPS cron band_resolution_join.py fixed Jun17 05:45 — should now produce daily joins on VPS. 4 architecture changes Jun17 (PAIR_SAMEBUCKET, MERGE_MIN_SHARES 5->3, sigma-gate removed, PROPORTIONAL_QUEUE) contaminate pre/post boundary.",
+    "ts": "2026-06-18T10:17:00Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 53,
-    "n_prev": 39,
+    "n": 82,
+    "n_prev": 53,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "NO post-fix (per-cid dedup): 39 (Jun12 post-13:05=3, Jun13=14, Jun14=18, Jun15=4, Jun16=0, Jun17=0). NO completely stalled Jun16-17. PAIR_FAV NEW: 14 fires (Jun16=11, Jun17=3) first appearance, 0 in all prior runs. Combined 53. PAIR_FAV rate ~7/day; NO stalled. Phantom-exposure fix Jun17 06:45 may restore NO. CI blocked (Gamma 403).",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "NO posts (post records, side=NO, dedup by cid+dout+lo+hi): Jun13=15, Jun14=20, Jun15=4, Jun16=12, Jun17=10, Jun18=0 = 61. PAIR_FAV (YES ask 0.45-0.70): Jun16=12, Jun17=6, Jun18=0 = 18. Jun12 missing (~3 NO from prior). Combined ~82. Prior: 53, delta +29. Jun18 shows 0 NO/PAIR_FAV so far (before peak posting window). Rate ~12/day; ETA to 100 ~1.5 days (Jun19-20). CI blocked by Gamma 403.",
+    "ts": "2026-06-18T10:17:00Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 179,
-    "n_prev": 153,
+    "n": 282,
+    "n_prev": 179,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "maker_fills_recent.log is syslog format (not JSONL as prior assumed). 179 MAKER-FILL registered events (Jun15-17): 171 YES, 8 NO. Truncated hex CIDs (0x09849d36) cannot join to full conditionIds. exit099 67 events PnL=+383.15; STWA_RESOLVED 165 events PnL=-358.07; MERGE 7 PnL=+2.66. NET band P&L: +27.75 (vs +58.56 prior). Declining trend: Jun15-17 net negative.",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "maker_fills_recent.log: 282 MAKER-FILL events (Jun16=77, Jun17=127, Jun18=78). YES=270 avg entry $0.237; NO=11 avg entry $0.485. Truncated hex CIDs still cannot join to full conditionIds in trades.jsonl. Net band P&L: exit099 +$458.30 (Jun13-18) + STWA_RESOLVED -$626.82 + BAND_MERGE +$2.66 = -$165.86 NET (prior was +$27.75). Jun17 alone: -$118.84 (82 STWA_RESOLVED). Sharp deterioration coincides with Jun17 architecture changes. CID join remains the key technical blocker.",
+    "ts": "2026-06-18T10:17:00Z"
   },
   "BASKET_EXIT": {
-    "n": 6254,
-    "n_prev": 6103,
+    "n": 48,
+    "n_prev": 6254,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Unique (city, t_close) all_green baskets: 6254 (Jun12=1317, Jun13=1742, Jun15=2543, today=652). t_close is float with sub-ms jitter creating near-duplicate keys. Cash-out vs hold metric uncomputable: Gamma 403 + unit definition unresolved. Human must define canonical basket-day unit.",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "DEDUP CORRECTION: prior n=6254 was raw (city,t_close) rows with sub-ms jitter. After rounding t_close to nearest second: Jun13=19, Jun15=19, today(partial)=10 = 48 unique all_green basket-days. Rate ~16/day; threshold 100; ETA ~3 days. Hold vs cash metric: +82% to +145% advantage for holding (based on cash_value vs max_hold). Resolution validation blocked by Gamma 403.",
+    "ts": "2026-06-18T10:17:00Z"
   },
   "THERMO_MAKER_NO": {
     "n": 3,
     "n_prev": 3,
     "status": "COLLECTING",
     "roi": -66.6,
-    "ci95": [-100.0, 2.0],
+    "ci95": [-103.4, 2.0],
     "wr": 0.333,
     "resolved": 3,
-    "note": "Unchanged. 3 WEATHER_THERMO resolved trades: PnL +0.11, -5.67, -5.39. WR=1/3=33.3%. Net -10.95. 10957 thermo_maker_candidate records in today_thermo_maker.jsonl — strategy scanning but firing slowly (~0.5 resolved/day). ETA to kill gate (n=20): ~34 days.",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "Unchanged. 3 WEATHER_THERMO resolved trades: PnL +0.11 (entry 0.98), -5.67 (entry 0.81), -5.39 (entry 0.98). WR=1/3=33.3%. Net -10.95. CI95=[-103%,+2%] — upper barely positive, not a verdict (kill gate needs n=20). today_thermo_maker.jsonl has 12,297 candidate records = strategy scanning but firing ~0.5 resolved/day. ETA to kill gate ~34 days.",
+    "ts": "2026-06-18T10:17:00Z"
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
-    "n_prev": 1,
+    "n_prev": 31,
     "status": "COLLECTING",
     "roi": -0.6,
-    "ci95": [-21.9, 25.0],
+    "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "note": "METHODOLOGY CORRECTED: prior n=1 used wrong class M1_BETA_PROBE; correct class=WEATHER_M1_PROBE (n=31). WR=74.2% (23/31), ROI=-0.6%, CI95=[-21.9%,+25.0%] straddles zero. n=31<100 threshold: COLLECTING. metar_lockout.jsonl empty all dates. Rate ~5.2/day. ETA to 100: ~13 days.",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "STALLED. 31 WEATHER_M1_PROBE trades May27-Jun09, then ZERO for 9+ days. WR=74.2% (23/31), ROI=-0.6%, CI95=[-20.6%,+24.4%] straddles zero. metar_lockout.jsonl empty Jun13-18. Threshold n=100; ETA INFINITE at current zero-fire rate. Human must verify M1_PROBE arming status on VPS. Prior ETA estimate of 13 days was based on 5.2/day rate that stopped Jun09.",
+    "ts": "2026-06-18T10:17:00Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 1379,
-    "n_prev": 1211,
+    "n": 2019,
+    "n_prev": 1379,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Per-(cid,days_out) YES legs with sum_posted in [0.70,0.85]: Jun12=357, Jun13=209, Jun14=265, Jun15=236, Jun16=235, Jun17=77. n=1379 (+168). Avg ~260/day full days. n>>100 threshold; CI blocked by Gamma 403.",
-    "ts": "2026-06-17T10:23:53Z"
+    "note": "Per-(cid,days_out) legs from md_shadow reason=fire events where sum_posted in [0.70,0.85], first-fire dedup per day: Jun13=338, Jun14=384, Jun15=360, Jun16=348, Jun17=316, Jun18=273 = 2019. Prior 1379 (Jun12-17) directionally consistent — methodology now using fire-event leg counts consistently. n>>100; CI blocked by Gamma 403.",
+    "ts": "2026-06-18T10:17:00Z"
   }
 }
