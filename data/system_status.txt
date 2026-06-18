@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+d98c8d3b fix(BAND): churn — live merge pairs rest 8h, not the 2h directional reclaim
 cbe68db3 feat(BAND): promote d+1 NO to rank 1 (2nd, after d+2 YES) — user
 fbfcebd5 feat(BAND): favNO only d+1/d+0 — drop d+2 NO (user); YES keeps d+2 priority
 af9e673d feat(BAND): YES ceiling 0.44->0.30 (user) — trim expensive near-mode YES
@@ -11,13 +12,12 @@ c6a54aab feat(BAND): widen YES band to mode±2 (BAND_YES_MAX_OFF 1->2, user)
 669b5173 feat(BAND): YES ceiling 0.45->0.25 + redirect vol to favorite-NO (user)
 d63dae32 analysis: band_net_attribution.py — join held-loser + RECYCLE099-winner streams
 f43fe2a3 feat(BAND): restore size to $3 YES / $5 NO (user directive) + FREEZE config
-deb97e29 feat(BAND): per-capital-day YES cell re-weight — d+0 > d+2 >> d+1 (velocity)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   81G       13G  87% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-06-18 22:23:45 UTC
+ActiveEnterTimestamp=Thu 2026-06-18 22:37:40 UTC
 
 ## Open positions (count):
 0
