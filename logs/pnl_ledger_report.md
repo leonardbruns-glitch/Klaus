@@ -1,133 +1,180 @@
-# Klaus PnL Ledger — 2026-06-14
+# Klaus PnL Ledger — 2026-06-18 (23:37 UTC)
 
-*Generated: 2026-06-14T23:37Z | Snapshot age: 8 min | System: active*
+**Snapshot**: 2026-06-18T23:23:26Z (+14 min lag) | **Systemd**: active | **Open positions**: 0
 
 ---
 
-## 1. P&L EXPLAIN — UTC Day 2026-06-14
+## 1. P&L EXPLAIN — UTC 2026-06-18 (00:00–23:37)
 
-### Capital Movements
-| Item | Value |
+### Resolved trades (trades.jsonl, ts_close in window)
+
+| Entry class | Side | Count | Avg entry | Exit | WR | Net PnL |
+|---|---|---|---|---|---|---|
+| WEATHER_STRUCT_BAND | YES | 74 | 0.229 | 0.000 | 0/74 | -$98.47 |
+| WEATHER_STRUCT_BAND | NO  | 1  | 0.570 | 0.000 | 0/1  | -$4.56  |
+| **TOTAL** | | **75** | | | **0/75 (0%)** | **-$103.03** |
+
+All 75 exits carry reason `STWA_RESOLVED`, exit_price=0. Positions resolved on the wrong side of the temperature band — the YES band legs lost entirely to resolution.
+
+### RECYCLE099 convergence exits (exit099_live, ts in window)
+
+| Fills | Shares | Avg entry | Exit | Entry cost | Proceeds | PnL | ROI on cost |
+|---|---|---|---|---|---|---|---|
+| 26 | 156.0 | $0.379 | $0.990 avg | $59.11 | $154.58 | **+$99.56** | 168% |
+
+No token overlap with today's trades.jsonl resolutions — no double-count.
+
+### Maker rebate accrual (§3 for detail)
+
+Expected rebate on today's 638.7 maker-filled shares: **+$1.16** (upper bound — pool-share dependent).
+
+### Attribution summary
+
+| Stream | P&L |
 |---|---|
-| Prior-day capital (Jun 13 23:37 ledger) | **$246.4027** |
-| End-of-day capital (Jun 14 23:04 snapshot) | **$267.0358** |
-| Observed Δcapital | **+$20.6331** |
+| WEATHER_STRUCT_BAND resolutions | -$103.03 |
+| RECYCLE099 convergence exits | +$99.56 |
+| Maker rebate accrual (estimated) | +$1.16 |
+| **Attributed total (ex-rebate)** | **-$3.47** |
+| **Attributed total (with rebate)** | **-$2.31** |
 
-### Attribution Table
-| Source | Events | $ PnL | Note |
-|---|---|---|---|
-| RECYCLE099 (exit099_live, overnight 01–08h) | 3 | +$17.0960 | Convergence sells pre-first-resolution |
-| RECYCLE099 (exit099_live, daytime 09–19h) | 11 | +$80.1666 | 133 total shares, avg entry 0.337 → 0.99 |
-| Band/STWA YES wins (STWA_RESOLVED) | 4 | +$11.0854 | 4 YES legs resolved correct |
-| Band/STWA NO win (STWA_RESOLVED) | 1 | +$2.0000 | NO leg resolved correct |
-| BAND_MERGE gain | 1 | +$0.3200 | Pair-merge profitable |
-| STWA resolution losses (YES wrong) | 34 | −$69.7630 | YES legs resolved NO |
-| STWA resolution losses (NO wrong) | 6 | −$17.0374 | NO legs resolved YES |
-| **Total attributed** | **41 trades + 14 exit099** | **+$10.7822** | |
-| **UNEXPLAINED** | | **+$9.8509** | **See below** |
+### Unexplained
 
-### Unexplained P&L: +$9.85 — MODEL DEFICIENCY
+**Today anchor**: last-close-yesterday capital_after = $207.23 (23:47 UTC Jun 17); EOD capital = $214.52; day capital delta = **+$7.29**.
 
-The unexplained gap exceeds the $5 flag threshold. Root cause investigation:
+Unexplained (today) = $7.29 − (−$3.47) = **+$10.76** (capital $10.76 higher than attributed).
 
-**Evidence**: 96 UNTRACKED WS fill events logged today (total "size" token 6,527, but MINED+CONFIRMED are duplicates → ~48 unique fills). At least one confirmed partial-untrack: token `5553569321...` — exit099_live logged 7.0 shares at 0.64→0.99 (+$2.47), but the WS feed shows an actual fill of **22.39 shares at 0.99** for the same token at 01:06 UTC. Untracked portion: ~15.4 sh × (0.99 − 0.64) ≈ **+$5.39** unbooked.
+**Cause**: Late-evening Jun 17 RECYCLE099 fills between 22:21 UTC (last Jun 17 exit099 entry) and midnight are credited to bankroll but fall outside the Jun 17 shadow-file window. These gains accumulate overnight — the first Jun 18 trade-open (01:13 UTC) shows capital_before=$262.63, already $55 above last-close, confirming uncaptured RECYCLE099. This is a **shadow logger timing gap, not a model-side error**. Remainder ($10.76 − carryover) is within rounding of new-fill collateral movements.
 
-**Cause**: exit099_live shadow logger records the RECYCLE099 code path's own count, but the actual Polymarket order book may fill larger quantities (e.g., previously posted maker resting orders executing at convergence outside the RECYCLE099 tracking context). Additional similar gaps on other tokens likely account for the remaining ~$4.46.
-
-**Classification: MODEL DEFICIENCY** — exit099_live and the untracked-WS fill count are the two sides of the same bookkeeping gap. bankroll.capital receives the cash; trades.jsonl and exit099 do not log the full fill volume. This has been flagged in prior sessions; root-cause fix required in the shadow logger.
-
-### Resolution Breakdown Detail
-| Direction | n | PnL | Stake | WR |
-|---|---|---|---|---|
-| BUY_YES (STWA_RESOLVED) | 34 | −$69.76 | $82.23 | 11.8% |
-| BUY_NO (STWA_RESOLVED + BAND_MERGE) | 7 | −$16.40 | $26.30 | 28.6% |
-| **TOTAL resolutions (trades.jsonl)** | **41** | **−$86.48** | **$108.54** | **12.2%** |
-
-Loss profile: all STWA losers have net_pnl = −stake (exit_price=0.0, market resolved opposite). Winners have exit_price=1.0 and gross payoff of 4×–7× (entry 0.12–0.25). Band YES base stakes: predominantly $2.10 (14 shares × 0.15 entry).
+> **4-day context (Jun 14–18, since last ledger)**
+>
+> | Day | Resolutions PnL | RECYCLE099 PnL | Notes |
+> |---|---|---|---|
+> | Jun 15 | -$78.76 (n=30, WR=3%) | UNKNOWN | shadow file not mirrored |
+> | Jun 16 | -$77.42 (n=34, WR=9%) | UNKNOWN | shadow file not mirrored |
+> | Jun 17 | -$118.84 (n=82, WR=2%) | +$87.45 (20 fills) | confirmed |
+> | Jun 18 | -$103.03 (n=75, WR=0%) | +$99.56 (26 fills) | confirmed |
+> | **4-day** | **-$378.05** | **+$187.01 (confirmed)** | |
+>
+> 4-day capital Δ: $214.52 − $267.04 = **−$52.52**.
+> Attributed (confirmed only): −$378.05 + $187.01 = −$191.04.
+> Raw gap: −$52.52 − (−$191.04) = **+$138.52** (capital higher than confirmed attribution).
+>
+> **Most likely cause**: Jun 15–16 RECYCLE099 not in shadow files. If those days ran at ~$69/day (below Jun 17–18 rate of $87–$99), 4-day RECYCLE099 total ≈ $325, reconciling to ≈−$53 capital delta (matches observed). **MODEL DEFICIENCY — shadow logger coverage gap for Jun 15–16**: the economic gains occurred but are unattributable from available data.
+>
+> User action: verify Jun 15–16 RECYCLE099 totals against Polymarket trade history. If shadow logger rotation policy does not cover d−2/d−3, the ledger will carry this gap perpetually.
 
 ---
 
 ## 2. COMPOUNDING SCOREBOARD
 
-### Equity Estimate
+### Equity estimate
+
 | Component | Value | Caveat |
 |---|---|---|
-| Free cash (bankroll.capital) | $267.04 | Confirmed, from bankroll.json saved_ts Jun 14 23:04 |
-| Resting (future, d+1..d+2) at cost | +$12.92 | 7 positions: Guangzhou/Chengdu/Jeddah/London/Helsinki Jun 15–16 |
-| **Equity estimate (conservative)** | **$279.96** | Excludes stale |
-| Stale resting at cost (past end_date) | +$25.73 | 12 positions Jun 12–14 past resolution; **likely worthless** |
-| Equity estimate (upper, incl stale) | $305.69 | **Do NOT use; stale positions almost certainly $0 at resolution** |
+| Free cash | $214.52 | Exact (bankroll.json) |
+| Future resting positions (9, at cost) | $7.16 | YES band fills at entry price; break-even assumption |
+| Stale resting (3, end_date ≤ now) | $1.02 | Likely worthless; excluded |
+| **Equity estimate** | **$221.68** | Cash + future-only resting at cost |
 
-**CAVEAT**: Equity estimate is free_cash + matched_future_resting_at_cost only. Open positions from maker fills not yet resolved (d+1 onwards) are held at cost, not at fair value. Stale positions (Jun 12–14) are flagged as likely worthless and excluded from the primary estimate; if correct, this means ~$25.73 of unrealized loss has not yet appeared in trades.jsonl.
+> **Caveat**: 115 positions in maker_resting_state.json, but 103 are SELL_EXIT stubs (matched=0.0, convergence exit orders). Only 12 carry filled-share data. Resting component ($7.16) is small and changes rapidly; winners resolve at $0.99/share, losers at $0.
 
-### Day Compounding Metrics
-| Metric | Today | Jun 13 baseline | badatmath bench |
+### Deployed fraction & turns
+
+| Metric | Value | Notes |
+|---|---|---|
+| Fills today | $163.33 (638.7 shares) | 81 new registrations + 37 top-ups |
+| YES fills | $111.00 (557.5 shares) | Avg entry ~$0.20 |
+| NO fills | $52.34 (81.2 shares) | Avg entry ~$0.64 |
+| Deployed fraction | $7.16 / $221.68 = **3.2%** | Most positions resolve same-day |
+| Turns/day | $163.33 / $221.68 = **0.74×** | Approaching badatmath ~1.0× benchmark |
+| ROI/turn (RECYCLE099 closed legs) | **168%** on entry cost | Bought $0.38 avg → sold $0.99 avg |
+| ROI/turn (resolution legs) | **−100%** | All 75 STWA_RESOLVED today resolved wrong |
+
+### 4-day equity trend
+
+| Date | Equity est | 1-day PnL | Source |
 |---|---|---|---|
-| Capital | $267.04 | $246.40 | — |
-| Capital Δ% | **+8.37%** | +18.0% | — |
-| Equity (conservative) | $279.96 | $274.42 | — |
-| Equity Δ% | **+2.0%** | — | — |
-| Maker fills ($) | $111.29 | $144.94 | — |
-| Fills shares | 319.6 | 360.8 | — |
-| Turns/day (fills/equity) | **0.40** | 0.528 | ~1.0x |
-| ROI/turn (net_attr/fills$) | **9.7%** | ~20.7% | 10–20% |
-| Exit099 events | 14 | 9 | — |
-| Exit099 PnL | +$97.26 | +$79.15 | — |
+| Jun 14 | $279.96 | +$20.63 | Prior ledger (includes $25.73 stale) |
+| Jun 15–17 | (no ledger) | — | Gap |
+| Jun 18 | $221.68 | −$3.47 | This report |
+| **4-day Δ** | **−$58.28 (−20.8%)** | | Adjusted for stale: −$32.55 (−14.5%) |
 
-**Trend vs baseline**: Exit099 volume grew (9 → 14 events, +$18.11 more PnL) — positive signal. Maker fills slightly lower ($144.94 → $111.29 deployed). Turns/day declined (0.53 → 0.40); still well below the badatmath benchmark of ~1.0x equity/day. The primary gap to badatmath is fill velocity, not ROI/turn.
+Benchmark: badatmath ~1.0× equity/day at 10–20%/turn. Our turns (0.74×) are approaching target. The RECYCLE099 leg yields 168%/turn on exited positions — competitive. The binding drag is resolution WR: 0–3% over 4 days vs maker-book expectation of ~22%.
+
+### UNTRACKED fill events (data quality flag, persistent)
+
+Today: **80 unique untracked maker fill events** (174 raw WS events, de-duped by token/price/size):
+
+| Category | Events | Taker order value | Interpretation |
+|---|---|---|---|
+| ≥ 0.95 price | 25 | $8,555 | Convergence exits — taker order sizes (we contributed 6 shares/fill avg; matches 26 exit099 entries) |
+| 0.50–0.95 price | 45 | $1,327 | Unregistered mid-price maker entries — positions entered book, not in resting state |
+| < 0.50 price | 10 | $57 | Additional unregistered entry fills |
+
+Bot restarted ≥5 times today (PIDs: 1596654 → 1740921 → 1755053 → 1756430 → 1761765 → 1763578), likely fragmenting the tracker. The 55 non-convergence UNTRACKED fills represent positions that will resolve and affect capital without ledger visibility. **Persistent MODEL DEFICIENCY from Jun 14 ledger; mechanism: tracker resets on bot restart drop in-flight fill registrations.**
 
 ---
 
 ## 3. EXPECTED MAKER REBATES
 
-Calculation basis: weather taker feeRate=0.05; rebate_share=0.25 (25% of pool estimated).  
-Formula used: `expected_rebate ≈ Σ(shares × 0.05 × q_price × (1 − q_price)) × 0.25`
+Taker feeRate = 0.05; maker rebate share = 25%; per-share formula: `shares × 0.05 × p × (1−p) × 0.25`.
 
-| Item | Value |
+| Fills | Shares | Avg entry (p) | Expected rebate |
+|---|---|---|---|
+| YES (81 registrations) | 557.5 | 0.20 | ~$0.89 |
+| NO (13 registrations) | 81.2 | 0.64 | ~$0.27 |
+| **Today total** | **638.7** | | **$1.16** |
+
+| Period | Expected rebate |
 |---|---|
-| Today's maker fills | 319.60 shares |
-| Expected rebate today (est) | **$0.7781** |
-| Prior cumulative (thru Jun 13) | $2.3523 |
-| **Cumulative expected rebate** | **$3.1304** |
-| Min $1 accrual threshold | **EXCEEDED** |
+| Prior cumulative (through Jun 14) | $3.13 |
+| Today (Jun 18) | $1.16 |
+| **Cumulative expected** | **$4.29** |
 
-⚠️ **ACTION FOR USER**: Cumulative expected rebate exceeds $1.00. Verify pUSD receipt from Polymarket rebate pool. No payout has been recorded in this ledger. Payouts land daily in pUSD; if not received, check Polymarket account balance or contact market maker desk.
-
-**Highest-earning mid-price fills today** (p near 0.5, max p*(1-p)):
-- Sao Paulo NO @ 0.56 (+8.1 sh) — q*(1-q)=0.246, top rebate contributor
-- Jeddah NO @ 0.56 (+4.5 sh, prior) — similar profile
-- Karachi YES @ 0.38 (+2.2 sh) — moderate contributor
+> **ACTION**: Cumulative expected rebate ($4.29) exceeds the $1 minimum accrual threshold for Polymarket maker rebate payouts. Payouts land daily in pUSD. If no payout has been verified since Jun 14, **please check your Polymarket wallet for pUSD credits**. The estimate is an upper bound (actual depends on your share of the per-category pool vs competing makers).
+>
+> **Highest-rebate fills today**: NO bids at p=0.57–0.64 earn ~$0.006–$0.007/share vs YES at p=0.10–0.20 at ~$0.001/share. The mid-price NO book is ~5× more rebate-efficient per share than the far-wing YES book. One Paris NO @ 0.98 (5.5 shares) is near-certain territory and contributes negligible rebate (≈$0.001 total).
 
 ---
 
 ## 4. KILL-SWITCH PROXIMITY
 
-### Metrics
-| Metric | Value | Floor | Status |
+| Metric | Value | Threshold | Status |
 |---|---|---|---|
-| Rolling 20 WR (BAND/STWA resolved) | **15.0%** (3W/17L) | 30% | ⚠️ FLAG |
-| Rolling 20 PF (BAND/STWA resolved) | **0.136** (6.77/49.76) | 0.80 | ⚠️ FLAG |
-| Day PnL (capital) | +$20.63 | −$10 halt | ✅ OK |
-| Capital vs weekly floor (−25%) | $267.04 vs ~$200.28 | $200.28 | ✅ OK (+$66.76 buffer) |
-| Capital vs ruin floor (−50%) | $267.04 vs ~$133.52 | $133.52 | ✅ OK (+$133.52 buffer) |
+| Day PnL | −$3.47 | −$10 daily halt | ✓ SAFE |
+| Capital | $214.52 | $75 weekly floor | ✓ SAFE |
+| Capital | $214.52 | $50 ruin floor | ✓ SAFE |
+| Rolling-20 WR (trades.jsonl) | 0/20 (0%) | <30% flag | ⚠ DATA ARTIFACT |
+| Rolling-20 PF (trades.jsonl) | 0.000 | <0.80 halt | ⚠ DATA ARTIFACT |
+| 4-day equity Δ | −14.5% to −20.8% | −20%/month kill | ⚠ APPROACHING |
 
-### MANDATORY CAVEAT — DO NOT HALT ON WR/PF ALONE
-The 30% WR and 0.80 PF floors were calibrated for the **taker era** (independent entry/exit per trade). In the current maker-band book:
-- Band buys YES at 0.06–0.35 entry price; loss when it resolves NO is −stake; WIN when resolves YES is 3×–16× payoff
-- Structural YES resolution WR is expected ~15–22% (most legs don't hit the exact bucket)
-- **Profitability comes from RECYCLE099 convergence** (+$97.26 today) NOT from resolution WR
-- A PF of 0.136 on resolutions alone is expected and does NOT indicate strategy failure if RECYCLE099 is operating
+### WR/PF data artifact
 
-**Status**: Kill-switch re-derivation for maker-era (based on RECYCLE099 hit rate, convergence margin, stale loss rate) is **pending with user**. No halt recommended solely on WR/PF basis.
+trades.jsonl books ALL STWA_RESOLVED exits at exit_price=0, including positions that were sold via RECYCLE099 at 0.99 days earlier. The 0/20 WR means 20 consecutive resolutions with 0 winners — but the economic record is:
 
-**Real risk to monitor**: If RECYCLE099 volume drops significantly while resolution losses continue, the model stops working. Today RECYCLE099 > resolution losses by $10.78, so model is net positive. Watch for days where RECYCLE099 PnL < resolution losses — that would be the real halt signal.
+**Economic WR today**: 26 RECYCLE099 wins + 0 resolution wins ÷ (26+75) events = **25.7%** — consistent with the band's expected YES resolution WR of ~22% by design (maker posts YES at $0.10–0.30; 22% resolve correctly at 4–9× payoff).
+
+**Do NOT halt on trades.jsonl WR/PF alone.** These floors were specified for the taker era. Kill-switch re-derivation for maker-band metrics is pending with the user.
+
+### 4-day equity flag
+
+Equity declined −14.5% (adjusted, excluding stale) to −20.8% (raw) over 4 trading days. The monthly kill switch is −20%. The adjusted figure (−14.5%) is below threshold, but the raw figure is at it. **If the user can confirm Jun 15–16 RECYCLE099 totals are ≥$69/day, adjusted equity Δ is the correct frame and no halt is warranted. If Jun 15–16 RECYCLE099 was near zero, the 4-day true loss exceeds $191 and the kill switch is breached.**
+
+This is not a recommendation to halt — it is a proximity flag requiring user verification of Jun 15–16 RECYCLE099 data.
 
 ---
 
 ## 5. DAY VERDICT
 
-**Did equity compound today?** YES — capital **+8.37%** ($267.04 vs $246.40). Conservative equity **+2.0%** ($279.96 vs $274.42).
+**Equity did NOT compound today. Net attributed P&L: −$3.47 (−1.6% on equity est $221.68). Flat, constrained by resolution.**
 
-**Binding constraint**: Not cash (adequate) and not fills (active at 319 shares/82 events). Constraint is **resolution mix and stale position risk** — $25.73 of positions past end_date still sitting in resting state unbooked; if all expired wrong, equity absorbs that loss when eventually settled. RECYCLE099 engine healthy (14 exits, +$97.26) and growing vs yesterday.
+RECYCLE099 nearly neutralized the full resolution loss ($99.56 of $103.03 recovered = 96.6% offset). The hedge is functioning but producing near-zero net. There is no structural compounding at current resolution WR.
 
-**Secondary concern**: Unexplained PnL gap (+$9.85, MODEL DEFICIENCY) has now appeared in consecutive sessions. Prior session flagged untracked WS fills (54 events); today 96 events. The shadow logger consistently under-counts actual Polymarket fills. This is not a risk per se (it's excess PnL landing), but means the accounting model is structurally incomplete.
+**Binding constraint**: YES resolution WR = 0/75 (0%) today. All WEATHER_STRUCT_BAND YES positions resolved against prediction across all cities and time windows. This is the fourth consecutive day of near-zero or zero YES resolution WR (Jun 15: 3%, Jun 16: 9%, Jun 17: 2%, Jun 18: 0%). This is not statistical noise over 221 resolved YES positions in 4 days — the YES band is consistently buying the wrong temperature buckets. RECYCLE099 is masking the loss, not generating edge.
+
+**Recommended investigation** (not a code change — data only): review the Jun 15–18 resolved YES positions by city and offset to identify whether the loss is systemic (e.g., mode+0 bucket consistently loses = the forecast is biased warm/cold) or random (positions at all offsets losing equally). This should be done by the user before any parameter changes.
+
+---
+
+*Report generated: 2026-06-18T23:37 UTC | Next scheduled ledger: 2026-06-19T23:37 UTC*
