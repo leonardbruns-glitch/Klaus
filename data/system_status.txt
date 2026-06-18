@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+d63dae32 analysis: band_net_attribution.py — join held-loser + RECYCLE099-winner streams
+f43fe2a3 feat(BAND): restore size to $3 YES / $5 NO (user directive) + FREEZE config
 deb97e29 feat(BAND): per-capital-day YES cell re-weight — d+0 > d+2 >> d+1 (velocity)
 da527052 feat(BAND): unfreeze recycle loop — NO_CASH_RESERVE 0.25→0 + drop −EV d+0 NO cell
 ef3d9e52 feat(BAND): proportional per-cell posting queue — copy badatmath's "blanket both books"
@@ -10,14 +12,12 @@ b8da4b19 feat(BAND): BAND_MERGE_MIN_SHARES 5→3 — recycle partial-fill pairs 
 fa61ea69 feat(BAND): same-bucket pair-quoting — post NO leg on each YES band leg (badatmath co-fill engine)
 37252df5 Gate-keeper 2026-06-17 — ready=0 rejected=0 collecting=7
 2e11fcb2 Exec audit 2026-06-17 — fills=65(24h) NO-share=4.6% 2 alerts
-32d7e87d fix(BAND): reclaim phantom maker exposure from server-side-cancelled BUYs
-64bf5083 feat(BAND): velocity-rank posting queue + restore NO reserve 0.25
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   79G       15G  85% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-06-18 10:59:14 UTC
+ActiveEnterTimestamp=Thu 2026-06-18 11:16:10 UTC
 
 ## Open positions (count):
 0
