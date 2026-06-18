@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-06-18T22:07:46Z
+# Snapshot: 2026-06-18T22:23:08Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -12,7 +12,7 @@
 244:BAND_P_MIN          = 0.50          # band must actually be likely (mode±1 ⇒ ~0.85; <0.50 = misaligned)
 245:BAND_HOUR_MAX       = 16            # peak window upper bound; after this the day's max is decided
 264:BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge" — RE-FLIPPED LIVE after
-279:BAND_PX_CEIL        = 0.44          # 2026-06-18 (user): 0.25→0.44 — RE-ADMIT the full near-mode YES band. Reverses the
+279:BAND_PX_CEIL        = 0.30          # 2026-06-18 (user): 0.44→0.30 — trim the expensive near-mode YES band. Model-free
 285:BAND_PX_MIN         = 0.10          # d+0 floor. 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05)
 288:BAND_PX_MIN_MD      = 0.03          # 2026-06-11 (user challenged the 0.10 floor — user right): the 0.10
 298:BAND_PX_MIN_OFF2_D2 = 0.01          # 2026-06-18 (user "off2 should have no limit at d+2 min ask"): the off2

@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+cbe68db3 feat(BAND): promote d+1 NO to rank 1 (2nd, after d+2 YES) — user
+fbfcebd5 feat(BAND): favNO only d+1/d+0 — drop d+2 NO (user); YES keeps d+2 priority
+af9e673d feat(BAND): YES ceiling 0.44->0.30 (user) — trim expensive near-mode YES
 f7f4a952 feat(BAND): capital-phase ladder — capital-dependent knobs scale with bankroll
 22e1d455 feat(BAND): days-out capital priority (d+2>d+1>d+0) + ceiling 0.44 + off2-d+2 unfloored
 c6a54aab feat(BAND): widen YES band to mode±2 (BAND_YES_MAX_OFF 1->2, user)
@@ -9,15 +12,12 @@ c6a54aab feat(BAND): widen YES band to mode±2 (BAND_YES_MAX_OFF 1->2, user)
 d63dae32 analysis: band_net_attribution.py — join held-loser + RECYCLE099-winner streams
 f43fe2a3 feat(BAND): restore size to $3 YES / $5 NO (user directive) + FREEZE config
 deb97e29 feat(BAND): per-capital-day YES cell re-weight — d+0 > d+2 >> d+1 (velocity)
-da527052 feat(BAND): unfreeze recycle loop — NO_CASH_RESERVE 0.25→0 + drop −EV d+0 NO cell
-ef3d9e52 feat(BAND): proportional per-cell posting queue — copy badatmath's "blanket both books"
-c862431d feat(BAND): remove σ-skill gate from live band path — it rejected +11.8% edge
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   81G       13G  87% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Thu 2026-06-18 15:20:20 UTC
+ActiveEnterTimestamp=Thu 2026-06-18 22:23:45 UTC
 
 ## Open positions (count):
 0
