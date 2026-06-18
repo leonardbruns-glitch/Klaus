@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-06-18T00:54:07.305364+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will the price of Bitcoin be above $70,000 on June 18?\", \"condition_id\": \"0x35cbb19e3e3c4c3e3b6e7a18fc42b7b120169f0c57b2e0bb1e7ae3dde67ba2ac\", \"fav_token\": \"4170930164044365258338756787888442506960433826168",
-      "mtime_utc": "2026-06-18T00:54:09Z",
-      "n_rows": 238447,
-      "size_bytes": 147370681
+      "last_excerpt": "{\"ts\": \"2026-06-18T01:09:24.129588+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will the price of Bitcoin be above $70,000 on June 18?\", \"condition_id\": \"0x35cbb19e3e3c4c3e3b6e7a18fc42b7b120169f0c57b2e0bb1e7ae3dde67ba2ac\", \"fav_token\": \"4170930164044365258338756787888442506960433826168",
+      "mtime_utc": "2026-06-18T01:09:27Z",
+      "n_rows": 238633,
+      "size_bytes": 147485384
     },
     "hot/2026-06-07/binance_trade.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1780790399,\"ts_ms_local\":1780790399188,\"exchange_ts_ms\":1780790398802,\"asset\":\"BTC\",\"price\":60884.62,\"qty\":0.00038,\"is_buyer_maker\":false,\"taker_side\":\"BUY\"}",
@@ -2298,38 +2298,38 @@
     },
     "hot/2026-06-18/band_struct.jsonl": {
       "first_excerpt": "{\"ts\": 1781741089.3832476, \"record\": \"md_shadow\", \"city\": \"Sao Paulo\", \"date\": \"2026-06-17\", \"days_out\": 0, \"reason\": \"no_band\", \"n_interior\": 9, \"n_valid\": 0}",
-      "last_excerpt": "{\"ts\": 1781744184.7185738, \"record\": \"md_shadow\", \"reason\": \"pair_shadow\", \"cid\": \"0xd7e7ff4c985e1805f7d412f13d53345ec3880c7085a17d20ef416d6bdc1d58be\", \"city\": \"Kuala Lumpur\", \"days_out\": 1, \"off\": 1, \"yes_quote\": 0.25, \"no_bid\": 0.74, \"no_ask\": 0.75, \"no_quote\": 0.67, \"pair_sum\": 0.92, \"merge_margi",
-      "mtime_utc": "2026-06-18T00:56:24Z",
-      "n_rows": 917,
-      "size_bytes": 765627
+      "last_excerpt": "{\"ts\": 1781744800.0062678, \"record\": \"md_shadow\", \"city\": \"Karachi\", \"date\": \"2026-06-19\", \"days_out\": 1, \"reason\": \"fire\", \"mode_lo\": 34.5, \"sum_ask\": 0.976, \"sum_posted\": 0.835, \"live\": true, \"n_legs\": 5, \"quotes\": [{\"lo\": 32.5, \"hi\": 33.5, \"ask\": 0.075, \"bid_quote\": 0.062, \"stake\": 1.0, \"off\": 2,",
+      "mtime_utc": "2026-06-18T01:06:40Z",
+      "n_rows": 1081,
+      "size_bytes": 904375
     },
     "hot/2026-06-18/basket_exit_shadow.jsonl": {
       "first_excerpt": "{\"ts\": 1781740840.1743364, \"city\": \"toronto\", \"t_close\": 1781758799.9976785, \"n_legs\": 1, \"cost\": 1.86, \"cash_value\": 0.003, \"max_hold\": 6.0, \"all_green\": false, \"legs\": [{\"token\": \"110766427510637473686157507412453011458669015927635291613842661748196089359578\", \"side\": \"YES\", \"lo\": 23.5, \"hi\": 24.5",
-      "last_excerpt": "{\"ts\": 1781744184.7285888, \"city\": \"cape-town\", \"t_close\": 1781819999.9850757, \"n_legs\": 3, \"cost\": 4.15, \"cash_value\": 4.1, \"max_hold\": 5.0, \"all_green\": false, \"legs\": [{\"token\": \"87102654564447315685832667653539944714492996190168647585314907482704252953254\", \"side\": \"YES\", \"lo\": 17.5, \"hi\": 18.5,",
-      "mtime_utc": "2026-06-18T00:56:34Z",
-      "n_rows": 1025,
-      "size_bytes": 788139
+      "last_excerpt": "{\"ts\": 1781744983.4134898, \"city\": \"cape-town\", \"t_close\": 1781819999.9779458, \"n_legs\": 3, \"cost\": 4.15, \"cash_value\": 4.05, \"max_hold\": 5.0, \"all_green\": false, \"legs\": [{\"token\": \"87102654564447315685832667653539944714492996190168647585314907482704252953254\", \"side\": \"YES\", \"lo\": 17.5, \"hi\": 18.5",
+      "mtime_utc": "2026-06-18T01:09:50Z",
+      "n_rows": 1247,
+      "size_bytes": 956025
     },
     "hot/2026-06-18/binance_trade.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1781740800,\"ts_ms_local\":1781740800053,\"exchange_ts_ms\":1781740799930,\"asset\":\"ETH\",\"price\":1750.67,\"qty\":0.0043,\"is_buyer_maker\":true,\"taker_side\":\"SELL\"}",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1781744197,\"ts_ms_local\":1781744197653,\"exchange_ts_ms\":1781744197535,\"asset\":\"ETH\",\"price\":1752.0,\"qty\":1.4517,\"is_buyer_maker\":false,\"taker_side\":\"BUY\"}",
-      "mtime_utc": "2026-06-18T00:56:37Z",
-      "n_rows": 52545,
-      "size_bytes": 11198769
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1781745102,\"ts_ms_local\":1781745102329,\"exchange_ts_ms\":1781745102211,\"asset\":\"BTC\",\"price\":64776.01,\"qty\":0.00771,\"is_buyer_maker\":false,\"taker_side\":\"BUY\"}",
+      "mtime_utc": "2026-06-18T01:11:43Z",
+      "n_rows": 70669,
+      "size_bytes": 15060940
     },
     "hot/2026-06-18/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-06-18T00:00:01.971911+00:00\", \"question\": \"Will there be 5 or fewer earthquakes of magnitude 5.5 or higher worldwide from June 15 - 21?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-06-15T00:00:00-04:00\", \"count\": ",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"precip\", \"ts_utc\": \"2026-06-18T00:55:01.969877+00:00\", \"question\": \"Will Seattle have less than 0.5 inches of precipitation in June?\", \"station\": \"KSEA\", \"mtd_inches\": 1.0, \"bucket_lo\": 0.0, \"bucket_hi\": 0.5, \"status\": \"HARD_NO\", \"best_bi",
-      "mtime_utc": "2026-06-18T00:56:23Z",
-      "n_rows": 60,
-      "size_bytes": 40363
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"precip\", \"ts_utc\": \"2026-06-18T01:10:01.791339+00:00\", \"question\": \"Will Seattle have less than 0.5 inches of precipitation in June?\", \"station\": \"KSEA\", \"mtd_inches\": 1.0, \"bucket_lo\": 0.0, \"bucket_hi\": 0.5, \"status\": \"HARD_NO\", \"best_bi",
+      "mtime_utc": "2026-06-18T01:11:24Z",
+      "n_rows": 75,
+      "size_bytes": 50455
     },
     "hot/2026-06-18/discover_signal.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1781740944,\"ts_ms_local\":1781740944991,\"token_id\":\"41997912781705784936582065428881023049547762846831231113377223992703208736780\",\"condition_id\":\"0xaa8725763bebe55d254cc321c3ac459d475b1d2e57c422b29e7e6a6e4487ad48\",\"asset\":\"SO",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1781743691,\"ts_ms_local\":1781743691685,\"token_id\":\"30465917734152333504613776449508195947745337380971051964124262036546103377657\",\"condition_id\":\"0x861b1f77116f80b3b2184af14c7721576a948923c28ad9c201667ecea1919e79\",\"asset\":\"SO",
-      "mtime_utc": "2026-06-18T00:48:12Z",
-      "n_rows": 8,
-      "size_bytes": 5372
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1781744885,\"ts_ms_local\":1781744885942,\"token_id\":\"5976067299362534970688261708397033270169781556678122883839734881070305447550\",\"condition_id\":\"0x591056c0ee52e93ca9de429cc009915e4b9267b825f5b31b12ee3945a5429c9a\",\"asset\":\"SOL",
+      "mtime_utc": "2026-06-18T01:08:06Z",
+      "n_rows": 11,
+      "size_bytes": 7385
     },
     "hot/2026-06-18/exit099_live.jsonl": {
       "first_excerpt": "{\"ts\": 1781743048.7308283, \"record\": \"recycle099\", \"token\": \"103684954158086845071711690829566437938829529668250511853261609742361350962438\", \"shares\": 6.0, \"entry\": 0.17, \"exit\": 0.99, \"pnl\": 4.92}",
@@ -2340,87 +2340,87 @@
     },
     "hot/2026-06-18/exit_policy_shadow.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"exit_policy_shadow\",\"ts_s\":1781741014,\"token_id\":\"1245847485517985999582591647740998462606561097074560018949693534303965432142\",\"condition_id\":\"0x835556f548a9da17953812d36962a7d6890942c3cacd9aa522670182746dcf86\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"outcome_side\":\"YES\"",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"exit_policy_shadow\",\"ts_s\":1781744030,\"token_id\":\"61722079302139541734074648441675051662606337521264866371564218413575601528733\",\"condition_id\":\"0x1919305a0a905f98b3ae307c96056a95da3d563e40656218d11f9a3248e2e733\",\"asset\":\"BTC\",\"outcome_dir\":\"down\",\"outcome_side\":\"N",
-      "mtime_utc": "2026-06-18T00:53:50Z",
-      "n_rows": 109,
-      "size_bytes": 75448
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"exit_policy_shadow\",\"ts_s\":1781744932,\"token_id\":\"99259967858018332446128148252140165651967112702461951700760558777322501158306\",\"condition_id\":\"0x9cfee109e849401f5ef0cb8c4047a9813486e4abb1244affa01b6bdb9aa62e64\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"outcome_side\":\"YES",
+      "mtime_utc": "2026-06-18T01:08:52Z",
+      "n_rows": 124,
+      "size_bytes": 85835
     },
     "hot/2026-06-18/fade_shadow.jsonl": {
       "first_excerpt": "{\"ts\": 1781740840.1743364, \"city\": \"sao-paulo\", \"phase\": \"POST_PEAK\", \"regime\": \"SUNNY\", \"running_max_c\": 21.0, \"rm_age_s\": 25240.0, \"fade_bins\": [{\"lo\": 21.5, \"hi\": 22.5, \"no_tok\": \"77916380103473345124895052672593919368254406939676800110938803915597792931604\", \"no_ask\": 0.9995, \"no_bid\": 0.9795, \"",
-      "last_excerpt": "{\"ts\": 1781744184.7285888, \"city\": \"los-angeles\", \"phase\": \"POST_PEAK\", \"regime\": \"SUNNY\", \"running_max_c\": 21.1, \"rm_age_s\": 21805.0, \"fade_bins\": [{\"lo\": 21.944444444444443, \"hi\": 23.055555555555557, \"no_tok\": \"25800312029905278169308394900925520084149750448254109672559557908185219811963\", \"no_ask",
-      "mtime_utc": "2026-06-18T00:56:26Z",
-      "n_rows": 770,
-      "size_bytes": 660810
+      "last_excerpt": "{\"ts\": 1781745045.2948856, \"city\": \"los-angeles\", \"phase\": \"POST_PEAK\", \"regime\": \"SUNNY\", \"running_max_c\": 21.1, \"rm_age_s\": 22665.0, \"fade_bins\": [{\"lo\": 21.944444444444443, \"hi\": 23.055555555555557, \"no_tok\": \"25800312029905278169308394900925520084149750448254109672559557908185219811963\", \"no_ask",
+      "mtime_utc": "2026-06-18T01:10:46Z",
+      "n_rows": 966,
+      "size_bytes": 828855
     },
     "hot/2026-06-18/gate_trace.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1781740799,\"ts_ms_local\":1781740799885,\"token_id\":\"21463587665114204624282048557786838081049037670796238798711436837544871812751\",\"condition_id\":\"0x850f17d43d518c8e8fe8eda03285305a14512e43bf61276dffd99d4d564bdd79\",\"asset\":\"BTC\",\"outcome_dir\":\"up\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1781744197,\"ts_ms_local\":1781744197074,\"token_id\":\"74542189965789194541255558018140657925250360908149334445988915587855965775752\",\"condition_id\":\"0x997b8efa93622d837a6470341071fc718c3a2f08bbc5d551f1646036c7518ced\",\"asset\":\"SOL\",\"outcome_dir\":\"dow",
-      "mtime_utc": "2026-06-18T00:56:37Z",
-      "n_rows": 37629,
-      "size_bytes": 23535530
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1781745102,\"ts_ms_local\":1781745102287,\"token_id\":\"12677536136967616862859380691679065860529667177669397108926295760602099152843\",\"condition_id\":\"0xd62fdb41f8d30d171489f7b2715fce1447fac497ca14e11aa51b33671835b776\",\"asset\":\"SOL\",\"outcome_dir\":\"dow",
+      "mtime_utc": "2026-06-18T01:11:43Z",
+      "n_rows": 47085,
+      "size_bytes": 29445653
     },
     "hot/2026-06-18/hold_path.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1781741010,\"ts_ms_local\":1781741010564,\"token_id\":\"47468093684460033039148252075769786770127632700222327039669080413442035262831\",\"condition_id\":\"0x94b062361870cfbd45db3ef1e40b78c740db31b35eac396039ddd4fa435cfb30\",\"asset\":\"BTC\",\"outcome_dir\":\"up\",",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1781744081,\"ts_ms_local\":1781744081789,\"token_id\":\"61722079302139541734074648441675051662606337521264866371564218413575601528733\",\"condition_id\":\"0x1919305a0a905f98b3ae307c96056a95da3d563e40656218d11f9a3248e2e733\",\"asset\":\"BTC\",\"outcome_dir\":\"down",
-      "mtime_utc": "2026-06-18T00:54:42Z",
-      "n_rows": 4800,
-      "size_bytes": 4636724
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1781744983,\"ts_ms_local\":1781744983690,\"token_id\":\"62279674705648367421881044470121330344316932701362945016697889718016063384561\",\"condition_id\":\"0x9cfee109e849401f5ef0cb8c4047a9813486e4abb1244affa01b6bdb9aa62e64\",\"asset\":\"ETH\",\"outcome_dir\":\"down",
+      "mtime_utc": "2026-06-18T01:09:50Z",
+      "n_rows": 5925,
+      "size_bytes": 5724515
     },
     "hot/2026-06-18/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1781740892.6766934, \"cid\": \"0x3cde95541b9c3b192d3c093e1f92e5e767cb3c941b270a008d1e2f8012bfd8bb\", \"q\": \"Will there be at least 2300 measles cases in the U.S. by June 30, 2026?\", \"proxyWallet\": \"0x3a595f446970c729af8e10224ec865d5de30c2b6\", \"side\": \"BUY\", \"asset\": \"1131672739349574041441135",
-      "last_excerpt": "{\"poll_ts\": 1781744174.6510823, \"cid\": \"0x63f1c8a4f1041bfe22f8a5b3c081fb9de4ff29fa11edd533a7354a313db962ae\", \"q\": \"Will the highest temperature in Karachi be 34\\u00b0C on June 19?\", \"proxyWallet\": \"0xdc3a0c46f063d18ab0134be1ae6871b628bf3df7\", \"side\": \"SELL\", \"asset\": \"5778277270638680818856622201952",
-      "mtime_utc": "2026-06-18T00:56:15Z",
-      "n_rows": 4501,
-      "size_bytes": 4782491
+      "last_excerpt": "{\"poll_ts\": 1781745075.048858, \"cid\": \"0x8afb5465dfb781b8a914f315a145d37dfcae421956a74d4fe121c82f130253df\", \"q\": \"Will the highest temperature in Karachi be 36\\u00b0C on June 19?\", \"proxyWallet\": \"0x2fe21aec2dd7650b5cd9807ba69225f7c1cbec56\", \"side\": \"BUY\", \"asset\": \"545370782705688777832439923202475",
+      "mtime_utc": "2026-06-18T01:11:17Z",
+      "n_rows": 5419,
+      "size_bytes": 5763893
     },
     "hot/2026-06-18/maker_shadow.jsonl": {
       "first_excerpt": "{\"ts\": 1781740843.071771, \"city\": \"san-francisco\", \"phase\": \"POST_PEAK\", \"lo\": -999.0, \"hi\": 17.5, \"yes_tok\": \"47775521243567480086983303507068858745293807515161523658671501825772821771272\", \"no_tok\": \"74787123020488304281253106676980835907557577085017354028502297003682761865158\", \"fair\": 0.0, \"yes_",
-      "last_excerpt": "{\"ts\": 1781744193.2935526, \"city\": \"tel-aviv\", \"phase\": \"PRE_PEAK\", \"lo\": 35.5, \"hi\": 999.0, \"yes_tok\": \"20344222217313100503640618602749108363982018466499993886931308694953785215423\", \"no_tok\": \"479230115865570542120949120534797251718792605993925566157112599139406431761\", \"fair\": 0.0012, \"yes_bid\":",
-      "mtime_utc": "2026-06-18T00:56:33Z",
-      "n_rows": 2266,
-      "size_bytes": 1084361
+      "last_excerpt": "{\"ts\": 1781745054.3536947, \"city\": \"seattle\", \"phase\": \"POST_PEAK\", \"lo\": 28.61111111111111, \"hi\": 999.0, \"yes_tok\": \"15054361892327139518593060654052432296409168365988867908340614465512505481281\", \"no_tok\": \"55115860226068015962746639696139766595953887809869222782471102433503111806787\", \"fair\": 0.0",
+      "mtime_utc": "2026-06-18T01:10:54Z",
+      "n_rows": 3751,
+      "size_bytes": 1799198
     },
     "hot/2026-06-18/market_timeline.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1781740799,\"ts_ms_local\":1781740799885,\"token_id\":\"21463587665114204624282048557786838081049037670796238798711436837544871812751\",\"condition_id\":\"0x850f17d43d518c8e8fe8eda03285305a14512e43bf61276dffd99d4d564bdd79\",\"asset\":\"BTC\",\"outcome_dir\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1781744196,\"ts_ms_local\":1781744196074,\"token_id\":\"74542189965789194541255558018140657925250360908149334445988915587855965775752\",\"condition_id\":\"0x997b8efa93622d837a6470341071fc718c3a2f08bbc5d551f1646036c7518ced\",\"asset\":\"SOL\",\"outcome_dir\"",
-      "mtime_utc": "2026-06-18T00:56:36Z",
-      "n_rows": 37619,
-      "size_bytes": 50384821
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1781745102,\"ts_ms_local\":1781745102287,\"token_id\":\"12677536136967616862859380691679065860529667177669397108926295760602099152843\",\"condition_id\":\"0xd62fdb41f8d30d171489f7b2715fce1447fac497ca14e11aa51b33671835b776\",\"asset\":\"SOL\",\"outcome_dir\"",
+      "mtime_utc": "2026-06-18T01:11:43Z",
+      "n_rows": 47085,
+      "size_bytes": 63062440
     },
     "hot/2026-06-18/metar_lockout.jsonl": {
       "first_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-06-18T00:00:03.237476+00:00\", \"ts_s\": 1781740803, \"city\": \"Seattle\", \"icao\": \"KSEA\", \"token_id\": \"48093162122354563673167325632577899416962263118791184383407278175069520009767\", \"no_token_id\": \"95113434495024218750044542",
-      "last_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-06-18T00:56:08.486303+00:00\", \"ts_s\": 1781744168, \"city\": \"Shenzhen\", \"icao\": \"ZGSZ\", \"token_id\": \"82026727077908051367392799567457023699484990123671120256554848458169565862384\", \"no_token_id\": \"3380669954519308640643248",
-      "mtime_utc": "2026-06-18T00:56:09Z",
-      "n_rows": 1522,
-      "size_bytes": 2464435
+      "last_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-06-18T01:11:43.151099+00:00\", \"ts_s\": 1781745103, \"city\": \"Austin\", \"icao\": \"KAUS\", \"token_id\": \"98023954581372051932920035673876946324425071969176475258838936261770271522141\", \"no_token_id\": \"389648619638401297696210293",
+      "mtime_utc": "2026-06-18T01:11:43Z",
+      "n_rows": 1959,
+      "size_bytes": 3162797
     },
     "hot/2026-06-18/metar_min_lockout.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"metar_min_lockout_candidate\", \"ts_s\": 1781740838.7, \"ts_utc\": \"2026-06-18T00:00:38.692686+00:00\", \"city\": \"NYC\", \"icao\": \"KLGA\", \"token_id\": \"40212805285487536611280818334564144245075300045727036921244222476807047073285\", \"question\": \"Will the lowest temperature",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"metar_min_lockout_candidate\", \"ts_s\": 1781744169.3, \"ts_utc\": \"2026-06-18T00:56:09.256538+00:00\", \"city\": \"Shanghai\", \"icao\": \"ZSPD\", \"token_id\": \"84333138511220530403137549815005272686701307875386848064591678869540319378870\", \"question\": \"Will the lowest temper",
-      "mtime_utc": "2026-06-18T00:56:09Z",
-      "n_rows": 1320,
-      "size_bytes": 697816
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"metar_min_lockout_candidate\", \"ts_s\": 1781745044.0, \"ts_utc\": \"2026-06-18T01:10:43.952823+00:00\", \"city\": \"Shanghai\", \"icao\": \"ZSPD\", \"token_id\": \"84333138511220530403137549815005272686701307875386848064591678869540319378870\", \"question\": \"Will the lowest temper",
+      "mtime_utc": "2026-06-18T01:10:44Z",
+      "n_rows": 1658,
+      "size_bytes": 876483
     },
     "hot/2026-06-18/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-18T00:00:02+00:00\", \"city\": \"nyc\", \"date\": \"2026-06-17\", \"unit\": \"f\", \"title\": \"Lowest temperature in NYC on June 17?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.026, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": {\"obs_src\": \"AWC-METAR\", \"rmin_c\": 18.3, \"",
-      "last_excerpt": "{\"ts\": \"2026-06-18T00:40:01+00:00\", \"city\": \"london\", \"date\": \"2026-06-19\", \"unit\": \"c\", \"title\": \"Lowest temperature in London on June 19?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.217, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
-      "mtime_utc": "2026-06-18T00:41:17Z",
-      "n_rows": 51,
-      "size_bytes": 114676
+      "last_excerpt": "{\"ts\": \"2026-06-18T01:00:01+00:00\", \"city\": \"london\", \"date\": \"2026-06-19\", \"unit\": \"c\", \"title\": \"Lowest temperature in London on June 19?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": null, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
+      "mtime_utc": "2026-06-18T01:02:00Z",
+      "n_rows": 68,
+      "size_bytes": 160238
     },
     "hot/2026-06-18/no_arb_probe.jsonl": {
       "first_excerpt": "{\"ts\": 1781740840, \"city\": \"seattle\", \"N\": 11, \"proxy_sum_no\": 9.7, \"real_sum_no\": 9.7, \"payoff_N_1\": 10.0, \"real_edge\": 0.0309, \"n_legs_fillable\": 0, \"all_legs_fillable\": false, \"min_leg_depth_usd\": null, \"real_arb\": false, \"legs\": [{\"hi\": 18.61111111111111, \"no_ask\": null, \"depth\": 0.0, \"src\": \"no",
-      "last_excerpt": "{\"ts\": 1781743927, \"city\": \"madrid\", \"N\": 11, \"proxy_sum_no\": 9.9815, \"real_sum_no\": 9.9815, \"payoff_N_1\": 10.0, \"real_edge\": 0.0019, \"n_legs_fillable\": 0, \"all_legs_fillable\": false, \"min_leg_depth_usd\": null, \"real_arb\": false, \"legs\": [{\"hi\": 31.5, \"no_ask\": null, \"depth\": 0.0, \"src\": \"no_asks\"},",
-      "mtime_utc": "2026-06-18T00:52:08Z",
-      "n_rows": 55,
-      "size_bytes": 51519
+      "last_excerpt": "{\"ts\": 1781744861, \"city\": \"chicago\", \"N\": 11, \"proxy_sum_no\": 9.9805, \"real_sum_no\": 9.9805, \"payoff_N_1\": 10.0, \"real_edge\": 0.002, \"n_legs_fillable\": 0, \"all_legs_fillable\": false, \"min_leg_depth_usd\": null, \"real_arb\": false, \"legs\": [{\"hi\": 15.277777777777779, \"no_ask\": null, \"depth\": 0.0, \"src",
+      "mtime_utc": "2026-06-18T01:07:42Z",
+      "n_rows": 70,
+      "size_bytes": 65664
     },
     "hot/2026-06-18/obs_receipt.jsonl": {
       "first_excerpt": "{\"recv_ts\": 1781740821.3456147, \"icao\": \"SBGR\", \"source\": \"AWC\", \"obs_valid_ts\": 1781740800.0, \"temp_c\": 14.0}",
-      "last_excerpt": "{\"recv_ts\": 1781744123.3295097, \"icao\": \"KSEA\", \"source\": \"NWS5\", \"obs_valid_ts\": 1781742900.0, \"temp_c\": 23.0}",
-      "mtime_utc": "2026-06-18T00:55:23Z",
-      "n_rows": 167,
-      "size_bytes": 18811
+      "last_excerpt": "{\"recv_ts\": 1781745083.7601051, \"icao\": \"KORD\", \"source\": \"NWS5\", \"obs_valid_ts\": 1781743800.0, \"temp_c\": 20.0}",
+      "mtime_utc": "2026-06-18T01:11:23Z",
+      "n_rows": 242,
+      "size_bytes": 27154
     },
     "hot/2026-06-18/peakscalp_shadow.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"peakscalp_gate_pass\", \"ts_utc\": \"2026-06-18T00:00:03.237476+00:00\", \"ts_s\": 1781740803.2, \"city\": \"Seattle\", \"icao\": \"KSEA\", \"end_date\": \"2026-06-17\", \"question\": \"Will the highest temperature in Seattle be between 72-73\\u00b0F on June 17?\", \"condition_id\": \"0x5",
@@ -2431,67 +2431,67 @@
     },
     "hot/2026-06-18/shadow_telemetry.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1781740814,\"uptime_s\":42493,\"queue_depth\":0,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":2774351,\"dropped_total\":0,\"rows_per_min\":3917.4,\"flush_count\":37841,\"flush_latency_p50_ms\":1.39,\"flush_latency_p95_ms\":3.83,\"rss_mb\":1081.1,\"",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1781744194,\"uptime_s\":45872,\"queue_depth\":1,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":2906107,\"dropped_total\":0,\"rows_per_min\":3801.1,\"flush_count\":40647,\"flush_latency_p50_ms\":1.4,\"flush_latency_p95_ms\":3.21,\"rss_mb\":1766.3,\"f",
-      "mtime_utc": "2026-06-18T00:56:35Z",
-      "n_rows": 57,
-      "size_bytes": 77230
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1781745098,\"uptime_s\":46776,\"queue_depth\":0,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":2944236,\"dropped_total\":0,\"rows_per_min\":3776.6,\"flush_count\":41405,\"flush_latency_p50_ms\":1.47,\"flush_latency_p95_ms\":3.97,\"rss_mb\":1456.2,\"",
+      "mtime_utc": "2026-06-18T01:11:38Z",
+      "n_rows": 72,
+      "size_bytes": 97571
     },
     "hot/2026-06-18/stwa_ladder_book.jsonl": {
       "first_excerpt": "{\"ts\": 1781740843.1104708, \"city\": \"sao-paulo\", \"phase\": \"POST_PEAK\", \"regime\": \"SUNNY\", \"running_max\": 21.0, \"model_center\": 14.337, \"buckets\": [{\"lo\": 18.5, \"hi\": 19.5, \"p_model\": 0.0, \"p_cal\": 0.0, \"ask_yes\": 0.0005, \"ask_no\": 0.9995, \"yes_depth_usd\": 0.0, \"no_depth_usd\": 0.0}, {\"lo\": 19.5, \"hi\":",
-      "last_excerpt": "{\"ts\": 1781744191.7429972, \"city\": \"munich\", \"phase\": \"PRE_PEAK\", \"regime\": \"SUNNY\", \"running_max\": 16.0, \"model_center\": 30.336, \"buckets\": [{\"lo\": -999.0, \"hi\": 24.5, \"p_model\": 0.0, \"p_cal\": 0.0, \"ask_yes\": 0.0005, \"ask_no\": 0.9995, \"yes_depth_usd\": 0.0, \"no_depth_usd\": 0.0}, {\"lo\": 24.5, \"hi\": 2",
-      "mtime_utc": "2026-06-18T00:56:31Z",
-      "n_rows": 105,
-      "size_bytes": 181826
+      "last_excerpt": "{\"ts\": 1781745054.3527071, \"city\": \"seattle\", \"phase\": \"POST_PEAK\", \"regime\": \"SUNNY\", \"running_max\": 22.2, \"model_center\": 20.072, \"buckets\": [{\"lo\": -999.0, \"hi\": 18.61111111111111, \"p_model\": 0.0, \"p_cal\": 0.0, \"ask_yes\": 0.0005, \"ask_no\": 0.9995, \"yes_depth_usd\": 0.0, \"no_depth_usd\": 0.0}, {\"lo\"",
+      "mtime_utc": "2026-06-18T01:10:54Z",
+      "n_rows": 174,
+      "size_bytes": 304432
     },
     "hot/2026-06-18/stwa_pricer_eval.jsonl": {
       "first_excerpt": "{\"city\": \"atlanta\", \"lo\": -999.0, \"hi\": 25.27777777777778, \"p_mc\": 0.0, \"p_gev\": 0.0, \"p_pa\": 0.0, \"p_ps\": 0.0, \"p_cal\": 0.0, \"running_max\": 29.4, \"t_close\": 1781758799.9970593, \"phase\": \"POST_PEAK\", \"ts\": 1781740840.1743364}",
-      "last_excerpt": "{\"city\": \"wuhan\", \"lo\": 36.5, \"hi\": 999.0, \"p_mc\": 0.0, \"p_gev\": 0.0, \"p_pa\": 0.0, \"p_ps\": 0.0, \"p_cal\": 0.0, \"running_max\": 28.0, \"t_close\": 1781798399.9923987, \"phase\": \"PRE_PEAK\", \"ts\": 1781744184.7285888}",
-      "mtime_utc": "2026-06-18T00:56:34Z",
-      "n_rows": 15114,
-      "size_bytes": 3409837
+      "last_excerpt": "{\"city\": \"wuhan\", \"lo\": 36.5, \"hi\": 999.0, \"p_mc\": 0.0, \"p_gev\": 0.0, \"p_pa\": 0.0, \"p_ps\": 0.0, \"p_cal\": 0.0, \"running_max\": 28.0, \"t_close\": 1781798399.9926267, \"phase\": \"PRE_PEAK\", \"ts\": 1781745045.2948856}",
+      "mtime_utc": "2026-06-18T01:10:56Z",
+      "n_rows": 18920,
+      "size_bytes": 4267083
     },
     "hot/2026-06-18/stwa_state.jsonl": {
       "first_excerpt": "{\"ts\": 1781740821, \"city\": \"amsterdam\", \"regime\": \"SUNNY\", \"running_max\": 17.0, \"last_obs_ts\": 1781740500, \"metar_age_s\": 321, \"kalman_mu\": 0.009, \"kalman_var\": 0.4861, \"v_hat_ols\": 0.0, \"pv_var_ols\": 4.0, \"x_hat_joint\": -0.811, \"v_hat_joint\": 0.275, \"pv_var_joint\": 0.3708, \"nwp_mu\": null, \"suspende",
-      "last_excerpt": "{\"ts\": 1781744178, \"city\": \"zhengzhou\", \"regime\": \"SUNNY\", \"running_max\": null, \"last_obs_ts\": 0.0, \"metar_age_s\": null, \"kalman_mu\": 0.004, \"kalman_var\": 0.829, \"v_hat_ols\": 0.0, \"pv_var_ols\": 4.0, \"x_hat_joint\": 0.0, \"v_hat_joint\": 0.0, \"pv_var_joint\": 0.0, \"nwp_mu\": 25.77, \"suspended\": false}",
-      "mtime_utc": "2026-06-18T00:56:18Z",
-      "n_rows": 5661,
-      "size_bytes": 1783735
+      "last_excerpt": "{\"ts\": 1781745089, \"city\": \"zhengzhou\", \"regime\": \"SUNNY\", \"running_max\": null, \"last_obs_ts\": 0.0, \"metar_age_s\": null, \"kalman_mu\": 0.004, \"kalman_var\": 0.8851, \"v_hat_ols\": 0.0, \"pv_var_ols\": 4.0, \"x_hat_joint\": 0.0, \"v_hat_joint\": 0.0, \"pv_var_joint\": 0.0, \"nwp_mu\": 26.38, \"suspended\": false}",
+      "mtime_utc": "2026-06-18T01:11:29Z",
+      "n_rows": 7191,
+      "size_bytes": 2265959
     },
     "hot/2026-06-18/temporal_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"temporal_lock_candidate\", \"ts_utc\": \"2026-06-18T00:00:03.237476+00:00\", \"ts_s\": 1781740803, \"city\": \"Sao Paulo\", \"icao\": \"SBGR\", \"end_date\": \"2026-06-17\", \"question\": \"Will the highest temperature in Sao Paulo be 22\\u00b0C on June 17?\", \"local_hour\": 21, \"month\"",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"temporal_lock_candidate\", \"ts_utc\": \"2026-06-18T00:00:03.237476+00:00\", \"ts_s\": 1781740803, \"city\": \"Los Angeles\", \"icao\": \"KLAX\", \"end_date\": \"2026-06-17\", \"question\": \"Will the highest temperature in Los Angeles be 84\\u00b0F or higher on June 17?\", \"local_hour",
-      "mtime_utc": "2026-06-18T00:00:03Z",
-      "n_rows": 76,
-      "size_bytes": 39869
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"temporal_lock_candidate\", \"ts_utc\": \"2026-06-18T01:00:03.684876+00:00\", \"ts_s\": 1781744403, \"city\": \"Los Angeles\", \"icao\": \"KLAX\", \"end_date\": \"2026-06-17\", \"question\": \"Will the highest temperature in Los Angeles be 84\\u00b0F or higher on June 17?\", \"local_hour",
+      "mtime_utc": "2026-06-18T01:00:04Z",
+      "n_rows": 151,
+      "size_bytes": 79205
     },
     "hot/2026-06-18/thermo_maker.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"thermo_maker_candidate\", \"ts_s\": 1781740839.3, \"city\": \"Seattle\", \"icao\": \"KSEA\", \"token_id\": \"2231000374110827290329837167246700559464330299299152658150737748764792172123\", \"question\": \"Will the highest temperature in Seattle be between 82-83\\u00b0F on June 17?",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"thermo_maker_candidate\", \"ts_s\": 1781744169.8, \"city\": \"Amsterdam\", \"icao\": \"EHAM\", \"token_id\": \"68974400564089287500202366369515993528094012831842409231815174347298452454058\", \"question\": \"Will the highest temperature in Amsterdam be 31\\u00b0C or higher on June",
-      "mtime_utc": "2026-06-18T00:56:10Z",
-      "n_rows": 1111,
-      "size_bytes": 545020
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"thermo_maker_candidate\", \"ts_s\": 1781745044.6, \"city\": \"Paris\", \"icao\": \"LFPB\", \"token_id\": \"67233211041461405393396111988896024332250222962374381244302504848122310233730\", \"question\": \"Will the highest temperature in Paris be 42\\u00b0C or higher on June 18?\", \"",
+      "mtime_utc": "2026-06-18T01:10:45Z",
+      "n_rows": 1347,
+      "size_bytes": 660578
     },
     "hot/2026-06-18/user_ws.jsonl": {
       "first_excerpt": "{\"recv_ts\": 1781741654.045, \"ev\": {\"type\": \"TRADE\", \"id\": \"a679a14c-428c-466b-a290-9db6856d3882\", \"taker_order_id\": \"0xe3cf4b52a2882bf3670ac104002cf4fc5becf09a689bf63a55b15cb6c6a5e3fa\", \"market\": \"0x2bd53a978d7a117f6ab7bebdd50dbffb938064a74df293bba0bc923d1e772620\", \"asset_id\": \"212734283501686955946",
-      "last_excerpt": "{\"recv_ts\": 1781744194.303, \"ev\": {\"type\": \"TRADE\", \"id\": \"90fb94f0-f784-4545-aa75-214d3ca8a2ac\", \"taker_order_id\": \"0x871c75b80ef146b604ceaab7e3a91732cef7684356647e0c3a5b3d1eb630dcf0\", \"market\": \"0x084b9f4a28affbb930c35386f8f9ebbec230b98d81bafc2378f4de473d65731b\", \"asset_id\": \"434719464528066462714",
-      "mtime_utc": "2026-06-18T00:56:34Z",
-      "n_rows": 54,
-      "size_bytes": 83775
+      "last_excerpt": "{\"recv_ts\": 1781744964.268, \"ev\": {\"type\": \"TRADE\", \"id\": \"49dc26a0-68fb-4e75-8b54-b84ec0b8d184\", \"taker_order_id\": \"0xf4815f79d4e137ca981d56175ba9e5122430009b88012fe1e2607d67164212d1\", \"market\": \"0xaa9520b8b5cb7351628061041468a85260470222aff8d0eb1ae0a775e8503191\", \"asset_id\": \"946355497189789974421",
+      "mtime_utc": "2026-06-18T01:09:24Z",
+      "n_rows": 70,
+      "size_bytes": 101908
     },
     "hot/2026-06-18/window_resolution.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1781740835,\"condition_id\":\"0x311cfed365b2f6a9b59decbe7e4bdaf74a7afa305715f77f3f798e1605b8378d\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"window_end_ts\":1781740800,\"window_size_s\":900,\"binance_open_5m\":1747.85,\"binance_close_5m\":1750.6,\"bi",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1781744135,\"condition_id\":\"0x97af7c86daa72abfd50214c161e436c56d5d5094b9d09ac4921d7a09b082c84b\",\"asset\":\"SOL\",\"outcome_dir\":\"up\",\"window_end_ts\":1781744100,\"window_size_s\":300,\"binance_open_5m\":72.41,\"binance_close_5m\":72.3,\"binanc",
-      "mtime_utc": "2026-06-18T00:55:36Z",
-      "n_rows": 48,
-      "size_bytes": 24772
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1781745035,\"condition_id\":\"0x9cfee109e849401f5ef0cb8c4047a9813486e4abb1244affa01b6bdb9aa62e64\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"window_end_ts\":1781745000,\"window_size_s\":300,\"binance_open_5m\":1758.08,\"binance_close_5m\":1759.39,\"b",
+      "mtime_utc": "2026-06-18T01:10:36Z",
+      "n_rows": 60,
+      "size_bytes": 30973
     },
     "met_adjustments.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-05-21T19:40:55Z\", \"city\": \"Seattle\", \"icao\": \"KSEA\", \"marine\": {\"active\": false}, \"cirrus\": {\"active\": true, \"f_sky_raw\": 0.3, \"f_sky_adj\": 0.6}, \"latent_heat\": {\"active\": false}, \"mu_baseline\": 19.98, \"mu_final\": 21.06, \"total_delta\": 1.08}",
-      "last_excerpt": "{\"ts\": \"2026-06-18T00:56:08Z\", \"city\": \"Seattle\", \"icao\": \"KSEA\", \"marine\": {\"active\": true, \"wind_dir_deg\": 270.0, \"wind_speed_kt\": 7.0, \"multiplier\": 0.72, \"mean_rise_raw\": 2.19, \"mean_rise_adj\": 1.577}, \"cirrus\": {\"active\": false}, \"latent_heat\": {\"active\": false}, \"mu_baseline\": 24.06, \"mu_final",
-      "mtime_utc": "2026-06-18T00:56:08Z",
-      "n_rows": 10432,
-      "size_bytes": 3190380
+      "last_excerpt": "{\"ts\": \"2026-06-18T01:06:37Z\", \"city\": \"Taipei\", \"icao\": \"RCSS\", \"marine\": {\"active\": false}, \"cirrus\": {\"active\": true, \"f_sky_raw\": 0.3, \"f_sky_adj\": 0.6}, \"latent_heat\": {\"active\": false}, \"mu_baseline\": 33.42, \"mu_final\": 33.84, \"total_delta\": 0.42}",
+      "mtime_utc": "2026-06-18T01:06:37Z",
+      "n_rows": 10440,
+      "size_bytes": 3192735
     }
   },
-  "snapshot_ts": "2026-06-18T00:56:28Z"
+  "snapshot_ts": "2026-06-18T01:11:34Z"
 }
