@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-18T10:32:06Z
+# Snapshot: 2026-06-18T10:47:11Z
 # Latest commit on klaus:
-ef3d9e52 feat(BAND): proportional per-cell posting queue — copy badatmath's "blanket both books"
+da527052 feat(BAND): unfreeze recycle loop — NO_CASH_RESERVE 0.25→0 + drop −EV d+0 NO cell
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
