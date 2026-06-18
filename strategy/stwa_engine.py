@@ -276,12 +276,12 @@ BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge
                                     # gated, BAND_MD_DAILY_BUDGET-capped. Evidence: his n=8,043 resolved
                                     # tokens ground truth; worst-case bound = Σask<0.70 vs mode±band hit
                                     # ~0.84 ⇒ +EV even at ask-1¢ fills. Revert: False
-BAND_PX_CEIL        = 0.44          # 2026-06-18 (user): 0.25→0.44 — RE-ADMIT the full near-mode YES band. Reverses the
-                                    # 11:45 cut (0.45→0.25, made on realized [0.22,0.45] −10..−28%) now that the posture is
-                                    # different: d+2-prioritized breadth + off±2 wings + cheap off2 unfloored, fed into merge,
-                                    # NOT the bleeding upper-band-near-mode-converging-away leg. ⚠ re-admits the [0.25,0.44]
-                                    # slice that bled in the n<100 attribution — watch band_net_attribution.py by entry-px.
-                                    # PAIR_FAV is EXEMPT (merge-intent, own window). Was 0.25 (was 0.45 before that).
+BAND_PX_CEIL        = 0.30          # 2026-06-18 (user): 0.44→0.30 — trim the expensive near-mode YES band. Model-free
+                                    # dispersion test (band_dispersion_test.py, n=6,899): shoulder calibration gap ≈0 (no
+                                    # under-dispersion edge in mode±2) and the [0.25,0.45] YES slice bled −10..−28% realized
+                                    # (band_net_attribution n<100). Keep the cheap-YES tails (held to resolution, user call);
+                                    # cut the expensive upper band that converges away. PAIR_FAV EXEMPT (merge-intent, own
+                                    # window). Was 0.44 (re-admit), 0.25 before that, 0.45 originally. Revert: 0.44.
 BAND_PX_MIN         = 0.10          # d+0 floor. 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05)
                                     # −11.9%, [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%.
                                     # d+0 cheap stays dead post-inflection too: 0.05-0.10@d0 −7.4% (n=1364).
