@@ -301,7 +301,11 @@ BAND_SUM_MAX        = 0.85          # fire only if Σ ask of the POSTED legs (|o
                                     # on ASKS (≥ fill px) so 0.85 is conservative-equivalent. The 0.70-0.85
                                     # slice accumulates in the validator (sum3 logged). Was 0.70 (full band).
 BAND_MIN_LEGS       = 2             # a band needs ≥ this many in-price legs
-BAND_BASE_STAKE     = 1.0           # 2026-06-15: 3→1 to the CLOB MINIMUM. His YES fills are $0.95-1.26
+BAND_BASE_STAKE     = 3.0           # 2026-06-18: 1→3 RESTORED (user directive — "we used to have 3 on YES, was
+                                    # better till 06-13"). Reverts the 06-15 1.0 (which matched badatmath's $1.15
+                                    # but coincided with the decline + 2wk of config thrashing). FREEZE config after
+                                    # this to measure net edge cleanly. Caveat: $3 = bigger swings not more edge.
+                                    # Prior note: 2026-06-15: 3→1 to the CLOB MINIMUM. His YES fills are $0.95-1.26
                                     # = AT the exchange floor (5 sh / $1); the $3 base posted 3× his
                                     # size = 1/3 the breadth from the same cash, and blocked posting
                                     # whenever yes_cap < $3 (the posted=0 freeze). Per-leg floor is
@@ -357,7 +361,8 @@ BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint
 BAND_NO_ENABLED   = True
 BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
 BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
-BAND_NO_STAKE     = 4.5     # 2026-06-11: 2.6→4.5 — his NO fill median $5.16 (4× his YES fill);
+BAND_NO_STAKE     = 5.0     # 2026-06-18: 4.5→5.0 (user directive — "5 on NO"). His NO fill median $5.16.
+                            # Prior: 2026-06-11: 2.6→4.5 — his NO fill median $5.16 (4× his YES fill);
                             # also keeps ≥5 shares (CLOB resting min) up to px 0.90. Was 2.6
 BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
                             # budget; the cash gate is the real constraint. Was 12.0
@@ -467,7 +472,8 @@ BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
 # cash gate (badatmath's scaling axis — per-bucket $ flat across a 5× deploy
 # ramp); stakes only deepen once the surface saturates. In drawdowns stakes
 # shrink toward the floors (fractional-Kelly brake). Kill switches untouched.
-BAND_STAKE_FRAC_YES = 0.005   # 2026-06-15: 0.010→0.005 — breadth model. At 0.010 the YES base was
+BAND_STAKE_FRAC_YES = 0.010   # 2026-06-18: 0.005→0.010 RESTORED (user, pairs with BASE_STAKE 1→3).
+                              # Prior: 2026-06-15: 0.010→0.005 — breadth model. At 0.010 the YES base was
                               # $2.68 at $268 capital (≈ the old $3 floor), 3× his ~$1 fills. At
                               # 0.005 the exchange-min floor max($1,5×q) binds through ~$250-450
                               # capital, so YES posts AT the CLOB minimum (max breadth) and only
