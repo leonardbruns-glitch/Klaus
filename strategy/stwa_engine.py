@@ -530,6 +530,12 @@ BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.p
                                     # touch; 2h lets it re-quote fresh. min age before reclaimable
 BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
 BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
+BAND_PAIR_RECLAIM_AGE_S = 8 * 3600  # 2026-06-18 (churn fix): a leg on a bucket with BOTH
+                                    # a YES and NO band leg resting = a live merge pair. It
+                                    # bids deep below touch ON PURPOSE (merge margin), so the
+                                    # fast 2h "behind-touch" reclaim churns it before it can
+                                    # co-fill. Paired legs rest 8h (still reclaimed if dead +
+                                    # ≥2¢ behind after that); lone directional legs keep 2h.
 
 # ── BANKROLL-PROPORTIONAL STAKES (2026-06-11, user go) ───────────────────────
 # Fixed $ stakes freeze compounding (growth goes linear between manual constant

@@ -2553,11 +2553,24 @@ class WeatherArb:
         competitive). NEVER reprices toward a converged mode — quotes the book
         walks THROUGH are the stale-band edge and keep resting. Partials kept."""
         from strategy.stwa_engine import (BAND_RECLAIM_AGE_S, BAND_RECLAIM_BEHIND,
-                                          BAND_RECLAIM_PER_CYCLE)
+                                          BAND_RECLAIM_PER_CYCLE, BAND_PAIR_RECLAIM_AGE_S)
         import time as _time
         self._maker_state_init()
         now = _time.time()
         cands = []
+        # live merge pairs = a bucket (condition_id) with BOTH a YES and NO band leg
+        # resting unmatched. They bid deep below touch ON PURPOSE (merge margin), so the
+        # fast 2h behind-touch reclaim would churn them before they co-fill. Paired legs
+        # get a longer rest window; lone directional legs keep the fast reclaim.
+        _pair_sides: dict = {}
+        for _o2, _m2 in (self._maker_resting or {}).items():
+            if _m2.get("entry_class") != "WEATHER_STRUCT_BAND":
+                continue
+            if float(_m2.get("matched", 0.0) or 0.0) > 0.0:
+                continue
+            _pair_sides.setdefault(_m2.get("condition_id"),
+                                   set()).add(str(_m2.get("side", "")).upper())
+        _paired_cids = {c for c, s in _pair_sides.items() if {"YES", "NO"} <= s}
         for oid, m in list((self._maker_resting or {}).items()):
             if m.get("entry_class") != "WEATHER_STRUCT_BAND":
                 continue
@@ -2569,7 +2582,9 @@ class WeatherArb:
             if ts is None:
                 m["ts"] = now          # grandfather pre-existing quotes
                 continue
-            if now - float(ts) < BAND_RECLAIM_AGE_S:
+            _age_gate = (BAND_PAIR_RECLAIM_AGE_S if m.get("condition_id") in _paired_cids
+                         else BAND_RECLAIM_AGE_S)
+            if now - float(ts) < _age_gate:
                 continue
             cands.append((float(ts), oid, m))
         if not cands:
