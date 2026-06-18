@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-18T10:47:11Z
+# Snapshot: 2026-06-18T11:02:16Z
 # Latest commit on klaus:
-da527052 feat(BAND): unfreeze recycle loop — NO_CASH_RESERVE 0.25→0 + drop −EV d+0 NO cell
+deb97e29 feat(BAND): per-capital-day YES cell re-weight — d+0 > d+2 >> d+1 (velocity)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
