@@ -2961,11 +2961,13 @@ class WeatherArb:
         # @ d+1 (over-priced), so shorting the mode at d+2 is wrong-way; d+1 favNO is
         # the only +EV NO horizon (realized +3.7%, n=133, all d+1). YES keeps d+2
         # priority (d+2 = the YES horizon — mode cheap there). New order:
-        #   d+2 YES rank 0  >  d+1 YES rank 2  >  d+1 NO rank 3
+        # 2026-06-18 (user): d+1 NO promoted to 2nd (the +EV NO horizon goes right
+        # after the best YES horizon).
+        #   d+2 YES rank 0  >  d+1 NO rank 1  >  d+1 YES rank 2
         #   >  d+0 YES rank 4  >  d+0 NO rank 5  >  PAIR_FAV rank 6   (d+2 NO dropped)
         # Tiebreak: lower Σ(posted) first (deeper band discount), then |off|.
         _rank_yes = {2: 0, 1: 2, 0: 4}
-        _rank_no = {1: 3, 0: 5}     # d+2 NO dropped (skipped at enqueue below)
+        _rank_no = {1: 1, 0: 5}     # d+1 NO=rank1 (2nd, after d+2 YES); d+2 NO dropped
         _queue = []
         for _do, _sp, _off, _sig, _mkt, _ay in _live_legs:
             _queue.append((_rank_yes.get(_do, 2), _sp, _off,
