@@ -502,7 +502,13 @@ def band_phase(capital):
     read named keys; all thresholds/values are module constants above."""
     cap = float(capital or 0.0)
     ph = 3 if cap >= BAND_PHASE3_CAPITAL else 2 if cap >= BAND_PHASE2_CAPITAL else 1
-    no_reserve    = {1: 0.30, 2: 0.40, 3: 0.50}[ph]          # YES-primary → his ~50/50 at scale
+    no_reserve    = {1: 0.40, 2: 0.30, 3: 0.22}[ph]          # 2026-06-19 REVERSED (was 0.30/0.40/0.50,
+                                                             # backwards). Verified evolution: NO-heavy@$200
+                                                             # (69% NO) → YES share GROWS as capital scales
+                                                             # (his 05-17 flip). Reserve DECREASES with capital
+                                                             # so the YES spray widens automatically as we grow.
+                                                             # P1 ~40% NO is the realistic ceiling (breadth/
+                                                             # candidate-capped); still keeps a 60% YES spray.
     tailno_shadow = ph >= 2                                   # collect the n≥100 validation as cap grows
     tailno_live   = (ph >= 3) and BAND_TAILNO_VALIDATED       # wings POST only when validated
     return {
