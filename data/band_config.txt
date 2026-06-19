@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-06-19T00:08:36Z
+# Snapshot: 2026-06-19T00:23:52Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -52,11 +52,11 @@
 491:BAND_PHASE2_CAPITAL   = 600.0    # ≈2.4× today's ~$250; enough free cash to fill >1 days-out tranche/cycle
 492:BAND_PHASE3_CAPITAL   = 2000.0   # ≈ badatmath's June tail-NO / industrial-merge scale
 493:BAND_TAILNO_VALIDATED = False    # tail-NO 0.85-0.95 is UNVALIDATED on OUR fills. CLAUDE.md rule #2
-526:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
-531:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
-532:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
-533:BAND_PAIR_RECLAIM_AGE_S = 8 * 3600  # 2026-06-18 (churn fix): a leg on a bucket with BOTH
-549:BAND_STAKE_FRAC_YES = 0.010   # 2026-06-18: 0.005→0.010 RESTORED (user, pairs with BASE_STAKE 1→3).
-555:BAND_STAKE_FRAC_NO  = 0.015
-556:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
-557:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
+532:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
+537:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
+538:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
+539:BAND_PAIR_RECLAIM_AGE_S = 8 * 3600  # 2026-06-18 (churn fix): a leg on a bucket with BOTH
+555:BAND_STAKE_FRAC_YES = 0.010   # 2026-06-18: 0.005→0.010 RESTORED (user, pairs with BASE_STAKE 1→3).
+561:BAND_STAKE_FRAC_NO  = 0.015
+562:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
+563:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
