@@ -1,18 +1,24 @@
 {
-  "date": "2026-06-16",
-  "brier7": 0.0707,
-  "ece7": 0.0364,
-  "rho7": 0.3493,
-  "disp_ratio7": 0.5892,
-  "disp_ratio7_market": 0.4775,
-  "implied_sigma_median_c": 0.9571,
-  "true_sigma_c": 1.5501,
-  "positive_bias_c": 0.3066,
-  "n_bucket_rows_s50": 2068,
-  "n_city_days_disp": 181,
-  "isotonic_candidate_age_days": 7,
+  "date": "2026-06-19",
+  "brier7": 0.0521,
+  "ece7": 0.032,
+  "rho7": 0.4312,
+  "disp_ratio7": 0.5561,
+  "disp_sigma7_median": 0.8424,
+  "true_sigma_c": 1.5149,
+  "positive_bias_c": 0.3209,
+  "n_city_days_disp": 156,
+  "n_city_days_calib": 195,
+  "n_total_rows_s50": 32071,
+  "isotonic_deployed_age_days": 12,
+  "isotonic_deployed_fit_ts": "2026-06-06T22:27:08Z",
+  "isotonic_candidate_age_days": 9,
+  "isotonic_candidate_fit_ts": "2026-06-09T09:30:36Z",
   "isotonic_candidate_unchanged_since_prior_report": true,
+  "isotonic_ceiling_deployed": 0.6316,
+  "isotonic_ceiling_candidate": 0.3739,
+  "isotonic_ceiling_delta": -0.2577,
   "alerts": [
-    "DISPERSION_ALERT: median_ratio=0.589 < 1.10, edge compressing further (prior report: 0.835)"
+    "DISPERSION_ALERT: median_ratio=0.556 < 1.10, edge compressing further (prior report: 0.589)"
   ]
 }
