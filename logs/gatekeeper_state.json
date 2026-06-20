@@ -1,47 +1,47 @@
 {
   "BAND_YES": {
-    "n": 4643,
-    "n_prev": 4372,
+    "n": 4914,
+    "n_prev": 4643,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "First-fire dedup per (cid,days_out) from reason=fire events: Jun13=776(prior), Jun14=809, Jun15=765, Jun16=800, Jun17=679, Jun18=629(full day; was 543 at prior snapshot), Jun19=185(partial to 09:00 UTC). Total=4643. n>>100; CI blocked by Gamma 403 from container. Clean-window boundary: Jun19 00:30 UTC (7th config change of Jun18 churn — favNO TOP priority). VPS band_resolution_join.py must run on post-boundary data only. 4 architecture changes Jun17 + 7 on Jun18 contaminate pre-boundary data.",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "Leg-level count: unique (cid,days_out) from quotes[] inside reason=fire events in band_struct_lite.jsonl. Cross-checks confirmed: Jun15=765, Jun16=800, Jun17=679, Jun18=629 all match prior state exactly. Delta since Jun19 09:00 UTC: rest-of-Jun19 (185->230=+45) + Jun20-to-12:11 UTC (+226) = +271. Total=4914. CI blocked by Gamma 403 from container. Clean-window boundary: Jun19 00:30 UTC. Post-boundary legs (~271) are the only uncontaminated data for VPS band_resolution_join.py.",
+    "ts": "2026-06-20T12:27:00Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 90,
-    "n_prev": 82,
+    "n": 105,
+    "n_prev": 90,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Dedup per (cid,days_out) from reason=fire_no/pair_fav/pair_samebucket: Jun12(~3,prior)+Jun13(15,prior)=18; Jun14=18(fire_no), Jun15=4(fire_no), Jun16=11(pair_fav), Jun17=10(pair_fav+pair_samebucket), Jun18=22(fire_no=20+pair_samebucket=2; was 0 at prior snapshot), Jun19=7(fire_no partial). Total=90. Threshold 100; need 10 more; rate ~12/day; ETA ~0.8 days. APPROACHING THRESHOLD — VPS must pre-stage resolution join for n>=100 verdict. CI blocked by Gamma 403.",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "THRESHOLD CROSSED (n>=100) — CI still blocked by Gamma 403. Dedup per cid from reason=fire_no/pair_fav/pair_samebucket. Counts (Jun15-Jun20): fire_no=61, pair_fav=17, pair_samebucket=6 observed in 6d window + 21 legacy (Jun12-14 carry from prior). Delta since Jun19 09:00: rest-of-Jun19 (7->15=+8) + Jun20 (+7 fire_no) = +15. Total=105. VPS must run resolution join immediately — this is the critical NO-side validation gate. Rate: ~14/day.",
+    "ts": "2026-06-20T12:27:00Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 291,
-    "n_prev": 282,
+    "n": 100,
+    "n_prev": 291,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "maker_fills_recent.log 'registered' events: Jun17=69, Jun18=81, Jun19=9(to 09:00 UTC); Jun16=77 aged out of 7d window. Total registered Jun17-19=159; carrying Jun16 from prior → ~291. YES=138, NO=21 (NO share=13.2% of fills vs 30-40% config weight — NO fill-rate still thin). Truncated hex CID join still blocked. Prior Jun17 count discrepancy (prior=127 vs current=69): prior counted all MAKER-FILL lines including accumulating fills on existing positions.",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "7d rolling window. Prior cumulative n=291 no longer valid — Jun16 (77) and Jun17 (69) fills aged out. Current window: Jun18=53, Jun19=35, Jun20=12 (to 09:01 UTC) = 100 registered fills. YES=71 (71%), NO=29 (29%) — NO fill rate improved from 13.2% to 29% after favNO TOP priority (Jun19 00:30 UTC). CID join blocked from container. VPS must execute filled-vs-fired analysis before Jun18 fills age out (~5 days). Watch: Paris NO +5.5sh@0.98 (Jun18 14:18, cond=0x6f518f8f) — priced above BAND_NO_MAX=0.85, possible thermo-sourced fill.",
+    "ts": "2026-06-20T12:27:00Z"
   },
   "BASKET_EXIT": {
-    "n": 48,
+    "n": 64,
     "n_prev": 48,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Confirmed resolved: Jun15=19 (per-day file present), Jun13=19+Jun18 partial=10 (prior, files purged from 7d window). Total=48. Jun19 partial: 16 unique all_green baskets pending (t_close Jun19-Jun20, not yet resolved). Rate ~19/day; ETA to 100 ~2.7 days. Per-day basket files age out before Gamma join can run — structural blocker for ROI computation.",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "ESTIMATED: prior confirmed 48 (Jun15=19, earlier=29) + ~16 Jun19 baskets that were pending at prior run (t_close Jun19-Jun20) and have now elapsed but are absent from data-mirror archive (per-day files not being created for Jun16+). Jun20 root file: 1665 all_green events, all t_close future (15:00-Jun21 07:00 UTC). Structural blocker: per-day basket archive gap persists for Jun16+. Rate ~19/day; ETA ~1.9d to n=100 IF archives fixed. n=64 is an estimate — actual may differ if Jun19 baskets resolved adverse.",
+    "ts": "2026-06-20T12:27:00Z"
   },
   "THERMO_MAKER_NO": {
     "n": 3,
@@ -51,8 +51,8 @@
     "ci95": [-130.0, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "note": "STALLED. 0 fills in 7d (maker_fills_recent.log Jun12-19 clean). thermo_maker.jsonl has 12882 candidates today (scanning active) but no fires. 3 resolved trades: +0.11@0.98, -5.67@0.81, -5.39@0.98. WR=1/3=33.3%, ROI=-64.7%, CI95=[-130%,+0.7%] barely straddles 0. Kill gate threshold=20. At zero-fire rate ETA=INFINITE. CI upper=+0.7% — one more loss pushes CI entirely negative. Not a REJECTED verdict until n=20, but direction is unfavorable (2/3 large losses consistent with tail-NO adverse selection).",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "STALLED 8+ days. Zero new fills in maker_fills_recent.log Jun12-Jun20. thermo_maker.jsonl has 15199 candidates today (7734 with no_ask set) but zero fire records. 3 resolved: +0.11@0.98, -5.67@0.81, -5.39@0.98. WR=1/3=33.3%, ROI=-64.7%, CI95=[-130%,+0.7%] barely straddles 0. Kill gate threshold=20. ETA=INFINITE at 0 fills/day. Watch: Paris NO +5.5sh@0.98 (Jun18 14:18, cond=0x6f518f8f) — priced above BAND_NO_MAX=0.85, possible thermo n=4 candidate — DO NOT COUNT until VPS verifies token join. CI upper=+0.7%: one more adverse fill pushes CI fully negative toward REJECTED territory (at n>=20).",
+    "ts": "2026-06-20T12:27:00Z"
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,18 +62,18 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "note": "STALLED 10+ days. PROVENANCE FLAG: trades.jsonl shows only 1 M1_BETA_PROBE trade (Moscow May-26, pnl=-1.65). Prior n=31 may be from older metar_lockout.jsonl schema v1 with fire records (not in data-mirror). VPS operator must verify 31-trade basis; if unverifiable, reset to n=1. Current metar_lockout.jsonl: 2545 records schema_version=2 (candidates only). Thin-margin [0.2,0.5)C bucket candidates=0 today. CI=[-20.6%,+24.4%] straddles 0.",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "STALLED 10+ days. PROVENANCE FLAG: n=31 basis unverifiable — only 1 confirmed M1 trade in trades.jsonl (Moscow May-26, net_pnl=-1.65). metar_lockout.jsonl=0 lines. New fire today: Moscow Jun20 L3 depth_c=0.5C (NOT thin-margin [0.2,0.5)C — boundary excluded). m1_beta_probe.jsonl: fill_status=FILLED @ 0.95 x21sh (order_lifecycle.jsonl confirms fill). This fire does NOT increment Gate 6. VPS operator: verify 31-trade basis; if unverifiable, reset to n=1. Thin-margin [0.2,0.5)C slice: zero fires for 10+ days.",
+    "ts": "2026-06-20T12:27:00Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 2174,
-    "n_prev": 2019,
+    "n": 2331,
+    "n_prev": 2174,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Per-(cid,days_out) legs from reason=fire events where sum_posted in [0.70,0.85], first-fire dedup per day: Jun13=338(prior), Jun14=384, Jun15=360, Jun16=348, Jun17=316, Jun18=282(full day; was 273 at prior snapshot), Jun19=146(partial). Total=2174. Rate ~155/day (accelerated by BAND_YES_MAX_OFF=2 widening Jun18 14:44). n>>100; CI blocked by Gamma 403. Same measurement boundary as Gate 1 (Jun19 00:30 UTC).",
-    "ts": "2026-06-19T09:00:00Z"
+    "note": "Unique (cid,days_out) legs from reason=fire events where band sum_posted in [0.70,0.85]. Delta since Jun19 09:00: rest-of-Jun19 (146->147=+1) + Jun20-to-12:11 UTC (+156) = +157. Jun20: 33/52 bands (63%) in sum_posted [0.70,0.85], 156 legs. Total=2331. CI blocked by Gamma 403. Same VPS resolution join needed as Gate 1. Same clean-window boundary Jun19 00:30 UTC applies.",
+    "ts": "2026-06-20T12:27:00Z"
   }
 }
