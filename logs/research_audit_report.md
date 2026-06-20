@@ -1,333 +1,203 @@
-# Klaus Research Audit — 2026-06-19T14:00Z
+# Klaus Research Audit — 2026-06-20T14:10Z
 
-**Analyst:** Research Strategist (scheduled routine)
-**Snapshot:** 2026-06-19T13:33:26Z (age < 1h — FRESH)
-**System:** `klaus systemd: active` (uptime since 2026-06-19T00:17:28 UTC)
-**Capital:** $281.04 (bankroll.json at snapshot) | $249.75 (gatekeeper 09:00 UTC) | delta +$31 in 4.5h (RECYCLE099 likely)
-**CLAUDE.md tables:** drift — band_config.txt authoritative.
-**Phase:** 1 (capital $281 < $600 Phase-2 threshold)
+**Snapshot:** 2026-06-20T13:46:39Z (fresh, <0.5h) | **System:** `systemd: active` (uptime since 2026-06-19T00:17 UTC, 37.5h) | **Capital:** $211.59 (bankroll.json, 12:52 UTC)
 
-**Specialist reports consumed:**
-- `exec_audit_report.md` — 2026-06-19 07:07 UTC ✓ VALID (<6h)
-- `calib_monitor_report.md` — 2026-06-19 08:03 UTC ✓ VALID (<6h)
-- `gatekeeper_report.md` — 2026-06-19 09:00 UTC ✓ VALID (<6h)
-- `pnl_ledger_report.md` — 2026-06-18 23:37 UTC ✓ VALID (<36h)
-
-**Data note:** `badatmath_watch.jsonl` most-recent ~100 entries carry all-null fields — the watcher's book-fetch path has failed (likely API schema change or process crash). Fill_join entries from earlier cycles (Wuhan, Atlanta, Miami, Buenos Aires, London — Jun 19 h00-02 UTC) are valid for market intelligence.
+**Specialist report freshness:**
+- exec_audit_report.md — 2026-06-20T07:07Z ✓ (<7h)
+- calib_monitor_report.md — 2026-06-20T08:10Z ✓ (<6h)
+- gatekeeper_report.md — 2026-06-20T12:16Z ✓ (<2h)
+- pnl_ledger_report.md — STALLED (data-mirror frozen after 00:39 UTC Jun 20; report aborted). Working from raw mirror data for PnL dimension.
 
 ---
 
-## 1. Primary Bottleneck for Compounding
+## 1. PRIMARY BOTTLENECK: TURNS/DAY — book saturation halting new posts
 
-**Bottleneck: Turns/day, crushed by a Jun-19 queue stall — $148 idle cash, 91% zero-post rate in hours 00–06 UTC.**
+**Ranking considered:** equity deployed, turns/day, ROI/turn, fills, NO-parity, calibration, dispersion edge, risk frame, data, reliability.
 
-Compounding = ROI/turn × turns/day × equity deployed.
+**Verdict: turns/day** is the binding constraint *today*, driven by book saturation.
 
-| Lever | Current | Target | Verdict |
+From exec_audit: Jun 20 avg posted/cycle = 0.0, zero-post cycles = 96%, cash_preskip avg $134 (from raw log: min $111, max $188, n=161 cycles to 13:46 UTC). Deployable cash = $212 × (1 − 0.40 NO_reserve overhead) ≈ $148; committed $134 → free float ≈ **$14**. With NO min stake = $5 and YES min ≈ $1.20, the queue has candidates (no_cands avg 151, pair_cands 24-27) but posts zero because top-ranked items already have resting bids within BAND_RECLAIM_BEHIND of touch (no reclaim fires, no re-post, no headroom for new posts).
+
+**Turns/day degradation:** Jun 18: 69 fills; Jun 19: 38 fills; Jun 20 pace (16 new registered fills in 13.75h, extrapolated): ~28 fills/day. The decline is not fill-rate failure (exec_audit: Jun 18 73%, Jun 19 86%) but *posting-rate collapse* as positions fill and lock capital ahead of daily resolution. Jun 20 side split from raw log: 10 YES new fills ($17.29), 6 NO new fills ($28.62) = **62.3% NO by $** — highest NO share on record, confirming favNO-top-rank (Jun 19 00:30 UTC commit) is measurably working.
+
+**Why it matters for compounding:** ROI/turn × turns/day × equity deployed. Equity is deployed (95% committed), but if turns/day halves (69 → 28) the compounding clock slows proportionally. The capital is *working* (resting bids + open positions awaiting resolution), not idle — but it cycles at weather-resolution cadence (daily), capping throughput structurally.
+
+**What will unblock it:** Positions resolving at day-end (weather settlement tonight) + RECYCLE099 sells at >0.99. No intraday lever exists except reclaim, which correctly protects queue-priority orders.
+
+**Close second: dispersion edge (inverted, 7th consecutive report).** The dispersion ratio 0.584 means the band YES directional premise is structurally inverted. Flagged in Section 4.
+
+---
+
+## 2. EXISTING-SYSTEM OPTIMIZATION
+
+### 2a. NO daily cap approximately binding — conditional relaxation available
+
+exec_audit: Jun 19 NO fills = $60.75 vs BAND_NO_DAILY_CAP = 40 (or 30%×cap ≈ $63.60). Natural liquidity at ~14-20 NO fills/day × $5 = $70-100 potential; cap binding by ~$30-40/day. **Expected delta from raising BAND_NO_CAP_FRAC 0.30→0.40:** ~$20-30 additional NO/day if breadth allows. Confidence: moderate (breadth is real, liquidity untested above current level). Effort: 1-line. **Conditional: do not change before Gate 2 verdict (§6 Experiment A).**
+
+### 2b. cash_preskip $134 is correctly deployed, not idle
+
+Resting bids $13.20 (exec_audit: 11 YES $8.19 + 2 NO $5.01) + open resolved-pending positions ~$121. Capital is working. No leak, no fix needed.
+
+### 2c. NO-parity holding at minimum threshold, fragile
+
+exec_audit: Jun 19 = 26% NO posts, Jun 20 = 25%. The threshold is met but with no margin. Structural breadth limit (~19 NO candidates/day) caps parity regardless of config. No lever available from this session.
+
+### 2d. Isotonic refit cron: investigate staleness (low urgency)
+
+calib_monitor: candidate 11 days stale (n_live frozen at 1,037; should have ~385 live rows at ~35 city-days/day accrual). Refit cron possibly down or threshold not crossed. Deploying current candidate would *worsen* [0.6,0.7) calibration (ceiling 0.37 vs deployed 0.63). Do not deploy. Investigate cron on VPS. Expected delta: small (structural artifact, not data-stale dominated). Effort: low.
+
+### 2e. Data-mirror freeze pattern — disk pressure suspect
+
+pnl_ledger: mirror froze at 00:39 UTC Jun 20, recovered by 13:46 UTC. system_status: disk at 86% full (79G used / 97G total). Disk pressure likely caused the mirror job to fail silently at midnight. A repeat tonight will again stall the pnl_ledger. Expected delta: no P&L impact, but kills measurement visibility. Effort: clear old logs on VPS.
+
+### 2f. YES no_resv_skip now 0 (improvement confirmed)
+
+Raw log STRUCT-BAND-Q Jun 20 13:24-13:44: `yes_resv_skip=0` consistently (was 134-148 under proportional queue Jun 18). The strict-rank mode correctly frees all YES capital from the reservation-skip trap. Previously YES was being withheld from its own budget. Now correctly queue-competed.
+
+---
+
+## 3. GATE PIPELINE REVIEW
+
+From gatekeeper_report (12:16 UTC):
+
+| Gate | n | Status | ETA / Blocker |
 |---|---|---|---|
-| Turns/day | 0.74× (Jun 18); ~0 in h00-06 today | 1.0× | **Binding — queue stall** |
-| ROI/turn (RECYCLE099) | +168% on exits | — | Healthy, not the bottleneck |
-| ROI/turn (band resolution) | 0/75 = 0% WR Jun 18 | ~22% design | Broken streak, watch |
-| Equity deployed (resting) | 3.2% | ~10-20% | Structurally limited by same-day resolution |
+| 1. BAND_YES | 4914 | COLLECTING (CI blocked) | VPS resolution join post-Jun-19-00:30 boundary |
+| **2. BAND_NO_PAIR_FAV** | **105** | **★ n≥100 — VPS join needed** | Gamma 403 from container only; VPS unblocked |
+| 3. FILLED_VS_FIRED | 100 | COLLECTING (CID join blocked) | Ages out in ~5d; VPS urgent |
+| 4. BASKET_EXIT | ≈64 | COLLECTING (infra blocker) | Per-day archive fix; ~Jun 23 at 19/day |
+| 5. THERMO_MAKER_NO | 3 | STALLED / near-kill | 0 fires 8+ days; unconfirmed 4th loss pending |
+| 6. M1_BETA_LOCKOUT | 31 | STALLED | No thin-margin fires 10+ days; wiring investigation needed |
+| 7. SUM_POSTED_0.70-0.85 | 2331 | COLLECTING (CI blocked) | VPS join same as Gate 1 |
 
-**Evidence (exec_audit §3):** Jun-19 zero-post rate = 91% vs 60-64% prior days. Average books = 0.2/80 — not saturated, not a fill-supply problem. Cash_preskip = $148 (70% of capital present and idle). Yes_resv_skip peaks 10.1/cycle at h05: the skip mechanism consumes the YES allocation without triggering a book poll.
+**Gate 2 is the highest-priority action.** It crossed n=100 (+15 since last run). It is the gate governing the only sub-system with demonstrated positive ROI (favNO +7.2% aggregate, n=97). The Gamma 403 is sandbox-only. VPS action required within the next 12h before Jun 19 fills age out of the 7d window.
 
-**Root cause (exec_audit diagnosis):** `BAND_NO_CASH_RESERVE=0.30` (introduced Jun 18 15:10) combined with `BAND_PROPORTIONAL_QUEUE=False` (strict rank, same date). The startup burst at h00 posted 9 tokens across 1-2 productive cycles, filling all eligible d+2 YES resting slots. Subsequent cycles find no new eligible slots AND the NO-reserve check gates YES candidates before the book-fetch stage — even with $148 in cash. Hours 04-05 UTC (quietest global window) posted 0 across 23 cycles.
+**To accelerate Gate 2 without degrading expectancy:** Breadth only — confirm no_cands enumeration is correctly capturing all 51 cities' favNO candidates. Do not raise NO stake to inflate n faster.
 
-The stall is not cash-starvation, not a calibration failure, and not a fill-supply problem. It is a deployment-mechanics interaction: strict priority queue + large NO reserve + burst-then-nothing pattern in the early morning quiet window. The immediate effect is zero new RECYCLE099 feed from h00-07, and no new YES legs for tomorrow's RECYCLE pool. If sustained, RECYCLE099 exits dry out by Jun 21 when current inventory is exhausted.
+**Gate 5:** Functionally dead. 0 fires for 8 days, CI upper +0.7% with 2 large losses in 3 fills. One additional adverse fill (Paris NO at 0.98 pending confirmation) flips CI fully negative. Recommend declaring REJECTED at next VPS evaluation — no code change needed (BAND_TAILNO_VALIDATED=False already gates it OFF).
 
-**Why not dispersion/calibration as primary?** Dispersion ratio at 0.556 is the deeper structural risk, but it is a slow-moving threat with a gate (the $75 weekly floor and the -20%/month kill switch). The queue stall is operational and acute. Turns/day is the fastest multiplier in the compounding equation.
-
----
-
-## 2. Existing-System Optimization
-
-### A. Queue stall: yes_resv_skip mechanism starving h00-07 cycles (HIGH impact / LOW effort)
-
-**Finding (exec_audit §3):** Yes_resv_skip = 7.2-10.1/cycle at h01-05; 100% zero-post at h04-05. Cash_preskip = $148 throughout. No_cands = 190+ per cycle (ample NO opportunities, none converting). The skip fires BEFORE the book-fetch stage, so nothing reaches the order placement path.
-
-**Mechanism:** In strict-rank mode (`BAND_PROPORTIONAL_QUEUE=False`), after the startup burst exhausts eligible d+2 YES slots (they're resting), subsequent cycles have no new YES candidates to post. With `BAND_NO_CASH_RESERVE=0.30`, the 30% NO reserve check runs against each YES candidate check — but if the skip counter `yes_resv_skip` is actually counting cycles where NO has no eligible candidates (rather than cycles where YES was gated by the reserve), the skip is a red herring and the real issue is YES slot exhaustion: all eligible d+2 YES slots are already resting in the book, so the cycle finds 0 new slots to quote.
-
-**Expected delta:** Diagnosing and resolving this recovers 60-90 posting cycles/day in h00-07 UTC. Estimated impact: +20-30 fills/day × $3 avg stake = +$60-90 daily YES turnover. RECYCLE099 pipeline remains fed. **Confidence: HIGH (mechanism identified). Effort: LOW (VPS log: add YES headroom $ to [STRUCT-BAND-Q] entry, run 1 cycle).**
-
-### B. NO parity chronic failure: 2-23% share vs ~50% target (HIGH impact / LOW effort)
-
-**Finding (exec_audit §2):** All 5 measurable days below 25% alert threshold. Jun 15 extreme: 4 NO of 182 total posts (2.2%). Live resting book: 1 of 15 orders is NO (6.7%). Config has `BAND_NO_ENABLED=True`, d+1 favNO at rank 0 (highest priority), `BAND_NO_STAKE=5.0`, `BAND_NO_MIN=0.52`. The constraint is upstream of the `post` record.
-
-**Likely mechanism:** `BAND_NO_SKIP_OFF1=True` eliminates ±1 shoulder NO bids. `BAND_NO_MIN=0.52` requires market mode-NO ask ≥ 0.52. Only d+1 favNO fires. If today's d+1 mode-NO asks are clustered below 0.52 (cool cities in June: mode bucket has high YES ask → low NO ask), the fire_no path returns nothing. With `no_cands=190+` per cycle (exec audit), the candidates exist on market but the min-ask filter or the days_out filter is eliminating them before post.
-
-**Expected delta:** Restoring NO to 20-25% share adds ~15 NO fills/day × $5 = $75 daily NO turnover at +3.7% ROI = +$2.75/day net, compounding. More importantly, favNO posts at mode bucket → same-bucket PAIR_FAV opportunities (the merge engine). **Confidence: MEDIUM (mechanism plausible; fire_no path needs skip-reason logging to confirm). Effort: LOW (add reason= field to fire_no skip, 1h VPS).**
-
-### C. Gate 1 (BAND_YES n=4643) and Gate 7 (SUM_POSTED n=2174) stuck at COLLECTING despite decision-grade n (MEDIUM impact / LOW effort)
-
-**Finding (gatekeeper §1,7):** Both gates have n >> 100. Both blocked by Gamma 403 from the cloud container. VPS `band_resolution_join.py` was fixed Jun 17 (state_log) but resolved ROI is not surfacing in data-mirror — either the cron isn't writing back to the mirror branch, or the record types in scope don't include BAND_YES/SUM_POSTED legs.
-
-**Expected delta:** Gate 1 verdict unlocks the scale-up decision (is selection edge +7.6% surviving adverse selection on all fires, not just resolved ones?). Gate 7 verdict answers the bid-ceiling question (is posting YES above 0.70 +EV?). Both have n >> 100 and are artificially blocked. **Confidence: HIGH (cron infrastructure confirmed working). Effort: LOW (VPS: verify cron output format matches data-mirror schema; push resolved ROI file).**
-
-### D. Isotonic refit cron stalled (10 days, no new candidate) (MEDIUM impact / LOW effort)
-
-**Finding (calib_monitor §4):** Candidate file byte-identical to Jun 09 version. The [0.6,0.7) ceiling artifact (p_cal capped at 0.63 vs true WR=0.977) mechanically compresses model-implied sigma, dragging the dispersion ratio lower. New refit on 5 days of fresh data would raise the ceiling and reduce the [0.2,0.4) overconfidence plateau.
-
-**Expected delta:** Not quantifiable without running the refit, but calib report states this ceiling artifact is "the likely cause" of the dispersion ratio compression. If corrected, dispersion ratio could recover from 0.556 toward 0.70+, potentially validating the edge premise. **Confidence: MEDIUM (calibration is improving even without new map). Effort: LOW (VPS cron restart, 10 min).**
-
-### E. Bot restart fragmentation (5+ restarts Jun 18, 80 untracked fill events) (MEDIUM impact / MEDIUM effort)
-
-**Finding (pnl_ledger §2):** Each restart drops in-flight tracker state. 55 non-convergence untracked fills on Jun 18 create a shadow book whose resolution outcome is invisible to the ledger. Capital trajectory ($281 today) includes these shadows.
-
-**Note:** Code change required — outside REPORT-ONLY scope. Flagged for user awareness. The shadow book is the most likely explanation for the capital anomaly ($281 at 13:33 vs $222 end of Jun 18).
+**Gate 6:** Thin-margin [0.2, 0.5)C fires absent 10+ days (1 verified trade). Schema v2 logs candidates, not fires — actual fire count may be 0, not just unlogged. Wiring investigation warranted on VPS.
 
 ---
 
-## 3. Gate Pipeline Review
+## 4. ASSUMPTION ATTACK
 
-**No READY, no REJECTED this run. All gates COLLECTING.**
+### Assumption A: Dispersion premium persists
 
-### Gate 2 — BAND_NO_PAIR_FAV (MOST URGENT)
+**THREATENED — 7th consecutive alert. First marginal improvement today (+0.028).**
 
-- **n=90** (+8 from prior). ETA ~0.8 days. Will cross 100 today or Jun 20.
-- Jun 18 fire_no=20 surge (after Jun 18 21:55 UTC favNO promotion) confirms the mechanism is firing.
-- **Key blocker:** Gamma 403 from container → VPS `band_resolution_join.py` must run scoped to `fire_no/pair_fav/pair_samebucket` record types within 24h.
-- **Breadth acceleration (no expectancy degradation):** Remove `BAND_NO_SKIP_OFF1=True` specifically for PAIR_FAV same-bucket legs (the YES leg IS the ±1 shoulder; skipping the NO pair of an already-posted ±1 YES leg is overly conservative). This adds ~50% more PAIR_FAV candidates without changing capital risk.
-- **Pre-stage now:** Do not wait for n to cross 100 before staging the resolution join. Run the cron manually on the VPS tonight. Gate 2 verdict is the single most actionable data point in the pipeline.
+calib_monitor: ratio = 0.584 (model σ = 0.854°C vs true σ = 1.461°C). Market under-prices weather spread, not over-prices it — the YES-taker directional premise is inverted.
 
-### Gate 1 — BAND_YES (n=4643, n >> 100, CI permanently blocked)
+- *Supports:* First improvement in 4 reports. Jun 18 daily ratio = 0.827, Jun 19 = 0.765. EU/Asia highest ratio (0.637). Possible seasonal shift (mid-June temperatures more predictable, true σ compressing; if sustained, ratio could recover toward 1.0).
+- *Threatens:* 7-report streak below 1.10. US/Americas most inverted (0.546). Warm bias +0.40°C growing — model misses peak temps, artificially inflating true σ. band_dispersion_test (Jun 18, n=6,899): shoulder calibration gap ≈ statistical zero; the +8% band shadow ROI is bid-below-ask spread, not dispersion premium. YES net −4.9% (n=299, 2-week average confounded by config churn).
+- *Critical nuance:* The maker band system does NOT require positive dispersion to be +EV — maker rebate + bid-below-touch spread capture can generate edge independent of directional correctness. However, YES resolution outcomes still require the market to resolve favorably, and with inverted dispersion the mode at d+1 is *over-priced* (WR lower than ask). ONLY at d+2 is the mode under-priced (+0.022 gap). The current d+2 YES priority ranking is structurally correct given band_dispersion_test, and the favNO d+1 overlay is also term-structure-consistent.
 
-- Accumulating at ~271/day. Scale-up decision waiting on Gamma 403 resolution.
-- VPS manual join from Jun 17 (n=3,418, +7.6% conditional YES, every slice +EV) gives a strong prior. Gate needs the *net-of-all-fires* ROI, not just conditional-on-fill.
-- No change in status this run.
+### Assumption B: Fills are not adversely selected
 
-### Gate 4 — BASKET_EXIT (n=48)
+**NUANCED — YES: clean at <5m, adverse at >6h. NO: untested but structurally favorable.**
 
-- 16 all-green baskets with t_close tonight/tomorrow (per gatekeeper). If they resolve, n jumps to ~64.
-- ETA revised: ~2.4 days (52 more needed at ~19/day, assuming tonight's 16 resolve).
-- Cannot accelerate the gate without distorting the all_green criterion. Keep collecting.
+state_log Jun 18 23:59 (band_markout_age.py, n=848): fresh fills (<5m) mk = +1.57¢/sh; stale (>6h) mk = −1.07¢/sh. Root cause = stale orders run over by informed price drift, corrected by 2h directional reclaim. The queue-priority hypothesis was falsified.
 
-### Gate 5 — THERMO_MAKER_NO (STALLED, de-facto dead)
+NO fills: 6 Jun 20 fills at 0.54-0.64. Directional theta for NO differs from YES: temperature maxima accumulate intraday, so a NO bid resting overnight is filled by someone buying NO after the day's peak confirms — our stale NO should be *cleaner*, not more adverse. This is untested (n=29 NO fills total, too thin for markout-by-age).
 
-- n=3, WR=1/3, ROI=-64.7%, CI=[−130%, +0.7%]. **0 fills in 7+ days.** 12k+ candidates scanned/day with no materializing fills.
-- Kill-gate requires n=20. At 0 fills/day, ETA is infinite.
-- **Watch item:** If 0 fills through Jun 23, propose user decision to disable THERMO entirely (free its $15/day daily cap for band allocation). Not a unilateral action — user call.
-- One more large loss flips the CI entirely negative. At n=3 this is noise but the directional signal is consistently adverse (2/3 trades are large losses at entries 0.81/0.98).
+- *Supports:* 2h reclaim reduces YES exposure above stale threshold. Fresh fill quality confirmed clean (+1.57¢/sh). Jun 20 NO fills at reasonable mid-range prices (not last-cent).
+- *Threatens:* YES net −4.9% aggregate persists despite fill cleanliness (the adverse selection is at *resolution*, not fill). Model predicts wrong-way on YES mode at d+1 (over-priced per band_dispersion_test). Stale YES (>6h) being run over remains an unsolved leak for positions posted before the morning session.
 
-### Gate 6 — M1_BETA_LOCKOUT (STALLED, n unverified)
+### Assumption C: Recycle velocity scales with book
 
-- n=31 carries a provenance flag (only 1 M1_BETA_PROBE trade in trades.jsonl; prior n=31 provenance not replicable from available data).
-- WR=74.2% / ROI=-0.6% / CI straddles zero. 0 fires in 10+ days. No thin-margin [0.2,0.5)C candidates today.
-- Low priority. No action.
+**SUPPORTED but Jun 20 data-blind.**
+
+pnl_ledger partial: Jun 19 RECYCLE099 = $78.58 across 19 exits — strong. Jun 18→19 capital delta +$17.37 net of ~$61 resolution losses, confirming RECYCLE099 is the primary P&L absorber. 
+
+Jun 20: capital $231.89 (Jun 19 EOD) → $211.59 (12:52 UTC) = −$20.30 in 12.75h. RECYCLE099 exits not visible (exit099_live.jsonl not mirrored today). The −$20.30 is gross; net may be better. Disk pressure (86% full) may explain the data-mirror freeze that hides today's exits.
+
+- *Supports:* Jun 19 $78.58 confirmed strong. yes_resv_skip=0 (strict rank) ensures YES book stays filled, giving RECYCLE099 candidates continuously.
+- *Threatens:* If Jun 20's resolution losses outpace RECYCLE099 (the −$20.30 raw figure), the capital trajectory since Jun 13 (estimated $214→$212, essentially flat) would confirm the state_log Jun 18 finding: 14d net ≈ +$3, not profitable.
 
 ---
 
-## 4. Assumption Attack
+## 5. MARKET INTELLIGENCE (Day-of-month 20 mod 3 = 2: Platform mechanics)
 
-### Assumption 1: Dispersion premium persists (market σ > true σ → band YES/NO spread profitable)
+**Scope:** Fee schedule / maker-rebate / liquidity-rewards changes since state_log last captured.
 
-**STATUS: THREATENED. Ratio 0.556 (new low), every day below 0.60, trending worse.**
+From state_log knowledge base: updown BTC/ETH/SOL taker fee ~1.56% at 50% odds (2026-03-30). Weather maker rebate ≈ 100% of taker fee redistributed. Fee reform 2026-03-30 added 8 categories; updown rates unchanged. No subsequent fee changes appear in Jun 12-19 state_log entries.
 
-Evidence (calib_monitor §3):
-- Model-implied σ = 0.842°C. Empirical true σ = 1.515°C. Ratio = 0.556.
-- History: Jun 13: 0.62 → Jun 14: 0.835 (brief) → Jun 16: 0.589 → **Jun 19: 0.556 (lowest yet)**.
-- All regions below 1.10: US 0.544, EU 0.569, ASIA 0.575. No region close to parity.
-- Sign is **inverted**: model prices YES too low relative to true outcome distribution. The band sells implied σ of 0.84°C when the market resolves at 1.52°C — we are underpricing, not overpricing, dispersion.
+Sandbox blocks direct docs.polymarket.com access. The STRUCT-BAND-Q logs for Jun 20 show no anomalous posting mechanics (normal bid/ask format, fills via USER-WS, maker-fill confirmation pattern unchanged). **No evidence of fee schedule or rebate-structure changes in this window. Clean.**
 
-**What supports it (partially):** Two structural confounders could make the ratio appear worse than the true edge:
-1. Isotonic ceiling artifact: p_cal caps at 0.63 for high-confidence buckets (actual WR=0.977). This mechanically compresses model-implied σ. New isotonic refit could raise the ceiling.
-2. The market-corrected dispersion ratio (using CLOB book midpoints rather than p_cal) was not computed this session (stwa_ladder_book.jsonl not in the dated subdirectory for calib_monitor). This is Experiment C.
-
-The conditional-on-fill resolution ROI (+7.6%, n=3,418, Jun 17) also partially supports the edge — but that is the *selection* effect (which buckets get filled), not the dispersion premium per se.
-
-**Verdict:** Do not scale YES capital. Treat YES band as fill-rate/merge-inventory play only. Edge verdict deferred to: (a) isotonic refit → see if dispersion ratio recovers, and (b) market-corrected ratio computation (Experiment C).
+**One infrastructure risk note:** The Cloudflare WAF / QuantVPS Dublin stack remains the critical dependency (CLAUDE.md). The 37.5h continuous uptime with no WAF blocks is the relevant data point — the stack is holding. Disk pressure (86%) is the near-term infrastructure risk: if disk fills, the bot's logging and potentially the mirror service will fail. This is more urgent than any fee-schedule uncertainty.
 
 ---
 
-### Assumption 2: Fills are not adversely selected
+## 6. THREE EXPERIMENTS
 
-**STATUS: THREATENED. YES fills: 40% adverse rate, −0.05¢/sh markout. Badatmath: 23% adverse, +1.19¢/sh.**
+### Experiment A: Gate 2 resolution join (VPS, <1h)
+**Hypothesis:** favNO maker fills (n=105) resolve at CI95 > 0, confirming the +7.2% aggregate edge holds on our specific fills with the current config.
+**Data:** Run `band_resolution_join.py` on VPS targeting fire_no/pair_fav records from Jun 15+. Gamma API accessible from QuantVPS Dublin (not sandbox).
+**Time:** <1h. **Cost:** $0 (code already built).
+**Success metric:** CI95 lower > 0 → Gate 2 READY.
+**Decision-if-yes:** Authorize BAND_NO_CAP_FRAC increase 0.30→0.40 (§2a). Start breadth investigation for NO candidate expansion.
+**Decision-if-ambiguous (CI straddles 0):** Hold. Collect more resolved legs. Do not scale NO stake.
+**Decision-if-rejected:** favNO is +EV in aggregate but NOT in execution — adverse fill or resolution miss. Strategic rethink: lean entirely on RECYCLE099 + NEG_RISK_ARB. Cease adding NO quote capital.
 
-Evidence (state_log Jun 18 23:30-23:59; exec_audit fill analysis):
-- Our YES maker markout by fill age: <5m = +1.57¢ (best), 30m-2h = −0.28¢, >6h = −1.07¢.
-- The adverse bleed is **stale-order run-overs**, not queue position. Market trends to our stale price → fill on an informed directional move.
-- The 2h reclaim (BAND_RECLAIM_AGE_S=2h) is *protective* — it removes orders before the worst >6h adverse zone. The churn fix (8h for pair legs) is correct for merge pairs (delta-neutral on co-fill).
-- Structural: naked directional YES legs with 5% co-fill rate have no adverse-selection defense. Paired legs (badatmath's 40% co-fill) cancel adverse selection on co-fill. Gap cannot be closed without the merge engine (~$2k capital threshold).
+### Experiment B: NO-fill markout-by-age (VPS, 2-3 days)
+**Hypothesis:** favNO fills show flat or improving markout at >6h age (directional theta: NO bids on temperature markets converge to 1.0 as day progresses, making stale NO bids *cleaner* than stale YES), implying the 2h directional reclaim hurts NO queue priority unnecessarily.
+**Data:** Replicate `band_markout_age.py` for side=NO only. Current n=29 NO fills in 7d window (TREND-grade).
+**Time:** 2-3 days to reach n≥50. **Cost:** $0.
+**Success metric:** NO mk(>2h) > 0 → extend BAND_PAIR_RECLAIM_AGE_S beyond 8h (let NO bids rest toward full market life, improving co-fill probability).
+**Decision-if-NO-degrades-with-age:** Apply 2h directional reclaim to NO legs matching YES protection. This would increase NO turnover at cost of queue priority.
 
-**What supports it:** The 2h reclaim is in place. Jun 17 resolution join confirmed selection IS +EV conditional on fill (+7.6%). The adverse hits are concentrated in the >6h zone which is already partially addressed.
-
-**Verdict:** Accept the ~1.3¢/sh adverse gap as structural until the merge engine activates at Phase 2 ($600). YES band posts serve as merge inventory ballast. Do not reduce 2h reclaim (it is protective). Do not lengthen reclaim on lone directional legs (worsens adverse).
-
----
-
-### Assumption 3: RECYCLE099 velocity scales with position count
-
-**STATUS: SUPPORTED — with a 24-48h dependency risk on YES inventory feed.**
-
-Evidence (pnl_ledger §2 + today's data):
-- Jun 17: 20 exits, +$87.45
-- Jun 18: 26 exits, +$99.56 (96.6% offset of resolution losses)
-- Jun 19 (to 13:33): 14 exit099 entries, capital +$31 vs 09:00 gatekeeper — pace tracking above Jun 17-18.
-- Capital recovered from $221.68 (Jun 18 EOD) to $281.04 (Jun 19 13:33) = +$59.36 in ~14h. Attribution: RECYCLE099 exits on inventory accumulated Jun 14-17.
-
-**Dependency:** RECYCLE099 requires existing YES positions to age toward $0.99. The Jun 19 queue stall (91% zero-post h00-07) adds zero new YES inventory today. Yesterday's YES ceiling cut to 0.30 (Jun 18 21:40) means new legs enter at ask 0.05-0.30 — takes 1-3 days to converge to $0.99. If today's stall persists through the peak window (13:00-16:00 UTC), tomorrow's RECYCLE099 feed is thin.
-
-**Verdict:** Healthy for the next 24-48h on existing inventory. Watch exit099_live count. If exits/day drops below 10 by Jun 21, YES inventory is depleting faster than it's being replenished. Resolution of the queue stall is the priority to maintain RECYCLE feed.
+### Experiment C: Clean-window band_net_attribution (VPS, 2-3 days)
+**Hypothesis:** The trimmed config (BAND_PX_CEIL=0.30, favNO rank-0, d+2 YES priority) generates different YES net attribution than the 2-week confounded history. The [0.10,0.22] YES slice (prior +35% realized) survives; the [0.22,0.30] slice is neutral-to-positive; YES net overall ≥ −1%.
+**Data:** `band_net_attribution.py` on post-Jun-19-00:30 UTC window only (current clean-window = 37h). n≥40 YES legs resolved needed (TREND-grade; ~2 days at current fill rate to reach n≥100).
+**Time:** 2-3 days. **Cost:** $0.
+**Success metric:** YES net > −3% at n≥100 → keep current YES config. YES net < −5% at n≥100 → cut YES further (raise PX_CEIL to 0.22 matching the prior +35% zone boundary, or disable YES entirely outside d+2 mode).
+**Decision-if-rejected (YES net < −10%):** Structural YES bleed persists. Redirect YES capital entirely to NO breadth and RECYCLE099 + NEG_RISK_ARB. This would be a Phase 1 redesign — major.
 
 ---
 
-## 5. Market Census (day-of-month 19 mod 3 = 1: new cities/products, depth changes)
+## 7. SINGLE BEST ACTION: Run Gate 2 resolution join on VPS (within 12h)
 
-**Source:** band_struct_lite.jsonl (Jun 19 to 13:33), badatmath_watch fill_join records (h00-02 UTC), stwa_ladder_book.jsonl (n=1,485 rows today)
+**Cited reports:** gatekeeper_report (Gate 2 n=105 crossed threshold, CI blocked only by Gamma 403 from container); exec_audit (Jun 20 NO $ share = 62.3%, NO engine demonstrably working after favNO-top-rank deploy); calib_monitor (dispersion inverted for 7 reports — YES-taker correctly OFF, maker NO is the active structural edge candidate).
 
-### Cities active in today's posts/fills
+**Why this over all alternatives:** Gate 2 is the decision that unlocks every other NO-related action. The NO scale-up (§2a cap relaxation), breadth investigation, and co-fill strategy all require knowing whether Gate 2 is READY or REJECTED. Running the resolution join converts 12 days of passive accumulation into a binary decision in under an hour. The system cannot compound on the NO leg without this verdict; it can only repeat fills at the current cap-constrained pace.
 
-**Our posts (band_struct_lite, Jun 19):**
-- Taipei d+2 YES (lo 33.5-35.5°C, ask 0.14-0.18, stake $2.10)
-- Milan d+1 NO (mode 33.5-34.5°C, ask 0.57, quoted $0.56, stake $5.00)
-- Qingdao d+2 YES (sum_gate — 5 legs sum_ask 0.965)
-- Cape Town d+2 YES (converged, mode_ask 0.33)
-- Manila d+2 YES (converged, mode_ask 0.355)
-- Lucknow d+2 YES (converged, mode_ask 0.405)
-- Karachi d+2 YES (converged, mode_ask 0.445)
-
-**Competitor fills (badatmath_watch fill_join, Jun 19 h00-02):**
-- Wuhan d+0 28-31°C YES: price 0.028-0.31, sizes 1.99-30 sh, detect_lag 22-133s
-- Atlanta d+0 86-87°F YES: price 0.23, size 6-52 sh
-- Miami d+0 92-93°F YES: price 0.62, size 8-13 sh (high price → favorite mode)
-- Houston d+0 90-91°F YES: price 0.43, size 8.77 sh
-- NYC d+0 82-83°F YES: price 0.42, size 2.5-9.9 sh
-- Buenos Aires d+0 15-17°C YES: price 0.018-0.40, sizes variable
-- London d+1 27°C YES: price 0.35, size 3.14 sh
-- Wuhan d+1 32°C YES: price 0.38, size 4.08 sh
-
-### Depth snapshot (selected markets, stwa_ladder_book Jun 19)
-
-| Market | Touch bid | Touch ask | Bid depth (3 levels) |
-|---|---|---|---|
-| Miami 92-93°F | 0.62 | 0.63 | 133.99 + 446 + 71 sh |
-| NYC 82-83°F | 0.42 | 0.43 | 195.23 + 320 + 517.59 sh |
-| Wuhan 28°C | 0.31 | 0.33 | 38 + 245 + 473 sh |
-| Wuhan 30°C | 0.138 | 0.168 | 8 + 8.94 + 30 sh |
-| Buenos Aires 15°C | 0.40 | 0.41 | 143.21 + 316 + 198 sh |
-| London 27°C d+1 | 0.35 | 0.36 | 100.35 + 555 + 414 sh |
-
-**Deltas vs Jun 16 census:**
-- No new cities or product types detected. The 51-city coverage appears unchanged.
-- US Fahrenheit depth (Miami, NYC, Houston, Atlanta) remains robust at 100-500 sh at touch — consistent with prior week.
-- London d+1 depth (100.35 sh bid at 0.35) is normal; this is a market we could post in.
-- **Notable:** Wuhan 28°C has 245+473 sh at bid−1/bid−2 = deep queue below touch. Our YES leg at 0.28-0.31 for d+1/d+2 would have significant queue depth above us. No anomalous depth changes observed.
-
-**badatmath_watch watcher status:** The most-recent ~100 entries carry all-null fields (city, side, ask, bid, delta = null). The watcher process or API schema is broken. Fill_join data from h00-02 remains the last valid competitor intelligence. **VPS fix needed (P4 action).**
-
-**Competitor posture reading from fills:** Wuhan fill_join shows simultaneous 3-bucket fills (28°C, 30°C, 31°C YES) at the same timestamp (detect_lag 54s from first to last fill). This is a multi-leg band sweep across the Wuhan ladder — the competitor (likely badatmath) is posting a full band on resolution resolution of the previous window's temperature. No unusual activity detected vs prior week.
-
----
-
-## 6. Three Experiments
-
-### Experiment A — Diagnose yes_resv_skip: YES headroom $ vs skip trigger
-
-**Hypothesis:** The yes_resv_skip counter fires because eligible YES slots are fully exhausted (all d+2 YES surface is already resting after the h00 burst), NOT because the 30% NO reserve check is blocking individual candidates. If this is true, the fix is a per-slot dedup check ("skip this cycle if all eligible slots are resting") rather than adjusting the reserve fraction.
-
-**Data:** Add one field to [STRUCT-BAND-Q]: `yes_headroom_usd` (computed YES allocation headroom at the point yes_resv_skip fires). If yes_headroom_usd > $10 and skip still fires → slot exhaustion (all eligible d+2 YES already resting). If yes_headroom_usd < $5 → the reserve fraction IS the gate.
-
-**Time:** 30 min to add log field + 1 cycle to confirm. No trading change.
-
-**Cost:** Zero.
-
-**Success metric:** Clear discrimination between slot-exhaustion and reserve-fraction as the skip cause.
-
-**Decision if slot-exhaustion:** Add per-slot check to skip the cycle gracefully when all eligible YES slots are resting (turns 91% zero-post rate into a correct "idle, nothing to post" state). Decision if reserve-fraction: reduce `BAND_NO_CASH_RESERVE` from 0.30 → 0.15 for h00-08 UTC (low NO candidate window).
-
----
-
-### Experiment B — Gate 2 pre-stage: BAND_NO_PAIR_FAV verdict by Jun 20
-
-**Hypothesis:** Gate 2 (n=90) crosses 100 tonight. VPS `band_resolution_join.py` runs scoped to `fire_no/pair_fav/pair_samebucket` and produces a CI-cleared ROI verdict by Jun 20 morning, enabling a real scale/kill decision on PAIR_FAV.
-
-**Data:** Verify VPS cron record-type scope covers PAIR_FAV legs (Jun 17 fix was for the BAND_YES join; PAIR_FAV record types may not be in scope). If not, extend. Run manually now.
-
-**Time:** 15 min to verify scope + trigger. 12-24h to get resolved ROI in data-mirror.
-
-**Cost:** Zero.
-
-**Success metric:** Gate 2 CI95 (at n≥100) has lower bound > 0 or upper bound < 0 — a decisive verdict either way.
-
-**Decision if positive (CI LB > 0):** Scale PAIR_FAV — raise BAND_PAIR_FAV_YES_MAX from 0.70, increase stake. This is the merge engine activation that drives turns/day toward his 1.0×. Decision if negative (CI UB < 0): Disable BAND_PAIR_FAV_ENABLED, redirect 30% NO reserve to standalone favNO (validated +3.7%, n=133).
-
----
-
-### Experiment C — Market-corrected dispersion ratio from stwa_ladder_book
-
-**Hypothesis:** The model-implied dispersion ratio (0.556) is dragged down by the isotonic ceiling artifact. The *market-implied* dispersion ratio (CLOB book midpoints per bucket, not p_cal) may be above 1.10 — which would mean the market is over-dispersed vs true outcomes, the edge IS there, and our model underestimates it (fixable with isotonic refit). If market-implied ratio is also below 0.80, the edge is absent regardless of model quality.
-
-**Data:** `stwa_ladder_book.jsonl` — n=1,485 rows today (in data-mirror shadow). Compute: for each city-day, take last PRE_PEAK record per interior bucket; compute implied σ from book midpoints `(ask+bid)/2`; compare to empirical true σ (1.515°C). This is the "market-corrected" computation the calib_monitor intended but couldn't run (ladder_book not in dated subdirectory at 08:03 UTC snapshot).
-
-**Time:** 2h (Python analysis on VPS, data already available).
-
-**Cost:** Zero.
-
-**Success metric:** Market-corrected ratio > 1.10 on ≥3 of the last 5 days → edge exists at market level, model is the bottleneck (fix: isotonic refit). Market-corrected ratio < 0.80 → market has corrected, edge is structurally gone.
-
-**Decision if yes (ratio > 1.10):** Treat dispersion alert as calibration-artifact, not structural-edge-loss. Prioritize isotonic refit cron restart immediately. Decision if no (ratio < 0.80):** Reduce YES band posting, increase focus on RECYCLE099 velocity as the sole non-calibration-dependent engine; report kill-switch proximity to user for review.
-
----
-
-## 7. Single Best Action
-
-**Pre-stage Gate 2 resolution join on VPS before n=100 crossing, to enable a BAND_NO_PAIR_FAV verdict by Jun 20.**
-
-**Why this, now:**
-1. Gatekeeper report: Gate 2 (n=90) crosses threshold in ~0.8 days. It is the only gate with an imminent, time-sensitive transition.
-2. PAIR_FAV is currently operating at **top queue priority (rank 0, d+1 favNO)** with **30% of capital reserved** for it — but without a resolved ROI verdict. This is untested capital allocation at the head of the queue.
-3. The verdict is calibration-independent: PAIR_FAV closes by merge (YES+NO co-fill → $0.99 redemption), not by dispersion premium.
-4. The VPS infrastructure is confirmed working (Jun 17 state_log: manual run produced n=3,418 joins in one execution). This is not a code problem — it is a cron-scope and scheduling problem.
-5. A positive verdict (CI LB > 0) enables scaling the one strategy that directly addresses the turns/day gap (from 0.74× toward 1.0×). A negative verdict enables redirecting the 30% reserve to the validated standalone favNO (+3.7%, n=133). Either outcome improves the system.
+The compounding impact × P(success) / effort calculation: P(Gate 2 READY) is moderate-high given aggregate +7.2% (n=97), but adverse fill could eat it — the experiment resolves this uncertainty. Effort: one terminal command on VPS.
 
 **Concrete first step:**
+```bash
+# On QuantVPS Dublin:
+python3 analysis/weather/band_resolution_join.py \
+  --gate 2 \
+  --since 2026-06-15 \
+  2>&1 | tee /tmp/gate2_$(date -u +%Y%m%dT%H%MZ).log
 ```
-# On VPS
-cd /root/Klaus
-python3 analysis/weather/band_resolution_join.py --record-types fire_no,pair_fav,pair_samebucket
-# Verify output written to data-mirror; check data/gatekeeper_gate2.json or equivalent
-```
-If the script's `--record-types` flag doesn't exist yet, scope it by filtering `band_struct.jsonl` for `reason in ('fire_no', 'pair_fav', 'pair_samebucket')` before the resolution join. This is a 15-minute VPS task.
-
-Do this before going to sleep tonight so the verdict lands in data-mirror by morning.
+If Gamma 403 persists on VPS (unlikely — VPS has direct access), fall back to CLOB `/data?condition_id=` for winner flags. Report CI95 result back to this branch via state_log entry.
 
 ---
 
-## PROPOSED ACTIONS (human review)
+## PROPOSED ACTIONS (human review — not implemented)
 
-No code changes. No config changes. All below require user decision.
+1. **[GATE 2 — URGENT, <1h, VPS]** Run `band_resolution_join.py` for BAND_NO_PAIR_FAV (n=105). Get CI95. Decision tree in §6 Experiment A.
 
-**[P1 — URGENT, tonight]** Pre-stage Gate 2 resolution join on VPS. Scope: `fire_no/pair_fav/pair_samebucket`. Verify data-mirror push. ~15 min. Verdict expected by Jun 20 morning.
+2. **[GATE 5 — KILL CANDIDATE, VPS next evaluation]** THERMO_MAKER_NO: 0 fires 8+ days, CI upper +0.7%, unconfirmed 4th adverse fill pending. Declare REJECTED if Paris NO fill confirms adversely. No code change needed — BAND_TAILNO_VALIDATED=False already gates it OFF.
 
-**[P2 — HIGH, 30 min]** Diagnose yes_resv_skip cause: add `yes_headroom_usd` to [STRUCT-BAND-Q] log. One-cycle confirmation. Determines whether the fix is reserve-fraction reduction or slot-exhaustion handling.
+3. **[NO CAP — CONDITIONAL on Gate 2 READY]** Raise BAND_NO_CAP_FRAC 0.30→0.40 (cap $84.80 at current capital). +~$20/day NO capacity. Do not implement before Gate 2 verdict.
 
-**[P3 — HIGH, 30 min]** Diagnose NO starvation: add `reason=<skip_reason>` to fire_no path. Identifies the specific gate killing NO candidates before post. Five consecutive days below 25% share with top-rank priority config suggests a hard filter (BAND_NO_MIN=0.52? days_out filter?) is more restrictive than intended.
+4. **[DATA INFRA — VPS, today]** Disk at 86% full — likely cause of daily mirror freeze at midnight. Clear old logs to create headroom. Risk: another freeze tonight will stall pnl_ledger again and mask Jun 20 P&L.
 
-**[P4 — MEDIUM, 10 min]** Fix badatmath_watch watcher. Most-recent ~100 entries are all-null (city, side, ask, bid). Restart watcher process or patch field extraction on VPS.
-
-**[P5 — MEDIUM, 10 min]** Restart isotonic refit cron (stalled 10 days). Partial fix for dispersion ratio compression artifact. Also enables Experiment C interpretation — if the market-corrected ratio (Experiment C) shows edge, the isotonic refit is the fastest fix.
-
-**[P6 — USER VERIFICATION NEEDED]** Confirm Jun 15-16 RECYCLE099 totals against Polymarket trade history. PnL ledger flagged: 4-day equity is -14.5% (adjusted, below -20% kill trigger) vs -20.8% (raw, at trigger). Gap = Jun 15-16 RECYCLE099. If those two days totaled < $30 combined, the kill switch is technically triggered for the month. User should verify and decide whether to continue under the adjusted frame.
-
-**[P7 — WATCH item, Jun 23]** THERMO_MAKER_NO: 0 fills in 7+ days. If still 0 by Jun 23, propose user decision on disabling. The $15/day daily cap is currently allocated to a strategy with 0 firing rate. Not a unilateral disable — user call.
+5. **[ISOTONIC CRON — VPS, low urgency]** Check if live-refit cron is active (n_live frozen 11 days). Do not deploy current candidate regardless — ceiling collapse from 0.63→0.37 worsens high-confidence calibration.
 
 ---
 
-## Appendix: Capital trajectory
+## NULL FINDING REGISTER
 
-| Timestamp | Capital | Source |
-|---|---|---|
-| Jun 14 EOD | $279.96 | PnL ledger |
-| Jun 18 EOD | $221.68 | PnL ledger |
-| Jun 19 09:00 | $249.75 | Gatekeeper |
-| Jun 19 13:33 | $281.04 | Bankroll.json |
-| Jun 14→19 raw Δ | −$0.92 | ~flat (RECYCLE offset) |
-| Jun 18→19 (14h) | +$59.36 | RECYCLE099 on prior inventory |
-
-*The +$59 in 14h today is consistent with the RECYCLE099 rate ($87-99/day on 20-26 exits). It draws on YES inventory accumulated Jun 14-17. Tomorrow's RECYCLE rate depends on today's posting velocity — which was near-zero h00-07 (queue stall). Fixing the stall before the Jun 19 peak window (13:00-16:00 UTC) is the fastest way to preserve the inventory pipeline.*
+- **cash_preskip $134:** Correctly deployed in positions. Not idle. No action.
+- **YES_MAX_OFF=2 wiring:** Verified working (12,200 off2 shadow legs). No action.
+- **RECYCLE099:** Jun 19 $78.58 confirms active and scaling. No change warranted.
+- **Kill-switch proximity:** Capital $211.59 vs $75 floor — safe, 182% margin. No halt.
+- **Phase 1 no_resv=0.40:** Confirmed in STRUCT-BAND-Q 13:24-13:44 UTC. Reversed ladder deployed correctly.
+- **Fee schedule:** No changes detected Jun 12-19. No action.
 
 ---
 
-*REPORT-ONLY: no code, config, or strategy changes made or recommended for unilateral implementation.*
-*All state-altering recommendations listed under PROPOSED ACTIONS require human review.*
-*Next scheduled research audit: 2026-06-20 (same window)*
+*Anti-sycophancy check: YES net = −4.9% (n=299, 2-week confounded). Clean window is 37h — too short for a verdict. Dispersion gauge has fired 7 consecutive alerts. The system may be sound as a maker-spread + favNO engine; it is NOT validated as a YES directional engine. Gate 2 is the one decision that changes this picture. Absent Gate 2 READY, the correct posture is: null day on strategy changes, collect data, run experiments.*
