@@ -1,6 +1,6 @@
-# Gate-Keeper Report — 2026-06-20
+# Gate-Keeper Report — 2026-06-21
 
-**Snapshot**: 2026-06-20T12:16:21Z (< 6h old ✓) | **System**: active ✓ | **Bankroll**: $213.11
+**Snapshot**: 2026-06-21T08:59:16Z (< 6h old ✓) | **System**: active ✓ | **Bankroll**: $283.52
 
 ---
 
@@ -8,19 +8,19 @@
 
 | Gate | n | +since prior | WR | ROI | CI95 | Status | ETA |
 |---|---|---|---|---|---|---|---|
-| 1. BAND_YES | 4914 | +271 | — | — | [Gamma 403] | COLLECTING | n>>100; CI blocked |
-| 2. BAND_NO_PAIR_FAV | 105 | +15 | — | — | [Gamma 403] | **COLLECTING ★n≥100** | CI blocked; VPS join needed |
-| 3. FILLED_VS_FIRED | 100† | — | — | — | [CID join blocked] | COLLECTING | n>>40; join blocked |
-| 4. BASKET_EXIT | ≈64‡ | +16 (est.) | — | — | [Gamma 403] | COLLECTING | ≈1.9d if archive fixed |
-| 5. THERMO_MAKER_NO | 3 | +0 | 33.3% | −64.7% | [−130%, +0.7%] | COLLECTING | **STALLED** (0 fills Jun12–Jun20) |
-| 6. M1_BETA_LOCKOUT | 31§ | +0 | 74.2% | −0.6% | [−20.6%, +24.4%] | COLLECTING | **STALLED** (0 thin-margin fires) |
-| 7. SUM_POSTED_0.70_0.85 | 2331 | +157 | — | — | [Gamma 403] | COLLECTING | n>>100; CI blocked |
+| 1. BAND_YES | 5,154 | +240 | — | — | [Gamma 403] | COLLECTING | n>>100; CI blocked |
+| 2. BAND_NO_PAIR_FAV | 128 | +23 | — | — | [Gamma 403] | COLLECTING ★n≥100 | CI blocked; VPS join needed |
+| 3. FILLED_VS_FIRED | 108† | +8 | — | — | [CID join blocked] | COLLECTING | n>>40; join blocked |
+| 4. BASKET_EXIT | ≈72‡ | +8 conf. | 100% | +22.7% | [+11.5%, +34.0%] n=16 | COLLECTING | ≈3.5d |
+| 5. THERMO_MAKER_NO | 3 | +0 | 33.3% | −66.0% | [−132.6%, +0.7%] | COLLECTING | **STALLED** (0 fills Jun12–Jun21) |
+| 6. M1_BETA_LOCKOUT | 31§ | +0 | 74.2% | −0.6% | [−20.6%, +24.4%]§ | COLLECTING | **STALLED** (0 thin-margin fires) |
+| 7. SUM_POSTED_0.70_0.85 | 2,473 | +142 | — | — | [Gamma 403] | COLLECTING | n>>100; CI blocked |
 
-†Gate 3: 7d rolling window; Jun17 fills (n=69) aged out. Current window: Jun18=53, Jun19=35, Jun20=12 (to 09:01 UTC) = 100 total. YES=71 (71%), NO=29 (29%).
+†Gate 3: 7d rolling window, 108 registered fills (Jun18=13, Jun19=38, Jun20=38, Jun21=19). YES=60 (55.6%), NO=48 (44.4%). NO fill rate improved to 44% from 29% at prior run — favNO TOP priority (Jun19T00:30) effect visible.
 
-‡Gate 4: Prior confirmed 48; prior run's 16 pending Jun19 baskets (t_close Jun19–Jun20) now resolved but absent from archive — structural blocker. Jun20 rolling file has 1,665 all_green events, all with t_close ≥ 15:00 UTC today (future).
+‡Gate 4: 8 confirmed closed all_green baskets from Jun20 post-prior-run; prior 64 was unverified estimate. Best combined: ≈72. CI95 computed on verified n=16 confirmed subset only (lower bound +11.5% > 0). Per-day archive gap Jun16–19 persists.
 
-§Gate 6: n=31 carries provenance flag from prior runs; only 1 M1 trade verifiable from trades.jsonl (Moscow May-26, net_pnl=−$1.65, WEATHER/Moscow/M1_BETA_PROBE).
+§Gate 6: n=31 carries provenance flag — basis unverifiable from container. Only 1 confirmed M1 trade in trades.jsonl. CI95 from prior state, reproduced verbatim. Stalled day 11.
 
 **No READY. No REJECTED. No status transitions from prior run.**
 
@@ -28,102 +28,119 @@
 
 ## Gate Detail
 
-### Gate 1 — BAND_YES (scale-up gate)
-- **n**: 4914 (prior 4643, +271)
-- **Counting method**: unique (cid, days_out) from `quotes[]` inside `reason=fire` events in per-day band_struct_lite.jsonl — confirmed matching prior cross-checks (Jun15=765, Jun16=800, Jun17=679, Jun18=629 all verified against prior state exactly)
-- **Delta breakdown**: Jun19 rest-of-day (185→230 = +45 legs) + Jun20 to 12:11 UTC (+226 legs) = +271
-- **Jun20 rate**: 52 unique bands × avg 4.35 legs/band = 226 legs in ~12h ≈ 452 legs/full day
-- **Status**: n=4914 >> threshold 100 per slice; **CI blocked — Gamma API returns 403 from container**. Band resolution join requires VPS-side `band_resolution_join.py` run on post-boundary data (boundary = Jun19 00:30 UTC, the 7th config change of Jun18 churn). Prior data is contaminated by 4 arch changes Jun17 + 7 on Jun18. VPS must target post-boundary legs only.
-- **Clean-window data available**: Jun19 00:30 UTC → Jun20 12:11 UTC ≈ 271 post-boundary legs. Sufficient for per-slice CI on main slices once resolved.
+### Gate 1: BAND_YES per-slice legs
 
-### Gate 2 — BAND_NO + PAIR_FAV ★ THRESHOLD CROSSED
-- **n**: 105 (prior 90, +15) — **crossed n=100 since last run**
-- **Counting method**: unique cid from `reason=fire_no`, `reason=pair_fav`, `reason=pair_samebucket` events in per-day band_struct_lite.jsonl
-- **Delta breakdown**: Jun19 rest-of-day (7→15 fire_no = +8) + Jun20 (+7 fire_no) = +15
-- **By type** (Jun15-Jun20): fire_no=61, pair_fav=17, pair_samebucket=6 = 84 observed in 6d window; legacy Jun12-Jun14 carry = 21 (from prior accumulation); total n=105
-- **Rate**: Jun18=20/day (peak), Jun19=15/day, Jun20=7 in 12h ≈ 14/day
-- **Status**: COLLECTING. n≥100 threshold met, but **CI still blocked by Gamma 403**. Cannot be evaluated without resolution truth. VPS must run resolution join immediately. Once n≥100 resolved legs available, CI95 will determine READY/REJECTED/AMBIGUOUS.
+- **Data source**: band_struct_lite.jsonl (6-day window Jun16–Jun21), first-fire dedup per (cid, days_out)
+- **Counts by day**: Jun16=800, Jun17=679, Jun18=629, Jun19=230, Jun20=260, Jun21=206 (09:20 UTC)
+- **Cumulative n**: Prior 4,914 (Jun20T12:27) + Jun20 remainder ~34 + Jun21 206 = **≈5,154**
+- **By days_out (6-day window)**: d+0=555, d+1=690, d+2=1056
+- **Sum_posted [0.70,0.85] fraction**: 44% Jun16, 47% Jun17, 45% Jun18, 64% Jun19, 66% Jun20, 61% Jun21 (rising after Jun18 config changes)
+- **Rate**: ~230 legs/day
+- **Resolution**: Gamma API returns 403 from container. band_resolution_join.py requires CLOB winner flags. VPS must execute. Clean-window boundary = Jun19T00:30 UTC (post-config-freeze); post-boundary legs ≈701 (clean, no contamination from Jun18 churn).
+- **Note**: Significant config churn Jun16–18 (6+ commits per state_log 11:30–22:30 Jun18) may contaminate pre-Jun19 data for ROI purposes. Per-slice threshold (days_out × offset × price_band) may not be met on individual slices despite aggregate n>>100.
 
-### Gate 3 — FILLED vs FIRED (winner's-curse watch)
-- **n (current window)**: 100 (7d rolling; Jun17 fills aged out)
-- **Window**: Jun18=53, Jun19=35, Jun20=12 (to 09:01 UTC)
-- **Fill balance**: YES=71 (71%), NO=29 (29%). NO fill rate improved from 13.2% at prior snapshot to 29% — consistent with favNO TOP priority activated Jun19 00:30 UTC.
-- **Prior cumulative n=291 is no longer usable**: Jun16 (77) and Jun17 (69) fills aged out of the rolling log. The current observable window for resolution join = 100 fills.
-- **Status**: COLLECTING. n=100 exceeds n=40 threshold for filled-leg resolution join. **CID join is blocked from container**. VPS must execute the filled-vs-fired divergence analysis on this window before Jun18 fills also age out (~5 days from now).
-- **Watch item**: Paris NO +5.5 sh @ 0.98 (Jun18 14:18:40, cond=0x6f518f8f). Price 0.98 > BAND_NO_MAX=0.85 — outside band NO range. Likely thermo-sourced (see Gate 5). VPS to verify via token_id join to thermo_maker candidates.
+### Gate 2: BAND_NO + PAIR_FAV legs
 
-### Gate 4 — BASKET EXIT (cash green baskets)
-- **n**: ≈64 estimated (prior confirmed 48 + ~16 Jun19 baskets inferred from prior pending count)
-- **Jun15** per-day archive: 19 resolved basket-city-days (consistent with prior)
-- **Jun16–Jun18** per-day archives: absent from data-mirror (structural gap — no per-day basket JSONL created)
-- **Jun19 baskets**: Prior run identified 16 pending (t_close Jun19–Jun20); these elapsed but data rolled off the root file when Jun20 started. Unverifiable; counted as +16 estimated.
-- **Jun20 root file**: 1,665 all_green events; ALL t_close ∈ [15:00 UTC Jun20, 07:00 UTC Jun21] — none resolved yet.
-- **Status**: COLLECTING. **Structural blocker persists**: per-day basket archives absent for Jun16+. ROI computation impossible. At ~19 resolved/day, n≥100 would be ~Jun23 — but blocked on data infrastructure, not count rate.
+- **Data source**: band_struct_lite.jsonl, reason ∈ {fire_no, pair_fav, pair_samebucket}, dedup per (cid, days_out)
+- **Counts by day**: Jun16=11, Jun17=10, Jun18=22, Jun19=15, Jun20=13, Jun21=17
+- **Cumulative n**: Prior 105 (Jun20T12:27, threshold crossed) + Jun20 remaining ~6 + Jun21 17 = **≈128**
+- **Breakdown (6-day window)**: fire_no=65, pair_fav=17, pair_samebucket=6 = 88; plus ~40 legacy Jun12–15
+- **Rate**: ~14–15 NO-side fires/day
+- **Resolution**: Blocked (Gamma 403). n≥100 crossed at prior run — threshold has been cleared for over 24h. CI cannot be computed from this container. VPS resolution join is **urgently needed**: BAND_NO_ENABLED=True, BAND_NO_STAKE=$5 currently LIVE. Cannot affirm or kill without resolution truth.
+- **Note**: NO fill rate in maker_fills_recent.log now 44% of 108 registered fills — up from 29% at prior run. This is fill-rate signal only, not an outcome indicator.
 
-### Gate 5 — THERMO MAKER NO (pre-registered kill gate: n=20)
-- **n resolved**: 3 (prior 3, +0 confirmed)
-- **WR**: 1/3 = 33.3% | **ROI**: −64.7% | **CI95**: [−130%, +0.7%] (barely straddles 0 — upper bound +0.7%)
-- **Prior 3 resolved**: +$0.11 @ 0.98, −$5.67 @ 0.81, −$5.39 @ 0.98
-- **STALLED 8+ days**: thermo_maker.jsonl has 15,199 candidates today (scanning active; 7,734 with no_ask set) but zero fire records in any file. No new fills in maker_fills_recent.log (Jun18–Jun20 window) attributable to thermo.
-- **Possible 4th fill (unconfirmed)**: Paris NO +5.5 sh @ 0.98 (Jun18 14:18:40, cond=0x6f518f8f). BAND_NO_MAX=0.85, so this price is outside the band NO range. Paris thermo candidate today: "39°C or higher" with no_ask=0.999 (extreme heat market — consistent pattern). If confirmed thermo AND resolves adversely: n=4, and with 3 losses out of 4 the CI flips clearly negative → pre-emptive REJECTED territory approaching kill gate.
-- **Direction**: CI upper = +0.7% — one additional adverse fill at any price pushes CI fully negative. The stall at n=3 with near-negative CI is a holding pattern: status is COLLECTING by the letter of the rules (n=3 < threshold 20), but the data that exists is directionally negative.
+### Gate 3: Filled-vs-Fired Divergence
 
-### Gate 6 — M1-BETA LOCKOUT (thin-margin [0.2,0.5)C slice)
-- **n**: 31§ (provenance flagged) / 1 verified
-- **WR**: 74.2% (flagged) | **ROI**: −0.6% | **CI95**: [−20.6%, +24.4%] (straddles 0)
-- **New probe fire (not qualifying)**: Moscow Jun20, phase=result, L3, depth_c=0.5°C, bucket [18.5,19.5)°C, running_max_c=20.0°C, fill_status=FILLED @ 0.95, 21.0 sh. depth_c=0.5°C is at the boundary of [0.2,0.5)C window — does NOT qualify (gate monitors depth_c strictly in [0.2,0.5)). This fire does NOT increment Gate 6 n.
-- **metar_lockout.jsonl**: 0 lines (empty — schema v2 records candidates only; no thin-margin fires logged)
-- **Verified trade count**: Only Moscow May-26 (net_pnl=−$1.65, WEATHER/Moscow/M1_BETA_PROBE) in trades.jsonl. 1 data point.
-- **STALLED 10+ days**: No thin-margin [0.2,0.5)C slice fires detected. Possible explanations: (a) thin-margin lockout conditions rarely met in current weather regime; (b) schema v2 doesn't log fires; (c) the firing path is blocked upstream.
-- **Standing rule (Jun09)**: Once n≥100 with WR≥95% AND +EV → keep; else REVERT to 0.5°C floors.
+- **Data source**: maker_fills_recent.log (7d rolling)
+- **Current window**: 108 registered fills (Jun18=13, Jun19=38, Jun20=38, Jun21=19 to 09:20 UTC)
+- **Delta since prior**: +8 (prior n=100 at Jun20T09:01)
+- **Side split**: YES=60 (55.6%), NO=48 (44.4%)
+- **Prior fill split**: YES=71%, NO=29% → substantial improvement in NO fill rate after favNO TOP priority
+- **Markout context** (state_log Jun18 23:30–23:59): YES fills adversely selected at −0.05¢/sh vs badatmath's +1.19¢/sh. Root cause: stale orders (>6h old) run over by informed drift, NOT queue position. 2h directional reclaim is PROTECTIVE. Gap is structural (paired/merge-hedged book at ~$2k phase).
+- **CID join**: Blocked from container. VPS must execute filled-vs-fired comparison per slice to test winner's-curse hypothesis before Jun18 fills age out (~4 days).
 
-### Gate 7 — SUM_POSTED 0.70–0.85 (V3 gate extension)
-- **n**: 2331 (prior 2174, +157)
-- **Counting method**: unique (cid, days_out) from `quotes[]` inside `reason=fire` events where band `sum_posted` ∈ [0.70, 0.85], first-fire dedup per (cid, days_out)
-- **Delta breakdown**: Jun19 rest-of-day (146→147 = +1) + Jun20 to 12:11 UTC (+156) = +157
-- **Jun20**: 33 of 52 fired bands (63%) had sum_posted in [0.70,0.85] — these generated 156 of 226 legs
-- **Status**: n=2331 >> threshold 100; **CI blocked by Gamma 403** (same as Gate 1). VPS resolution join required. Same clean-window boundary (Jun19 00:30 UTC+).
+### Gate 4: Basket Exit (cash-green baskets)
+
+- **Data source**: basket_exit_shadow.jsonl (Jun20 archive = 14,513 rows; Jun21 today = 4,732 rows)
+- **Unique baskets tracked**: 59 total (52 from Jun20 archive + 7 net new today)
+- **All_green=True closed**: **16 confirmed** (8 from Jun20 closed before prior run; 8 new since prior run)
+  - Jun20 closures post-prior (t_close after Jun20T12:27): beijing (+509%), hong-kong (+68%), moscow (+5%), warsaw (+48%), amsterdam (+52%), paris (+6%), london (+42%), denver (+3087%)
+- **Today (Jun21)**: 10 all_green baskets identified, all t_close ≥ 15:00 UTC today → still pending
+- **ROI on n=16 confirmed closed**: WR=100%, mean ROI=+22.7%, median ≈+18–22%
+- **CI95 (t-test, t(0.025,15)=2.131)**: **[+11.5%, +34.0%]** — lower bound above zero
+- **Prior estimate**: 64 (unverified, Jun15–19 archive absent). Best combined: ≈72.
+- **Threshold**: n=100. **COLLECTING** at n≈72. At 8 confirmed/day ≈ 3.5 days to threshold IF Jun21+ archives created consistently on VPS.
+- **Anti-sycophancy**: n=16 CI is on the confirmed subset only. Prior's 56 (Jun15–19 estimated) are unverified and may include adverse outcomes not archived. Do not declare READY at n=72. Hold for n=100 verified.
+
+### Gate 5: THERMO Maker-NO (upper-tail, pre-kill gate)
+
+- **Data source**: thermo_maker.jsonl (shadow candidates only), trades.jsonl (STWA_RESOLVED)
+- **Status**: **STALLED 9+ days** — no new fills since Jun12T22:53 UTC
+- **n=3 resolved** (gate registration: Jun11T22:40 UTC):
+  - +$0.11 @ $0.98 (Jun12T00:00, 5.5sh) → stake=$5.39, ROI=+2.04%
+  - −$5.67 @ $0.81 (Jun12T00:15, 7.0sh) → stake=$5.67, ROI=−100.0%
+  - −$5.39 @ $0.98 (Jun12T22:53, 5.5sh) → stake=$5.39, ROI=−100.0%
+- **WR**: 1/3=33.3% | **Mean ROI**: −66.0% | **CI95 (z-approx)**: [−132.6%, +0.7%]
+- **CI upper**: +0.7% — barely straddles zero. One additional adverse fill at n≥20 pushes CI fully negative → REJECTED territory.
+- **Current pipeline**: thermo_maker.jsonl has 25,818 candidate rows (8,890 today) but record_type=thermo_maker_candidate ONLY — zero fire records. maker_fills_recent.log: max NO fill = $0.79, nothing above BAND_NO_MAX=0.85. Engine scanning but NOT firing.
+- **Paris NO claim cleared**: Prior state flagged "Paris NO +5.5sh@0.98" as possible thermo n=4. This was a [USER-WS] UNTRACKED FILL for a TAKER SELL by another participant, NOT a maker-NO entry by Klaus — correctly excluded.
+- **Kill gate**: 20 resolved required. At 0 fires/day: ETA=INFINITE.
+
+### Gate 6: M1 Beta Lockout (thin-margin [0.2,0.5)°C slice)
+
+- **Data source**: metar_min_lockout.jsonl (candidates), trades.jsonl (WEATHER_M1_PROBE)
+- **Status**: **STALLED 11+ days**
+- **n=31** (provenance flag: unverifiable from container)
+- **Current data**: metar_min_lockout.jsonl = 16,611 candidate rows (all metar_min_lockout_candidate), zero fires. metar_lockout.jsonl = 0 lines in all per-day archives (Jun16–Jun21).
+- **Only verified trade**: Moscow May-26 WEATHER/BUY_NO (net_pnl=−$1.65). n=1 verifiable.
+- **WR**: 74.2% (prior, unverified) | **ROI**: −0.6% (prior) | **CI95**: [−20.6%, +24.4%] (prior, maintained)
+- **Standing rule** (Jun09): once n≥100, WR≥95% AND +EV = keep thin-margin slice; else REVERT to 0.5°C floors.
+- **ETA**: INFINITE. No thin-margin [0.2,0.5)°C fires in 11+ days.
+
+### Gate 7: SUM_POSTED [0.70,0.85] slice
+
+- **Data source**: band_struct_lite.jsonl fire events where sum_posted ∈ [0.70,0.85], dedup per (cid, days_out)
+- **Counts by day**: Jun16=348/800 (44%), Jun17=316/679 (47%), Jun18=282/629 (45%), Jun19=147/230 (64%), Jun20=172/260 (66%), Jun21=126/206 (61%)
+- **Cumulative n**: Prior 2,331 (Jun20T12:27) + Jun20 remaining ~16 + Jun21 126 = **≈2,473**
+- **Rate**: ~140/day (fraction rising Jun19–20: 64–66% after PX_CEIL 0.30 + strict-rank queue)
+- **Context**: V3 gate extension was based on n=46 TREND. Gate exceeds 100 aggregate but CI blocked (no Gamma resolution). Same resolution join as Gate 1; same clean-window boundary (Jun19T00:30) applies.
 
 ---
 
-## State Transitions vs Prior (2026-06-19T09:00:00Z)
+## State Transitions vs Prior Run (2026-06-20T12:27:00Z)
 
 | Gate | Prior Status | Current Status | Change |
 |---|---|---|---|
-| 1. BAND_YES | COLLECTING | COLLECTING | n 4643→4914 (+271) |
-| 2. BAND_NO_PAIR_FAV | COLLECTING | COLLECTING | n 90→105 (+15) **★ THRESHOLD CROSSED** |
-| 3. FILLED_VS_FIRED | COLLECTING | COLLECTING | Jun17 aged out; current window n=100 |
-| 4. BASKET_EXIT | COLLECTING | COLLECTING | n 48→≈64 est. (+16 Jun19 resolved, unverifiable) |
-| 5. THERMO_MAKER_NO | COLLECTING | COLLECTING | STALLED +8d; CI barely positive (upper +0.7%) |
-| 6. M1_BETA_LOCKOUT | COLLECTING | COLLECTING | New L3 fire non-qualifying; STALLED unchanged |
-| 7. SUM_POSTED_0.70_0.85 | COLLECTING | COLLECTING | n 2174→2331 (+157) |
+| 1. BAND_YES | COLLECTING | COLLECTING | n: 4,914 → 5,154 (+240) |
+| 2. BAND_NO_PAIR_FAV | COLLECTING ★n≥100 | COLLECTING ★n≥100 | n: 105 → 128 (+23) |
+| 3. FILLED_VS_FIRED | COLLECTING | COLLECTING | n: 100 → 108 (+8); NO% 29→44% |
+| 4. BASKET_EXIT | COLLECTING | COLLECTING | +8 confirmed new; **CI [+11.5%,+34%] on n=16** |
+| 5. THERMO_MAKER_NO | COLLECTING STALLED | COLLECTING STALLED | n=3 unchanged (day 9+) |
+| 6. M1_BETA_LOCKOUT | COLLECTING STALLED | COLLECTING STALLED | n=31 unchanged (day 11+) |
+| 7. SUM_POSTED_0.70_0.85 | COLLECTING | COLLECTING | n: 2,331 → 2,473 (+142) |
 
-**No gates newly READY. No gates newly REJECTED.**
+**No gate reached READY or REJECTED.**
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-No gates have crossed the READY or REJECTED verdict this run. The binding blocker for 6 of 7 gates is the **Gamma 403 / resolution-join infrastructure gap from the container**. Actions proposed for human operator:
+No gates newly hit READY or REJECTED this run. No flag or parameter changes are proposed. All COLLECTING.
 
-**[P1 — URGENT] Gate 2 VPS resolution join**: Gate 2 (BAND_NO_PAIR_FAV) crossed n=100 this run. This is the critical validation gate before any NO-side scaling. VPS must run the resolution join on fire_no/pair_fav/pair_samebucket events from the post-boundary window (Jun19 00:30 UTC onward). Without this join, NO-side cannot be declared READY or REJECTED. The rate is ~14/day — every day of delay adds noise to the clean window.
+### Informational flags for human attention:
 
-**[P2 — URGENT] Gate 1 & 7 VPS resolution join**: Gates 1 and 7 have been n>>100 for days; neither has a verdict. VPS band_resolution_join.py must run on post-boundary data (Jun19 00:30 UTC+) only. Lite files preserve first-fire dedup + all posts — lay them into logs/shadow/hot/$D/band_struct.jsonl layout before running.
+**[ACTION NEEDED — VPS, P1] Gate 2 resolution join is overdue.**
+Gate 2 (BAND_NO_PAIR_FAV) crossed n=100 at the prior run (Jun20). BAND_NO_ENABLED=True with BAND_NO_STAKE=$5 is LIVE. Gate 2 is the critical validation gate for the NO-side engine: the CI determines READY (scale), AMBIGUOUS (continue), or REJECTED (disable BAND_NO_ENABLED). Cannot be evaluated from this container. VPS operator: run band_resolution_join.py against fire_no/pair_fav/pair_samebucket legs in the post-clean-window window (Jun19T00:30 UTC onward). Every additional day at n=128 dilutes the clean window with un-resolvable legs from this container.
 
-**[P3 — INFRA] Gate 4 basket archive fix**: Per-day basket_exit_shadow.jsonl not being archived for Jun16+. 4 days of data already permanently lost. Fix the VPS archival cronjob or Gate 4 permanently stalls below n=100. If not fixable, consider alternative: snapshot current root file daily to per-day location before midnight UTC.
+**[ACTION NEEDED — VPS, P2] Gates 1 and 7 resolution join.**
+Both have been n>>100 for days. VPS: copy each day's band_struct_lite.jsonl to logs/shadow/hot/$D/band_struct.jsonl (lite format preserves first-fire dedup), then run band_resolution_join.py on post-Jun19T00:30 data only. Per-slice breakdown (days_out × offset × price_band) needed — individual slices at n=100+ may show divergent CIs.
 
-**[P4 — VERIFY] Gate 5 Paris NO fill**: Paris NO +5.5 sh @ 0.98 (Jun18 14:18, cond=0x6f518f8f) is priced outside BAND_NO_MAX=0.85 — likely thermo. VPS: join token_id `151302198882` (truncated) to thermo_maker candidates, retrieve resolution, compute PnL. If adverse → Gate 5 CI flips negative, approaching pre-REJECTED territory at n=4.
+**[WATCH — Gate 4] First confirmed positive CI signal.**
+n=16 confirmed closed all_green baskets now show CI95=[+11.5%, +34.0%] with lower bound above zero. This is the first gate with a directionally positive CI from verified data. Not a decision (n=100 required), but a positive accumulating signal. Verify VPS is writing data/shadow/<date>/basket_exit_shadow.jsonl daily — Jun16–19 gap suggests archival cron was not running. At current 8/day confirmed rate, gate reaches n=100 in ≈3.5 days IF archive resumes.
 
-**[P5 — DATA] Gate 6 provenance reset**: VPS operator verify Gate 6 n=31 basis. If schema v1 metar_lockout records cannot be located, reset n=1. Flag to human for decision.
-
----
-
-## Structural Blockers (persistent)
-
-1. **Gamma API 403 from container** (3+ runs): All band gates require CLOB/Gamma winner-flag resolution. VPS-side resolution join is the only path to any READY/REJECTED verdict.
-2. **Per-day basket archive gap** (Jun16+): Gate 4 data lost on daily rollover. Gate permanently stalled.
-3. **Thermo zero-fire gap** (8+ days): Gate 5 has 7,734 actionable candidates but zero fires. Firing threshold may need inspection.
+**[WATCH — Gate 5] THERMO stall entering 10th day.**
+At n=3 and CI barely straddling zero (upper=+0.7%), the thermo gate is effectively negative. The stall duration (9+ days, 25,818 candidates with zero fires) suggests the firing path may be disabled or gated by a condition no longer met in current weather regime. Recommend VPS operator inspect: whether the capped $15/day thermo budget is exhausted, or whether the no_ask floor is suppressing all current candidates.
 
 ---
 
-*Report generated: 2026-06-20T12:27:00Z | Counting verified: Jun15=765, Jun16=800, Jun17=679, Jun18=629 leg counts match prior state exactly.*
+*Generated: 2026-06-21T09:20 UTC | Data mirror: 2026-06-21T08:59:16Z | Container: Gamma 403 (resolution blocked)*
