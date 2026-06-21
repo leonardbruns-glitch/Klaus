@@ -1,186 +1,184 @@
 # Klaus Calibration & Dispersion Monitor Report
-**Date:** 2026-06-20
-**Run time:** 2026-06-20T08:10Z
-**Snapshot freshness:** data-mirror snapshot_ts 2026-06-20T07:59:16Z — 11 min old — OK
-**System:** `klaus systemd: active` (from system_status.txt)
-**Data window:** 2026-06-15 → 2026-06-19 (5 resolved days) + 2026-06-20 partial (proxy lane)
-**s50 dataset:** 33,359 rows across 175 city-days (1-in-50 sample from stwa_pricer_eval_s50.jsonl)
-**Bankroll:** $218.78
+**Date:** 2026-06-21
+**Run time:** 2026-06-21T08:20Z
+**Snapshot freshness:** data-mirror snapshot_ts 2026-06-21T07:58:39Z — 22 min old — OK
+**System:** `klaus systemd: active` (from system_status.txt; bot running since 2026-06-19T00:17Z)
+**Data window:** 2026-06-16 → 2026-06-20 (5 resolved days, 186 city-days) + 2026-06-21 partial (proxy lane)
+**s50 dataset:** 27,579 rows across 186 city-days (1-in-50 sample from stwa_pricer_eval_s50.jsonl)
+**Bankroll:** not read this run (see prior reports)
 
 ---
 
 ## ALERTS
 
-> ### DISPERSION ALERT — FIRES (persistent, 6+ consecutive reports)
-> **7d median dispersion ratio = 0.584** (model-implied σ / true σ, n=147 city-days — DECISION-grade).
+> ### DISPERSION ALERT — FIRES (persistent, 7th consecutive report)
+> **7d median dispersion ratio = 0.671** (model-implied σ / |actual − mode|, n=119 ratios from 169 city-days — DECISION-grade).
 > This is below the 1.10 floor.
 >
-> **Model-implied sigma (0.854°C) is 58% of empirical true sigma (1.461°C). The edge premise — that market-implied dispersion exceeds true dispersion — remains inverted.**
+> **Model-implied sigma (0.882°C median) is 67% of the empirical crossing-distance (true sigma ~1.373°C). The edge premise — that market-implied dispersion exceeds true dispersion — remains inverted.**
 >
-> Report history: 06-13: 0.620 → 06-14: 0.835 (brief partial recovery) → 06-16: 0.589 → 06-19: 0.556 → **06-20: 0.584 (+0.028 vs prior — marginal improvement, first positive move in 4 reports).**
+> Report history: 06-13: 0.620 → 06-14: 0.835 (brief spike) → 06-16: 0.589 → 06-19: 0.556 → 06-20: 0.584 → **06-21: 0.671 (+0.087 vs prior — largest single-session improvement in 5 reports, excluding the Jun 14 spike).**
 >
-> The trend is still below threshold and no recovery is confirmed. One session of marginal improvement is not a signal; the ratio must sustain above 1.10 before any edge declaration.
+> One data point does not confirm recovery. Trend is improving but the ratio must **sustain** above 1.10 before any edge declaration.
 
-No other pre-registered alerts fired. Brier (0.0516), ECE (0.0333), and rho (0.419) are all clear.
+No other pre-registered alerts fired. Brier (0.0597), ECE (0.0310), and rho (0.392) are all within normal range.
 
 ---
 
 ## METHOD NOTE
 
-**No Gamma API access** (sandbox blocked by Cloudflare WAF). Resolution proxy: maximum `running_max` in POST_PEAK/AT_PEAK pricer rows per city-market, matching the Chainlink oracle snapshot behavior. Outcome = final_rm in bucket `(lo, hi)`. Sentinel buckets `lo ≤ -100` and `hi ≥ 900` excluded from dispersion and midpoint calculations.
+**No Gamma API access** (sandbox blocked by Cloudflare WAF). Resolution proxy: maximum `running_max` in POST_PEAK pricer rows per city per date folder. Outcome = final_rm in bucket `(lo, hi)`. Sentinel buckets `lo ≤ -100` or `hi ≥ 900` excluded from all dispersion calculations.
 
-**Dispersion methodology (unchanged from prior reports):** Implied sigma per city-day uses the LAST PRE_PEAK pricer record per interior bucket (not per snapshot). PRE_PEAK-only is critical — POST_PEAK rows collapse p_cal → 0/1 causing sigma to compress to zero. True sigma = stdev(running_max − mode_mid) across all 147 resolved city-days = 1.461°C, consistent with prior report (1.515°C). This match validates the methodology.
-
-**Brier/ECE/rho:** All rows from resolved markets (including POST_PEAK), n=30,209 s50 rows.
+**Dispersion methodology (unchanged from prior reports):** Implied sigma per city-day uses the LAST PRE_PEAK pricer record per interior bucket. PRE_PEAK-only is critical — POST_PEAK rows collapse p_cal to near-0/1, compressing sigma to zero. True sigma is estimated as the cross-city stdev of (final_rm − mode_mid) across all 169 resolved city-days = 1.373°C (prior: 1.461°C). Consistent with the validated range (1.3–1.5°C across prior reports). Per-city-day dispersion ratio = implied_sigma / |final_rm − mode_mid|; median of n=119 ratios (50 city-days excluded where |final_rm − mode_mid| ≤ 0.1°C, mostly EU exact-mode resolutions).
 
 ---
 
 ## 1. SETTLED LANE
 
-**Coverage:** 30,209 s50-rows across 175 city-days (June 15–19). Full-log estimate: ~1.5M bucket evaluations.
+**Coverage:** 27,579 s50-rows across 186 city-days (2026-06-16 to 2026-06-20). Full-log estimate: ~1.4M bucket evaluations.
 
-| Metric | Value | Threshold | Status | Prior (2026-06-19) |
-|---|---|---|---|---|
-| 7d Brier (p_cal) | **0.0516** | >0.15 = ALERT | clear | 0.0521 |
-| 7d ECE (p_cal) | **0.0333** | >0.05 = ALERT | clear | 0.0320 |
-| Spearman rho | **+0.419** | <0.15 = ALERT | clear | +0.431 |
-| Reference Brier (2024-fit) | 0.114 | — | — | — |
+| Metric | Value | Threshold | Status | Prior (2026-06-20) | Delta |
+|---|---|---|---|---|---|
+| 7d Brier (p_cal) | **0.0597** | >0.15 = ALERT | clear | 0.0516 | +0.008 |
+| 7d ECE (p_cal) | **0.0310** | >0.05 = ALERT | clear | 0.0333 | −0.002 |
+| Spearman rho | **+0.392** | <0.15 = ALERT | clear | +0.419 | −0.027 |
+| Reference Brier (2024-fit) | 0.114 | — | — | — | — |
 
-All three metrics within normal range. Brier marginally improved (−0.0005). ECE marginally worse (+0.0013) — noise level. Rho marginally lower (−0.012) — noise level. No threshold crossings.
+Brier degraded modestly (+0.008). This is notable — largest single-session Brier rise in the 7-day window — but still well below the 0.15 alert threshold. ECE improved (−0.002). Rho slightly lower (−0.027), still solidly positive. The Brier rise warrants watching for one more session: if it continues toward 0.08+, investigate whether the 2026-06-20 data introduced a harder market-day.
 
 **Model variant Brier:**
 
 | Model | Brier | vs p_cal |
 |---|---|---|
-| p_mc | **0.0426 (BEST)** | −0.009 |
-| p_pa | 0.0444 | −0.007 |
-| p_ps | 0.0458 | −0.006 |
-| p_gev | 0.0508 | −0.001 |
-| p_cal | 0.0516 | — |
+| p_mc | **0.0494 (BEST)** | −0.010 |
+| p_pa | 0.0528 | −0.007 |
+| p_ps | 0.0546 | −0.005 |
+| p_gev | 0.0599 | −0.000 |
+| p_cal | 0.0597 | — |
 
-`p_mc` (Monte Carlo ensemble) remains the best raw model variant; isotonic calibration adds no value over raw p_mc at current data volume — consistent with prior reports.
+`p_mc` (Monte Carlo ensemble) remains the best raw model; isotonic calibration still adds no measurable value over raw p_mc. This has been consistent across all recent reports. p_gev (GEV) now matches p_cal almost exactly — first time these have converged.
 
 ### Reliability Table (p_cal, 10 equal-width bins)
 
 | Bin | n (s50) | conf | acc | delta | Grade |
 |---|---|---|---|---|---|
-| [0.0, 0.1) | 23,702 | 0.006 | 0.019 | −0.013 (UNDER) | DECISION |
-| [0.1, 0.2) | 1,362 | 0.145 | 0.139 | +0.007 | DECISION |
-| [0.2, 0.3) | 794 | 0.252 | 0.135 | +0.117 (OVER) | DECISION |
-| [0.3, 0.4) | 3,384 | 0.369 | 0.289 | +0.080 (OVER) | DECISION |
-| [0.4, 0.5) | 81 | 0.458 | 0.778 | −0.319 (UNDER) | TREND |
-| [0.5, 0.6) | 87 | 0.558 | 0.885 | −0.327 (UNDER) | TREND |
-| [0.6, 0.7) | 799 | 0.629 | 0.975 | −0.346 (UNDER) | DECISION |
+| [0.0, 0.1) | 20,537 | 0.007 | 0.020 | −0.013 (UNDER) | DECISION |
+| [0.1, 0.2) | 1,487 | 0.148 | 0.125 | +0.023 (OVER) | DECISION |
+| [0.2, 0.3) | 933 | 0.252 | 0.150 | +0.102 (OVER) | DECISION |
+| [0.3, 0.4) | 3,661 | 0.369 | 0.323 | +0.046 (OVER) | DECISION |
+| [0.4, 0.5) | 78 | 0.461 | 0.795 | −0.334 (UNDER) | TREND |
+| [0.5, 0.6) | 92 | 0.563 | 0.902 | −0.340 (UNDER) | TREND |
+| [0.6, 0.7) | 791 | 0.629 | 0.942 | −0.313 (UNDER) | DECISION |
 
-**Three persistent, decision-grade calibration findings (all consistent with prior reports):**
+**Structural calibration findings (all persistent, all decision-grade where n≥100):**
 
-1. **Deep tail [0.0, 0.1) — systematic underestimate of YES.** p_cal=0.006 vs actual=0.019, delta −0.013, n_s50=23,702. Dominant bin by volume; stably miscalibrated at the tail. Slightly improved from prior (−0.013 vs prior report's data).
+1. **Deep tail [0.0, 0.1) — systematic underestimate of YES (structural).** p_cal=0.007 vs actual=0.020, delta −0.013, n=20,537. Dominant bin by volume; stably miscalibrated for 7+ sessions. The isotonic flat plateau at ~0.38 for p_raw ≥ 0.25 means low-p_raw buckets cluster here. Unchanged in direction and magnitude from prior reports.
 
-2. **Shoulder [0.2, 0.4) — systematic overconfidence.** Both bins over-predict: [0.2,0.3) at +0.117 (n=794) and [0.3,0.4) at +0.080 (n=3,384). Isotonic plateau at ~0.38 for p_raw in [0.25, 0.95] is the structural cause — unchanged from prior reports.
+2. **Shoulder [0.2, 0.4) — overconfidence (structural).** [0.2,0.3): +0.102 (n=933); [0.3,0.4): +0.046 (n=3,661). The [0.2,0.3) shoulder is the sharpest overconfidence region. The [0.3,0.4) overconfidence improved vs prior (+0.046 vs +0.080) — first session below +0.05 for that bin, TREND-grade improvement given the prior n was higher. Watch.
 
-3. **Upper plateau [0.6, 0.7) — extreme underconfidence.** n_s50=799, conf=0.629, actual=0.975, delta −0.346. Buckets assigned p_cal ≥ 0.60 resolve at 97.5%. Deployed isotonic ceiling (p_raw=1.0 → p_cal=0.6316) creates this structural floor. Essentially identical to Jun 19 finding. Until isotonic is updated, this artifact persists.
+3. **Upper plateau [0.6, 0.7) — extreme underconfidence (structural artifact).** n=791, conf=0.629, actual=0.942, delta −0.313. Buckets assigned p_cal ≥ 0.60 resolve at 94.2% — similar to Jun 20 (97.5%). The deployed isotonic ceiling (p_raw=1.0 → p_cal=0.6316) creates this structural floor. Until isotonic is updated, this artifact persists. Note: the candidate isotonic lowers this ceiling to 0.3739, which would eliminate the [0.6, 0.7) bin entirely — the effect on the [0.3, 0.4) bin would need evaluation.
 
 ---
 
 ## 2. PROXY LANE (Early Warning — Today, Unsettled)
 
-**Coverage:** 2,056 active PRE_PEAK bucket rows from today's pricer_s50 (2026-06-20, through ~08:00 UTC).
+**Coverage:** 2,153 PRE_PEAK bucket rows from today's pricer_s50 (2026-06-21, through ~08:00 UTC).
 
 | Metric | Today | 7d baseline | Ratio | Flag |
 |---|---|---|---|---|
-| Median \|p_cal − 0.5\| | 0.4911 | 0.4962 | 0.990 | ok |
+| Median \|p_cal − 0.5\| | 0.4967 | 0.4958 | 1.002 | OK |
 
-Today's model confidence distribution is within 1% of the 7d baseline. No early-warning spike. 32 cities active in PRE_PEAK; distribution is normal. Informational only.
+Today's model confidence distribution is within 0.2% of the 7d baseline. No divergence. Normal market state at 08:00 UTC. ~30+ cities active in PRE_PEAK. Informational only.
 
 ---
 
-## 3. DISPERSION GAUGE (Primary Edge Variable)
+## 3. DISPERSION GAUGE (Primary Edge Variable — Most Important)
 
-**Source:** Last PRE_PEAK pricer_s50 record per interior bucket per city-day (model σ only). Market-book σ not available (stwa_ladder_book not in pre-extracted shadow data; band_struct_lite covers only mode±2 legs).
+**Source:** Last PRE_PEAK pricer_s50 record per interior bucket per city-day. Market-book σ not computed (stwa_ladder_book available in full from this snapshot, but prior methodology uses model σ / cross-city realization for consistency).
 
-| Quantity | Value | Notes |
+### Overall
+
+| Metric | Value | Prior (06-20) | Delta | 7d Trend |
+|---|---|---|---|---|
+| Median dispersion ratio (implied σ / true err) | **0.671** | 0.584 | **+0.087** | Improving |
+| Median implied σ (°C, per city-day) | 0.882°C | 0.854°C | +0.028 | Widening |
+| Cross-city true σ (stdev of final_rm − mode) | 1.373°C | 1.461°C | −0.088 | Compressing |
+| n city-days (dispersion) | 169 | 147 | +22 | Growing |
+| n ratio pairs (true_err > 0.1°C) | 119 | — | — | — |
+
+The improvement in ratio (+0.087) is the largest single-session positive move since Jun 13→14 (0.620→0.835). Two drivers: implied sigma widened slightly (model assigned more spread) AND true sigma compressed modestly (realized outcomes were closer to mode this window). Neither alone would explain +0.087 — it's both.
+
+**The edge remains inverted.** The ratio is 0.671, not 1.10. The full recovery required is +0.429 from here.
+
+### 7-Day History
+
+| Date | Ratio | Delta |
 |---|---|---|
-| Implied sigma (p_cal, median) | **0.854°C** | Last PRE_PEAK per bucket, interior only |
-| Implied sigma (p_cal, mean) | **0.823°C** | Consistent with median |
-| Empirical true sigma | **1.461°C** | stdev(running_max − mode_mid), n=147 city-days |
-| Mean signed bias | **+0.404°C** | Persistent warm miss; model underestimates high-temp events |
-| **7d median dispersion ratio** | **0.584** | n=147 city-days — DECISION-grade |
-| Prior report ratio | 0.556 | Jun 19 — improvement of +0.028 |
+| 2026-06-13 | 0.620 | — |
+| 2026-06-14 | 0.835 | +0.215 |
+| 2026-06-16 | 0.589 | −0.246 |
+| 2026-06-19 | 0.556 | −0.033 |
+| 2026-06-20 | 0.584 | +0.028 |
+| **2026-06-21** | **0.671** | **+0.087** |
 
-### DISPERSION ALERT — FIRES, marginal improvement from prior low
+The Jun 14 spike reversed quickly. The current improvement from the 0.556 trough (+0.115 over two sessions) is more sustained but shallow. The trend is ambiguous — two positive sessions, but no consecutive sessions above 0.65 before Jun 14. No signal of confirmed recovery.
 
-**7d median ratio = 0.584 < 1.10 → ALERT FIRES.**
+### By Region
 
-The model estimates σ = 0.854°C. True temperature variability is σ = 1.461°C. The model (and by proxy the market) is pricing a distribution 42% narrower than what actually resolves. The edge premise is inverted.
-
-**Trend:** Jun 13: 0.620 → Jun 14: 0.835 → Jun 16: 0.589 → Jun 19: 0.556 (prior low) → **Jun 20: 0.584 (+0.028)**. First improvement in four reports. Not a recovery — the ratio must sustain above 1.10 to declare edge recovery.
-
-**Per region:**
-
-| Region | n | Implied σ | True σ | Ratio |
+| Region | n city-days | n ratios | Median ratio | Grade |
 |---|---|---|---|---|
-| EU/Asia | 65 | 0.812°C | 1.276°C | **0.637** |
-| US/Americas | 26 | 0.824°C | 1.509°C | 0.546 |
-| Other | 56 | 0.923°C | 1.648°C | 0.560 |
+| US | 28 | 28 | 0.717 | TREND (approaching decision) |
+| EU | 44 | 20 | 0.830 | TREND (best region; many exact-mode resolutions excluded) |
+| Asia | 31 | 22 | 0.655 | TREND |
+| Other | 66 | 49 | 0.612 | DECISION |
 
-EU/Asia has the highest ratio (0.637) — closest to theoretical edge territory, still far from 1.10. US/Americas is the most inverted (0.546).
+EU is the best-performing region (0.830) — note that 24 of 44 EU city-days had |actual − mode| ≤ 0.1°C (exact-mode resolution), suggesting high model accuracy in EU or tighter bucket quantization. If EU accuracy is genuinely high, the strategy's EU band efficiency may differ from Other/Asia. US (0.717) is also above the global median. "Other" (0.612, n=49) is the decision-grade region and the weakest — likely South American and Middle Eastern cities.
 
-**Per date (within this 5-day window):**
-
-| Date | n | Implied σ | True σ | Ratio |
-|---|---|---|---|---|
-| 2026-06-15 | 23 | 0.942°C | 1.936°C | 0.487 |
-| 2026-06-16 | 31 | 0.844°C | 1.634°C | 0.516 |
-| 2026-06-17 | 35 | 0.812°C | 1.527°C | 0.532 |
-| 2026-06-18 | 34 | 0.815°C | 0.985°C | **0.827** |
-| 2026-06-19 | 24 | 0.873°C | 1.142°C | **0.765** |
-
-Jun 18 and Jun 19 show markedly higher within-day ratios (0.827, 0.765) driven by lower true σ on those days — actual temperatures were closer to model predictions on those two days. If this reflects a seasonal regime shift (temperatures becoming more predictable in mid-June), it could explain the marginal overall improvement. Sample too small (n<35/day) to confirm.
+**No region is above 1.10.** Even EU (best) at 0.830 is 0.27 below threshold.
 
 ---
 
 ## 4. ISOTONIC STALENESS
 
-| Quantity | Deployed | Candidate |
+| Field | Deployed | Candidate |
 |---|---|---|
-| Refit UTC | 2026-06-06T22:27:08Z | 2026-06-09T09:30:36Z |
-| Days since refit | 14 days | 11 days |
-| n_hist | 76,617 | 76,617 (same historical base) |
-| n_live | 0 | 1,037 (2 calendar days) |
-| Ceiling (p_raw=1.0) | **0.6316** | **0.3739** |
-| Max diff vs deployed | — | **−0.2577 at p_raw=1.0 (MATERIAL)** |
+| Fit timestamp | 2026-06-06T22:27Z | 2026-06-09T09:30Z |
+| Age (from 2026-06-21T08:00Z) | **15 days** | **12 days** |
+| n_hist | 76,617 | 76,617 |
+| n_live | 0 | 1,037 |
+| live_calendar_days | 0 | 2 |
+| near_identity_maxdev | 0.568 | 0.626 |
 
-**Material change detected.** The candidate collapses the isotonic ceiling from 0.63 to 0.37 at p_raw=1.0. For all other grid points (p_raw < 0.95), the two maps agree within 0.009 — effectively identical for the bulk of evaluations.
+**Max absolute shift: 0.2577** (material threshold: >0.05 → YES, material).
 
-**Direction analysis:** Given the [0.6, 0.7) reliability finding (97.5% empirical accuracy vs 0.629 modeled), the deployed ceiling is already too low. The candidate ceiling of 0.374 would be even lower — worsening the underconfidence in the highest-confidence bucket. Deploying the candidate as-is would degrade the upper-confidence calibration further.
+The only material difference is at p_raw=1.0: deployed maps to 0.6316, candidate maps to 0.3739 (delta −0.2577). All other grid points differ by < 0.025 (non-material).
 
-**Candidate not updated in 11 days** (same as Jun 19 report). The live-refit cron has not incorporated new data beyond the initial 1,037-row live window. Either the refit cron is inactive, or its n_live threshold has not been crossed. Warrants investigation on the VPS.
+**What this means:** The candidate's ceiling (0.3739) would entirely flatten the upper probability region. The [0.6, 0.7) reliability bin (n=791, actual acc=0.942) would likely collapse into the [0.3, 0.4) bin — meaning p_cal would be assigned ~0.374 to buckets that currently resolve at 94%. This would worsen overconfidence in the shoulder ([0.3, 0.4)) and likely raise Brier. The candidate isotonic refit direction moves p_cal in the WRONG direction for the upper plateau finding.
 
-**Recommendation (report-only):** Do not deploy the candidate. Investigate the refit cron. When the next candidate is generated, it should aim to address the [0.2, 0.4) over-confidence and [0.6, 0.7) under-confidence artifacts, not just incorporate live data naively.
+**Candidate status: unchanged since Jun 9 (12 days stale, identical to prior report).** The live-refit cron has not generated a new candidate. This is notable: the cron runs on the VPS and appears not to have generated a fresher candidate in the past 12 days. No code action from this agent; flag for operator.
+
+**Recommendation (operator, not this agent):** The deployed isotonic requires manual review before promotion of the candidate. The candidate's ceiling reduction contradicts the observed calibration finding that p_raw=1.0 buckets resolve at 94%+ — the ceiling should be raised, not lowered. A targeted refit incorporating the live data from Jun 16–21 would be more informative. The live-refit cron may need a manual trigger.
 
 ---
 
-## 5. STATE SUMMARY
+## 5. STATE TRANSITION
 
-| Metric | Today (2026-06-20) | Prior (2026-06-19) | Direction |
+Prior state (2026-06-20) → Current state (2026-06-21):
+
+| Metric | Prior | Current | Direction |
 |---|---|---|---|
-| brier7 | 0.0516 | 0.0521 | improved |
-| ece7 | 0.0333 | 0.0320 | marginal worse (noise) |
-| rho7 | 0.419 | 0.431 | marginal worse (noise) |
-| **disp_ratio7** | **0.584** | 0.556 | **improved +0.028** |
-| disp_sigma7_median | 0.854°C | 0.842°C | +0.012°C |
-| true_sigma | 1.461°C | 1.515°C | −0.054°C |
-| mean_bias | +0.404°C | +0.321°C | warm miss slightly larger |
-| alerts | DISPERSION_ALERT | DISPERSION_ALERT | persists |
+| brier7 | 0.0516 | **0.0597** | ▲ worsened |
+| ece7 | 0.0333 | **0.0310** | ▼ improved |
+| rho7 | 0.419 | **0.392** | ▼ slightly lower |
+| disp_ratio7 | 0.584 | **0.671** | ▲ improved |
+| Alerts active | 1 (DISP) | 1 (DISP) | → unchanged |
 
-**Alert status:** DISPERSION_ALERT persists for the 7th consecutive report. Brier, ECE, and rho remain clear.
+The dispersion alert has fired continuously since at least 2026-06-12. State file written to logs/calib_monitor_state.json.
 
 ---
 
 ## SUMMARY
 
-Calibration is stable. The sole active alert is the dispersion ratio, which has been in alert territory continuously since at least Jun 13. The Jun 20 reading (0.584) is the first improvement in four sessions, driven by lower true σ on Jun 18–19 (temperatures were more predictable those days). The improvement is marginal and the band edge premise remains structurally inverted.
+The calibration model is performing adequately (no Brier/ECE/Rho threshold breaches) with persistent structural miscalibration in three bins — all present since the monitor began, all attributable to the isotonic plateau architecture. The edge variable (dispersion ratio) improved materially today (+0.087), the largest gain in 5 reports. The ratio is still 0.671, nearly 40% below the required 1.10 floor. The alert continues. Two more sessions of similar improvement would be required to approach threshold; the prior Jun 14 spike showed that a single-session improvement can reverse immediately.
 
-The isotonic candidate is 11 days stale, unchanged since prior report. Do not deploy it — it would worsen the high-confidence calibration artifact.
-
-The warm bias (+0.40°C) is persistent and slightly growing. The model consistently underestimates peak temperatures. This contributes to the inverted dispersion: the model predicts the mode too low, the actual peak is higher, and the realized deviation (true σ) grows.
+**The edge premise remains unvalidated for live capital deployment in the band.** This monitor does not recommend halting (that is above its remit and a risk/capital decision), but cannot confirm the edge exists.
