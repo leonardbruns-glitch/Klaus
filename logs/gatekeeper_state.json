@@ -1,47 +1,47 @@
 {
   "BAND_YES": {
-    "n": 5154,
-    "n_prev": 4914,
+    "n": 5419,
+    "n_prev": 5154,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Leg-level count: unique (cid,days_out) from quotes[] inside reason=fire events in band_struct_lite.jsonl. 6-day window Jun16-Jun21: Jun16=800, Jun17=679, Jun18=629, Jun19=230, Jun20=260, Jun21=206 (09:20 UTC). Cumulative: prior 4914 + Jun20 remainder ~34 + Jun21 206 = 5154. CI blocked by Gamma 403 from container. Clean-window boundary: Jun19 00:30 UTC. Post-boundary legs ~701 (Jun19+Jun20+Jun21-so-far). Rate: ~230/day.",
-    "ts": "2026-06-21T09:20:00Z"
+    "note": "Leg-level count: unique (cid,days_out) from quotes[] inside reason=fire events in band_struct_lite.jsonl. 6-day window Jun17-Jun22: Jun17=679, Jun18=629, Jun19=230, Jun20=260, Jun21=234 (full day; prior had 206 at 09:20), Jun22=237 (through 08:58 UTC). +265 since prior run: +28 Jun21 remainder + 237 Jun22. Rate: ~235/day. CI blocked by Gamma 403 from container. VPS must run analysis/weather/band_resolution_join.py.",
+    "ts": "2026-06-22T09:11:00Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 128,
-    "n_prev": 105,
+    "n": 144,
+    "n_prev": 128,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "THRESHOLD CROSSED (n>=100, since prior run Jun20T12:27) — CI still blocked by Gamma 403. Dedup per cid from reason=fire_no/pair_fav/pair_samebucket. 6-day window: Jun16=11, Jun17=10, Jun18=22, Jun19=15, Jun20=13, Jun21=17 = 88 in window + ~40 legacy Jun12-15 = 128. BAND_NO_ENABLED=True, BAND_NO_STAKE=$5 LIVE. VPS must run resolution join immediately. Rate: ~14-15/day. NO fill rate in maker_fills log improved to 44% (from 29% at prior) after favNO TOP priority Jun19T00:30.",
-    "ts": "2026-06-21T09:20:00Z"
+    "note": "THRESHOLD CROSSED (n>=100, since Jun20; now n=144, 2nd consecutive run above threshold) — CI still blocked by Gamma 403. Dedup per cid from reason=fire_no/pair_fav/pair_samebucket. 6-day window: Jun17=10, Jun18=22, Jun19=15, Jun20=13, Jun21=29 (+12 remainder), Jun22=4 (partial). BAND_NO_ENABLED=True, BAND_NO_STAKE=$5 LIVE. VPS must run resolution join immediately — NO engine live with no validated edge gate. Rate: ~14-20/day.",
+    "ts": "2026-06-22T09:11:00Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 108,
-    "n_prev": 100,
+    "n": 110,
+    "n_prev": 108,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "7d rolling window. 108 registered fills (Jun18=13, Jun19=38, Jun20=38, Jun21=19). YES=60 (55.6%), NO=48 (44.4%). NO fill rate improved from 29% to 44% since prior run (favNO TOP priority Jun19T00:30). CID join blocked from container. VPS must execute filled-vs-fired analysis before Jun18 fills age out (~4 days from now). Markout gap (state_log Jun18): our YES fills -0.05c/sh adverse vs badatmath +1.19c/sh - structural gap requires merge/paired book at ~$2k phase.",
-    "ts": "2026-06-21T09:20:00Z"
+    "note": "7d rolling window. 110 unique (tok_partial,side) registered fills from maker_fills_recent.log. Jun19=27, Jun20=37, Jun21=40, Jun22=6 (partial). YES=66(60.0%), NO=44(40.0%). NO fill rate regressed from 44% (prior Jun21T09:20) to 40% — denominator effect from YES-heavy Jun19-20 days; Jun22 intraday is NO-heavy (1YES/5NO). CID resolution join blocked from container. VPS must execute before Jun18 fills age out (~4 days remaining). Structural markout gap (state_log Jun18): YES fills adversely selected ~1.3c/sh vs badatmath; root = queue position, not quoting.",
+    "ts": "2026-06-22T09:11:00Z"
   },
   "BASKET_EXIT": {
-    "n": 72,
-    "n_prev": 64,
-    "status": "COLLECTING",
-    "roi": 22.7,
-    "ci95": [11.5, 34.0],
+    "n": 33,
+    "n_prev": 16,
+    "status": "VOID",
+    "roi": 145.5,
+    "ci95": [-45.1, 336.1],
     "wr": 1.0,
-    "resolved": 16,
-    "note": "16 CONFIRMED closed all_green baskets from Jun20-Jun21 window (8 new since prior run). Prior 64 was unverified estimate (Jun16-19 archive gap persists). Combined estimate n~72. CI95=[+11.5%, +34.0%] computed on verified n=16 only (t-test, t(0.025,15)=2.131). WR=100%, mean ROI=+22.7%. Notable: beijing +509%, denver +3087% (single-leg baskets). Today Jun21: 10 all_green baskets pending (t_close >= 15:00 UTC). Rate: ~8 confirmed/day. ETA to n=100: ~3.5 days IF per-day archive resumes on VPS. Prior 56 (estimated) carry no CI and may include adverse unarchived outcomes.",
-    "ts": "2026-06-21T09:20:00Z"
+    "resolved": 33,
+    "note": "GATE RETIRED. State_log 2026-06-22 07:35 declares 4 fatal flaws: (1) WR=100% TAUTOLOGICAL — all_green defined as cash>cost by construction; (2) 18/19 closers are n_legs=1 single-leg RECYCLE099 winners relabeled as baskets; (3) CI invalid — prior +22.7%/CI[+11.5,+34] inconsistent with Denver +3087%/Beijing +509% in n=16; on n=33 verified baskets CI95=[-45.1%,+336.1%] straddles 0; (4) WRONG METRIC — exit-vs-cost not exit-vs-hold: cash/max_hold median=0.920, 0/19 baskets have cash>=max_hold, holding always pays more. DISPOSITION: redundant with RECYCLE099 (captures at ~0.99 vs basket-exit ~0.92 = strictly worse). Do not build executor. Do not promote at n=100. n=33 archival only.",
+    "ts": "2026-06-22T09:11:00Z"
   },
   "THERMO_MAKER_NO": {
     "n": 3,
@@ -51,8 +51,8 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "note": "STALLED 9+ days. Zero new fills in maker_fills_recent.log Jun12-Jun21. max NO fill in log = $0.79 (nothing above BAND_NO_MAX=0.85). thermo_maker.jsonl: 25818 candidate rows (8890 today), zero fire records. 3 resolved: +$0.11@0.98 ROI=+2.04%, -$5.67@0.81 ROI=-100%, -$5.39@0.98 ROI=-100%. WR=1/3=33.3%, ROI=-66.0%, CI95=[-132.6%,+0.7%] (z-approx, barely straddles 0). Kill gate threshold=20. ETA=INFINITE at 0 fills/day. Paris NO +5.5sh@0.98 (Jun18 14:18, cond=0x6f518f8f) CLEARED - was UNTRACKED FILL (taker sell by another user), not a Klaus maker-NO entry. CI upper=+0.7%: one more adverse fill toward n=20 pushes CI fully negative.",
-    "ts": "2026-06-21T09:20:00Z"
+    "note": "STALLED 10+ days. Zero new fills. thermo_maker.jsonl: 9099 candidate rows today, zero fire records. 3 resolved: +$0.11@0.98 ROI+2%, -$5.67@0.81 ROI-100%, -$5.39@0.98 ROI-100%. WR=1/3=33.3%, ROI=-66.0%, CI95=[-132.6%,+0.7%] (barely straddles 0; one more adverse fill pushes CI fully negative). Kill gate threshold=20. ETA=INFINITE at 0 fills/day.",
+    "ts": "2026-06-22T09:11:00Z"
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,18 +62,18 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "note": "STALLED 11+ days. PROVENANCE FLAG: n=31 basis unverifiable - only 1 confirmed M1 trade in trades.jsonl (Moscow May-26, net_pnl=-1.65). metar_min_lockout.jsonl=16611 candidate rows, zero fires. metar_lockout.jsonl=0 lines across all per-day archives Jun16-Jun21. Thin-margin [0.2,0.5)C slice: zero fires for 11+ days. VPS operator: verify 31-trade basis; if unverifiable, reset to n=1. CI95=[-20.6%,+24.4%] straddles 0 (from prior state, reproduced verbatim). Standing rule Jun09: at n>=100, WR>=95% AND +EV = keep; else REVERT to 0.5C floors.",
-    "ts": "2026-06-21T09:20:00Z"
+    "note": "STALLED 12+ days. metar_lockout.jsonl: 6132 candidate rows today, zero fires. All per-day archives Jun17-Jun22 empty/missing. PROVENANCE FLAG: n=31 basis unverifiable — only 1 confirmed M1 trade in trades.jsonl (Moscow May-26). VPS operator: verify 31-trade basis; if unverifiable, reset to n=1. CI95=[-20.6%,+24.4%] straddles 0. Standing rule Jun09: at n>=100, WR>=95% AND +EV = keep; else REVERT to 0.5C floors. Cannot evaluate. ETA=INFINITE.",
+    "ts": "2026-06-22T09:11:00Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 2473,
-    "n_prev": 2331,
+    "n": 2643,
+    "n_prev": 2473,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Unique (cid,days_out) legs from reason=fire events where band sum_posted in [0.70,0.85]. 6-day window: Jun16=348 (44%), Jun17=316 (47%), Jun18=282 (45%), Jun19=147 (64%), Jun20=172 (66%), Jun21=126 (61%) of YES legs. Cumulative: prior 2331 + Jun20 remainder ~16 + Jun21 126 = 2473. CI blocked by Gamma 403. Fraction rising (44%->66%) after Jun18 config changes (PX_CEIL 0.30 + strict-rank queue). Same VPS resolution join needed as Gate 1. Same clean-window boundary Jun19 00:30 UTC. Rate: ~140/day.",
-    "ts": "2026-06-21T09:20:00Z"
+    "note": "Unique (cid,days_out) legs from reason=fire events where band sum_posted in [0.70,0.85]. 6-day window: Jun17=316(47%), Jun18=282(45%), Jun19=147(64%), Jun20=172(66%), Jun21=135(58%;prior had 126), Jun22=161(68%). +170 since prior: +9 Jun21 remainder + 161 Jun22. Fraction of YES fires rising (47%->68%) post-Jun18 config (PX_CEIL 0.30 + strict-rank queue). Rate: ~155/day. CI blocked by Gamma 403. Same VPS resolution join needed as Gate 1. Clean-window boundary Jun19T00:30 UTC.",
+    "ts": "2026-06-22T09:11:00Z"
   }
 }
