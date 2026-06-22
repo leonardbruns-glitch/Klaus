@@ -502,7 +502,13 @@ def band_phase(capital):
     read named keys; all thresholds/values are module constants above."""
     cap = float(capital or 0.0)
     ph = 3 if cap >= BAND_PHASE3_CAPITAL else 2 if cap >= BAND_PHASE2_CAPITAL else 1
-    no_reserve    = {1: 0.40, 2: 0.30, 3: 0.22}[ph]          # 2026-06-19 REVERSED (was 0.30/0.40/0.50,
+    no_reserve    = {1: 1.00, 2: 0.30, 3: 0.22}[ph]          # 2026-06-22 P1→1.00 NO-ONLY (user "only NO until
+                                                             # more cash"): YES bleeds at $200 — genesis YES −$374
+                                                             # / NO +$768 (Apr26-May13 realized), live YES −4.9%
+                                                             # (n=299) / NO +7.2% (n=97); merges DORMANT at $200
+                                                             # ($0.60/day, 5% co-fill) so YES-as-merge-inventory
+                                                             # is moot until P2. YES spray auto-returns at $600
+                                                             # (P2 0.30). Revert P1: 0.40. 2026-06-19 REVERSED (was 0.30/0.40/0.50,
                                                              # backwards). Verified evolution: NO-heavy@$200
                                                              # (69% NO) → YES share GROWS as capital scales
                                                              # (his 05-17 flip). Reserve DECREASES with capital
