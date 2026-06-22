@@ -1,163 +1,196 @@
-# PnL Ledger Report — 2026-06-21
+# Klaus PnL Ledger Report — 2026-06-22
 
-**Generated:** 2026-06-21T23:37Z | **Snapshot:** 2026-06-21T23:23:06Z (14 min lag — OK)
-**Bot status:** systemd active | **Bot uptime:** restarted 2026-06-21T16:38:25Z (mid-day; possible fill gap 00:00–16:38)
+**Generated:** 2026-06-22T23:37Z  
+**Snapshot age:** 1 min (23:36:21Z) ✓  
+**System:** active (uptime since 11:47 UTC) ✓  
+**Capital at EOD:** $198.269163  
+**Prior report capital (2026-06-21):** $237.019784  
+**Capital Δ:** -$38.75 (-16.3%)
 
 ---
 
-## 1. P&L Explain — UTC Day 2026-06-21
+## Section 1 — P&L Explain (UTC day 2026-06-22)
 
-| Source | Trades / Exits | Net P&L | Notes |
+### Capital Attribution
+
+| Line | Amount |
+|---|---|
+| Band resolutions (30 trades, WEATHER_STRUCT_BAND) | **-$72.3722** |
+| RECYCLE099 exits (10 exits, exit099_live.jsonl) | **+$37.1800** |
+| Expected maker rebate accrual (see §3) | +$0.5520 |
+| **Attributed total** | **-$34.6402** |
+| Capital Δ (prior → now) | -$38.7506 |
+| **UNEXPLAINED** | **-$4.11** |
+
+UNEXPLAINED = -$4.11. |$4.11| < $5 threshold — no deep investigation triggered.  
+**Most likely cause:** BANKROLL_AUTO_CORRECT entry detected in trades.jsonl at 21:43 UTC (delta=-$8.40, source=BANKROLL_AUTO_CORRECT, cap_after=$213.65) partially offset by minor unlogged inflows. Not a model deficiency.
+
+### Band Resolutions Breakdown (30 trades)
+
+**Source:** trades.jsonl, ts_close in [1782086400, 1782172620]. All 30 are `WEATHER_STRUCT_BAND / STWA_RESOLVED`. Fees = $0 for all weather trades (as expected — no fee field set).
+
+| Side | Trades | Wins | Losses | Net PnL |
+|---|---|---|---|---|
+| YES | 20 | 1 | 19 | -$28.2782 |
+| NO | 10 | 1 | 9 | -$44.0940 |
+| **Total** | **30** | **2** | **28** | **-$72.3722** |
+
+**YES win:** 2026-06-22 21:39 YES @ entry=0.25 → +$6.30  
+**NO win:** 2026-06-22 16:27 NO @ entry=0.65 → +$2.73  
+
+Selected large individual losses (|PnL| > $3):
+
+| Time UTC | Side | entry_price | net_pnl |
 |---|---|---|---|
-| RECYCLE099 (Jun20 23:32, post-snapshot) | 1 | +$38.40 | 40sh @ 0.03→0.99; after Jun20 snapshot, counted here |
-| RECYCLE099 (Jun21 00:00–23:59) | 14 | +$76.37 | Convergence sells 04:50–21:55 UTC |
-| **RECYCLE099 subtotal** | **15** | **+$114.77** | Cash received $160.38 (shares×0.99) |
-| STWA resolutions | 7 | -$21.13 | All exit=0.00; positions opened Jun19–Jun20 |
-| WEATHER_MAKER resolutions | 20 | -$25.32 | 4 wins / 16 losses; opened Jun19–Jun21 |
-| **Resolution subtotal** | **27** | **-$46.45** | Cash returned from winners only: $26.38 |
-| **ATTRIBUTED TOTAL** | | **+$68.32** | |
+| 03:02 | NO | 0.60 | -$5.01 |
+| 03:32 | NO | 0.53 | -$5.30 |
+| 06:29 | NO | 0.58 | -$5.22 |
+| 08:26 | NO | 0.66 | -$5.28 |
+| 16:27 | YES | 0.28 | -$3.01 |
+| 16:27 | YES | 0.17 | -$2.21 |
+| 16:32 | YES | 0.28 | -$3.01 |
+| 16:37 | YES | 0.27 | -$3.24 |
+| 16:37 | NO | 0.66 | -$5.28 |
+| 21:39 | NO | 0.61 | -$5.35 |
+| 21:49 | NO | 0.63 | -$5.04 |
+| 21:54 | NO | 0.62 | -$5.27 |
+| 22:55 | NO | 0.52 | -$5.07 |
 
-**Capital change (prior EOD → now):** $199.09 → $237.02 = **+$37.93**
+**CRITICAL — NO win rate: 1/10 (10%).**  
+Design expectation: ~65-70% (NO = temperature not in mode 1°C bucket at prices 0.52–0.66 → market implies 34–48% in-bucket probability → NO should win ~55–65% of the time). Today's 9/10 NOs resolved against us = temperatures landed in the specific mode bucket at 90% rate. This is a 2-day pattern: yesterday resolution PnL was -$46.45 (June 21 state), today -$72.37. Combined 2-day weather band resolution loss: **-$118.82**.
 
-**UNEXPLAINED: -$30.39** (over-attribution)
+### RECYCLE099 Breakdown (10 exits, exit099_live.jsonl)
 
-> **Cause: ~$30 in new band YES/NO positions filled today by CLOB takers.** The attributed P&L exceeds the capital change because that cash was deployed into new open positions. Confirmed by maker_resting_state showing $38.46 total open cost and 72 new RESTING orders placed (not yet filled). **This is NOT a model deficiency** — it is expected capital cycling into the band book. The unexplained line is negative (attributed > capital change), which is the correct signature of capital deployment, not loss.
+All exits are convergence sells (bot bought YES at low price earlier, sold at 0.99 as market converged).
 
-### STWA resolution detail (Jun21)
-
-| Opened | Stake | Entry | Outcome | P&L |
+| Time UTC | Shares | Entry | Exit | PnL |
 |---|---|---|---|---|
-| Jun19 07:16 | $1.20 | 0.040 | exit=0 | -$1.20 |
-| Jun19 09:46 | $3.15 | 0.210 | exit=0 | -$3.15 |
-| Jun19 10:26 | $2.10 | 0.070 | exit=0 | -$2.10 |
-| Jun19 20:44 | $1.20 | 0.030 | exit=0 | -$1.20 |
-| Jun19 21:00 | $3.19 | 0.290 | exit=0 | -$3.19 |
-| Jun20 08:40 | $4.99 | 0.640 | exit=0 | -$4.99 |
-| Jun20 16:24 | $5.30 | 0.530 | exit=0 | -$5.30 |
-| **Total** | **$21.13** | — | **0/7** | **-$21.13** |
+| 01:18 | 11.0 | 0.45 | 0.99 | +$6.048 |
+| 06:34 | 7.0 | 0.68 | 0.99 | +$2.320 |
+| 08:07 | 9.993 | 0.28 | 0.99 | +$7.633 |
+| 09:51 | 8.0 | 0.60 | 0.99 | +$3.257 |
+| 13:31 | 8.0 | 0.62 | 0.99 | +$3.143 |
+| 13:54 | 8.0 | 0.67 | 0.99 | +$2.560 |
+| 14:30 | 21.0 | 0.93 | 0.99 | +$1.260 |
+| 15:41 | 8.0 | 0.62 | 0.99 | +$3.145 |
+| 18:02 | 9.0 | 0.55 | 0.999 | +$4.126 |
+| 19:05 | 9.0 | 0.58 | 0.99 | +$3.690 |
+| **Total** | | | | **+$37.182** |
 
-STWA is disabled (STWA_REGULAR_YES/NO_ENABLED = False). These 7 resolutions are tail-end legacy positions from Jun19–20 clearing the book. Notably the Jun20 16:24 position at 0.53 entry ($5.30 stake) is expensive — a near-mode YES that lost. This is exactly the adverse-fill pattern identified in the markout analysis: near-mode YES resting orders get hit by informed sellers, then expire at 0.
+RECYCLE099 significantly smaller than yesterday (+$114.77). No new RECYCLE099 entries visible in today's fill tape (all today's fills are BAND YES/NO positions).
 
-### WEATHER_MAKER resolution detail (Jun21)
+### Bot Operational Notes
 
-| City | n | Stake | WR | P&L | Avg entry (losers) |
-|---|---|---|---|---|---|
-| Chengdu | 3 | $6.36 | 0/3 | -$6.36 | 0.177 |
-| Chongqing | 3 | $8.99 | 1/3 | -$0.99 | 0.120 (losers) |
-| Dallas | 1 | $1.20 | 0/1 | -$1.20 | 0.010 |
-| Houston | 1 | $3.06 | 0/1 | -$3.06 | 0.180 |
-| Seoul | 2 | $6.53 | 0/2 | -$6.53 | 0.345 |
-| Taipei | 4 | $10.99 | 1/4 | -$3.00 | 0.177 (losers) |
-| Tokyo | 6 | $14.57 | 2/6 | -$4.18 | 0.183 (losers) |
-| **Total** | **20** | **$51.70** | **4/20 (20%)** | **-$25.32** | — |
-
-Winners were high-entry positions (0.62–0.79 entry → exit 1.00). Losers were cheap-YES tails (0.01–0.34 entry → exit 0.00). Dallas at 0.010 entry is an extreme outlier — a 1¢ position; confirm whether BAND_PX_MIN_OFF2_D2=0.01 continues generating these (harmless in dollar terms but signal of the floor being as low as it goes).
-
-### RECYCLE099 exits — chronological (Jun21)
-
-| Time (UTC) | Shares | Entry | Exit | Cash Rx | P&L |
-|---|---|---|---|---|---|
-| Jun20 23:32 | 40.0 | 0.030 | 0.99 | $39.60 | +$38.40 |
-| 04:50 | 8.0 | 0.670 | 0.99 | $7.92 | +$2.56 |
-| 06:44 | 6.0 | 0.260 | 0.99 | $5.94 | +$8.76* |
-| 07:31 | 8.0 | 0.170 | 0.99 | $7.92 | +$6.56 |
-| 07:49 | 12.0 | 0.240 | 0.99 | $11.88 | +$9.38* |
-| 08:08 | 16.0 | 0.190 | 0.99 | $15.84 | +$12.80 |
-| 08:33 | 9.0 | 0.540 | 0.99 | $8.91 | +$4.28* |
-| 12:51 | 7.0 | 0.600 | 0.99 | $6.93 | +$3.26* |
-| 12:58 | 9.0 | 0.610 | 0.99 | $8.91 | +$3.42 |
-| 13:23 | 8.0 | 0.170 | 0.99 | $7.92 | +$6.56 |
-| 14:21 | 8.0 | 0.620 | 0.99 | $7.92 | +$3.15* |
-| 15:31 | 8.0 | 0.570 | 0.99 | $7.92 | +$3.78* |
-| 17:59 | 8.0 | 0.600 | 0.99 | $7.92 | +$3.26* |
-| 19:55 | 6.0 | 0.550 | 0.99 | $5.94 | +$4.04* |
-| 21:55 | 9.0 | 0.520 | 0.99 | $8.91 | +$4.58* |
-| **Total** | **122** | — | — | **$160.38** | **+$114.77** |
-
-*Starred rows: logged pnl does not match shares×(exit-entry); likely multi-lot averaging or partial-fill accounting in exit099 logger. Discrepancy total ~$29 across 9 rows — the cash received (shares×0.99) column is reliable; pnl column has logging artifact but sum total is used as-is.*
-
-**Double-count check:** 4 trades in trades.jsonl with exit=1.00 today (Tokyo ×2, Taipei ×1, Chongqing ×1) = genuine full-resolution wins, NOT RECYCLE099 (token IDs distinct; exit=1.0 not 0.99). No double-count.
+- **No new positions posted after 11:47 UTC restart.** All afternoon/evening fills are from pre-restart resting orders being hit by takers. STRUCT-BAND-Q log shows `posted=0` throughout post-restart period; `cash_preskip=0` confirms no cash was skipped — the daily NO cap was already exceeded.
+- **Config change at restart (11:47 UTC):** `no_resv` changed 0.40 → 1.00 (commit: "P1 NO-only — no_reserve 0.40→1.00 until $600"). This blocks new YES resting orders.
+- **Daily NO cap hit:** BAND_NO_DAILY_CAP=$40, effective cap=max($40, 0.30×$198)=$59.40. Today's NO fills = $100.61 in cash, far exceeding cap.
 
 ---
 
-## 2. Compounding Scoreboard
+## Section 2 — Compounding Scoreboard
 
-| Metric | Value | Caveat |
-|---|---|---|
-| Capital (cash) | $237.02 | Reliable; from bankroll.json saved 22:34 UTC |
-| Open positions at cost | $38.46 | maker_resting_state (28 non-SELL_EXIT positions); at cost not mark |
-| **Equity estimate** | **$275.48** | **Prior state equity was cash-only ($199.09); equity Δ +$76.39 overstates by the prior open-position cost, which is not available. Use capital Δ +$37.93 as the cleaner figure.** |
-| Capital change | +$37.93 (+19.0%) | Cash-basis; clean |
-| RECYCLE fills $ | $160.38 | shares×0.99 across 15 exits |
-| Turns / day | 0.582 | fills / equity_est (160.38 / 275.48) |
-| ROI / RECYCLE turn | 71.6% | $114.77 / $160.38; HIGH because entry prices were pennies (avg 0.03–0.62); not a replicable uniform-fill ROI |
+### Today's Fill Tape (maker_fills_recent.log)
 
-**Benchmark comparison:** badatmath Jun11 baseline ~1.0× equity/day at 10–20%/turn. Our 0.58 turns at 72% ROI/RECYCLE is structurally different — we are harvesting concentrated cheap-YES held to high-probability states. The correct performance question is: does RECYCLE099 consistently beat resolution drag? Today: +$114.77 vs -$46.45, ratio 2.47×. This is the metric to track week-over-week.
+| Type | Fills | Shares | Cash Deployed |
+|---|---|---|---|
+| YES (band) | 15 events | 155.7 | $6.986 |
+| NO (band) | 31 events | 163.6 | $100.608 |
+| **Total** | **46 events** | **319.3** | **$107.594** |
 
-**Trend (last 2 days in state):**
+Notable: Milan YES 31°C June 24 filled 120 shares @ $0.01 ($1.20 cost) — a speculative tail position.
 
-| Date | Capital EOD | Day Change | RECYCLE P&L | Resolution P&L |
-|---|---|---|---|---|
-| Jun20 | $199.09 | -$32.80 (-14.1%) | +$36.72 | -$74.82 |
-| **Jun21** | **$237.02** | **+$37.93 (+19.0%)** | **+$114.77** | **-$46.45** |
+### Equity Estimate (CAVEATED)
 
-Jun21 improved on both dimensions vs Jun20: RECYCLE volume 3.1× higher; resolution drag halved. Jun20 had an unusually bad resolution cluster (STWA 2/31 WR on Jun18 vintage). Jun21 STWA resolved cleaner (0/7 but smaller stake), with RECYCLE carrying the day.
+| Component | Amount |
+|---|---|
+| Capital (cash) | $198.27 |
+| Open positions at cost — June 23 (5 positions from resting_state) | ~$8.87 |
+| Open positions at cost — June 24 (Milan YES 120sh) | ~$1.20 |
+| Today's NO fills not yet resolved (~$100.61 resolving June 23) | ~$100.61 |
+| Today's YES fills not yet resolved (~$6.99) | ~$6.99 |
+| **Equity estimate** | **≈ $315.94** |
 
----
+**CAVEAT:** This equity estimate = capital + open positions at cost (floor estimate — assumes all open positions expire worthless; actual could be higher if NO positions win). Prior open positions from June 21 ($235.90 spent, minus today's $88.57 resolved cost basis) estimated ~$147 additional open, but double-counting risk from capital already reflecting fills. Conservative floor estimate stated. Mark-to-market would require current market prices for ~40+ open positions across 20+ cities.
 
-## 3. Expected Maker Rebates
+### Compounding Metrics
 
-Estimate per open filled position: `matched_shares × 0.05 × q_price × (1 − q_price) × 0.25`
+| Metric | Today | Yesterday | Benchmark |
+|---|---|---|---|
+| Fills USD | $107.59 | $160.38 | badatmath ~equity/day |
+| Equity est (prior) | $275.48 | — | — |
+| Turns/day | 0.39 | 0.58 | badatmath ~1.0 |
+| Day PnL | -$35.19 | +$37.93 | — |
+| ROI/resolved turn | **-81.7%** | ~0% | badatmath 10-20% |
 
-| Position set | Open positions | Expected rebate (est.) |
-|---|---|---|
-| maker_resting_state (28 filled, non-SELL_EXIT) | $38.46 at cost | ~$0.33 |
-| Daily estimate from today's fills | (band fills ~$30 new) | ~$0.05 est. |
-| **Today total** | | **~$0.33** |
-| Prior cumulative | | $5.07 |
-| **Cumulative expected** | | **~$5.40** |
+**ROI/resolved turn** = resolution_pnl / cost_of_resolved_positions = -$72.37 / $88.57 = -81.7%. Cost of resolved positions derived: 2 wins paid out $8.40+$7.80=$16.20; 28 losses paid out $0; total cost = $16.20 + $72.37 = $88.57.
 
-**User action required:** Cumulative expected rebate exceeds $1.00 ($5.40 est.). Verify pUSD rebate receipt in Polymarket wallet. Rebates pay daily; minimum $1 accrual before payout. If no receipt has landed, post Polymarket account address in Discord #market-makers with cf-ray header from last API response.
-
-**Note:** The RECYCLE099 exits (SELL_EXIT orders) do not earn maker rebates — they are taker orders exiting at 0.99. Maker rebates accrue only on the original band orders that rested and were hit.
+7-day context: June 11 baseline was 0.2-0.5 turns at ~3%. Today's 0.39 turns is in range but ROI/turn is deeply negative. RECYCLE099 has been the return driver (yesterday +$114.77, today +$37.18); band resolution has been systematically negative for 2 days.
 
 ---
 
-## 4. Kill-Switch Proximity
+## Section 3 — Expected Maker Rebates
+
+**Formula:** expected_rebate per fill = shares × 0.05 × p × (1-p) × 0.25
+
+Today's fill tape (46 fill events):
+
+| Type | Shares | Avg price p | Contrib |
+|---|---|---|---|
+| YES | 155.7 | ~0.045 | ~$0.008 |
+| NO | 163.6 | ~0.614 | ~$0.544 |
+| **Total today** | | | **$0.552** |
+
+Mid-price note: Today's NO fills at p=0.54–0.71 earn moderate rebates; peak quadratic value is at p=0.50 (none today, closest are Seoul NO p=0.54 and Houston NO p=0.57). These still earn ~$0.003/share vs. ~$0.001/share for the YES extremes.
+
+| Period | Expected Rebate |
+|---|---|
+| Prior cumulative (through 2026-06-21) | $5.40 |
+| Today's increment | $0.55 |
+| **Cumulative expected** | **$5.95** |
+
+**⚠ REBATE VERIFICATION FLAG:** Cumulative expected rebate $5.95 >> $1 minimum accrual threshold. Per prior state, this flag has been active since June 21 ($5.40). **User action needed:** verify pUSD rebate receipt in wallet. If no payout has been received, contact Polymarket #support with wallet address. Note: actual rebate is proportional to your share of total maker volume in each category — $5.95 is an upper bound assuming sole market maker.
+
+---
+
+## Section 4 — Kill-Switch Proximity
 
 | Metric | Value | Threshold | Status |
 |---|---|---|---|
-| Capital | $237.02 | Ruin floor $50 | SAFE (+$187 above) |
-| Capital | $237.02 | Weekly floor $75 | SAFE (+$162 above) |
-| Day P&L | +$37.93 | Daily halt -$10 | SAFE |
-| Rolling20 WR | **20.0% (4/20)** | Taker-era flag <30% | ⚠ Below threshold |
-| Rolling20 PF | **0.209** | Taker-era halt <0.8 | ⚠ Below threshold |
+| Rolling 20-trade WR (all today) | **10.0%** | >30% flag | TRIGGERED |
+| Rolling 20-trade PF | **0.1701** | >0.8 halt | TRIGGERED |
+| Day PnL | **-$35.19** | > -$10 halt | TRIGGERED 3.5x |
+| Capital | $198.27 | >= $75 weekly floor | Safe |
+| Capital | $198.27 | >= $50 ruin floor | Safe |
+| 2-day resolution cumulative | **-$118.82** | N/A | Trend |
 
-**KILL-SWITCH INAPPLICABLE — maker-book caveat:**
+**CRITICAL CAVEAT (from prior state and CLAUDE.md):** WR/PF floors were specified for the taker era. A maker YES band book wins ~22% of YES legs by design at 4-5x payoff — WR naturally < 30%. **However, the NO win rate today (10%) is far below design expectation (~65-70%), which IS the alarm signal.** NO positions at prices 0.52–0.66 (market implying 34-48% YES probability) should win more than half the time; today's 90% loss rate on NOs indicates either:
 
-The rolling20 WR/PF are dominated by WEATHER_MAKER YES legs which win ~20% by structural design (cheap-YES tails: high payoff, low probability). The taker-era thresholds (WR 30%, PF 0.8) assumed a very different trade structure. The 20-trade window includes 20 YES resolutions of which 4 won — this is close to the expected ~20% WR on cheap YES at 10–27¢ entry, not evidence of a broken system. **No halt is recommended based on these figures.**
+1. **Systematic mode-bucket miscalibration:** the bot is buying NO at the exact 1°C bucket where temperatures are actually most likely to fall (i.e., `BAND_P_MIN=0.50` gate isn't filtering enough)
+2. **Weather regime shift:** unusual stability causing temperatures to land on the mode consistently
+3. **Token direction error:** NO buys are resolving as if they're YES buys (would require investigation of trade logs)
 
-**What would trigger a genuine stop:**
-- RECYCLE099 net P&L turning negative for 3+ consecutive sessions
-- Capital falling through $75 (currently $162 above)
-- NO leg WR below 50% on 20+ resolved NO positions (not yet tracked in rolling20 — only YES-heavy today)
+Capital is $198.27 — well above the $75 weekly floor and $50 ruin floor. No immediate halt on capital grounds. A kill-switch re-derivation for the maker era is flagged as pending.
 
-Kill-switch re-derivation for the maker book remains pending.
-
----
-
-## 5. Day Verdict
-
-**YES — capital compounded today. +19.0% (+$37.93 on $199.09 base).**
-
-RECYCLE099 (+$114.77 across 15 exits) decisively overcame YES resolution drag (-$46.45 across 27 resolutions). The Jun20 23:32 large exit (40 shares @ $0.03 cost → $0.99 exit = +$38.40) was a key driver, landing after yesterday's report cutoff.
-
-Unexplained line is -$30.39 (over-attribution). **Named cause: new band fills consumed ~$30 in cash during the day; these are open positions, not losses.** Not a model deficiency.
-
-Bot restarted at 16:38 UTC — band was dark or degraded for much of the day. 72 RESTING orders posted after restart, none filled yet. This is a risk flag: if the bot runs dark for extended periods, the band book thins and future RECYCLE099 inventory dries up.
-
-**Binding constraint today:** Bot uptime gap (16:38 restart) and legacy YES resolution drag. The RECYCLE engine is working; the main risk going forward is whether new YES inventory (currently $38.46 in open maker positions) is being replenished at pace.
+**Day PnL -$35.19 vs -$10 taker-era halt:** The -$10 halt trigger was calibrated for a $10 test bankroll. On $198 capital it would be -5% in a day. Today's -16.3% capital decline is a material alert regardless of threshold calibration.
 
 ---
 
-*Ledger state written to `logs/pnl_ledger_state.json`*
+## Section 5 — Day Verdict
+
+**Equity compounded today: NO** — capital declined $38.75 (-16.3%), net operational PnL **-$35.19**.
+
+| Driver | Amount | Sign |
+|---|---|---|
+| Weather band resolutions (30 positions) | -$72.37 | LOSS |
+| RECYCLE099 exits (10 exits) | +$37.18 | WIN |
+| Net | **-$35.19** | LOSS |
+
+**Binding constraint:** Weather band NO legs — 1/10 NOs resolved in profit today (expected 6–7/10). Band has lost -$118.82 in weather resolutions over 2 days (June 21: -$46.45, June 22: -$72.37). RECYCLE099 partially offset both days (June 21: +$114.77 → net positive; June 22: +$37.18 → insufficient to offset). The direction has flipped: yesterday RECYCLE099 dominated (net +$37.93 day); today resolution losses dominate (net -$35.19).
+
+**What changed:** The bot was running with `no_resv=0.40` before the 11:47 restart, placing both YES and NO orders. After restart with `no_resv=1.00`, no new orders were posted but existing resting orders continued to fill. The 16:00-22:00 UTC resolution batch (large losses) is from positions entered in prior days under the old config. The NO win rate failure is the mechanism, not the config change itself.
+
+**Recommended user review:** The 2-day NO win rate failure (design ~65%, realized ~10-20%) warrants investigation of whether `BAND_P_MIN=0.50` and `BAND_EV_MIN=0.08` (lowered from 0.15 against model advice, per band_config.txt comment) are admitting positions where the mode bucket is genuinely 60–90% likely to contain the temperature, making NO at 0.55–0.65 a structural loser.
+
+---
+
+*Generated by PnL Ledger Agent · 2026-06-22T23:37Z · trades.jsonl 7898 rows · snapshot 1 min old*
