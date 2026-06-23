@@ -353,7 +353,11 @@ MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 # KILL CRITERION: if WEATHER_THERMO realized PnL is negative over the first ~20 resolved fills,
 # set THERMO_MAKER_LIVE=False. Revert anytime: THERMO_MAKER_LIVE=False (keeps shadow log).
 THERMO_MAKER_ENABLED       = True    # shadow-log thermo-ceiling upper-tail candidates
-THERMO_MAKER_LIVE          = True    # ⚠ post real resting NO bids (user opt-in, monitored)
+THERMO_MAKER_LIVE          = False   # 2026-06-23 PAUSED (user): tied ~$25 of the ~$87
+                                     # cash budget in 1¢ upper-tail NO (incl. a past-peak
+                                     # London d+0 that won't fill) while scarce cash should
+                                     # compound in +EV band-NO (~7%/turn). Shadow log stays
+                                     # on (ENABLED=True) for the validation gate. Revert: True
 THERMO_MAKER_P99_K         = 2.33    # p99: ceiling = running_max + mean_rise·(1 + K·RR_CV)
 THERMO_MAKER_MIN_MARGIN_C  = 0.3     # bucket floor must exceed the p99 ceiling by this (rounding buffer)
 THERMO_MAKER_MAX_DAILY     = 3       # 2026-06-11: 8→3 (user challenge) — at 8×$5 = $40/day THERMO ate
