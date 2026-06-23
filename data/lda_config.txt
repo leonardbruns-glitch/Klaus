@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-23T06:10:01Z
+# Snapshot: 2026-06-23T06:25:06Z
 # Latest commit on klaus:
-ec5c218a7 fix(BAND): release phantom breaker exposure on statusless dead orders
+339257d16 log: phantom breaker exposure fix + prune (2026-06-23)
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
