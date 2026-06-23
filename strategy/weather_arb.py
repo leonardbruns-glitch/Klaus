@@ -367,6 +367,20 @@ THERMO_MAKER_MAX_DAILY     = 3       # 2026-06-11: 8→3 (user challenge) — at
                                      # (possibly above band priority) only after the first 20 resolve
                                      # clean — near-certain fast turns then EARN the bigger slice. Was 8
 
+# ── YES-CAPTURE SHADOW (no capital, 2026-06-23) ─────────────────────────────
+# Tests whether we can capture the YES bid-ask spread cleanly in the +EV zone
+# (px 0.10-0.45, d+2 only — his strongest/cleanest slice; t1_edge_geometry:
+# 0.30-0.40 = +12pp/+33%) BEFORE re-enabling YES. Logs the would-post touch +
+# real book per d+2 in-zone bucket (reason=yes_capture_shadow, band_struct.jsonl).
+# Reads the RAW ladder (bypasses BAND_PX_CEIL=0.30 so the 0.30-0.45 sweet spot is
+# captured) and runs even in NO-only mode. Offline join (band_yes_capture_join.py)
+# reads WR-bid (bucket edge) + tape-reconstructed markout (adverse fill). No capital,
+# no posting. Revert: YES_CAPTURE_SHADOW=False.
+YES_CAPTURE_SHADOW         = True
+YES_CAPTURE_LO             = 0.10
+YES_CAPTURE_HI             = 0.45
+YES_CAPTURE_FETCH_BUDGET   = 16      # real-book fetches per cycle for the shadow
+
 # ── NO-arb real-book SHADOW probe (no capital) ──────────────────────────────
 # Face 2 (buy-all-NO) is only ever eligible when Σyes_proxy>1 — the OPPOSITE of
 # the real-book depth-fetch screen (Σyes_proxy<0.95) — so it has NEVER been
@@ -2752,8 +2766,59 @@ class WeatherArb:
 
         _live_legs: list = []     # (days_out, sum_posted, off, sig, mkt, ask) — posted via unified queue
         _conv_ladders: list = []  # converged ladders stashed for the PAIR_FAV pass
+        # YES-CAPTURE SHADOW state (no capital): one would-post snapshot per token/day,
+        # budgeted real-book fetches per cycle. Reset daily.
+        if getattr(self, "_yes_shadow_date", "") != _now_utc.date().isoformat():
+            self._yes_shadow_date = _now_utc.date().isoformat()
+            self._yes_shadow_seen = set()
+        _yes_shadow_left = YES_CAPTURE_FETCH_BUDGET
         for (city, ed), ladder in ladders.items():
             days_out = (date.fromisoformat(ed) - date.fromisoformat(meta[(city, ed)])).days
+            # ── YES-CAPTURE SHADOW (2026-06-23, no capital): for d+2, scan the RAW
+            # ladder (bypasses BAND_PX_CEIL so the 0.30-0.45 sweet spot is seen) for
+            # buckets whose proxy ask is in [YES_CAPTURE_LO, YES_CAPTURE_HI]; fetch the
+            # real book once/token/day and log the would-post touch. Offline join reads
+            # WR-bid + tape markout. Inert if YES_CAPTURE_SHADOW=False.
+            if YES_CAPTURE_SHADOW and days_out == 2 and _yes_shadow_left > 0:
+                _lad_mode = max((e[3] for e in ladder
+                                 if e[0] > -900.0 and e[1] < 900.0 and e[3] is not None),
+                                default=0.0)
+                _lad_mode_lo = next((e[0] for e in ladder if e[3] == _lad_mode), None)
+                for _e in ladder:
+                    if _yes_shadow_left <= 0:
+                        break
+                    _lo, _hi, _tok, _ay, _emkt = _e
+                    if not (_lo > -900.0 and _hi < 900.0 and _ay is not None):
+                        continue
+                    if not (YES_CAPTURE_LO <= float(_ay) <= YES_CAPTURE_HI):
+                        continue
+                    if (_tok in self._yes_shadow_seen
+                            or _tok in getattr(getattr(self.bot, "risk", None),
+                                               "open_positions", {})):
+                        continue
+                    _yes_shadow_left -= 1
+                    self._yes_shadow_seen.add(_tok)
+                    try:
+                        _shb = await self._fetch_book_levels(_tok, n=1)
+                    except Exception:
+                        _shb = None
+                    if not (_shb and (_shb.get("asks") or [])):
+                        continue
+                    _sa = float(_shb["asks"][0]["price"])
+                    if not (YES_CAPTURE_LO <= _sa <= YES_CAPTURE_HI):
+                        continue   # proxy drifted out of zone on the real book
+                    _sbid = (float(_shb["bids"][0]["price"]) if _shb.get("bids")
+                             else max(0.01, _sa - 0.02))
+                    _off_s = (int(round(_lo - _lad_mode_lo))
+                              if _lad_mode_lo is not None else None)
+                    _emit({"reason": "yes_capture_shadow", "side": "YES",
+                           "cid": _emkt.get("conditionId", ""), "city": city,
+                           "date": ed, "days_out": days_out, "off": _off_s,
+                           "lo_c": _lo, "hi_c": _hi, "token": _tok,
+                           "proxy_ask": round(float(_ay), 3),
+                           "best_bid": round(_sbid, 3), "best_ask": round(_sa, 3),
+                           "spread": round(_sa - _sbid, 3),
+                           "would_quote": round(min(_sbid, _sa - 0.01), 3)})
             # interior buckets in the harvest price band — NO depth gate (a maker
             # posts depth; requiring existing ask-depth killed every leg in the
             # old path) and NO peak-window gate (the band lives days out, not at peak).
