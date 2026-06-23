@@ -2787,7 +2787,9 @@ class WeatherArb:
                 for _e in ladder:
                     if _yes_shadow_left <= 0:
                         break
-                    _lo, _hi, _tok, _ay, _emkt = _e
+                    # ladder element is a 6-tuple (lo,hi,tok,ask,mkt,no_tok); index
+                    # (never unpack — a shadow must never break the live band)
+                    _lo, _hi, _tok, _ay, _emkt = _e[0], _e[1], _e[2], _e[3], _e[4]
                     if not (_lo > -900.0 and _hi < 900.0 and _ay is not None):
                         continue
                     if not (YES_CAPTURE_LO <= float(_ay) <= YES_CAPTURE_HI):
