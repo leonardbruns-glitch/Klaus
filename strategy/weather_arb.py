@@ -2903,10 +2903,23 @@ class WeatherArb:
                                           BAND_CELL_WEIGHTS)
         if not BAND_LIVE:
             return
-        _today_no = _now_utc.date().isoformat()
-        if getattr(self, "_band_no_date", "") != _today_no:
-            self._band_no_date = _today_no
-            self._band_no_spent = 0.0
+        # 2026-06-23: the NO cap must bound CURRENT resting NO notional, not
+        # cumulative daily gross posts. _band_no_spent was reset only at UTC
+        # midnight and ONLY ever incremented — never released on fill / reclaim /
+        # resolution. So a filled NO (the win that frees cash to redeploy) still
+        # ate the daily budget => the band froze mid-day with idle cash and no
+        # compounding (today: ~$65 "spent" by 13:35 UTC while only ~$25 was
+        # actually resting). Recompute from the live resting book each cycle so
+        # filled/reclaimed legs drop off and free the slot; concurrent resting
+        # band-NO stays ≤ _no_cap. The instant cash bound is still _maker_cash_gate
+        # (0.90·wallet − resting). The in-loop increments below then add this
+        # cycle's new posts on top of the recomputed baseline.
+        self._band_no_date = _now_utc.date().isoformat()
+        self._band_no_spent = sum(
+            float(_m.get("q_price") or 0.0) * float(_m.get("size") or 0.0)
+            for _m in (getattr(self, "_maker_resting", {}) or {}).values()
+            if str(_m.get("side", "")).upper() == "NO"
+            and _m.get("entry_class") == "WEATHER_STRUCT_BAND")
         _no_cands = []
         if BAND_NO_ENABLED:
             for (city, ed), ladder in ladders.items():
