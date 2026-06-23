@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+ec5c218a7 fix(BAND): release phantom breaker exposure on statusless dead orders
 75f5ba00a feat(BAND): P1 NO-only — no_reserve 0.40->1.00 until $600 (user)
 648c8796a feat(BAND): favNO TOP priority + REVERSE phase ladder to match his evolution
 d98c8d3bf fix(BAND): churn — live merge pairs rest 8h, not the 2h directional reclaim
@@ -11,7 +12,6 @@ af9e673d0 feat(BAND): YES ceiling 0.44->0.30 (user) — trim expensive near-mode
 f7f4a9525 feat(BAND): capital-phase ladder — capital-dependent knobs scale with bankroll
 22e1d4557 feat(BAND): days-out capital priority (d+2>d+1>d+0) + ceiling 0.44 + off2-d+2 unfloored
 c6a54aab4 feat(BAND): widen YES band to mode±2 (BAND_YES_MAX_OFF 1->2, user)
-669b5173c feat(BAND): YES ceiling 0.45->0.25 + redirect vol to favorite-NO (user)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       16G  84% /

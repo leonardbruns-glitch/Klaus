@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-23T05:54:47Z
+# Snapshot: 2026-06-23T06:10:01Z
 # Latest commit on klaus:
-75f5ba00a feat(BAND): P1 NO-only — no_reserve 0.40->1.00 until $600 (user)
+ec5c218a7 fix(BAND): release phantom breaker exposure on statusless dead orders
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
