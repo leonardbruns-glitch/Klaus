@@ -566,10 +566,16 @@ BAND_STAKE_FRAC_YES = 0.010   # 2026-06-18: 0.005→0.010 RESTORED (user, pairs 
                               # deepens above that. NO frac unchanged (its $4.5 floor is grounded).
 BAND_STAKE_FRAC_NO  = 0.015
 BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
-BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
-                             # NO is the scarce pair leg (YES side is uncapped, pairs
-                             # need both); fixed $40 freezes pair formation as capital
-                             # compounds. Floor binds to ~$133 capital (0.30·133≈40).
+BAND_NO_CAP_FRAC    = 0.90   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
+                             # 2026-06-23 0.30→0.90 (user): the 0.30 cap was for the
+                             # YES+NO regime ("NO is the scarce pair leg, don't let it
+                             # eat the book"). Since 06-22 NO-ONLY (no_reserve P1=1.00)
+                             # that rationale is void — 0.30·$216≈$65 froze the band by
+                             # 13:35 UTC (books=0, ~$60 cash idle, no compounding for
+                             # the rest of the UTC day). Lift to 0.90 so the cash gate
+                             # (0.90·wallet−resting) + $150 breaker are the real bounds,
+                             # not this redundant daily throttle. Does NOT raise max risk.
+                             # Floor binds to ~$44 capital (0.90·44≈40). Revert: 0.30.
 
 
 def band_stakes(capital: float) -> tuple:
