@@ -1999,10 +1999,15 @@ class WeatherArb:
                     dirty = True
                 continue
             status, matched, fill_price = await orders.get_order_match(oid)
-            if status is None:
-                # Off-book reclaim (2026-06-17): status None means get_order
-                # RAISED (order not individually fetchable → truly gone, not just
-                # paginated out). If a SUCCESSFUL live-book fetch also lacks the
+            if not status:
+                # Off-book reclaim (2026-06-17): a FALSY status means the order is
+                # not individually fetchable → truly gone, not just paginated out.
+                # 2026-06-23: was `status is None`, but py_clob_client_v2.get_order
+                # returns a status-LESS dict (status="") for dead orders instead of
+                # raising — so 25 BUY ids ($33.53) fell through every release path
+                # and pinned the breaker at the cash-gate cap (posted=0 all day).
+                # `not status` catches both None (raise) and "" (statusless dict).
+                # If a SUCCESSFUL live-book fetch also lacks the
                 # id, the order is off-book now (server-side sweep / cancel) — two
                 # independent signals — so release the phantom resting exposure
                 # immediately instead of waiting 24h past end_date. Grace window
