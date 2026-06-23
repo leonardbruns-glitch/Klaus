@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-06-23T18:17:22Z
+# Snapshot: 2026-06-23T18:32:34Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -59,4 +59,4 @@
 561:BAND_STAKE_FRAC_YES = 0.010   # 2026-06-18: 0.005→0.010 RESTORED (user, pairs with BASE_STAKE 1→3).
 567:BAND_STAKE_FRAC_NO  = 0.015
 568:BAND_STAKE_MAX      = 20.0   # existing per-stake ceiling
-569:BAND_NO_CAP_FRAC    = 0.30   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):
+569:BAND_NO_CAP_FRAC    = 0.90   # NO daily cap = max(BAND_NO_DAILY_CAP, frac·capital):

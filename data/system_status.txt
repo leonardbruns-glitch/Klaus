@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+4a6c8033b fix(BAND): NO cap bounds CURRENT resting NO notional, not cumulative daily posts
+c5f4e3a3f fix(BAND): lift NO daily cap 0.30->0.90·capital — NO-only froze at ~$65/day
 339257d16 log: phantom breaker exposure fix + prune (2026-06-23)
 ec5c218a7 fix(BAND): release phantom breaker exposure on statusless dead orders
 75f5ba00a feat(BAND): P1 NO-only — no_reserve 0.40->1.00 until $600 (user)
@@ -10,14 +12,12 @@ d98c8d3bf fix(BAND): churn — live merge pairs rest 8h, not the 2h directional 
 cbe68db3c feat(BAND): promote d+1 NO to rank 1 (2nd, after d+2 YES) — user
 fbfcebd50 feat(BAND): favNO only d+1/d+0 — drop d+2 NO (user); YES keeps d+2 priority
 af9e673d0 feat(BAND): YES ceiling 0.44->0.30 (user) — trim expensive near-mode YES
-f7f4a9525 feat(BAND): capital-phase ladder — capital-dependent knobs scale with bankroll
-22e1d4557 feat(BAND): days-out capital priority (d+2>d+1>d+0) + ceiling 0.44 + off2-d+2 unfloored
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   80G       13G  87% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Tue 2026-06-23 06:12:09 UTC
+ActiveEnterTimestamp=Tue 2026-06-23 18:27:40 UTC
 
 ## Open positions (count):
 0

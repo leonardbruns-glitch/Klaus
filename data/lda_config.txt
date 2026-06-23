@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-06-23T18:17:22Z
+# Snapshot: 2026-06-23T18:32:34Z
 # Latest commit on klaus:
-339257d16 log: phantom breaker exposure fix + prune (2026-06-23)
+4a6c8033b fix(BAND): NO cap bounds CURRENT resting NO notional, not cumulative daily posts
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
