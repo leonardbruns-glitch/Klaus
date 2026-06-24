@@ -1,79 +1,100 @@
 {
   "BAND_YES": {
-    "n": 5676,
-    "n_prev": 5419,
+    "n": 5905,
+    "n_prev": 5676,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [null, null],
+    "ci95": [
+      null,
+      null
+    ],
     "wr": null,
     "resolved": 0,
-    "note": "Leg-level count: unique (cid,days_out) from quotes[] inside reason=fire events in band_struct_lite.jsonl. Jun22 full day=269 (+32 since prior cutoff at 237); Jun23 through 12:28=225 (199 pre-restart / 26 post-restart). Total +257. Post-restart YES fire rate collapsed: ~199/6h → ~26/6h (87% drop) due to P1 no_reserve=1.00 (NO-only until $600). Gate 57× above threshold but CI blocked (Gamma 403 from container). VPS must run analysis/weather/band_resolution_join.py.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "Unique (cid,days_out) from reason=fire in band_struct_lite.jsonl. Jun23 12:29\u2192Jun24 12:15: +229 new legs. Rate: ~225 YES legs/day (elevated from ~104/day post-restart \u2014 BAND_PX_CEIL 0.30\u21920.45 deployed Jun24 08:03). Threshold 100: CROSSED 57\u00d7 over. CI blocked (Gamma 403). Resolution join (band_resolution_join.py) runs in 6-day window: 1489 deduped legs, 1162 unique markets \u2014 confirmed correct dedup; Gamma times out. VPS must run resolution join.",
+    "ts": "2026-06-24T12:15:09Z"
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 177,
-    "n_prev": 144,
+    "n": 213,
+    "n_prev": 177,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [null, null],
+    "ci95": [
+      null,
+      null
+    ],
     "wr": null,
     "resolved": 0,
-    "note": "Dedup per cid from reason=fire_no/pair_fav/pair_samebucket. Jun22 full day=18 (+14 since prior 4); Jun23 through 12:28=19 (8 pre-restart / 11 post-restart). Total +33. Rate post-restart: ~44/day (up from ~20/day). THRESHOLD CROSSED (n=177 > 100) for 3+ days. NO engine LIVE at $5/fire, no_reserve=1.00, ~44 fires/day. Edge entirely unvalidated. CI blocked (Gamma 403). VPS resolution join is most urgent action.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "Unique cid from reason=fire_no/pair_fav/pair_samebucket. Jun23 12:29\u2192Jun24 12:15: +36 new unique cids. Rate: ~30 NO legs/day (Jun24 pace; down from ~44/day cited Jun23 18:20 \u2014 consistent with NO daily cap dynamics). Threshold 100: CROSSED 2.1\u00d7. CI blocked (Gamma 403). BAND_NO live at $5/fire. Gate 2+ days above threshold; most urgent CI item. VPS resolution join required.",
+    "ts": "2026-06-24T12:15:09Z"
   },
   "FILLED_VS_FIRED": {
-    "n": 102,
-    "n_prev": 110,
+    "n": 97,
+    "n_prev": 102,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [null, null],
+    "ci95": [
+      null,
+      null
+    ],
     "wr": null,
     "resolved": 0,
-    "note": "7d rolling window. 102 unique (tok_partial[:12],side) registered fills from maker_fills_recent.log. Jun20=25, Jun21=40, Jun22=23, Jun23=14. Jun19 fills (27) aged out. Net -8 from prior n=110. Jun20 also dropped 37→25 (12 fills; possibly closed positions pruned from rolling log). Structural shift: YES 60%→41%, NO 40%→59% — consistent with NO-only mode. Jun23: YES=0, NO=14. CID resolution join blocked. VPS required.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "7d rolling window. 97 unique (tok_partial[:12],side) from maker_fills_recent.log (Jun21-Jun24, 161 events). Jun23 12:29\u2192Jun24 12:15: +33 new fills, ALL NO (YES fills=0 since NO-only mode). YES fill fraction: prior 60% \u2192 now 17% of 7d window. Net -5 from prior n=102 (some Jun20/21 entries rolled off). Threshold 40: CROSSED 2.4\u00d7. CI blocked (Gamma 403). Selection bias warning: filled legs now predominantly NO, fired includes both \u2014 comparison validity degrades in pure NO-only mode.",
+    "ts": "2026-06-24T12:15:09Z"
   },
   "BASKET_EXIT": {
     "n": 33,
     "n_prev": 33,
     "status": "VOID",
     "roi": 145.5,
-    "ci95": [-45.1, 336.1],
+    "ci95": [
+      -45.1,
+      336.1
+    ],
     "wr": 1.0,
     "resolved": 33,
-    "note": "GATE RETIRED (state_log Jun22T07:35). 4 fatal flaws: (1) WR=100% tautological — all_green defined as cash>cost by construction; (2) 95% single-leg RECYCLE099 winners mislabeled as baskets; (3) CI invalid — n=33 CI95=[-45.1%,+336.1%] straddles zero; (4) wrong metric — exit-vs-cost not exit-vs-hold; cash/max_hold median=0.920, 0/33 beat hold. Status VOID permanently. n=33 archival only.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "GATE RETIRED (state_log Jun22T07:35). 4 fatal flaws: (1) WR=100% tautological \u2014 all_green defined as cash>cost by construction; (2) 95% single-leg RECYCLE099 winners mislabeled as baskets; (3) CI invalid \u2014 n=33 CI95=[-45.1%,+336.1%] straddles zero; (4) wrong metric \u2014 exit-vs-cost not exit-vs-hold; cash/max_hold median=0.920, 0/33 beat hold. Status VOID permanently. n=33 archival only.",
+    "ts": "2026-06-24T12:15:09Z"
   },
   "THERMO_MAKER_NO": {
     "n": 3,
     "n_prev": 3,
     "status": "COLLECTING",
     "roi": -66.0,
-    "ci95": [-132.6, 0.7],
+    "ci95": [
+      -132.6,
+      0.7
+    ],
     "wr": 0.333,
     "resolved": 3,
-    "note": "STALLED 10+ days. Zero new fills. Kill gate threshold=20 resolved. CI95=[-132.6%,+0.7%] barely straddles zero — one more loss flips CI fully negative. thermo_maker.jsonl not in dated shadow archives; large candidate rows in VPS hot logs (26k-34k/day) but zero fire events confirmed per prior state. Engine appears silently broken. WR=1/3=33.3%, ROI=-66%. ETA=INFINITE at 0 fills/day.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "PAUSED Jun23 18:40 UTC (state_log: 'pause thermo, free ~$25 cash for band-NO'). 5 resting THERMO buys cancelled; 1 THERMO SELL_EXIT @0.99 still on CLOB (no tracker entry, not our resting_state). Engine off: THERMO_MAKER_LIVE=False (band_config). n=3 STALLED; accumulation rate=0. Kill gate threshold=20 resolved \u2014 unreachable at 0 fills/day. CI95=[-132.6%,+0.7%] barely straddles zero \u2014 one more loss flips REJECTED. Action needed: VOID gate (engine permanently shelved) or schedule validation period at reduced stake.",
+    "ts": "2026-06-24T12:15:09Z"
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
     "n_prev": 31,
     "status": "COLLECTING",
     "roi": -0.6,
-    "ci95": [-20.6, 24.4],
+    "ci95": [
+      -20.6,
+      24.4
+    ],
     "wr": 0.742,
     "resolved": 31,
-    "note": "STALLED 12+ days. metar_lockout.jsonl not in dated shadow archives. Standing rule Jun09: at n>=100, WR>=95% AND +EV = keep; else REVERT to 0.5C floors. CI95=[-20.6%,+24.4%] straddles zero. PROVENANCE FLAG: n=31 basis unverifiable — only 1 confirmed M1 trade in trades.jsonl. VPS operator: verify; if unverifiable reset to n=1. ETA=INFINITE at 0 fires/day.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "STALLED 13+ days. n=31 unchanged. Engine: no new WEATHER_M1_PROBE fires; 1 M1_PROBE SELL_EXIT still resting on CLOB (token 957...988, 20 shares @0.99). Standing rule Jun09: at n>=100, WR>=95% AND +EV = keep; else REVERT to 0.5C floors. At 0 fires/day, n never reaches 100 \u2014 standing rule implies REVERT. CI95=[-20.6%,+24.4%] straddles zero. Recommend human decision: REVERT thin-margin slice to 0.5C floor (conservative default under standing rule). PROVENANCE FLAG: n=31 basis unverifiable from container.",
+    "ts": "2026-06-24T12:15:09Z"
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 2824,
-    "n_prev": 2643,
+    "n": 2954,
+    "n_prev": 2824,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [null, null],
+    "ci95": [
+      null,
+      null
+    ],
     "wr": null,
     "resolved": 0,
-    "note": "Unique (cid,days_out) legs from reason=fire events where sum_posted in [0.70,0.85]. Jun22 full day=184 (+23 since prior 161); Jun23 through 12:28=158 (70.2% of 225 YES fires). Total +181. Fraction rising: Jun17 47%→Jun23 70%. Post-YES-collapse fraction stable. Rate post-restart: ~73/day (down from ~350/day). CI blocked (Gamma 403). Clean-window boundary Jun19T00:30 UTC. Same VPS resolution join as Gate 1.",
-    "ts": "2026-06-23T12:29:31Z"
+    "note": "Unique (cid,days_out) from reason=fire where sum_posted in [0.70,0.85]. Jun23 12:29\u2192Jun24 12:15: +130 new legs. Jun24 fraction: 130/225 YES fires = 57.8% of YES fires in this band. Threshold 100: CROSSED 29.5\u00d7. CI blocked (Gamma 403). Same VPS resolution join as Gate 1. This slice (0.70-0.85 sum_posted) is the V3 extension validated at n=46 TREND on his data (+13.0%); our own CI uncomputable. BAND_SUM_MAX=0.85 (active gate ceiling in band_config).",
+    "ts": "2026-06-24T12:15:09Z"
   }
 }
