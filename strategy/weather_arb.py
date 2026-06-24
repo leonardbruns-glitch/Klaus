@@ -2685,7 +2685,7 @@ class WeatherArb:
             logger.exception("[STRUCT-BAND] reclaim pass failed")
 
         from strategy.stwa_engine import (
-            BAND_PX_MIN, BAND_PX_CEIL, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
+            BAND_PX_MIN, BAND_PX_CEIL, BAND_PX_CEIL_D0, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
             BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
             BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
             BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
@@ -2835,9 +2835,12 @@ class WeatherArb:
             _px_min = (BAND_PX_MIN if days_out == 0
                        else BAND_PX_MIN_OFF2_D2 if days_out == 2
                        else BAND_PX_MIN_MD)
+            # 2026-06-24 days-out-aware CEIL: d+1/d+2 harvest the 0.25-0.45 slice
+            # (his fills +24-26%); d+0 stays tight at 0.25 (d+0 ≥0.25 = −3%).
+            _px_ceil = BAND_PX_CEIL_D0 if days_out == 0 else BAND_PX_CEIL
             valid = [(e[0], e[1], e[2], e[3], e[4]) for e in ladder
                      if e[0] > -900.0 and e[1] < 900.0
-                     and _px_min <= e[3] <= BAND_PX_CEIL]
+                     and _px_min <= e[3] <= _px_ceil]
             if len(valid) < BAND_MIN_LEGS:
                 _emit({"city": city, "date": ed, "days_out": days_out, "reason": "no_band",
                        "n_interior": sum(1 for e in ladder if e[0] > -900 and e[1] < 900),
@@ -2855,7 +2858,7 @@ class WeatherArb:
             _global_mode_ask = max((e[3] for e in ladder
                                     if e[0] > -900.0 and e[1] < 900.0
                                     and e[3] is not None), default=0.0)
-            if _global_mode_ask > BAND_PX_CEIL:
+            if _global_mode_ask > _px_ceil:
                 _emit({"city": city, "date": ed, "days_out": days_out,
                        "reason": "converged", "mode_ask": round(_global_mode_ask, 3)})
                 # converged ladder = pair-fav territory (favorite bid both sides);
@@ -3214,7 +3217,12 @@ class WeatherArb:
                     # the would-be NO pair leg + merge margin on the SAME cond.
                     # No cash, no effect on posting (fully wrapped). Offline
                     # pair_shadow_join.py → deliberate-pair co-fill rate + margin.
-                    if (BAND_PAIR_SHADOW or BAND_PAIR_SAMEBUCKET) and _books_left > 5:
+                    # 2026-06-24: reserve 5→2. Same-bucket pairing is the edge/turn
+                    # engine (06-19: binding gap = co-fill 5% vs his 40%, the MERGE
+                    # LOOP); a stingy fetch reserve was starving mode/±1 pair-NO
+                    # fetches so the pair never got attempted. Each fetch here is a
+                    # follow-on for an ALREADY-posted YES leg (pure co-fill upside).
+                    if (BAND_PAIR_SHADOW or BAND_PAIR_SAMEBUCKET) and _books_left > 2:
                         try:
                             _nt = next((t for t in _parse_token_ids(
                                 _mkt.get("clobTokenIds", [])) if t != tid), None)

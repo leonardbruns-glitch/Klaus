@@ -246,11 +246,31 @@ BAND_HOUR_MAX       = 16            # peak window upper bound; after this the da
 
 # ── BADATMATH STRUCTURAL BAND (2026-06-09) ────────────────────────────────────
 # Reverse-engineered from wallet 0x8fbd7cf5f806f563080864694415829f7229a959
-# ("badatmath."), ~$70→$7.8k/mo. EDGE = the market OVER-disperses the daily-high
-# (true σ≈1.3° < market-implied). Harvest: buy the contiguous near-MARKET-MODE YES
-# buckets priced in [BAND_PX_MIN, BAND_PX_CEIL]; one in-band winner repays the
-# sub-$1 band. STRUCTURAL — fires off the MARKET price ladder, NOT our (overconfident)
-# model prob. Validated on n=3583 resolved buckets, May AND June independently:
+# ("badatmath."), ~$70→$7.8k/mo. EDGE (ORIGINAL premise) = the market OVER-disperses
+# the daily-high (true σ≈1.3° < market-implied). Harvest: buy the contiguous near-
+# MARKET-MODE YES buckets priced in [BAND_PX_MIN, BAND_PX_CEIL]; one in-band winner
+# repays the sub-$1 band. STRUCTURAL — fires off the MARKET price ladder, NOT our
+# (overconfident) model prob.
+# ── SIGMA METHODOLOGY NOTE (2026-06-24): the "true σ≈1.3°" above is NOT our forecast-
+# error std — it is the MARKET-IMPLIED dispersion badatmath was harvesting, reverse-
+# engineered from HIS n=8,043 resolved tokens. It is a DIFFERENT statistical object
+# from the three σ's the engine/monitor measure, which DO NOT reconcile to one number:
+#   • 1.00-1.10°C = our realized daily-max forecast error std(actual − model_center),
+#     2024 ASOS-vs-ECMWF (n=12,835). EU-clean June reproduces 1.04 exactly.
+#   • 0.81-0.96°C = model/market-IMPLIED σ (what we and the book PRICE; weighted std of
+#     the bucket ladder). The calib_monitor "implied σ 0.957" and the "0.961" figure.
+#   • 1.3-1.6°C = realized June std measured the CONTINUOUS way std(resolved − center),
+#     n=211: pooled 1.58, robust-MAD 1.14, EU 1.04, ASIA 1.97 (the σ>1.4 problem cities).
+#     calib_monitor's midpoint "true σ 1.55" is DIRECTIONALLY RIGHT (continuous confirms
+#     ~1.3-1.6), not an artifact — the midpoint method actually UNDER-states (1.32).
+# VERDICT: the market is UNDER-dispersed (implied ~0.81 < realized ~1.1-1.6), so the
+# OVER-dispersion premise is DEAD/inverted. BUT the model-free WR−ask gap on near-mode
+# YES (0.10-0.45) ≈ 0 (buckets ~fairly priced), so the band is NOT bleeding from
+# dispersion — the realized +EV (his) comes from MAKER spread-capture (resting below
+# ask) + the 0.25-0.45 underpricing + MERGE-LOOP compounding (105% recycle, 37.6% two-
+# sided buckets), NOT from selling rich dispersion. DO NOT lower pricing σ toward 0.96
+# (we are already tighter than realized — that worsens calibration). [bad_yes.py /
+# sigma_reality.py, scratchpad 2026-06-24]. Validated on n=3583 resolved buckets, May AND June independently:
 # mkt-price 0.30-0.40 → win 50%, 0.22-0.30 → 33%, 0.15-0.22 → 27%, 0.10-0.15 → 16%
 # (every bin wins MORE than its price). Coverage: realized high in-band 73%.
 # ISOLATED from STWA_BAND_MODE (which also alters the pricer) — own flag, own path.
@@ -276,12 +296,14 @@ BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge
                                     # gated, BAND_MD_DAILY_BUDGET-capped. Evidence: his n=8,043 resolved
                                     # tokens ground truth; worst-case bound = Σask<0.70 vs mode±band hit
                                     # ~0.84 ⇒ +EV even at ask-1¢ fills. Revert: False
-BAND_PX_CEIL        = 0.30          # 2026-06-18 (user): 0.44→0.30 — trim the expensive near-mode YES band. Model-free
-                                    # dispersion test (band_dispersion_test.py, n=6,899): shoulder calibration gap ≈0 (no
-                                    # under-dispersion edge in mode±2) and the [0.25,0.45] YES slice bled −10..−28% realized
-                                    # (band_net_attribution n<100). Keep the cheap-YES tails (held to resolution, user call);
-                                    # cut the expensive upper band that converges away. PAIR_FAV EXEMPT (merge-intent, own
-                                    # window). Was 0.44 (re-admit), 0.25 before that, 0.45 originally. Revert: 0.44.
+BAND_PX_CEIL        = 0.45          # 2026-06-24 (re-admit, data): d+1/d+2 harvest ceil 0.30→0.45. Clean 40d dedup'd
+                                    # resolution-join of badatmath's OWN fills: YES 0.25-0.45 @ d+1 +24.0% (n=333) / d+2
+                                    # +25.9% (n=369) — the +EV slice the 06-18 0.30 cut EXCLUDED. The 06-18 "[0.25,0.45]
+                                    # bled −10..−28%" was OUR adverse-fill on NAKED, un-merged legs (n<100), NOT the zone:
+                                    # his maker + merge-protected legs are +EV there. Only pays if the leg is merge-paired
+                                    # (see BAND_PAIR_SAMEBUCKET). d+0 stays tight via BAND_PX_CEIL_D0. Revert: 0.30.
+BAND_PX_CEIL_D0     = 0.25          # 2026-06-24: d+0 ceil — d+0 YES 0.10-0.25 = +23% but d+0 ≥0.25 = −3% (his fills,
+                                    # bad_yes.py). d+0 stays narrow; only d+1/d+2 get the widened 0.45 harvest ceil.
 BAND_PX_MIN         = 0.10          # d+0 floor. 2026-06-09: 0.06→0.10 — FULL-HIST resolved curve: [0,0.05)
                                     # −11.9%, [0.05,0.10) −5.9%, [0.10,0.22) +29.2%, [0.22,0.45) +19.0%.
                                     # d+0 cheap stays dead post-inflection too: 0.05-0.10@d0 −7.4% (n=1364).
@@ -322,7 +344,11 @@ BAND_BASE_STAKE     = 3.0           # 2026-06-18: 1→3 RESTORED (user directive
                                     # max($1, 5×quote) — applied in weather_arb band loop. Deployment
                                     # scales by BREADTH not stake size (his "bucket-$ flat, deploy 5×").
                                     # Was 8.0 → 3.0 (06-09).
-BAND_BELL           = (1.0, 0.7, 0.4)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape)
+BAND_BELL           = (1.0, 0.45, 0.22)  # stake weight by |offset from mode|: 0,1,2 (bell-shaped $, his shape).
+                                    # 2026-06-24: steepened (1.0,0.7,0.4)→(1.0,0.45,0.22) to match his MEASURED per-leg $
+                                    # concentration (bad_yes.py, 40d): mode/±1/±2 = 1.0/0.40/0.22, with 48.6% of all YES$
+                                    # on the single mode bucket. Our old shape over-weighted the wings vs the mode (px~0.18,
+                                    # the +16% EV bucket + highest co-fill density). Revert: (1.0, 0.7, 0.4).
 BAND_QUOTE_FRAC     = 0.34          # GAMMA-PROXY FALLBACK ONLY (no real book): bid = proxy_bid + FRAC*spread.
 BAND_REALBOOK_YES   = True          # 2026-06-11 (quote-watcher n=741 fill-joins, gate n≥100 PASSED): his
                                     # median fill is AT the touch (fill_vs_best_bid = 0.000; deep-bid theory
@@ -1552,7 +1578,7 @@ class STWAEngine:
         for lo, hi, yt, nt, p_m, ay, an in entries:
             if lo <= -900.0 or hi >= 900.0:          # interior only (no open-ended tails)
                 continue
-            if ay is None or not (BAND_PX_MIN <= ay <= BAND_PX_CEIL):
+            if ay is None or not (BAND_PX_MIN <= ay <= BAND_PX_CEIL_D0):
                 continue
             bk = clob_books.get(yt) or {}
             bid = bk.get("best_bid"); depth = bk.get("usd_depth")
@@ -1571,7 +1597,7 @@ class STWAEngine:
         _gmode = max((e[5] for e in entries
                       if e[0] > -900.0 and e[1] < 900.0 and e[5] is not None),
                      default=0.0)
-        if _gmode > BAND_PX_CEIL:
+        if _gmode > BAND_PX_CEIL_D0:
             _log("converged", local_h=h, mode_ask=round(_gmode, 3))
             return []
 
