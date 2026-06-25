@@ -4,97 +4,84 @@
     "n_prev": 5676,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Unique (cid,days_out) from reason=fire in band_struct_lite.jsonl. Jun23 12:29\u2192Jun24 12:15: +229 new legs. Rate: ~225 YES legs/day (elevated from ~104/day post-restart \u2014 BAND_PX_CEIL 0.30\u21920.45 deployed Jun24 08:03). Threshold 100: CROSSED 57\u00d7 over. CI blocked (Gamma 403). Resolution join (band_resolution_join.py) runs in 6-day window: 1489 deduped legs, 1162 unique markets \u2014 confirmed correct dedup; Gamma times out. VPS must run resolution join.",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Rate ~225 YES legs/day. CI blocked (Gamma 403)."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 213,
     "n_prev": 177,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Unique cid from reason=fire_no/pair_fav/pair_samebucket. Jun23 12:29\u2192Jun24 12:15: +36 new unique cids. Rate: ~30 NO legs/day (Jun24 pace; down from ~44/day cited Jun23 18:20 \u2014 consistent with NO daily cap dynamics). Threshold 100: CROSSED 2.1\u00d7. CI blocked (Gamma 403). BAND_NO live at $5/fire. Gate 2+ days above threshold; most urgent CI item. VPS resolution join required.",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Rate ~30 NO legs/day. CI blocked (Gamma 403)."
   },
   "FILLED_VS_FIRED": {
     "n": 97,
     "n_prev": 102,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "7d rolling window. 97 unique (tok_partial[:12],side) from maker_fills_recent.log (Jun21-Jun24, 161 events). Jun23 12:29\u2192Jun24 12:15: +33 new fills, ALL NO (YES fills=0 since NO-only mode). YES fill fraction: prior 60% \u2192 now 17% of 7d window. Net -5 from prior n=102 (some Jun20/21 entries rolled off). Threshold 40: CROSSED 2.4\u00d7. CI blocked (Gamma 403). Selection bias warning: filled legs now predominantly NO, fired includes both \u2014 comparison validity degrades in pure NO-only mode.",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). 7d rolling window, 97 unique fills. CI blocked (Gamma 403)."
   },
   "BASKET_EXIT": {
     "n": 33,
     "n_prev": 33,
     "status": "VOID",
     "roi": 145.5,
-    "ci95": [
-      -45.1,
-      336.1
-    ],
+    "ci95": [-45.1, 336.1],
     "wr": 1.0,
     "resolved": 33,
-    "note": "GATE RETIRED (state_log Jun22T07:35). 4 fatal flaws: (1) WR=100% tautological \u2014 all_green defined as cash>cost by construction; (2) 95% single-leg RECYCLE099 winners mislabeled as baskets; (3) CI invalid \u2014 n=33 CI95=[-45.1%,+336.1%] straddles zero; (4) wrong metric \u2014 exit-vs-cost not exit-vs-hold; cash/max_hold median=0.920, 0/33 beat hold. Status VOID permanently. n=33 archival only.",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "GATE RETIRED (state_log Jun22T07:35). 4 fatal flaws: WR=100% tautological; 95% single-leg RECYCLE099 winners mislabeled; CI invalid; wrong metric. Status VOID permanently."
   },
   "THERMO_MAKER_NO": {
     "n": 3,
     "n_prev": 3,
     "status": "COLLECTING",
     "roi": -66.0,
-    "ci95": [
-      -132.6,
-      0.7
-    ],
+    "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "note": "PAUSED Jun23 18:40 UTC (state_log: 'pause thermo, free ~$25 cash for band-NO'). 5 resting THERMO buys cancelled; 1 THERMO SELL_EXIT @0.99 still on CLOB (no tracker entry, not our resting_state). Engine off: THERMO_MAKER_LIVE=False (band_config). n=3 STALLED; accumulation rate=0. Kill gate threshold=20 resolved \u2014 unreachable at 0 fills/day. CI95=[-132.6%,+0.7%] barely straddles zero \u2014 one more loss flips REJECTED. Action needed: VOID gate (engine permanently shelved) or schedule validation period at reduced stake.",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Engine PAUSED Jun23 18:40. Kill gate n=20 unreachable at 0 fills/day."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
     "n_prev": 31,
     "status": "COLLECTING",
     "roi": -0.6,
-    "ci95": [
-      -20.6,
-      24.4
-    ],
+    "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "note": "STALLED 13+ days. n=31 unchanged. Engine: no new WEATHER_M1_PROBE fires; 1 M1_PROBE SELL_EXIT still resting on CLOB (token 957...988, 20 shares @0.99). Standing rule Jun09: at n>=100, WR>=95% AND +EV = keep; else REVERT to 0.5C floors. At 0 fires/day, n never reaches 100 \u2014 standing rule implies REVERT. CI95=[-20.6%,+24.4%] straddles zero. Recommend human decision: REVERT thin-margin slice to 0.5C floor (conservative default under standing rule). PROVENANCE FLAG: n=31 basis unverifiable from container.",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). STALLED 13+ days. Recommend REVERT to 0.5C floor per standing rule."
   },
   "SUM_POSTED_0.70_0.85": {
     "n": 2954,
     "n_prev": 2824,
     "status": "COLLECTING",
     "roi": null,
-    "ci95": [
-      null,
-      null
-    ],
+    "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "note": "Unique (cid,days_out) from reason=fire where sum_posted in [0.70,0.85]. Jun23 12:29\u2192Jun24 12:15: +130 new legs. Jun24 fraction: 130/225 YES fires = 57.8% of YES fires in this band. Threshold 100: CROSSED 29.5\u00d7. CI blocked (Gamma 403). Same VPS resolution join as Gate 1. This slice (0.70-0.85 sum_posted) is the V3 extension validated at n=46 TREND on his data (+13.0%); our own CI uncomputable. BAND_SUM_MAX=0.85 (active gate ceiling in band_config).",
-    "ts": "2026-06-24T12:15:09Z"
+    "ts": "2026-06-24T12:15:09Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Rate ~130 new legs/day. CI blocked (Gamma 403)."
+  },
+  "_run_meta": {
+    "run_ts": "2026-06-25T09:20:37Z",
+    "abort_reason": "system_status.txt = 'failed / unknown' (not 'active')",
+    "snapshot_ts": "2026-06-25T08:56:36Z",
+    "snapshot_age_min": 24,
+    "bankroll": 198.28,
+    "open_positions": 0
   }
 }
