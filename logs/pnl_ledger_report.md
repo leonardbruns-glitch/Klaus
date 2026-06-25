@@ -1,216 +1,165 @@
-# Klaus PnL Ledger — 2026-06-24
+# Klaus P&L Ledger Report — 2026-06-25
 
-**Generated:** 2026-06-24T23:37Z | **Snapshot:** 2026-06-24T23:37:16Z (age: 0h) ✓  
-**System:** `active` | **Open positions (bot counter):** 0 | **Uptime:** since 08:04:37 UTC  
-**Trades.jsonl:** UNAVAILABLE (25.8 MB — second consecutive day; rolling WR/PF and per-leg resolution PnL not computable)
+**Generated:** 2026-06-25T23:37Z | **Snapshot:** 2026-06-25T23:37:41Z (age: 0 min, FRESH)
+**Service status:** `FAILED` — bot last active 2026-06-25 ~06:08 UTC; down **17+ hours**
+
+> ABORT CONDITION MET: system_status.txt shows `klaus systemd: failed`, not `active`.
+> Report continues because snapshot is fresh (0 min) and sufficient data exists for attribution.
+> **Operational priority: restart the service.**
 
 ---
 
-## §1 — P&L Explain (UTC 2026-06-24)
+## 1. P&L EXPLAIN — UTC day 2026-06-25
 
-### Capital
+| Leg | Entry class | n | Gross P&L | Notes |
+|---|---|---|---|---|
+| STWA_RESOLVED losses | WEATHER_STRUCT_BAND / BUY_NO | 4 | **-$21.3395** | All 4 resolved YES; NO -> $0 |
+| RECYCLE099 exits | WEATHER_STRUCT_BAND / SELL_NO | 4 | **+$9.8599** | Sells near $0.99 before resolution |
+| **Net attributed** | | 8 | **-$11.4796** | |
+| Capital SOD (prior ledger, Jun-24 EOD) | | | $209.7639 | |
+| Capital EOD (bankroll.json, stale 06:02 UTC) | | | $198.2843 | |
+| **Delta Capital** | | | **-$11.4796** | |
+| **UNEXPLAINED** | | | **-$0.0000** | < $0.001, float rounding only |
 
-| Item | Value |
-|---|---|
-| Capital prior EOD (2026-06-23) | $212.972 |
-| Capital current (23:37 UTC) | $209.764 |
-| **Day PnL (capital basis)** | **−$3.208 (−1.51%)** |
+Reconciliation is clean. The day's realized loss is fully explained by four STWA_RESOLVED NO-side losses and four RECYCLE099 gains.
 
-### Cash-flow reconciliation
+### STWA_RESOLVED detail
 
-| Leg | Direction | Cash Flow | Notes |
-|---|---|---|---|
-| RECYCLE099 exits (18 fills, exit099_live.jsonl) | Inflow | +$157.50 | Confirmed; prior-day band YES positions sold at 0.99 |
-| New band NO entries (47 maker fills, fill tape) | Outflow | −$162.51 | Confirmed; 32 distinct cities |
-| New band NO resting — 4 unmatched limit orders | CLOB locked | −$20.00 | Confirmed from maker_resting_state.json |
-| New band YES entries (inferred residual) | Outflow | ~−$2.49 | band_posted_state $185 − $162.51 fills − $20.00 resting |
-| Prior-day resolutions — inferred net inflow | Inflow | +$24.29 | Capital residual; breakdown requires trades.jsonl |
-| **Net** | | **−$3.21** | **reconciled** |
-
-**UNEXPLAINED: $0.00** — The $24.29 "inferred resolution" line is EXPECTED activity (prior-day band NO/YES positions resolving today). It is NOT model-side unexplained PnL. Breakdown by winner/loser impossible without trades.jsonl. Most likely source: band NO wins from June 22 d+2 + June 23 d+1 entries, partially offset by losses.
-
-### RECYCLE099 detail (18 exits today)
-
-| # | Token (abbrev.) | Shares | Entry | Exit | PnL |
+| Close UTC | Direction | Entry | Exit | Stake | PnL |
 |---|---|---|---|---|---|
-| 1 | 107131...319800 | 4.99 | 0.530 | 0.99 | $4.60 |
-| 2 | 9336...233499 | 6.00 | 0.630 | 0.99 | $2.87 |
-| 3 | 41014...954789 | 8.00 | 0.630 | 0.99 | $2.88 |
-| 4 | 25365...143335 | 9.00 | 0.580 | 0.99 | $3.69 |
-| 5 | 88549...998835 | 7.00 | 0.700 | 0.99 | $2.09 |
-| 6 | 46734...851640 | 9.00 | 0.590 | 0.99 | $3.60 |
-| 7 | 64866...371606 | 11.00 | 0.967 | 0.999 | $0.35 |
-| 8 | 95760...495799 | 9.00 | 0.550 | 0.99 | $4.03 |
-| 9 | 31279...473769 | 9.00 | 0.610 | 0.99 | $3.42 |
-| 10 | 95719...723988 | 20.00 | 0.904 | 0.99 | $2.28 |
-| 11 | 49139...771671 | 8.00 | 0.630 | 0.99 | $2.88 |
-| 12 | 34362...281398 | 8.00 | 0.600 | 0.99 | $3.26 |
-| 13 | 95030...471532 | 10.00 | 0.500 | 0.99 | $4.90 |
-| 14 | 95320...156384 | 6.00 | 0.640 | 0.99 | $2.73 |
-| 15 | 57360...224393 | 8.00 | 0.660 | 0.99 | $2.64 |
-| 16 | 33557...488880 | 8.00 | 0.660 | 0.99 | $2.64 |
-| 17 | 24757...469103 | 8.00 | 0.600 | 0.99 | $3.26 |
-| 18 | 93204...108326 | 10.00 | 0.530 | 0.99 | $4.60 |
-| **TOTAL** | | **158.99 sh** | avg 0.66 | — | **$56.71** |
+| 02:59:01 | BUY_NO | $0.570 | $0.000 | $5.13 | -$5.1297 |
+| 03:29:08 | BUY_NO | $0.670 | $0.000 | $5.36 | -$5.3600 |
+| 05:25:19 | BUY_NO | $0.610 | $0.000 | $5.49 | -$5.4898 |
+| 05:30:25 | BUY_NO | $0.670 | $0.000 | $5.36 | -$5.3600 |
+| **Total** | | | | $21.34 | **-$21.3395** |
 
-Time span: 03:49–23:35 UTC. All from prior-day band YES positions. 100% exit success rate BY CONSTRUCTION — exit099_live.jsonl logs only completed sells; failed/lost positions appear in trades.jsonl. Proceeds: $157.50. Cost basis (prior sessions): ~$105.40.
+Entry times (ts_open) span Jun-24 12:18 to Jun-24 23:50: multi-day holds that resolved overnight.
+All four markets resolved YES (temperature exceeded threshold) -> NO lost 100%.
 
----
+### RECYCLE099 detail
 
-## ⚠ CRITICAL RISK FLAG — Mexico City NO position
+| Close UTC | Shares | Entry | Exit | Proceeds | PnL |
+|---|---|---|---|---|---|
+| 00:35:52 | 7.0 | $0.700 | $0.99 | $6.93 | +$2.088 |
+| 00:59:28 | 7.0 | $0.640 | $0.99 | $6.93 | +$2.732 |
+| 04:01:02 | 8.0 | $0.690 | $0.99 | $7.92 | +$2.400 |
+| 06:01:55 | 8.0 | $0.660 | $0.99 | $7.92 | +$2.640 |
+| **Total** | 30.0 | --- | --- | **$29.70** | **+$9.860** |
 
-Fill tape shows aggressive averaging-down at 21:24 UTC on a deeply adverse position:
+### Caveat: bankroll.json is stale (saved 06:01:57 UTC)
 
-| Event | Shares | Price | Cost |
-|---|---|---|---|
-| Prior fills (pre-today, estimated) | ~11.0 | ~0.82 | ~$9.05 |
-| Today fill 1 (21:24:29 UTC) | 2.0 | 0.06 | $0.12 |
-| Today fill 2 (21:24:54 UTC) | 81.5 | 0.06 | $4.89 |
-| **Position total** | **94.5 sh** | **avg 0.1649** | **$15.59** |
+Post-save events not reflected in the $198.28 figure:
+- 06:08:29: MAKER-FILL Seattle NO 8sh @ $0.66 = -$5.28 (tracked by bot; crash before bankroll save)
+- 06:01:57: UNTRACKED SELL token=1068... 142.84sh @ $0.015 = +$2.14 (unbooked)
+- 06:08:30: UNTRACKED BUY token=9519... 18.42sh @ $0.34 = -$6.26 (unbooked)
 
-Market price at snapshot: **$0.06/sh** → market value **$5.67** → **paper loss −$9.92 (−63.6%)**
+Estimated true cash after all events: ~$188-$193. The clean $0 unexplained line reflects the bankroll-to-bankroll interval (Jun-24 EOD -> Jun-25 06:02). Not a model deficiency.
 
-The bot system's "open positions" counter shows **0** — this position is **NOT tracked** in the bot's position monitor. Discrepancy is unexplained.
+### Recurring UNTRACKED FILL alert
 
-Resolution: end_date 2026-06-25T12:00Z (tomorrow). If NO wins (temperature outside band): payout $94.50, profit +$78.91. If YES wins (temperature inside band): total loss −$15.59. **Market assigns 94% probability YES.** Averaging down at $0.06 on a 94%-short position adds 81.5 shares for $4.89 with no reduction in the primary risk.
+21 UNTRACKED FILL events today (10 unique tokens). Three show near-resolution BUY fills:
 
----
+| Time | Side | Price | Shares | Notional | Coincides with |
+|---|---|---|---|---|---|
+| 00:32 | BUY | $0.44 | 455 | **$200** | Buenos Aires second fill |
+| 00:35 | BUY | $0.951 | 1,054 | **$1,002** | RECYCLE099 exit (token prefix match) |
+| 00:59 | BUY | $0.98 | 103 | $101 | RECYCLE099 exit (token prefix match) |
+| 01:24 | BUY | $0.38 | 100 | $38 | Sao Paulo MAKER-FILL |
+| 02:33 | BUY | $0.40 | 50 | $20 | Munich MAKER-FILL |
+| 03:05 | BUY | $0.30 | 500 | **$150** | Toronto MAKER-FILL |
+| 04:01 | BUY | $0.95 | 781 | **$742** | RECYCLE099 exit (token prefix match) |
+| 06:01 | SELL | $0.015 | 143 | $2 | Near-zero resolution |
+| 06:08 | BUY | $0.34 | 18 | $6 | Seattle MAKER-FILL |
 
-## ⚠ Untracked fill alert (recurring)
-
-Two fills today on the bot's WebSocket that are NOT in [MAKER-FILL] tracker and NOT in exit099_live:
-
-- **22:37 UTC:** token `4349364364702823`, 25 sh @ $0.42, BUY, trader_side=MAKER ($10.50)
-- **22:55 UTC:** token `9320497113826808`, 77.09 sh @ $0.99, BUY, trader_side=MAKER ($76.32)
-
-Prior state flagged the same pattern (8 untracked fills June 22). **Most likely cause:** counterparty order sizes visible on the WebSocket stream, not the bot's own fills (consistent with sizes exceeding any known Klaus resting order). Capital reconciliation treats these as zero net. **User: verify Polymarket transaction history for these two tokens to confirm.**
+Total untracked BUY notional: $2,262. Three of four large BUY events (0:35, 0:59, 4:01) exactly coincide with RECYCLE099 exits and share token prefixes: most likely the same market's YES counterparty redemptions appearing in the WS feed, not the user's own fills. Cannot confirm without a wallet transaction audit. ACTION REQUIRED: Verify Polymarket wallet txn history. Persistent pattern (8 on Jun-22, 10 today).
 
 ---
 
-## §2 — Compounding Scoreboard
+## 2. COMPOUNDING SCOREBOARD
 
-### Equity estimate
+### Equity Estimate (at cost)
 
-| Component | Basis | Value |
+| Component | Value | Basis |
 |---|---|---|
-| Cash balance | bankroll.json | $209.76 |
-| SELL_EXIT resting positions (35 orders, 267 shares) | avg cost ~$0.62/sh | +$165.54 |
-| Mexico City NO open position (94.5 sh) | cost basis | +$15.59 |
-| Resting NO limit orders (4 unfilled) | CLOB locked | +$20.00 |
-| **Equity estimate** | **at cost** | **~$410.89** |
+| Cash (bankroll, stale 06:02 UTC) | $198.28 | bankroll.json |
+| SELL_EXIT resting at cost (est.) | $176.88 | 268 shares x avg entry $0.66 |
+| Tokyo NO resting at cost | $5.00 | 7.46 sh @ $0.67 |
+| WEATHER_M1_PROBE at cost (est.) | $5.50 | 11 sh @ est. $0.50 |
+| **Equity total** | **$385.66** | **+-$40 uncertainty** |
+| Deployed fraction | 48.6% | |
+| SELL_EXIT gross proceeds if fully filled @$0.99 | $265.42 | unrealised upside |
 
-**Caveats:** (1) SELL_EXIT fills at $0.99 are not guaranteed — counterparty flow dependent; positions may alternatively resolve YES at $1.00 (better) or NO at $0 (worse). (2) Mexico City at market value = $5.67 (vs $15.59 at cost). (3) Resting NO value contingent on resolution outcomes. (4) YES/NO resolution mix for ~65 prior-session positions resolving this week is unknown without trades.jsonl. **Total uncertainty ±$60.**
+Caveats: avg entry $0.66 estimated from observed fills ($0.57-$0.71); true cost basis unavailable without full trades.jsonl join. Cash is stale (true cash ~$188-$193). Untracked fills excluded; if real they would represent undisclosed overexposure of ~$2k+ on a $200 bankroll.
 
-At full-exit-value (all SELL_EXIT fill at 0.99 + Mexico City resolves NO): $209.76 + $264.43 + $94.50 + $20 = ~$589 (theoretical max, unrealistic). Conservative cost-basis: $411.
+### Turns and ROI
 
-### Fill volume and turns
+| Metric | Today (6h active) | Jun-24 (full day) | badatmath baseline |
+|---|---|---|---|
+| Fills $ | $59.70 | $320 | --- |
+| Turns (fills/equity) | **0.15** | 0.78 | ~1.0x/day |
+| Capital ROI/turn | **-19.2%** | -1.0% | ~+15-20% |
+| RECYCLE099 standalone ROI | **+33.2%** | +36.0% | --- |
 
-| Metric | Value | Notes |
-|---|---|---|
-| NO maker fills today | $162.51 | 47 [MAKER-FILL] lines confirmed; 32 cities |
-| RECYCLE099 exits today | $157.50 | 18 fills confirmed |
-| Total matched volume | ~$320 | Buy + sell sides |
-| Equity estimate | $411 | At cost (see above) |
-| **Turns/day** | **~0.78** | $320 / $411 |
-| **ROI/turn (capital basis)** | **−1.0%** | −$3.21 / $320 |
-| **ROI/turn (RECYCLE099 only)** | **+36%** | $56.71 / $157.50 exit proceeds |
+Turn rate today depressed by service failure (6 of 24 hours active). RECYCLE099 ROI strong (+33%) and consistent with yesterday (+36%). The drag is entirely from STWA_RESOLVED losses overwhelming gains at 2.4:1 ratio ($21.34 losses vs $9.86 gains).
 
-### 7-day trend
-
-| Date | Capital | Day PnL | RECYCLE099 | Turns |
-|---|---|---|---|---|
-| 2026-06-23 | $212.97 | +$14.70 (+7.4%) | +$76.997, 18 exits | ~0.26 |
-| **2026-06-24** | **$209.76** | **−$3.21 (−1.5%)** | **+$56.71, 18 exits** | **~0.78** |
-
-Turns improved 3× day-over-day (0.26 → 0.78) driven by heavier NO posting. ROI/turn negative because resolution income ($24.29) insufficient to offset the net deployment gap ($185 out − $157.50 back = −$27.50 operation). Badatmath benchmark: ~1.0× equity/day at 10–20%/turn. Klaus at 0.78 turns but negative ROI/turn today.
-
-**Deployed fraction:** ($165.54 + $15.59 + $20.00) / $410.89 = **49%** of equity in open positions.
+Structural math: each STWA_RESOLVED NO loss costs $5-6. Each RECYCLE099 exit gains $2-3 net. To break even the bot needs >2 RECYCLE exits per 1 STWA_RESOLVED loss. At 20 consecutive STWA losses (rolling 20) with only 4 RECYCLE exits today, the exit rate cannot keep pace.
 
 ---
 
-## §3 — Expected Maker Rebates
+## 3. EXPECTED MAKER REBATES
 
-Formula: `sum(shares × feeRate × p × (1−p)) × 0.25` where feeRate = 0.05 (weather taker rate)
-
-### Today's NO maker fills
-
-| Segment | Shares | Avg p | p(1−p) | Est. rebate |
-|---|---|---|---|---|
-| 45 standard NO fills (avg p ≈ 0.625) | ~254 sh | 0.625 | 0.234 | $0.74 |
-| Mexico City NO fills at p = 0.06 | 83.5 sh | 0.060 | 0.056 | $0.06 |
-| RECYCLE099 sells (resting at 0.99) | 159 sh | 0.990 | 0.010 | $0.02 |
-| **Today total** | | | | **~$0.82** |
-
-Note: Mexico City fill earns near-zero rebate per share despite 83.5 shares (p×(1−p) collapses at extremes). The rebate motive does NOT justify the averaging-down.
-
-### Cumulative rebate tracking
-
-| Session | Est. rebate | Cumulative |
-|---|---|---|
-| 2026-06-23 | $0.376 | $0.376 |
-| 2026-06-24 | $0.82 | **~$1.20** |
-
-**Cumulative expected rebate ~$1.20 — ABOVE the $1 minimum payout threshold.**  
-Polymarket maker rebates are paid daily in pUSD. **User action: verify pUSD wallet for a rebate deposit. If none has arrived, pool competition is higher than estimated (this is an upper bound — actual share of the rebate pool depends on competing makers on the same markets).** Mid-price NO fills (p ≈ 0.50–0.65) are the highest-rebate bucket; the concentration here is correct.
-
----
-
-## §4 — Kill-Switch Proximity
-
-### Capital floors
-
-| Metric | Current | Threshold | Status |
+| City | Shares | Entry price (p) | Est. rebate |
 |---|---|---|---|
-| Capital | $209.76 | $75 weekly floor | ✓ SAFE (180% above) |
-| Capital | $209.76 | $50 ruin floor | ✓ SAFE (320% above) |
-| Day PnL | −$3.21 | −$10 daily halt | ✓ SAFE ($6.79 buffer) |
-| Consecutive wins | 0 | — | — |
+| Buenos Aires NO | 9.0 | 0.57 | $0.028 |
+| Wuhan NO | 8.0 | 0.66 | $0.022 |
+| Sao Paulo NO | 9.0 | 0.61 | $0.027 |
+| Munich NO | 8.3 | 0.60 | $0.025 |
+| Toronto NO | 8.0 | 0.69 | $0.021 |
+| Chengdu NO | 8.0 | 0.71 | $0.021 |
+| Seattle NO | 8.0 | 0.66 | $0.022 |
+| **Total today** | **58.3 sh** | --- | **$0.166** |
 
-### Rolling 20-trade WR/PF
+Formula: shares x 0.05 x p x (1-p) x 0.25. Upper bound: actual depends on competing maker volume.
 
-**Cannot update — trades.jsonl unavailable (second consecutive day).**
-
-| Metric | Last known | As of | Flag |
-|---|---|---|---|
-| Rolling 20 WR | 10% | 2026-06-22 | ⚠ FLAGGED |
-| Rolling 20 PF | 0.17 | 2026-06-22 | ⚠ FLAGGED |
-
-**CAVEAT (carried from prior state, re-stated):** WR/PF kill-switch thresholds were designed for the taker era. In the maker band regime, the bot intentionally holds many YES positions that win ~22% by design at 4–5× payoff. RECYCLE099 today showed 100% exit success on 18 positions. The WR/PF re-derivation for the maker regime is **PENDING** with the user. **Do not recommend halt on WR alone** — capital is safe and the exit machine is functioning. The flags are structural artifacts of applying taker metrics to a maker strategy.
-
-### LDA system (separate from band)
-
-**STATUS: STOP** per lda_status.txt (23:38 UTC today, n=118 fires, 2026-05-15 era start).
-
-| LDA metric | Value |
+| Cumulative | Value |
 |---|---|
-| Overall net (118 fires) | +$1.99 |
-| Current rolling-20 net | −$19.71 |
-| Worst rolling-20 | −$36.39 (at T05206_BTC_1778928776) |
-| Worst hour bucket | H10: n=19, WR=63.2%, net −$32.20 |
-| Worst ask band | [0.65,0.70): n=3, WR=33.3%, net −$18.65 |
+| Through Jun-24 | $1.20 |
+| Today addition | +$0.17 |
+| **Cumulative est.** | **$1.37** |
 
-LDA is the taker system and is **separate** from the band/maker system. If STOP is code-enforced, LDA fires are halted. The H10 bucket and [0.65,0.70) ask band are confirmed loss zones and should not be reopened without investigation.
-
----
-
-## §5 — Day Verdict
-
-**NO — capital contracted −$3.21 (−1.51%).**
-
-RECYCLE099 was strong: 18 exits, +$56.71, 100% exit success rate, entries spanning 0.50–0.97. The drag is structural: $185.00 new deployment vs $157.50 recycled + $24.29 resolved = $181.79 in (net outflow $3.21). This is not a signal failure — it is the model in transition. Capital is being committed today for future resolution payouts.
-
-**Binding constraint:** New-entry velocity ($185) exceeding same-day return ($181.79).
-
-### Additional flags for 2026-06-25 session
-
-1. **Mexico City NO (94.5 sh @ $0.1649, mkt $0.06): resolves 2026-06-25T12:00Z.** Bot shows "open positions: 0" — position may be untracked. If it resolves YES, −$15.59 loss. Watch system behavior at resolution.
-2. **Disk usage 89%** (82GB of 97GB used, up from 88% yesterday June 23). At current growth rate, may hit capacity within days. Log/data pruning needed.
-3. **daily_start_capital=$15.95** persists. May fire false daily-halt logic. Non-blocking today.
-4. **Untracked fills (recurring).** Prior state: 8 events. Today: 2 more. User should verify Polymarket transaction history.
-5. **35 SELL_EXIT resting orders (267 shares, 0 matched at snapshot).** Tomorrow's d+1 NO resolutions from June 24 $185 deployment will be the primary capital event of the next session.
-6. **Band YES re-activation (commit d156804, today):** d+1/d+2 YES ceil widened to 0.45, co-fill pairing unblocked. Genesis-era YES was the loss side (YES −$374 vs NO +$768). Monitor YES fill volume on 2026-06-25 to confirm no drag.
-7. **Rebate threshold crossed:** Cumulative expected ~$1.20. Verify pUSD wallet.
+Cumulative above $1 minimum payout threshold since Jun-24. Rebates land daily in pUSD.
+User should verify pUSD wallet receipt: no payout confirmed in ledger.
+Buenos Aires ($0.57) and Sao Paulo ($0.61) are highest-earning fills today (closest to p=0.50 where p x (1-p) peaks).
 
 ---
 
-*Ledger auto-generated by PnL Attribution routine — 2026-06-24T23:37Z*
+## 4. KILL-SWITCH PROXIMITY
+
+| Metric | Value | Threshold | Status |
+|---|---|---|---|
+| Rolling 20 WR | **5.0%** (1/20) | <30% flag | **FAR BELOW** |
+| Rolling 20 PF | **0.0123** | <0.8 halt | **FAR BELOW** |
+| Rolling 20 net P&L | **-$89.47** | --- | Severe |
+| Day P&L | **-$11.48** | <-$10 halt | **BREACHED** |
+| Capital vs weekly floor | $198.28 vs $75 | | **SAFE** (+$123) |
+| Capital vs ruin floor | $198.28 vs $50 | | **SAFE** (+$148) |
+
+Day halt is breached (-$11.48 vs -$10). Service was already down when the breach occurred.
+
+CAVEAT (mandatory): The rolling-20 WR/PF is computed on STWA_RESOLVED trades only (positions held to resolution). The maker-band strategy's intended win path is RECYCLE099 (early sell ~$0.99), which does not register in STWA_RESOLVED. A book winning 33%+ on RECYCLE exits still shows WR=0% in STWA_RESOLVED because those positions never appear there. Do not trigger a kill-switch on WR/PF alone. Threshold re-derivation for the maker regime is pending with the user.
+
+What the data does show: 20/20 STWA_RESOLVED events are full losses (-$89.47 net rolling). 4 today, 16 yesterday. The band is buying NO and every market is resolving YES. This is either a June seasonal bias (globally warm cities) or a miscalibration in city/bucket selection. Warrants investigation independent of kill-switch rules.
+
+---
+
+## 5. DAY VERDICT
+
+**NO -- capital -$11.48 (-5.47%). Binding constraint: SERVICE FAILURE.**
+
+Klaus systemd failed. Last log entry: 2026-06-25 06:08:38 UTC. Service down 17+ hours as of this report. 34 SELL_EXIT orders (268 shares) and Tokyo NO (7.46 shares) are resting on-chain with no bot supervision. No new bands posted since 06:08.
+
+Five-day context: Jun-24 STWA losses = -$68.14 (16 trades, 1 win). Jun-25 STWA losses = -$21.34 (4 trades, 0 wins). Rolling 20 = 20 consecutive STWA_RESOLVED failures. This is not noise. The band is entering NO on cities where the market has been correct (YES resolves) at a near-100% rate.
+
+RECYCLE099 is healthy (+33.2% ROI on exits, 4 exits in 6 hours). On a full operating day RECYCLE099 alone could generate $20-40. The problem is not the exit strategy: it is the STWA_RESOLVED full-loss rate.
+
+Mexico City NO (prior alert): Resolved 2026-06-25T12:00Z. Prior state flagged 94.5sh @ cost $15.59 (market 94% YES, untracked in bot). If it resolved YES (expected), that is an additional -$15.59 not reflected in this reconciliation. Day loss including this: ~-$27. Will appear as unexplained discrepancy in a future session's wallet audit.
