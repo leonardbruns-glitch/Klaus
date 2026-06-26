@@ -1,36 +1,36 @@
 {
   "BAND_YES": {
     "n": 5905,
-    "n_prev": 5676,
+    "n_prev": 5905,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-24T12:15:09Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Rate ~225 YES legs/day. CI blocked (Gamma 403)."
+    "ts": "2026-06-26T08:56:21Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (last active 2026-06-24T08:04Z, STALL #2). Zero new trades since 2026-06-25 snapshot. Rate ~225 YES legs/day when live. CI blocked (Gamma 403)."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 213,
-    "n_prev": 177,
+    "n_prev": 213,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-24T12:15:09Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Rate ~30 NO legs/day. CI blocked (Gamma 403)."
+    "ts": "2026-06-26T08:56:21Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (STALL #2). Rate ~30 NO legs/day when live. CI blocked (Gamma 403)."
   },
   "FILLED_VS_FIRED": {
     "n": 97,
-    "n_prev": 102,
+    "n_prev": 97,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-24T12:15:09Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). 7d rolling window, 97 unique fills. CI blocked (Gamma 403)."
+    "ts": "2026-06-26T08:56:21Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (STALL #2). 7d rolling window, 97 unique fills — window will shrink if downtime continues past 2026-06-28. CI blocked (Gamma 403)."
   },
   "BASKET_EXIT": {
     "n": 33,
@@ -40,7 +40,7 @@
     "ci95": [-45.1, 336.1],
     "wr": 1.0,
     "resolved": 33,
-    "ts": "2026-06-24T12:15:09Z",
+    "ts": "2026-06-26T08:56:21Z",
     "note": "GATE RETIRED (state_log Jun22T07:35). 4 fatal flaws: WR=100% tautological; 95% single-leg RECYCLE099 winners mislabeled; CI invalid; wrong metric. Status VOID permanently."
   },
   "THERMO_MAKER_NO": {
@@ -51,8 +51,8 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "ts": "2026-06-24T12:15:09Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Engine PAUSED Jun23 18:40. Kill gate n=20 unreachable at 0 fills/day."
+    "ts": "2026-06-26T08:56:21Z",
+    "note": "Carried from prior run. Engine PAUSED Jun23 18:40 (THERMO_MAKER_LIVE=False). Kill gate n=20 unreachable at 0 fills/day. Downtime compounds the delay."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,26 +62,30 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-06-24T12:15:09Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). STALLED 13+ days. Recommend REVERT to 0.5C floor per standing rule."
+    "ts": "2026-06-26T08:56:21Z",
+    "note": "Carried from prior run. STALLED 15+ days. Standing rule: if n<100 after extended stall, REVERT to 0.5C floor. No CI conclusion possible at n=31. Recommend REVERT on restart."
   },
   "SUM_POSTED_0.70_0.85": {
     "n": 2954,
-    "n_prev": 2824,
+    "n_prev": 2954,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-24T12:15:09Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown at 2026-06-25T09:20Z (STALL). Rate ~130 new legs/day. CI blocked (Gamma 403)."
+    "ts": "2026-06-26T08:56:21Z",
+    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (STALL #2). Rate ~130 new legs/day when live. CI blocked (Gamma 403)."
   },
   "_run_meta": {
-    "run_ts": "2026-06-25T09:20:37Z",
-    "abort_reason": "system_status.txt = 'failed / unknown' (not 'active')",
-    "snapshot_ts": "2026-06-25T08:56:36Z",
-    "snapshot_age_min": 24,
+    "run_ts": "2026-06-26T08:56:21Z",
+    "abort_reason": "system_status.txt = 'failed / unknown' (not 'active') — STALL #2 consecutive",
+    "snapshot_ts": "2026-06-26T08:56:21Z",
+    "snapshot_age_min": "<15",
     "bankroll": 198.28,
-    "open_positions": 0
+    "open_positions": 0,
+    "trades_jsonl_rows": 7964,
+    "bot_last_active_ts": "2026-06-24T08:04:37Z",
+    "downtime_hours": 49,
+    "stall_count_consecutive": 2
   }
 }
