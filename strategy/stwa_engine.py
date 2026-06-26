@@ -391,6 +391,19 @@ BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint
                                     # daily posted-budget effectively OFF; bankroll + breaker are the
                                     # only limits. Was 40.0 (first-hour training wheels).
 
+# ── NARROW-START EXECUTION FIX (2026-06-26 — onlyluck teardown + our markout curve) ──
+# Decision-grade: our live fills are adverse and concentrate at settlement-day convergence
+# (51% of $ fills at d+0 vs onlyluck 1%; we POST d+1/d+2 ~90% but FILL d+0 85-96% in western
+# cities = picked off when the book converges). Realized markout-to-resolution by hours-to-
+# local-settle (n=1,421): 6-12h −23%, 12-48h −12..−18%, ONLY 48h+ +10.7%. YES is +EV ONLY
+# when filled 48h+ out; −22..−51% later. Fix: post YES on fresh d+2 only; NO on d+1/d+2 (drop
+# the d+0 band — d+0 stays lockout-NO); trade only the clean-fill cities whose convergence
+# falls in our active UTC hours (chengdu/london +9..+28% realized n≥60 vs seattle/SF −17/−28%).
+# Extend coverage as capital AND per-city n≥100 markout clear — NOT by adding cities.
+BAND_YES_LIVE_MIN_DOUT = 2          # YES posts ONLY at d+2 (the only +EV fill window). Was MD_LIVE_MIN_DOUT (0).
+BAND_NO_MIN_DOUT       = 1          # NO band posts d+1/d+2 only — drop d+0 (lockout-NO still owns d+0). Was 0.
+BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan"}  # narrow-start clean set; empty=all cities
+
 # ── FAVORITE-NO overlay (2026-06-10; REWORKED 2026-06-11 per re-audit) ───────
 # His NO leg is HALF the book (~$18/event, equal to YES) and the other half of
 # the pair-quoting structure. Curve (post-05-04, n≥100): 0.50-0.65 +8.6%

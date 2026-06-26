@@ -2687,7 +2687,8 @@ class WeatherArb:
         from strategy.stwa_engine import (
             BAND_PX_MIN, BAND_PX_CEIL, BAND_PX_CEIL_D0, BAND_WING, BAND_SUM_MAX, BAND_MIN_LEGS,
             BAND_BELL, BAND_QUOTE_FRAC, BAND_MD_HORIZON, BAND_LIVE,
-            BAND_MD_LIVE_MIN_DOUT, YES_SIGMA_CUTOFF, _peak_sigma_for,
+            BAND_MD_LIVE_MIN_DOUT, BAND_YES_LIVE_MIN_DOUT, BAND_CITY_ALLOW,
+            YES_SIGMA_CUTOFF, _peak_sigma_for,
             BAND_YES_MAX_OFF, BAND_YES_MAX_OFF_D0, band_stakes,
             BAND_REALBOOK_YES, BAND_PAIR_FAV_ENABLED, BAND_PAIR_FAV_YES_MIN,
             BAND_PAIR_FAV_YES_MAX, BAND_PAIR_FAV_SUM_MAX, BAND_PX_MIN_MD,
@@ -2723,6 +2724,13 @@ class WeatherArb:
         for ev in events:
             city = _parse_city(ev.get("title", ""))
             if not city:
+                continue
+            # NARROW-START (2026-06-26): band trades only the clean-fill city set
+            # (BAND_CITY_ALLOW). Empty set = all cities. Bleeder cities (seattle/SF/…
+            # −17..−28% realized, convergence in our overnight-UTC dead window) are
+            # excluded until the cancel-rule fix clears their markout. Lockout-NO and
+            # other strategies are unaffected (separate paths).
+            if BAND_CITY_ALLOW and (city or "").lower().replace(" ", "-") not in BAND_CITY_ALLOW:
                 continue
             icao = CITY_ICAO.get(city)
             _tz_h = ICAO_UTC_OFFSET_H.get(icao or "", 0)
@@ -2904,7 +2912,10 @@ class WeatherArb:
             # true distribution is exactly where the market over-disperses most).
             # Convergence + Σ + price gates already protect the −EV slices
             # (convergence-rejected near-mode YES verified at −34.5%). Revert: git.
-            _live_ok = BAND_LIVE and days_out >= BAND_MD_LIVE_MIN_DOUT
+            # NARROW-START (2026-06-26): YES posts ONLY at d+2 — the markout curve's
+            # only +EV fill window (48h+ = +10.7%; d+1/d+0 fills −12..−51%). Was
+            # BAND_MD_LIVE_MIN_DOUT (0 = d+0 live). d+0 band YES is gone entirely.
+            _live_ok = BAND_LIVE and days_out >= BAND_YES_LIVE_MIN_DOUT
             quotes = []
             for lo, hi, tok, ay, mkt in band:
                 off = abs(int(round(lo - mode_lo)))
@@ -2971,6 +2982,7 @@ class WeatherArb:
         from strategy.stwa_engine import (BAND_NO_ENABLED, BAND_NO_MIN,
                                           BAND_NO_MAX,
                                           band_no_daily_cap, BAND_NO_MAX_DOUT,
+                                          BAND_NO_MIN_DOUT,
                                           BAND_NO_SKIP_OFF1, BAND_PAIR_SUM_MAX,
                                           BAND_NO_CASH_RESERVE,
                                           BAND_PROPORTIONAL_QUEUE,
@@ -2999,7 +3011,10 @@ class WeatherArb:
             for (city, ed), ladder in ladders.items():
                 days_out = (date.fromisoformat(ed)
                             - date.fromisoformat(meta[(city, ed)])).days
-                if not (0 <= days_out <= BAND_NO_MAX_DOUT):
+                # NARROW-START (2026-06-26): NO band posts d+1/d+2 only (drop d+0 —
+                # its fills are −21% inside the final 12h). d+0 NO stays the lockout
+                # path (separate). Was 0 <= days_out.
+                if not (BAND_NO_MIN_DOUT <= days_out <= BAND_NO_MAX_DOUT):
                     continue
                 # 2026-06-11 audit: FULL ladder incl. EDGE buckets (or-below /
                 # or-higher) — his NO 0.52-0.85 on edges +5.7% (n=438) ≈ interiors
