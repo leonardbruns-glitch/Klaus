@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-06-26T00:38:05.975351+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Will T\\u00fcrkiye vs. United States end in a draw?\", \"condition_id\": \"0xdc34b1a1507fb269c41fb4750880a7774d396f00b76e95c5746c9fe454e6085c\", \"fav_token\": \"4741443406566363029118314931261710091879679632794837",
-      "mtime_utc": "2026-06-26T00:38:09Z",
-      "n_rows": 389827,
-      "size_bytes": 240684402
+      "last_excerpt": "{\"ts\": \"2026-06-26T00:53:15.667622+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Chicago Cubs vs. New York Mets\", \"condition_id\": \"0x1ad4002cb09c738a5a1a5d0a3875fa64d8515f38859f760f21f9fe01c7ae41d7\", \"fav_token\": \"584646710646415327384910326036214449096271162007503583854205613642566640",
+      "mtime_utc": "2026-06-26T00:53:18Z",
+      "n_rows": 390022,
+      "size_bytes": 240803697
     },
     "hot/2026-06-15/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1781481601.418205, \"record\": \"fill_join\", \"fill_ts\": 1781481483, \"detect_lag_s\": 118.4, \"title\": \"Will the highest temperature in Busan be 27\\u00b0C on June 15?\", \"event\": \"highest-temperature-in-busan-on-june-15-2026\", \"outcome\": \"Yes\", \"price\": 0.12, \"size\": 227.272725, \"usdc\": 27.272727, \"",
@@ -2466,31 +2466,31 @@
     },
     "hot/2026-06-26/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1782432001.9078643, \"record\": \"fill_join\", \"fill_ts\": 1782431872, \"detect_lag_s\": 129.9, \"title\": \"Will the highest temperature in Denver be between 86-87\\u00b0F on\", \"event\": \"highest-temperature-in-denver-on-june-26-2026\", \"outcome\": \"Yes\", \"price\": 0.33, \"size\": 3.59, \"usdc\": 1.1847, \"cid\"",
-      "last_excerpt": "{\"ts\": 1782434282.0621774, \"record\": \"ladder\", \"event\": \"highest-temperature-in-beijing-on-june-26-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"C or below on June 26?\", \"bids\": [[0.004, 2706.61], [0.003, 500.0], [0.002, 137.06]], \"asks\": [[0.01, 10.0], [0.013, 76.7], [0.019, 24.0]]}, {\"q\": \"ng be 31\\u00",
-      "mtime_utc": "2026-06-26T00:38:07Z",
-      "n_rows": 330,
-      "size_bytes": 262382
+      "last_excerpt": "{\"ts\": 1782435121.853639, \"record\": \"ladder\", \"event\": \"highest-temperature-in-taipei-on-june-26-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"C or below on June 26?\", \"bids\": [], \"asks\": [[0.002, 623.17], [0.004, 229.6], [0.005, 193.96]]}, {\"q\": \"ei be 23\\u00b0C on June 26?\", \"bids\": [], \"asks\": [[0.001",
+      "mtime_utc": "2026-06-26T00:52:02Z",
+      "n_rows": 395,
+      "size_bytes": 315598
     },
     "hot/2026-06-26/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-06-26T00:00:01.887517+00:00\", \"question\": \"Will there be 8 or fewer earthquakes of magnitude 7.0 or higher worldwide by June 30?\", \"mag_threshold\": 7.0, \"window_start\": \"2025-12-04T12:00:00-05:00\", \"count\": 10, \"so",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"precip\", \"ts_utc\": \"2026-06-26T00:35:01.824378+00:00\", \"question\": \"Will Seattle have between 0.5 and 1 inches of precipitation in June?\", \"station\": \"KSEA\", \"mtd_inches\": 1.0, \"bucket_lo\": 0.5, \"bucket_hi\": 1.0, \"status\": \"SOFT_NO\", \"bes",
-      "mtime_utc": "2026-06-26T00:35:10Z",
-      "n_rows": 47,
-      "size_bytes": 32489
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"precip\", \"ts_utc\": \"2026-06-26T00:50:01.900223+00:00\", \"question\": \"Will Seattle have less than 0.5 inches of precipitation in June?\", \"station\": \"KSEA\", \"mtd_inches\": 1.0, \"bucket_lo\": 0.0, \"bucket_hi\": 0.5, \"status\": \"HARD_NO\", \"best_bi",
+      "mtime_utc": "2026-06-26T00:50:12Z",
+      "n_rows": 65,
+      "size_bytes": 44902
     },
     "hot/2026-06-26/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1782432070.7972279, \"cid\": \"0x82ea54945532e5f399428add155eda56e29a495594b8689955b7ecbb7ca83c28\", \"q\": \"Will the lowest temperature in Hong Kong be 28\\u00b0C on June 25?\", \"proxyWallet\": \"0xefa00b0871fe4345b4b2834e9aa2b4e07f11a9db\", \"side\": \"SELL\", \"asset\": \"359468891396070424197300717440",
-      "last_excerpt": "{\"poll_ts\": 1782434272.286645, \"cid\": \"0x7ecb1dd855500aa0204c93fdf6b1ed5ff51a4a50fb561bb9be2816afee4b167a\", \"q\": \"Will the highest temperature in Helsinki be 21\\u00b0C on June 27?\", \"proxyWallet\": \"0xef2ea323fc70b2f6309476bea08fddad2dce3ee3\", \"side\": \"BUY\", \"asset\": \"73319947434718593313061974202864",
-      "mtime_utc": "2026-06-26T00:37:54Z",
-      "n_rows": 4385,
-      "size_bytes": 4678180
+      "last_excerpt": "{\"poll_ts\": 1782435173.4821277, \"cid\": \"0x47d853d2bb748c8578463ab735fa68aa4f885d8890e57f0d73b0c926b101e6e0\", \"q\": \"Will the highest temperature in Amsterdam be 36\\u00b0C on June 27?\", \"proxyWallet\": \"0xef2ea323fc70b2f6309476bea08fddad2dce3ee3\", \"side\": \"BUY\", \"asset\": \"899035732921262330538031910100",
+      "mtime_utc": "2026-06-26T00:52:55Z",
+      "n_rows": 5535,
+      "size_bytes": 5912538
     },
     "hot/2026-06-26/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-26T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-06-26\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on June 26?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 2.025, \"coverage_best\": {\"t\": 33, \"cost\": 2.126, \"n_legs\": 15, \"units_fillable\": 112.3, \"legs\":",
-      "last_excerpt": "{\"ts\": \"2026-06-26T00:20:01+00:00\", \"city\": \"paris\", \"date\": \"2026-06-27\", \"unit\": \"c\", \"title\": \"Lowest temperature in Paris on June 27?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.048, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
-      "mtime_utc": "2026-06-26T00:20:40Z",
-      "n_rows": 34,
-      "size_bytes": 157888
+      "last_excerpt": "{\"ts\": \"2026-06-26T00:40:02+00:00\", \"city\": \"paris\", \"date\": \"2026-06-27\", \"unit\": \"c\", \"title\": \"Lowest temperature in Paris on June 27?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.05, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
+      "mtime_utc": "2026-06-26T00:40:48Z",
+      "n_rows": 51,
+      "size_bytes": 235411
     },
     "met_adjustments.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-05-21T19:40:55Z\", \"city\": \"Seattle\", \"icao\": \"KSEA\", \"marine\": {\"active\": false}, \"cirrus\": {\"active\": true, \"f_sky_raw\": 0.3, \"f_sky_adj\": 0.6}, \"latent_heat\": {\"active\": false}, \"mu_baseline\": 19.98, \"mu_final\": 21.06, \"total_delta\": 1.08}",
@@ -2500,5 +2500,5 @@
       "size_bytes": 3629292
     }
   },
-  "snapshot_ts": "2026-06-26T00:38:20Z"
+  "snapshot_ts": "2026-06-26T00:53:34Z"
 }
