@@ -1,36 +1,36 @@
 {
   "BAND_YES": {
-    "n": 5905,
+    "n": 5924,
     "n_prev": 5905,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-26T08:56:21Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (last active 2026-06-24T08:04Z, STALL #2). Zero new trades since 2026-06-25 snapshot. Rate ~225 YES legs/day when live. CI blocked (Gamma 403)."
+    "ts": "2026-06-27T10:30:00Z",
+    "note": "CI blocked (Gamma 403). Bot live since Jun26 15:08; +19 legs from Jun26/27 shadow files (narrow-start regime: d+2 only, 5-city allowlist, ~17 legs/day). VPS-side: YES +7.6% at n=3418 resolved (Jun17 entry)."
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 213,
+    "n": 227,
     "n_prev": 213,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-26T08:56:21Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (STALL #2). Rate ~30 NO legs/day when live. CI blocked (Gamma 403)."
+    "ts": "2026-06-27T10:30:00Z",
+    "note": "CI blocked (Gamma 403). +14 fires from Jun26/27 shadow (NO: d+1/d+2, BAND_NO_SKIP_OFF1=True). VPS-side: NO +3.7% at n=3418 resolved (Jun17 entry)."
   },
   "FILLED_VS_FIRED": {
-    "n": 97,
+    "n": 37,
     "n_prev": 97,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-26T08:56:21Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (STALL #2). 7d rolling window, 97 unique fills — window will shrink if downtime continues past 2026-06-28. CI blocked (Gamma 403)."
+    "ts": "2026-06-27T10:30:00Z",
+    "note": "7d rolling window. n shrank 97->37: 49h bot stall (Jun24 08:04 - Jun26 15:08) + window rollover evicted pre-stall fills. 37 unique registered fills in Jun24-27 maker_fills_recent.log. CI blocked (Gamma 403)."
   },
   "BASKET_EXIT": {
     "n": 33,
@@ -51,41 +51,57 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "ts": "2026-06-26T08:56:21Z",
-    "note": "Carried from prior run. Engine PAUSED Jun23 18:40 (THERMO_MAKER_LIVE=False). Kill gate n=20 unreachable at 0 fills/day. Downtime compounds the delay."
+    "ts": "2026-06-27T10:30:00Z",
+    "note": "Engine PAUSED Jun23 18:40 (THERMO_MAKER_LIVE=False). Kill gate n=20 unreachable at 0 fills/day. Jun27 shadow dir missing thermo_maker.jsonl entirely. CI barely straddles 0."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
     "n_prev": 31,
-    "status": "COLLECTING",
+    "status": "AMBIGUOUS",
     "roi": -0.6,
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-06-26T08:56:21Z",
-    "note": "Carried from prior run. STALLED 15+ days. Standing rule: if n<100 after extended stall, REVERT to 0.5C floor. No CI conclusion possible at n=31. Recommend REVERT on restart."
+    "ts": "2026-06-27T10:30:00Z",
+    "note": "STALLED 15+ days. metar_lockout.jsonl absent all shadow dirs Jun22-27. CI straddles 0 = AMBIGUOUS. Standing rule triggered: REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C. Human action required — do NOT implement automatically."
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 2954,
+    "n": 2958,
     "n_prev": 2954,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-26T08:56:21Z",
-    "note": "Carried from prior run. No update: bot systemd failed/unknown 49h (STALL #2). Rate ~130 new legs/day when live. CI blocked (Gamma 403)."
+    "ts": "2026-06-27T10:30:00Z",
+    "note": "CI blocked (Gamma 403). +4 legs: Chengdu Jun29 d2 sum_posted=0.735 in [0.70,0.85] band. New regime: narrow-start ~4-5 eligible legs/day."
   },
   "_run_meta": {
-    "run_ts": "2026-06-26T08:56:21Z",
-    "abort_reason": "system_status.txt = 'failed / unknown' (not 'active') — STALL #2 consecutive",
-    "snapshot_ts": "2026-06-26T08:56:21Z",
-    "snapshot_age_min": "<15",
-    "bankroll": 198.28,
+    "run_ts": "2026-06-27T10:30:00Z",
+    "snapshot_ts": "2026-06-27T08:54:46Z",
+    "snapshot_age_min": 96,
+    "bankroll": 61.16,
+    "bankroll_prev": 198.28,
     "open_positions": 0,
-    "trades_jsonl_rows": 7964,
-    "bot_last_active_ts": "2026-06-24T08:04:37Z",
-    "downtime_hours": 49,
-    "stall_count_consecutive": 2
+    "trades_jsonl_rows": 8002,
+    "bot_status": "active",
+    "bot_restarted_ts": "2026-06-26T15:08:30Z",
+    "prior_downtime_hours": 49,
+    "stall_count_consecutive": 0,
+    "newly_ready": [],
+    "newly_rejected": [],
+    "structural_blockers": [
+      "Gamma API 403 from cloud container — ROI/CI blocked for BAND_YES, BAND_NO_PAIR_FAV, FILLED_VS_FIRED, SUM_POSTED",
+      "THERMO_MAKER_LIVE=False — kill gate n=20 unreachable at rate=0",
+      "metar_lockout.jsonl absent all shadow dirs Jun22-27 — M1_BETA_LOCKOUT stalled 15+ days"
+    ],
+    "proposed_actions": [
+      {
+        "gate": "M1_BETA_LOCKOUT",
+        "action": "REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C",
+        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 15+ days, shadow logger absent, standing rule triggered",
+        "human_required": true
+      }
+    ]
   }
 }
