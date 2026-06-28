@@ -1,47 +1,47 @@
 {
   "BAND_YES": {
-    "n": 5924,
-    "n_prev": 5905,
+    "n": 5978,
+    "n_prev": 5924,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-27T10:30:00Z",
-    "note": "CI blocked (Gamma 403). Bot live since Jun26 15:08; +19 legs from Jun26/27 shadow files (narrow-start regime: d+2 only, 5-city allowlist, ~17 legs/day). VPS-side: YES +7.6% at n=3418 resolved (Jun17 entry)."
+    "ts": "2026-06-28T09:07:00Z",
+    "note": "CI blocked (Gamma 403). +54 legs from Jun27/28 shadow (narrow-start: d+2 YES only, 5-city allowlist, ~54/day rate). VPS-side context: YES +7.6% at n=3418 resolved (Jun17 entry) — informational only."
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 227,
-    "n_prev": 213,
+    "n": 237,
+    "n_prev": 227,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-27T10:30:00Z",
-    "note": "CI blocked (Gamma 403). +14 fires from Jun26/27 shadow (NO: d+1/d+2, BAND_NO_SKIP_OFF1=True). VPS-side: NO +3.7% at n=3418 resolved (Jun17 entry)."
+    "ts": "2026-06-28T09:07:00Z",
+    "note": "CI blocked (Gamma 403). +10 fires from Jun27/28 shadow (NO: d+1/d+2 off=0, BAND_NO_SKIP_OFF1=True, 5-city allowlist, ~10/day rate)."
   },
   "FILLED_VS_FIRED": {
-    "n": 37,
-    "n_prev": 97,
+    "n": 47,
+    "n_prev": 37,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-27T10:30:00Z",
-    "note": "7d rolling window. n shrank 97->37: 49h bot stall (Jun24 08:04 - Jun26 15:08) + window rollover evicted pre-stall fills. 37 unique registered fills in Jun24-27 maker_fills_recent.log. CI blocked (Gamma 403)."
+    "ts": "2026-06-28T09:07:00Z",
+    "note": "n crossed >=40 WATCH threshold this run (37->47). +10 unique registered fills: Jun27 London NO x3, Chengdu NO, Wuhan NO; Jun28 Munich NO, London NO, Chengdu YES, Chengdu NO, Beijing NO. All WEATHER_STRUCT_BAND entry class. CI blocked (Gamma 403). Exec Auditor should flag winner's-curse check once Gamma accessible."
   },
   "BASKET_EXIT": {
-    "n": 33,
-    "n_prev": 33,
+    "n": null,
+    "n_prev": null,
     "status": "VOID",
-    "roi": 145.5,
-    "ci95": [-45.1, 336.1],
-    "wr": 1.0,
-    "resolved": 33,
+    "roi": null,
+    "ci95": [null, null],
+    "wr": null,
+    "resolved": null,
     "ts": "2026-06-26T08:56:21Z",
-    "note": "GATE RETIRED (state_log Jun22T07:35). 4 fatal flaws: WR=100% tautological; 95% single-leg RECYCLE099 winners mislabeled; CI invalid; wrong metric. Status VOID permanently."
+    "note": "GATE PERMANENTLY RETIRED (state_log Jun22T07:35). 4 fatal flaws: WR=100% tautological; 95% single-leg RECYCLE099 winners mislabeled; CI invalid; wrong metric. Status VOID — not revisited."
   },
   "THERMO_MAKER_NO": {
     "n": 3,
@@ -51,8 +51,8 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "ts": "2026-06-27T10:30:00Z",
-    "note": "Engine PAUSED Jun23 18:40 (THERMO_MAKER_LIVE=False). Kill gate n=20 unreachable at 0 fills/day. Jun27 shadow dir missing thermo_maker.jsonl entirely. CI barely straddles 0."
+    "ts": "2026-06-28T09:07:00Z",
+    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). 0 fills/day. Kill gate n=20 unreachable. CI barely straddles 0 — noise at n=3, not a green signal. thermo_maker.jsonl today has 10195 candidate records, 0 fire/placed records."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,46 +62,52 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-06-27T10:30:00Z",
-    "note": "STALLED 15+ days. metar_lockout.jsonl absent all shadow dirs Jun22-27. CI straddles 0 = AMBIGUOUS. Standing rule triggered: REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C. Human action required — do NOT implement automatically."
+    "ts": "2026-06-28T09:07:00Z",
+    "note": "STALLED 16 days. metar_lockout.jsonl today = 4321 metar_lockout_candidate records only; 0 placed/fired records. Logger is running but M1 probe generates no live orders. CI straddles 0 = AMBIGUOUS. Standing rule triggered (stalled >2 weeks): REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C. Human action required — do NOT implement automatically."
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 2958,
-    "n_prev": 2954,
+    "n": 2964,
+    "n_prev": 2958,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-27T10:30:00Z",
-    "note": "CI blocked (Gamma 403). +4 legs: Chengdu Jun29 d2 sum_posted=0.735 in [0.70,0.85] band. New regime: narrow-start ~4-5 eligible legs/day."
+    "ts": "2026-06-28T09:07:00Z",
+    "note": "CI blocked (Gamma 403). +6 fires from Jun27/28 shadow where sum_posted in [0.70,0.85]. Narrow-start regime yields ~6/day eligible fires. Accumulating toward resolution join."
   },
   "_run_meta": {
-    "run_ts": "2026-06-27T10:30:00Z",
-    "snapshot_ts": "2026-06-27T08:54:46Z",
-    "snapshot_age_min": 96,
-    "bankroll": 61.16,
-    "bankroll_prev": 198.28,
-    "open_positions": 0,
-    "trades_jsonl_rows": 8002,
+    "run_ts": "2026-06-28T09:07:00Z",
+    "snapshot_ts": "2026-06-28T08:55:16Z",
+    "snapshot_age_min": 12,
+    "bankroll": 79.19,
+    "bankroll_prev": 61.16,
+    "open_positions": 9,
+    "maker_resting": 4,
+    "sell_exit_resting": 9,
+    "total_maker_fills_7d": 22,
+    "new_fills_since_prev": 10,
     "bot_status": "active",
     "bot_restarted_ts": "2026-06-26T15:08:30Z",
-    "prior_downtime_hours": 49,
-    "stall_count_consecutive": 0,
     "newly_ready": [],
     "newly_rejected": [],
+    "state_transitions": ["FILLED_VS_FIRED n=47 crossed >=40 watch threshold"],
     "structural_blockers": [
       "Gamma API 403 from cloud container — ROI/CI blocked for BAND_YES, BAND_NO_PAIR_FAV, FILLED_VS_FIRED, SUM_POSTED",
       "THERMO_MAKER_LIVE=False — kill gate n=20 unreachable at rate=0",
-      "metar_lockout.jsonl absent all shadow dirs Jun22-27 — M1_BETA_LOCKOUT stalled 15+ days"
+      "metar_lockout.jsonl candidates-only — M1_BETA_LOCKOUT stalled 16 days"
     ],
     "proposed_actions": [
       {
         "gate": "M1_BETA_LOCKOUT",
         "action": "REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C",
-        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 15+ days, shadow logger absent, standing rule triggered",
-        "human_required": true
+        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 16 days, shadow logger logs candidates only with 0 placed orders, standing rule triggered",
+        "human_required": true,
+        "standing_since": "2026-06-27T10:30Z"
       }
+    ],
+    "advisory": [
+      "FILLED_VS_FIRED n=47 >= 40 watch threshold: Exec Auditor should check filled-leg ROI vs all-fires ROI for winner's-curse once Gamma accessible (VPS-side)"
     ]
   }
 }
