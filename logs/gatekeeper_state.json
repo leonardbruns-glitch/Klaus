@@ -1,36 +1,36 @@
 {
   "BAND_YES": {
-    "n": 5978,
-    "n_prev": 5924,
+    "n": 5999,
+    "n_prev": 5978,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-28T09:07:00Z",
-    "note": "CI blocked (Gamma 403). +54 legs from Jun27/28 shadow (narrow-start: d+2 YES only, 5-city allowlist, ~54/day rate). VPS-side context: YES +7.6% at n=3418 resolved (Jun17 entry) — informational only."
+    "ts": "2026-06-29T09:13:00Z",
+    "note": "CI blocked (Gamma 403). +21 legs since prior run (4 from Jun28 afternoon, 17 from Jun29 morning). Regime: d+2 YES only, 5-city allowlist, rate ~19/day. VPS informational: YES +7.6% at n=3418 resolved (Jun17) — unverifiable from cloud. STRUCT-BAND-Q posted=0 Jun29 morning (NO-only P1 mode, correct)."
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 237,
-    "n_prev": 227,
+    "n": 243,
+    "n_prev": 237,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-28T09:07:00Z",
-    "note": "CI blocked (Gamma 403). +10 fires from Jun27/28 shadow (NO: d+1/d+2 off=0, BAND_NO_SKIP_OFF1=True, 5-city allowlist, ~10/day rate)."
+    "ts": "2026-06-29T09:13:00Z",
+    "note": "CI blocked (Gamma 403). +5 fire_no legs + 1 pair_fav leg since prior run. Fire count 243 >> threshold 100. Awaiting resolution truth. Moscow NO fill Jun28 12:06 @ 0.93: legacy pre-Jun26 position (city not in BAND_CITY_ALLOW), filled post-narrow-start — not a filter bug. Rate ~5.5/day."
   },
   "FILLED_VS_FIRED": {
-    "n": 47,
-    "n_prev": 37,
+    "n": 60,
+    "n_prev": 47,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-28T09:07:00Z",
-    "note": "n crossed >=40 WATCH threshold this run (37->47). +10 unique registered fills: Jun27 London NO x3, Chengdu NO, Wuhan NO; Jun28 Munich NO, London NO, Chengdu YES, Chengdu NO, Beijing NO. All WEATHER_STRUCT_BAND entry class. CI blocked (Gamma 403). Exec Auditor should flag winner's-curse check once Gamma accessible."
+    "ts": "2026-06-29T09:13:00Z",
+    "note": "n=60 fills (+13 since prior run). >40 watch threshold active. 13 new fills: Jun28 Beijing/Moscow/London x2/Wuhan x2/Chengdu x2, Jun29 Beijing/Munich/Chengdu/London. Moscow NO = legacy pre-city-filter position. CI blocked (Gamma 403). At ~11.8 fills/day, n=100 in ~3 days. Exec Auditor should schedule VPS-side resolution join."
   },
   "BASKET_EXIT": {
     "n": null,
@@ -40,7 +40,7 @@
     "ci95": [null, null],
     "wr": null,
     "resolved": null,
-    "ts": "2026-06-26T08:56:21Z",
+    "ts": "2026-06-22T07:35:00Z",
     "note": "GATE PERMANENTLY RETIRED (state_log Jun22T07:35). 4 fatal flaws: WR=100% tautological; 95% single-leg RECYCLE099 winners mislabeled; CI invalid; wrong metric. Status VOID — not revisited."
   },
   "THERMO_MAKER_NO": {
@@ -51,8 +51,8 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "ts": "2026-06-28T09:07:00Z",
-    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). 0 fills/day. Kill gate n=20 unreachable. CI barely straddles 0 — noise at n=3, not a green signal. thermo_maker.jsonl today has 10195 candidate records, 0 fire/placed records."
+    "ts": "2026-06-29T09:13:00Z",
+    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). 0 fills/day. Kill gate n=20 unreachable. CI barely straddles 0 — noise at n=3, not signal. thermo_maker.jsonl today has 12562 candidate records, 0 fire/placed. Stalled indefinitely."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,52 +62,54 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-06-28T09:07:00Z",
-    "note": "STALLED 16 days. metar_lockout.jsonl today = 4321 metar_lockout_candidate records only; 0 placed/fired records. Logger is running but M1 probe generates no live orders. CI straddles 0 = AMBIGUOUS. Standing rule triggered (stalled >2 weeks): REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C. Human action required — do NOT implement automatically."
+    "ts": "2026-06-29T09:13:00Z",
+    "note": "STALLED 17 days. metar_lockout.jsonl today = 3500 metar_lockout_candidate records only; 0 placed/fired records. Logger running but M1 probe generates no live orders. CI straddles 0 = AMBIGUOUS. Standing rule (stalled >2 weeks — REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C) first triggered Jun13, proposed Jun27, still unactioned. Human action required — do NOT implement automatically."
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 2964,
-    "n_prev": 2958,
+    "n": 2982,
+    "n_prev": 2964,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-28T09:07:00Z",
-    "note": "CI blocked (Gamma 403). +6 fires from Jun27/28 shadow where sum_posted in [0.70,0.85]. Narrow-start regime yields ~6/day eligible fires. Accumulating toward resolution join."
+    "ts": "2026-06-29T09:13:00Z",
+    "note": "CI blocked (Gamma 403). +18 YES fires where sum_posted in [0.70,0.85] since prior run. Fire count 2982 >> threshold 100. Rate ~16.4/day. Awaiting Gamma resolution for ROI/CI join."
   },
   "_run_meta": {
-    "run_ts": "2026-06-28T09:07:00Z",
-    "snapshot_ts": "2026-06-28T08:55:16Z",
-    "snapshot_age_min": 12,
-    "bankroll": 79.19,
-    "bankroll_prev": 61.16,
-    "open_positions": 9,
-    "maker_resting": 4,
-    "sell_exit_resting": 9,
-    "total_maker_fills_7d": 22,
-    "new_fills_since_prev": 10,
+    "run_ts": "2026-06-29T09:13:00Z",
+    "snapshot_ts": "2026-06-29T09:05:26Z",
+    "snapshot_age_min": 8,
+    "bankroll": 80.98,
+    "bankroll_prev": 79.19,
+    "open_positions": 0,
+    "maker_resting": 13,
+    "sell_exit_resting": 13,
+    "total_maker_fills_7d": 35,
+    "new_fills_since_prev": 13,
     "bot_status": "active",
     "bot_restarted_ts": "2026-06-26T15:08:30Z",
     "newly_ready": [],
     "newly_rejected": [],
-    "state_transitions": ["FILLED_VS_FIRED n=47 crossed >=40 watch threshold"],
+    "state_transitions": [],
     "structural_blockers": [
       "Gamma API 403 from cloud container — ROI/CI blocked for BAND_YES, BAND_NO_PAIR_FAV, FILLED_VS_FIRED, SUM_POSTED",
       "THERMO_MAKER_LIVE=False — kill gate n=20 unreachable at rate=0",
-      "metar_lockout.jsonl candidates-only — M1_BETA_LOCKOUT stalled 16 days"
+      "metar_lockout.jsonl candidates-only — M1_BETA_LOCKOUT stalled 17 days"
     ],
     "proposed_actions": [
       {
         "gate": "M1_BETA_LOCKOUT",
         "action": "REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C",
-        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 16 days, shadow logger logs candidates only with 0 placed orders, standing rule triggered",
+        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 17 consecutive days, shadow logger logs candidates only with 0 placed orders, standing rule triggered",
         "human_required": true,
         "standing_since": "2026-06-27T10:30Z"
       }
     ],
     "advisory": [
-      "FILLED_VS_FIRED n=47 >= 40 watch threshold: Exec Auditor should check filled-leg ROI vs all-fires ROI for winner's-curse once Gamma accessible (VPS-side)"
+      "FILLED_VS_FIRED n=60 (>40 watch threshold, +13 fills in 24h): Exec Auditor should schedule VPS-side resolution join — n=100 arrives in ~3 days at current fill rate of 11.8/day",
+      "Moscow NO fill Jun28 12:06 @ 0.93 is a legacy pre-narrow-start position (not a city-filter bug). Shadow confirms Moscow fires as no_band on Jun29.",
+      "STRUCT-BAND-Q morning pattern Jun29: posted=0, books=2-3/80, 18-20 NO cands, queue=9-11. Consistent with NO-only P1 fully-deployed state (resting orders occupy top cells). No action."
     ]
   }
 }
