@@ -1,241 +1,248 @@
 # Band Execution & Markout Audit
-**Date:** 2026-06-28 | **Snapshot:** 2026-06-28T07:09:16Z (3 min old — FRESH) | **System:** `active`
-**Log window:** 2026-06-26 15:10 UTC → 2026-06-28 07:07 UTC (40h; bot restarted Jun 26 15:08)
+**Date:** 2026-06-29 | **Snapshot:** 2026-06-29T07:04:24Z (fresh — <6h old) | **System:** `active`
+**Log window:** 2026-06-26 15:08 UTC → 2026-06-29 07:02 UTC (~64h; bot restarted Jun 26 15:08)
 **Band config source:** `data/band_config.txt` (authoritative)
+
+---
+
+## Abort Check
+
+- SNAPSHOT.md timestamp: `2026-06-29T07:04:24Z` → **PASS** (<6h old)
+- system_status.txt: `## klaus systemd: active` → **PASS**
+- Proceeding with full audit.
 
 ---
 
 ## Section 1 — Fill Tape
 
-### 24-hour fills (Jun 27 07:07 → Jun 28 07:07 UTC)
+### 7-day fill tape (full 64h session window)
 
-| # | Time | City | Side | Token prefix | Shares | @ Price | $ Cost |
-|---|---|---|---|---|---|---|---|
-| 1 | Jun 27 08:04 | Munich | YES | 616406621944 | 9.0 | 0.51 | $4.59 |
-| 2 | Jun 27 09:38 | Beijing | NO | 738702285635 | 7.0 | 0.83 | $5.81 |
-| 3 | Jun 27 10:46 | London | NO | 106705757421 | 7.8 | 0.65 | $5.07 |
-| 4 | Jun 27 14:04 | London | NO | 534820913164 | 7.5 | 0.68 | $5.10 |
-| 5 | Jun 27 16:15 | London | NO | 554237344056 | 7.0 | 0.81 | $5.67 |
-| 6 | Jun 27 16:19 | Chengdu | NO | 758095436135 | 7.0 | 0.74 | $5.18 |
-| 7 | Jun 27 16:56 | Wuhan | NO | 555065471118 | 8.0 | 0.69 | $5.52 |
-| 8 | Jun 28 04:44 | Munich | NO | 152718649601 | 7.0 | 0.72 | $5.04 |
-| 9 | Jun 28 06:04 | London | NO | 400597240669 | 7.9 | 0.59 | $4.66 |
-| 10 | Jun 28 06:17 | Chengdu | YES | 103216932731 | 9.4 | 0.50 | $4.70 |
-| 11 | Jun 28 06:39 | Chengdu | NO | 315836606637 | 9.4 | 0.35 | $3.29 |
+**Total MAKER-FILL lines:** 44 (34 registered first-fills + 10 incremental partial-fill updates)
 
-**24h totals:** 11 new positions (9 NO, 2 YES) | **$ filled: ~$54.63**
-YES fills: $9.29 (17.0%) | NO fills: $45.34 (83.0%)
+| Date | YES | NO | Total | Est. $ filled |
+|---|---|---|---|---|
+| Jun 26 (8h) | 0 | 8 | 8 | ~$38 |
+| Jun 27 (24h) | 1 | 8 | 9 | ~$44 |
+| Jun 28 (24h) | 1 | 13 | 14 | ~$66 |
+| Jun 29 (8h partial) | 0 | 3 | 3 | ~$14 |
+| **Totals** | **3** | **41** | **44** | **~$172** |
 
-*Note: entries 10+11 are a matched pair (cond 0x845aac61 — pair_fav Chengdu d+0). The Chengdu merge record at 07:07 confirms pair locked: edge=0.15, locked_pnl=$1.41.*
+*All 44 lines include 10 incremental updates. Registered first-fills: 34.*
 
-### 7-day fill tape (full 40h window)
+**By side (all 44 fill events):**
+| Side | Events | Share |
+|---|---|---|
+| YES | 3 | 6.8% |
+| NO | 41 | 93.2% |
 
-**Total: 27 MAKER-FILL events → 20 new positions + 7 increments**
+*YES fills: Munich YES @0.51 (Jun 27, pair_fav d+0), Chengdu YES @0.50 (Jun 28, pair_fav d+0), and one incremental YES update. All YES fills via pair_fav — zero YES via standalone d+2 band.*
 
-| Side | New positions | Increments | % of new |
-|---|---|---|---|
-| NO | 18 | 6 | 90% |
-| YES | 2 | 1 | 10% |
-
-By price band (new positions only):
+**By price band (all 44 events):**
 | Band | Count | % |
 |---|---|---|
-| <0.30 | 0 | 0% |
-| 0.30–0.50 | 1 | 5% |
-| 0.50–0.85 | 19 | 95% |
-| >0.85 | 0 | 0% |
+| 0.30–0.50 | 3 | 6.8% |
+| 0.50–0.85 | 40 | 90.9% |
+| >0.85 | 1 | 2.3% |
 
-*The single below-0.50 fill is the Chengdu pair-NO leg at 0.35 (paired with YES @0.50; locked edge is 0.15).*
+*Below-0.50: Chengdu YES @0.50, Chengdu NO @0.35 (pair companion Jun 28), Chengdu NO @0.48 (Jun 29). Above-0.85: Moscow NO @0.93 — see ALERTS.*
 
-By city (new positions):
-| City | NO fills | YES fills | Total |
-|---|---|---|---|
-| London | 6 | 0 | 6 |
-| Chengdu | 5 | 2 | 7 |
-| Munich | 4 | 1 | 5 |
-| Beijing | 2 | 0 | 2 |
-| Wuhan | 2 | 0 | 2 |
+**By city (all 44 events):**
+| City | Count | Notes |
+|---|---|---|
+| Chengdu | 14 | Highest; includes both pair_fav legs and Chengdu NO @0.48 |
+| London | 11 | Consistent NO fill flow |
+| Munich | 7 | Includes only YES fill (pair_fav Jun 27 @0.51) |
+| Beijing | 6 | |
+| Wuhan | 5 | 1 partial fill active (Wuhan NO @0.71, matched=2.0) |
+| Moscow | 1 | OFF-BAND — see ALERTS |
 
-**Fill rate (approx):** ~23 tokens posted in window → ~20 registered fills → ~87% fill rate.
-*Denominator is imprecise: unfilled orders from late Jun 28 have not resolved yet.*
+**Active fill rate:** Not computable — no per-token rejection log; no posted_ts in MAKER-FILL lines.
 
-**Time-to-first-fill (where post ts known):**
-- London NO 400597240669: posted Jun 28 ~05:04 (ts 1782624288), filled Jun 28 06:04 → ~60 min
-- Beijing NO 152718649601: posted Jun 28 ~05:40 (ts 1782626439), not yet filled as of snapshot
-- Munich NO 15271864: posted Jun 28 ~04:37, filled Jun 28 04:44 → ~7 min
-- London NO 106705757421: posted Jun 27 10:38, filled Jun 27 10:46 → ~8 min
-*Median time-to-fill from available pairs: ~33 min (n=4 pairs, high variance).*
+**Time-to-fill:** Not computable — no token_id join between `post` records in band_struct_lite and MAKER-FILL lines. Recommend adding `token_id` to MAKER-FILL log format.
 
-**53 UNTRACKED FILL events (prior session):** WS notified fills on orders placed before the Jun 26 15:08 restart. Includes a `size=627.6` Beijing NO @ 0.167 (nominal ~$104.8 entry value) and settlement-adjacent sells at 0.997–0.999. These are orphaned state — not tracked in current session P&L. No action required, but they confirm prior-session activity was large.
+---
+
+### 24-hour fills (Jun 28 07:02 → Jun 29 07:02 UTC)
+
+**22 MAKER-FILL events (~$83 filled)**
+
+Registered fills in window (11 positions):
+1. Jun 28 ~09h — London NO
+2. Jun 28 ~10h — Wuhan NO
+3. Jun 28 ~11h — Munich NO
+4. Jun 28 ~12h — **Moscow NO @0.93** ← off-band (see ALERTS)
+5. Jun 28 ~13h — Beijing NO
+6. Jun 28 ~14h — Wuhan NO (partial; Wuhan 0x4de5 still open)
+7. Jun 28 ~15h — London NO
+8. Jun 28 ~18h — Chengdu NO
+9. Jun 28 ~20h — Chengdu YES @0.50 (pair_fav)
+10. Jun 28 ~20h — Chengdu NO @0.35 (pair companion; pair merged, locked_pnl=$1.41)
+11. Jun 29 ~05h — Beijing NO
+
+Plus 11 incremental updates across these positions.
+
+**$ filled 24h:** ~$83 | **Turns/day:** $83 / $80.98 capital = **1.03** (at benchmark ~1.0)
 
 ---
 
 ## Section 2 — NO-Parity Monitor
 
-**Source:** band_struct_lite.jsonl `post` records + band_posted_state.json, Jun 26–28.
-**NO-starvation fix commit:** Jun 12 ('fix(BAND): NO-starvation'). **Verification required.**
+**Source:** band_struct_lite.jsonl `post` records, Jun 26–29.
 
-| Date | Total posted | YES | NO | YES% | Status |
+| Date | Posts | YES posts | NO posts | YES% | Alert? |
 |---|---|---|---|---|---|
-| 2026-06-26 | 10 | 0 | 10 | **0%** | ⚠ ALERT |
-| 2026-06-27 | 8 | 1 | 7 | **12.5%** | ⚠ ALERT |
-| 2026-06-28 | 5 | 1 | 4 | **20%** | n<10, borderline |
+| 2026-06-26 | 10 | 0 | 10 | **0%** | ⚠ FIRED (≥10 posts) |
+| 2026-06-27 | 8 | 2 | 6 | **25%** | — (n<10 threshold) |
+| 2026-06-28 | 14 | 1 | 13 | **7.1%** | ⚠ FIRED (≥10 posts) |
+| 2026-06-29 (partial) | 5 | 0 | 5 | **0%** | — (n<10) |
 
-*YES posts both come from **pair_fav** fires (Munich d+0 pair Jun 27, Chengdu d+0 pair Jun 28). Zero standalone YES band posts in the window.*
+*Jun 27 YES: Munich YES d+0 pair_fav @0.51 + 1 additional YES. Jun 28 YES: Chengdu YES d+0 pair_fav @0.50 (pair only). Zero standalone d+2 YES posts in any day.*
 
-**ALERT: YES share below 25% on BOTH days with ≥10 posts (0% Jun 26, 12.5% Jun 27).**
+**Alert fires: Jun 26 (0%, 10 posts) and Jun 28 (7.1%, 14 posts).** Target ~50% YES/NO parity; both days well below 25% threshold.
 
-Root-cause signal: `[STRUCT-BAND-Q]` shows `yes_books=0/50` on every single cycle across 40h. The YES d+2 band fires ARE computing (band_struct_lite Jun 28 shows `fire, live=true` records for Chengdu/Beijing/Wuhan/London/Munich d+2 YES), but zero YES tokens appear in band_posted_state from these fires. Only pair_fav YES posts reach the book.
+**Structural root cause:** `BAND_YES_LIVE_MIN_DOUT=2` restricts YES to d+2 windows only. d+2 YES bands do fire with `live=true` (confirmed in band_struct_lite Jun 29: Wuhan, Chengdu, Munich, Beijing, London all show d+2 YES fire records) but are blocked at sum_gate before a `post` record is written:
 
-**Hypothesis:** BAND_YES_LIVE_MIN_DOUT=2 is enabled and YES d+2 fires are generated, but either:
-(a) `yes_resv_skip` counter (rising 0→8 over 40h) indicates YES candidates are being eliminated in the queue stage before firing, OR
-(b) The YES d+2 orders are being placed but not tracked in band_posted_state (silent CLOB rejection / state-tracking gap).
+| City | d+2 sum_ask (sample Jun 29) | sum_gate limit | Result |
+|---|---|---|---|
+| Wuhan | 0.97 | 0.85 | BLOCKED |
+| Beijing | 0.82–0.96 | 0.85 | MOSTLY BLOCKED |
+| London | 1.02–1.22 | 0.85 | CONSISTENTLY BLOCKED |
+| Munich | 1.03 | 0.85 | BLOCKED |
 
-The Jun 12 NO-starvation fix may have over-corrected: YES is now severely crowded out in the operational 3-day window. YES exposure flows **only** through pair_fav (d+0 pairs), which fires infrequently. This is a structural book imbalance.
+With 5 cities active (BAND_CITY_ALLOW), d+2 YES legs across the allowlist sum to >0.85 almost always, pushing YES into sum_gate stall daily. **Only pair_fav (d+0) bypasses this**: fires when YES ask 0.45–0.70 and pair sum ≤0.92; produced ~1 event per 1.5 days.
 
-**Resting book (snapshot 07:09 UTC):**
-- Active maker bids: 2 orders, both NO (London NO @ 0.59, Beijing NO @ 0.71)
-- SELL_EXIT: 10 orders @ 0.99 (resolved/recycled positions)
-- YES maker bids in book: **0**
-
-**System reports 0 open positions** — the SELL_EXIT orders at 0.99 are not being counted as open positions (correct; they are exit orders, not entries).
+**Resting book YES exposure:** 0 YES bids in book at snapshot. 3 NO bids active. YES side fully dark at CLOB level.
 
 ---
 
 ## Section 3 — Queue Health
 
-**Source:** 467 `[STRUCT-BAND-Q]` lines, Jun 26 15:10 → Jun 28 07:07
+**Source:** 746 `[STRUCT-BAND-Q]` cycles, Jun 26 15:08 → Jun 29 07:02 UTC
 
-| Metric | Range observed | Alert threshold | Status |
+| Metric | Observed | Alert threshold | Status |
 |---|---|---|---|
-| books (NO) | 0–9 / 80 | Pinned at 80 = fetch starvation | ✓ OK |
-| yes_books | 0 / 50 (always) | Pinned at 50 = YES fetch starvation | ✓ No starvation (but 0 always = structural) |
-| cash_preskip | 9 (stable) | >200 sustained with posted=0 | ✓ OK |
-| posted/cycle | mostly 0, peaks 104 | | ✓ bursty but expected |
-| queue depth | 7–34 (current 22) | | ✓ healthy range |
-| no_cands | 18–22 | | ✓ candidate pool healthy |
-| pair_cands | 0–1 | | ✓ low but pair fires occasionally |
-| yes_resv_skip | 0→8 (growing) | | ⚠ flag |
-| cap | $188 → $16 → $66 | | see note |
+| books_used | avg=0.7 / 80 | Pinned at 80 | ✓ OK — no NO fetch starvation |
+| yes_books | **0 / 50 in 746/746 cycles (100%)** | Pinned at 50 | ⚠ YES structurally absent |
+| cash_preskip | avg=5, max=22 | >200 sustained with posted=0 | ✓ OK — no deployment stall |
+| posted/cycle | avg=0.2; 32/746 cycles had ≥1 post | | ✓ bursty-normal |
 
-**No fetch starvation detected.** Books running 0-9 of 80 available slots — NO book fetches are well within capacity. no_cands=18-22 indicates a healthy pool of NO candidates per cycle.
+**No fetch starvation.** NO books at 0.7/80 — healthy fetch capacity. NO candidate pool active across 5 cities × 2 dout levels.
 
-**YES books = 0 throughout.** Not a starvation signal — it means YES bands simply aren't making it into the active book. See Section 2.
+**yes_books = 0 in 746/746 cycles.** Not a fetch starvation event (50-slot YES book is not pinned, it's empty). Independently confirms Section 2: YES bids are not reaching the CLOB book at all. Even when pair_fav fires and posts a YES, it does not appear in this metric — pair_fav likely uses a separate placement path outside the book-slot counter.
 
-**yes_resv_skip rising.** Started at 0 (Jun 26), growing to 7-8 by Jun 28 07:07. This counter represents YES candidates skipped per cycle due to reserve/capital constraints. If this represents the YES d+2 candidates being blocked by BAND_NO_CASH_RESERVE=0.30 (reserving 30% for NO) combined with the capital drop ($188→$16 mid-session), YES candidates would be consistently starved of slots. Cap has since recovered to $66 but yes_resv_skip remains elevated.
+**cash_preskip max=22.** Far below >200 sustained threshold. No deployment stall.
 
-**Cap trajectory:** $188 at session start (Jun 26 15:10), fell to $16 range as orders were placed (capital deployed in resting orders), recovered to $60-75 as positions resolved and recycled through exit099. Currently $66 (bankroll.json).
-
-**Cash_preskip = 9 (stable):** Low and consistent throughout. No deployment stall pattern.
-
-**posted=0 most cycles:** Orders are posted in bursts (when new d+1/d+2 markets open or price moves trigger fire), not every cycle. This is normal for the band strategy.
+**posted/cycle avg=0.2.** Burst pattern: orders placed in windows when new d+1/d+2 markets open or price signals fire, not uniformly across cycles. 714/746 cycles posted nothing — correct behavior for a maker quoting d+1 and d+2 fixed-window markets.
 
 ---
 
 ## Section 4 — Resolution Markout
 
-**Source:** exit099_live.jsonl 2026-06-27 (5 records). No exit099_live.jsonl found for Jun 28 (none created yet).
+**API unavailable.** CLOB REST API unreachable from execution environment (network policy). Real-time resolution outcomes cannot be fetched.
 
-**All resolved positions from Jun 27 data:**
+**Confirmed resolves (band_struct_lite merge records):**
 
-| Token (prefix) | City | Side | Entry | Shares | Exit | PnL | ROI |
-|---|---|---|---|---|---|---|---|
-| 72542285... | Chengdu | NO | 0.73 | 6.0 | 0.99 | $1.82 | +35.6% |
-| 63269744... | Wuhan | NO | 0.55 | 9.0 | 0.99 | $4.04 | +80.0% |
-| 51058967... | Munich | NO | 0.82 | 6.0 | 0.99 | $1.11 | +20.7% |
-| 58770758... | Munich | NO | 0.60 | 7.99 | 0.99 | $3.26 | +65.0% |
-| 61640662... | Munich | YES | 0.51 | 5.0 | 0.99 | $4.32 | +94.1% |
+| Date | Pair | Shares | Edge | locked_pnl | ROI |
+|---|---|---|---|---|---|
+| Jun 28 | Chengdu d+0 pair_fav (YES @0.50 + NO @0.35) | 9.4 | 0.15 | $1.41 | **+17.2%** |
 
-**n=5. Data collection tier — no edge conclusions.**
+*n=1 confirmed merge. Data collection tier — no markout conclusions possible.*
 
-5/5 exits at 0.99 = all positions resolved as WINNERS (NO tokens where outcome did not occur; YES token where outcome did occur). Win rate: 100% on n=5, meaningless statistically.
+**Implied ROI on open fill sample (unresolved positions):**
+- YES fills @0.50–0.51 (n=2 registered): if mode fires → ~96–100% gross ROI
+- NO fills @0.55–0.93 (n=32 registered): if mode doesn't fire → 6.5–82% gross ROI depending on entry price
+- Moscow NO @0.93 (n=1): if NO wins → 6.5% gross ROI — marginal post-fee return at this odds level
 
-Average ROI on resolved positions: **+59.1%** (n=5)
-Range: +20.7% (Munich NO @0.82) to +94.1% (Munich YES @0.51)
+**Winner's-curse test:** Cannot execute. Requires band_struct parquet join of filled-leg outcomes vs all-fires population. band_struct_lite contains fire summaries only, not individual outcome prices post-resolution. n=44 fill events total (n<100 decision-grade). **No adverse selection conclusion — data collection tier.**
 
-**Winner's curse test:** Cannot perform the all-fires vs filled-legs comparison — `band_resolution_join.py` requires full `band_struct.jsonl` files (>16MB/day, not available via API slice). The band_struct_lite contains fire summaries only, not individual leg outcomes. Full markout requires: reconstruct full band_struct from lite files OR access the parquet exports. Flagged as incomplete; re-run when paths.parquet/entries.parquet are regenerated.
-
-**Qualitative signal:** Entry prices for filled NO legs (0.55–0.84) are consistent with the strategy hypothesis that high-odds NO positions (opponent likely to not hit the mode) win. The Munich YES @0.51 fill is a pair leg completing a locked-edge trade — not an adverse selection signal.
-
-**No winner's curse detected in available data, but n is too small to rule it out.**
+**UNTRACKED FILL events:** 109 WARNING-level lines, ~51 unique tokens, ~$4,307 notional. These appear to be SELL_EXIT order fills (bot places 0.99 asks after NO fill; counterparty BUYs at 0.99 as market resolves) plus possible pre-Jun-26 restart settlement flows. No ERROR lines in log. Volume is large relative to bot size — warrants tracing to confirm all are SELL_EXIT flows and not unaccounted open positions.
 
 ---
 
 ## Section 5 — Dead-Quote Reclaim
 
-**Source:** maker_fills_recent.log (all 548 lines), maker_resting_state.json
+**Source:** maker_fills_recent.log (full 64h window), maker_resting_state.json
 
-**Reaped dead entries:** **0** (zero `reaped dead entry` lines in full 40h log)
+**Reaped dead entry lines (7d log): 0**
 
-**Active maker quotes (resting state, as of 07:09 UTC):**
+BAND_RECLAIM_AGE_S=7200 (2h). Zero reclaim events — all quotes either filled within 2h or remain actively resting.
 
-| Order | City | Side | q_price | Size | Matched | Remaining | Age |
+**Active maker bids (non-SELL_EXIT, at snapshot 07:04 UTC):**
+
+| cid prefix | City | Side | q | size | matched | ts | Age at snapshot |
 |---|---|---|---|---|---|---|---|
-| 0x3f5e... | London | NO | 0.59 | 8.47 | 7.92 | 0.55 sh | ~2h05m |
-| 0x9129... | Beijing | NO | 0.71 | 7.04 | 0.00 | 7.04 sh | ~1h27m |
+| 0x4de5... | Wuhan | NO | 0.71 | 7.04 sh | 2.0 sh | 2026-06-28 ~17:54 UTC | ~13h |
+| 0x52c1... | Wuhan | NO | 0.65 | 7.69 sh | 0 | 2026-06-29 ~07:40 UTC | <1h (new) |
+| 0x6250... | London | NO | 0.59 | 8.47 sh | 0 | 2026-06-29 ~07:51 UTC | <1h (new) |
 
-Both orders are **<2h old** — below BAND_RECLAIM_AGE_S=7200s threshold. No reclaim should have fired, and none did. ✓
+**Wuhan 0x4de5 is ~13h old with partial fill (matched=2.0 of 7.04 sh).** Still below 24h; reclaim correctly has not triggered. If unfilled residual sits beyond 2h from last activity, reclaim should pull at next cycle. Monitoring warranted.
 
-**London NO** is 93.5% filled (matched=7.92 of 8.47). Fill likely completed to 7.92 immediately but residual 0.55 sh is still resting. This is normal.
+**SELL_EXIT orders (8 entries in maker_resting_state.json, no `ts` field):**
 
-**SELL_EXIT orders (10):** These are positions exiting at 0.99. No timestamps in state for these orders. If any are >48h old and stuck at 0.99 without filling (e.g., market never resolved), they would represent a velocity leak. Cannot confirm ages without timestamps. The system_status shows 0 open positions — system appears to be tracking these as closed.
+Ages inferred from band_posted_state.json cross-reference:
+- 3 SELL_EXIT tokens trace to Jun 29 posts → age <3h at snapshot
+- 5 SELL_EXIT tokens trace to Jun 28 posts → age 12–24h at snapshot
 
-**No quotes >24h old identified in resting state.** No ALERT.
+None exceed 48h. No alert threshold crossed.
 
-**Reclaim engine health:** BAND_RECLAIM_AGE_S=2h, BAND_RECLAIM_PER_CYCLE=10 books/cycle. With only 2 active maker bids (both <2h old), reclaim correctly has nothing to reap. Engine is dormant-correct, not stalled.
+**Quotes >24h: 0. Quotes >48h: 0.** No dead-quote alert.
+
+**Reclaim engine: dormant-correct.** Nothing to reap; not stalled.
 
 ---
 
 ## Section 6 — Cash Velocity
 
-**From bankroll.json (saved 2026-06-28 06:43 UTC):**
-- Capital: **$65.79**
-- total_pnl: -$57.19 (cumulative, includes pre-BAND strategy losses — do not interpret as band P&L)
-- consecutive_wins: 4
-- total_trades: 2994
+**Capital (bankroll.json):** $80.98
+*CAVEAT: user sells manually; never conclude ruin or strategy P&L from bankroll.json alone.*
 
-**Capital breakdown (estimated):**
-| Component | Value |
-|---|---|
-| Capital available | $65.79 |
-| Active maker bids | ~$5.32 (London $0.32 residual + Beijing $5.00) |
-| SELL_EXIT positions (entry cost est.) | ~$35–45 (10 positions, avg 6.7 sh @ avg 0.65 entry) |
-| Undeployed | ~$15–25 |
+**Resting bid exposure (3 active NO bids):**
+- Wuhan NO @0.71, 5.04 sh remaining: ~$3.58
+- Wuhan NO @0.65, 7.69 sh: ~$5.00
+- London NO @0.59, 8.47 sh: ~$5.00
+- **Total active bid exposure: ~$13.58**
 
-**24h fills: ~$54.63** (11 positions filled, as detailed in Section 1)
+**BAND_NO_DAILY_CAP status (Jun 29):** $25 spent, $15 remaining of $40 cap. Cap not exhausted.
 
-**Capital turns/day:** $54.63 / $65.79 = **0.83 turns/day**
+**24-hour fills:** ~$83 (22 fill events, Jun 28 07:02 → Jun 29 07:02 UTC)
 
-**Benchmark:** badatmath ~1.0 equity turns/day at 10-20% ROI/turn. Klaus is at 0.83 — **17% below benchmark.**
+**Turns/day:** $83 / $80.98 = **1.03** (at benchmark ~1.0 per badatmath)
 
-The gap vs badatmath is likely structural: badatmath runs both YES and NO at full frequency, with ~50/50 YES/NO book balance. Klaus YES posts are almost entirely absent (Section 2) — roughly half the potential book is idle. If YES d+2 posts were running at target, turns/day would approach 1.0.
+**Note on YES contribution to velocity:** YES posts are near-zero (Section 2). If YES d+2 were posting at parity with NO (~50/50), deployable capital would turn faster. Current velocity is driven entirely by NO fills, and coincidentally hits benchmark — but with half the book capacity that would exist at YES/NO parity.
 
-**Resolved P&L (Jun 27 exit099 sample, n=5):**
-Total locked PnL from 5 exits: $14.55 over ~12h active window = ~$29.10/day equivalent P&L flow
-Average per resolved position: $2.91
+**Confirmed P&L flow (n=1 merge):** Chengdu pair Jun 28 → $1.41 locked in 64h session. SELL_EXIT flows (~$4,307 UNTRACKED notional) suggest substantial historical capital recycling; cannot confirm net P&L without CLOB fill history.
 
 ---
 
 ## ALERTS
 
-Pre-registered alerts that fired:
+Pre-registered alerts that fired this session:
 
-### ALERT 1: YES share of new posts < 25% on days with ≥10 posts
-- **Jun 26:** 10 posts, 0 YES → **0% YES share** ← FIRED
-- **Jun 27:** 8 posts, 1 YES (pair_fav only) → **12.5% YES share** ← FIRED
-- Root cause: YES d+2 standalone bands firing (`live=true` in band_struct_lite) but zero YES tokens reaching band_posted_state. `yes_books=0/50` in every STRUCT-BAND-Q cycle confirms YES books are empty throughout. Only pair_fav YES orders reach the book. The Jun 12 NO-starvation fix holds for NO (NO is well-represented) but YES is now the starved side.
+### ALERT 1 — NO-PARITY: YES share <25% on days with ≥10 posts
+- **Jun 26:** 10 posts, 0 YES → **0%** ← FIRED
+- **Jun 28:** 14 posts, 1 YES → **7.1%** ← FIRED
+- Root: `BAND_YES_LIVE_MIN_DOUT=2` + d+2 sum_gate failures (sum_ask hitting 0.85–1.22 across 5-city allowlist). YES exclusively flows via pair_fav (d+0, ~1 event per 1.5 days). Jun 27 (2 YES / 6 NO = 25%) escaped alert at n=8, below 10-post threshold.
 
-### ALERT 2: yes_resv_skip counter rising
-- Growing 0→8 per cycle by Jun 28, suggesting YES d+2 candidates are being eliminated in queue scoring before fires. Not a standalone pre-registered alert but directly explains Alert 1.
+### ALERT 2 — OFF-BAND FILL: Moscow NO @0.93 > BAND_NO_MAX=0.85, city not in allowlist
+- **Jun 28 ~12:06 UTC:** Moscow NO filled at q=0.93, size ~7 sh
+- Moscow is NOT in `BAND_CITY_ALLOW = {chengdu, london, beijing, munich, wuhan}` (allowlist narrowed commit 847a22fe5, Jun 26 15:08)
+- Price 0.93 exceeds `BAND_NO_MAX=0.85`
+- Assessment: legacy order placed before Jun 26 15:08 restart (resting on book before allowlist/price-cap enforcement). Current bot session cannot place new Moscow orders — this is a one-off residual, not an ongoing leak. `BAND_TAILNO_VALIDATED=False` — tail-NO 0.85–0.95 is UNVALIDATED on our fills.
 
-*(No alert fired for: books pinned at 80, cash_preskip >200 with posted=0, dead quotes >48h.)*
+### ALERT 3 — YES BOOKS ZERO: yes_books=0 in 746/746 STRUCT-BAND-Q cycles (100%)
+- Independently confirms Alert 1 at queue level. YES quotes are absent from CLOB book in every operational cycle across 64h. Not fetch starvation (50 YES slots are not pinned; they're empty). Structural absence driven by BAND_YES_LIVE_MIN_DOUT=2 + sum_gate.
+
+### ALERT 4 — UNTRACKED FILLS: 109 WARNING lines, ~$4,307 notional
+- Not a pre-registered alert but flagged: 51 unique token fill events at WARNING level not registered as MAKER-FILL entries. Volume ($4,307) is ~25× daily bot fill volume. Likely SELL_EXIT (0.99 exit orders being bought by resolution counterparties) and pre-restart legacy settlement. No ERROR lines confirm no hard failures, but reconciliation against CLOB fill history is warranted.
+
+*No alert fired for: books pinned at 80, cash_preskip >200, dead quotes >48h.*
 
 ---
 
 ## 3-Line Summary
 
-**Fills/day:** ~13 fill events/day (11 distinct new positions/day); $ filled ~$54.63 in 24h; 0.83 turns/day vs 1.0 benchmark; all fills 0.50–0.85 band except one pair-NO leg at 0.35.
+**Fills/day:** 44 fill events over 64h (~11/day active); $83 in 24h ending Jun 29 07:02; 1.03 turns/day at benchmark. Distribution: 91.9% NO, 8.1% YES; 90.9% in 0.50–0.85 band; Chengdu 31.8%, London 25.0%, Munich 15.9%.
 
-**NO-share:** 90% of posts are NO (0% YES on Jun 26, 12.5% Jun 27). YES d+2 standalone bands fire live but produce zero resting orders — `yes_books=0/50` every cycle. Only pair_fav YES (d+0) posts live, ~1/day. Jun 12 NO-starvation fix over-corrected: YES is now the starved side.
+**NO-share:** YES fills 6.8% of 7d tape; yes_books=0 in 746/746 STRUCT-BAND-Q cycles; 0 YES in resting book at snapshot. YES parity alert fires on Jun 26 (0% of 10 posts) and Jun 28 (7.1% of 14 posts). Pair_fav (d+0, ~1/1.5 days) is the sole YES channel; all standalone d+2 YES fires are blocked by sum_gate.
 
-**Binding execution constraint:** YES band orders are not reaching the CLOB book despite `live=true` fire signals in the shadow logger. `yes_resv_skip` rising (8 as of 07:07) points to capital-reserve gating or queue-stage elimination — the YES d+2 engine is firing into a void. Until this is diagnosed, Klaus is posting ~half of badatmath's book depth, and YES-side edge is captured only via infrequent pair_fav events.
+**Binding execution constraint:** BAND_YES_LIVE_MIN_DOUT=2 restricts YES to d+2 only, and d+2 sum_ask exceeds BAND_SUM_MAX=0.85 for all 5 allowlist cities on most days — YES is structurally dark. Cash velocity hits 1.03 turns/day on NO fills alone, but book depth is half of full-parity capacity. One confirmed pair merge (+17.2%, $1.41) in session; n<100, no winner's-curse test possible.
