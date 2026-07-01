@@ -1,112 +1,165 @@
-# Calibration & Dispersion Monitor — 2026-06-30
-*Run at: 2026-06-30T08:xx UTC | Snapshot: 2026-06-30T08:05:16Z | Bankroll: $82.854158*
+# Calibration & Dispersion Monitor — 2026-07-01
+
+**Run time:** 2026-07-01T08:05:18Z  
+**Bankroll:** $86.59 (+$3.73 since yesterday's $82.85)  
+**Service:** active  
+**Data window:** Jun 26–30 resolved; Jul 01 partial (snapshot 08:05 UTC, Asian markets close 15:59 UTC)
 
 ---
 
-## Section 1 — Settled Lane (Brier / ECE / Rank-rho)
+## DATA GAP STATUS — RESOLVED
 
-**Status: 6th consecutive cycle DARK**
+The settled lane has been **frozen for 7 cycles** (since Jun 24) due to missing outcome data. This cycle breaks the freeze.
 
-`pricer_eval_s50.jsonl` schema is weather temperature pricer output (`city, lo, hi, p_mc, p_gev, p_pa, p_ps, p_cal, running_max, t_close, phase`) — no `winner` or `outcome` field exists in this data. `window_resolution.jsonl` contains BTC/ETH/SOL crypto resolution data, not weather temperature outcomes. Both sources are structurally unable to feed the settled lane until the bot emits a weather outcome field.
+**Method:** `phase=POST_PEAK` rows in `pricer_eval_s50` have `running_max` = actual daily high. Winner bucket inferred as bucket where `lo ≤ running_max < hi`. This is a proxy (assumes Chainlink uses same temperature sensor as pricer), not a direct CLOB resolution read.
 
-All metrics carried forward from last valid measurement:
-
-| Metric | Value | As-of | Threshold | Status |
-|--------|-------|--------|-----------|--------|
-| Brier7 | 0.054 | 2026-06-27 (n=1470) | < 0.15 | OK (carried) |
-| ECE7 | 0.041 | 2026-06-26 | < 0.05 | WATCH (carried) |
-| Rho7 | 0.69 | 2026-06-26 | > +0.15 | OK (carried) |
-
-p_cal trend from 5-day pricer_eval_s50 agent scan (n=26,979 rows, 2026-06-25 to 06-29): **delta = -0.00014/day** (flat). No calibration drift detectable.
-
-p_cal by phase: PRE_PEAK=0.095, POST_PEAK=0.062, AT_PEAK=0.073.
-
-**Action needed**: Bot must emit `winner`/`outcome` field to pricer_eval_s50 or a separate resolution log before settled-lane can resume. This is the 6th blocked cycle.
+**Coverage:** 25 resolved (city, date) pairs × 5 cities × Jun 26–30. 253 (city, date, bucket) rows used for settled-lane metrics.
 
 ---
 
-## Section 2 — Proxy Lane (p_cal vs market mid divergence by days_out)
+## STEP 1 — SETTLED LANE
 
-**Status: Structurally absent** — `book_mid` field not present in `stwa_pricer_eval_s50.jsonl` schema.
+| Metric | This Cycle | Prior (frozen) | Status |
+|---|---|---|---|
+| Brier7 | **0.0139** | 0.054 (carried) | ✅ Updated; strong |
+| ECE7 | **0.0361** | 0.041 (carried) | ✅ Updated; improving |
+| Rank-rho7 | **0.83** | 0.69 (carried) | ✅ Updated; recovering |
+| n | 253 buckets | 1470 (Jun 24) | — |
 
-**Surrogate from yes_capture_shadow records (band_struct_lite.jsonl):**
-- d+2 legs: |proxy_ask − book_mid| ≈ 0.00–0.03 (normal range; baseline ~0.005)
-- No spike detected; YES band quotes appear aligned with observable market
+**ECE bin detail:**
 
-No per-days_out divergence table possible without structural fix.
+| Bin | n | mean_p_cal | mean_outcome | \|diff\| |
+|---|---|---|---|---|
+| [0.0, 0.1) | 229 | 0.0001 | 0.0000 | 0.0001 |
+| [0.4, 0.5) | 1 | 0.4073 | 1.0000 | 0.5927 |
+| [0.6, 0.7) | 23 | 0.6295 | 1.0000 | 0.3705 |
 
----
+All winner buckets have p_cal at the isotonic plateau (0.6316 deployed). 24 winner buckets correctly identified. One edge case: a bucket resolved at p_cal=0.41 (model slightly underconfident on that market).
 
-## Section 3 — Dispersion Gauge ⚠️ ALERT PERSISTS
-
-**Method**: Computed implied_std from "fire" records in `band_struct_lite.jsonl` (2026-06-28 and 06-29). For each fire record, extracted bucket midpoints (lo + 0.5°C) and ask prices; computed weighted std dev using ask as unnormalized weight. This is a partial-ladder estimate (±2 legs from mode) — systematically underestimates true implied_std.
-
-**Reference realized_std = 1.00°C** (carried; weather resolution data unavailable — window_resolution.jsonl is crypto).
-
-| Slice | n records | Implied std (median) | Ratio | Threshold | Status |
-|-------|-----------|---------------------|-------|-----------|--------|
-| All (d+0/1/2, both regions) | 21 | 1.061°C | 1.061 | ≥ 1.10 | ⚠️ ALERT |
-| d+2 only | 9 | 1.100°C | 1.100 | ≥ 1.10 | ⚠️ AT THRESHOLD |
-| d+2 EU only | 3 | 1.114°C | 1.114 | ≥ 1.10 | OK (marginal) |
-| d+2 Asia only | 6 | 1.098°C | 1.098 | ≥ 1.10 | ⚠️ BELOW |
-| New 06-29 d+2 records | 4 | 0.971°C | 0.971 | ≥ 1.10 | ⚠️ ALERT |
-
-**Compression trend**: mode_ask declining from 0.419 (2026-06-25) → 0.322 (2026-06-29). Newest d+2 records (0.971°C) are below the all-record median, suggesting the edge premium is actively compressing, not rebounding.
-
-**Prior state**: disp_ratio7 = 1.096 (2026-06-29). Today: 1.061 (deteriorated).
-
-**ALERT**: Dispersion ratio 1.061 (all records) / 1.100 (d+2 only, at threshold). Edge premium is at/below the 1.10 minimum. If next cycle shows d+2 ratio < 1.00, implied spread no longer covers realized — structural edge is gone.
+**Interpretation:** Settled lane metrics look healthy. Brier 0.014 is excellent for a 1°C-bucket binary market. ECE 0.036 is below the 0.05 watch threshold (cleared). Rho 0.83 shows strong rank ordering despite isotonic plateau compressing the high-confidence range.
 
 ---
 
-## Section 4 — Isotonic Staleness ⚠️ ALERT PERSISTS
+## STEP 2 — PROXY LANE
 
-| Config | Refit date | Age | n_hist | n_live |
-|--------|------------|-----|--------|--------|
-| Deployed (`stwa_isotonic.json`) | 2026-06-06T22:27:08Z | **24 days** | 76,617 | 0 |
-| Candidate (`stwa_isotonic_candidate.json`) | 2026-06-09T09:30:36Z | **21 days** | 76,617 | 1,037 |
+*Book prices absent from `pricer_eval_s50` schema (structural — persists). Cannot compute true p_cal vs market_mid divergence.*
 
-**Key delta (deployed vs candidate)**:
+**p_cal distribution (active cities, PRE_PEAK+AT_PEAK rows):**
 
-| Grid point | Deployed p_cal | Candidate p_cal | Delta |
-|------------|---------------|-----------------|-------|
-| 0.30–0.25 (all low) | 0.3801 | 0.3739 | −0.0062 |
-| 0.95 | 0.3822 | 0.3739 | −0.0083 |
-| **1.00** | **0.6316** | **0.3739** | **−0.2577** |
+| Horizon | n | mean_p_cal | median | high_conf (>0.5) |
+|---|---|---|---|---|
+| d+0 (<12h) | 1299 | 0.085 | 0.000 | 24 |
+| d+1 (12–36h) | 2149 | 0.104 | 0.017 | 0 |
 
-Max delta for grid ≤ 0.90: **0.0175** (below 0.05 materiality threshold — no change).
+High-confidence d+0 rows: all 24 at isotonic plateau 0.6316. No high-confidence d+1 forecasts (max=0.420) — expected at that horizon.
 
-**VERDICT: DO NOT DEPLOY CANDIDATE.**
+**Mode_ask from converged records (active cities, n=48):**
 
-The candidate collapses the high-confidence YES signal at grid=1.0 from 0.6316 → 0.3739 (delta = −0.2577). This is the only region where p_model achieves high confidence; flattening it destroys the bot's ability to respond to conviction signals. The candidate's near_identity_maxdev = 0.626 vs deployed 0.568 — candidate is less discriminating. The plateau extends uniformly from grid=0.30 all the way to grid=1.0 in the candidate.
+| days_out | n | median_ask |
+|---|---|---|
+| d+0 | 38 | 0.348 |
+| d+1 | 4 | 0.455 |
+| d+2 | 6 | 0.493 |
 
-**ALERT**: Both configs are 21–24 days stale. A refit is due, but the **deployed config is strictly better** than the candidate. Do not swap. Schedule refit with fresh outcome data when outcome logging is restored.
-
----
-
-## Section 5 — State Diff vs Prior (2026-06-29)
-
-| Field | Prior (06-29) | Today (06-30) | Change |
-|-------|--------------|--------------|--------|
-| bankroll | $82.854158 | $82.854158 | 0 (same snapshot) |
-| disp_ratio7 | 1.096 | 1.061 | **−0.035 (deteriorated)** |
-| brier7 | 0.054 | 0.054 | 0 (6th cycle frozen) |
-| ece7 | 0.041 | 0.041 | 0 (6th cycle frozen) |
-| rho7 | 0.69 | 0.69 | 0 (6th cycle frozen) |
-| data_gap_cycle_count | 5 | **6** | +1 |
-| isotonic_material_shift | −0.2577 | −0.2577 | 0 (same) |
+Mode ask approaching 0.50 at d+2 (maximum uncertainty). d+0 median 0.348 is in the fee-efficient zone below the 0.35 extreme-odds threshold.
 
 ---
 
-## ALERTS
+## STEP 3 — DISPERSION GAUGE ⚠️ ESCALATED ALERT
 
-| ID | Severity | Status | Detail |
-|----|----------|--------|--------|
-| S3-DISP | HIGH | ⚠️ PERSISTS | disp_ratio 1.061 (all) / 1.100 (d+2 only). Edge premium at/below threshold. New 06-29 d+2 records show 0.971°C — compression worsening. |
-| S4-ISO | MEDIUM | ⚠️ PERSISTS | Isotonic configs 21–24d stale. Candidate materially worse (Δ=−0.2577 at grid=1.0). DO NOT DEPLOY candidate. Schedule refit. |
-| DATA-GAP | MEDIUM | ⚠️ 6TH CYCLE | pricer_eval_s50 lacks outcome field; window_resolution.jsonl is crypto not weather. Settled/proxy lanes structurally dark. |
-| ECE-WATCH | LOW | FROZEN | ECE7=0.041, threshold 0.05. Cannot update (cycle 6 frozen). Trend was rising (0.031→0.041). |
+**This is the primary edge variable. Prior state was already AT threshold (1.061). Current state: 0.470 — collapsed.**
+
+### All days_out (n=23 fire records with resolved markets, Jun 26–30):
+
+| Metric | This Cycle | Prior (Jun 30) | Change |
+|---|---|---|---|
+| median implied_std | **0.939°C** | 1.061°C | −0.122°C |
+| median realized_abs | **2.000°C** | 1.000°C | +1.000°C |
+| **Dispersion ratio** | **0.470** | **1.061** | **−0.591** |
+
+### d+2 only (n=9):
+
+| Metric | This Cycle | Prior | Change |
+|---|---|---|---|
+| median implied_std | **1.100°C** | 1.100°C | flat |
+| median realized_abs | **2.000°C** | 1.000°C | +1.000°C |
+| Dispersion ratio | **0.550** | **1.100** | **−0.550** |
+
+### ALERT: ratio 0.470 << 1.10 threshold
+
+The band's implied spread (±0.94°C) is **less than half** the actual forecast error (median 2.0°C). The central temperature forecast (mode bucket) is regularly landing 2–4°C from the resolved temperature.
+
+### By city:
+
+| City | n | med_implied | med_realized | ratio | Status |
+|---|---|---|---|---|---|
+| Beijing | 4 | 0.97°C | 3.50°C | **0.278** | WORST |
+| Chengdu | 8 | 0.93°C | 3.00°C | **0.310** | BAD |
+| London | 1 | 0.82°C | 2.00°C | **0.408** | BAD (n=1) |
+| Munich | 5 | 0.94°C | 1.00°C | **0.939** | Near break-even |
+| Wuhan | 5 | 0.97°C | 1.00°C | **0.969** | Near break-even |
+
+### Out-of-ladder resolutions: 12/23 fire records (52%)
+
+The band's ladder covers only 3–5 buckets around the mode. In 12 of 23 cases, the resolved temperature fell **entirely outside** the quoted range.
+
+**Systematic misses:**
+- Chengdu Jun 29: band mode=27.0°C, resolved=33.0°C. 6°C error.
+- Chengdu Jun 30: band mode=28–29°C (multiple fires), resolved=32.0°C. 3–4°C error.
+- Beijing Jun 29: band mode=24.0°C, resolved=27.0°C. 3°C error.
+- Beijing Jun 30: band mode=26°C, resolved=30°C. 4°C error.
+
+**Root cause hypothesis:** Band temperature pricer is cold-biased for Beijing and Chengdu in late June. Likely underestimates the 2026 heat wave conditions. Munich and Wuhan track reality well (ratios near 1.0).
+
+**Implication for edge:** The band's edge premise requires implied_std > true_sigma. True sigma is ~2°C for Beijing/Chengdu. Implied_std is only ~0.94°C. The band is selling too-narrow insurance centered on the wrong temperature.
 
 ---
 
-*Anti-sycophancy note: The dispersion edge is compressing — this is not a temporary fluctuation. Three consecutive data points (d+2 implied std = 1.100, 1.098, 0.971°C) show a declining trend. If next cycle confirms d+2 ratio < 1.05, reduce BAND_BASE_STAKE or widen sigma floor. The data gap is a structural problem requiring a code change, not a parameter tweak.*
+## STEP 4 — ISOTONIC STALENESS
+
+No change from prior cycle (same files on branch).
+
+| Grid | Deployed | Candidate | Delta |
+|---|---|---|---|
+| 0.30–0.95 | 0.3801 (plateau) | 0.3739 (plateau) | −0.0062 |
+| 1.00 | **0.6316** | **0.3739** | **−0.2577** |
+
+- Max delta (grid ≤ 0.90): 0.0175 — below 0.05 threshold
+- Delta at grid=1.0: −0.2577 — above 0.05 threshold → material shift
+
+**Recommendation: DO NOT DEPLOY candidate.** Candidate collapses the high-confidence signal and has worse `near_identity_maxdev` (0.626 vs 0.568 deployed).
+
+---
+
+## STEP 5 — ALERTS SUMMARY
+
+### ESCALATED S3: Dispersion collapse
+- Prior: ratio=1.061 (at threshold)
+- Current: ratio=0.470 (far below 1.10 threshold)
+- d+2 ratio: 0.550 (prior was 1.100 at threshold)
+- 52% of fire records resolved outside ladder range
+- Beijing/Chengdu band central forecast systematically cold by 3–4°C
+- ACTION REQUIRED: Review band temperature pricer for Beijing/Chengdu; investigate heat-wave climatology offset. Munich/Wuhan performing adequately.
+
+### PERSISTS S4: Isotonic candidate divergence at high confidence
+- DO NOT DEPLOY candidate
+- No change from prior cycle
+
+### DATA GAP RESOLVED
+- 7 consecutive frozen cycles broken via POST_PEAK running_max inference
+- n=253 buckets, 25 (city, date) resolved markets
+- Caveat: proxy method, not direct CLOB resolution data
+
+### ECE WATCH CLEARED
+- ECE7 updated: 0.036 (was 0.041 carried forward)
+- Below 0.05 threshold; improving trend
+
+---
+
+## BANKROLL NOTE
+
+$86.59 (+$3.73 since yesterday). Positive P&L despite dispersion concerns. Band is firing and executing. The NO-share of 80% (from prior exec audit) suggests the band is finding value on wing buckets rather than mode buckets — partially consistent with mode being wrong. P&L impact of central-forecast miss may be partially offset by NO bets on non-mode legs.
+
+---
+
+*Report generated by calib_monitor routine | Branch: claude/find-lag-parameter-rFQ0N | Data: data-mirror branch*
