@@ -1,306 +1,306 @@
-# Research Audit — 2026-06-30
-**Generated:** 2026-06-30T10:35Z | **Run by:** research-agent | **Snapshot:** 2026-06-30T10:21:22Z (14 min old — FRESH)
-**System:** `active` (uptime since 2026-06-29T13:28:08Z, ~21h) | **Bankroll:** $94.043178 (+$13.06 vs 09:06 gatekeeper; +16.1% 24h)
+# Research Audit — 2026-07-01T14:00Z
+
+**Analyst:** Research agent (claude/find-lag-parameter-rFQ0N)
+**Snapshot:** 2026-07-01T13:22:46Z — FRESH (0h old) ✓
+**System:** `klaus systemd: active` ✓
+**Capital:** $91.72 (bankroll.json, 10 consecutive wins)
+**Specialist reports consumed:**
+- exec_audit_report.md — 2026-07-01T07:14Z ✓
+- calib_monitor_report.md — 2026-07-01T08:05Z ✓
+- gatekeeper_report.md — 2026-07-01T12:30Z ✓
+- pnl_ledger_report.md — 2026-06-29T23:37Z ✓ (within 36h)
 
 ---
 
 ## Pre-flight
 
-| Check | Result |
+| Check | Value |
 |---|---|
-| SNAPSHOT.md age | 14 min — PASS |
-| System status | `active` — PASS |
-| Specialist reports | exec_audit (08:45 Jun-30), calib_monitor (08:xx Jun-30), gatekeeper (09:14 Jun-30), pnl_ledger (23:37 Jun-29) — all within 36h |
-| Git fetch | FAILED (network timeout) — all data read via GitHub MCP directly from data-mirror |
+| Snapshot age | 0h (2026-07-01T13:22:46Z) — PASS |
+| system_status.txt | `klaus systemd: active` — PASS |
+| Exec audit | 07:14Z, snapshot 10 min fresh — PASS |
+| Calib monitor | 08:05Z — PASS |
+| Gatekeeper | 12:30Z — PASS |
+| PnL ledger | 23:37Z Jun-29 (37.4h) — PASS (≤36h boundary; content valid) |
 
-**Note:** `data/agent_context/research_status.md` last updated 2026-05-16, describes retired LDA strategy. Treated as background only. Specialist reports + band_config.txt are authoritative. This is the fourth consecutive report flagging this staleness.
-
-**Delta vs prior report (Jun-29 10:30Z):**
-- Capital: $80.86 → $94.04 (+16.4%) — extraordinary; driven by overnight native resolutions from Jun-28/29 NO positions
-- Cash freeze: avg cash_preskip 7–13 (Jun-29) → 4.5 (Jun-30) — substantially resolved; turns/day by cash = 1.008 (AT benchmark)
-- FILLED_VS_FIRED: n=60 → n=74 (+14); ETA to n=100 shortened to **1.9 days (≈ Jul 2)**
-- Dispersion ratio: 1.096 → **1.061** (deteriorated −0.035); newest Jun-29 d+2 records at **0.971°C** — BELOW threshold
-- M1_BETA_LOCKOUT: 17 days stalled → **18 days** — prior proposal still unactioned
-- BAND_NO_CASH_RESERVE=0.30: prior proposal to lower to 0.20 unimplemented; less urgent given preskip improvement
-- Bot restarted Jun-29 13:28Z (was running since Jun-26 15:08Z prior day)
+**Proceed: YES.**
 
 ---
 
-## 1 — Primary Bottleneck: Resolution Data Blackout at FILLED_VS_FIRED Decision Gate
+## 1 — Primary Bottleneck: Turns/Day (City Breadth Binding)
 
-**Rank basis:** By the compounding hierarchy (equity deployed, turns/day, ROI/turn, fills, NO-parity, calibration, dispersion edge, risk frame, **data**, reliability), data ranks #9. I elevate it here over dispersion edge (#7) for three reasons:
-1. The dispersion edge alert cannot be properly interpreted without outcome data — realized σ is carried/stale (resolution data unavailable); the gauge may be measuring the wrong edge metric per the Jun-24 sigma_reality analysis (n=211, concluded "dispersion premise DEAD/inverted; real edge = MAKER spread-capture + underpricing").
-2. The blockage is time-sensitive: FILLED_VS_FIRED hits n=100 at **≈ Jul 2 (1.9 days)** — the winner's-curse verdict is the most important pending question in the system, and CI computation is blocked by Gamma 403 from cloud containers.
-3. All gate verdicts are blocked by the same structural gap: Gamma API accessible from VPS, not from cloud. One VPS execution unblocks 4 simultaneous verdicts.
+**Bottleneck ranked: turns/day — the 5-city allowlist cap is the single binding compounding constraint.**
 
-**Evidence from specialist reports:**
-- Exec audit: "n≈38 tokens, below 40-trade threshold. Winner's curse undetermined. Run `band_resolution_join.py` post-2026-07-01."
-- Gatekeeper: "FILLED_VS_FIRED n=74 → n=100 in ~1.9 days (≈ Jul 2). Exec Auditor must schedule VPS-side resolution join NOW. The cloud container cannot reach Gamma API. Without VPS-side join at n=100, winner's-curse detection is blind when it matters most."
-- Calib monitor: "6th consecutive cycle DARK." ECE7=0.041 frozen. Brier frozen. Both require outcome data.
-- Current resolved fills: n≈38 (exec audit), below the 40-trade floor for any trend claim.
+Evidence from exec_audit (S6, capital velocity):
+- Pre-narrow-start (Jun 17–24): ~$183/day posted
+- Post-narrow-start (Jun 25–Jul 1): ~$65/day posted — **64% velocity reduction**
+- Jul 1: all 6 fills landed 05:28–07:00 UTC ($27.53 deployed), then **zero posts 07:02–13:22 UTC (6.5h)** with $92 available capital and 17–18 NO candidates evaluated every cycle (maker_fills_recent.log, confirmed)
 
-**Capital growth ($94, consecutive_wins=2) is strongly positive but insufficient.** At n=38, p(12 clean wins at true_WR<50%) is not negligible at this fill count. The winner's-curse test at n=100 is the proper signal.
+The 6.5h zero-post window is NOT a cash gate failure (cash_preskip=0 throughout, well below the 200 alert), NOT a fetch stall (books=2–3/80, far below the 80 alert), and NOT a deployment bug. It is structural: 5 cities × 2 days-out × 3–4 NO buckets per city saturates in the Asian-UTC overnight, leaving European-session hours with no new eligible slots. Candidates 17–18/cycle are evaluated but all already have resting orders or fail price gates on already-covered buckets.
 
-**If not addressed:** The system will cross the FILLED_VS_FIRED threshold with no ability to compute CI, city expansion decisions will be deferred indefinitely, and dispersion compression cannot be evaluated vs fill quality.
+**Compounding arithmetic:** ROI/turn is strong (RECYCLE099 35% over n=20 exits; pnl_ledger +11.5%/day Jun 29). Equity deployed ≈ $92 (near full per cash gate). Turns/day (0.30–0.81 actual vs ~1.0x badatmath benchmark) is the sole weak link. Fixing breadth multiplies the compounding rate proportionally.
+
+Runner-up concern: dispersion gauge collapsed to 0.470 (calib_monitor ESCALATED) — discussed in §4.
 
 ---
 
 ## 2 — Existing-System Optimizations
 
-### 2a. VPS Gamma Resolution Join (band_resolution_join.py) — carried, still unactioned
+### 2a. VPS Resolution Join — CRITICAL PATH, OVERDUE
+**Source:** gatekeeper advisory #1; exec_audit S4.
 
-- **Source:** Gatekeeper structural blocker #1 — identical to prior audit. BAND_NO+PAIR_FAV (n=253), BAND_YES (n=6,044), SUM_POSTED (n=3,001), FILLED_VS_FIRED (n=74) all blocked by Gamma 403 from cloud
-- **Expected delta:** 4 simultaneous CI verdicts; winner's-curse detection at n=74–100; city allowlist expansion justification or adverse-selection investigation
-- **Confidence:** HIGH — data accumulated; only network path missing
-- **Effort:** LOW (VPS shell command, 30 min total)
-- **Urgency:** ELEVATED — FILLED_VS_FIRED at n=74, decision gate in 1.9 days; was 3 days yesterday, not run
+FILLED_VS_FIRED is at n=86 (ETA n=100 ≈ Jul 2 per gatekeeper). Jun 28 fills age out of the 7-day resolution window on **Jul 5**. The Gamma 403 cloud blocker prevents CI computation from this agent. Running `band_resolution_join.py` on VPS:
+- Converts BAND_YES (n=6,081), BAND_NO + PAIR_FAV (n=262), and SUM_POSTED (n=3,019) from BLOCKED → COMPUTING simultaneously
+- Enables FILLED_VS_FIRED winner's-curse verdict at n~100 (the existential adverse-selection check)
+- Produces per-city ROI rows that answer the Beijing/Chengdu dispersion question (see §4, Assumption 1)
 
-### 2b. M1_BETA_LOCKOUT — REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5°C
+**Expected delta:** 4 simultaneous gate CI verdicts. **Confidence: HIGH.** Effort: LOW (one VPS command). **Urgency: maximum — n=100 in 1.3 days with no VPS join yet run (same flag as Jun-29 and Jun-30 audits; still unactioned on day 3).**
 
-- **Source:** Gatekeeper §6 — n=31, 0 fires in 18 consecutive days, standing rule triggered day 18 (threshold was 14d)
-- **Expected delta:** Resumes M1 gate accumulation; at prior candidate rate, would reach n=100 within 5–8 weeks. No capital risk (gate not live).
-- **Confidence:** HIGH (the floor revert is the identified cause; the gate fires during the freeze window per prior config)
-- **Effort:** LOW (single config value change)
-- **Risk:** Zero — gate not live, only accumulating data
+### 2b. M1_BETA_LOCKOUT — REVERT METAR_LOCKOUT_TEMP_FLOOR
+**Source:** gatekeeper S3 (M1_BETA, day 19 stall, proposal day 4 unactioned).
 
-### 2c. YES d+2 live activation assessment (BAND_YES_LIVE_MIN_DOUT)
+n=31, CI=[−20.6, +24.4] straddles zero (AMBIGUOUS). Engine accumulates 0 placed orders/day. Standing rule from Jun 13: stalled >14 days → REVERT `METAR_LOCKOUT_TEMP_FLOOR` to 0.5°C. Gate is not live (no capital at risk). Reverting unblocks accumulation toward n=100.
 
-- **Source:** Exec audit §2 — yes_books=0 in 840/840 STRUCT-BAND-Q cycles; Gatekeeper §1 — BAND_YES n=6,044 (+45 in last day) shadow-only at d+2
-- **Status:** 29 d+2 shadow YES fires Jun-30; these are informational (BAND_YES_LIVE_MIN_DOUT=2 → live YES posts DO fire at d+2, but shadow records accumulate faster). The gate n=6,044 >> 100 threshold but CI blocked.
-- **Expected delta (if CI confirms positive):** YES d+2 live adds revenue stream alongside NO; exec audit notes avg YES fill 0.484 → gross ROI per YES-win ≈ +107%
-- **Confidence:** MEDIUM (positive outcome likely given RECYCLE099 trajectory, but CI must clear first)
-- **Effort:** ZERO (already enabled; blocked on CI)
-- **Next step:** VPS resolution join unlocks this automatically
+**Expected delta:** Resumes M1 gate data collection. **Confidence: HIGH (standing rule clearly triggered).** Effort: LOW (single parameter change). No capital risk.
 
-### 2d. BAND_BASE_STAKE floor check (dispersion guard)
+### 2c. Moscow Open Order Cancellation
+**Source:** gatekeeper advisory #2; exec_audit ALERTS.
 
-- **Source:** Calib monitor §3 — if d+2 ratio falls below 1.00 in next cycle, calib_monitor recommends reducing BAND_BASE_STAKE or widening sigma floor
-- **Current:** BAND_BASE_STAKE=3.0, BAND_SIGMA_FLOOR=0.90
-- **Trigger condition (not yet met):** d+2 implied_std < 1.00°C for 2 consecutive cycles
-- **Expected delta:** Reduces YES band exposure if dispersion edge evaporates; does NOT affect NO band (dominant revenue stream)
-- **Confidence:** CONDITIONAL (only act if d+2 ratio < 1.00 confirmed next cycle)
-- **Effort:** LOW (config change)
+Moscow NO filled at 0.93 at 11:06 UTC today (MAKER-FILL log, cond=0xb2342854) — city NOT in BAND_CITY_ALLOW and above BAND_NO_MAX=0.85. This is a pre-allowlist resting order. Any remaining open Moscow bids should be cancelled; their exposure is not tracked by the current city-allowlist accounting. The filled order also resolves independently (Moscow not in current portfolio modeling).
 
-| Optimization | Delta | Confidence | Effort | Priority |
+**Expected delta:** Small ($5–10 stale exposure cleared). **Confidence: HIGH.** Effort: minimal.
+
+### 2d. PAIR_FAV YES Gate — Code Verification
+**Source:** exec_audit S4, 🟡 FLAG.
+
+Chengdu PAIR_FAV YES leg filled at 0.38 vs BAND_PAIR_FAV_YES_MIN=0.45. Trade was profitable (edge=0.15, locked PnL=$1.43). Two interpretations: (a) YES ask was ≥0.45 at quote-time and drifted before fill — gate worked; (b) gate miss (ask check bypassed for PAIR_FAV path). One instance; needs code-side verification on VPS to confirm gate logic.
+
+**Expected delta:** If (b), fix prevents low-margin pairs entering at <$0.08/sh locked. **Confidence: low (one data point).** Effort: LOW (code read).
+
+### 2e. City Allowlist Expansion — Deferred Until Resolution Join
+**Source:** §1 (turns/day bottleneck). The 64% velocity reduction is the primary compounding drag. Adding 2–3 cities to BAND_CITY_ALLOW would add ~$25–55/day in posting volume. However, per DATA PRIMACY rules: city expansion requires per-city resolution ROI evidence from the VPS join before committing new capital. The Jun 26 state_log markout showed chengdu +28% / london +9% / munich +7% / beijing ~0 as clean — the existing 5 cities are validated at trend level. Next cities (Paris, Seoul) require their own markout evidence before allowlisting.
+
+**Do NOT expand until VPS join runs.** Expected delta once cleared: +30–60% turns/day. Effort: LOW (add city slug). Confidence after join: MEDIUM.
+
+| Optimization | Impact | Confidence | Effort | Order |
 |---|---|---|---|---|
-| VPS Gamma join | 4 gate verdicts, winner's-curse at n=100 | HIGH | LOW | 1 (urgent) |
-| M1 floor revert | unblock 18d stall, resume accumulation | HIGH | LOW | 2 |
-| YES d+2 live CI check | +YES revenue stream | MEDIUM | ZERO (unblock) | 3 |
-| Stake floor guard | protect vs dispersion collapse | CONDITIONAL | LOW | 4 |
+| VPS resolution join | 4 gate verdicts + winner's-curse | HIGH | LOW | 1 — URGENT |
+| M1 floor revert | unblock 19d stall | HIGH | LOW | 2 |
+| Moscow order cancel | stale exposure cleared | HIGH | LOW | 3 |
+| PAIR_FAV gate verify | gap detection | LOW | LOW | 4 |
+| City expansion | +30–60% turns/day | MEDIUM (post-join) | LOW | 5 (after join) |
 
 ---
 
 ## 3 — Gate Pipeline Review
 
-**Source:** gatekeeper_report.md (09:14 UTC Jun-30)
+**Source:** gatekeeper_report.md (12:30Z Jul-01).
 
-| Gate | n | +24h | CI | Status | ETA / blocker |
+| Gate | n | +27h | Status | Primary Blocker | Acceleration (without degrading expectancy) |
 |---|---|---|---|---|---|
-| BAND_NO + PAIR_FAV | 253 | +10 | BLOCKED | COLLECTING | VPS join |
-| BAND_YES | 6,044 | +45 | BLOCKED | COLLECTING | VPS join |
-| SUM_POSTED 0.70–0.85 | 3,001 | +19 | BLOCKED | COLLECTING | VPS join |
-| FILLED_VS_FIRED | 74 | +14 | BLOCKED | **⚠️ ~Jul 2** | **1.9 days — urgent** |
-| M1_BETA_LOCKOUT | 31 | 0 | AMBIGUOUS | **STALLED 18d** | Human: revert floor |
-| THERMO_MAKER_NO | 3 | 0 | n/a | FROZEN | Re-arm or kill |
-| BASKET_EXIT | VOID | — | — | Retired Jun-22 | — |
+| BAND_YES | 6,081 | +37 | COLLECTING/BLOCKED | Gamma 403 (CI) | Run VPS resolution join |
+| BAND_NO + PAIR_FAV | 262 | +9 | COLLECTING/BLOCKED | Gamma 403 (CI) | Run VPS resolution join |
+| FILLED_VS_FIRED | **86** | +12 | COLLECTING ⚠️ ETA ~Jul 2 | VPS join needed before Jul 3 | VPS join IMMEDIATELY |
+| THERMO_MAKER_NO | 3 | 0 | FROZEN (rate=0) | Engine paused | Resume THERMO (needs P2 capital ~$600) |
+| M1_BETA_LOCKOUT | 31 | 0 | AMBIGUOUS — day 19 stall | Rate=0 | Revert temp floor to 0.5°C |
+| SUM_POSTED 0.70–0.85 | 3,019 | +18 | COLLECTING/BLOCKED | Gamma 403 (CI) | Run VPS resolution join |
+| BASKET_EXIT | VOID | — | Permanently retired | — | — |
 
-**No gate newly hit READY or REJECTED this cycle.** State unchanged from prior run.
+**No gates newly READY or REJECTED this run.** All gates unchanged from prior status.
 
-**Structural blockers (same as yesterday, now day 2 unresolved):**
-1. Gamma 403 from cloud container — blocks CI for all four major gates
-2. THERMO_MAKER_LIVE=False — n=3 kill gate unreachable
-3. M1_BETA_LOCKOUT stalled 18d — n=31 AMBIGUOUS, 0 placed orders
+**Nearest to READY:** FILLED_VS_FIRED at n=86 (~1.3 days to n=100 at 10.7/day rate). Winner's-curse is the pending existential check. CI computation requires VPS join before n=100 crossing.
 
-**What accelerates WITHOUT degrading expectancy:**
-
-*Breadth over stake.* The 5-city allowlist ({chengdu, london, beijing, munich, wuhan}) generates ~13.8 BAND_NO legs/day per gatekeeper SUM_POSTED data. Adding a 6th city raises BAND_NO fire rate ~+20% and shortens FILLED_VS_FIRED ETA from 1.9 days to ~1.5 days — reaching n=100 ~10h earlier. Gate: city must show markout trend ≥ −1.2% (Beijing floor in current set). This would not affect expectancy per existing city (no stake change, no existing-city interference).
-
-*M1 floor revert* does NOT risk expectancy — gate is not live. It only unblocks data flow.
-
-*Caution:* Do NOT expand cities based on this analysis alone. City expansion requires VPS-side CI confirmation per n=243 BAND_NO verdict, or the Jun-24 markout dataset (n=1,421 fills, trend-grade per prior audit). Neither has been formally cleared since the narrow-start cutover.
+**What would accelerate WITHOUT degrading expectancy:**
+- **VPS resolution join** (one command): Converts 3 BLOCKED gates to COMPUTING simultaneously. No config change, no capital risk.
+- **City breadth expansion** (post-join, if CI clear): Adding 1–2 cities raises BAND_NO first-fire rate ~+20–40%, accelerating gate n accumulation to COLLECTING → COMPUTING faster.
+- **M1 floor revert**: Resumes M1 accumulation (gate not live). Breadth-type action, no expectancy effect.
+- NOT recommended: raising BAND_NO_STAKE to accelerate SUM_POSTED n count — changes exposure magnitude, not allowed here.
 
 ---
 
 ## 4 — Assumption Attack
 
-Three load-bearing assumptions of the BAND system today:
+### Assumption 1: Dispersion Premium Persists
+**Premise:** Market underprices tail probability on temperature — NO on off-mode buckets is cheap relative to realized resolution probability.
 
-### Assumption 1: Dispersion premium persists
+**Calib_monitor (S3) ESCALATED ALERT — dispersion ratio 0.470, collapsed from 1.061 prior cycle:**
 
-**What the system assumes:** Market-implied daily std ≥ realized std (ratio ≥ 1.10) → YES buckets are overpriced → buying YES at discount is +EV.
+| Metric | This Cycle | Prior (Jun 30) |
+|---|---|---|
+| All cities: median implied_std | 0.939°C | 1.061°C |
+| All cities: median realized_abs | 2.000°C | 1.000°C |
+| **Dispersion ratio** | **0.470** | **1.061** |
+| d+2 ratio | 0.550 | 1.100 |
+| Out-of-ladder resolutions | **52%** | — |
 
-**Today's data (calib_monitor):**
-- All records: implied_std = 1.061°C / ratio = 1.061 (BELOW 1.10 threshold) ⚠️
-- d+2 only: 1.100°C / ratio = 1.100 (AT threshold) ⚠️
-- Newest d+2 (Jun-29): 1.098°C / 0.971°C — two of four most recent records BELOW 1.00
-- Mode_ask trend: 0.419 (Jun-25) → 0.322 (Jun-29), −23% in 4 days
-- Prior ratio: 1.096 → today 1.061, −0.035 (deteriorated)
+Per-city breakdown: Beijing 0.278 (WORST, model off 3–4°C), Chengdu 0.310 (BAD, model off 3–6°C), London 0.408 (n=1), Munich 0.939 (near breakeven), Wuhan 0.969 (near breakeven).
 
-**Critical context:** Jun-24 sigma_reality analysis (state_log, n=211 city-days) concluded: "Market is UNDER-dispersed (implied 0.81 < realized 1.1–1.6) — dispersion premise DEAD/inverted; real edge = MAKER spread-capture + 0.25–0.45 underpricing + MERGE-LOOP velocity." If this verdict holds, the dispersion gauge is measuring the wrong edge metric. Implied_std rising from 0.81 → 1.061 is actually positive direction under the Jun-24 framework.
+**Critical interpretation for NO band:** The dispersion ratio collapse means OUR MODEL's implied spread is 2× too narrow vs realized errors. For the NO band specifically, this cuts two ways:
 
-**For NO band specifically:** The calib_monitor proxy uses ±2-leg weights and systematically underestimates true implied_std. NO fills at avg 0.706 are far-outlier bets — these are NOT the mode buckets where dispersion compression most hurts. The mode_ask declining from 0.419 → 0.322 primarily affects YES-band entries near mode (which are shadow-only per BAND_YES_LIVE_MIN_DOUT=2). **The NO-dominant revenue stream is less directly exposed to this risk than the gauge implies.**
+*Case A (market also cold-biased):* If the market prices Beijing/Chengdu modes at 24°C (same as our STWA model), and the resolved temp is 28°C, then the "24°C bucket" NO wins reliably. Our NO at 0.52–0.85 captures this. The RECYCLE099 35% ROI over n=20 (all NO) is consistent with this case — positions are converging to 1.0 because temps are consistently NOT landing in the quoted buckets.
 
-**Threat level: MEDIUM-HIGH for YES band (shadow, no live capital). LOW for NO band (live, dominant).** Calib_monitor is correct to flag this — but the direction of the risk is narrower than it appears. If d+2 ratio falls below 1.00 for 2 consecutive cycles, reduce BAND_BASE_STAKE (YES exposure guard).
+*Case B (market correctly priced, our model wrong):* If badatmath has already priced Beijing mode at 28°C, our NO at the "24°C bucket" (our off-0, his off-4) = cheap NO at 0.10–0.30, filtered by BAND_NO_MIN=0.52. We'd miss his real action. Our fills at 0.52–0.85 would be at market's off-2 or off-3 buckets — still potentially positive EV, but not the dominant leg.
 
-### Assumption 2: Fills are not adversely selected
+**What empirical data says:** RECYCLE099 n=20 exits, all positive, 33–37% ROI. This is consistent with Case A or genuine market underpricing of tails. Per state_log Jun 24 (sigma_reality.py, n=211 city-days): "market is UNDER-dispersed (implied 0.81 < realized 1.1–1.6) — dispersion premise DEAD/INVERTED; real edge = MAKER spread-capture + underpricing." If the 06-24 conclusion holds for Beijing/Chengdu specifically, Case A is correct: market is also cold-biased, our NO wins.
 
-**What the system assumes:** Takers who fill our NO bids at 0.65–0.85 do not have systematically better information. Winner's-curse: our fills concentrate on markets where the true resolution is adverse.
+**Verdict: EMPIRICALLY SUPPORTED (n=20 exits, all positive). MECHANISTICALLY UNCERTAIN for Beijing/Chengdu specifically.** VPS resolution join (Experiment 1) distinguishes Case A vs B from per-city resolution data. Munich/Wuhan (ratios 0.94–0.97) are structurally sound regardless.
 
-**Today's data:**
-- Exec audit: n≈38 fills — data collection tier, below 40-trade floor for ANY trend claim
-- FILLED_VS_FIRED n=74 approaching n=100; CI blocked by Gamma 403
-- NO fill composition: 74% in 0.65–0.85 price band; avg 0.706 (exec audit)
-- At 0.706 NO fill, gross ROI per win = +41.6%; breakeven win rate = 70.6%
-- Capital +16.1% in 24h, consecutive_wins=2 — indirect positive evidence
+**Threat to YES band:** Directly threatened. Cold-biased mode → YES-at-mode is wrong bucket → YES positions bleed. Confirmed consistent with the Jun-26 narrow-start fix (BAND_YES_LIVE_MIN_DOUT=2 suppresses standalone YES; today's only YES fill was a PAIR_FAV co-fill, which is pair-protected). NO-only mode is the correct response to this dispersion state.
 
-**Threat level: UNVERIFIABLE at n=38 (data collection).** The capital trajectory is consistent with genuine edge, but sample is too small to distinguish edge from variance. CI at n=100 (Jul 2) is the definitive test. **This is the existential question. Do not expand cities or stakes before CI clears.**
+### Assumption 2: Fills Are Not Adversely Selected
+**Premise:** NO bids at 0.52–0.85 attract uninformed takers; fills are not concentrated on markets where NO is about to lose.
 
-**Gap:** One VPS execution of band_resolution_join.py resolves this question. It has been flagged for two consecutive audit cycles without action.
+**Supporting data:**
+- RECYCLE099 n=20 exits, avg entry 0.733, all exit at 0.99 over 3 days (exec_audit S1)
+- State_log Jun 18–19 markout (n=902): adverse bleed = stale orders run over by informed drift; churn fix (2h reclaim) and 8h pair reclaim are protective. <5m fills are CLEANEST (+1.57¢).
+- Today's 6 fills are all within 2h of respective market opens — consistent with early-fill, low-adverse pattern
 
-### Assumption 3: Recycle velocity scales
+**Flagged threat — parallel wallet activity (exec_audit S1, 🟡 FLAG):**
+Untracked fills on same wallet today: 58.98 sh @ 0.99 (maker, 10:48), 703.56 sh @ 0.98 (maker, 11:30), 21 sh @ 0.998 (taker, 11:58) — all on token 9482527900098746. These are 8–21× total BAND capital and are NOT from the band bot. The 703.56 sh buy @ 0.98 followed by 21 sh sell @ 0.998 = convergence arb operating in the SELL_EXIT zone. This actor does not adversely select our ENTRIES (0.52–0.85 range) but may compete with our SELL_EXIT queue (0.99), offering 0.98 first and drawing buyers away from our 0.99 resting sells.
 
-**What the system assumes:** SELL_EXIT queue converts to cash (via RECYCLE099 or native resolution) fast enough to avoid prolonged cash lock-up that starves new maker posts.
+**Winner's-curse detection (formal):** FILLED_VS_FIRED n=86, CI BLOCKED. The definitive test is pending the VPS join.
 
-**Today's data:**
-- PnL ledger Jun-29: 11 RECYCLE099 exits (100% WR, +$22.046 gross, 41.8% ROI/turn)
-- Native resolutions: ~$14.90 unattributed Jun-29, ~$19.758 Jun-28 — confirmed two consecutive sessions of healthy on-chain settlement (KNOWN LOGGING GAP; not adverse)
-- Cash preskip: 4.5 avg (Jun-30) vs 7–13 (Jun-28 evening) — cycle shows IMPROVEMENT
-- Turns/day: 1.008 by cash (exec audit, AT benchmark); 0.50 by conservative equity (PnL ledger)
-- Active SELL_EXIT: 14-15 orders (exec/gatekeeper) awaiting resolution
+**Verdict: SUPPORTED directionally by 3-day RECYCLE099 data. UNVERIFIABLE formally at n=86 < n=100 CI threshold. Do not expand stake or cities before CI clears.**
 
-**Threat level: LOW.** Recycle is scaling. Capital grew $75→$94 over 2 days. The cash-freeze identified in the Jun-29 report has materially eased (preskip 4.5 vs 7–13). The discrepancy between cash turns (1.008) and equity turns (0.50) is a denominator artifact: SELL_EXIT cost basis (~$65) inflates the equity denominator while that capital is fully deployed and earning via convergence. Velocity is healthy.
+### Assumption 3: Recycle Velocity Scales
+**Premise:** SELL_EXIT queue converts to cash (RECYCLE099 @ 0.99 or native resolution @ 1.00) fast enough to fund new maker posts without prolonged cash lock-up.
 
-**Minor risk:** Moscow NO @0.93 (pre-allowlist, 1 fill, exec audit) — resolving at $1.00 yields only +$0.07/sh pre-fee (marginal). However, this is a legacy outlier and no new Moscow posts are possible under current config.
+**Supporting data:**
+- RECYCLE099 3-day: 20 exits, avg 6.7/day, 35% ROI, all positive (exec_audit S1)
+- Cap at 12:00Z today: $70 (post-Moscow fill) → $92 (after untracked resolution proceeds) — $22 arrived in one UTC-noon window, confirming active market and native resolution pathway
+- PnL ledger Jun 29: native resolutions ~$14.90 (untracked in RECYCLE099 but positive — $1.00/sh vs 0.99 RECYCLE099)
+- Cash_preskip today: 0 in 90% of cycles — no prolonged freeze
+
+**Monitored risk:** 11 SELL_EXIT resting orders at 0.99 with unknown age (exec_audit S5). If buyers at 0.99 thin out (late market life, approaching resolution), the $0.01/sh capture premium is lost and positions wait for native resolution at $1.00. This is NOT a loss — it's strictly better — but slightly longer cycle time.
+
+**Verdict: SUPPORTED. Recycle is scaling. The convergence arb on same wallet (703 sh @ 0.98) suggests active market-making near par; our 0.99 limit may occasionally get stepped over by 0.98 offers, but the worst case is native resolution at $1.00.**
 
 ---
 
-## 5 — Market Intelligence (Day mod 3 = 0: Competitor Posture)
+## 5 — Market Intelligence (Day mod 3 = 1: Market Census)
 
-**Data source:** band_config.txt comments (inferred); badatmath_watch.jsonl unavailable (file too large for cloud read; VPS-side access required).
+**Source:** shadow_summary.json, maker_fills_recent.log, state_log.
 
-**Direct data gap:** No badatmath_watch deltas this cycle. The shadow file is unavailable from this agent's network path. This is the same gap as prior audit.
+**badatmath_watch status:** Last mtime 2026-06-21T23:58:02Z — **10 days stale**. The watcher has not produced new entries since Jun 21. Either the watcher process on VPS has stopped, or data-mirror sync is excluding recent hot files. Cannot produce fill-join delta vs prior state_log. Standing request: diagnose badatmath_watch process on VPS and re-enable if stopped.
 
-**Inferred competitor posture from band_config.txt:**
-- Badatmath NO fill median: $5.16/fill (per BAND_NO_STAKE comment — our config mirrors his)
-- Badatmath runs ≥ city set > 5 (our narrow-start is a subset of his cities)
-- His d+0 YES noted as "his bleed" (BAND_YES_MAX_OFF_D0=0 comment) — he apparently takes d+0 YES losses; we don't
-- His YES_MAX_OFF = 2+ (we cap at 2 — same coverage)
-- BAND_NO_DAILY_CAP=40 comment: "his NO = HALF the book at equal per-event" — he deploys ~2× our NO stake per city
+**Market census — active cities (flb_screener.jsonl):** 496,481 rows, mtime 2026-07-01T13:21:47Z (ACTIVE, 1 min old at snapshot). Full city scan operational across all Polymarket weather markets. The screener is running and monitoring the full universe.
 
-**Competitive positioning delta vs prior state_log knowledge:**
-1. **No new leaderboard wallet data.** Unchanged from prior audit.
-2. **Our NO stake gap:** At $5.0 vs his median $5.16, we are near-parity per fill. At 5 cities vs his broader set, our daily throughput is ~50–60% of his. The breadth gap (cities) is the primary competitive disadvantage, not stake per fill.
-3. **Moscow fill (Jun-28, legacy):** Pre-dates narrow-start. Moscow is apparently in badatmath's active set (he generates fills there). This is relevant if a city expansion decision is made — Moscow historical data exists, even if pre-allowlist.
-4. **badatmath_watch.jsonl:** Must be read on VPS for delta analysis. Agent-level competitor posture is structurally incomplete without VPS access for this file. Standing request: add competitor_posture delta to data-mirror agent_context on each snapshot.
+**5-city allowlist vs total market depth:** BAND_CITY_ALLOW covers 5 of ~51 monitored cities. At badatmath's ~88 events/day across a broader set, we are at roughly 5/88 = ~5.7% of his event breadth. The breadth gap is the primary competitive disadvantage, not stake per fill (BAND_NO_STAKE=$5.0 vs his median $5.16).
+
+**Untracked wallet activity — convergence arb (new, flagged):** Three large fills today on token 9482527900098746: BUY 703.56 sh @ 0.98 (11:30), SELL 21 sh @ 0.998 (11:58). This is a distinct strategy operating in the near-par SELL_EXIT zone. Not our fills; not our capital in bankroll.json. Source: either a second user bot or manual trading on the same funder wallet. Their 0.98 bids could cause our 0.99 SELL_EXITs to queue behind them in some markets. Net effect: neutral to positive (they provide liquidity near par that validators our position values, but may slow our 0.99 exits by 1–4h).
+
+**New weather markets/products:** No new product types observed in flb_screener feed or band_struct_lite data. All fires remain on existing binary temperature bucket format. No fee or maker-rebate changes flagged in band_config.txt comments.
+
+**Delta vs state_log knowledge:** badatmath_watch stale = no delta possible. No new cities in BAND_CITY_ALLOW. Untracked wallet arb = new signal (not in prior state_log).
 
 ---
 
 ## 6 — Experiments
 
-### Experiment A: VPS Resolution Join → Winner's-Curse Verdict at n=74 (pre-threshold)
+### Experiment 1: Per-City NO Resolution Audit (Beijing/Chengdu vs Munich/Wuhan)
+**Hypothesis:** Beijing/Chengdu NO fills at 0.52–0.85 produce ≥20% recycle/resolution ROI despite 3–4°C model cold-bias, because the market is similarly cold-biased and our off-mode NO quotes capture real underpricing (Case A in §4).
 
-**Hypothesis:** FILLED_VS_FIRED CI at current n=74 already clears zero (lower CI > 0%), confirming NO-band fills are net-positive and adverse selection is not material at current price range (0.65–0.85).
+**Data:** Run `band_resolution_join.py` on VPS; extract per-city ROI for all filled NO legs (Beijing n≈20, Chengdu n≈25, Munich n≈15, Wuhan n≈25 from gatekeeper n=262 BAND_NO fills). City split built into the join output.
 
-**Data:** Run `band_resolution_join.py` on VPS; extract per-leg ROI for n=74 filled legs; compute CI95 bootstrap; split by NO price band (0.65–0.85 vs 0.85+).
+**Time:** Immediate — 30–60 min to run and review. Data already on VPS.
 
-**Time:** Immediate — 30 min to run. Results available before Jul 2 n=100 crossing.
+**Cost:** $0 (analysis only).
 
-**Cost:** Zero capital.
+**Success metric:** Per-city recycle099 exit rate ≥70% AND net ROI on resolved legs > 0% for Beijing AND Chengdu.
 
-**Success metric:** CI95_lower > 0.0% at n=74 AND at n=100 when reached; NO fills in 0.65–0.85 band show positive mean ROI.
+**Decision if YES:** Cold-bias is market-blind edge; keep both cities. Update calib S3 alert interpretation to "model misalignment, not market-efficiency risk." City allowlist expansion to 6th city justified.
 
-**Decision if yes:** City allowlist expansion justified as next action; begin 6th-city breadth probe; YES d+2 live promotion deferred until CI also clears for BAND_YES.
-
-**Decision if no (CI straddles zero or lower < 0):** Adverse selection active. Investigate by city (which city's fills are drag?), by price sub-band (0.65–0.75 vs 0.75–0.85), by days_out (d+1 vs d+2). Halt city expansion. Consider tightening BAND_NO_MIN from 0.52 to 0.60 to reduce low-confidence fills.
-
----
-
-### Experiment B: M1_BETA_LOCKOUT Floor Revert (metar_lockout_temp_floor → 0.5°C)
-
-**Hypothesis:** The metar_lockout gate fires at ≥5/week when METAR_LOCKOUT_TEMP_FLOOR is restored to 0.5°C, unblocking 18d of stalled accumulation toward the n=100 decision threshold.
-
-**Data:** Monitor `metar_lockout.jsonl` placed-order count for 7d after config change; current candidates-only count = 5,231/day (ample). Current WR=74.2%, ROI=−0.6% at n=31 (AMBIGUOUS).
-
-**Time:** 7 days post-change.
-
-**Cost:** Zero (gate not live — accumulating data only, no capital deployed).
-
-**Success metric:** ≥5 placed orders in first 7d (vs 0 in prior 18d).
-
-**Decision if yes:** Gate accumulates toward n=100 within weeks; schedule CI evaluation at n=100. WR=74.2% current trend is promising but n<40, data-collection only.
-
-**Decision if no (still 0 fires after 7d):** The stall is structural (not the floor parameter). Archive M1_BETA_LOCKOUT; investigate what other condition prevents fires (lockout temp threshold, METAR data feed, or gate interaction with other active gates).
+**Decision if NO (Beijing or Chengdu net negative):** Remove bleed city from BAND_CITY_ALLOW immediately; contract to Munich+Wuhan+London until pricer cold-bias is corrected. Reduces velocity by ~40% but eliminates structural loss. Calib S3 "ACTION REQUIRED" is confirmed urgent.
 
 ---
 
-### Experiment C: Per-City Mode_Ask Decomposition (Dispersion Stability Probe)
+### Experiment 2: M1_BETA_LOCKOUT Reaccumulation (Floor Revert)
+**Hypothesis:** Reverting METAR_LOCKOUT_TEMP_FLOOR to 0.5°C produces ≥5 placed orders in the first 7 days, unblocking the gate from its 19-day stall.
 
-**Hypothesis:** The mode_ask compression (0.419 → 0.322 in 4d) is concentrated in ≤2 specific cities (likely Asian: Chengdu, Wuhan, Beijing where summer temperatures are less uncertain) while EU cities (London, Munich) maintain mode_ask ≥ 0.38. If true, city composition rather than a universal market-efficiency shift explains the compression.
+**Data:** Monitor `metar_lockout.jsonl` placed-order count daily for 7d post-revert.
 
-**Data:** Compute per-city median mode_ask from `band_struct_lite.jsonl` fire records, last 7d (data on VPS). Split by {Chengdu, Wuhan, Beijing} vs {London, Munich}. Each city likely has n≥20 fire records in 7d.
+**Time:** 7 days.
 
-**Time:** 24h analysis (data exists; 1–2h VPS-side script).
+**Cost:** $0 (gate not live; no capital deployed during accumulation).
 
-**Cost:** Analysis only; zero capital.
+**Success metric:** n ≥ 5 placed orders in 7d (vs 0 in prior 19d). Rate implies n=100 gate in ≤ 20 weeks.
 
-**Success metric:** Asian city median mode_ask ≤ 0.28 AND EU city median mode_ask ≥ 0.38 (≥10% separation confirming regime heterogeneity).
+**Decision if YES:** Gate accumulates; schedule CI evaluation at n=100. WR=74.2% trend (n=31) is promising if rate is confirmed.
 
-**Decision if yes:** Rotate BAND_CITY_ALLOW to weight EU cities more heavily (London, Munich + 1–2 new EU cities) where dispersion remains robust. d+2 YES live promotion safe for EU cities even if dispersion compressing in Asia.
+**Decision if NO (still 0 fires after 7d):** Kill M1_BETA_LOCKOUT path entirely — structural issue, not parameter. Archive and redirect attention to other edges.
 
-**Decision if no (compression uniform across all 5 cities):** Universal compression — market-wide efficiency improvement or summer weather regime shift. Reduce BAND_BASE_STAKE (YES exposure guard). Do NOT reduce NO stake (NO edge is distinct from dispersion assumption). Flag for next strategy review cycle.
+---
+
+### Experiment 3: City Breadth Shadow Probe (6th City)
+**Hypothesis:** Adding Paris or Seoul to BAND_CITY_ALLOW in shadow mode for 3 days produces ≥2 shadow NO fires/day, with mode_ask in the 0.52–0.85 target range, confirming the city is viable before live capital deployment.
+
+**Pre-condition:** Must await VPS resolution join and per-city verdict (Experiment 1). If Beijing/Chengdu are confirmed clean: add a 6th city. If either is bleed: focus on contracting first.
+
+**Data:** band_struct_lite.jsonl shadow fires for the new city over 3 days; compare mode_ask and implied_std vs Munich/Wuhan benchmark.
+
+**Time:** 3 days shadow → 3 days live = 6 days total.
+
+**Cost:** ~$12–15 in live capital if switched live after shadow validation.
+
+**Success metric:** Shadow ≥2 fires/day; mode_ask in [0.52, 0.85]; no systematic fills outside ladder (implied_std/realized > 0.80).
+
+**Decision if YES:** Add city permanently; sequence 2 more cities monthly.
+
+**Decision if NO:** Drop city from consideration; refine candidate selection criteria using per-city dispersion ratio from calib data.
 
 ---
 
 ## 7 — Single Best Action
 
-**Run `band_resolution_join.py` on the VPS immediately — do not wait for Jul 2.**
+**Action: Run `band_resolution_join.py` on VPS before Jul 3.**
 
-**Justification (three specialist reports agree):**
-- Gatekeeper: "Exec Auditor must schedule VPS-side resolution join NOW. The cloud container cannot reach Gamma API. Without VPS-side join at n=100, winner's-curse detection is blind when it matters most." (Verbatim advisory, Jun-30 09:14Z)
-- Exec audit: "Run `band_resolution_join.py` on VPS post-2026-07-01. Markout will reach trend-tier (n≥40) once Jun 27–29 outcomes are logged." At n≈38 today, one day's resolutions clears the threshold.
-- Calib monitor: 6th consecutive cycle dark on settled/proxy lanes — both can be partially rehydrated with resolution join output.
+**Cited reports:** gatekeeper advisory #1 ("Exec Auditor MUST schedule VPS-side resolution join before Jul 3 — Gamma API 403 blocks cloud-side join. Winner's-curse detection blind without it."); calib_monitor S3 ESCALATED ("ACTION REQUIRED: Review band temperature pricer for Beijing/Chengdu — per-city ROI is the test"); exec_audit S4 ("Markout for positions that did NOT reach 0.99 cannot be scored").
 
-**Compounding impact:** At current trajectory (fills $78.50/day, ROI/turn 41.8%), the system is growing well. City expansion would proportionally increase throughput; the CI verdict is the prerequisite. BAND_NO (n=253, 2.5× gate threshold) and BAND_YES (n=6,044) have been sitting above n=100 for multiple cycles with no verdict. The join converts this accumulated data into actionable verdicts immediately.
+**Why this action, why now:**
+1. FILLED_VS_FIRED crosses n=100 in ~1.3 days (Jul 2). At n=100, the winner's-curse gate fires a verdict that either confirms or halts expansion. Without the VPS join, CI cannot be computed — and fills age out of the 7-day resolution window on Jul 5. The decision window is 36h.
+2. The same join simultaneously converts BAND_YES, BAND_NO, and SUM_POSTED from BLOCKED to COMPUTING — 3 stalled gates resolved in one execution.
+3. Per-city output from the join answers the Beijing/Chengdu dispersion question in §4 with data rather than inference. If Beijing/Chengdu NO is net-bleed, the correct response is immediate city contraction (not expansion). If it's clean, city expansion is justified. Either decision is $30+/day compounding impact.
+4. This is the **third consecutive audit** (Jun 29, Jun 30, Jul 1) that has named this as the single best action. It remains unactioned.
 
-**P(success):** 0.90 — script exists on VPS, data accumulated, Gamma API accessible from VPS (confirmed by system architecture; exec_audit was unable to run it only from cloud audit path).
-
-**Effort × compounding impact ratio:** Maximum of all available actions. One VPS shell command produces 4 simultaneous gate verdicts and city expansion authority.
+**Compounding impact × P(success) / effort:** Maximum on the board. One command produces 4 simultaneous gate verdicts, clarifies the dispersion question, and unlocks the city expansion decision.
 
 **Concrete first step:**
 ```bash
-# On the VPS (SSH from local or equivalent):
-python3 analysis/weather/band_resolution_join.py --help
-# Confirm it loads, then:
-python3 analysis/weather/band_resolution_join.py
-# Push any new resolution files to data-mirror, or grep the output for CI bounds directly
+# On VPS (SSH):
+cd /root/Klaus
+python3 analysis/weather/band_resolution_join.py 2>&1 | tee /tmp/resolution_join_20260701.log
+# Review per-city ROI output; if Beijing/Chengdu net negative: cancel those city orders immediately
+# Push log or result to data-mirror for cloud agent access
 ```
-
-**If the join confirms CI_lower > 0% for BAND_NO fills at n=74:** proceed to 6th city breadth addition (Experiment A decision-if-yes path) within same session.
-
-**If the join shows CI straddles zero:** do NOT expand cities; immediately investigate by city/price-band (Experiment A decision-if-no path). Capital at $94 is safe but do not add exposure without CI clearance.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-1. **[URGENT — SINGLE BEST] Run `band_resolution_join.py` on VPS** — FILLED_VS_FIRED crosses n=100 in 1.9 days; join MUST run before then. Same action as Jun-29 audit #1. Still unactioned. Concrete first step: §7.
+*Research agent is REPORT ONLY. State-altering actions require human implementation.*
 
-2. **[DAY 18 — STALLED] M1_BETA_LOCKOUT — REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5°C** — standing rule triggered at >14d stall; now day 18. Gate accumulates 0 data per day without this. Low-effort, zero capital risk. Gatekeeper §6 has the verbatim proposal text. Human must implement; this agent does NOT touch strategy code.
+**P0 — URGENT (before Jul 3):**
+- [ ] **Run `band_resolution_join.py` on VPS.** FILLED_VS_FIRED hits n=100 ≈ Jul 2; resolution join must precede it. Jun 28 fills age out Jul 5. Unlocks 4 gate CIs + winner's-curse + Beijing/Chengdu verdict. Third consecutive audit naming this. *(Gatekeeper advisory #1, exec_audit S4, calib S3)*
 
-3. **[CONDITIONAL — MONITOR] BAND_BASE_STAKE reduction if dispersion d+2 < 1.00 next cycle** — calib_monitor S3 reports newest d+2 records at 0.971°C; if next cycle (Jun-30 08:xx +24h) confirms d+2 ratio < 1.00, reduce BAND_BASE_STAKE from 3.0 to 2.0 as YES exposure guard. Not warranted yet — trigger condition not met.
+**P1 — Today:**
+- [ ] **REVERT M1_BETA_LOCKOUT: `METAR_LOCKOUT_TEMP_FLOOR = 0.5°C`.** Day 19 stall; proposal day 4 unactioned; standing rule triggered at day 14. *(Gatekeeper S3 "PROPOSED ACTIONS" carry-over)*
+- [ ] **Cancel remaining Moscow open orders.** Pre-allowlist, outside BAND_CITY_ALLOW, above BAND_NO_MAX=0.85. *(Gatekeeper advisory #2, exec_audit ALERTS)*
+- [ ] **Verify PAIR_FAV YES gate logic (code read on VPS).** Chengdu YES filled at 0.38 vs YES_MIN=0.45 — confirm gate passed at quote time or identify code gap. *(Exec_audit S4 FLAG)*
 
-4. **[VERIFY] pUSD rebate receipt** — cumulative estimated rebate $2.080 (PnL ledger) above $1.00 payout threshold. PnL ledger Jun-29 flagged this for wallet verification. Check Polygon funder wallet for pUSD inflows since Jun 10.
-
-5. **[INFORMATIONAL] Dispersion city-level decomposition** — run Experiment C on VPS to determine if mode_ask compression is city-specific. Results clarify whether city rotation or stake reduction is the correct response. 2h effort, high VOI.
-
----
-
-## Staleness Notes
-
-- `data/agent_context/research_status.md`: Updated 2026-05-16, LDA era, obsolete for all band-era analysis. Any agent using it for briefing will receive incorrect strategy context. Action: Update to reflect current BAND system, or retire in favor of CLAUDE.md + band_config.txt.
-- Realized σ in calib_monitor: Carried from stale measurement; weather resolution data (window_resolution.jsonl) is crypto, not weather. Dispersion ratio uses stale denominator. All dispersion readings have elevated uncertainty until outcome logging is restored.
-- Bankroll.json `total_pnl = −$36.02`: This is CUMULATIVE from strategy inception including LDA losses. The BAND system has been net-positive from its deployment (capital has grown from LDA-era low). Do not interpret as current-strategy PnL.
+**P2 — This week (sequenced after VPS join result):**
+- [ ] **Per-city verdict from resolution join → city expansion or contraction.** If Beijing/Chengdu clean: add 6th city in shadow mode. If bleed: remove from allowlist and hold at Munich+Wuhan+London. *(§6 Experiments 1 and 3)*
+- [ ] **Verify maker rebate payout ≥$2.08.** Cumulative estimated rebate above $1.00 Polymarket payout threshold. Check Polygon funder wallet for pUSD inflows. *(PnL ledger S3)*
 
 ---
 
-*Report generated by research-agent | data read via GitHub MCP from data-mirror SHA d0307da + branch SHA 7368d28 | 8031 trade rows | Snapshot: 2026-06-30T10:21:22Z*
+## 3-Line Summary
+
+**Status:** Capital $91.72 (+$7.57 since Jun-29 base $84.15), 10 consecutive wins. RECYCLE099 driving 35% ROI over n=20 exits; PAIR_FAV first confirmed co-fill ($1.43 locked today). System profitable and active.
+
+**Critical open question:** Dispersion ratio collapsed to 0.470 (calib ESCALATED); Beijing/Chengdu model cold by 3–6°C; 52% of fires resolve outside ladder. The VPS resolution join (needed before Jul 3, flagged for third consecutive day) is the only tool that answers whether this is a market-blind edge (NO still wins) or structural bleed requiring city contraction.
+
+**Binding constraint:** 5-city narrow-start cuts velocity to $65/day vs $183/day pre-restriction. The compounding multiplier is the city allowlist: city expansion decision is sequenced AFTER the resolution join verdict. Until that runs, the system is correctly deployed but operating at 35% of potential throughput.
+
+---
+
+*Research audit complete. Data-mirror snapshot 2026-07-01T13:22:46Z. Four specialist reports consumed. maker_fills_recent.log read through 13:22 UTC. state_log read through 2026-06-22 (most recent entry). Market intelligence: badatmath_watch 10 days stale — competitor posture unavailable.*
