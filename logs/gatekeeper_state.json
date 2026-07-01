@@ -1,36 +1,36 @@
 {
   "BAND_YES": {
-    "n": 6044,
-    "n_prev": 5999,
+    "n": 6081,
+    "n_prev": 6044,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-30T09:14:00Z",
-    "note": "CI blocked (Gamma 403). +45 legs since prior (16 Jun29 PM: Wuhan d+1 x2, Chengdu d+1, Chengdu d+0; 29 Jun30: 7 unique bands, Chengdu d+1/d+0, Beijing/Chengdu/Wuhan/London/Munich d+2). Rate ~32.7/day (elevated, new windows opening). Resolution truth blocked from cloud. YES_LIVE fires only at d+2 per BAND_YES_LIVE_MIN_DOUT=2; 29 shadow-YES (yes_capture_shadow) also logged today."
+    "ts": "2026-07-01T12:30:00Z",
+    "note": "CI blocked (Gamma 403). +37 YES legs since prior: +9 Jun30 (Chengdu d+2 new cids x5, Munich d+1 x4); +28 Jul01 (5 cities x d+2 Jul3 markets all-new + Wuhan d+1 re-fire). Rate ~33/day. YES live only at d+2 (BAND_YES_LIVE_MIN_DOUT=2), city allowlist=5 active. n>>100 per-slice but resolution truth blocked from cloud."
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 253,
-    "n_prev": 243,
+    "n": 262,
+    "n_prev": 253,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-30T09:14:00Z",
-    "note": "CI blocked (Gamma 403). +10 NO legs since prior (7 Jun29 PM: London/Munich/Wuhan x3/Chengdu x2/Beijing d+1 0.52-0.85 range; 3 Jun30: London/Munich/Beijing d+1). 0 pair_fav since prior. All within BAND_NO_MIN=0.52/MAX=0.85, d+1 only (BAND_NO_MIN_DOUT=1). Rate ~7.3/day."
+    "ts": "2026-07-01T12:30:00Z",
+    "note": "CI blocked (Gamma 403). +9 since prior: Jun30 +4 (London off=2 0xe4d89c5f, Munich off=2 0x65ee0ccd, Wuhan off=0 0x3a7f6bce, Beijing off=0 0x9dde45d1); Jul01 +4 NO fires (Munich 0x3074, Chengdu 0xc60a, London 0x47ca, Wuhan 0xc137) +1 pair_fav (Chengdu d+0 0x44ebc1ef, both legs filled, locked $1.43). Rate ~8/day. n=262>>100, CI is sole blocker."
   },
   "FILLED_VS_FIRED": {
-    "n": 74,
-    "n_prev": 60,
+    "n": 86,
+    "n_prev": 74,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-30T09:14:00Z",
-    "note": "n=74 fills (+14 since prior). 1 YES fill (London 0.45) + 13 NO fills (Wuhan x5, Munich x4, Chengdu x2, Beijing x2, prices 0.65-0.84). Rate 14/day. ETA to n=100: ~1.9 days (≈ Jul 2). URGENT: Exec Auditor must schedule VPS-side resolution join — Gamma 403 blocks cloud, n=100 arriving ~Jul 2. >40 watch threshold active."
+    "ts": "2026-07-01T12:30:00Z",
+    "note": "+12 registered fills since prior (prior log=38, current log=49 [MAKER-FILL] lines). Jun30 post-cutoff +3 (London 0xdcce 0.64, Munich 0x65ee 0.83, London 0xe4d8 0.84); Jul01 +9 (Beijing 0x5ac9, Munich 0x3074, Chengdu-NO+YES pair 0x44eb, London 0x47ca, Wuhan 0x3a7f, Chengdu 0xc60a, Wuhan 0xc137, Munich 0xda8c). PLUS: Moscow NO 0xb2342854 @ 0.93 (11:06 Jul01) city NOT in BAND_CITY_ALLOW, pre-allowlist legacy order. Rate ~10.7/day. ETA n=100: ~1.3d (~Jul 2). URGENT: Exec Auditor must run VPS-side resolution join before Jul 3. Winner's-curse watch ACTIVE (n=86>>40). NO fill avg=0.716; 2 fills below NO_MIN (0.48+0.47 pair_fav); 1 fill above NO_MAX (Moscow 0.93)."
   },
   "BASKET_EXIT": {
     "n": null,
@@ -41,7 +41,7 @@
     "wr": null,
     "resolved": null,
     "ts": "2026-06-22T07:35:00Z",
-    "note": "GATE PERMANENTLY RETIRED (state_log Jun22T07:35). 4 fatal flaws: WR=100% tautological; 95% single-leg RECYCLE099 winners mislabeled; CI invalid; wrong metric. Status VOID — not revisited."
+    "note": "GATE PERMANENTLY RETIRED (state_log Jun22T07:35). 4 fatal flaws. Status VOID."
   },
   "THERMO_MAKER_NO": {
     "n": 3,
@@ -51,8 +51,8 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "ts": "2026-06-30T09:14:00Z",
-    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). Rate=0. Kill gate n=20 UNREACHABLE. CI straddles 0 (barely) at n=3 — noise only. thermo_maker.jsonl today: 9641 candidates, 0 fires/placed. Stalled indefinitely."
+    "ts": "2026-07-01T12:30:00Z",
+    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). +0 since prior. Rate=0. Kill gate n=20 unreachable. CI straddles 0 at n=3 — noise only. Stalled indefinitely."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,57 +62,61 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-06-30T09:14:00Z",
-    "note": "STALLED 18+ days. metar_lockout.jsonl today: 5231 candidates, 0 placed/fired. CI straddles 0 = AMBIGUOUS. Standing rule triggered Jun13 (stalled >2 weeks → REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C). Proposed Jun27, STILL UNACTIONED as of Jun30 = day 18. Human action required. Gate n=100 unreachable at rate=0."
+    "ts": "2026-07-01T12:30:00Z",
+    "note": "STALLED DAY 19. metar_lockout.jsonl absent from all shadow directories (hot + 2026-07-01/ + 2026-06-30/). 0 placed orders. Standing rule triggered Jun13 (>14d stall -> REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C). REVERT proposed Jun27 (day 1). Now day 4 of unactioned proposal. Gate n=100 unreachable at rate=0."
   },
   "SUM_POSTED_0.70_0.85": {
-    "n": 3001,
-    "n_prev": 2982,
+    "n": 3019,
+    "n_prev": 3001,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-06-30T09:14:00Z",
-    "note": "CI blocked (Gamma 403). +19 legs since prior (Jun29 PM: Wuhan d+1 @0.840 ×4legs + @0.847 ×5legs, Chengdu d+1 @0.847 ×5legs = 14 legs; Jun30: Chengdu d+1 @0.768 ×5legs = 5 legs). n=3001 >> threshold 100. Jun30 d+2 fires (sum 0.57-0.68) below 0.70 floor, not counted. Rate ~13.8/day."
+    "ts": "2026-07-01T12:30:00Z",
+    "note": "CI blocked (Gamma 403). +18 since prior: Jun30 +4 (Munich d+1 sum_posted=0.836); Jul01 +14 (Beijing d+2 0.775 x5, Wuhan d+2 0.835 x5, Wuhan d+1 0.83 x4). London/Munich/Chengdu d+2 below 0.70 excluded. Rate ~16/day. n=3019>>100; CI is sole blocker."
   },
   "_run_meta": {
-    "run_ts": "2026-06-30T09:14:00Z",
-    "snapshot_ts": "2026-06-30T09:06:12Z",
-    "snapshot_age_min": 8,
-    "bankroll": 94.043178,
-    "bankroll_prev": 80.98,
-    "bankroll_24h_pct": 16.1,
+    "run_ts": "2026-07-01T12:30:00Z",
+    "snapshot_ts": "2026-07-01T12:22:38Z",
+    "snapshot_age_min": 7,
+    "bankroll": 91.716556,
+    "bankroll_prev": 94.043178,
+    "bankroll_delta": -2.326622,
+    "bankroll_note": "Capital deployed in 10 Jul01 fills; not realized loss",
     "open_positions": 0,
-    "maker_resting": 2,
-    "sell_exit_resting": 15,
-    "total_maker_fills_log": 38,
-    "new_fills_since_prev": 14,
+    "total_maker_fills_log": 49,
+    "new_fills_since_prev": 12,
+    "fill_anomalies": [
+      "Moscow NO 0xb2342854 @ 0.93 (Jul01 11:06) — city not in BAND_CITY_ALLOW; pre-allowlist legacy order; price above NO_MAX=0.85",
+      "Chengdu NO 0x664b7956 @ 0.48 (Jun29) — below NO_MIN=0.52; pre-rule order (Jun12 starvation fix era)",
+      "Chengdu pair_fav NO 0x44ebc1ef @ 0.47 (Jul01) — pair_fav logic bypasses NO_MIN; verify intentional"
+    ],
     "bot_status": "active",
-    "bot_restarted_ts": "2026-06-29T13:28:08Z",
+    "bot_uptime_since": "2026-06-29T13:28:08Z",
     "newly_ready": [],
     "newly_rejected": [],
     "state_transitions": [],
     "structural_blockers": [
       "Gamma API 403 from cloud container — ROI/CI blocked for BAND_YES, BAND_NO_PAIR_FAV, FILLED_VS_FIRED, SUM_POSTED",
       "THERMO_MAKER_LIVE=False — kill gate n=20 unreachable at rate=0",
-      "metar_lockout.jsonl candidates-only — M1_BETA_LOCKOUT stalled 18 days"
+      "metar_lockout.jsonl absent from all shadow directories — M1_BETA_LOCKOUT stalled day 19"
     ],
     "proposed_actions": [
       {
         "gate": "M1_BETA_LOCKOUT",
         "action": "REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C",
-        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 18 consecutive days (was 17 at prior run), metar_lockout logs candidates only with 0 placed orders, standing rule triggered Jun13",
+        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 19 consecutive days, metar_lockout.jsonl absent from shadow, standing rule triggered Jun13, gate n=100 unreachable at rate=0",
         "human_required": true,
         "standing_since": "2026-06-27T10:30Z",
-        "days_unactioned": 3
+        "days_unactioned": 4
       }
     ],
     "advisory": [
-      "FILLED_VS_FIRED n=74 (+14 fills in 24h, rate 14/day): ETA n=100 ≈ Jul 2. Exec Auditor MUST schedule VPS-side resolution join NOW — Gamma 403 blocks cloud-side join. Winner's-curse detection is blind without it.",
-      "Bankroll +16.1% in 24h ($80.98 → $94.04): Above monthly target pace. Driven by NO fills at 0.65-0.84. Monitor for reversion at band settlement tonight.",
-      "THERMO and M1_BETA both stalled indefinitely — two strategy surfaces accumulating zero validation data. Human intervention required to unlock either gate.",
-      "Jun30 YES fires: 7 unique first-fires (d+1/d+2), 162 total posts (re-cycles). BAND_YES_LIVE_MIN_DOUT=2 functioning correctly. YES shadow capture active for Chengdu d+2 (29 records, no capital)."
+      "FILLED_VS_FIRED n=86 (+12 in 27h, rate ~11/day): ETA n=100 approx Jul 2. Exec Auditor MUST run VPS-side resolution join before Jul 3. Winner's curse watch ACTIVE.",
+      "Moscow NO fill 0xb2342854 @ 0.93 (Jul01 11:06): city NOT in BAND_CITY_ALLOW; check for remaining open Moscow resting orders and cancel them.",
+      "Pair_fav 0x44ebc1ef completed Jul01: locked PnL $1.43 (9.5sh x 0.15 margin). First confirmed pair_fav completion in log. Pair_fav NO @ 0.47 intentionally below BAND_NO_MIN — verify expected.",
+      "Gamma 403 blocker persists: 4 of 6 active gates CI-blocked. VPS-side band_resolution_join.py run would unlock BAND_YES + BAND_NO + SUM_POSTED CI simultaneously."
     ]
   }
 }

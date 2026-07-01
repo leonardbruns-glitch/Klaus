@@ -1,108 +1,116 @@
-# Klaus Gate-Keeper Report — 2026-06-30
+# Gate-Keeper Report — 2026-07-01
 
-**Run:** 2026-06-30T09:14Z | **Snapshot:** 2026-06-30T09:06:12Z (8 min old) | **Bot:** active  
-**Bankroll:** $94.04 (+$13.06 vs prior $80.98 = **+16.1% in 24h**) | **Consecutive wins:** 2  
-**Resting:** 2 MAKER orders, 15 SELL_EXIT orders | **Open positions:** 0
+**Run:** 2026-07-01T12:30Z (snapshot: 2026-07-01T12:22:38Z, age: 7 min ✓)
+**System:** `active` ✓ | **Bankroll:** $91.72 (prior $94.04, −$2.32; capital deployed in 10 Jul01 fills)
+**Prior run:** 2026-06-30T09:14:00Z | **Δt:** ~27.3h
+**Structural blockers:** Gamma API 403 (cloud) blocks ROI/CI on BAND_YES / BAND_NO / FILLED_VS_FIRED / SUM_POSTED; THERMO paused (rate=0); M1_BETA stalled (rate=0).
 
 ---
 
 ## Gate Ledger
 
-| Gate | n | +24h | WR | ROI | CI95 (lower, upper) | Status | ETA to threshold |
-|------|---|------|----|-----|---------------------|--------|-----------------|
-| BAND_YES | 6,044 | +45 | — | — | blocked (Gamma 403) | COLLECTING | n>>threshold; CI blocked |
-| BAND_NO_PAIR_FAV | 253 | +10 | — | — | blocked (Gamma 403) | COLLECTING | n>>threshold; CI blocked |
-| FILLED_VS_FIRED | 74 | +14 | — | — | blocked (Gamma 403) | COLLECTING | **~1.9d → Jul 2** |
-| BASKET_EXIT | VOID | — | — | — | — | **VOID** | Permanently retired Jun22 |
-| THERMO_MAKER_NO | 3 | +0 | 33.3% | −66.0% | (−132.6, +0.7) | COLLECTING | never (engine paused) |
-| M1_BETA_LOCKOUT | 31 | +0 | 74.2% | −0.6% | (−20.6, +24.4) | **AMBIGUOUS** | never (stalled 18d) |
-| SUM_POSTED 0.70–0.85 | 3,001 | +19 | — | — | blocked (Gamma 403) | COLLECTING | n>>threshold; CI blocked |
+| Gate | n | +27h | WR | ROI | CI 95 | Status | ETA |
+|---|---|---|---|---|---|---|---|
+| BAND_YES (per-slice d×off×band) | 6,081 | +37 | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403) |
+| BAND_NO + PAIR_FAV | 262 | +9 | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403) |
+| FILLED_VS_FIRED (n≥40 watch, n≥100 gate) | 86 | +12 | — | — | BLOCKED | **COLLECTING** | ~1d (Jul 2) |
+| BASKET_EXIT | VOID | — | — | — | — | **VOID** | Permanently retired |
+| THERMO_MAKER_NO (kill gate n=20) | 3 | 0 | 33.3% | −66% | [−132.6, 0.7] | **COLLECTING** | ∞ (engine paused) |
+| M1_BETA_LOCKOUT (n=100; WR≥95%+EV) | 31 | 0 | 74.2% | −0.6% | [−20.6, 24.4] | **AMBIGUOUS** | ∞ (day 19 stall) |
+| SUM_POSTED 0.70–0.85 | 3,019 | +18 | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403) |
 
-**Threshold:** BAND_YES/NO/SUM_POSTED = 100 legs per slice; FILLED_VS_FIRED = 40 watch / 100 decision; THERMO = 20 kill; M1_BETA = 100.
-
----
-
-## State Transitions vs Prior Run (2026-06-29T09:13Z)
-
-**None.** No gate crossed READY or REJECTED. All statuses unchanged.
-
-Structural blockers (identical to prior run):
-1. **Gamma API 403 from cloud container** — ROI/CI blocked for BAND_YES, BAND_NO_PAIR_FAV, FILLED_VS_FIRED, SUM_POSTED. First-fire dedup counts are accurate; resolution truth is inaccessible.
-2. **THERMO_MAKER_LIVE=False** — kill gate n=20 unreachable; rate=0 indefinitely.
-3. **metar_lockout.jsonl candidates-only** — M1_BETA_LOCKOUT stalled 18 consecutive days; 0 placed orders.
+**n counts:** BAND_YES/NO/SUM = cumulative first-fire legs by unique cid. FILLED_VS_FIRED = cumulative registered positions since gate start (Jun 12). THERMO/M1_BETA = resolved outcomes joined from shadow logs.
 
 ---
 
-## Gate Notes
+## Delta Detail Since Prior Run (Jun 30 09:14Z)
 
-### 1. BAND_YES — n=6,044 (+45) | COLLECTING
-- +45 legs since prior: 16 from Jun29 14:47–22:40 UTC (4 events × 4–5 legs: Wuhan d+1, Wuhan d+1, Chengdu d+1, Chengdu d+0); 29 from Jun30 00:02–05:09 UTC (7 events: Chengdu d+1/d+0, Beijing d+2, Chengdu d+2, Wuhan d+2, London d+2, Munich d+2).
-- Rate: ~32.7 legs/day (elevated vs prior 19/day — new d+1/d+2 windows opening throughout the day cycle).
-- All fires within BAND_PX_CEIL constraints: d+0 sum=0.155–0.24 (below 0.25 cap), d+1/d+2 sum=0.57–0.768.
-- Today's yes_capture_shadow: 29 records (d+2 Chengdu repeating — shadow-only, no capital deployed for YES yet per BAND_YES_LIVE_MIN_DOUT=2).
-- **Resolution blocked.** CI cannot clear zero without Gamma access.
+### BAND_YES (+37 new YES-leg first-fires)
+- **Jun 30 after cutoff (+9):** Chengdu d+2 fire — 5 new cids (mode shifted, new legs); Munich d+1 YES fire — 4 new cids.
+- **Jul 01 (+28):** All d+2 fires for July 3 date (brand-new markets): London d+2 (4 legs), Munich d+2 (5), Beijing d+2 (5), Wuhan d+2 (5), Chengdu d+2 (5); Wuhan d+1 YES fire (4 legs).
+- YES live only at d+2 (`BAND_YES_LIVE_MIN_DOUT=2`). City allowlist (5 cities) is active as of latest commit. YES shadow firing for d+2 London/Munich/Beijing/Wuhan/Chengdu confirmed.
+- n >> per-slice threshold of 100. CI remains BLOCKED — resolution truth unavailable from cloud (Gamma 403 persists).
 
-### 2. BAND_NO_PAIR_FAV — n=253 (+10) | COLLECTING
-- +10 NO legs since prior: Jun29 PM — London d+1 @0.66, Munich d+1 @0.69, Wuhan d+1 ×3 @0.66–0.84, Chengdu d+1 ×2 @0.76–0.85, Beijing d+1 @0.68, Chengdu d+1 @0.85 (total 7 legs after 09:13 UTC); Jun30 AM — London d+1 @0.66, Munich d+1 @0.73, Beijing d+1 @0.66 (3 legs).
-- 0 pair_fav fires since prior.
-- All NO asks within [0.52, 0.85] band (BAND_NO_MIN/MAX), at d+1 only (BAND_NO_MIN_DOUT=1).
-- **Resolution blocked.** Note: NO-starvation fix was Jun12; n=253 accumulates from then.
+### BAND_NO + PAIR_FAV (+9 new first-fires)
+- **Jun 30 after cutoff (+4):** London off=2 (0xe4d89c5f), Munich off=2 (0x65ee0ccd), Wuhan off=0 (0x3a7f6bce), Beijing off=0 (0x9dde45d1).
+- **Jul 01 (+5):** Munich off=0 (0x3074cfe4, former YES shadow leg → first NO fire), Chengdu off=0 (0xc60aed6d), London off=0 (0x47ca59a6), Wuhan off=2 (0xc137df61); Chengdu d+0 PAIR_FAV (0x44ebc1ef, both legs filled, locked PnL $1.43).
+- All within d+1/d+2 (`BAND_NO_MIN_DOUT=1`), BAND_NO_SKIP_OFF1=True active, prices 0.47–0.85.
+- n=262 >> 100. CI BLOCKED.
 
-### 3. FILLED_VS_FIRED — n=74 (+14) | COLLECTING ⚠️ APPROACHING THRESHOLD
-- +14 fills since prior (1 YES + 13 NO):
-  - Jun29 09:14 London YES @0.45 (+$0.70), Jun29 10:47 Wuhan NO @0.70 (+$2.30), Jun29 13:03 Munich NO @0.65 (+$7.80), Jun29 13:07 Wuhan NO @0.84 (+$5.30), Jun29 13:53 Wuhan NO @0.69 (+$5.00), Jun29 14:28 Munich NO @0.84 (+$6.00), Jun29 16:58 Wuhan NO @0.71 (+$8.00), Jun29 18:07 Chengdu NO @0.74 (+$7.00), Jun29 18:29 Chengdu NO @0.84 (+$6.00), Jun29 18:31 Wuhan NO @0.81 (+$7.00), Jun29 21:25 Beijing NO @0.67 (+$8.00), Jun30 04:22 Munich NO @0.72 (+$6.50), Jun30 07:10 Munich NO @0.67 (+$8.00), Jun30 08:40 Beijing NO @0.65 (+$7.80).
-- Rate: 14/day. **ETA to n=100: ~1.9 days (≈ Jul 2, 2026).**
-- >40 watch threshold active. Exec Auditor should schedule VPS-side resolution join **immediately** — n=100 is 2 days away.
-- Fill composition (recent): heavily NO-weighted (13/14 = 93%), prices 0.65–0.84. The single YES fill (London 0.45) is consistent with pair_fav or a rare YES fill.
-- **Winner's-curse watch**: at n=100, compare filled-leg ROI vs all-fires ROI to detect adverse selection signal.
+### FILLED_VS_FIRED (+12 new registered positions; log has 49 [MAKER-FILL] lines)
+- **Jun 30 after cutoff (+3):** London NO 0xdcce (0.64), Munich NO 0x65ee (0.83), London NO 0xe4d8 (0.84).
+- **Jul 01 (+9):** Beijing NO 0x5ac9 (0.67), Munich NO 0x3074 (0.62), Chengdu NO 0x44eb (0.47 pair_fav), London NO 0x47ca (0.63), Chengdu YES 0x44eb (0.38 pair_fav), Wuhan NO 0x3a7f (0.71), Chengdu NO 0xc60a (0.74), Wuhan NO 0xc137 (0.82), Munich NO 0xda8c (0.64).
+- **Jul 01 flag — Moscow NO 0xb234 (+1, 11:06 UTC):** Moscow is NOT in `BAND_CITY_ALLOW = {"chengdu","london","beijing","munich","wuhan"}`. This fill (0.93 → above NO_MAX=0.85) is from a pre-allowlist resting order. Count included (n=86 with Moscow) or n=85 without. Exec Auditor should verify and cancel any open Moscow orders.
+- Current n: **86 fills** (74 prior + 12 new) / **85 ex-Moscow**.
+- Rate: ~10.7/day. **ETA to n=100: ~1.3 days (≈ Jul 2 late).**
+- **n >> 40:** Winner's-curse watch is ACTIVE. VPS-side resolution join must be run before Jul 3.
+- Price anomalies in log: Chengdu NO @ 0.48 (Jun29, cond=0x664b7956) below BAND_NO_MIN=0.52 — probable pre-rule order; Moscow NO @ 0.93 above BAND_NO_MAX=0.85 and outside city allowlist.
+- Fill avg NO price (ex-pair_fav): ~0.716. Fill avg pair_fav: YES 0.38 + NO 0.47.
 
-### 4. BASKET_EXIT — VOID
-Permanently retired Jun22T07:35. 4 fatal structural flaws. No further reporting.
+### BASKET_EXIT
+VOID — permanently retired Jun 22 (4 fatal structural flaws). Not revisited.
 
-### 5. THERMO_MAKER_NO — n=3 resolved | COLLECTING
-- No change. THERMO_MAKER_LIVE=False since Jun23 18:40. Rate=0.
-- Prior stats: WR=33.3%, ROI=−66.0%, CI95=(−132.6, +0.7) — CI barely straddles zero at n=3; pure noise, not signal.
-- Kill gate n=20 UNREACHABLE while engine is paused.
-- thermo_maker.jsonl today: 9,641 candidate records, 0 fires/placed.
-- Status will not change until engine re-activated.
+### THERMO_MAKER_NO (+0, rate=0)
+Engine `THERMO_MAKER_LIVE=False` since Jun 23 18:40. No new fires. n=3 resolved (all from shadow log before pause). CI straddles zero at n=3 — noise only, not informative. Kill gate n=20 unreachable at rate=0. No change.
 
-### 6. M1_BETA_LOCKOUT — n=31 AMBIGUOUS ⚠️ 18 DAYS STALLED — HUMAN ACTION REQUIRED
-- No change. metar_lockout.jsonl: 5,231 candidates today, 0 placed/fired.
-- Prior stats: WR=74.2%, ROI=−0.6%, CI95=(−20.6, +24.4). CI straddles 0 → AMBIGUOUS.
-- **Stalled 18 consecutive days** (prior noted 17). No new data accumulation. Gate threshold n=100 unreachable at rate=0.
-- **Standing rule triggered Jun13**: stalled >2 weeks → REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C floors.
-- **Proposed Jun27, still unactioned as of Jun30 = day 18.** Every additional day without action is 24h of no M1 probe data.
+### M1_BETA_LOCKOUT (+0, rate=0, **day 19 stall**)
+`metar_lockout.jsonl` absent from all shadow directories (data/shadow/, 2026-07-01/, 2026-06-30/). Engine is not logging candidates OR logs are not being captured by data mirror. n=31, CI=[−20.6, 24.4], WR=74.2%, ROI=−0.6% — AMBIGUOUS. CI straddles zero: cannot confirm or reject at current n.
+- **Standing rule (Jun 13):** stalled > 2 weeks → REVERT `METAR_LOCKOUT_TEMP_FLOOR` to 0.5°C floors.
+- **Proposed Jun 27:** REVERT action recommended (day 1).
+- **Today (Jul 01):** Day 4 of unactioned proposal. Day 19 of zero accumulation.
+- Gate n=100 is **unreachable** at current rate=0. Standing rule requires action.
 
-### 7. SUM_POSTED 0.70–0.85 — n=3,001 (+19) | COLLECTING
-- +19 legs since prior: Jun29 PM — Wuhan d+1 @sum=0.840 (4 legs), Wuhan d+1 @sum=0.847 (5 legs), Chengdu d+1 @sum=0.847 (5 legs) = 14 legs; Jun30 AM — Chengdu d+1 @sum=0.768 (5 legs) = 5 legs.
-- n=3,001 >> threshold 100. Rate ~13.8 legs/day (slowed from prior 16.4/day; fewer bands in range today).
-- Note: Jun30 d+2 fires (Beijing, Chengdu, Wuhan, London, Munich) all have sum_posted 0.57–0.68 — BELOW the 0.70 floor; not counted. Only Chengdu d+1 with sum=0.768 qualifies today.
-- **Resolution blocked.** ROI/CI computation requires Gamma API.
+### SUM_POSTED 0.70–0.85 (+18 new legs)
+- **Jun 30 after cutoff (+4):** Munich d+1 fire (sum_posted=0.836, 4 legs).
+- **Jul 01 (+14):** Beijing d+2 (sum_posted=0.775, 5 legs), Wuhan d+2 (sum_posted=0.835, 5 legs), Wuhan d+1 (sum_posted=0.83, 4 legs).
+- London d+2 (0.585), Munich d+2 (0.645), Chengdu d+2 (0.625) were BELOW 0.70 floor — not counted.
+- n=3,019 >> 100. CI BLOCKED (Gamma 403). The V3 gate extension was based on competitor's curve at n=46 TREND — our own curve needs resolution truth.
+
+---
+
+## State Transitions vs Prior Run
+
+| Gate | Prior Status | Current Status | Change |
+|---|---|---|---|
+| BAND_YES | COLLECTING | COLLECTING | None |
+| BAND_NO_PAIR_FAV | COLLECTING | COLLECTING | None |
+| FILLED_VS_FIRED | COLLECTING | COLLECTING | None (approaching n=100) |
+| BASKET_EXIT | VOID | VOID | None |
+| THERMO_MAKER_NO | COLLECTING | COLLECTING | None |
+| M1_BETA_LOCKOUT | AMBIGUOUS | AMBIGUOUS | None (day 19 → proposal day 4) |
+| SUM_POSTED 0.70–0.85 | COLLECTING | COLLECTING | None |
+
+**No status changes this run.** All gates remain in prior status. Gamma 403 remains the primary structural blocker for 4 of 6 active gates.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**No gates newly READY or REJECTED this run.** No parameter changes proposed.
+**No gates newly hit READY or REJECTED this run.**
 
-### Standing Proposal (unchanged since Jun27, day 18):
-**M1_BETA_LOCKOUT — REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C floors**
-- Gate: M1_BETA_LOCKOUT
-- Action: Set `METAR_LOCKOUT_TEMP_FLOOR = 0.5` (restore from thin-margin [0.2, 0.5) slice)
-- Reason: n=31 AMBIGUOUS, CI straddles 0, stalled 18 consecutive days, no placed orders observed, standing rule requires REVERT at >2 weeks stalled
-- Status: PROPOSED — human must implement; gatekeeper does NOT implement strategy code
-- Standing since: 2026-06-27T10:30Z
+### Carry-over: M1_BETA_LOCKOUT — REVERT [day 4 of proposal, day 19 of stall]
+- **Gate:** M1_BETA_LOCKOUT
+- **Action:** Set `METAR_LOCKOUT_TEMP_FLOOR = 0.5` (revert from current sub-0.5°C thin-margin slice behavior)
+- **Standing rule trigger:** Jun 13 (stalled > 14 days without reaching n=100)
+- **First proposed:** Jun 27 (this run = day 4 unactioned)
+- **Rationale:** n=31 AMBIGUOUS at day 19 stall; CI straddles zero; metar_lockout.jsonl absent from shadow directories; engine accumulates 0 placed orders per day. Gate n=100 unreachable at rate=0. Standing rule from Jun 09 mandates REVERT when n<100 data cannot be collected.
+- **Human action required:** YES (gatekeeper is report-only)
 
 ---
 
-## Advisory
+## Advisory (non-gate items, for human awareness)
 
-1. **FILLED_VS_FIRED n=74 → n=100 in ~1.9 days (≈ Jul 2):** Exec Auditor must schedule VPS-side resolution join NOW. The cloud container cannot reach Gamma API. Without VPS-side join at n=100, winner's-curse detection is blind when it matters most.
+1. **FILLED_VS_FIRED approaching n=100 (ETA ~Jul 2):** Exec Auditor MUST schedule VPS-side resolution join before Jul 3 — Gamma API 403 blocks cloud-side join. Winner's-curse detection blind without it. The fills log shows 86 registered fills; the 7-day window will start losing Jun 28 fills on Jul 5.
 
-2. **Bankroll +16.1% in 24h ($80.98 → $94.04):** Exceeds daily target pace (+16% = strong). Current performance is being driven by NO fills at 0.65–0.84 prices — these are high-quality fills (the upper end of the NO range). Monitor for reversion once tonight's bands settle.
+2. **Moscow NO fill outside city allowlist (Jul 01 11:06, cond=0xb2342854, price=0.93):** Moscow is not in `BAND_CITY_ALLOW`. This fill (above BAND_NO_MAX=0.85) appears to be a pre-allowlist resting order that filled after the city restriction was deployed. Exec Auditor should: (a) check for any remaining open Moscow resting orders and cancel them; (b) determine if the pre-allowlist fill has a valid resolution to settle.
 
-3. **Capital at $94.04 = 31.4% above prior run ($80.98):** Approaching BAND_PHASE2_CAPITAL threshold ($600) is distant, but growth pace is healthy. Consecutive wins = 2 (heat-check state maintained).
+3. **Pair_fav working — locked $1.43 (Jul 01 ~07:00Z):** Chengdu d+0 pair 0x44ebc1ef: NO leg filled at 0.47, YES leg filled at 0.38, 9.5 shares, locked PnL = $1.43 (margin on completion). This is the first observed pair_fav completion in the fills log. Pair_fav NO at 0.47 is below `BAND_NO_MIN=0.52` — confirm pair_fav intentionally bypasses NO_MIN (it should per PAIR_FAV logic).
 
-4. **THERMO_MAKER_NO and M1_BETA_LOCKOUT both stalled indefinitely:** Two of 7 gates are permanently blocked without human intervention. Combined, they represent meaningful strategy surface area that is accumulating zero validation data.
+4. **Bankroll context:** $91.72 vs $94.04 prior (−$2.32). With 10+ fills active and resting NO orders (BAND_NO_STAKE=$5 each), capital is deployed. Not a realized loss — fills will settle as weather resolves. Daily start capital = $15.95 (likely reset from a different baseline).
 
-5. **YES fires today are shadow-only (yes_capture_shadow, no capital):** 29 shadow YES records for Chengdu d+2 cycling through today. These are informational — BAND_YES_LIVE_MIN_DOUT=2 is functioning correctly, and live YES posts do appear at d+2 (7 new fires in Jun30 lite for target dates 2026-07-01/07-02).
+5. **Chengdu NO 0.48 fill (Jun 29, cond=0x664b7956):** Below BAND_NO_MIN=0.52. This was likely a pre-Jun-12 order from the "NO starvation" era when floors were lower. No action needed unless similar fills appear post-Jun12.
+
+6. **Gamma 403 blocker:** Now blocking 4 of 6 active gates' CI computation. This has been ongoing for multiple runs with no documented fix attempt. The VPS-side band_resolution_join.py route is the prescribed workaround — once run, it will unlock BAND_YES, BAND_NO, and SUM_POSTED CI simultaneously.
+
+---
+*Gate-keeper is REPORT ONLY. Human flips all flags. CI must clear zero before any READY verdict. n=40–99 is a trend, not a decision.*
