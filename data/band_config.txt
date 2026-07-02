@@ -1,5 +1,5 @@
 # Band/maker config (live, from strategy/stwa_engine.py)
-# Snapshot: 2026-07-02T06:02:44Z
+# Snapshot: 2026-07-02T06:17:44Z
 55:STWA_REGULAR_YES_ENABLED = False  # 2026-06-05: OFF — the full-market calibration curve (n=1771) shows YES
 75:STWA_REGULAR_NO_ENABLED  = False  # DISABLED 2026-06-11 (system audit): 0 fires in 48h while ARMED as a
 154:MAKER_SHADOW_ENABLED = True
@@ -35,28 +35,28 @@
 403:BAND_YES_LIVE_MIN_DOUT = 2          # YES posts ONLY at d+2 (the only +EV fill window). Was MD_LIVE_MIN_DOUT (0).
 404:BAND_NO_MIN_DOUT       = 1          # NO band posts d+1/d+2 only — drop d+0 (lockout-NO still owns d+0). Was 0.
 405:BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan"}  # narrow-start clean set; empty=all cities
-414:BAND_NO_ENABLED   = True
-415:BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
-416:BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
-417:BAND_NO_STAKE     = 5.0     # 2026-06-18: 4.5→5.0 (user directive — "5 on NO"). His NO fill median $5.16.
-420:BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
-422:BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
-423:BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
-424:BAND_NO_CASH_RESERVE = 0.30  # 2026-06-18 (user days-out-priority queue): 0.0->0.30. With BAND_PROPORTIONAL_QUEUE
-455:BAND_PROPORTIONAL_QUEUE = False   # 2026-06-18 (user days-out priority): True->False. Proportional HARD-CAPS each
-460:BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
-489:BAND_PAIR_FAV_ENABLED = True
-490:BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
-491:BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
-492:BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
-500:BAND_PAIR_SHADOW = True
-501:BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
-514:BAND_PAIR_SAMEBUCKET = True
-515:BAND_PAIR_SB_MAX_BEHIND = 0.10  # skip the NO pair-leg if locking the margin needs a bid > this below the NO touch (fill-prob floor)
-530:BAND_PHASE2_CAPITAL   = 600.0    # ≈2.4× today's ~$250; enough free cash to fill >1 days-out tranche/cycle
-531:BAND_PHASE3_CAPITAL   = 2000.0   # ≈ badatmath's June tail-NO / industrial-merge scale
-532:BAND_TAILNO_VALIDATED = False    # tail-NO 0.85-0.95 is UNVALIDATED on OUR fills. CLAUDE.md rule #2
-577:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
-582:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
-583:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
-584:BAND_PAIR_RECLAIM_AGE_S = 8 * 3600  # 2026-06-18 (churn fix): a leg on a bucket with BOTH
+414:BAND_NO_ENABLED   = False   # 2026-07-02 EVOLVE rail-halt: 7d realized band-NO n=51 WR 39.2%
+420:BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
+421:BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
+422:BAND_NO_STAKE     = 5.0     # 2026-06-18: 4.5→5.0 (user directive — "5 on NO"). His NO fill median $5.16.
+425:BAND_NO_DAILY_CAP = 40.0    # 2026-06-11: 12→40 — his NO = HALF the book at equal per-event
+427:BAND_NO_MAX_DOUT  = 2       # 2026-06-11: overlay quotes d+0..this (was d+0 only = his WORST slice)
+428:BAND_NO_SKIP_OFF1 = True    # 2026-06-11: never NO on the ±1 shoulders (his −6.7%, n=1214)
+429:BAND_NO_CASH_RESERVE = 0.30  # 2026-06-18 (user days-out-priority queue): 0.0->0.30. With BAND_PROPORTIONAL_QUEUE
+460:BAND_PROPORTIONAL_QUEUE = False   # 2026-06-18 (user days-out priority): True->False. Proportional HARD-CAPS each
+465:BAND_CELL_WEIGHTS = {        # cell -> fraction of cycle headroom (soft cap; sum>1 = spill room)
+494:BAND_PAIR_FAV_ENABLED = True
+495:BAND_PAIR_FAV_YES_MIN = 0.45   # real YES ask window for the favorite leg
+496:BAND_PAIR_FAV_YES_MAX = 0.70   # above this the pair Σ can't clear PAIR_FAV_SUM_MAX
+497:BAND_PAIR_FAV_SUM_MAX = 0.90   # qy + qn ≤ this ⇒ ≥ 10¢/sh locked on completion
+505:BAND_PAIR_SHADOW = True
+506:BAND_PAIR_SHADOW_MARGIN = 0.0  # extra discount below NO touch when sizing the shadow leg
+519:BAND_PAIR_SAMEBUCKET = True
+520:BAND_PAIR_SB_MAX_BEHIND = 0.10  # skip the NO pair-leg if locking the margin needs a bid > this below the NO touch (fill-prob floor)
+535:BAND_PHASE2_CAPITAL   = 600.0    # ≈2.4× today's ~$250; enough free cash to fill >1 days-out tranche/cycle
+536:BAND_PHASE3_CAPITAL   = 2000.0   # ≈ badatmath's June tail-NO / industrial-merge scale
+537:BAND_TAILNO_VALIDATED = False    # tail-NO 0.85-0.95 is UNVALIDATED on OUR fills. CLAUDE.md rule #2
+582:BAND_RECLAIM_AGE_S     = 2 * 3600   # 2026-06-15: 6h→2h. queue_priority_join.py — our missed-fill
+587:BAND_RECLAIM_BEHIND    = 0.02       # reclaim if our bid ≤ touch − this
+588:BAND_RECLAIM_PER_CYCLE = 10         # book fetches per 300s cycle (rotating)
+589:BAND_PAIR_RECLAIM_AGE_S = 8 * 3600  # 2026-06-18 (churn fix): a leg on a bucket with BOTH
