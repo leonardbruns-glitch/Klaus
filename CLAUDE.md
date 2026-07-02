@@ -142,6 +142,8 @@ Scale-up: raise stake only after WR >55% confirmed over 20+ live trades.
 - **Dev branch**: `claude/find-lag-parameter-rFQ0N`
 - **NMS feeds**: edge lives in early temperature info — 16 stations live (AWC, NWS US, NEA Singapore, IMGW Poland) giving ~9–28 min gains over AWC. Expansion candidates: SynopticData / AEMET / Météo-France / KNMI free keys, WIS2 MQTT for global BUFR.
 
+- **EVOLVE loop (autonomous, 2026-07-02)**: `ops/evolve/` — `CHARTER.md` (human-owned constitution) + headless-Claude actuators: daily 11:23 UTC (`klaus_evolve_daily.timer`, measures ground truth → applies charter-gated changes → deploys → verifies), weekly Sun 13:41 UTC (experiment design), repair-on-crash-loop. Mechanical liveness watchdog every 2 min (`klaus_liveness.timer`; bond_watchdog retired). Reports: `logs/evolve/`; human queue: `logs/evolve/PENDING_HUMAN.md`.
+
 **Development workflow (NON-NEGOTIABLE):**
 Claude edits locally → commits → pushes to dev branch → Claude SSHes into VPS to deploy. Never edit or commit on the VPS. Never `git checkout origin/...` on VPS. VPS only writes to `logs/`.
 

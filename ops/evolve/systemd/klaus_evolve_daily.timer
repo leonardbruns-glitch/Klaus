@@ -1,0 +1,9 @@
+[Unit]
+Description=Klaus EVOLVE daily actuator at 11:23 UTC (after morning crons + cloud analysts)
+
+[Timer]
+OnCalendar=*-*-* 11:23:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

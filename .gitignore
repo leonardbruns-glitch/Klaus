@@ -2,9 +2,16 @@ __pycache__/
 *.py[cod]
 *.pyo
 .env
-logs/
+logs/*
 *.jsonl
 *.log
+# EVOLVE loop artifacts are shared with the cloud analysts via git (order matters:
+# these negations must come after logs/* and the global *.jsonl/*.log)
+!logs/evolve
+logs/evolve/*
+!logs/evolve/*.md
+!logs/evolve/ledger.jsonl
+!logs/evolve/experiments.jsonl
 .DS_Store
 analysis/weather/badatmath_audit/activity_raw.jsonl
 analysis/weather/badatmath_audit/resolutions.json

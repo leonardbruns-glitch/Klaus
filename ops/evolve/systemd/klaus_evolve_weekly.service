@@ -1,0 +1,9 @@
+[Unit]
+Description=Klaus EVOLVE weekly evolution agent (headless Claude, charter-bound)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/Klaus/ops/evolve/run_agent.sh weekly
+TimeoutStartSec=10800
+Nice=10
