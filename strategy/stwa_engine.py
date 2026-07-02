@@ -411,7 +411,12 @@ BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan"}  # narrow-
 # Offset rule: NEVER the ±1 shoulders (−6.7%, n=1214 — that's the underpriced-
 # YES slice, so its NO is overpriced); mode NO = pair leg, |off|≥2 = wing NO.
 # days_out: extended d+0-only → d+0..2 (his best NO slice is d+1 +12.4%).
-BAND_NO_ENABLED   = True
+BAND_NO_ENABLED   = False   # 2026-07-02 EVOLVE rail-halt: 7d realized band-NO n=51 WR 39.2%
+                            # PnL −$120.55 PF 0.29 (<0.8 over ≥20 = charter halt). Resolution-join
+                            # full ledger n=160 ROI −5.0% (off±0 n=141 −7.5%) — the 06-17 "+3.7%"
+                            # verdict flipped sign as n grew. Post-06-26 narrow config did NOT fix
+                            # it (n=17 WR 29% at avg 0.655, −$56.67, all 5 allowlist cities red).
+                            # Investigate before re-enable. Revert: True.
 BAND_NO_MIN       = 0.52    # real CLOB NO ask floor (skip his −EV 0.40-0.50 trough)
 BAND_NO_MAX       = 0.85    # above this the NO is last-cent territory, not band
 BAND_NO_STAKE     = 5.0     # 2026-06-18: 4.5→5.0 (user directive — "5 on NO"). His NO fill median $5.16.
