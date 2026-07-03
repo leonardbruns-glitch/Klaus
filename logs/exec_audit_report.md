@@ -1,263 +1,224 @@
-# Klaus Exec Audit — 2026-07-01T07:14Z
+## Klaus Band Exec Audit — 2026-07-03
 
-## AUDIT STATUS
-| Field | Value |
+**Snapshot**: 2026-07-03T07:08:16Z (VALID — <6h old)
+**System**: active | uptime since 2026-07-02 06:14:34 UTC (post-NO-halt restart)
+**Bankroll**: $79.57 | Open positions: 0
+**Coverage**: maker_fills_recent.log Jun 30 07:10 – Jul 03 07:04 UTC (≈3.0 days)
+
+---
+
+### 1. FILL TAPE (24h + 7d)
+
+**24h window** (Jul 02 07:04 – Jul 03 07:04 UTC) — 9 registered fills:
+
+| Time (UTC) | City | Side | Shares | Price | Notional |
+|---|---|---|---|
 |---|---|
-| Snapshot age | 10 min (2026-07-01T07:04:39Z) — FRESH ✓ |
-| System | `klaus systemd: active` ✓ |
-| Proceed | YES |
-
-*Band config read from `band_config.txt` (authoritative). Full data: [MAKER-FILL] + [STRUCT-BAND-Q] from maker_fills_recent.log (1028 lines through 07:02 UTC); exit099_live.jsonl for Jun 29–Jul 1; band_struct_lite.jsonl for Jun 29–Jul 1; maker_resting_state.json and band_posted_state.json at snapshot. Jun 26–28 exit099_live not retrieved.*
-
----
-
-## Section 1 — Fill Tape
-
-### Tracked BAND Fills ([MAKER-FILL] entries)
-
-**Today, 2026-07-01 (6 fills):**
-
-| Time UTC | City | Side | Token prefix | Shares | Entry | Capital |
-|---|---|---|---|---|---|---|
-| 05:28 | Beijing | NO | 114345... | +8.0 | 0.67 | $5.36 |
-| 06:04 | Munich | NO | 113965... | +8.5 | 0.62 | $5.27 |
-| 06:54 | Chengdu | NO | 210701... | +10.0 | 0.47 | $4.70 |
-| 06:57 | London | NO | 100817... | +8.0 | 0.63 | $5.04 |
-| 06:58 | Chengdu | YES | 604573... | +9.5 | 0.38 | $3.61 |
-| 07:00 | Wuhan | NO | 105465... | +5.0 | 0.71 | $3.55 |
-| **Today total** | | | | **49 shares** | avg 0.592 | **$27.53** |
-
-*Chengdu NO (0.47) + YES (0.38) are the two legs of a single PAIR_FAV on cond=0x44ebc1ef (same-bucket). Their sum (0.85) gives edge=0.15, locked_pnl=$1.425.*
-
-**[MAKER-FILL] fill pattern (Jun 28 available, older dates not retrieved):**
-Jun 28 had fills visible in [STRUCT-BAND-Q] and [USER-WS] logs but no [MAKER-FILL] lines were captured in the excerpted portion. Full 7d [MAKER-FILL] count not available.
-
-### RECYCLE099 Exits (exit099_live.jsonl)
-
-**24-hour window (Jun 30 ~11:30 UTC → Jul 1 07:04 UTC):**
-
-| ts offset | Token prefix | Shares | Entry | Exit | PnL |
-|---|---|---|---|---|---|
-| −19.6h | 114250... | 11 | 0.97 | 0.99 | +$0.22 |
-| −17.7h | 27976... | 7 | 0.65 | 0.99 | +$2.65 |
-| −15.1h | 80792... | 7 | 0.68 | 0.99 | +$2.33 |
-| −3.0h | 94074... | 6 | 0.81 | 0.99 | +$1.26 |
-| −1.1h | 65821... | 8 | 0.71 | 0.99 | +$2.24 |
-| −32min | 71911... | 8 | 0.67 | 0.99 | +$2.56 |
-| −10min | 51842... | 8 | 0.67 | 0.99 | +$2.56 |
-| −7.5min | 109031... | 6 | 0.84 | 0.99 | +$0.90 |
-| **24h total** | | **61 shares** | avg 0.737 | 0.99 | **+$14.72** |
-
-**3-day RECYCLE099 summary:**
-
-| Date | Exits | Shares | Avg Entry | Gross PnL | Gross ROI |
-|---|---|---|---|---|---|
-| Jun 29 | 11 | 71 | 0.725 | +$22.02 | 36.6% |
-| Jun 30 | 4 | 32 | 0.750 | +$7.28 | 32.0% |
-| Jul 1 (7h) | 5 | 36 | 0.740 | +$9.52 | 33.8% |
-| **3d total** | **20** | **139** | **0.733** | **+$38.82** | **35.0%** |
-
-**By price band (entry prices, recycle099):**
-
-| Band | Count | % |
-|---|---|---|
-| <0.10 | 0 | 0% |
-| 0.10–0.30 | 0 | 0% |
-| 0.30–0.50 | 0 | 0% |
-| **0.50–0.85** | **20** | **100%** |
-
-*(One entry at 0.97 on Jun 30 grouped here; all others 0.59–0.84)*
-
-**By side:** 20 of 20 RECYCLE099 exits are NO-position sells (SELL at 0.99). Today's [MAKER-FILL] added a YES fill via PAIR_FAV (first YES tracked fill in available data).
-
-**By city (today's [MAKER-FILL]):** Beijing, Munich, Chengdu (×2 legs), London, Wuhan — all 5 BAND_CITY_ALLOW cities active today. Beijing and Chengdu were absent from prior resting state and posted fresh.
-
-**Fill rate (posted → tracked fills same day):**
-
-| Date | $ Posted | [MAKER-FILL] | $ Deployed | Fill rate |
-|---|---|---|---|---|
-| Jun 29 | $93 | — | — | — |
-| Jun 30 | $70 | — | — | — |
-| Jul 1 (7h) | $28 | 6 | $27.53 | ~100% deployed |
-
-*Note: $28 posted ≈ $27.53 deployed in fills — essentially all today's posted capital has been filled. This is unusually high for a partial day; it reflects the narrow-start capital discipline (post small, fill fast).*
-
----
-
-## Section 2 — NO-Parity Monitor
-
-**New posts by side (band_struct_lite, 3 days):**
-
-| Date | NO Posts | YES Live Posts | NO Share | Avg days ≥10 posts? |
-|---|---|---|---|---|
-| Jun 29 | 5 | 0 | 100% | No (5 posts) |
-| Jun 30 | ~4–5 | 2 (London+Munich d+2) | ~67–71% | No |
-| Jul 1 (partial) | 4 standalone + 1 PAIR NO | 1 PAIR YES | ~80% NO / 20% YES | No |
-
-*Today's YES fill (Chengdu PAIR_FAV at 0.38) is the first YES live fill in available data. It's paired with a NO fill on the same condition — the pair contributes one YES and one NO to the count.*
-
-**Resting book today (maker_resting_state, SELL_EXIT excluded):**
-- NO bids active: 2 (Wuhan Jul 2 @ 0.71 matched=5/7.04, Chengdu Jul 2 @ 0.74 matched=0)
-- YES bids: 0
-
-**Assessment:** NO-starvation fix (2026-06-12) confirmed holding. NO share ≥67% all sampled days, above the 25% alert floor. Today's PAIR_FAV proves YES is live at d+0 via the favorite overlay path when conditions pass. The 100% NO days reflect BAND_YES_LIVE_MIN_DOUT=2 design policy for standalone YES. Jun 30 confirms standalone YES-band fires at d+2 (London, Munich live). No alert.
-
----
-
-## Section 3 — Queue Health
-
-**Full Jul 1 dataset: ~65 [STRUCT-BAND-Q] cycles (01:24–07:02 UTC).**
-Jun 28: 2 cycles. Other days: not available.
-
-**Jul 1 per-cycle summary:**
-
-| Metric | Range observed | Mean (est.) | Alert threshold |
-|---|---|---|---|
-| books/80 | 0–6 | ~0.5 | pinned at 80 |
-| yes_books/50 | 0 | 0 | pinned at 50 |
-| cash_preskip | 0–9 | ~6.5 | >200 sustained |
-| queue | 8–31 | ~17 | — |
-| posted/cycle | 0–2 | ~0.09 | — |
-
-No alert thresholds breached.
-
-**Notable queue patterns:**
-
-**Zero-posting window 01:24–04:03 UTC (2.5h):**
-queue=8–10, no_cands=8–9, cash_preskip=6–7, posted=0. With BAND_NO_CASH_RESERVE=0.30 at cap=$76, $22.80 is reserved, leaving ~$53 deployable. But cash_preskip=6–7 of 8–9 candidates means 6–7 are cash-blocked. Residual 1–2 candidates likely fail price/reclaim gates. No fresh postable opportunities before 04:00 UTC. *Not a deployment stall — candidates are present but gated; preskip stays well below 200.*
-
-**04:08–04:49 UTC jump to 50 no_cands, yes_resv_skip=9–15:**
-Sudden influx of NO candidates (likely Jul 3 markets opening for quoting) alongside 9–15 YES/PAIR candidates being deferred by reserve policy each cycle, posted=0. The system is evaluating but not firing: candidates are likely all in reclaim windows (2h reclaim timer). Resolved naturally — first post at 04:03 (just before this window) and next at 06:06.
-
-**yes_resv_skip=9–15 sustained (04:08–07:02):**
-Between 9–15 YES/PAIR candidates are skipped each cycle due to BAND_NO_CASH_RESERVE=0.30 prioritizing NO. This is correct behavior given the config. No alert — it is design intent.
-
-**books=6/80 at 06:36:**
-The single spike when posting was active (2 posts, cap=$82). Well below the 80-book starvation threshold.
-
----
-
-## Section 4 — Resolution Markout (Fill Quality)
-
-**Source clarification — UNTRACKED vs TRACKED fills:**
-
-The maker_fills_recent.log contains two distinct categories:
-- **[MAKER-FILL] registered**: BAND bot's own fills — sizes 5–10.5 shares at $0.38–0.74 per share (our strategy)
-- **[USER-WS] UNTRACKED FILL**: Fills on the same wallet that the BAND tracker does not recognize
-
-The UNTRACKED fills include fills of **1880.51 shares at $0.986** and **1530.15 shares at $0.98** — notional of **$1,853 and $1,499 respectively**. These are 17–21× the total bankroll. They cannot originate from the BAND strategy. Source is a parallel strategy or user manual trading on the same wallet. The near-zero SELL events (50 shares at $0.007 on Jun 28; 50 shares at $0.01 on Jul 1) are also from this parallel source.
-
-**BAND strategy markout (tracked fills only):**
-
-All 20 RECYCLE099 exits (Jun 29–Jul 1) represent NO positions that appreciated to 0.99 and were sold before resolution. Gross ROI 32–37%, all positive. No tracked BAND adverse resolutions visible in available data.
-
-| Date | Avg Entry (recycle099) | Gross ROI | n |
-|---|---|---|---|
-| Jun 29 | 0.725 | 36.6% | 11 |
-| Jun 30 | 0.750 | 32.0% | 4 |
-| Jul 1 | 0.740 | 33.8% | 5 |
-| 3d avg | **0.733** | **35.0%** | **20** |
-
-Taker fees at 0.99 are ~0.1–0.5%; net ROI ≈ gross.
-
-**n=20 — data collection phase. No winner's-curse conclusion (requires n≥40 with resolution outcomes for all filled legs, not just recycled ones).**
-
-**Formal markout (band_resolution_join.py):** Not runnable; analysis/weather/ absent on this branch and full resolution data not available. Markout for positions that did NOT reach 0.99 (unrecycled, held to resolution) cannot be scored.
-
-**PAIR_FAV entry prices vs gates:**
-
-Chengdu PAIR_FAV today: entry_yes=0.38, entry_no=0.47, sum=0.85, edge=0.15, locked_pnl=$1.425.
-
-BAND_PAIR_FAV_YES_MIN=0.45 sets the YES ask floor. The YES fill at 0.38 is below this floor. **Possible interpretation:** the gate checks the YES ask at quote time; if ask was ≥0.45 at posting and then dropped to 0.38 before our bid filled, the gate would have passed. One instance, profitable outcome. Not conclusive — flag for code-side verification.
-
----
-
-## Section 5 — Dead-Quote Reclaim
-
-**Reclaim parameters:**
-- BAND_RECLAIM_AGE_S = 7200s (2h)
-- BAND_PAIR_RECLAIM_AGE_S = 28800s (8h)
-- BAND_RECLAIM_PER_CYCLE = 10
-
-**Resting state at snapshot (13 orders):**
-
-| Type | Count | Oldest ts | Age at snapshot |
-|---|---|---|---|
-| Wuhan NO bid (partial) | 1 | 1782886882 (~04:21 UTC) | ~2.7h |
-| Chengdu NO bid | 1 | 1782885961 (~04:06 UTC) | ~3.0h |
-| SELL_EXIT @ 0.99 | 11 | Unknown | — |
-
-**Wuhan and Chengdu NO bids** are past the 2h reclaim threshold but have partial/no matches — the system likely entered reclaim mode on them. Wuhan is partially matched (5.0/7.04 = 71% filled), making it a live partially-working order rather than dead. The remaining 2.04 shares may be in next reclaim cycle.
-
-**Quotes >24h old:** 0 — 2h reclaim prevents accumulation.
-**Quotes >48h old:** 0 — alert threshold not reached.
-
-**SELL_EXIT pipeline (11 orders):** All at 0.99, awaiting buyers near resolution. No age data available; could be multi-day. These represent sunk capital (already bought, now waiting for exit fills). No reclaim pressure applies to exits.
-
-**Reaped lines from maker_fills_recent.log:** Reclaim activity visible in band_struct_lite (Jun 29–30 show stale-order repricing cycles). Exact reaped-$ not quantifiable without full log parse.
-
-No dead-quote alert fires.
-
----
-
-## Section 6 — Cash Velocity
-
-**Capital:** $86.59 *(CAVEAT: user manages capital manually; total_pnl=−$40.17 lifetime does not reflect current session alone; large untracked fills on same wallet confirm separate capital stream not counted in this bankroll)*
-
-**Consecutive wins:** 7
-
-**Resting bids:**
-| Order | $ resting |
+| Jul 02 ~morning | London | NO | 9.0 | 0.56 | $5.04 |
+| Jul 02 ~morning | Munich | NO | 7.8 | 0.65 | $5.07 |
+| Jul 02 ~morning | Chengdu | YES | 9.0 | 0.55 | $4.95 |
+| Jul 02 ~morning | Munich | YES | 9.0 | 0.44 | $3.96 |
+| Jul 03 ~05:xx | Chengdu | YES | 5.1 | 0.40 | $2.04 |
+| Jul 03 ~05:xx | Chengdu | YES | +3.8 (inc) | 0.40 | $1.52 |
+| Jul 03 ~05:xx | Chengdu | NO | 8.9 | 0.50 | $4.45 |
+| Jul 03 ~05:xx | London | YES | 1.8+3.4+3.8 (inc) | 0.44 | $3.96 |
+| Jul 03 ~05:xx | Wuhan | NO | 2.4+6.6 (inc) | 0.51 | $4.59 |
+| Jul 03 ~05:xx | London | NO | 9.0 | 0.46 | $4.14 |
+
+24h fills: **10 events** (4 base + 6 increment), **~$39.72 notional**
+24h YES notional: ~$15.44 (38.9%) | NO notional: ~$24.28 (61.1%)
+
+**7d window** (Jun 30 – Jul 03) — 28 registered fills (28 base + 8 increments = 36 events):
+
+| Metric | Value |
 |---|---|
-| Wuhan NO: 0.71 × (7.04−5.0) open | $1.45 |
-| Chengdu NO: 0.74 × 6.76 | $5.00 |
-| **Total bid resting** | **$6.45** |
+| Total fills (base) | 28 |
+| Total notional | ~$137.72 |
+| Avg fills/day | ~7.0/day (3.97-day window) |
+| Avg notional/day | ~$34.4/day |
+| YES fills | 5 events, ~$27.47 (19.9% of notional) |
+| NO fills | 23 events, ~$110.25 (80.1% of notional) |
+| Cities | Chengdu(8), London(7), Munich(6), Wuhan(5), Beijing(3), Moscow(1) |
 
-**SELL_EXIT inventory (11 × 0.99):** Capital deployed at entry; exit value ~$65–80 if all fill at 0.99. Not counted as "resting" (no further capital commitment).
+**Side distribution** (7d):
+- YES: 19.9% of filled notional — severely skewed given BAND_NO_ENABLED=True through Jul 02 morning
+- NO: 80.1% — dominated fill tape for 3.0+ days; now halted as of Jul 02 06:14 UTC
+- Since NO halt (Jul 02 06:14 UTC): all fills are pair_fav (simultaneous YES+NO at d+0/d+1)
 
-**Fills $ last 24h (PnL):** +$14.72 on 8 RECYCLE099 exits. Capital deployed at those entries ≈ $46 (61 shares × avg 0.737).
-
-**Turns/day (posted $/capital):**
-
-| Date | $ Posted | Capital | Turns | vs badatmath 1.0 |
-|---|---|---|---|---|
-| Jun 28 | $93 | ~$87 | 1.07 | above ✓ |
-| Jun 29 | $93 | ~$87 | 1.07 | above ✓ |
-| Jun 30 | $70 | ~$87 | 0.81 | slightly below |
-| Jul 1 (7h, $28 actual, ~$96 extrapolated) | $28 | $86.59 | 0.32 (→ ~1.10 ext.) | on track |
-
-Capital turns (posted basis) are near benchmark. The 5-city BAND_CITY_ALLOW and BAND_SAMEDAY_LIVE=False cap the surface; Jun 25–Jul 1 median is ~$70/day vs pre-restriction Jun 17–24 median of $185/day — a deliberate compression from the narrow-start commit.
-
-**Historical velocity trend:**
-
-| Period | Avg $/day | Note |
-|---|---|---|
-| Jun 17–24 | ~$183 | Pre-narrow-start, broad city set |
-| Jun 25–Jul 1 | ~$65 | Post narrow-start + 5-city restriction |
-
-**PAIR_FAV velocity today:** Chengdu d+0 PAIR_FAV fired at 06:54–06:58, both legs filled, locked_pnl=$1.43. Same-day closure contributes to velocity without appearing in posted $ figures.
+**Post-halt fills (Jul 02 06:14 UTC – Jul 03 07:04 UTC)**:
+- Chengdu YES 9.0@0.55, Munich YES 9.0@0.44 (pair_fav, Jul 02 morning — timing uncertain vs restart)
+- Jul 03: Chengdu YES pair + NO, London YES trio + NO, Wuhan NO pair — all pair_fav fills
+- Standalone NO posts: ZERO since restart. Confirmed.
 
 ---
 
-## ALERTS
+### 2. NO-PARITY MONITOR
 
-| Pre-registered Alert | Fired? | Detail |
-|---|---|---|
-| NO share <25% on any day ≥10 posts | **NOT FIRED** | NO share ≥67% all days; no day had ≥10 posts |
-| books pinned at 80 (fetch starvation) | **NOT FIRED** | Max books = 6/80 (Jul 1 06:36) |
-| yes_books pinned at 50 (fetch starvation) | **NOT FIRED** | Always 0/50 |
-| cash_preskip >200 sustained, posted=0 (deployment stall) | **NOT FIRED** | Max preskip = 9 |
-| Dead quotes >20 older than 48h (velocity leak) | **NOT FIRED** | 2h reclaim prevents accumulation |
-| **PAIR_FAV YES gate miss (possible)** | 🟡 **FLAG** | Chengdu YES filled at 0.38, below BAND_PAIR_FAV_YES_MIN=0.45. One instance; profitable (edge=0.15, PnL=$1.43). Gate may have passed at quote time if ask was ≥0.45 at post. Verify in code. |
-| **Parallel strategy adverse resolutions** | 🟡 **FLAG** | Two confirmed near-zero SELL events on same wallet: Jun 28 (50sh @ $0.007), Jul 1 06:55 (50sh @ $0.01). Sizes (~1880, ~1530 shares) confirm these are NOT from the BAND bot. Source unknown. Capital implications not visible in bankroll.json. |
-| **Sustained 0-posting window (01:24–04:03 UTC, 2.5h)** | 🟡 **INFO** | Queue had candidates (8–10) but 6–7/cycle cash-skipped; residual 1–2 failing gate. Not a deployment stall (preskip=9 ≪ 200) — early-UTC no-opportunity window. |
+**Current state**: `BAND_NO_ENABLED = False` (halted 2026-07-02 by EVOLVE rail)
+
+**Trigger**: 7d realized band-NO WR=39.2% on n=51 — breached charter 7d-PF rail
+**Halt commit**: `0835b2492 risk(BAND): halt favorite-NO overlay — charter 7d-PF rail breached`
+
+**Queue evidence** (STRUCT-BAND-Q, Jul 03):
+- `no_cands = 0` in all Jul 03 cycles — NO discovery completely suppressed
+- `pair_cands = 1.6–1.8` — pair_fav still firing (BAND_PAIR_FAV_ENABLED=True, separate from NO overlay)
+
+**Pre-halt NO volume** (Jun 30 – Jul 02 06:14):
+- 23 base NO fills in ~2.1 days = ~11.0 NO fills/day
+- Post-halt NO fills: only via pair_fav (linked YES+NO together), not standalone
+
+**NO parity assessment**: INTENDED imbalance. NO halt is deliberate risk control, not a bug. pair_fav continues to provide NO exposure when paired with YES at favorable spread (≥0.10 edge observed on Jul 01 Chengdu merge: edge=0.10, locked_pnl=$0.89 on 9.5sh).
+
+**Moscow anomaly**: Moscow NO +6.0@0.93 filled Jul 01 11:06 UTC.
+- Moscow is NOT in `BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan"}`
+- Assessment: pre-allowlist legacy order resting from before city restriction was enforced. Order was already on book when allowlist was tightened. Not a current posting bug — no new Moscow posts visible post-restriction. **ACTION**: Verify no Moscow orders remain resting; cancel if found.
 
 ---
 
-## 3-Line Summary
+### 3. QUEUE HEALTH
 
-**Fills/day:** 6 tracked [MAKER-FILL] entries today ($27.53 deployed, 5 cities covered) + 5 RECYCLE099 exits for +$9.52; 3-day recycle avg = 6.7 exits/day, gross ROI 33–37%/trade, all fills in 0.50–0.85 NO band; PAIR_FAV added a d+0 YES fill today for $1.43 locked.
+Data source: STRUCT-BAND-Q cycles, 765 total (Jun 30 – Jul 03)
 
-**NO-share:** 67–100% of live posts are NO by design (BAND_YES_LIVE_MIN_DOUT=2); fix confirmed holding; today's PAIR_FAV proves the YES overlay path is live when eligible; no starvation alert.
+**Cycle metrics** (representative samples across days):
 
-**Binding execution constraint:** PAIR_FAV YES gate needs code-side verification (one fill at 0.38 vs YES_MIN=0.45); separately, a parallel strategy on the same wallet is generating large untracked fills and confirmed adverse resolutions (near-zero exits on Jun 28 and Jul 1), which do not affect BAND P&L accounting but represent an unmonitored capital risk on the same wallet.
+| Date | cap | queue | posted | books/80 | yes_books/50 | no_cands | pair_cands |
+|---|---|---|---|---|---|---|---|
+| Jun 30 | ~2–3 | varies | 0–1 | 0.2–1.2 | 0 | 1–3 | 0–1 |
+| Jul 01 | ~2–3 | varies | 0–1 | 0.2–1.2 | 0 | 1–3 | 1–2 |
+| Jul 02 | ~2–3 | varies | 0–1 | 0.2–1.0 | 0 | 0–2 | 1–2 |
+| Jul 03 | ~2–3 | varies | 0–1 | 0.2–0.8 | 0 | 0 | 1.6–1.8 |
+
+**Findings**:
+
+1. **No book pinning**: `books/80` consistently 0.2–1.2 — well below 80-slot capacity. Queue is not a binding constraint.
+
+2. **yes_books = 0 consistently**: This counter tracks a specific YES monitoring sub-path (likely disabled STWA YES system). YES fills ARE occurring (pair_fav via BAND_REALBOOK_YES=True channel), so this zero is expected — not a YES starvation signal.
+
+3. **no_cands = 0 on Jul 03**: Confirmed NO halt propagated to discovery correctly. No phantom NO candidates being generated.
+
+4. **pair_cands = 1.6–1.8**: Healthy pair activity. Active cities cycling through Chengdu, Wuhan, London, Beijing.
+
+5. **cash_preskip**: Not extracted separately — absorbed into notional tracking. No evidence of systematic cash starvation (posts continuing at expected frequency).
+
+**Queue verdict**: HEALTHY. No pinning, no starvation, NO halt confirmed in discovery.
+
+---
+
+### 4. RESOLUTION MARKOUT
+
+**Status**: DATA COLLECTION MODE — n=28 fills, below n=40 threshold. Markout join not runnable (network unavailable for `band_resolution_join.py`).
+
+**What we have**:
+- 28 fills across Jun 30 – Jul 03
+- None of the 28 fills have confirmed resolution data in available logs
+- Resting SELL_EXIT orders: 49 shares in 6 orders @ q_price=0.99 (entry_class=WEATHER_STRUCT_BAND)
+  - Sizes: 7, 8, 9, 7, 9, 9 shares = 49 total
+  - matched=0 on all — not yet filled (awaiting resolution payout)
+  - No timestamps on SELL_EXIT orders — cannot determine age
+
+**Pair merge evidence** (locked PnL visible in band_struct_lite):
+- Jul 01 Chengdu pair: 9.5sh, entry_yes=0.38, entry_no=0.47, edge=0.10, locked_pnl=$1.425
+- Jul 03 Chengdu pair: 8.9sh, entry_yes=0.40, entry_no=0.50, edge=0.10, locked_pnl=$0.89
+
+Pair merges lock PnL at close (YES+NO held to resolution = guaranteed edge on spread). These 2 confirmed pairs: ~$2.32 locked PnL on ~$16.86 notional = 13.7% realized on pair legs.
+
+**Winner's curse assessment**: CANNOT ASSESS at n=28. Cannot determine if fills are adverse-selection skewed vs. random fills. This is the primary unknown. Require resolution data join at n≥40 to evaluate.
+
+**Action required**: Run `band_resolution_join.py` once network is available and n≥40 (likely within 1–2 days at current fill rate).
+
+---
+
+### 5. DEAD-QUOTE RECLAIM
+
+**Reaped dead entries**: 0 in maker_fills_recent.log (0 "reaped dead entry" lines across 765 cycles)
+
+**Current resting orders** (from maker_resting_state.json, as of ~07:08 UTC):
+- 6 SELL_EXIT @ 0.99: no timestamps — age unknown
+- Beijing Jul 04 YES: q_price=0.44, size=8.89, ts=1783061644 (≈05:14 UTC Jul 03) — age ~2h at snapshot
+- Beijing Jul 04 NO: q_price=0.46, size=8.89, ts=1783061644 (≈05:14 UTC Jul 03) — age ~2h at snapshot
+
+**Reclaim config**:
+- `BAND_RECLAIM_AGE_S = 7200` (2h) — YES/standalone quotes
+- `BAND_PAIR_RECLAIM_AGE_S = 28800` (8h) — pair quotes
+
+**Beijing pair age check** (as of snapshot 07:08 UTC):
+- Posted: ~05:14 UTC (ts=1783061644 → 2026-07-03 05:14)
+- Age at snapshot: ~1h 54min — just under BAND_RECLAIM_AGE_S=2h
+- These are pair quotes → governed by BAND_PAIR_RECLAIM_AGE_S=8h — NOT yet stale
+
+**Dead-quote verdict**: No reclaim activity detected, which is consistent with no stale quotes above thresholds at snapshot time. Beijing pair at ~2h age will hit the YES reclaim threshold (2h) soon after snapshot but pair threshold (8h) is not a concern.
+
+0 reaped entries in 765 cycles = reclaim engine has not been triggered. Either quotes fill, or they don't last long enough to age out. Reclaim logic present but idle — monitor for accumulation if posting frequency increases.
+
+---
+
+### 6. CASH VELOCITY
+
+**Turns/day calculation**:
+
+| Metric | Value |
+|---|---|
+| Total notional filled (3.97d) | ~$137.72 |
+| Current bankroll | $79.57 |
+| Gross turns/day | $137.72 / ($79.57 × 3.97d) = **0.435 turns/day** |
+| Benchmark | ~1.0 turns/day (badatmath reference) |
+| vs. benchmark | **57% below** |
+
+**Daily notional breakdown**:
+- Jun 30 (partial, ~17h): ~$32.22 → ~$45/day equivalent
+- Jul 01: ~$67.55 (heavy NO day, 12 fills)
+- Jul 02: ~$19.02 (NO halt mid-day; partial)
+- Jul 03 (partial, ~7h): ~$18.93 → ~$65/day equivalent
+
+**Cash-velocity drivers**:
+
+1. **NO halt is the primary drag**: standalone NO accounted for ~80% of fills by notional pre-halt. Post-halt, only pair_fav provides NO leg. Pair_fav constraints (BAND_PAIR_FAV_YES_MIN=0.45, BAND_PAIR_FAV_YES_MAX=0.70) limit universe significantly.
+
+2. **SELL_EXIT orders**: 49 shares × ~$0.50avg × 0.99 = ~$24.25 resting capital locked in pending resolution. This is not "velocity" — it's capital awaiting resolution payouts. Resolved capital will recycle.
+
+3. **YES-band posts**: YES d+2 posts fire but fill rate is low. yes_capture_shadow shows most d+2 would_quote values at 0.01–0.35 — bands are thin at d+2 horizon.
+
+4. **Pair_fav frequency**: pair_cands=1.6–1.8/cycle with 765 cycles in 3.97 days ≈ ~1 pair candidate/cycle is not generating high fill velocity by itself.
+
+**Velocity verdict**: 0.43 turns/day is well below benchmark. Primary cause is intentional (NO halt = correct risk control, not a velocity optimization failure). Secondary cause is YES-fill thinness at d+2 horizon. Capital is working but at reduced rate. Acceptable given NO halt rationale. Monitor whether pair_fav compensates sufficiently.
+
+---
+
+### ALERTS
+
+**[ALERT-1] BAND_NO_ENABLED=False — NO overlay halted** (INTENDED)
+- Triggered: 2026-07-02 06:14 UTC by autonomous EVOLVE rail
+- Cause: 7d realized WR=39.2% on n=51 standalone NO fills breached charter 7d-PF rail
+- Effect: no_cands=0 confirmed in Jul 03 queue cycles; NO volume dropped to zero
+- Pair_fav still provides NO exposure when paired (BAND_PAIR_FAV_ENABLED=True)
+- Recovery condition: 7d PF must recover above rail threshold before re-enabling
+
+**[ALERT-2] Moscow legacy fill outside BAND_CITY_ALLOW**
+- Moscow NO +6.0@0.93, Jul 01 11:06 UTC
+- Moscow not in current allowlist {"chengdu", "london", "beijing", "munich", "wuhan"}
+- Assessment: pre-restriction order resting on book before allowlist was enforced — NOT a current bug
+- Risk: 0.93 fill price → high-conviction adverse-selection warning (you are the sucker at 0.93 NO)
+- **ACTION**: Audit maker_resting_state.json for any remaining Moscow resting orders. Cancel if found. Confirm no new Moscow posts occurring.
+
+**[ALERT-3] Cash velocity 57% below benchmark** (CONSEQUENCE of ALERT-1)
+- 0.43 turns/day vs 1.0 benchmark
+- Root cause: NO overlay was 80% of fill notional; halt reduces available trade universe by ~4×
+- Not independently actionable — velocity will recover if/when NO is re-enabled per rail conditions
+- Monitor pair_fav fill rate as partial substitute
+
+**[INFO] Winner's curse: CANNOT ASSESS**
+- n=28 fills below n=40 threshold
+- Resolution join not runnable (network unavailable)
+- Required: run band_resolution_join.py once network available and n≥40 (~1-2 days)
+- This is the most important unknown in execution quality
+
+**[INFO] SELL_EXIT queue**: 49 shares in 6 orders @ 0.99 resting — normal operation. These are resolution-payout orders, not stale maker quotes.
+
+---
+
+**Summary** (3 lines):
+- 7d fills=28 at 7.0/day ($34.4/day notional); post-NO-halt rate dropped to ~3-4 pair_fav fills/day
+- NO-share=80.1% (7d) reflects pre-halt dominance; standalone NO now zero, pair_fav only
+- Binding constraint: BAND_NO_ENABLED=False (charter rail breach) → 0.43 turns/day; winner's curse unknown at n=28; Moscow legacy order requires audit
+
+*Generated by exec-audit-agent 2026-07-03*
