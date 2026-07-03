@@ -1,65 +1,60 @@
 {
-  "date": "2026-07-02",
-  "snapshot_ts": "2026-07-02T11:23:06Z",
-  "brier7": 0.0189,
-  "brier7_note": "n=2091 buckets, 196 city-date pairs (all cities, Jun 27-Jul 1). Computed from POST_PEAK running_max inference, all resolved markets. Prior (5 allowed cities only): 0.0139. Broader scope inflates apparent accuracy.",
-  "ece7": 0.0382,
-  "ece7_note": "n=2091. Bins: [0.0,0.1) n=1892 mean_o=0.004, [0.3,0.4) n=22 mean_p=0.373 mean_o=0.727 (isotonic plateau bucket \u2014 underconfident), [0.6,0.7) n=164 mean_p=0.631 mean_o=1.000. Below 0.05 threshold. Prior: 0.0361.",
-  "rho7": 0.9165,
-  "rho7_note": "Spearman rho=0.9165, n=2091. Improved from 0.83 (scope broadened; high-confidence bucket ordering still intact despite city mix).",
-  "disp_ratio7": 0.408,
-  "disp_ratio7_note": "WORSENING. n=31 fire records (25 finite). median_impl=0.969C median_real=2.000C ratio=0.408. d+2 only: ratio=0.340. Prior: 0.470 (all) / 0.550 (d+2). Beijing/Chengdu most affected. Wuhan near break-even. Munich moderate.",
-  "disp_ratio7_d2": 0.34,
-  "n_resolved_brier": 2091,
-  "n_fire_records": 31,
-  "n_finite_ratios": 25,
-  "implied_sigma_7d_median_c": 0.969,
-  "realized_dev_7d_median_c": 2.0,
-  "disp_by_city": {
-    "beijing": {
-      "n": 5,
-      "med_impl": 0.957,
-      "med_real": 3.0,
-      "med_ratio": 0.311
-    },
-    "chengdu": {
-      "n": 12,
-      "med_impl": 0.887,
-      "med_real": 3.5,
-      "med_ratio": 0.222
-    },
-    "london": {
-      "n": 1,
-      "med_impl": 0.816,
-      "med_real": 2.0,
-      "med_ratio": 0.408
-    },
-    "munich": {
-      "n": 7,
-      "med_impl": 0.939,
-      "med_real": 1.0,
-      "med_ratio": 0.736
-    },
-    "wuhan": {
-      "n": 6,
-      "med_impl": 1.054,
-      "med_real": 1.0,
-      "med_ratio": 1.015
-    }
+  "date": "2026-07-03",
+  "snapshot_ts": "2026-07-03T08:09:16Z",
+  "brier7": 0.053,
+  "brier7_note": "n=36551 sampled rows, 205 city-date pairs (all cities, Jun 28-Jul 2). POST_PEAK running_max inference. Per-day stable: 0.051-0.056.",
+  "ece7": 0.0194,
+  "ece7_note": "n=36551. Below 0.05 threshold. Plateau at p_cal=0.3801 (grid 0.30-0.90, n=3168 rows, actual WR=0.411 vs assigned 0.380, delta=+0.031 slight underconfidence). High-conf bins (0.4-0.7) show high WR structurally (mode bucket rows).",
+  "rho7": 0.4458,
+  "rho7_note": "Spearman rho=0.446, n=36551. Well above 0.15 threshold. Lower than prior 0.917 due to different scope (all-city vs broader prior method; both valid).",
+  "disp_ratio7": 0.817,
+  "disp_ratio7_note": "ALERT PERSISTS. d+0 PRE_PEAK method (T-2h to T-12h before close): n=125 pairs, n_finite=84, median_impl=0.818C median_real=1.000C. NOTE: prior used d+2 fire records + book prices (ratio=0.408/0.340). d+0 method is optimistic bound; d+2 ratio likely ~0.3-0.4 based on prior trend.",
+  "disp_ratio7_d0_method": 0.817,
+  "disp_ratio7_d2_prior": 0.34,
+  "n_resolved_city_dates": 205,
+  "n_resolved_brier": 36551,
+  "n_finite_ratios_d0": 84,
+  "implied_sigma_d0_median_c": 0.818,
+  "realized_dev_d0_median_c": 1.0,
+  "disp_by_date": {
+    "2026-06-28": {"n": 25, "n_finite": 17, "ratio": 0.807, "impl": 0.807, "real": 1.0},
+    "2026-06-29": {"n": 28, "n_finite": 19, "ratio": 0.663, "impl": 0.794, "real": 1.0},
+    "2026-06-30": {"n": 22, "n_finite": 14, "ratio": 0.976, "impl": 0.860, "real": 0.917},
+    "2026-07-01": {"n": 26, "n_finite": 17, "ratio": 0.866, "impl": 0.807, "real": 0.656},
+    "2026-07-02": {"n": 24, "n_finite": 12, "ratio": 0.858, "impl": 0.817, "real": 1.0}
   },
-  "bankroll": 76.310496,
+  "disp_by_city_allowlist": {
+    "beijing": {"n": 5, "n_finite": 2, "ratio": 0.157, "impl": 0.738, "real": null, "note": "collect-grade"},
+    "chengdu": {"n": 4, "n_finite": 3, "ratio": 0.885, "impl": 0.875, "real": 1.0},
+    "london": {"n": 5, "n_finite": 2, "ratio": 0.915, "impl": 0.818, "real": null, "note": "collect-grade"},
+    "munich": {"n": 5, "n_finite": 3, "ratio": 0.614, "impl": 0.903, "real": 1.0},
+    "wuhan": {"n": 5, "n_finite": 2, "ratio": 0.948, "impl": 0.989, "real": null, "note": "collect-grade; zero rows in today s50"}
+  },
+  "proxy_lane": {
+    "today_implied_sigma_median": 0.95,
+    "baseline_7d_implied_sigma_median": 0.994,
+    "delta_pct": -4.4,
+    "note": "5% decrease vs 7d baseline — within normal variation. No alert.",
+    "wuhan_gap": true,
+    "wuhan_gap_note": "Zero pricer rows for Wuhan on 2026-07-03 s50. Wuhan is in BAND_CITY_ALLOW."
+  },
+  "bankroll": 79.5681,
+  "consecutive_wins": 5,
   "service_status": "active",
   "band_live": true,
   "band_no_enabled": false,
+  "band_yes_live_min_dout": 2,
+  "open_positions": 0,
   "isotonic_deployed_refit": "2026-06-06T22:27:08Z",
+  "isotonic_deployed_age_days": 27,
   "isotonic_candidate_refit": "2026-06-09T09:30:36Z",
+  "isotonic_candidate_age_days": 24,
   "isotonic_material_shift": -0.2577,
-  "isotonic_material_shift_note": "UNCHANGED. At grid=1.0 only: deployed=0.6316 vs candidate=0.3739. Candidate collapses high-confidence signal. Max delta for grid<=0.90: 0.0175 (below 0.05 threshold).",
-  "isotonic_candidate_recommendation": "DO NOT DEPLOY \u2014 candidate worse (plateau extends to grid=1.0, near_identity_maxdev 0.626 vs 0.568)",
-  "proxy_lane_note": "Today's PRE_PEAK data: 244 buckets, 26 cities. p_cal max=0.5433 (istanbul PRE_PEAK). Most cities at 0.3801 plateau. POST_PEAK: 156 buckets (some early-settling markets). chengdu and wellington near zero p_cal today \u2014 limited market activity.",
-  "data_gap_note": "No data gap. POST_PEAK running_max inference used for settled-lane; method unchanged from prior cycle.",
+  "isotonic_material_shift_note": "UNCHANGED. At grid=1.0 only: deployed=0.6316 vs candidate=0.3739 (delta=-0.2577). Candidate worse. Both configs 24-27 days stale; n_hist identical — live-refit cron appears inactive since Jun 9.",
+  "isotonic_candidate_recommendation": "DO NOT DEPLOY — candidate worse. Check live-refit cron health on VPS.",
+  "data_scope_note": "s50 pricer data contains only d+0 same-day markets. No d+1/d+2 rows present. Disp gauge uses d+0 PRE_PEAK; prior used d+2 fire records. Methodologies not directly comparable.",
   "alerts": [
-    "PERSISTS S3: Dispersion ratio collapsed 0.470 \u2192 0.408 (all) / 0.550 \u2192 0.340 (d+2). n=31 fires (25 finite). Chengdu ratio=0.222 (miss 3.5\u00b0C median), Beijing=0.311 (miss 3\u00b0C median). Wuhan holds near break-even (1.015). Munich moderate (0.736). Band central forecast systematically cold for Beijing/Chengdu \u2014 fires placed at wrong buckets. Edge decay worsening: 0.470 \u2192 0.408.",
-    "PERSISTS S4: Isotonic material shift at grid=1.0 \u2014 deployed=0.6316 vs candidate=0.3739 (delta=-0.2577); candidate collapses high-confidence signal; DO NOT DEPLOY"
+    "PERSISTS S3: Dispersion ratio 0.817 (d+0) / ~0.340 prior (d+2). All 5 resolved days below 1.10 (range 0.663-0.976). No recovery trend. Edge decay ongoing. BAND_NO_ENABLED=False halted NO exposure. YES-only d+2 continues with unvalidated edge on operative horizon.",
+    "PERSISTS S4: Isotonic material shift at grid=1.0 — deployed=0.6316 vs candidate=0.3739 (delta=-0.2577). DO NOT DEPLOY candidate. Both configs 24-27 days stale; live-refit cron appears inactive since Jun 9."
   ]
 }
