@@ -75,3 +75,27 @@ Honesty rules (override any optimism): a losing week is data, not noise to expla
 away. n<100 is never "confirmed". If the band is bleeding, the report says so in the
 first paragraph and you cut per charter. If two analyst reports contradict each other,
 resolve against primary data on this box, not against the thesis.
+
+STEP 2b — SPRINT-30 LADDER SUPERVISION (added 2026-07-03, principal-authorized; see
+state_log 20:00 UTC entry and logs/evolve/PENDING_HUMAN.md).
+`strategy/sprint_ladder.py` runs via root crontab every 10 min (SPRINT_LADDER_LIVE=1),
+OUTSIDE the STWA engine and OUTSIDE charter flag scope. It is the owner-mandated
+bold-play sleeve: mode-confirmation taker shots, 75% of sleeve per shot, $20 hard cash
+reserve, max 2 fires/day. You may NOT kill it, raise its stake fraction, touch the
+reserve, or convert it to model-vs-market betting. You MUST, every run:
+1. Health: confirm the cron fired since the last run (`logs/sprint_ladder_cron.log`
+   mtime + tracebacks; `logs/sprint_ladder.jsonl` events). A silent ladder is a bug —
+   fix mechanically (path/env/lock), or flag in ESCALATIONS.md if the cause is unclear.
+2. Settlement integrity: every `FIRED` shot must reach `won`/`lost` within 36h and the
+   sleeve arithmetic in `logs/sprint_ladder_state.json` must reconcile with fills.
+3. Bounded tuning (allowed, cite data in the commit): the shot-selection gates
+   (ASK_MIN/ASK_MAX, EDGE_MIN/EDGE_MAX, SPREAD_MAX, window hours, universe list) IF the
+   ladder logged ≥2 consecutive days with zero qualifying candidates, or if resolved
+   shots show a gate is systematically selecting worse-than-ask outcomes (n≥10).
+4. Re-seed: if sleeve < $5 and free USDC − $20 reserve − resting exposure ≥ $15, you may
+   re-seed the sleeve by editing the state file, at most once per ISO week, at most $15.
+5. Report: append the sprint gap (logs/sprint30_equity.jsonl latest line) and ladder
+   shot tally to your ledger commit message so the cloud analysts see trajectory.
+Capacity priorities while the ladder runs: NHC named-storm count-lock extension of
+`strategy/count_lock_scan.py` (pre-register, shadow first), disp_ratio ≥1.10×5d band
+re-enable trigger, pair co-fill weekly readout.
