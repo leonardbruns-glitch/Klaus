@@ -243,6 +243,12 @@ class OrderManager:
         # Measures round-trip time from order submission to CLOB response.
         # High latency (>500ms) = network is the bottleneck.
         self._order_latencies_ms: List[float] = []  # all order RTTs this session
+        # ── Client self-heal (2026-07-03) ─────────────────────────────────────
+        # _build_clob_client() used to run ONLY here in __init__; a transient
+        # DNS/CF failure at boot left _client=None for the whole process life —
+        # 118 FAILED posts + dead balance fetch on 07-03 while the service looked
+        # healthy. _ensure_client() rebuilds on demand, ≥120s between attempts.
+        self._client_rebuild_ts: float = 0.0
         # ── Smart allowance refresh: avoid redundant HTTP per order ──────────
         # CLOB allowance persists 30s+ after refresh. Cache last refresh ts and
         # skip if recent. Reduces per-order latency by ~500ms-1s.
@@ -269,6 +275,30 @@ class OrderManager:
         self._cf_block_attempts: int = 0      # orders that hit 403/timeout/CF block
         self._cf_total_attempts: int = 0      # total order submission attempts
         self._cf_block_last_log_ts: float = 0.0  # suppress spam, log every 10+ blocks
+
+    async def _ensure_client(self) -> bool:
+        """Rebuild the CLOB client if a transient failure left it None (or it was
+        never built). At most one rebuild attempt per 120s so a hard outage can't
+        hammer the auth endpoint. Returns True when a client is available."""
+        if CONFIG.dry_run:
+            return False
+        if self._client is not None:
+            return True
+        _now = time.time()
+        if _now - self._client_rebuild_ts < 120.0:
+            return False
+        self._client_rebuild_ts = _now
+        try:
+            client = await asyncio.to_thread(_build_clob_client)
+        except Exception as exc:
+            logger.warning("CLOB client rebuild attempt failed: %s", exc)
+            return False
+        if client is None:
+            return False
+        self._client = client
+        self._setup_fill_tracker()
+        logger.warning("CLOB client REBUILT after outage — order paths restored")
+        return True
 
     def _setup_fill_tracker(self) -> None:
         """Extract API creds from the CLOB client and give them to FillTracker."""
@@ -570,6 +600,8 @@ class OrderManager:
             return self._simulate_fill(token_id, price, stake_usd, OrderSide.BUY)
         if stake_usd <= 0 or price <= 0:
             return OrderResult(status=OrderStatus.FAILED, error="Invalid stake or price")
+        if not await self._ensure_client():
+            return OrderResult(status=OrderStatus.FAILED, error="CLOB client unavailable")
         size = round(stake_usd / price, 2)
         _now_ts = time.time()
         if _now_ts - self._last_allowance_refresh_ts >= self._allowance_refresh_ttl_s:
@@ -612,6 +644,8 @@ class OrderManager:
             return self._simulate_fill(token_id, price, shares * price, OrderSide.SELL)
         if shares <= 0 or price <= 0:
             return OrderResult(status=OrderStatus.FAILED, error="Invalid shares or price")
+        if not await self._ensure_client():
+            return OrderResult(status=OrderStatus.FAILED, error="CLOB client unavailable")
         try:
             await self.approve_token_for_sell(token_id)
         except Exception as _exc:
@@ -2367,7 +2401,9 @@ class OrderManager:
         heartbeat for 15 seconds. Call this every 10s during live trading.
         No-op in dry-run or when client is not initialised.
         """
-        if CONFIG.dry_run or self._client is None:
+        if CONFIG.dry_run:
+            return
+        if self._client is None and not await self._ensure_client():
             return
         try:
             self._client.post_heartbeat(str(uuid.uuid4()))

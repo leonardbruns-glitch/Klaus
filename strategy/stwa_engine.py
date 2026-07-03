@@ -400,7 +400,16 @@ BAND_MD_DAILY_BUDGET  = 9999.0      # 2026-06-09 user: "we should not constraint
 # the d+0 band — d+0 stays lockout-NO); trade only the clean-fill cities whose convergence
 # falls in our active UTC hours (chengdu/london +9..+28% realized n≥60 vs seattle/SF −17/−28%).
 # Extend coverage as capital AND per-city n≥100 markout clear — NOT by adding cities.
-BAND_YES_LIVE_MIN_DOUT = 2          # YES posts ONLY at d+2 (the only +EV fill window). Was MD_LIVE_MIN_DOUT (0).
+BAND_YES_LIVE_MIN_DOUT = 9          # 2026-07-03 PAUSED standalone YES band (9 = never fires; pair_fav is a
+                                    # separate block and unaffected). Premise dead: calib-monitor dispersion
+                                    # gauge implied/realized σ = 0.34 (d+2) .. 0.82 (d+0), ALERT 6 straight
+                                    # days, no recovery — the band harvests market OVER-dispersion, which is
+                                    # measurably ABSENT (market under-dispersed ⇒ mode-YES overpriced).
+                                    # Since 06-26: resolved tape −45% ROI on $303 staked, equity ~halved to
+                                    # ~$85 (below the $75 review floor); all 3 open d+2 YES legs marked
+                                    # −12..−48%. Live posture = mechanically-locked flows only (pair_fav
+                                    # Σ≤0.90→merge, RECYCLE099, NEG_RISK_ARB, lockout-NO). Re-enable
+                                    # trigger: disp_ratio ≥ 1.10 for 5+ consecutive days. Was 2 (06-26).
 BAND_NO_MIN_DOUT       = 1          # NO band posts d+1/d+2 only — drop d+0 (lockout-NO still owns d+0). Was 0.
 BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan"}  # narrow-start clean set; empty=all cities
 
