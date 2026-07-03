@@ -26,6 +26,8 @@ reset or force-push; never end with the service down without escalating).
 
 4. CLOSE OUT. Only after verified health: `rm logs/evolve/CRASHLOOP.flag`. Append a
    `state_log.md` entry (what crashed, root cause, what you changed, revert line).
-   If you could NOT restore health: leave the flag in place, append a full diagnosis and
-   what you tried to `logs/evolve/PENDING_HUMAN.md`, and make the failure loud in
-   `state_log.md`. Commit + push everything either way.
+   If you could NOT restore health: leave the flag in place (the watchdog will keep
+   re-launching you on its next ticks — leave yourself a progress note in the flag file
+   so the next attempt doesn't repeat dead ends), append the full diagnosis to
+   `logs/evolve/ESCALATIONS.md`, and make the failure loud in `state_log.md`.
+   Commit + push everything either way.

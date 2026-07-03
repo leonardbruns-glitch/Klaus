@@ -186,6 +186,7 @@ class BankrollTracker:
             self.consecutive_wins = int(d.get("consecutive_wins", 0))
             self.total_trades = int(d.get("total_trades", 0))
             self.total_pnl = float(d.get("total_pnl", 0.0))
+            self._last_utc_day = int(d.get("last_utc_day", -1))
             logger.info(
                 "Bankroll restored: capital=$%.2f streak=%d trades=%d",
                 self.capital, self.consecutive_wins, self.total_trades,

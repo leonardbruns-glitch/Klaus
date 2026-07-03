@@ -1,8 +1,9 @@
 [Unit]
-Description=Klaus EVOLVE daily actuator at 11:23 UTC (after morning crons + cloud analysts)
+Description=Klaus EVOLVE actuator, 11:23 UTC (main decision window) + 21:53 UTC (verify + US resolutions)
 
 [Timer]
 OnCalendar=*-*-* 11:23:00
+OnCalendar=*-*-* 21:53:00
 Persistent=true
 
 [Install]

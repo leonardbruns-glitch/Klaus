@@ -30,7 +30,7 @@ class BankrollConfig:
     max_open_positions: int = 2       # 2026-05-07 user instruction: 1→2 BOND positions max concurrent
     max_daily_loss_pct: float = 0.14   # 2026-06-05: armed ~-$10/day halt — the ONE backstop on the loosened band gate (ruin_floor stays off per user)
     weekly_floor: float = 0.0         # disabled
-    ruin_floor: float = 0.0           # disabled (user instruction 2026-05-15)
+    ruin_floor: float = 40.0          # ARMED 2026-07-02 (EVOLVE kernel, owner full-autonomy directive supersedes the 2026-05-15 disable): capital < $40 → no new entries. Ratchet-up-only per ops/evolve/INVARIANTS.md #2; unattended agents may never lower it.
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
