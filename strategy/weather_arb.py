@@ -290,7 +290,11 @@ MAKER_RESTING_STATE_PATH = "logs/maker_resting_state.json"
 # Cash cap on RESTING maker exposure (2026-06-10): the CLOB cancels the ENTIRE
 # open-order set when bid commitments exceed free USDC (18/18 band legs swept
 # at $50.10 resting vs $49.72 cash). Quote only what actual cash collateralizes.
-MAKER_CASH_FRAC = 0.90
+# 2026-07-03: 0.90→0.40 — the SPRINT_LADDER (owner-mandated goal-seeker, separate
+# process) fires taker shots from the SAME wallet; the maker pool must never
+# starve it. 0.40·free keeps pair_fav breadth bounded (~$25 at current cash)
+# while the ladder's fire-time reserve check ($20) stays satisfiable. Was 0.90.
+MAKER_CASH_FRAC = 0.40
 # Off-book reclaim grace (2026-06-17): when a tracked BUY is gone from BOTH the
 # per-order endpoint (get_order 404s → status None) AND the live open-order set,
 # release its phantom breaker exposure — but not within this window of placement,

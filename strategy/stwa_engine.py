@@ -411,7 +411,12 @@ BAND_YES_LIVE_MIN_DOUT = 9          # 2026-07-03 PAUSED standalone YES band (9 =
                                     # Σ≤0.90→merge, RECYCLE099, NEG_RISK_ARB, lockout-NO). Re-enable
                                     # trigger: disp_ratio ≥ 1.10 for 5+ consecutive days. Was 2 (06-26).
 BAND_NO_MIN_DOUT       = 1          # NO band posts d+1/d+2 only — drop d+0 (lockout-NO still owns d+0). Was 0.
-BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan"}  # narrow-start clean set; empty=all cities
+BAND_CITY_ALLOW = {"chengdu", "london", "beijing", "munich", "wuhan",
+                   "tokyo", "seoul", "taipei", "shanghai", "chongqing"}
+# 2026-07-03 owner directive ("increase cities"): widened 5→10 for PAIR_FAV breadth
+# only (standalone YES/NO remain off) — added the Asia-morning convergence set where
+# recent pairs co-filled 3/3. Pool bounded by MAKER_CASH_FRAC cut 0.90→0.40 same day
+# so pair posting can never starve the SPRINT_LADDER's cash reserve. Was 5-city set.
 
 # ── FAVORITE-NO overlay (2026-06-10; REWORKED 2026-06-11 per re-audit) ───────
 # His NO leg is HALF the book (~$18/event, equal to YES) and the other half of

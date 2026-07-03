@@ -51,9 +51,15 @@ ASK_MIN, ASK_MAX = 0.30, 0.55
 EDGE_MIN = -0.05          # accept fair; stand down only if model says we overpay
 EDGE_MAX = 0.30           # if we "disagree" by more than this, distrust the model
 SPREAD_MAX = 0.05
+# All cities with BOTH remaining-rise and peak-hour tables, minus wrong-oracle
+# {VHHH, ZGSZ} (owner 07-03: "free to increase cities"). Wider universe = more
+# selectivity per shot, NOT more shots — the 2/day cap is unchanged.
 UNIVERSE = ["New York City", "Chicago", "Dallas", "Miami", "Seattle",
             "San Francisco", "Los Angeles", "Houston", "Denver", "Atlanta",
-            "London", "Tokyo", "Seoul", "Beijing", "Paris"]
+            "Austin", "Toronto", "Mexico City", "Sao Paulo", "Buenos Aires",
+            "London", "Paris", "Munich", "Milan", "Madrid", "Warsaw",
+            "Amsterdam", "Helsinki", "Moscow", "Tel Aviv",
+            "Tokyo", "Beijing", "Shanghai", "Guangzhou", "Singapore", "Jakarta"]
 
 def log(rec: dict) -> None:
     rec = {"ts_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), **rec}
