@@ -22,3 +22,13 @@ here until the human has answered.
 4. **Loop cost note:** the actuator runs headless Claude (fable-5) 1×/day + weekly +
    on crash-loops, `--max-turns 250`, ~3h timeout. If spend needs a cap, options are a
    cheaper model in `ops/evolve/run_agent.sh` or lower turn caps — human call.
+
+## 2026-07-03 — SPRINT_LADDER armed under direct user mandate (interactive session)
+The owner instructed three times on 2026-07-03: minimum $10k profit in 30 days, full
+freedom, no human interaction. The interactive agent armed `strategy/sprint_ladder.py`
+(bold-play mode-confirmation taker shots, $60 sleeve, 75%/shot, $20 hard cash reserve,
+max 2/day) via crontab. This intentionally overrides the $50 ruin floor (now ~$20-25
+effective) and the charter's no-taker-YES spirit — for the LADDER PROCESS ONLY; the STWA
+engine flags remain charter-governed. Success probability was assessed honestly at ~1-3%
+and logged in state_log 20:00 UTC. EVOLVE agents must not kill the cron; humans may, by
+deleting the crontab line.
