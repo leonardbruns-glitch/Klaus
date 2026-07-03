@@ -1,122 +1,89 @@
-# Gate-Keeper Report — 2026-07-02
+# Klaus Gate-Keeper Ledger — 2026-07-03T12:43Z
 
-**Run:** 2026-07-02T12:45Z (snapshot: 2026-07-02T12:39:09Z, age: 6 min ✓)
-**System:** `active` ✓ | **Bankroll:** $79.04 (prior $91.72, −$12.68; 9 YES positions resting at 0.99 hold ~$45 deployed notional — not realized loss)
-**Prior run:** 2026-07-01T12:30:00Z | **Δt:** ~24.25h
-**Structural blockers:** Gamma API 403 (cloud) blocks ROI/CI on BAND_YES / BAND_NO / FILLED_VS_FIRED / SUM_POSTED; THERMO paused (rate=0); M1_BETA stalled Day 20 (rate=0); **NEW: BAND_NO_ENABLED=False (EVOLVE rail-halt, 2026-07-02 ~06:14Z).**
-
----
-
-## Gate Ledger
-
-| Gate | n | +24h | WR | ROI | CI 95 | Status | ETA |
-|---|---|---|---|---|---|---|---|
-| BAND_YES (per-slice d×off×band) | 6,114† | +33† | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403) |
-| BAND_NO + PAIR_FAV | 266† | +4† | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403); **rate=0** (EVOLVE halt) |
-| FILLED_VS_FIRED (watch n≥40; gate n≥100) | 97† | +11† | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403); n~97→100 est. Jul 3 |
-| BASKET_EXIT | VOID | — | — | — | — | **VOID** | Permanently retired |
-| THERMO_MAKER_NO (kill gate n=20) | 3 | 0 | 33.3% | −66.0% | [−132.6, 0.7] | **COLLECTING** | ∞ (engine paused) |
-| M1_BETA_LOCKOUT (n=100; WR≥95%+EV) | 31 | 0 | 74.2% | −0.6% | [−20.6, 24.4] | **AMBIGUOUS** | ∞ (Day 20 stall) |
-| SUM_POSTED 0.70–0.85 | 3,035† | +16† | — | — | BLOCKED | **COLLECTING** | CI gate (Gamma 403) |
-
-† Estimated from prior confirmed rate; Gamma 403 prevents direct computation from cloud.
+**Snapshot:** 2026-07-03T12:43:16Z (age: 0h — FRESH)  
+**Klaus systemd:** active  
+**Bankroll:** $82.30 (+$3.26 vs prior $79.04)  
+**Prior run:** 2026-07-02T12:45:00Z  
 
 ---
 
-## State Transitions vs Prior Run (2026-07-01T12:30Z)
+## Gate Status Ledger
 
-| Gate | Prior Status | Current Status | Trigger |
-|---|---|---|---|
-| BAND_YES | COLLECTING | COLLECTING | No change; rate continuing |
-| BAND_NO_PAIR_FAV | COLLECTING | **COLLECTING + rate=0** | **NEW: BAND_NO_ENABLED=False (EVOLVE rail-halt, Jul02 ~06:14Z)** |
-| FILLED_VS_FIRED | COLLECTING | COLLECTING | n approaching threshold; no CI unlock |
-| BASKET_EXIT | VOID | VOID | No change |
-| THERMO_MAKER_NO | COLLECTING | COLLECTING | No change |
-| M1_BETA_LOCKOUT | AMBIGUOUS | AMBIGUOUS | Day 20 stall; REVERT now Day 5 unactioned |
-| SUM_POSTED 0.70–0.85 | COLLECTING | COLLECTING | BAND_NO halt does not affect YES leg count |
+| Gate | n | +24h | WR | ROI | CI95 | Status | ETA |
+|------|---|------|----|-----|------|--------|-----|
+| 1 BAND_YES | ~6,147 | +33 | — | — | BLOCKED | COLLECTING | N/A (CI sole blocker) |
+| 2 BAND_NO_PAIR_FAV | ~272 | +6 | — | — | BLOCKED | COLLECTING | N/A (CI+EVOLVE dual-blocked) |
+| 3 FILLED_VS_FIRED | ~107† | +10 | — | — | BLOCKED | COLLECTING | N/A (n≥100†; CI sole blocker) |
+| 4 BASKET_EXIT | VOID | — | — | — | — | VOID | — |
+| 5 THERMO_MAKER_NO | 3 | 0 | 33.3% | −66% | [−132.6, 0.7] | COLLECTING | Never (rate=0) |
+| 6 M1_BETA_LOCKOUT | 31 | 0 | 74.2% | −0.6% | [−20.6, 24.4] | AMBIGUOUS | Never (rate=0) |
+| 7 SUM_POSTED_0.70_0.85 | ~3,035 | ~0 | — | — | BLOCKED | COLLECTING | N/A (CI sole blocker) |
 
-**No gates moved to READY or REJECTED this run.**
-
----
-
-## New Events Since Prior Run
-
-### 1. BAND_NO_ENABLED=False — EVOLVE Rail-Halt (2026-07-02 ~06:14Z) ★ KEY EVENT
-
-EVOLVE v2's daily actuator triggered `BAND_NO_ENABLED=False` on 2026-07-02. Trigger condition: 7-day realized band-NO n=51, WR=39.2%, profit-factor rail breached. Bot restarted at 06:14 UTC today with NO overlay disabled.
-
-**Gate implications:**
-- Gate 2 (BAND_NO_PAIR_FAV): accumulation rate drops to 0 indefinitely. n=266 is the final count unless flag is re-enabled.
-- PAIR_FAV (BAND_PAIR_FAV_ENABLED=True still set, but effectively halted — pair requires both YES and NO legs; NO disabled).
-- EVOLVE's verdict (n=51 WR=39.2% PF breach) is an **independent rejection signal** for this gate. If Gamma 403 is ever resolved, this gate is expected to show REJECTED based on the same realized data EVOLVE used. No CI required to act: the live halt is already the correct response.
-
-**Gate-keeper note:** The CI gate has not been formally computed (Gamma 403), but EVOLVE's realized-data trigger pre-empts the formal verdict. This is exactly what a guard rail should do — stop capital deployment before the gate keeper can compute on cloud-blocked data.
-
-### 2. Bankroll −$12.68 in 24h ($91.72 → $79.04)
-
-All 9 resting SELL_EXIT orders (sizes: 9, 9, 8, 8, 8, 8, 8, 7, 7 = 72 shares total) are YES positions resting at 0.99, matched=0. Capital is deployed, not lost. Five exit099 recycles completed today (Jul02 06:35–12:41 UTC):
-
-| Token (short) | Shares | Entry | Exit | PnL |
-|---|---|---|---|---|
-| 1054...3421 | 5.0 | 0.71 | 0.99 | +$2.24 |
-| 8764...9701 | 7.0 | 0.74 | 0.99 | +$1.75 |
-| 1079...2141 | 6.0 | 0.82 | 0.99 | +$1.11 |
-| 8014...7052 | 9.0 | 0.55 | 0.999 | +$4.04 |
-| 5453...4324 | 7.0 | 0.64 | 0.99 | +$2.73 |
-
-Today exit099 PnL: **+$11.87** across 5 recycles.
-
-### 3. M1_BETA_LOCKOUT — Day 20 Stall, Proposal Day 5 Unactioned
-
-metar_lockout.jsonl confirmed absent from all shadow directories (hot + 2026-07-02 through 2026-06-27 — 6 dated dirs checked). n=31, rate=0. The standing rule (triggered Jun 13: >14d stall → REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C) was proposed Jun 27 and remains unactioned for **5 consecutive days**. This is now overdue by the standing rule.
-
-### 4. FILLED_VS_FIRED — Approaching n=100 Threshold
-
-Estimated n=97 (prior 86, rate ~10.7/day, 24.25h elapsed, +11 est. fills). Threshold n=100 expected ~Jul 3 morning. **However:** Gamma 403 blocks resolution join from cloud, so crossing n=100 will not unlock CI computation without a VPS-side resolution run. The threshold crossing is a counting milestone only — no verdict until VPS run.
-
-### 5. No Change: Gamma 403 Cloud Blocker Persists
-
-No evidence of Gamma API recovery in this run. 4 of 7 active gates remain CI-blocked. VPS-side `analysis/weather/band_resolution_join.py` run remains the single highest-leverage unblocking action.
+† Gate 3 crossed n=100 threshold this run (~107 est., was 97). CI still blocked — status stays COLLECTING. No flip.
 
 ---
 
-## PROPOSED ACTIONS (human review required — gate keeper REPORT ONLY, never implements)
+## State Transitions vs Prior
 
-**No gates are READY or REJECTED by CI verdict this run.**
+No gates changed status.
 
-### Action 1 — M1_BETA_LOCKOUT: REVERT (URGENT — Day 5, Standing Rule)
-
-> **Proposed flag change:** `METAR_LOCKOUT_TEMP_FLOOR = 0.5` (revert thin-margin [0.2, 0.5)C slice to 0.5C floor)
-
-**Reason:** Gate n=31 AMBIGUOUS, rate=0, stalled 20 consecutive days. metar_lockout.jsonl absent from all shadow directories — no new observations are being logged. Standing rule from 2026-06-13: >14d stall with gate n=100 unreachable → REVERT. Current CI: WR=74.2%, ROI=−0.6%, CI95=[−20.6, 24.4] — straddles 0, no positive edge proven. Thin-margin slice has generated zero data for 20 days. Reverting eliminates unproven capital risk in [0.2, 0.5)C band.
-
-**Proposal origin:** 2026-06-27 (Day 1). **Now Day 5 with no human action.**
-
-### Action 2 — BAND_NO_PAIR_FAV: Advisory (No Flag Flip Needed)
-
-EVOLVE independently halted BAND_NO (n=51 WR=39.2% PF breach, 2026-07-02). Gate 2 accumulation rate is now 0. This is the correct outcome — the EVOLVE guard rail pre-empted the formal gate rejection. **No additional flag change is required.** Human should note: if BAND_NO is ever re-enabled by a future EVOLVE actuator, Gate 2 CI must be re-evaluated before allowing accumulation to restart without prejudice.
-
-### Action 3 — FILLED_VS_FIRED + All Gamma-Blocked Gates: VPS Resolution Join (Urgent)
-
-> **Required action (Exec Auditor, VPS-side):** Run `analysis/weather/band_resolution_join.py` on VPS before 2026-07-03.
-
-FILLED_VS_FIRED expected to cross n=100 by Jul 3 morning. Without VPS resolution data, the threshold crossing produces no verdict. Running the join would simultaneously unblock CI computation for **BAND_YES**, **BAND_NO_PAIR_FAV**, **FILLED_VS_FIRED**, and **SUM_POSTED_0.70_0.85** — 4 gates in one run. This is the single highest-leverage action available to the gate keeper system.
+**Notable changes:**
+- **FILLED_VS_FIRED:** n crossed 100 threshold (~107 est., +10 in 24h at ~10.7/day rate). CI blocked — no status flip yet.
+- **M1_BETA_LOCKOUT:** DAY 21 stall (was day 20). Proposal unactioned DAY 6 (was day 5). Escalating.
+- **SUM_POSTED_0.70_0.85:** Rate ~0 in past 24h. All Jul 03 YES fires have sum_posted 0.55–0.65, below the [0.70, 0.85] slice. Market-cycle effect: Jul 05 d+2 markets just opened (low liquidity). No n change. Prior +16/day rate will recover as markets mature.
+- **Bankroll:** $82.30 (+$3.26 vs yesterday's $79.04). Exit099 recycles today: +$2.56 +$2.33 +$2.88 = **+$7.77** (3 recycles).
 
 ---
 
-## Structural Blockers (all carry-forward)
+## PROPOSED ACTIONS (human review)
 
-1. **Gamma API 403 (cloud container)** — ROI/CI blocked for BAND_YES, BAND_NO, FILLED_VS_FIRED, SUM_POSTED. Fix: VPS-side resolution join.
-2. **THERMO_MAKER_LIVE=False** — kill gate n=20 unreachable at rate=0. Paused since Jun 23.
-3. **metar_lockout.jsonl absent** from all shadow directories — M1_BETA_LOCKOUT stalled since Jun 13.
-4. **BAND_NO_ENABLED=False** (NEW, 2026-07-02) — Gate 2 accumulation halted. EVOLVE-triggered, not gate keeper action.
+### BAND_NO_PAIR_FAV — No new action required
+EVOLVE auto-halt (Jul 02 06:14Z, 7d n=51 WR=39.2% PF breach) already acted. EVOLVE verdict is the independent rejection signal; gate CI result would be consistent with REJECTED if Gamma unblocked. No additional flag flip needed.
+
+### M1_BETA_LOCKOUT — REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5°C *(ESCALATED)*
+**Gate:** M1_BETA_LOCKOUT  
+**Action:** Set `METAR_LOCKOUT_TEMP_FLOOR` back to 0.5°C.  
+**Reason:** n=31 AMBIGUOUS (CI straddles 0; ROI=−0.6%, CI95=[−20.6, 24.4]). metar_lockout.jsonl absent from ALL shadow directories checked: 2026-07-03, 2026-07-02, 2026-07-01. Rate=0 for 21 consecutive days. Gate n=100 permanently unreachable. Standing rule triggered Jun 13 (>14 days stall → revert). Proposal standing since Jun 27 — **now day 6 unactioned**. No edge proven; CI cannot prove one at rate=0. Revert is the CI-compliant decision.  
+**Standing since:** 2026-06-27T10:30Z  
+**Human required:** YES — flag/config change needed.
 
 ---
 
-## Fill Anomalies (carry-forward, human review outstanding)
+## Gate Detail Notes
 
-| Token | Price | Issue |
-|---|---|---|
-| Moscow NO 0xb2342854 | 0.93 | City NOT in BAND_CITY_ALLOW; above NO_MAX=0.85; pre-allowlist legacy. Check for remaining open Moscow resting orders — cancel if found. |
-| Chengdu pair_fav NO 0x44ebc1ef | 0.47 | Below BAND_NO_MIN=0.52; pair_fav logic bypasses NO_MIN — verify intentional. Pair completed Jul01 (+$1.43). |
-| Chengdu NO 0x664b7956 | 0.48 | Below NO_MIN=0.52; Jun12 starvation-fix era, pre-rule (grandfathered). |
+### Gate 1 — BAND_YES (n~6,147, COLLECTING)
+Gamma 403 is sole blocker. n~6,147 >> threshold 100 per slice. Rate: ~33 YES legs/day from band_struct_lite (today: London/Munich/Beijing/Chengdu/Wuhan d+2 Jul 05 fires plus pair_fav d0/d+1 YES posts). BAND_YES_LIVE_MIN_DOUT=2 (d+2 only); BAND_CITY_ALLOW: 5 cities. CI requires CLOB winner flags from Gamma — impossible from this sandbox. VPS-side `band_resolution_join.py` is the only path.
+
+### Gate 2 — BAND_NO_PAIR_FAV (n~272, COLLECTING — dual-blocked)
+Standalone band-NO halted (BAND_NO_ENABLED=False, Jul 02 06:14Z EVOLVE rail). Pair_fav NO legs STILL ACCUMULATING: ~6 pair_fav NO legs since prior — Munich Jul 04 d+2 (Jul 02 ~18:52Z), Chengdu d0 (Jul 03 ~02:35Z), Wuhan d0 (Jul 03 ~03:59Z), London Jul 05 d+2 (Jul 03 ~04:11Z), Beijing Jul 04 d+1 (Jul 03 ~06:14Z), London Jul 04 d+1 (Jul 03 ~06:47Z). Rate ~5–6 pair_fav NO/day going forward. n=272 >> 100. Dual blocker: (a) Gamma 403 for CI; (b) EVOLVE halt = independent rejection signal. VPS join would unblock CI but EVOLVE verdict already signals REJECTED outcome.
+
+### Gate 3 — FILLED_VS_FIRED (n~107, COLLECTING — threshold crossed)
+Prior est. n=97 at Jul 02 12:45Z. Rate ~10.7/day → +10 in 24h → n~107 (crossed n=100 threshold). Exit099 recycles today: 3 recycles (+$7.77). Maker resting state: 5 SELL_EXIT orders (matched=0, resting at 0.99) + 1 active YES bid (Beijing Jul 04 d+1, 29526700..., partial fill 2/8.89 shares). Chengdu d0 pair merged, locked $0.89 today. CI blocked — Gamma 403. Winner's-curse watch ACTIVE. Note: FILLED_VS_FIRED CI join requires maker_fills_recent.log token cross-join to resolutions in addition to Gamma winner flags — more complex than BAND_YES join.
+
+### Gate 4 — BASKET_EXIT (VOID)
+Permanently retired Jun 22. No change.
+
+### Gate 5 — THERMO_MAKER_NO (n=3, COLLECTING — stalled indefinitely)
+Engine paused (THERMO_MAKER_LIVE=False since Jun 23 18:40). Rate=0. Kill gate n=20 unreachable. CI=[−132.6, 0.7] at n=3 is pure noise (straddles 0). No change since prior.
+
+### Gate 6 — M1_BETA_LOCKOUT (n=31, AMBIGUOUS — DAY 21 STALL)
+metar_lockout.jsonl absent from 2026-07-03, 2026-07-02, 2026-07-01 shadow directories. Rate=0. Gate n=100 permanently unreachable. WR=74.2%, ROI=−0.6%, CI95=[−20.6, 24.4] straddles zero — AMBIGUOUS is noise at n=31. Standing rule triggered Jun 13 (>14d stall → REVERT). Proposal standing since Jun 27, **now DAY 6 UNACTIONED**. Stall is structural (logger absent), not transient; no recovery expected without a code push.
+
+### Gate 7 — SUM_POSTED_0.70_0.85 (n~3,035, COLLECTING)
+CI blocked (Gamma 403). Rate ~0 in past 24h: all Jul 03 YES fires from band_struct_lite reviewed show sum_posted in [0.55–0.65], below the [0.70, 0.85] gate slice. Jul 02 fires (04:11Z, before prior snapshot) had sum_posted in [0.726–0.805] and contributed ~15 legs; those were already in prior n=3,035. Current low rate is market-cycle: d+2 markets for Jul 05 opened early (low sum_ask). Rate recovers when d+2 markets mature (~24–48h lag). n=3,035 >> 100; CI is sole blocker.
+
+---
+
+## Advisory
+
+1. **VPS-side `band_resolution_join.py` is the critical path.** Unblocks CI for gates 1, 2, 3, and 7 simultaneously in one run. Overdue. Gate 3 has now crossed n=100 — CI is the only remaining gate for 4 gates.
+
+2. **Jeddah expand_city fire (Jul 03 band_struct_lite, ts 1783068835):** Entry `{"city": "jeddah", "reason": "fire", "live": True, "sum_ask": 0.33}` appeared without a `"record": "md_shadow"` field. Jeddah is NOT in `BAND_CITY_ALLOW`. This entry likely originates from the expand_city scanner component (which appears to have separate code paths). Verify: (a) was a real order placed for Jeddah? (b) does `BAND_CITY_ALLOW` apply to this scanner path? If not, this is an off-allowlist live fire.
+
+3. **5 SELL_EXIT resting orders:** London Jul 03 NO (894037...), Munich Jul 03 NO (33003077...), Munich Jul 04 YES (106499..., d+2 now d+1), Wuhan Jul 03 NO (42815563...), London Jul 04 YES (9512786...). All matched=0, resting at 0.99. Jul 03 positions resolve today; Jul 04 positions resolve tomorrow.
+
+4. **Beijing Jul 04 YES pair (29526700...):** Partially filled (matched=2.0 of 8.89 shares). Still resting active maker bid at q=0.44. Paired NO order (69599736...) not in maker_resting_state — check if NO side filled first or if order was cancelled.
+
+---
+
+*Run: 2026-07-03T12:43Z | Snapshot age: 0h | Klaus: active | Branch: claude/find-lag-parameter-rFQ0N*

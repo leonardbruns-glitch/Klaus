@@ -1,36 +1,36 @@
 {
   "BAND_YES": {
-    "n": 6114,
-    "n_prev": 6081,
+    "n": 6147,
+    "n_prev": 6114,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-07-02T12:45:00Z",
-    "note": "CI blocked (Gamma 403). +33 est. YES legs since prior (rate ~33/day x 24.25h). BAND_YES_LIVE_MIN_DOUT=2 (d+2 only), BAND_CITY_ALLOW 5 cities. band_posted_state: Jul01=14 tokens/$68, Jul02 partial=4 tokens/$19.93. n=6,114>>100 threshold; CI is sole blocker. 9 resting SELL_EXIT orders matched=0; 5 exit099 recycles today +$11.87 PnL. BAND_NO_ENABLED=False does not affect YES accumulation."
+    "ts": "2026-07-03T12:43:00Z",
+    "note": "CI blocked (Gamma 403 from cloud container). +33 est. YES legs since prior (rate ~33/day from band_struct_lite: London/Munich/Beijing/Chengdu/Wuhan d+2 Jul05 fires + pair_fav d0/d+1 YES posts). n=6,147>>100 threshold; CI is sole blocker. VPS-side band_resolution_join.py required."
   },
   "BAND_NO_PAIR_FAV": {
-    "n": 266,
-    "n_prev": 262,
+    "n": 272,
+    "n_prev": 266,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-07-02T12:45:00Z",
-    "note": "CI blocked (Gamma 403). +4 est. NO legs Jul01 12:30Z to Jul02 06:14Z halt (rate ~5/day x 17.7h). CRITICAL: BAND_NO_ENABLED=False (EVOLVE rail-halt 2026-07-02 ~06:14Z) — 7d realized n=51 WR=39.2% PF rail breached. Rate now 0 indefinitely. PAIR_FAV effectively halted (requires NO side). n=266>>100; CI blocked and EVOLVE halt are dual blockers. EVOLVE verdict is independent rejection signal consistent with expected gate REJECTED outcome if Gamma unblocked."
+    "ts": "2026-07-03T12:43:00Z",
+    "note": "Dual-blocked: (1) Gamma 403 for CI; (2) EVOLVE rail halt (BAND_NO_ENABLED=False, Jul02 06:14Z). Standalone band-NO rate=0. Pair_fav NO still accumulating: +6 pair_fav NO legs since prior (Munich d+2 Jul04, Chengdu d0, Wuhan d0, London d+2 Jul05, Beijing d+1 Jul04, London d+1 Jul04). Rate ~5-6/day pair_fav NO only. n=272>>100; dual-blocked. EVOLVE verdict = independent rejection signal consistent with expected REJECTED outcome."
   },
   "FILLED_VS_FIRED": {
-    "n": 97,
-    "n_prev": 86,
+    "n": 107,
+    "n_prev": 97,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-07-02T12:45:00Z",
-    "note": "+11 est. fills since prior (rate ~10.7/day x 24.25h). n=97 est., approaching threshold n=100 (ETA Jul 3 morning). CI blocked (Gamma 403 — VPS resolution join needed). Winner's-curse watch ACTIVE (n>>40). Moscow 0xb2342854 anomaly outstanding (city not in BAND_CITY_ALLOW; above NO_MAX). Exec Auditor MUST run VPS-side band_resolution_join.py before Jul 3. VPS run also unblocks BAND_YES + BAND_NO + SUM_POSTED CI simultaneously."
+    "ts": "2026-07-03T12:43:00Z",
+    "note": "THRESHOLD CROSSED: n~107 >= 100 (est. +10 in 24h at rate ~10.7/day). CI blocked (Gamma 403). Winner's-curse watch ACTIVE. 3 exit099 recycles today (+$7.77: +$2.56, +$2.33, +$2.88). Chengdu d0 pair merged (locked $0.89). 5 SELL_EXIT + 1 active YES bid resting. VPS band_resolution_join.py required for CI (also needs maker_fills_recent.log token cross-join to resolutions)."
   },
   "BASKET_EXIT": {
     "n": null,
@@ -51,8 +51,8 @@
     "ci95": [-132.6, 0.7],
     "wr": 0.333,
     "resolved": 3,
-    "ts": "2026-07-02T12:45:00Z",
-    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). +0 since prior. Rate=0. Kill gate n=20 unreachable. CI straddles 0 at n=3 — noise only. Stalled indefinitely."
+    "ts": "2026-07-03T12:43:00Z",
+    "note": "Engine PAUSED (THERMO_MAKER_LIVE=False since Jun23 18:40). Rate=0. Kill gate n=20 unreachable. CI straddles 0 at n=3 — noise only. Stalled indefinitely. No change since prior."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -62,66 +62,59 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-07-02T12:45:00Z",
-    "note": "STALLED DAY 20. metar_lockout.jsonl absent from ALL shadow directories (hot + 6 dated dirs 2026-07-02 through 2026-06-27 confirmed missing). 0 placed orders. Standing rule triggered Jun13 (>14d stall -> REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C). REVERT proposed Jun27 (day 1). Now DAY 5 of unactioned proposal. Gate n=100 unreachable at rate=0. CI: WR=74.2%, ROI=-0.6%, CI95=[-20.6,24.4] straddles 0 — no edge proven."
+    "ts": "2026-07-03T12:43:00Z",
+    "note": "STALLED DAY 21. metar_lockout.jsonl absent from ALL checked shadow directories: 2026-07-03, 2026-07-02, 2026-07-01 (confirmed this run). Rate=0. Gate n=100 unreachable. Standing rule triggered Jun13 (>14d stall -> REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C). REVERT proposed Jun27 (day 1), now DAY 6 UNACTIONED. CI: WR=74.2%, ROI=-0.6%, CI95=[-20.6,24.4] straddles 0 — no edge proven at n=31."
   },
   "SUM_POSTED_0.70_0.85": {
     "n": 3035,
-    "n_prev": 3019,
+    "n_prev": 3035,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-07-02T12:45:00Z",
-    "note": "CI blocked (Gamma 403). +16 est. since prior (rate ~16/day x 24.25h). YES-leg-only gate; BAND_NO_ENABLED=False does not affect this gate. n=3,035>>100; CI is sole blocker."
+    "ts": "2026-07-03T12:43:00Z",
+    "note": "CI blocked (Gamma 403). Rate ~0 in past 24h: all Jul03 YES fires from band_struct_lite reviewed have sum_posted 0.55-0.65, below [0.70,0.85] slice. Market-cycle effect: Jul05 d+2 markets opened early (low sum_ask). Prior +16/day rate will recover as Jul05 markets mature. n=3,035>>100; CI is sole blocker."
   },
   "_run_meta": {
-    "run_ts": "2026-07-02T12:45:00Z",
-    "snapshot_ts": "2026-07-02T12:39:09Z",
-    "snapshot_age_min": 6,
-    "bankroll": 79.043996,
-    "bankroll_prev": 91.716556,
-    "bankroll_delta": -12.672560,
-    "bankroll_note": "9 resting SELL_EXIT orders (72 total shares at 0.99 matched=0) = deployed YES capital, not realized loss. 5 exit099 recycles today: +$11.87 PnL (entries 0.55-0.82, exits 0.99-0.999).",
+    "run_ts": "2026-07-03T12:43:00Z",
+    "snapshot_ts": "2026-07-03T12:43:16Z",
+    "snapshot_age_min": 0,
+    "bankroll": 82.302944,
+    "bankroll_prev": 79.043996,
+    "bankroll_delta": 3.258948,
+    "bankroll_note": "Exit099 recycles today: +$2.56 +$2.33 +$2.88 = +$7.77 (3 recycles). 5 SELL_EXIT resting at 0.99 (matched=0): London Jul03 NO (894037...), Munich Jul03 NO (33003077...), Munich Jul04 YES (106499...), Wuhan Jul03 NO (42815563...), London Jul04 YES (9512786...). 1 active YES bid: Beijing Jul04 (29526700..., partial fill 2/8.89 shares). Chengdu d0 pair merged (locked $0.89 today).",
     "open_positions_system": 0,
-    "open_positions_resting": 9,
-    "total_maker_fills_log_est": 60,
-    "new_fills_since_prev_est": 11,
-    "fill_anomalies": [
-      "Moscow NO 0xb2342854 @ 0.93 (Jul01 11:06) — city not in BAND_CITY_ALLOW; above NO_MAX=0.85; pre-allowlist legacy order (cancel check outstanding)",
-      "Chengdu NO 0x664b7956 @ 0.48 (Jun29) — below NO_MIN=0.52; pre-rule order Jun12 starvation-fix era (grandfathered)",
-      "Chengdu pair_fav NO 0x44ebc1ef @ 0.47 (Jul01) — pair_fav logic bypasses NO_MIN; verify intentional; pair completed +$1.43"
-    ],
-    "bot_status": "active",
-    "bot_uptime_since": "2026-07-02T06:14:34Z",
+    "open_positions_resting": 6,
     "newly_ready": [],
     "newly_rejected": [],
     "state_transitions": [
-      "BAND_NO_PAIR_FAV: rate now 0 — BAND_NO_ENABLED=False (EVOLVE rail-halt 2026-07-02 ~06:14Z, 7d realized n=51 WR=39.2% PF breach)"
+      "FILLED_VS_FIRED: n crossed 100 threshold (est. ~107, was 97). CI blocked — status stays COLLECTING. No status flip.",
+      "M1_BETA_LOCKOUT: stall DAY 21 (was day 20). Proposal unactioned DAY 6 (was day 5). ESCALATED.",
+      "SUM_POSTED_0.70_0.85: rate ~0 today (d+2 market-cycle regime, low sum_posted). n unchanged at 3,035."
     ],
     "structural_blockers": [
       "Gamma API 403 from cloud container — ROI/CI blocked for BAND_YES, BAND_NO_PAIR_FAV, FILLED_VS_FIRED, SUM_POSTED",
       "THERMO_MAKER_LIVE=False — kill gate n=20 unreachable at rate=0",
-      "metar_lockout.jsonl absent from all shadow directories — M1_BETA_LOCKOUT stalled day 20",
-      "NEW: BAND_NO_ENABLED=False (EVOLVE rail-halt 2026-07-02) — Gate 2 accumulation halted indefinitely"
+      "metar_lockout.jsonl absent from all shadow directories (Jul01-Jul03 confirmed) — M1_BETA_LOCKOUT stalled day 21",
+      "BAND_NO_ENABLED=False (EVOLVE rail-halt Jul02) — standalone band-NO halted; pair_fav NO still active at ~5-6/day"
     ],
     "proposed_actions": [
       {
         "gate": "M1_BETA_LOCKOUT",
         "action": "REVERT METAR_LOCKOUT_TEMP_FLOOR to 0.5C",
-        "reason": "n=31 AMBIGUOUS, CI straddles 0, stalled 20 consecutive days, metar_lockout.jsonl absent from all 7 shadow dirs, standing rule triggered Jun13 (>14d stall), gate n=100 unreachable at rate=0",
+        "reason": "n=31 AMBIGUOUS; CI straddles 0; stalled 21 consecutive days (DAY 21); metar_lockout.jsonl absent from all 3 confirmed shadow dirs (Jul01-Jul03); gate n=100 unreachable at rate=0; standing rule triggered Jun13 (>14d stall); proposal unactioned DAY 6",
         "human_required": true,
         "standing_since": "2026-06-27T10:30Z",
-        "days_unactioned": 5
+        "days_unactioned": 6
       }
     ],
     "advisory": [
-      "BAND_NO halted by EVOLVE rail (7d n=51 WR=39.2% PF breach, 2026-07-02 ~06:14Z). Gate 2 (BAND_NO_PAIR_FAV) rate now 0 indefinitely. EVOLVE verdict is independent rejection signal — consistent with expected gate REJECTED if Gamma unblocked. No additional flag flip needed; EVOLVE already acted.",
-      "FILLED_VS_FIRED n~97 (+11 est., rate ~10.7/day): crossing n=100 est. Jul 3 morning. Exec Auditor MUST run VPS-side band_resolution_join.py urgently. VPS run also unblocks BAND_YES + BAND_NO + SUM_POSTED CI simultaneously — 4 gates unlocked in one run.",
-      "5 exit099 recycles today (Jul02 06:35-12:41 UTC): +$2.24 +$1.75 +$1.11 +$4.04 +$2.73 = +$11.87 total PnL. 9 open SELL_EXIT orders resting at 0.99 (matched=0) represent YES positions pending resolution.",
-      "Bankroll $91.72 -> $79.04 (-$12.68 in 24h). Capital deployed in open YES positions (not realized loss). 9 resting orders with 72 total shares at avg entry est. ~$0.65.",
-      "Moscow NO legacy 0xb2342854 @ 0.93 (Jul01): city NOT in BAND_CITY_ALLOW; check maker_resting_state.json for open Moscow entries and cancel. Resting state as of snapshot contains no visible Moscow-tagged orders (all 9 are SELL_EXIT, pre-exit stage)."
+      "VPS-side band_resolution_join.py is critical path — unblocks CI for gates 1,2,3,7 simultaneously. FILLED_VS_FIRED has now crossed n=100; CI is the only remaining gate for 4 gates.",
+      "FILLED_VS_FIRED crossed n=100 threshold (est. n~107). Cannot flip status to CI-check until Gamma 403 resolved via VPS run.",
+      "Jeddah expand_city fire in Jul03 band_struct_lite (ts 1783068835, live=True, sum_ask=0.33): city NOT in BAND_CITY_ALLOW. Entry lacks record=md_shadow field — likely expand_city scanner component. Verify: real order placed? CITY_ALLOW restriction applied?",
+      "5 SELL_EXIT resting at 0.99: London Jul03 NO (894037...), Munich Jul03 NO (33003077...), Munich Jul04 YES (106499...), Wuhan Jul03 NO (42815563...), London Jul04 YES (9512786...). Resolve today (Jul03) and tomorrow (Jul04).",
+      "Beijing Jul04 YES pair (29526700...) partial fill: matched=2.0/8.89 shares, still resting at q=0.44. Paired NO (69599736...) not in maker_resting_state — check if NO side was placed/filled/cancelled."
     ]
   }
 }
