@@ -6506,6 +6506,11 @@ class KlausBot:
                 # 06-08). A REAL registered heartbeat would arm the CLOB dead-man
                 # switch (cancel all GTC orders on a 15s gap) — the opposite of
                 # what hold-to-resolution resting maker orders want.
+                # 2026-07-04 EVOLVE: maybe_reset_daily() had ZERO callers, so
+                # daily_start_capital froze ($15.95 vs capital $100.94) and the
+                # 14% intraday loss halt could never trip. Wired here (integer
+                # day compare, cheap at 10s cadence).
+                self.risk.bankroll.maybe_reset_daily()
                 await self._sweep_residuals()
                 # Periodic full scan: force_all=True every 5min catches orphans created
                 # mid-session (not just near window-close). Without this, an orphan can

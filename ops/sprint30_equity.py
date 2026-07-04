@@ -20,8 +20,12 @@ BASE_EQUITY = 85.0          # measured 2026-07-03 (cash 62.38 + positions)
 TARGET_END = BASE_EQUITY + 10_000.0
 
 def latest_cash() -> float | None:
-    """Last successful BANKROLL SYNC cash figure from bot.log."""
-    pat = re.compile(r"BANKROLL SYNC: tracked=\S+\s+cash=([0-9.]+)")
+    """Last free-USDC balance the keeper logged to bot.log."""
+    # 2026-07-04 EVOLVE fix: the original "BANKROLL SYNC: ... cash=" pattern
+    # matches no line bot.log has ever emitted — first run logged cash=null.
+    # The keeper logs free USDC every ~60s as
+    # "Polymarket USDC balance (actual): $74.4489"; parse that instead.
+    pat = re.compile(r"Polymarket USDC balance \(actual\): \$([0-9.]+)")
     cash = None
     try:
         with open(f"{ROOT}/logs/bot.log", "rb") as f:

@@ -193,7 +193,13 @@ M1_BETA_PROBE_MAX_DAILY_FIRES  = 9999
 M1_BETA_PROBE_MAX_TOTAL_FIRES  = 9999
 M1_BETA_PROBE_MIN_SEC_SINCE    = 0      # fire on first detection (L0 enabled)
 M1_BETA_PROBE_MAX_SEC_SINCE    = 86400  # 24 hr cap (full market lifetime)
-M1_BETA_PROBE_MIN_DEPTH_C      = 0.2    # 2026-06-09 (user, LIVE): 0.5→0.2 — admit the [0.2,0.5)°C thin-margin
+M1_BETA_PROBE_MIN_DEPTH_C      = 0.5    # 2026-07-04 EVOLVE: REVERTED 0.2→0.5 — the 06-09 thin-margin
+                                        # override (n=24-28) did NOT hold up live: gate-keeper slice
+                                        # n=31 WR 74.2% ROI −0.6% CI[−20.6,+24.4] (ambiguous), 22-day
+                                        # stall, capacity currently zero (asks only @0.999). Back to
+                                        # the validated margin≥0.5 slice (98.7% WR n=671). Re-widen
+                                        # only via shadow → n≥100 gate.
+                                        # [prior 2026-06-09 (user, LIVE): 0.5→0.2 — admit the [0.2,0.5)°C thin-margin
                                         # band. Re-measure (lockout_reliability n=567, oracle-clean Gamma join):
                                         # sub-0.5°C margin AND no_ask>=0.30 = 26/26 = 100% WR; every loser was
                                         # margin<0.2°C OR a dust ask<0.05 (already gated). The fat-edge slice of
@@ -227,7 +233,9 @@ M1_BETA_PROBE_NO_ASK_MAX       = 0.97
 M1_BETA_PROBE_NO_ASK_MARKET_AGREE = 0.90  # at/above this no_ask the market itself confirms the
                                         # lockout (legacy validated slice) → no clean-margin proof
                                         # required. WS path stays pinned to [MARKET_AGREE, MAX].
-M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 0.2   # 2026-06-09 (user, LIVE): 0.5→0.2 — the below-market-agree
+M1_BETA_PROBE_FATEDGE_MIN_DEPTH_C = 0.5   # 2026-07-04 EVOLVE: REVERTED 0.2→0.5 together with MIN_DEPTH_C
+                                        # (same evidence: slice n=31 WR 74.2% ROI −0.6%, CI straddles 0).
+                                        # [prior 2026-06-09 (user, LIVE): 0.5→0.2 — the below-market-agree
                                         # fat-edge band requires a PROVENANCE-CLEAN official-METAR margin this
                                         # far past the ceiling. Re-measure (lockout_reliability n=567, oracle-
                                         # clean Gamma join, /tmp/askfloor.py): margin [0.2,0.5)°C AND no_ask≥0.05

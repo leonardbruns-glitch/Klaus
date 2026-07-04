@@ -203,6 +203,7 @@ class BankrollTracker:
             "consecutive_wins": self.consecutive_wins,
             "total_trades": self.total_trades,
             "total_pnl": round(self.total_pnl, 6),
+            "last_utc_day": self._last_utc_day,
             "saved_ts": time.time(),
         })
 
