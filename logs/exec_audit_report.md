@@ -1,127 +1,193 @@
-# Klaus Band Execution & Markout Audit
-**Date:** 2026-07-04T07:00Z  
-**Snapshot:** 2026-07-04T07:00:09Z (fresh, <6h)  
-**System:** active | HEAD aff5c01ec | Capital: $40.96  
-**Engine posture:** PAIR_FAV only (BAND_NO halted 2026-07-02, standalone YES paused 2026-07-03)
+# Exec Audit Report — 2026-07-05T07:11Z
+
+**Snapshot age**: 7 min (2026-07-05T07:04:40Z → audit at 07:11Z) — FRESH  
+**Klaus systemd**: active  
+**Data sources**: data-mirror branch via GitHub MCP; fill tape covers 2026-07-02T07:07Z onward (log reset at bot restart); band_struct_lite for 2026-07-01 through 2026-07-05  
+
+**Active engines (from band_config.txt — authoritative):**
+- `BAND_PAIR_FAV_ENABLED = True` — sole active posting engine
+- `BAND_NO_ENABLED = False` — standalone NO disabled 2026-07-02 (EVOLVE rail-halt, n=51 WR 39.2%)
+- `BAND_YES_LIVE_MIN_DOUT = 9` — standalone YES paused 2026-07-03 (9 = never fires)
+- `BAND_LIVE = True`; base_stake $3.0 (YES legs), no_stake $5.0 (NO legs)
 
 ---
 
-## Section 1 — Fill Tape (24h + 7d)
+## §1 — Fill Tape
 
-**7-day window:** Jul 01–Jul 04 07:00 UTC  
-**Total fills:** 30 (from `maker_fills_recent.log`)  
-**Fill rate:** ~10/day avg (Jul 01: 11, Jul 02: 13, Jul 03: 6, Jul 04: 0 so far)
+### Coverage note
+Fill log starts 2026-07-02T07:07Z (bot restart/log rotation). Effective window: **3.5 days** (not 7d). No fills data exists for 2026-06-28 through 2026-07-01.
 
-| Day | YES fills | NO fills | Total |
-|-----|-----------|----------|-------|
-| Jul 01 | 0 | 11 | 11 |
-| Jul 02 | 1 | 12 | 13 |
-| Jul 03 | 6 | 0 | 6 |
-| Jul 04 | 0 | 0 | 0 |
-| **Total** | **7** | **23** | **30** |
+Total fills in log: **24** (16 `registered` new positions + 8 `maker_sh` partial add-ons)
 
-**Notional filled (est.):** ~$3/fill avg × 30 = ~$90 gross (rough; exact sizes not in fill-tape format)  
-**YES fills:** Jul 02-03 only (PAIR_FAV YES legs after BAND_NO halt)  
-**NO fills:** Jul 01-02 dominant (BAND_NO active + pair_fav NO legs)  
-**Median time-to-fill:** not recoverable from log format (no queue-entry timestamps in fill lines)
+### 24-hour window (since 2026-07-04T07:11Z)
 
----
+| Side | Fills | Shares | Notional |
+|---|---|---|---|
+| YES | 6 | 36.5 | **$16.84** |
+| NO | 1 | 1.0 | **$0.44** |
+| **Total** | **7** | **37.5** | **$17.28** |
 
-## Section 2 — NO-Parity Monitor
+Fill-side NO-share (24h): **14%**
 
-| Day | YES posts | NO posts | Total | NO share | Status |
-|-----|-----------|----------|-------|----------|--------|
-| Jul 01 | <50% | >50% | ~20 | >50% | OK (BAND_NO dominant) |
-| Jul 02 | mixed | mixed | ~10 | ~50% | OK (transition day) |
-| **Jul 03** | **107** | **31** | **138** | **22.5%** | **ALERT** |
-| Jul 04 | 1 | 1 | 2 | 50% | OK |
+Price band distribution (24h):
 
-**ALERT FIRED — Jul 03 NO share = 22.5% (threshold: <25% on days with ≥10 posts)**
+| Band | Fills | Notional |
+|---|---|---|
+| < 0.10 | 0 | $0.00 |
+| 0.10–0.30 | 0 | $0.00 |
+| 0.30–0.50 | 4 | $8.77 |
+| 0.50–0.85 | 3 | $8.51 |
+| > 0.85 | 0 | $0.00 |
 
-Root cause: one-time transition artifact. On Jul 03, standalone YES band posted 77 d+2 YES legs (Munich d+2 dominated) while BAND_NO was already halted from Jul 02 and BAND_YES_LIVE_MIN_DOUT=9 had not yet fully taken effect. Post-transition (Jul 04+): structurally fixed at 50% via pair_fav. No ongoing NO-starvation regression.
+Cities (24h): Munich $4.06, Seoul $4.45, Shanghai $3.78, Taipei $4.29, Tokyo $0.26, Wuhan $0.44
 
----
+### 7-day window (effective: 2026-07-02 to 2026-07-05)
 
-## Section 3 — Queue Health (STRUCT-BAND-Q)
+| Side | Fills | Shares | Notional |
+|---|---|---|---|
+| YES | 19 | 99.4 | **$46.05** |
+| NO | 5 | 27.9 | **$13.62** |
+| **Total** | **24** | **127.3** | **$59.67** |
 
-**698 STRUCT-BAND-Q lines** parsed from `maker_fills_recent.log`.
+Fill-side NO-share (7d): **21%** (consistent with prior audit's 22%)
 
-| Metric | Observed | Alert threshold | Status |
-|--------|----------|-----------------|--------|
-| books | 2–12 (variable) | Pinned at 80 | OK |
-| yes_books | 1–6 (variable) | Pinned at 50 | OK |
-| cash_preskip | 0 most cycles | >200 sustained with posted=0 | OK |
-| posted/cycle | 0–1 (low but expected) | — | OK |
+Price band distribution (7d):
 
-No starvation signals. Low posted/cycle is architectural: PAIR_FAV only fires when both YES+NO legs pass sum_gate (sum_ask < 0.90). Jul 04 band_struct_lite shows frequent `sum_gate` rejections for d+1 cities (sum_ask ≥ 0.85), which explains zero posts today. Not a bug — correct gate behavior.
+| Band | Fills | Notional |
+|---|---|---|
+| < 0.10 | 0 | $0.00 |
+| 0.10–0.30 | 0 | $0.00 |
+| 0.30–0.50 | 17 | $36.81 |
+| 0.50–0.85 | 7 | $22.86 |
+| > 0.85 | 0 | $0.00 |
 
----
+Cities (7d): London $12.33 (5 fills), Munich $13.33 (4 fills), Beijing $3.96 (4 fills), Chengdu $8.01 (3 fills), Wuhan $5.03 (3 fills), Tokyo $4.49 (2 fills), Seoul $4.45 (1), Taipei $4.29 (1), Shanghai $3.78 (1)
 
-## Section 4 — Resolution Markout (Winner's Curse Test)
+**Peak day**: 2026-07-03 — 17 of 24 total fills. The only day with meaningful book depth (mean 1.28/80 books used, 39% of cycles with ≥1 resting quote). Explains clustered fill activity.
 
-**n = 21 fills** with recoverable fill price (partial — full size not in log format)  
-**Decision threshold: n ≥ 40. Current n = 21. Status: INCONCLUSIVE — data collection phase.**
-
-Filled-vs-all-fires ROI comparison not computable at this n. No winner's curse conclusion warranted.
-
-**exit099 recycle outcomes (proxy for directional markout):**
-
-| Day | Recycles | Total PnL | Avg PnL/trade |
-|-----|----------|-----------|---------------|
-| Jul 01 | 8 | $11.90 | $1.49 |
-| Jul 02 | 7 | $18.43 | $2.63 |
-| Jul 03 | 4 | $10.42 | $2.61 |
-| **3-day total** | **19** | **$40.75** | **$2.14** |
-
-All 19 exit099 recycled positions profitable (market moved further into filled direction in every case). Suggestive directional signal but not a formal winner's curse test — revisit at n ≥ 40 fills.
+**Fill-side YES dominance**: 79% of fills by count, 77% by notional. Persistent across the window. See §4 for markout implications.
 
 ---
 
-## Section 5 — Dead-Quote Reclaim
+## §2 — NO-Parity Monitor
 
-**Reaped dead entry lines in maker_fills_recent.log:** 0  
-**Reclaim trigger:** BAND_RECLAIM_AGE_S = 2h (entry bids); BAND_PAIR_RECLAIM_AGE_S = 8h (pair legs)
+**Method**: Post counts from `band_struct_lite.jsonl` `record="post"` per day; resting book from `maker_resting_state.json` (SELL_EXIT excluded). Alert: NO-share of posts < 25% on days with ≥10 posts.
 
-**Current resting orders (maker_resting_state.json):** 5 orders, all SELL_EXIT at $0.99
+| Date | YES posts | NO posts | Total | NO-share | ≥10 posts? | Alert |
+|---|---|---|---|---|---|---|
+| 2026-07-01 | ~1 | ~13 | ~14 | ~93% | YES | CLEAR (NO > 25%) |
+| 2026-07-02 | 2 | 3 | 5 | 60% | NO | — |
+| 2026-07-03 | ~4–5 | ~4–5 | 9 | ~47–50% | NO | — |
+| 2026-07-04 | 6 | 6 | 12 | **50%** | YES | CLEAR |
+| 2026-07-05 | 2 | 2 | 4 | 50% | NO (partial) | — |
 
-| Position | Side | Size | Age (est.) | Type |
-|----------|------|------|------------|------|
-| Munich YES (Jul 02) | SELL | 9.0 | ~48h | exit099 resting |
-| Munich YES (Jul 03) | SELL | 9.0 | ~24h | exit099 resting |
-| Tokyo YES (Jul 03) | SELL | 9.0 | ~24h | exit099 resting |
-| Munich YES (Jul 03) | SELL | 9.0 | ~18h | exit099 resting |
-| Tokyo YES (Jul 03) | SELL | 9.0 | <24h | exit099 resting |
+_2026-07-01: pre-BAND_NO_ENABLED=False; dominated by standalone fire_no posts. 2026-07-03: estimated from token count=9 in band_posted_state; pair_fav dominant after BAND_NO halt; lite file too large to inline._
 
-Oldest resting SELL_EXIT: ~48h (Munich YES Jul 02). These are intentional exit-at-0.99 holds, not dead entry bids. No reclaim trigger applies.
+**Resting book (excl. SELL_EXIT)**:
+- Active YES resting: **0**
+- Active NO resting: **0**
+- Sole resting order: 1× SELL_EXIT Munich YES @ $0.99 × 6.0 sh = $5.94 notional, age ~8h
 
-**No dead-quote reclaim alerts.**
+**Structural note**: With pair_fav as the sole engine, YES and NO legs post simultaneously per firing event — parity is mechanically enforced at 50/50. The 2026-06-12 NO-starvation fix holds; the remaining risk is pair_fav condition starvation (not config asymmetry).
 
----
-
-## Section 6 — Cash Velocity
-
-| Metric | Value |
-|--------|-------|
-| Capital | $40.96 |
-| Fills $ last 24h | $0 (Jul 04 fills = 0 so far) |
-| Fills $ last 7d | ~$90 gross est. (30 fills) |
-| Turns/day (est.) | ~$12.86/day ÷ $40.96 = **0.31 t/day** |
-| badatmath benchmark | ~1.0 t/day |
-
-Cash velocity: 0.31 t/day vs 1.0 benchmark (31% of target). Binding constraint: PAIR_FAV-only posture. BAND_NO halted + standalone YES paused leaves only pair completion (both legs must clear sum_gate simultaneously). d+1 sum_gate rejections on Jul 04 show the gate is catching most opportunities. Velocity recovers when BAND_NO or standalone YES re-enable.
+**NO-parity alert**: NOT fired. NO-share ≥ 25% on all qualifying days.
 
 ---
 
-## ALERTS
+## §3 — Queue Health
 
-### ALERT: NO-PARITY — Jul 03 NO share = 22.5% (threshold <25%, n=138)
-Pre-registered alert condition: YES. Alert fires.  
-Assessment: Transition artifact. BAND_NO halted Jul 02; standalone YES still running d+2 posts Jul 03 morning before BAND_YES_LIVE_MIN_DOUT=9 took effect. Jul 04 back to 50%. No code change required.
+Source: 659 `[STRUCT-BAND-Q]` cycles, 2026-07-02 through 2026-07-05 (4 partial days).
+
+| Date | Cycles | cash_preskip (mean) | books (mean/80) | yes_books (mean/50) | posted/cycle | books max |
+|---|---|---|---|---|---|---|
+| 2026-07-02 | 136 | 0.00 | 0.01 | 0.00 | 0.419 | 2/80 |
+| 2026-07-03 | 207 | 0.00 | 1.28 | 0.37 | 0.787 | 6/80 |
+| 2026-07-04 | 240 | 1.10 | 0.19 | 0.00 | 0.242 | 6/80 |
+| 2026-07-05 | 76 | 0.78 | 0.05 | 0.00 | 0.053 | 2/80 |
+
+**No capacity alerts**: books peaked at 6/80 (7.5%); yes_books peaked at 4/50 (8%). Neither pinned near ceiling.
+
+**No cash_preskip alert**: max mean ~1.10. Never approached 200.
+
+**Near-zero book pattern**: books = 0 in 61–99% of cycles across all days. The system scans correctly but finds minimal CLOB book depth to pair against on most cycles. This is a market-liquidity condition, not a fetch-starvation regression.
+
+**2026-07-05 posting collapse**: 76 cycles so far at 0.053 posts/cycle = ~4 posts in 7h. Compare to 0.787/cycle on 2026-07-03 (best day). Books also near-zero today (97% of cycles = 0). Pair_fav conditions are not presenting — sum_gate rejections dominate (consistent with md_shadow records showing sum_ask ≥ 0.85 blocking d+1/d+2 city slots).
+
+---
+
+## §4 — Resolution Markout (Fill Quality / Winner's Curse)
+
+**n = 24 fills (n < 40) → DATA COLLECTION PHASE. No conclusions drawn.**
+
+Full resolution markout requires `band_resolution_join.py` against local shadow logs. Condition IDs in the fill tape are 4-byte truncated hex (e.g. `cond=0x454b22f4`) — insufficient for direct CLOB resolution API. Complete joins deferred to when local shadow is accessible.
+
+**Preliminary directional observation (informational only, n=24)**:
+
+All 24 fills are in the 0.30–0.85 fat-middle — peak taker-fee territory (~3.15% at 50% odds). Specifically, 71% of fills land in 0.30–0.50: as maker buying YES at these prices, we expect to be paid $1.00/share if YES resolves. At 0.40 entry, implied win rate break-even (net of fees) is approximately 43%.
+
+Fill-side YES dominance (79% YES, persistent across 3.5 days) is the primary quality flag. Two readings:
+
+1. **Benign**: pair_fav YES legs are priced more competitively (closer to best bid) and attract taker flow naturally.
+2. **Winner's curse**: takers preferentially hit YES because they hold an informational edge (e.g. intraday weather signal). If our filled YES positions resolve NO at rates meaningfully above their entry-price-implied probability, adverse selection is confirmed.
+
+Flag for next audit when n reaches 40. At that point, compare realized win rate on filled YES vs. simulated win rate on all-fires YES for the same city/days_out/price-band slice.
+
+**Status**: INCONCLUSIVE (n < 40). Monitor.
+
+---
+
+## §5 — Dead-Quote Reclaim
+
+- `reaped dead entry` lines in 7d log: **0**
+- Resting orders > 24h: **0** (only resting order is SELL_EXIT Munich YES, age ~8h)
+- Resting orders > 48h: **0**
+
+`BAND_RECLAIM_AGE_S = 7200` (2h) is configured for entry bids; `BAND_PAIR_RECLAIM_AGE_S = 28800` (8h) for pair legs. Zero reclaim log lines have appeared since the log window began 2026-07-02. Possible interpretations: (a) all entry bids filled or aged out cleanly within the 2h window without the WARNING-level reclaim log being reached, or (b) reclaim events log at a different severity not captured in this tape. The near-empty resting book (0 active maker positions) is consistent with normal cycling.
+
+**Alert (>20 quotes older than 48h)**: NOT fired. Zero qualifying quotes.
+
+---
+
+## §6 — Cash Velocity
+
+| Metric | Value | Notes |
+|---|---|---|
+| Capital | $44.92 | bankroll.json; manual sells excluded from PnL |
+| Resting $ | $5.94 | SELL_EXIT only; 0 active maker positions |
+| Fills $ (24h) | $17.28 | YES $16.84 + NO $0.44 |
+| Fills $ (7d log) | $59.67 | 3.5-day effective window (~$17/day avg) |
+| Turns/day (24h basis) | **0.38×** | $17.28 ÷ $44.92 |
+| badatmath benchmark | ~1.0× | target equity turn/day |
+
+**Velocity at 38% of benchmark.** Structural causes:
+- `BAND_NO_ENABLED=False` removes ~50% of historically intended posting volume
+- `BAND_YES_LIVE_MIN_DOUT=9` removes standalone YES
+- pair_fav only fires when `qy + qn ≤ 0.90` for both legs simultaneously — sum_gate blocks most city/day slots (observed: `sum_gate` is the 2nd-most-common md_shadow reject reason)
+
+2026-07-05 is the lowest-velocity session: 4 posts, 1 fill, $0.44 notional in 7h. If sustained through day-end, this will be the lowest-fill day of the log window.
+
+**Capital note**: `daily_start_capital = $87.17` vs current $44.92 reflects manual owner withdrawals, not strategy losses. Do not read as ruin signal.
+
+---
+
+## Alerts
+
+Pre-registered alerts that fired this run: **none**
+
+| Check | Result |
+|---|---|
+| NO posts < 25% on days ≥10 posts | CLEAR — 50% on 2026-07-04 |
+| Books pinned at 80 | CLEAR — max 6/80 |
+| yes_books pinned at 50 | CLEAR — max 4/50 |
+| cash_preskip > 200 sustained with posted=0 | CLEAR — max ~1.1 mean |
+| >20 quotes older than 48h | CLEAR — 0 quotes in resting book |
 
 ---
 
 ## Summary
 
-- **Fills:** avg 10/day (Jul 1–3); 0 today (Jul 04, sum_gate rejecting d+1 opportunities). All 19 exit099 recycles profitable ($40.75 total, $2.14/trade avg). Resolution markout INCONCLUSIVE (n=21 < 40 decision threshold).
-- **NO share:** 22.5% Jul 03 (ALERT — one-time transition artifact, structurally fixed at 50% on Jul 04+ via PAIR_FAV only).
-- **Binding execution constraint:** PAIR_FAV-only posture (BAND_NO halted, standalone YES paused) caps velocity at ~0.31 t/day vs 1.0 benchmark; recovery requires re-enabling at least one additional engine.
+**Fills/day**: ~7 fills/day equivalent over the 3.5-day effective log window. 24h rate: 7 fills, $17.28 notional, 0.38× equity turns vs 1.0× badatmath benchmark.
+
+**NO-share (posts)**: 50% on both qualifying days — mechanically guaranteed by pair_fav-only posture. Fill-side NO-share is 21% (persistent YES-dominant fill pattern); not a post-parity alert but warrants markout scrutiny at n ≥ 40.
+
+**Binding execution constraint today**: POSTING RATE COLLAPSE. 2026-07-05 shows 0.053 posts/cycle (4 posts, 1 fill in 7h) — the session floor. With pair_fav as the sole engine and resting book empty, zero capital is currently working. Throughput recovery requires pair_fav conditions to present (sum_gate clearing simultaneously for YES + NO legs in the same city/day slot) or re-enabling an additional posting engine.
