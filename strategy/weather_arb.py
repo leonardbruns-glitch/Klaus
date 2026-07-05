@@ -3428,10 +3428,15 @@ class WeatherArb:
                 _qy = round(min(_yb, _ya - 0.01), 3)
                 _qn = round(min(_nb, _na - 0.01,
                                 BAND_PAIR_FAV_SUM_MAX - _qy), 3)
-                if _qy < 0.01 or _qn < 0.01:
-                    # pair_clip_cofill experiment (2026-07-05): the sum cap can
-                    # clip the NO quote to nothing — record the market's natural
-                    # pair sum so rejected-sum distribution is measurable.
+                if _qy < 0.01 or _qn < 0.01 or (_nb - _qn) > 0.011:
+                    # CLIP GUARD (2026-07-05 EVOLVE): when the Σ≤0.90 cap forces
+                    # the NO quote >1¢ below its natural bid touch, the pair is
+                    # not co-fillable at post time — the YES leg (always at
+                    # touch) fills naked and rides directional. Realized 7d on
+                    # that slice: one-sided YES n=10 WR 10% at avg quote 0.46,
+                    # pair-slice net −$28..−$32 PF≈0.1 (n=16-18 < the n≥40
+                    # shadow gate). Skip + shadow-log; the pair_clip_cofill
+                    # join decides re-enable at n≥100.
                     _emit({"city": city, "date": mkt.get("endDate", "")[:10],
                            "days_out": days_out, "reason": "pair_clip_skip",
                            "ya": _ya, "na": _na, "yb": _yb, "nb": _nb,
