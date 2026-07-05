@@ -16,6 +16,11 @@ Execute this sequence:
 STEP 0 — HEALTH & RISK (blocking).
 - `systemctl is-active klaus`. If `logs/evolve/CRASHLOOP.flag` exists, perform the
   repair procedure from `ops/evolve/repair_prompt.md` first, then skip to STEP 6.
+- BACKLOG CHECK (added 2026-07-05: most slots die on Claude session limits before
+  doing any work): scan `logs/evolve/run_daily_*.log` since the last line reading
+  "end rc=0". Every failed slot in between is an unworked day — you are covering the
+  whole backlog, not just today: review all `ledger.jsonl` review_dates that fell in
+  the gap, and read the analyst reports for the missed days, not just today's.
 - Compute the charter risk rails from real data: free USDC + resting exposure (latest
   `[STRUCT-BAND-Q]` line in `logs/bot.log`), open positions, and 7d realized PnL/PF from
   `logs/trades.jsonl` (STWA fills land there only at resolution — see the trades-query

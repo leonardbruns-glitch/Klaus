@@ -3429,6 +3429,13 @@ class WeatherArb:
                 _qn = round(min(_nb, _na - 0.01,
                                 BAND_PAIR_FAV_SUM_MAX - _qy), 3)
                 if _qy < 0.01 or _qn < 0.01:
+                    # pair_clip_cofill experiment (2026-07-05): the sum cap can
+                    # clip the NO quote to nothing — record the market's natural
+                    # pair sum so rejected-sum distribution is measurable.
+                    _emit({"city": city, "date": mkt.get("endDate", "")[:10],
+                           "days_out": days_out, "reason": "pair_clip_skip",
+                           "ya": _ya, "na": _na, "yb": _yb, "nb": _nb,
+                           "cid": mkt.get("conditionId", "")})
                     continue
                 # equal SHARES per leg — merge consumes share-for-share
                 _shares = round((_stk_yes + _stk_no) / (_qy + _qn), 2)
@@ -3437,6 +3444,7 @@ class WeatherArb:
                 _emit({"city": city, "date": mkt.get("endDate", "")[:10],
                        "days_out": days_out, "reason": "pair_fav",
                        "qy": _qy, "qn": _qn, "shares": _shares,
+                       "ya": _ya, "na": _na, "yb": _yb, "nb": _nb,
                        "cid": mkt.get("conditionId", "")})
                 _sy = _types.SimpleNamespace(token_id=yt, quote_price=_qy,
                                              stake=round(_shares * _qy, 2),
