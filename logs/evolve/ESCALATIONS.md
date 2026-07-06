@@ -34,3 +34,29 @@ reviews this whenever one happens to occur. The weekly agent processes open item
 - Deferred (deliberately) the weekly-spec'd ruin-floor comparator + ratchet: correct "tracked capital" needs ladder shots (separate cron process, not in risk.open_positions) and resolved-pending redemptions (invisible to both cash and positions until the redemption sweep). Auto-correct (main.py:455-492) already does cash + engine-positions-at-cost; the gap is exactly the two off-engine components. An evening kernel edit with a live ladder shot pending was judged worse than one more day of the protective false-halt seam. Morning slot: implement comparator, observe one day, THEN ratchet $40 → 0.40×30d-HW (~$88).
 - Observation for the next interactive session: the sprint-ladder sleeve ($206.94) now ≈ the entire account's free cash. The ladder's per-shot cap ($45) and $20 reserve are the only live bounds; the charter's engine rails do not bind it (principal carve-out). If the owner wants the account-level split restored, that is an owner decision — flagging, not acting.
 - audit.log daily cron has said "no WEATHER trades in last 1d" every day since 06-24 while trades exist — a broken sensor filter (likely asset/tag mismatch). Candidate mechanical fix for a future slot; logged so it stops being invisible.
+
+## 2026-07-06 22:10Z — EVOLVE daily (evening slot; morning slot died on session limit)
+1. **Daily-loss halt is wired to the wrong surface.** `BankrollTracker.is_halted`
+   (14% rail, armed 07-04) is consulted ONLY in the STWA taker-signal path
+   (weather_arb.py ~8234) — which is disabled. The maker/band/pair, M1β, and
+   MIN_LOCKOUT paths have no halt check: on 07-06 the engine kept posting through a
+   −47% tracked-capital day (M1β fired at 12:01Z with the day already past −14%).
+   Fix spec (morning slot, Tier-1 tighten but needs care): (a) compute the halt on an
+   equity proxy = bankroll.capital + sprint-ladder open shots at cost (else every $45
+   ladder fire reads as −20% and false-halts the engine for the UTC day); (b) gate
+   maker posting + M1β/lockout fires + pair posting on `is_halted or is_ruined`;
+   (c) settlement/redemption/cancel paths stay un-gated.
+2. **Rail-design seam flagged for the WEEKLY (amendment protocol — daily may not
+   amend):** the 30d high-water ($222.90) is 85% ladder coin-flip variance (07-05
+   weekly's own words). With sleeve $117 vs engine cash ~$108, every 2-loss ladder
+   day (~30% of days at p≈0.45/shot) mechanically breaches "equity < 50%·HW" and
+   winds down engine paths that didn't cause the loss. Tonight's wind-down was
+   executed as written (kernel: no reinterpretation under a losing streak). The
+   weekly should consider an amendment: exclude the principal-authorized sleeve from
+   the HW basis, or key the rail to engine-attributed equity. Both readings recorded;
+   data will decide.
+3. **Lockout provenance gap:** "official {AWC,NWS} only" is NOT sufficient — the
+   Moscow 07-06 false lockout came from an official SPECI (11:55Z, 23.0°C) that the
+   WU-displayed high never showed (resolved 22°C). Non-US stations lack the 1-min
+   ASOS cross-check. lockout_oracle_divergence study registered; lockout family
+   stays off until it reports.
