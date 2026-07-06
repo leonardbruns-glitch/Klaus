@@ -281,7 +281,11 @@ BAND_HOUR_MAX       = 16            # peak window upper bound; after this the da
 # band quotes MAKER bids at BAND_QUOTE_FRAC of the spread above best-bid (never crosses),
 # sized bell-shaped, held to resolution. PX_MIN/CEIL gate which buckets we quote on.
 STWA_STRUCT_BAND    = True          # master ENABLE for the structural band path
-BAND_LIVE           = True          # 2026-06-10 user: "exploit a recurring edge" — RE-FLIPPED LIVE after
+BAND_LIVE           = False         # 2026-07-06 EVOLVE wind-down: equity $108.35 < 50%·30d-HW $222.90 (charter
+                                    # drawdown rail) → live paths off except NEG_RISK_ARB + RECYCLE099. Band/pair
+                                    # falls back to shadow-quote logging (no capital); clip-guard counterfactual
+                                    # keeps accumulating. Re-enable: equity ≥ 50%·HW AND post-guard pair evidence
+                                    # n≥40 trend positive (n≥100 full gate). Prior: 2026-06-10 user re-flip after
                                     # post-fix shadow verified clean (2,514 rows / 2h, 0 mode-containment
                                     # violations, md_shadow firing d+1 candidates). Live = d+1/d+2 maker
                                     # band only (BAND_MD_LIVE_MIN_DOUT=1, BAND_SAMEDAY_LIVE=False).

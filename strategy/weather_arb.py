@@ -179,7 +179,12 @@ DRY_RUN_LOG  = True   # 2026-05-26: STRAT_1 paused — 100% allocation to M1_BET
 # Purpose: measure fill rate, slippage, post-trade EV under real execution.
 # ONE signal definition. Fixed thresholds. Small stakes. Hard budget cap.
 # Do NOT modify these to "tune" — this is a measurement experiment.
-M1_BETA_PROBE_ENABLED          = True   # 2026-06-05 user: RE-ENABLED. Validated slice (MIN_DEPTH_C=0.5 margin gate + dip-rebuy OFF + clean FATEDGE). Reliability analysis n=671: margin≥0.5 = 98.7% WR. Coexists w/ favorite-longshot NO (shared open_positions dedup).
+M1_BETA_PROBE_ENABLED          = False  # 2026-07-06 EVOLVE wind-down (rail breach) + Moscow false lockout −$24.65:
+                                        # UUWW 11:55Z SPECI read 23.0°C (next hourly 12:00Z = 22.0°C), running_max
+                                        # locked 23.0 all day, market resolved 22°C ⇒ our official-feed max diverged
+                                        # from the WU oracle by 1°C on a single uncorroborated ob. Fire was depth=0.5
+                                        # (gate minimum) NO@0.94. Third false-lockout incident in class. Re-enable gate:
+                                        # non-US SPECI-vs-resolution divergence study + n≥100 clean lockout join.
 M1_BETA_PROBE_STAKE_USD        = 10.0   # 2026-06-08: 40→10 — removing the NO-ask floor enables cheap-NO fills; at $70 capital a $40
                                         # loss on a false lock (~4.5%) would blow the $10 daily-halt (and 40 already exceeded the $20 max).
                                         # $10 keeps single-trade risk within the ruin discipline. Was 40 (06-03). Revert: 40
@@ -346,7 +351,8 @@ MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °
 # validated against Gamma resolution — the one real risk (mirror of the running_max
 # overshoot bugs). Loosen toward 0.5 after the first clean min resolutions confirm
 # provenance. Revert live: MIN_LOCKOUT_LIVE=False.
-MIN_LOCKOUT_LIVE           = True
+MIN_LOCKOUT_LIVE           = False   # 2026-07-06 EVOLVE wind-down (rail breach): same running_max/running_min
+                                     # provenance class as the Moscow false lockout; shadow logger stays on.
 MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 
 # ── Thermo-ceiling MAKER on the upper tail (2026-06-08, user opt-in, BOUNDED) ──────
