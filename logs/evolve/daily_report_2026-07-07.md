@@ -74,3 +74,54 @@ kernel honesty rule.
 3. Actuator morning slots keep dying on Claude session limits (07-05, 07-06) —
    ESCALATIONS item for an interactive session stands.
 4. Moscow-class false lockouts: divergence study due 07-13 before any lockout re-enable.
+
+---
+
+# Evening slot (21:53 UTC) — verification run
+
+## Health & equity
+- `klaus` **active**, fresh `[WA]` cycles at 21:58Z, wind-down holding (MIN_LOCKOUT 29
+  candidates / 0 posts, lockout shadow logging, band queue silent). No backlog — the
+  morning slot completed rc=0 and this is the same calendar day.
+- **Equity $136.77, all cash** (zero open ladder shots, zero engine positions at cost;
+  bankroll capital = CLOB actual balance exactly). Daily realized **+$28.41** on
+  daily_start $108.35: ladder Tokyo 26°C LOST −$21.37, Singapore 32°C WON +$49.79 net;
+  engine flow $0.
+- **Wind-down equity rail CLEARED intra-day**: $136.77 = 61.4% of 30d-HW $222.90
+  (> 50% line $111.45). **Re-enable withheld** — see rejected actions.
+- 7d realized **−$118.43 PF 0.088 (n=42)**, all from paths already cut; flow since
+  wind-down = −$4.22 (two legacy pre-cut YES dust legs resolving 07-06 22:49Z).
+
+## Actions taken (0 live-effect; cap was already spent 2/2 by the morning slot)
+- Re-ran `band_resolution_join`: **n=591 resolved** (+61 since morning), gate ledger
+  refreshed and committed with Wilson CIs. No slice gate-passes: every CI straddles
+  zero except PAIR_FAV NO legs (+52.9% [+12.6, +85.5]) which is n=32 < 40 and
+  fill-conditioned — stays COLLECTING.
+- Verified all four morning deploys against live behaviour: ruin_floor 89.16 in
+  config.py; comparator (capital 136.766 = cash + $0 ladder, exact); daily reset
+  (last_utc_day=20641, daily_start reset at midnight); ladder fill-cost recording
+  (settle arithmetic exact: sleeve 50.61+94.75=145.36, cash 42.02+94.75=136.77).
+
+## Actions REJECTED (with the failed gate)
+- **BAND_LIVE / lockout re-enable despite equity rail clearing** — the 07-06 re-enable
+  condition is equity ≥50%·HW **AND** post-guard pair n≥40 positive trend; post-guard
+  count is n≈9/side (accrual frozen by wind-down itself — counterfactual shadow
+  continues). Also: disp_ratio 0.817 < 1.10 trigger, −14% freeze active until
+  07-08 21:53Z, and the 2-live-change cap is spent. Single-day equity recovery driven
+  by one ladder coin-flip is not evidence of edge; charter prefers no change.
+- **Anything sized-up** — freeze until 07-08 21:53Z.
+
+## Sprint-30 ladder (STEP 2b, day 4.99)
+- Cron healthy (syslog: fires every 10 min through 21:50Z). Both shots settled ≤36h
+  (same day: 15:30Z, 16:40Z). Sleeve **$145.36**, fired 2/2 today (cap).
+- Lifetime: **8 fired, 8 resolved, 4W/4L, net +$85.36**. Gap to day-4 target $160.51:
+  **≈ −$45** (tracker restates at 23:50Z).
+- No gate tuning triggered (fired every day — no zero-candidate streak; no n≥10
+  systematic gate-vs-outcome pattern yet at n=8). No re-seed needed (sleeve ≫ $5).
+- Bookkeeping note: sleeve $145.36 > free cash $136.77 (engine side net-negative in
+  shared wallet) — next fire bounded by live balance − $20 reserve, so no
+  over-commitment risk; flagged for the analysts in the gate ledger.
+
+## Experiments
+- None due today (yes_capture 07-11, lockout_oracle_divergence 07-13, pair_clip_cofill
+  07-19, M1β thin-margin 07-18). All shadow loggers verified accruing.
