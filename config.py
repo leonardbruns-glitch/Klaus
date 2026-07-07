@@ -30,7 +30,7 @@ class BankrollConfig:
     max_open_positions: int = 2       # 2026-05-07 user instruction: 1→2 BOND positions max concurrent
     max_daily_loss_pct: float = 0.14   # 2026-06-05: armed ~-$10/day halt — the ONE backstop on the loosened band gate (ruin_floor stays off per user)
     weekly_floor: float = 0.0         # disabled
-    ruin_floor: float = 40.0          # ARMED 2026-07-02 (EVOLVE kernel, owner full-autonomy directive supersedes the 2026-05-15 disable): capital < $40 → no new entries. Ratchet-up-only per ops/evolve/INVARIANTS.md #2; unattended agents may never lower it.
+    ruin_floor: float = 89.16         # RATCHETED 2026-07-07 (EVOLVE daily): 0.40 × trailing-30d high-water $222.90 (measured 2026-07-05) per INVARIANTS #2 formula, HW > $100. Comparator now tracks cash + engine positions + ladder-at-cost (main._ladder_open_cost), so this no longer false-trips on ladder fires. Ratchet-up-only; unattended agents may never lower it. (Was 40.0, armed 2026-07-02.)
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 

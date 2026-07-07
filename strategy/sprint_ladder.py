@@ -289,14 +289,20 @@ def main() -> None:
     if res is not None and getattr(res, "status", None) is not None and \
             "FILLED" in str(res.status):
         shares = round(getattr(res, "total_size", 0.0) or stake / best["ask"], 2)
-        state["sleeve"] = round(state["sleeve"] - stake, 2)
+        # sleeve must track ACTUAL fill cost, not intended stake — partial fills
+        # (Seattle 07-04, Tokyo 07-07) silently understated the sleeve otherwise
+        fill_px = getattr(res, "avg_fill_price", 0.0) or best["ask"]
+        cost = round(shares * fill_px + getattr(res, "total_fee", 0.0), 2)
+        if not (0.0 < cost <= round(stake * 1.10, 2)):
+            cost = stake
+        state["sleeve"] = round(state["sleeve"] - cost, 2)
         state["fired"][today] = fired_today + 1
         state["shots"].append({"date": today, "city": best["city"],
                                "end_date": best["end_date"], "token": best["token"],
-                               "q": best["q"], "ask": best["ask"], "stake": stake,
-                               "shares": shares, "status": "open"})
-        log({"event": "FIRED", **best, "stake": stake, "shares": shares,
-             "sleeve": state["sleeve"]})
+                               "q": best["q"], "ask": best["ask"], "stake": cost,
+                               "fill_px": fill_px, "shares": shares, "status": "open"})
+        log({"event": "FIRED", **best, "stake": cost, "fill_px": fill_px,
+             "shares": shares, "sleeve": state["sleeve"]})
     else:
         log({"event": "fire_failed", **best, "stake": stake,
              "status": str(getattr(res, "status", None)),

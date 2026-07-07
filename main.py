@@ -95,6 +95,23 @@ logger = logging.getLogger("main")
 # Shadow monitor — counterfactual analysis for blocked sniper signals
 # ---------------------------------------------------------------------------
 
+def _ladder_open_cost() -> float:
+    """Cost basis of OPEN sprint-ladder shots (logs/sprint_ladder_state.json).
+
+    The ladder trades the same wallet but outside risk.open_positions, so
+    cash-based bankroll syncs read every ladder fire as a loss (2026-07-05
+    ESCALATIONS: capital $39.69 < $40 ruin floor while true equity $217).
+    Tracked capital = cash + engine positions at cost + ladder shots at cost.
+    """
+    try:
+        with open("logs/sprint_ladder_state.json") as _f:
+            _s = json.load(_f)
+        return float(sum(sh.get("stake", 0.0) for sh in _s.get("shots", [])
+                         if sh.get("status") == "open"))
+    except Exception:
+        return 0.0
+
+
 # ---------------------------------------------------------------------------
 # BOND total-loss cooldown helpers
 # ---------------------------------------------------------------------------
@@ -474,6 +491,7 @@ class KlausBot:
             if real_balance is not None:
                 pos_value = sum(p.remaining_shares * p.entry_price
                                 for p in self.risk.open_positions.values())
+                pos_value += _ladder_open_cost()
                 true_capital = real_balance + pos_value
                 tracked = self.risk.bankroll.capital
                 delta = true_capital - tracked
@@ -6539,6 +6557,7 @@ class KlausBot:
                         # works with positions open (always reflect real wallet).
                         pos_value = sum(p.remaining_shares * p.entry_price
                                         for p in self.risk.open_positions.values())
+                        pos_value += _ladder_open_cost()
                         actual_usdc = actual_usdc + pos_value
                         drift = actual_usdc - internal
                         if abs(drift) >= _RECONCILE_DRIFT_WARN:
@@ -6725,6 +6744,7 @@ class KlausBot:
                         try:
                             _real_bal = await asyncio.to_thread(self.orders.fetch_usdc_balance)
                             if _real_bal is not None:
+                                _real_bal += _ladder_open_cost()
                                 _old_cap = self.risk.bankroll.capital
                                 _delta   = round(_real_bal - _old_cap, 4)
                                 self.risk.bankroll.capital = round(_real_bal, 4)
