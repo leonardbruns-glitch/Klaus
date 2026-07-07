@@ -2,13 +2,13 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-07-06T23:54:46Z |
+| snapshot_ts (UTC) | 2026-07-07T00:10:06Z |
 | klaus HEAD | 64afd79c0 |
-| trades.jsonl rows | 8114 |
-| live rows | 8114 |
-| bankroll capital | $108.353224 |
+| trades.jsonl rows | 8115 |
+| live rows | 8115 |
+| bankroll capital | $86.980544 |
 | klaus service | active |
-| shadow files | 20 |
+| shadow files | 25 |
 
 This branch is force-pushed by `klaus_data_mirror.timer` every 15 minutes.
 Single-commit rolling snapshot — do NOT merge or rebase from this branch.
