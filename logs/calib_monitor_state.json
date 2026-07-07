@@ -1,21 +1,20 @@
 {
-  "date": "2026-07-06",
-  "snapshot_ts": "2026-07-06T07:58:16Z",
+  "date": "2026-07-07",
+  "snapshot_ts": "2026-07-07T08:02:06Z",
   "brier7": 0.053,
-  "brier7_note": "Unchanged. 7d window locked Jun 28–Jul 2 — day 4 stale. Outcome labels unavailable (no condition_ids in s50; Gamma API join not performed).",
+  "brier7_note": "Unchanged. 7d window locked Jun 28–Jul 2 — day 5 stale. No new outcome labels available (no condition_ids in s50; Gamma API join not performed in this pipeline).",
   "ece7": 0.0194,
   "ece7_note": "Unchanged. Same window lock.",
   "rho7": 0.4458,
   "rho7_note": "Unchanged. Same window lock.",
   "disp_ratio7": 0.817,
-  "disp_ratio7_note": "ALERT PERSISTS. Window locked Jun 28–Jul 2, day 4 stale. NEW: Jul 3 data now processed (6 finite allowlist POST_PEAK cities, median implied_sigma=0.521°C — lower than prior window 0.794–0.860°C). Jul 4: median impl=0.199 (3 cities). Jul 5: median impl=0.030 (3 cities). Ratio not computable without outcome labels.",
+  "disp_ratio7_note": "ALERT PERSISTS. Window locked Jun 28–Jul 2, day 5 stale. No update computable without outcome labels. Proxy lane confirms continued compression (day 6).",
   "disp_ratio7_d0_method": 0.817,
-  "disp_ratio7_d2_prior": 0.34,
   "n_resolved_city_dates": 205,
   "n_resolved_brier": 36551,
   "n_finite_ratios_today": 0,
   "today_degenerate": false,
-  "today_degenerate_reason": "Not checked (today=Jul 6 unsettled). Jul 3 newly processed: 6 allowlist cities finite. Compression trend confirmed.",
+  "today_degenerate_reason": "Today=Jul 7 unsettled. Jul 6 not resolved in this pipeline.",
   "disp_by_date": {
     "2026-06-28": {"n": 25, "n_finite": 17, "ratio": 0.807, "impl": 0.807, "real": 1.0},
     "2026-06-29": {"n": 28, "n_finite": 19, "ratio": 0.663, "impl": 0.794, "real": 1.0},
@@ -29,12 +28,12 @@
         "amsterdam": 0.046, "ankara": 0.683, "chengdu": 0.323,
         "istanbul": 0.205, "singapore": 0.521, "wuhan": 0.946
       },
-      "note": "NEW — Jul 3 s50 (1.26MB) now processed. Ratio not computable: no outcome labels. All 6 implied sigmas below prior window (0.794–0.860°C). Compression extends past Jun 28–Jul 2 lock."
+      "note": "POST_PEAK snapshot. Ratio not computable: no outcome labels. All 6 implied sigmas below prior window (0.794–0.860°C)."
     },
     "2026-07-04": {
       "n": 3, "n_finite": 3, "ratio": null,
       "impl_sigma_median": 0.199,
-      "note": "Partial — 3 allowlist POST_PEAK cities finite (amsterdam 0.199, istanbul 0.006, wuhan 0.780). Ratio not computable."
+      "note": "Partial — 3 allowlist POST_PEAK cities finite (amsterdam 0.199, istanbul 0.006, wuhan 0.780). Near-resolution snapshots."
     },
     "2026-07-05": {
       "n": 3, "n_finite": 3, "ratio": null,
@@ -42,56 +41,78 @@
       "note": "Partial — 3 allowlist POST_PEAK cities finite (london 0.153, paris 0.020, wuhan 0.030). Near-zero sigma — end-of-day near-resolution snapshots."
     },
     "2026-07-06": {
-      "n": null, "n_finite": null, "ratio": null,
-      "note": "Today — unsettled, not yet resolved."
+      "n": 12, "n_finite": 12, "ratio": null,
+      "impl_sigma_median": 0.862,
+      "note": "PRE_PEAK snapshot 08:02 UTC (prior state). Ratio not computable — unsettled at snapshot time and no outcome join."
+    },
+    "2026-07-07": {
+      "n_computable": 7,
+      "n_all_nonzero": 11,
+      "ratio": null,
+      "impl_sigma_median": 0.822,
+      "note": "Today (PRE_PEAK, 08:10 UTC snapshot, plateau-filtered n=7; all-nonzero n=11; both yield median=0.822). Ratio not computable — unsettled."
     }
   },
   "proxy_lane": {
-    "today_date": "2026-07-06",
-    "snapshot_utc": "2026-07-06T07:58Z",
+    "today_date": "2026-07-07",
+    "snapshot_utc": "2026-07-07T08:10Z",
     "n_allowlist_cities": 12,
-    "n_clean": 12,
-    "clean_cities": ["amsterdam","ankara","beijing","chengdu","istanbul","kuala-lumpur","london","munich","paris","singapore","taipei","wuhan"],
+    "n_clean_plateau_filtered": 7,
+    "n_clean_all_computable": 11,
+    "missing_cities": ["singapore"],
+    "excluded_plateau": ["istanbul", "london", "munich", "paris"],
     "clean_sigmas_cal": {
-      "amsterdam": 0.603, "ankara": 1.331, "beijing": 1.291, "chengdu": 1.347,
-      "istanbul": 0.422, "kuala-lumpur": 0.269, "london": 0.832, "munich": 0.878,
-      "paris": 0.989, "singapore": 0.501, "taipei": 1.089, "wuhan": 0.847
+      "amsterdam": 0.822,
+      "ankara": 1.409,
+      "beijing": 0.562,
+      "chengdu": 0.778,
+      "kuala-lumpur": 0.235,
+      "taipei": 1.215,
+      "wuhan": 1.098
     },
-    "cleaned_median_sigma": 0.862,
+    "all_computable_sigmas_cal": {
+      "amsterdam": 0.822,
+      "ankara": 1.409,
+      "beijing": 0.562,
+      "chengdu": 0.778,
+      "istanbul": 0.793,
+      "kuala-lumpur": 0.235,
+      "london": 0.818,
+      "munich": 0.923,
+      "paris": 0.988,
+      "taipei": 1.215,
+      "wuhan": 1.098
+    },
+    "cleaned_median_sigma": 0.822,
     "baseline_7d_implied_sigma_median": 0.994,
-    "delta_pct": -13.2,
-    "five_day_trend": [0.994, 0.950, 0.906, 0.885, 0.862],
-    "five_day_trend_note": "FIVE consecutive below-baseline readings. Today: -13.2% vs baseline. Escalation threshold (5 confirmed days) now crossed. Trend not arrested.",
-    "city_notes": {
-      "london": "n_nz=6/9, mode=32.0°C (heat-wave conditions, up from 29°C yesterday), 2 plateau hits; σ_cal=0.832",
-      "paris": "n_nz=8/9, present today (was absent yesterday); σ_cal=0.989",
-      "ankara": "σ_cal=1.331, σ_mc=1.245 (ratio 1.07 — consistent, 0 plateau hits). Genuine. Contrast: excluded as artifact yesterday at 173°C.",
-      "beijing": "σ_cal=1.291, σ_mc=1.256 (0 plateau hits — genuine high uncertainty). 7/9 nonzero.",
-      "amsterdam": "2 plateau hits, σ_cal=0.603 vs σ_mc=0.572 — consistent, genuine.",
-      "kuala-lumpur": "σ_cal=0.269, σ_mc=0.162, ratio 1.66 — slight inflation from plateau but low absolute value; included.",
-      "munich": "Mode 27°C, σ_cal=0.878 vs 1.795 yesterday — reverted from Munich heat spike as expected."
-    }
+    "delta_pct": -17.3,
+    "delta_pct_vs_yesterday": -4.6,
+    "six_day_trend": [0.994, 0.950, 0.906, 0.885, 0.862, 0.822],
+    "six_day_trend_note": "SIX consecutive below-baseline readings. Day 6. Trend not arrested, steepening. -17.3% vs 7d baseline.",
+    "methodology_note": "Median robust to plateau filter: 0.822 with filter (n=7) and without (n=11). Sentinel fix applied: lo<0 -> mid=hi-0.5. Singapore absent from Jul 7 s50 data.",
+    "plateau_filter_discrepancy": "Prior state (Jul 6) used 12-city method including cities with 2 plateau hits. This run applies strict >=2 plateau hit exclusion. Result unchanged (0.822 both ways) — no methodology impact today."
   },
-  "bankroll": 123.322363,
-  "bankroll_prev": 44.922894,
-  "bankroll_delta_24h": 78.399,
-  "bankroll_note": "Exec-audit scope. +$78.40 vs prior calib snapshot ($44.92, Jul 5 08:05 UTC). Out-of-scope for this monitor.",
+  "bankroll": 42.015964,
+  "bankroll_prev": 123.322363,
+  "bankroll_delta_24h": -81.306,
+  "bankroll_note": "PnL-monitor scope. Drop of -$81.31 from Jul 6 snapshot while BAND_LIVE=False. Mechanism outside this monitor's scope.",
   "band_yes_live_min_dout": 9,
   "band_no_enabled": false,
+  "band_live": false,
   "band_pair_fav_enabled": true,
   "band_pair_shadow": true,
   "service_status": "active",
   "open_positions": 0,
   "isotonic_deployed_refit": "2026-06-06T22:27:08Z",
-  "isotonic_deployed_age_days": 30,
+  "isotonic_deployed_age_days": 31,
   "isotonic_candidate_refit": "2026-06-09T09:30:36Z",
-  "isotonic_candidate_age_days": 27,
+  "isotonic_candidate_age_days": 28,
   "isotonic_material_shift": -0.2577,
-  "isotonic_material_shift_note": "UNCHANGED. At grid=1.0: deployed=0.6316, candidate=0.3739 (delta=-0.2577). Candidate worse. Deployed 30d stale, candidate 27d stale. Cron inactive since Jun 9.",
-  "isotonic_candidate_recommendation": "DO NOT DEPLOY — candidate worse. Both 27–30d stale. Live-refit cron inactive. Plateau-breaking refit required.",
+  "isotonic_material_shift_note": "UNCHANGED. At grid=1.0: deployed=0.6316, candidate=0.3739 (delta=-0.2577). Candidate worse. Deployed 31d stale, candidate 28d stale. Cron inactive since Jun 9.",
+  "isotonic_candidate_recommendation": "DO NOT DEPLOY — candidate worse at grid=1.0 by 0.258. Both 28-31d stale. Live-refit cron inactive. Trigger fresh VPS refit.",
   "alerts": [
-    "PERSISTS S3: Dispersion ratio 0.817 (7d median, locked Jun 28–Jul 2). Day 4 stale. NEW: Jul 3 data (6 cities, median implσ=0.521°C) confirms compression extends past lock window — all below 1.10. Ratio non-computable without outcome labels. Re-enable condition: disp_ratio ≥ 1.10 × 5 consecutive days — unmeasurable.",
-    "PERSISTS S4: Isotonic material shift at grid=1.0 (deployed=0.6316, candidate=0.3739, delta=-0.2577). DO NOT DEPLOY candidate. Deployed 30d stale, candidate 27d stale. Live-refit cron inactive since Jun 9.",
-    "OBSERVATION S5 PERSISTS: Isotonic plateau (0.30–0.90→0.3801) renders dispersion ratio gauge non-computable. Day 4 of stale window. No path to resolution without VPS isotonic refit."
+    "PERSISTS S3: Dispersion ratio 0.817 (7d median, locked Jun 28–Jul 2). Day 5 stale. Edge inverted on all 5 resolved days. Ratio non-computable without outcome labels for Jul 3–7. Proxy lane (day 6 below baseline, sigma=0.822) extends the decay signal. Re-enable condition: disp_ratio ≥ 1.10 × 5 consecutive days — unmeasurable.",
+    "PERSISTS S4: Isotonic material shift at grid=1.0 (deployed=0.6316, candidate=0.3739, delta=-0.2577). DO NOT DEPLOY candidate. Deployed 31d stale, candidate 28d stale. Live-refit cron inactive since Jun 9.",
+    "PERSISTS S5: Proxy lane day 6 of unbroken decline. Six consecutive below-baseline sigma readings (0.994→0.822, -17.3%). Early-warning signal consistent with confirmed S3 dispersion decay."
   ]
 }
