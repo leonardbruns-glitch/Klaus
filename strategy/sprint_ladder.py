@@ -39,6 +39,11 @@ STATE = f"{ROOT}/logs/sprint_ladder_state.json"
 LOG = f"{ROOT}/logs/sprint_ladder.jsonl"
 LIVE = os.environ.get("SPRINT_LADDER_LIVE", "0") == "1"
 RESERVE_USD = 20.0
+KERNEL_FLOOR_USD = 40.0   # INVARIANTS.md #2: ALL live paths halt when tracked capital
+                          # (cash + open positions at cost) < $40. The engine ruin_floor
+                          # does not gate this cron; RESERVE_USD alone floors cash at $20,
+                          # BELOW the kernel. Kernel overrides the no-touch directive.
+                          # May be raised, never lowered by an unattended agent.
 SLEEVE_INIT = 60.0
 STAKE_FRAC = 0.75
 MAX_FIRES_PER_DAY = 3     # 2026-07-08: 2→3, owner-directed variance increase ("full
@@ -253,7 +258,7 @@ def manage_exits(state: dict) -> None:
         log({"event": "exit_loop_error", "err": str(exc)})
 
 
-async def fire(token: str, ask: float, stake: float):
+async def fire(token: str, ask: float, stake: float, open_cost: float = 0.0):
     from execution.order_manager import OrderManager, Direction
     om = OrderManager()
     try:
@@ -263,6 +268,14 @@ async def fire(token: str, ask: float, stake: float):
     bal = await asyncio.to_thread(om.fetch_usdc_balance)
     if bal is None or bal - stake < RESERVE_USD:
         log({"event": "skip_reserve", "balance": bal, "stake": stake})
+        return None
+    # Kernel #2 floor: tracked = cash + open shots at cost. Won-but-unredeemed value
+    # is invisible here, so a false skip is possible — protective-only, self-resolves
+    # at redemption (same seam as the 07-05 engine ruin-floor note).
+    if bal + open_cost < KERNEL_FLOOR_USD:
+        log({"event": "skip_kernel_floor", "balance": bal,
+             "open_cost": round(open_cost, 2),
+             "tracked": round(bal + open_cost, 2)})
         return None
     res = await om.limit_buy(token, ask, stake, Direction.BUY_YES,
                              price_ceiling=round(ask + 0.015, 3))
@@ -370,7 +383,8 @@ def main() -> None:
         log({"event": "DRY_FIRE", **best, "stake": stake})
         save_state(state)
         return
-    res = asyncio.run(fire(best["token"], best["ask"], stake))
+    res = asyncio.run(fire(best["token"], best["ask"], stake,
+                           open_cost=sum(s["stake"] for s in open_shots)))
     if res is not None and getattr(res, "status", None) is not None and \
             "FILLED" in str(res.status):
         shares = round(getattr(res, "total_size", 0.0) or stake / best["ask"], 2)

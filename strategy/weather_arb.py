@@ -355,14 +355,14 @@ MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °
 # validated against Gamma resolution — the one real risk (mirror of the running_max
 # overshoot bugs). Loosen toward 0.5 after the first clean min resolutions confirm
 # provenance. Revert live: MIN_LOCKOUT_LIVE=False.
-MIN_LOCKOUT_LIVE           = True    # 2026-07-08 RE-ENABLED (owner directive + evidence): the provenance
-                                     # validation this block demanded now EXISTS — lockout_divergence_0708.py
-                                     # joined 363 unique locked min buckets (06-28..07-07) to Gamma resolution:
-                                     # margin≥1.0 (this flag's live gate) = 197/197 NO wins, Wilson CI-low 98.1%;
-                                     # both losses (EGLC 0.5, KLGA 0.84) sit BELOW the 1.0 gate. Equity rail
-                                     # cleared 07-07 21:53Z ($136.77 = 61.4% of 30d-HW). Divergence stations
-                                     # {VHHH, ZGSZ, UUWW} blocklisted (scan line ~4850). Was False (07-06
-                                     # wind-down, rail-driven not evidence-driven). Revert: False.
+MIN_LOCKOUT_LIVE           = False   # 2026-07-08 21:53Z EVOLVE wind-down RE-CUT (rail-driven, NOT evidence-driven):
+                                     # equity $83.93 (cash 59.59 + ladder-at-cost 24.34) < 50%·30d-HW $111.45 —
+                                     # the rail that cleared 07-07 re-breached after the 07-08 China ladder
+                                     # losses (−$50.62). The 197/197 margin≥1.0 evidence (lockout_divergence_0708)
+                                     # stands un-falsified; this flag posted 0 orders during its 7h re-enable, so
+                                     # the cut costs ≈$0. Re-enable when equity ≥ 50%·30d-HW (evidence gate
+                                     # already satisfied — flip only the rail condition). Was True (07-08 15:10
+                                     # owner-directive re-enable at equity 61% of HW).
 MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 
 # ── Thermo-ceiling MAKER on the upper tail (2026-06-08, user opt-in, BOUNDED) ──────
