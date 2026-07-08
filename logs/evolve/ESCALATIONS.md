@@ -60,3 +60,31 @@ reviews this whenever one happens to occur. The weekly agent processes open item
    WU-displayed high never showed (resolved 22°C). Non-US stations lack the 1-min
    ASOS cross-check. lockout_oracle_divergence study registered; lockout family
    stays off until it reports.
+
+## 2026-07-08 21:53Z (EVOLVE daily evening — breached-rail day)
+1. **Kernel-enforcement gap CLOSED for the sprint ladder (kernel-adjacent decision,
+   recorded per INVARIANTS #5):** INVARIANTS #2 halts ALL live paths below $40
+   tracked capital, but nothing enforced it for the cron ladder — engine ruin_floor
+   ($89.16) does not gate `sprint_ladder.py`, and its RESERVE_USD floors *cash* at
+   $20, i.e. BELOW the kernel. From tonight's $84.47 tracked, two losing shots cross
+   $40 with no mechanical stop. Deployed `KERNEL_FLOOR_USD=40` skip in `fire()`
+   (commit 64a4e312b). The daily prompt's "may NOT touch the ladder" was read as
+   subordinate to the kernel (INVARIANTS override the prompts, by their own text).
+   This does NOT alter sizing, reserve, stake fraction, or shot selection above $40
+   tracked; below $40 it enforces exactly what the kernel already mandates. A
+   false-skip is possible while won-but-unredeemed value is in flight (invisible to
+   cash + open-cost) — protective-only, self-resolves at redemption.
+2. **Wind-down rail re-breach executed as written (2nd occurrence of the seam
+   flagged 07-06 #2):** equity $83.93 = 37.7% of 30d-HW after China ladder losses;
+   MIN_LOCKOUT_LIVE re-cut ~7h after the owner-directive enable. The flag posted 0
+   orders while live, so the flip-flop cost $0 — but this is now the concrete
+   flip-flop case the weekly amendment discussion predicted: an evidence-passed
+   engine path (197/197, CI-low 98.1%) is being toggled by owner-sleeve variance it
+   does not cause. Both prior readings stand in AMENDMENTS consideration; nothing
+   for the daily to do beyond executing the rail as written.
+3. **Ledger discipline gap:** the 07-08 interactive session deployed 4 live-effect
+   changes (UUWW blocklist, margin revert, MIN_LOCKOUT enable, ladder 3/$60 +
+   velocity) with state_log entries but NO ledger.jsonl pre-registration. Retro-
+   registered tonight. If interactive sessions bypass the ledger, review_dates and
+   revert_conditions silently vanish from the loop's working set — worth a line in
+   CLAUDE.md or the charter's deployment discipline at the next weekly.
