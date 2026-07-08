@@ -54,6 +54,13 @@ ASK_MIN, ASK_MAX = 0.30, 0.55
 EDGE_MIN = -0.05          # accept fair; stand down only if model says we overpay
 EDGE_MAX = 0.30           # if we "disagree" by more than this, distrust the model
 SPREAD_MAX = 0.05
+# 2026-07-08 velocity: cash-return latency is the binding constraint on shots
+# 2-3 (fire() gates on REAL USDC; redemption lands 8-16h after a win). Once the
+# market itself prices a shot as won (bid >= EXIT_BID_MIN), rest a 0.99 maker
+# ask (RECYCLE099 pattern, ~zero fee) so the capital funds a later-timezone
+# shot the SAME day. Pure upside: unfilled asks fall back to resolution.
+EXIT_BID_MIN = 0.95
+EXIT_ASK_PX = 0.99
 # All cities with BOTH remaining-rise and peak-hour tables, minus wrong-oracle
 # {VHHH, ZGSZ} (owner 07-03: "free to increase cities"). Wider universe = more
 # selectivity per shot, NOT more shots — the 2/day cap is unchanged.
@@ -177,9 +184,74 @@ def settle_open_shots(state: dict) -> None:
                     won = payout >= 0.99
                     shot["status"] = "won" if won else "lost"
                     if won:
-                        state["sleeve"] = round(state["sleeve"] + shot["shares"], 2)
+                        # shares already sold via the 0.99 exit were credited at
+                        # fill time — resolution redeems only the remainder
+                        sold = float(shot.get("exit_credited_sh", 0.0))
+                        state["sleeve"] = round(
+                            state["sleeve"] + max(shot["shares"] - sold, 0.0), 2)
                     log({"event": "settle", "city": shot["city"], "won": won,
                          "shares": shot["shares"], "sleeve": state["sleeve"]})
+
+def manage_exits(state: dict) -> None:
+    """Same-day winner recycling. For each open shot: poll a resting 0.99 exit
+    for fills (credit sleeve with ACTUAL proceeds, the 07-07 fill-cost lesson);
+    post a new exit once the book confirms the win (bid >= EXIT_BID_MIN).
+    Dead exits (status "" — the statusless-dict semantics, see phantom-breaker
+    fix) are cleared so a later cycle can repost. Runs BEFORE settle so
+    resolution credits only unsold remainders."""
+    shots = [s for s in state["shots"] if s.get("status") == "open"]
+    if not shots:
+        return
+
+    async def run() -> None:
+        from execution.order_manager import OrderManager
+        om = OrderManager()
+        try:
+            await om.start()
+        except Exception:
+            pass
+        for shot in shots:
+            oid = shot.get("exit_order")
+            if oid:
+                status, matched, avg_px = await om.get_order_match(oid)
+                if status is None:          # transient fetch failure — keep
+                    continue
+                credited = float(shot.get("exit_credited_sh", 0.0))
+                if matched > credited + 0.01:
+                    px = avg_px or EXIT_ASK_PX
+                    proceeds = round((matched - credited) * px, 2)
+                    state["sleeve"] = round(state["sleeve"] + proceeds, 2)
+                    shot["exit_credited_sh"] = round(matched, 2)
+                    log({"event": "exit_fill", "city": shot["city"],
+                         "matched": matched, "px": px, "proceeds": proceeds,
+                         "sleeve": state["sleeve"]})
+                    if matched >= shot["shares"] - 0.5:
+                        shot["status"] = "won_sold"
+                elif not status:            # dead/cancelled order — allow repost
+                    shot["exit_order"] = None
+                    log({"event": "exit_dead", "city": shot["city"], "order_id": oid})
+                continue
+            ask, bid, _ = book(shot["token"])
+            if bid is None or bid < EXIT_BID_MIN:
+                continue
+            try:
+                res = await om.maker_sell(shot["token"], EXIT_ASK_PX,
+                                          shot["shares"], neg_risk=True)
+            except Exception as exc:
+                log({"event": "exit_error", "city": shot["city"], "err": str(exc)})
+                continue
+            noid = getattr(res, "order_id", None)
+            st = str(getattr(res, "status", ""))
+            if noid and ("RESTING" in st or "FILLED" in st):
+                shot["exit_order"] = noid
+                log({"event": "exit_posted", "city": shot["city"], "bid": bid,
+                     "shares": shot["shares"], "order_id": noid, "status": st})
+
+    try:
+        asyncio.run(run())
+    except Exception as exc:
+        log({"event": "exit_loop_error", "err": str(exc)})
+
 
 async def fire(token: str, ask: float, stake: float):
     from execution.order_manager import OrderManager, Direction
@@ -204,6 +276,8 @@ def main() -> None:
         return
     now = datetime.now(timezone.utc)
     state = load_state()
+    if LIVE:
+        manage_exits(state)     # poll/post 0.99 winner exits BEFORE settle
     settle_open_shots(state)
     today = now.date().isoformat()
     fired_today = state["fired"].get(today, 0)
@@ -284,9 +358,14 @@ def main() -> None:
     # exists for. STAKE_FRAC + RESERVE_USD still bound the true worst case.
     stake = round(min(STAKE_FRAC * state["sleeve"], 60.0), 2)
     if best["depth"] < 0.8 * stake:
-        log({"event": "skip_depth", **best, "stake": stake})
-        save_state(state)
-        return
+        # thin book: size DOWN to the book instead of skipping — the 07-08 $60
+        # cap raise turned fireable candidates into skips (Sao Paulo, depth
+        # $44.78 vs 0.8*60=$48, would have fired at the old $45)
+        stake = round(min(stake, best["depth"] * 0.9), 2)
+        if stake < 15.0:
+            log({"event": "skip_depth", **best, "stake": stake})
+            save_state(state)
+            return
     if not LIVE:
         log({"event": "DRY_FIRE", **best, "stake": stake})
         save_state(state)
