@@ -32,3 +32,15 @@ effective) and the charter's no-taker-YES spirit — for the LADDER PROCESS ONLY
 engine flags remain charter-governed. Success probability was assessed honestly at ~1-3%
 and logged in state_log 20:00 UTC. EVOLVE agents must not kill the cron; humans may, by
 deleting the crontab line.
+
+## 2026-07-08 — OWNER DECISION NEEDED: capital vs. mandate arithmetic
+Owner re-affirmed the $10k/30d mandate with full delegation. Session audit result:
+equity $136.77, day 5, required rate ≈ +17%/day compounded for 25 days. No measured
+edge on the books compounds at ANY positive rate right now (band −5.4% n=465; pair
+slice not separately harvestable; lockout family paused on oracle divergence; ladder
+= authorized coin-flip sleeve, 4W/4L +$85.36). The only lever that changes SCALE is a
+deposit — and a deposit does NOT buy a validated edge, only evidence velocity and
+absolute $ IF one re-validates (NO d+1 +6.6% n=62 collecting; lockout divergence
+study 07-13). Decision: (a) deposit + patient evidence-gated rebuild, (b) ride the
+$137 ladder lottery as-is (current posture), or (c) explicitly accept higher ruin
+probability (e.g. 3 shots/day). Bot continues (b) until told otherwise.
