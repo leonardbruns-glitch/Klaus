@@ -41,7 +41,10 @@ LIVE = os.environ.get("SPRINT_LADDER_LIVE", "0") == "1"
 RESERVE_USD = 20.0
 SLEEVE_INIT = 60.0
 STAKE_FRAC = 0.75
-MAX_FIRES_PER_DAY = 2
+MAX_FIRES_PER_DAY = 3     # 2026-07-08: 2→3, owner-directed variance increase ("full
+                          # power, no limitations", 2nd reaffirmation). 3rd shot only
+                          # fires when same-day settlements replenish the sleeve —
+                          # RESERVE_USD free-cash guard unchanged. Revert: 2.
 # Shot = the MARKET MODE bucket (ladder favorite) at a fair 2x-ish price, taken
 # only when our official-obs nowcast lands inside it (confirmation). We do NOT
 # buy "model edge vs market" — the 07-03 THERMO/PEAKSCALP joins proved our
@@ -276,7 +279,10 @@ def main() -> None:
     if best is None:
         save_state(state)
         return
-    stake = round(min(STAKE_FRAC * state["sleeve"], 45.0), 2)
+    # 2026-07-08: flat cap 45→60 (owner-directed). The flat cap was sized when
+    # sleeve=$60; leaving it un-scaled strangles the compounding the sprint
+    # exists for. STAKE_FRAC + RESERVE_USD still bound the true worst case.
+    stake = round(min(STAKE_FRAC * state["sleeve"], 60.0), 2)
     if best["depth"] < 0.8 * stake:
         log({"event": "skip_depth", **best, "stake": stake})
         save_state(state)

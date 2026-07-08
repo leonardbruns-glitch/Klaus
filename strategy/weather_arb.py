@@ -279,7 +279,11 @@ M1_BETA_PROBE_STATE_PATH       = "logs/m1_beta_probe_state.json"
 #   ZGSZ Shenzhen  16/60 = 27%   -> STAYS BLOCKED. WU "Bao'an" page is NOT the
 #                                   ZGSZ METAR (oracle reads 1-2°C warmer).
 # Revert: add "RJTT", "WSSS" back.
-M1_BETA_PROBE_ORACLE_BLOCK_ICAO = {"VHHH", "ZGSZ"}
+#   UUWW Moscow (2026-07-08): official SPECI ≠ WU-displayed high — 2 divergence
+#                                   losses 07-06/07-07. lockout_divergence_0708.py
+#                                   (06-28..07-07, n=966 max + 363 min): ALL 13 max-family
+#                                   losses are {VHHH, ZGSZ, UUWW}. Revert: remove "UUWW".
+M1_BETA_PROBE_ORACLE_BLOCK_ICAO = {"VHHH", "ZGSZ", "UUWW"}
 
 # ── Locked-region MAKER first-exercise (2026-06-01, controlled / user-mandated) ──
 # Exercises the maker_buy primitive on PROVENANCE-CLEAN locked buckets (NO physically
@@ -293,7 +297,7 @@ MAKER_EXERCISE_ENABLED           = True    # shadow-log maker candidates on lock
 MAKER_EXERCISE_LIVE              = True    # ⚠ LIVE real resting orders (2026-06-01 stage-3, MONITORED)
 MAKER_EXERCISE_STAKE_USD         = 5.0     # per-order (user; raised from $4 — CLOB 5-share floor makes <~$4.5 unfillable at NO~0.9)
 MAKER_EXERCISE_MAX_ORDERS        = 100000  # effectively UNCAPPED (user 2026-06-02; order code proven). The margin≥1°C locked-slice gate + breaker are the real bounds. Revert: 5.
-MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 0.5     # 2026-06-08 WS1: 1.0→0.5 — align to the VALIDATED lockout reliability gate (margin≥0.5°C + oracle-clean = 98.7% WR, n=671). The 1.0°C buffer was conservatism for false-locks; the oracle blocklist (deployed today) now handles those. Expands oracle-clean margin-path candidates ~6.4× (27→172 over 06-06/07), targeting the stale-book margin∈[0.5,1.0) buckets where the maker captures before reprice. Revert: 1.0
+MAKER_EXERCISE_LIVE_MIN_MARGIN_C = 1.0     # 2026-07-08: 0.5→1.0 REVERTED. lockout_divergence_0708.py (06-28..07-07 resolution join): the margin∈[0.5,1.0) band holds 12 of 13 max-family + 2 of 2 min-family divergence losses (Moscow 07-06 fired at exactly 0.5); margin≥1.0 on non-blocklist stations = ~271/271 NO wins. The 06-08 rationale ("blocklist handles false locks") failed at Moscow — the blocklist was incomplete and margin is the second wall. Revert: 0.5 (prior note: 98.7% WR n=671 at ≥0.5 oracle-clean).
 MAKER_BREAKER_MAX_EXPOSURE_USD   = 150.0   # 2026-06-09 user: "let it fire" — raised 40→150 (≈ full bankroll) so the d+1/d+2 band can quote the whole qualifying surface. Cash is the real limit; min-bankroll floor below unchanged. Was 40 (user 06-02).
 # Persisted resting-maker tracker (oid → ctx). Contract with OrderManager.start():
 # its keys are the open orders to KEEP at startup; everything else is a stray and
@@ -351,8 +355,14 @@ MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °
 # validated against Gamma resolution — the one real risk (mirror of the running_max
 # overshoot bugs). Loosen toward 0.5 after the first clean min resolutions confirm
 # provenance. Revert live: MIN_LOCKOUT_LIVE=False.
-MIN_LOCKOUT_LIVE           = False   # 2026-07-06 EVOLVE wind-down (rail breach): same running_max/running_min
-                                     # provenance class as the Moscow false lockout; shadow logger stays on.
+MIN_LOCKOUT_LIVE           = True    # 2026-07-08 RE-ENABLED (owner directive + evidence): the provenance
+                                     # validation this block demanded now EXISTS — lockout_divergence_0708.py
+                                     # joined 363 unique locked min buckets (06-28..07-07) to Gamma resolution:
+                                     # margin≥1.0 (this flag's live gate) = 197/197 NO wins, Wilson CI-low 98.1%;
+                                     # both losses (EGLC 0.5, KLGA 0.84) sit BELOW the 1.0 gate. Equity rail
+                                     # cleared 07-07 21:53Z ($136.77 = 61.4% of 30d-HW). Divergence stations
+                                     # {VHHH, ZGSZ, UUWW} blocklisted (scan line ~4850). Was False (07-06
+                                     # wind-down, rail-driven not evidence-driven). Revert: False.
 MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 
 # ── Thermo-ceiling MAKER on the upper tail (2026-06-08, user opt-in, BOUNDED) ──────
