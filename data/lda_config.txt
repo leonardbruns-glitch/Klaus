@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-07-08T14:42:31Z
+# Snapshot: 2026-07-08T14:57:45Z
 # Latest commit on klaus:
-84649ea92 Lockout divergence study (early) + MIN_LOCKOUT re-enable + margin 1.0 revert + UUWW blocklist + ladder 3/day-$60 (owner directive 07-08)
+f8ac77727 Ladder velocity: 0.99 winner early-exit + depth-adaptive sizing
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
