@@ -1,204 +1,175 @@
-# Execution & Markout Audit — 2026-07-07
+# Band Execution & Markout Audit — 2026-07-08
 
-**Snapshot**: 2026-07-07T07:00:49Z · **Klaus HEAD**: 64afd79c0 · **Auditor**: exec-audit-agent  
-**System status**: `active` (uptime since 2026-07-06 22:08 UTC · open positions: 0)  
-**Data quality**: SNAPSHOT < 6h old; maker_resting_state={} (no live book); BAND_LIVE=False (wind-down rail since 2026-07-06 21:53 UTC)
+**Snapshot**: `2026-07-08T07:06:16Z` (fresh, <6h) | **System**: active | **Capital**: $136.77 (all cash)
+**BAND_LIVE**: False (wind-down Jul 6 22:08, equity $108.35 < threshold $111.45)
+**BAND_NO_ENABLED**: False (rail-halt Jul 2, WR 39.2%) | **BAND_PAIR_FAV_ENABLED**: True | **BAND_YES_LIVE_MIN_DOUT**: 9
 
 ---
 
 ## §1 FILL TAPE
 
-### 24-hour window (2026-07-06 07:00 → 2026-07-07 07:00 UTC)
+### Last 24h (cutoff 2026-07-07 07:06Z → 2026-07-08 07:06Z)
+- Fill events: **0**
+- Fill volume: **$0.00**
+- Bot dark since BAND_LIVE=False at 2026-07-06 22:08 UTC
 
-| Metric | Value |
-|---|---|
-| Registered fills | 6 |
-| + Increments | 8 |
-| Total fills (all types) | 14 events |
-| YES fills (registered) | 4 · $13.06 |
-| NO fills (registered) | 2 · $4.44 |
-| Moscow NO increments | 6 · $5.02 @ 0.060 (see §4) |
-| **Total $ filled (24h)** | **$25.52** |
-| NO fill share (by $, all) | 49% |
-| NO fill share (by registered count) | 33% |
+### Last 7d (2026-07-01 → 2026-07-08)
+- Fill events: **32** (17 registered + 15 increments via maker fill cascade)
+- Fill volume: **$70.73**
+- Date range: Jul 5 07:11 – Jul 6 17:04 UTC (all fills in 2-day window)
+- Avg fills/active day: ~16/day
 
-**24h fill detail:**
+| Side | Events | Volume |
+|------|--------|--------|
+| YES  | 18     | $45.58 |
+| NO   | 14     | $25.15 |
+| NO share | 44% count | 36% $ |
 
-| Timestamp UTC | City | Side | Type | Shares | Price | $ |
-|---|---|---|---|---|---|---|
-| 07:29 | Chongqing | NO | registered | 0.1 | 0.320 | $0.03 |
-| 07:30–07:32 | Chongqing | NO | increment ×2 | 9.4 | 0.320 | $3.01 |
-| 07:38 | Chongqing | YES | registered | 8.1 | 0.530 | $4.29 |
-| 07:52 | Chongqing | YES | registered | 1.9 | 0.530 | $1.01 |
-| 11:07 | Munich | YES | registered | 9.0 | 0.440 | $3.96 |
-| 12:26–12:31 | Moscow | NO | increment ×6 | 83.5 | 0.060 | $5.02 |
-| 12:53 | Munich | NO | registered | 9.8 | 0.450 | $4.41 |
-| 14:18 | Munich | YES | registered | 10.0 | 0.380 | $3.80 |
+| Price Band  | Events | Notes |
+|-------------|--------|-------|
+| <0.10       | 6      | Moscow NO DCA at 0.060 |
+| 0.10–0.30   | 0      | — |
+| 0.30–0.50   | 22     | Primary operating band |
+| 0.50–0.85   | 4      | Near BAND_NO_MAX boundary |
 
-### 7-day window (all log, 2026-07-04 to 2026-07-06)
+| City       | Events | Volume |
+|------------|--------|--------|
+| Moscow     | 8      | $10.05 |
+| Munich     | 4      | $16.31 |
+| Shanghai   | 4      | $11.97 |
+| Chongqing  | 5      | $8.34  |
+| Tokyo      | 4      | $8.10  |
+| Wuhan      | 4      | $8.01  |
+| Beijing    | 2      | $3.54  |
+| Seoul      | 1      | $4.41  |
 
-| Day | Posted tokens | Registered fills | Fill rate | YES fills | NO fills | NO share |
-|---|---|---|---|---|---|---|
-| 2026-07-04 | 12 | 4 | 33% | 4 · $10.8 | 0 | 0% |
-| 2026-07-05 | 8 | 8 | 100% | 6 · $19.4 | 2 · $4.6 | 25% |
-| 2026-07-06 | 10 | 11 | ≥100%* | 7 · $19.7 | 4 · $12.1 | 36% |
-| **7d total** | **30** | **23** | — | **17 · $49.9** | **6 · $16.7** | **26% ($)** |
-
-*Jul 6 has 11 registered fills for 10 posted tokens — 1 fill appears to be from a residual pre-date position.
-
-**Price band breakdown (7d registered):**
-
-| Band | n | YES/NO | $ |
-|---|---|---|---|
-| < 0.10 | 0 | — | — |
-| 0.10–0.30 | 0 | — | — |
-| 0.30–0.50 | 18 | 13/5 | $50.39 |
-| 0.50–0.85 | 5 | 4/1 | $16.27 |
-
-All fills in [0.30–0.85]; zero fills in extreme-odds bands. Fee zone is moderate. Consistent with BAND_PX_MIN=0.10, BAND_PX_CEIL=0.45, BAND_NO_MIN=0.52.
-
-**Fills by city (7d registered):**
-
-| City | n | YES $ | NO $ |
-|---|---|---|---|
-| Munich | 5 | $14.22 | $4.41 |
-| Seoul | 2 | $8.86 | — |
-| Shanghai | 4 | $8.75 | $4.05 |
-| Taipei | 1 | $4.29 | — |
-| Tokyo | 3 | $5.85 | — |
-| Wuhan | 3 | $1.13 | $4.04 |
-| Chongqing | 3 | $5.30 | $0.03 |
-| Beijing | 1 | $1.53 | — |
-| Moscow | 1 | — | $4.20 |
-
-**Note — untracked fills (USER-WS):** 50 fill events in 7d with "no tracker entry, no open position." Notable Jul 6 untracked MAKER fills: BUY 1,473 sh @ $0.999 (~$1,471); BUY ~264 sh @ $0.86–0.94 (~$230); BUY 101 sh @ $0.99 (~$100). These appear to be manual user trades or a parallel strategy on the same account. **Capital reconciliation via bankroll.json is unreliable** — consistent with existing CAVEAT.
+**Untracked fills (USER-WS, outside bot scope — sprint ladder / parallel strategy)**:
+- Jul 6 07:55: 1473sh @ 0.999 = $1,471.81
+- Jul 6 12:17–12:31: ~246sh @ 0.83–0.94 = $232.49
+- Jul 6 17:02: 101sh @ 0.99 = $100.00
 
 ---
 
-## §2 NO-PARITY MONITOR
+## §2 NO-PARITY
 
-**Posts by side from band_struct_lite (5-day window):**
+### Post parity (band_struct_lite.jsonl, live fires only)
 
-| Day | Total posts | YES | NO | NO share | Alert? |
-|---|---|---|---|---|---|
-| 2026-07-03 | 138 | 107 | 31 | **22%** | **YES — <25% with n≥10** |
-| 2026-07-04 | 12 | 6 | 6 | 50% | OK |
-| 2026-07-05 | 14 | 7 | 7 | 50% | OK |
-| 2026-07-06 | 12 | 6 | 6 | 50% | OK |
-| 2026-07-07 | 0 | 0 | 0 | — | BAND_LIVE=False |
+| Date   | YES posts | NO posts | NO share | Status |
+|--------|-----------|----------|----------|--------|
+| Jul 3  | 107       | 31       | 22.5%    | ALERT (<25%, n=138) |
+| Jul 4  | 8         | 8        | 50.0%    | OK |
+| Jul 5  | 8         | 8        | 50.0%    | OK |
+| Jul 6  | 8         | 8        | 50.0%    | OK |
+| Jul 7  | 0         | 0        | —        | BAND_LIVE=False |
+| Jul 8  | 0         | 0        | —        | BAND_LIVE=False |
 
-**Jul 3 context:** Structurally explained — BAND_YES_LIVE_MIN_DOUT was still at a permissive value (standalone YES d+2 firing: 77 YES d+2 posts vs 1 NO d+2). BAND_NO_ENABLED had been halted 2026-07-02; BAND_YES_LIVE_MIN_DOUT=9 (pause) was set on 2026-07-03. Imbalance occurred during the shutdown transition period, not a recurrence of the pre-Jun-12 starvation bug.
+**Jul 3 explanation**: Transitional period. BAND_NO_ENABLED was disabled Jul 2; standalone YES was still active (BAND_YES_LIVE_MIN_DOUT=2) until 19:25 UTC Jul 3 when the threshold was raised to 9. The excess YES posts are from solo standalone YES, not a regression of the Jun-12 NO-starvation bug fix. Post-transition Jul 4-6 shows exactly 50/50 pair parity.
 
-**Post-Jul 3 book (Jul 4–6):** Perfect 50/50 posts — pairs only (BAND_PAIR_FAV_ENABLED=True), one YES + one NO per event. NO-starvation fix confirmed holding for pair mode.
+**NO posts despite BAND_NO_ENABLED=False**: All NO `post` records on Jul 3-6 are pair_fav completion legs (BAND_PAIR_FAV_ENABLED=True), not standalone NO overlay (BAND_NO_ENABLED). Expected behavior.
 
-**Resting book:** Empty `{}` at snapshot. No live orders. Consistent with BAND_LIVE=False since 22:08 UTC Jul 6.
+**Fill-side NO share**: 44% by count, 36% by $ — consistent with NO leg pricing at lower absolute price in pair_fav (YES anchored 0.45–0.70, NO complement).
 
-**Fill-side NO share (24h):** 33% by registered count, 49% by $. Disparity driven by Moscow NO increments at 0.060 inflating NO $ — see §4.
+**Resting book**: `maker_resting_state.json = {}` — no resting quotes, consistent with BAND_LIVE=False.
 
 ---
 
 ## §3 QUEUE HEALTH
 
-Source: 563 [STRUCT-BAND-Q] lines (Jul 4–6).
+**Coverage**: 323 cycles (Jul 5-6 only). No STRUCT-BAND-Q data for Jul 7-8.
+**Logging gap**: Jul 6 17:04 → Jul 8 07:06 (38h). Cause: process restart after BAND_LIVE wind-down at Jul 6 22:08 (new PIDs 195955, 274925). Not fetch starvation — bot is active but old strategy process that generated STRUCT-BAND-Q lines is not running.
 
-| Day | Cycles | Avg cash_preskip | Avg books/80 | Max books | Avg yes_books/50 | Avg posted/cycle | Total posted |
-|---|---|---|---|---|---|---|---|
-| 2026-07-04 | 164 | $1 | 0.2 | 6 | 0.0 | 0.34 | 56 |
-| 2026-07-05 | 228 | $0 | 0.1 | 2 | 0.0 | 0.26 | 60 |
-| 2026-07-06 | 171 | $0 | 1.3 | 4 | 0.0 | 0.27 | 46 |
+| Metric | Jul 5 | Jul 6 | Threshold | Status |
+|--------|-------|-------|-----------|--------|
+| books max | 4/80 | 4/80 | ≥50 = ALERT | OK |
+| yes_books | 0/50 | 0/50 | ≥50 = ALERT | OK (structural) |
+| cash_preskip | $0.00 | $0.00 | >$200 = ALERT | OK |
+| posted mean/cycle | 0.37 | 0.27 | — | — |
 
-**24h window (Jul 6 07:00–07:00):** 113 cycles · avg_cash=$0 · avg_books=1.7/80 · avg_yes=0/50 · total_posted=4
+**yes_books = 0 all 323 cycles**: Structural — BAND_YES_LIVE_MIN_DOUT=9 means standalone YES never fires in d+0 to d+2 windows; pair_fav YES legs may not increment this counter. Not an alert (threshold is pinned AT 50).
 
-**No pinning at books=80 or yes_books=50.** Fetch starvation regression absent.
-
-**cash_preskip = $0–1 all days:** Engine sees near-zero available cash before skip logic each cycle. With capital $42 and BAND_PHASE2_CAPITAL=$600, phase 1 limits apply. Natural capital constraint, not a bug.
-
-**yes_books = 0 all days:** Consistent with BAND_YES_LIVE_MIN_DOUT=9 (standalone YES paused) and BAND_SAMEDAY_LIVE=False.
-
-**2026-07-07 posts = 0:** BAND_LIVE=False prevents all posting. Shadow scans continue (119 md_shadow records through 06:06 UTC). 14 cities showing converged bands in shadow (Seoul d+0 0.465, Tokyo d+0 0.355, Wuhan d+0 0.324, Chengdu d+0 0.305, London d+0 0.455, Munich d+2 0.500, etc.) — demand visible but deployment gate closed.
-
-No deployment stall pattern (cash_preskip >200 all day with posted=0). Zero-posted on Jul 7 is regime-change (BAND_LIVE=False), not a fetch/connectivity stall.
+**cash_preskip = $0.00 all cycles**: Bot was capital-constrained ($42 tracked at time), not stalled by position count. No skip-due-to-cash events.
 
 ---
 
 ## §4 RESOLUTION MARKOUT
 
-**Network status:** CLOB API unavailable in this execution environment. `band_resolution_join.py` not run. Markout analysis from price-movement signal in fill log only.
+**n = 9 exits in 7d** — below n=40 threshold. DATA COLLECTION only; no edge claims.
 
-**Observable adverse case — Moscow NO:**
+| Date   | Type              | Entry  | Exit  | PnL     | Asset                  |
+|--------|-------------------|--------|-------|---------|------------------------|
+| Jul 3  | recycle099 ×4     | 0.63–0.68 | 0.99 | $10.41 total | weather markets |
+| Jul 5  | exit099 STRUCT    | 0.39   | 0.99  | $6.60   | WEATHER_STRUCT_BAND    |
+| Jul 5  | recycle099        | 0.84   | 0.99  | $0.90   | weather market         |
+| Jul 6  | recycle099        | 0.46   | 0.999 | $4.851  | weather market         |
+| Jul 6  | exit099 M1_PROBE  | 0.0919 | 0.99  | $23.602 | WEATHER_M1_PROBE       |
+| Jul 6  | recycle099        | 0.44   | 0.99  | $4.95   | weather market         |
 
-| Event | Timestamp | Shares | Price | $ |
-|---|---|---|---|---|
-| Registered fill | 2026-07-05 12:48:17 | +5.0 | 0.840 | $4.20 |
-| Increment | 2026-07-05 12:48:25 | +1.0 | 0.840 | $0.84 |
-| *Entry cost basis* | | *6.0 sh* | *0.840* | *$5.04* |
-| Increments ×6 | 2026-07-06 12:26–12:31 | +83.5 | **0.060** | $5.01 |
+**Jul 4, Jul 7, Jul 8**: No exit099 shard files present (exit099_live logger STALE since Jul 6 17:02 — expected given BAND_LIVE=False).
 
-Moscow NO entered at $0.840 (Jul 5). On Jul 6, the same token received large increment fills at $0.060 — a 93% adverse price move in 24 hours. Consistent with the market learning Moscow resolved YES (temperature in-band), making the NO token near-worthless. The system commit "WIND-DOWN bookkeeping: Moscow false-lockout attribution" (Jul 6 21:53) confirms this event was reviewed.
+**Moscow NO adverse case** (winner's curse signal, n=1):
+- Entry: 0.840 (Jul 5, near BAND_NO_MAX=0.85)
+- Next-day DCA: 83.5sh @ 0.060 = 93% adverse price move
+- Classic adverse selection: takers knew temperature was in YES band and sold NO into us
+- n=1, below n=40 threshold — PLAUSIBLE flag, not formal finding
+- Action: monitor BAND_NO_MAX boundary hits in future cycles; no rule change at n=1
 
-**Winner's curse diagnosis (PLAUSIBLE):** Maker posted NO at 0.840, near BAND_NO_MAX=0.85. The fill was accepted because better-informed takers were willing to sell NO (go long YES) at that price. Next-day convergence to 0.060 = NO losing. This is the classic maker adverse-selection pattern.
-
-**n=1 event (Moscow NO), n=23 total 7d registered fills** — below n=40 threshold. No formal ROI(filled) vs ROI(all-fires) comparison possible without CLOB resolution data. Flag: monitor NO fills near BAND_NO_MAX=0.85 boundary when band restarts.
-
-**Other fills:** All in [0.30–0.50] range — balanced spread around 50% fair value. No further adverse markout pattern visible in log.
+**band_resolution_join.py**: Cannot run — no network CLOB access in this environment. Markout bucket analysis deferred.
 
 ---
 
-## §5 DEAD-QUOTE RECLAIM
+## §5 DEAD QUOTE RECLAIM
 
-| Metric | Value |
-|---|---|
-| maker_resting_state entries | **0** (empty `{}`) |
-| Reaped lines in 7d log | 0 |
-| Quotes > 24h old | 0 |
-| Quotes > 48h old | 0 |
+- Reaped lines in maker_fills_recent.log: **0**
+- Resting quotes: **0** (maker_resting_state.json = {})
+- Capital tied in resting orders: **$0**
 
-No reclaim alerts. Empty resting state consistent with BAND_LIVE=False (halted 22:08 UTC Jul 6); all prior positions resolved or filled. Zero $ tied up in maker book. Reclaim machinery will have work when band restarts.
+No reclaim events to analyze. Resting state being empty is consistent with BAND_LIVE=False — all quotes cancelled or expired before wind-down.
+
+**BAND_RECLAIM_AGE_S** = 7200s (2h) | **BAND_PAIR_RECLAIM_AGE_S** = 28800s (8h)
+No quotes resting long enough to trigger either threshold.
 
 ---
 
 ## §6 CASH VELOCITY
 
 | Metric | Value |
-|---|---|
-| Capital (bankroll.json) | $42.02 |
-| Resting $ (maker_resting_state) | $0.00 |
-| Fills last 24h (all types) | $25.52 |
-| Turns/day | **0.61** |
-| Benchmark (badatmath) | ~1.0 |
+|--------|-------|
+| Capital (all-cash) | $136.77 |
+| Open engine positions | 0 |
+| Open ladder shots | 0 |
+| Resting order $ | $0.00 |
+| Fills last 24h | $0.00 |
+| Turns/day (24h) | 0.0 |
 
-**Capital caveat:** bankroll.json shows daily_start_capital=$108.35 vs current $42.02 (-61% single reading). This is almost certainly polluted by untracked fills ($1,471 MAKER harvest Jul 6 07:55, ~$230 MAKER buys Jul 6 12:17, ~$100 MAKER Jul 6 17:02). The charter wind-down rail triggered at equity $108.35 vs charter threshold $111.45 (50% · 30d-HW $222.90). Current $42 may reflect timing of untracked position marking, not gross realized loss. Do not conclude ruin from this figure alone.
+**Velocity benchmark** (1.0 turns/day) is moot during voluntary BAND_LIVE=False halt.
 
-**Turns at 0.61/day:** Reflects last active session (Jul 6) before halt. With BAND_LIVE=False, turns go to 0 effective Jul 7 until ban is lifted. Badatmath 1.0/day benchmark is moot during voluntary halt.
+**Shadow pipeline**: 10+ converged d+2 markets (Tokyo, Taipei, Wuhan, Chengdu, Beijing, Shanghai, Chongqing, Seoul, Munich, London) show shadow fires with live=false — sum_gate blocked (sum_ask 0.91–0.993 for d+1; d+2 has genuine demand but deployment gate closed). Shadow demand exists; capital deployed = $0.
 
-**Fills/day trend (last 3 active days):**
-- Jul 4: 4 registered fills, ~$10.8
-- Jul 5: 8 registered fills, ~$24.0
-- Jul 6: 11 registered fills, ~$31.8 (before halt at 22:08)
-
-Fill activity was accelerating into the halt. 7d average $22.2/day fills against $42 capital = ~0.53 baseline turns/day. Thin but functional when band is live.
+**Re-enable conditions (none met)**:
+- Equity ≥50%·HW: need equity ≥$111.45; current $136.77 BUT wind-down rail tracks HW $222.90; recheck at EVOLVE 21:53Z Jul 8
+- Pair n ≥40 positive trend: n≈9/side (far below threshold)
+- disp_ratio ≥1.10×5d: current 0.817 (below 1.10)
+- -14% freeze: lifts Jul 8 21:53Z per EVOLVE schedule
 
 ---
 
 ## ALERTS
 
-| # | Category | Fired? | Detail |
-|---|---|---|---|
-| A1 | BAND_LIVE=False | **FIRED** | Charter drawdown rail triggered 2026-07-06 21:53 UTC; equity $108.35 < threshold $111.45 (50%·30d-HW $222.90). BAND_LIVE, M1_BETA_PROBE_ENABLED, MIN_LOCKOUT_LIVE all False. 0 posts on Jul 7. Shadow sees 14 converged opportunities (cannot deploy). |
-| A2 | NO-parity <25% on day ≥10 posts | **FIRED** | 2026-07-03: 22% NO (31/138 posts). Explained by shutdown transition (standalone YES d+2 still firing while NO band already halted Jul 2). Post-Jul 3 pairs maintain 50/50. Not a structural regression. |
-| A3 | Potential winner's curse — Moscow NO | **FIRED (PLAUSIBLE, n=1)** | Moscow NO entered @ 0.840 (Jul 5), increments at 0.060 next day (Jul 6). 93% adverse move near BAND_NO_MAX=0.85 boundary. n<40; no formal ROI comparison possible without CLOB network access. Monitor NO fills at BAND_NO_MAX when band restarts. |
-| A4 | Untracked fill volume | **FIRED** | ~$1,800 in MAKER fills on Jul 6 untracked by bot (Jul 6 07:55: $1,471; 12:17–12:31: $230; 17:02: $100). Capital from bankroll.json cannot be reconciled. Not a bot bug — these are outside the tracker's scope. |
-| A5 | Books pinned at 80 | Not fired | Max 6/80. |
-| A6 | yes_books pinned at 50 | Not fired | Max 0/50. |
-| A7 | Quotes >48h old | Not fired | Resting state empty. |
-| A8 | cash_preskip >200 with posted=0 all day | Not fired | cash_preskip ≈ $0 all days (capital-constrained, not stalled). |
+| # | Rule | Fired? | Value | Notes |
+|---|------|--------|-------|-------|
+| A1 | NO-share <25% (posts, n≥10) | **FIRED** | 22.5% (Jul 3, n=138) | Transitional: YES-pause cutover, not NO-starvation regression |
+| A2 | books ≥50 (queue pinned) | Not fired | max 4/80 | — |
+| A3 | cash_preskip >$200 | Not fired | $0.00 all cycles | — |
+| A4 | Resting quote >48h | Not fired | 0 resting quotes | — |
+
+**1 alert fired**. A1 is explained by the Jul 2→3 transition (BAND_NO_ENABLED disabled, standalone YES not yet paused). Jul 4-6 post parity is 50/50 — no structural regression.
 
 ---
 
 ## 3-LINE SUMMARY
 
-**Fills/day:** 6 registered in 24h ($25.52 total incl. increments); 7d average 7.7 registered/day. Fill rate 100% Jul 5–6; 33% Jul 4. All fills in [0.30–0.85] price band, zero extreme-odds activity.
+**Fills**: 0 events/$0 in last 24h (bot dark since Jul 6 22:08). When active Jul 5-6: 32 fills, $70.73, ~16/day, all in 0.30–0.85 price band. NO fill-share 44% count / 36% $ — consistent with pair_fav geometry (NO leg priced lower).
 
-**NO-share:** Posts 50/50 Jul 4–6 (pair mode healthy). Jul 3 imbalance (22%) traced to shutdown-transition, not bug regression. Fill-side NO share 33% by count / 25% by $ over 7d — consistent with pairs plus lower NO fill-probability.
+**NO-parity**: Jul 4-6 posts exactly 50/50 (pair mode healthy post-transition). Jul 3 fired A1 at 22.5% — transitional artifact of YES-pause cutover, not NO-starvation regression. Jul 7-8: zero posts (BAND_LIVE=False). Resting book empty.
 
-**Binding execution constraint today:** BAND_LIVE=False (charter drawdown rail, fired Jul 6). Zero active posting, zero turns, zero cash velocity. Shadow sees 14 converged markets (Seoul, Tokyo, Wuhan, Chengdu, London, Munich d+2, etc.) unable to deploy. Secondary: winner's curse signal on Moscow NO near BAND_NO_MAX boundary — confirm when band restarts.
+**Binding constraint**: BAND_LIVE=False (wind-down rail Jul 6 22:08, equity $108.35 < $111.45). Zero posting / turns / velocity since. Re-enable gate: none of 3 conditions met (pair n≈9/40, disp_ratio 0.817/1.10, -14% freeze lifts 21:53Z Jul 8). 10+ shadow d+2 markets converged but undeployable. Secondary flag: Moscow NO winner's curse near BAND_NO_MAX=0.85 (n=1, monitor only).
