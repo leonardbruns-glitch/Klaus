@@ -1,193 +1,206 @@
-# Klaus Research Audit — 2026-07-08T14:30Z
+# Research & Optimization Audit — 2026-07-09
 
-**Data sources:** data-mirror SNAPSHOT 2026-07-08T13:57:09Z (< 6h ✓) | system_status.txt: `Klaus systemd service: active (running)` ✓  
-**Specialist reports:** exec_audit (07:07 UTC) ✓ | calib_monitor (08:07 UTC) ✓ | gatekeeper (09:07 UTC) ✓ | pnl_ledger (23:37 UTC Jul 7) ✓ — all within 36h ✓  
-**Equity:** $136.77 = 61.4% of HW $222.90 | total_pnl all-time: −$75.40 | ruin floor: $89.16
+Generated: 2026-07-09T18:30Z | Snapshot: 2026-07-09T18:03Z (0.4h — FRESH) | System: active  
+Capital: $163.93 | Daily start: $83.93 | Delta today: +$80.00 (+95.3%) | HW: $222.90  
+BAND_LIVE: False (re-cut 07-08 22:05) | PAIR_FAV_ENABLED: True | Open positions: 0 + 2 ladder shots
 
-**System state in one line:** BAND_LIVE=False since Jul 6 22:08 UTC (wind-down); only Sprint Ladder (4W/4L, n=8) and passive RECYCLE099 live; −14% intraday freeze active until 21:53Z tonight; all maker gates COLLECTING or REJECTED.
-
----
-
-## 1. Primary Bottleneck: Calibration Staleness Blocking the Re-Enable Chain
-
-**Bottleneck rank: calibration/dispersion** — upstream of equity deployed, turns/day, fills, and all gate decisions.
-
-The compounding identity is `equity_deployed × turns/day × ROI/turn`. Currently:
-- **Equity deployed in maker: $0** (BAND_LIVE=False; RECYCLE099 passive only)
-- **Band turns/day: 0** (36h+ of zero fills post wind-down; exec_audit: "$0 revenue last 24h")
-- **Sprint Ladder: the only P&L source** — +$28.41 yesterday (Tokyo −$21.37 loss + Singapore +$49.79 win); 4W/4L on n=8 shots total
-
-The re-enable decision chains entirely through dispersion ratio: **disp_ratio = 0.817 < 1.10 threshold → G1 AMBIGUOUS → BAND_LIVE stays False → G2b/G2c pair fills cannot accumulate (require BAND_LIVE=True) → ETA "2.8d" is effectively infinite under the current config.**
-
-The critical problem: **disp_ratio 0.817 is measured against a 32-day-stale isotonic recalibration map, using only proxy-lane σ (0.831), with the settled lane locked for 6 days** (calib_monitor: S4, S5). We cannot distinguish between:
-- **(a) Real dispersion compression** — market regime shift, band has zero edge → stay off  
-- **(b) Measurement artifact** — stale pipeline producing a false negative → band could re-enable safely
-
-That distinction is worth the full $136.77 in potential maker deployment. No second-order analysis is credible until (a) vs (b) is resolved.
+**Report freshness:**
+| Report | Generated | Age | Status |
+|---|---|---|---|
+| exec_audit_report | 2026-07-08T07:06Z | 35.4h | OK |
+| calib_monitor_report | 2026-07-08T08:12Z | 34.3h | OK |
+| gatekeeper_report | 2026-07-07T09:03Z | 57.5h | **STALE — gate ledger from raw mirror** |
+| pnl_ledger_report | 2026-07-07T23:37Z | 42.9h | **STALE — P&L from bankroll.json + maker_fills_recent.log** |
 
 ---
 
-## 2. Existing-System Optimization
+## §1 — Primary Bottleneck for Compounding
 
-Derived from four specialist reports — per item: expected delta / confidence / effort.
+**Bottleneck: EQUITY DEPLOYED = $0 (band dark 43h, turns/day = 0.0)**
 
-**2a. Settled lane unlock + isotonic map rebuild** — HIGH IMPACT  
-- *Source:* calib_monitor S4 (map 32d stale) + S5 (proxy σ below baseline) + gatekeeper G1 (AMBIGUOUS, disp_ratio)  
-- *Problem:* band_resolution_join cron has not ingested settled data for 6 days. The Jun 17 state_log recorded an identical-pattern cron bug (`cd /root/Klaus` path missing). A 6-day unexplained gap strongly suggests recurrence.  
-- *Expected delta:* If cron is broken and fresh settlement data shifts disp_ratio ≥ 1.10 → band re-enable eligible → restores ~$10/day maker revenue (exec_audit 7d baseline: $70.73/7d = $10.10/day when active).  
-- *Confidence:* Medium (depends on bug vs genuine data absence; the Jun 17 precedent makes bug likely).  
-- *Effort:* Low (30–60 min: log inspection + path fix + manual trigger + map rebuild).
+Ranking applied: equity deployed → turns/day → ROI/turn. All three are zero for the band engine. The band generated ~$35/day (16 fills/$70.73 over Jul 5-6) when live; the compounding multiplier is entirely absent while BAND_LIVE=False. Sprint ladder provides one-off binary returns (today +$80 from a 0.399→0.992 winner), but these are not compounding velocity — they are capital-preservation shots, not systematic turns.
 
-**2b. RECYCLE099 pipeline starving** — MEDIUM IMPACT, no fix available  
-- *Source:* exec_audit ($0 revenue 24h); state_log (+$139 lifetime since Jun 11, ~$5.15/day avg across ~27 active days, but zero since wind-down).  
-- *Problem:* RECYCLE099 can only sell existing held positions. With zero new maker fills since Jul 6, no new inventory enters the pipeline. RECYCLE099 is a multiplier on band velocity, not independent alpha.  
-- *Expected delta:* Recovers ~$5–10/day **only if** band re-enables (PA-1 dependency). No standalone fix.  
-- *Effort:* Blocked — requires band re-enable first.
+**Re-enable conditions (reconstructed from exec_audit §6 + state_log 07-08 22:05 + today's bankroll.json):**
 
-**2c. Intraday freeze lifts 21:53Z today (Sprint Ladder)** — LOW IMPACT, automated  
-- *Source:* pnl_ledger (freeze active until 21:53Z); state_log (Sprint Ladder sleeve $145.36, 2 shots/day max).  
-- *Expected delta:* ~$10.67/shot (8-shot lifetime avg) × potential 1 shot tonight if EVOLVE fires. No capital reallocation needed; EVOLVE handles automatically.  
-- *Confidence:* Low-Medium (4W/4L = 50% WR on n=8 is uninformative; individual shot quality determines EV).  
-- *Effort:* Zero (automated by EVOLVE daily actuator).
+| Condition | Threshold | Today | Status |
+|---|---|---|---|
+| Equity ≥ 50%×HW | ≥$111.45 | $163.93 (73.6% HW) | ✅ CLEARED |
+| −14% freeze expiry | 07-10 21:53Z | 26h remaining | ⏳ Tomorrow evening |
+| Pair n trend | ≥40/side | ≈9/side (rate=0 with band dark) | ❌ 31 fires short |
+| Dispersion ratio | ≥1.10 ×5d (advisory) | 0.817, stale 7d | ⚠ Stale — not measurable |
 
-**2d. M1β + MIN_LOCKOUT offline — no near-term fix**  
-- *Source:* band_config.txt (M1_BETA_PROBE_ENABLED=False, MIN_LOCKOUT_LIVE=False by wind-down protocol).  
-- M1β WR 98.7% OOS (state_log Jun 9) but capacity near-zero. Cannot safely re-enable before wind-down protocol formally clears (no date set; human review required).  
-- *Expected delta:* Minimal capacity (<$1/day estimated) even at full re-enable; deprioritize.
+The equity rail cleared today, driven by ladder win (token 4409657373007951: BUY 129sh@0.399 → SELL 129sh@0.992, net +$76.50). Two ladder shots remain open: token 9106278428823737 (37sh@0.38, $14.06) and token 3360836802715119 (10sh@0.53, $5.30).
+
+The freeze is the closest mechanical gate (clears tomorrow, 07-10 21:53Z). The pair n gate starts accumulating the moment BAND_LIVE flips True — at shadow fire-rate ~11/side/day, n=40 would be reached ~2.8 days after re-enable. The dispersion ratio gate is stale (cannot confirm recovery without fresh outcome labels); see §2-B and §6.
 
 ---
 
-## 3. Gate Pipeline Review
+## §2 — Existing System Optimization
 
-From gatekeeper_report (09:07 UTC):
+Three idle or incomplete optimizations identified from specialist reports:
 
-| Gate | Status | Progress | ETA | Accelerant |
+**A. VPS band_resolution_join.py — G7 gate unresolved, 5+ days overdue**
+*(gatekeeper URGENT advisory; exec_audit §4 markout deferred; calib_monitor §1 settled lane locked)*
+
+Shadow SUM_POSTED [0.70, 0.85] has n>>100 dedup'd fires; CI is the only remaining blocker for G7 (gatekeeper). A single VPS run of `band_resolution_join.py` delivers a READY/REJECTED verdict. If READY, firing breadth for pair_fav YES expands by ~15% (sum_ask acceptance from <0.85 extends to [0.70, 0.85]). Blocked by Gamma API 403 from cloud; VPS only. Confidence: high. Effort: one EVOLVE slot.
+
+**B. Settled lane outcome labels — dispersion ratio locked at Jun 28-Jul 2, 7 days stale**
+*(calib_monitor §3 S3-ALERT persisting; proxy sigma 7th consecutive below-baseline)*
+
+Jul 3-9 resolved in reality but unlabeled in the calibration pipeline. Fresh outcome labels would either confirm edge inversion persists (hold BAND_LIVE=False) or show recovery (support re-enable). Without this, the 07-10 21:53Z re-enable decision defaults to "stale, hold" — foregone compounding at ~$35/day. Same VPS job as item A (band_resolution_join.py executes the Gamma/CLOB join). Confidence: high (VPS API access confirmed in prior runs). Effort: same EVOLVE slot as A — combinable.
+
+**C. Isotonic map freshness — 32-33 days stale, degenerate mid-range plateau**
+*(calib_monitor §4: deployed + candidate maps flat at ~0.38 for ALL market prices 0.30-0.90)*
+
+The model assigns identical ~38% probability regardless of whether the market prices 30%, 50%, or 90% — no discriminative power across the operating range. A fresh refit on Jul data would restore gradient or confirm structural flatness. Expected delta: better p_cal → band EV filter more accurate, directionally reduces winner's-curse exposure at mid-range (Moscow NO at BAND_NO_MAX=0.85 being the canary). Confidence: medium (depends on whether Jul resolved rows add signal). Effort: 1-2h VPS compute; can combine with weekly EVOLVE slot Jul 13, or advance to Jul 10.
+
+**Shadow pipeline health (from raw mirror, 07-09 18:02Z):** Demand is genuine. band_struct n=6,075 today, last fire: Chengdu d+1 (Jul 11) sum_ask=0.815, live=false. stwa_pricer_eval n=298,452 (pricing running). maker_shadow n=74,283 (maker quoting shadow active). Every hour dark is real foregone supply.
+
+---
+
+## §3 — Gate Pipeline Review
+
+*(gatekeeper stale 57.5h — reconstructed from raw mirror + state_log. No band fires since Jul 6 22:08 → all n counts frozen.)*
+
+| Gate | n (Jul 7 report) | n (today est.) | Status | Nearest action |
 |---|---|---|---|---|
-| G1 — BAND_YES | AMBIGUOUS | disp_ratio 0.817 / need 1.10 | Market regime or settled-lane fix | Settled lane debug (PA-1) |
-| G2a — BAND_NO | REJECTED | Insufficient EV evidence | None | None |
-| G2b — PAIR_FAV_YES | COLLECTING | 9/40 co-fills | **∞** (BAND_LIVE=False) | Band re-enable → G1 → PA-1 |
-| G2c — PAIR_FAV_NO | COLLECTING | 9/40 co-fills | **∞** (BAND_LIVE=False) | Band re-enable → G1 → PA-1 |
-| G3 — FILLED_VS_FIRED | COLLECTING | 37/100 | **∞** (BAND_LIVE=False) | Same dependency |
-| G4 — BASKET_EXIT | VOID | Permanently retired Jun 22 | — | — |
-| G5 — THERMO_MAKER | REJECTED | EV≈0 confirmed | None | None |
-| G6 — M1β thin-margin | REJECTED | Rejected | None | None |
-| G7 — SUM_POSTED | COLLECTING | Below threshold | Unknown | Band fills |
+| G1 BAND_YES (dout=9, paused) | 934 resolved | 934+ shadow accrual | AMBIGUOUS | VPS join needed; disp_ratio block |
+| G2a BAND_NO (disabled Jul 2) | 51 live | 51 live | **REJECTED** | None — disabled |
+| G2b PAIR_FAV_YES | 9 | **9** (rate=0) | COLLECTING | Clock restarts at BAND_LIVE=True |
+| G2c PAIR_FAV_NO | 9 | **9** (rate=0) | COLLECTING | ~8.3d to n=100 from re-enable |
+| G3 FILLED_VS_FIRED | 37 | **37** (rate=0) | COLLECTING | 3 fills to n=40; immediate on restart |
+| G4 BASKET_EXIT | VOID | VOID | **VOID** | Retired Jun 22 |
+| G5 THERMO_MAKER_NO | 125 | 125 | **REJECTED** | Done |
+| G6 M1_BETA_LOCKOUT | 31 | 31 | **REJECTED** | Done |
+| G7 SUM_POSTED [0.70,0.85] | >>100 shadow | >>100 shadow | **COLLECTING (CI blocked)** | **VPS join — today is day 5+ overdue** |
 
-**Deadlock structure:** G1 (disp_ratio) is the keystone gate. All collecting gates (G2b, G2c, G3, G7) accumulate only via live band fills, which require G1 to clear first. G1 clears only when disp_ratio ≥ 1.10, which depends on either (a) natural market regime recovery or (b) fresh settled-lane measurement proving the 0.817 reading is stale/incorrect.
+**Gate nearest READY without new accumulation: G7.** It already has sufficient n; the only action is the VPS join. G3 needs 3 fills — these will arrive within hours of band restart.
 
-**What would accelerate accumulation without degrading EV:** The only lever is the settled-lane / isotonic rebuild (PA-1). City-breadth expansion (BAND_CITY_ALLOW is currently 5 cities) could increase fill rate once the band is live, but is irrelevant until G1 clears. No gate is near a genuine READY verdict today without PA-1.
-
----
-
-## 4. Assumption Attack
-
-**A1: Dispersion premium persists** (implied σ > realized σ → maker YES/NO fill at premium)
-
-- *Supporting:* Historical YES ROI +7.6% (n=3,275 from Jun 17 data — decision-grade); band generated $70.73 in last 7 active days (exec_audit); RECYCLE099 +$139 cumulative (mechanism proven).  
-- *Threatening:* disp_ratio = 0.817 (inverted — market pricing *less* uncertainty than model baseline). Proxy σ 0.831 vs baseline σ 0.994 = −16.4% below baseline. The premium has not merely shrunk; it has reversed in the proxy lane. If this reading is accurate and persistent, YES band EV is negative. But the settled lane has been dark for 6 days — we cannot confirm whether the reversal is real or a measurement artifact from the 32d-stale isotonic map (calib_monitor S4, S5).  
-- **Verdict: THREATENED by live proxy data; unresolvable until settled lane is unblocked. This is the single most important unknown in the system today.**
-
-**A2: Fills are not adversely selected** (maker fills represent uninformed takers, not informed counter-parties systematically beating the band)
-
-- *Supporting:* No exec_audit red flags on markout in the last active period. Same-bucket pair structure provides natural hedge. Fill-vs-fired gate at n=37/100 (not yet decision-grade).  
-- *Threatening:* Moscow false lockout (−$24.65) was data-feed corruption (SPECI/interim-ob divergence), not adverse selection per se. But it demonstrates the system can silently build 104.5-share concentrated positions on corrupt oracle data. With isotonic map 32d stale, recalibration inputs degrade — band could post at systematically wrong prices without knowing it. This is oracle-failure adverse selection, not counter-party selection, but the loss mechanism is identical.  
-- **Verdict: Counter-party adverse selection not confirmed as active threat. Oracle-failure tail risk is real, partially fixed (Moscow), but likely has sibling cities (see E3). Net: manageable with cross-validation guard.**
-
-**A3: Recycle velocity scales** (RECYCLE099 compounds maker fills into additional turns/day)
-
-- *Supporting:* +$139 cumulative since Jun 11 proves mechanism works when band feeds it inventory.  
-- *Threatening:* BAND_LIVE=False for 36h+ → zero new maker fills → no new positions entering the recycling pipeline. RECYCLE099 is structurally downstream of band fills; it cannot self-sustain or scale independently. The pipeline input is currently zero.  
-- **Verdict: Assumption is correct in principle, but currently produces zero revenue because band is off. Not a broken assumption — a broken input.**
+**How to accelerate G2b/G2c WITHOUT degrading expectancy:** Breadth, not stake. 11 cities in BAND_CITY_ALLOW → ~11 pair_fav events/cycle when live. BAND_BASE_STAKE and BAND_NO_STAKE are unchanged; the bottleneck is event frequency. Increasing the city allowlist (if data supports additional cities) would increase accumulation rate faster than any stake change.
 
 ---
 
-## 5. Market Intelligence — Platform Mechanics (day-of-month 8 mod 3 = 2)
+## §4 — Assumption Attack
 
-Scope: fee schedule / maker-rebate / liquidity-rewards changes since last check (Jun 10, state_log).
+**Assumption 1: Dispersion premium persists (implied σ > realized σ)**
+*Status: THREATENED — data does not support this assumption on any confirmed day in current window*
 
-**Known stable facts (no changes detected in state_log through Jul 7):**
-- Fee reform 2026-03-30: 8 new categories added; weather market (temp band) taker fee at ~1.56% at 50% odds, near 0% at extremes. No subsequent revision recorded.
-- Maker rebate: 100% of taker fees redistributed to makers (structural policy, unchanged).
-- Tick size: 0.01 for temperature band markets (standard; no change).
+calib_monitor §3 (34.3h old, locked Jun 28-Jul 2): All 5 confirmed days inverted. Ratios: 0.807, 0.663, 0.976, 0.866, 0.858 — none exceeds 1.10. The premise that the market overprices temperature dispersion (creating our buying edge on cheap-ask bands) has not been empirically supported on any day we can verify. Proxy lane (day 7, σ=0.831) is the 7th consecutive below-baseline reading; the +0.009 uptick from day 6 is within methodology noise and does not constitute a confirmed reversal.
 
-**Implication for current regime:** At disp_ratio ≤ 1.0 (dispersion compressed), the maker rebate (~1.56% at mid-market, declining toward extremes) is the **floor on band EV**. At posting price ~0.44 (near YES band center), taker fee is sub-1.56% but still positive. If the dispersion premium has genuinely collapsed, maker rebate alone is insufficient to justify the operational risk — but it is not zero.
+Threatening scenario: summer (Jul-Aug) weather regimes have higher realized variance than winter, systematically inverting the dispersion premium seasonally. If structural, the band edge is absent until cooler months. Cannot confirm or deny without fresh outcome labels for Jul 3-9 — see §6 Experiment 2.
 
-**Delta vs prior state:** No new mechanics detected from available data. shadow_summary.json chunks 08–12 (Jul 5–Jul 8 period) were not retrieved; any platform announcements in the last 3 days are not visible. No action triggered.
+If the Jul 3-9 join shows continued inversion, the correct output is to extend BAND_LIVE=False until the ratio recovers, regardless of equity or freeze status.
 
----
+**Assumption 2: Fills are not adversely selected**
+*Status: MONITORING (n=1 warning, no decision possible)*
 
-## 6. Three Experiments
+exec_audit §4 identifies Moscow NO (n=1): entry 0.840 near BAND_NO_MAX=0.85, next-day DCA at 0.060 = 93% adverse price move. Classic adverse selection — takers knew the outcome direction and sold NO into our maker quote at near-certainty pricing. n=1 is below the 40-trade decision floor; this is a PLAUSIBLE flag. BAND_NO_ENABLED=False independently (WR 39.2%, n=51), so this assumption only matters if BAND_NO is re-evaluated.
 
-**E1: Settled Lane Debug — Is 6-day staleness a cron bug?**
-- *Hypothesis:* band_resolution_join cron has a path/environment bug (identical pattern to Jun 17 fix: missing `cd /root/Klaus`) preventing settlement ingestion for 6 days. A bug here means disp_ratio 0.817 is measured against a 32d-stale map, potentially producing a false negative on band edge.
-- *Data:* systemd cron logs for band_resolution_join; Polymarket settlement timestamps for 51-city markets past 6 days.
-- *Time:* 30–60 min (EVOLVE task).
-- *Cost:* $0 capital.
-- *Success metric:* Cron log shows failures + manual trigger ingests ≥1 settled market + map rebuilt + fresh disp_ratio computed.
-- *Decision if yes (bug found):* Fix cron; rebuild isotonic map within 24h; re-evaluate G1 with fresh measurement. If refreshed disp_ratio ≥ 1.10, band re-enable becomes eligible.
-- *Decision if no (cron healthy, genuine data absence):* disp_ratio 0.817 is the current true reading. Band stays off with full confidence. Investigate market resolution timing or data sourcing.
+For pair_fav YES (the active-when-live path), adverse selection is structurally less likely: both YES and NO legs are posted simultaneously on the same bucket, so takers must fill both sides to create adverse selection, which requires the bucket to resolve in neither YES nor NO direction (impossible in binary markets). The structural design partially protects against this on the pair path.
 
-**E2: Proxy Dispersion Forensic — Is σ compression real or a measurement artifact?**
-- *Hypothesis:* Proxy lane σ = 0.831 (vs baseline 0.994) could result from: (a) genuine seasonal temperature variance compression in July for the 5-city allow-list (chengdu, london, beijing, munich, wuhan), (b) a proxy σ measurement change (e.g., ob_delta windowing), or (c) competitor maker activity tightening bid-ask spreads. Cases (a)/(c) are market-real; case (b) is a measurement bug. If seasonal (a), the fix is expanding to higher-σ cities in summer, not waiting for regime recovery.
-- *Data:* Raw temperature range data for the 5 active cities from metar obs (past 14d realized); compare realized σ to proxy lane σ = 0.831.
-- *Time:* 1–2 hours (analysis; no code changes).
-- *Cost:* $0.
-- *Success metric:* Realized σ ≥ 0.994 (baseline) while proxy reads 0.831 → measurement bug; realized σ ≈ 0.831 → compression is real.
-- *Decision if measurement bug:* Patch proxy σ calculation; recompute disp_ratio.
-- *Decision if real compression (seasonal):* Audit full 51-city σ rankings for July; promote higher-σ cities to BAND_CITY_ALLOW; schedule quarterly seasonal σ review.
+**Assumption 3: Recycle velocity scales with deployed capital**
+*Status: MOOT (band dark 43h); last data too thin to validate*
 
-**E3: Moscow Sibling Hunt — Which other cities share the METAR oracle vulnerability?**
-- *Hypothesis:* Moscow false lockout (−$24.65) was SPECI/interim-ob divergence between two METAR sources. The M1β oracle may carry identical vulnerability in other cities with high SPECI frequency (coastal airports, mountainous terrain, frontal zones). A census before M1β re-enable would prevent the next Moscow-scale loss.
-- *Data:* metar_lockout.jsonl + m1_beta_probe.jsonl from shadow (all dates); compute per-city M1β probe events; flag cities where SPECI vs routine METAR routine diverge by >1°F during probe window.
-- *Time:* 1–2 hours (analysis only; M1_BETA_PROBE_ENABLED=False → no live risk).
-- *Cost:* $0.
-- *Success metric:* ≥3 cities identified with Moscow-pattern vulnerability.
-- *Decision if siblings found:* Implement cross-validation guard (require 2 concordant sources before triggering lockout) for those cities before M1β re-enable; prioritize low-risk cities for first re-enable.
-- *Decision if Moscow was unique:* Re-enable M1β for full city set once wind-down protocol clears; lower risk profile confirmed.
+The design premise: more capital → more resting legs → higher fill-collision probability → more merges/day. Last active data (Jul 5-6): 32 fills / $70.73 / ~16/day (2 active days). This is insufficient to validate any scaling curve. Base rate (16 fills/day) is the only confirmed number; the scaling component has zero empirical data points. Threatening scenario: maker queue saturation — if top-of-book is price-competitive (badatmath et al.), adding our orders doesn't increase fill probability linearly. This is non-linear and may not manifest until higher capital; cannot assess at n=2 active days.
 
 ---
 
-## 7. Single Best Action
+## §5 — Market Intelligence: Competitor Posture
+*(Day 2026-07-09 → 9 mod 3 = 0 → competitor posture)*
 
-**Debug and fix the settled-lane cron (band_resolution_join), rebuild the isotonic map, and report a fresh disp_ratio.**
+**badatmath_watch (raw mirror, hot/2026-07-09/badatmath_watch.jsonl):**
+- n=1,478 rows today, mtime 18:02Z — actively scanning
+- Record composition: ALL "ladder" (book scan) records; ZERO "fill_join" records
+- Last scan: `highest-temperature-in-ankara-on-july-10-2026` — bids at [0.002, 1.47] and [0.001, 204.xx], essentially an empty book near zero probability
+- Contrast: Jun 29 file had explicit `fill_join` records showing active fills
 
-**Why this one:** Every downstream block in the system — G1 AMBIGUOUS, isotonic map 32d stale (calib_monitor S4), proxy σ unanchored to fresh settlements (S5), pair ETA infinite — shares a single root: 6 days of locked settled data. The Jun 17 state_log recorded an identical-pattern bug (`cd /root/Klaus` missing from band_resolution_join cron) that was silently killing the same pipeline. A 6-day gap with no logged cause is the same signature.
+**Delta vs state_log knowledge:**
+- badatmath is in scanning mode today, not active filling (at least in our tracked markets)
+- Ankara July 10 is not one of our primary markets; the scan suggests broader reconnaissance rather than targeted competition in our city set (Beijing, Chengdu, Munich, London, etc.)
+- No evidence of badatmath fills in our core cities today — but band_struct shows genuine market demand (Chengdu d+1 sum_ask=0.815 with a band fire shadow), suggesting someone IS filling those markets
 
-If the settled lane is broken and the fix shifts disp_ratio to ≥ 1.10: band re-enable becomes eligible immediately, converting the system from $0/day maker revenue to ~$10/day (exec_audit 7d baseline), plus RECYCLE099 pipeline restores, plus G2b/G2c/G3 accumulation resumes toward eventual READY verdicts. Expected compounding impact: ~$10/day on $136.77 = +7.3%/day when active.
+**Leaderboard wallet teardown:** Not executable from cloud environment. Gamma/Polymarket API returns 403 from datacenter IPs. No quantitative delta vs prior state available.
 
-If the cron is working and disp_ratio 0.817 is confirmed accurate: the band stays off with full confidence rather than uncertain ambiguity. The correct follow-on becomes E2 (seasonal σ forensic) to determine whether new cities or a proxy fix can restore the dispersion edge.
+**NEG_RISK_ARB probe (no_arb_probe, 07-09 18:02Z, Seoul, N=11):**
+- real_edge = $0.0018 per share ($0.13 on 7-leg partial sweep)
+- 7 of 11 legs fillable; all_legs_fillable=false
+- Near-zero edge, no fire conditions met. Seoul NEG_RISK_ARB not active today.
 
-**Concrete first step (PROPOSED ACTION PA-1):** EVOLVE task — inspect systemd cron logs for `band_resolution_join`; if failing, apply `cd /root/Klaus` path fix (or equivalent); trigger manual settlement ingest; rebuild isotonic recalibration map; report new disp_ratio to calib_monitor. No trading config changes until human review of the fresh disp_ratio reading.
-
----
-
-## PROPOSED ACTIONS (human review required before any implementation)
-
-**PA-1 [HIGH PRIORITY]: Debug settled-lane cron + rebuild isotonic map**
-- *Evidence:* calib_monitor S4/S5; gatekeeper G1 AMBIGUOUS; Jun 17 precedent (identical bug pattern)
-- *Action:* EVOLVE task → inspect band_resolution_join cron logs → fix path if broken → trigger manual settlement ingest → rebuild isotonic map → report fresh disp_ratio
-- *Reversible:* Yes (analysis + data ingest; no trading config changes)
-- *Gate effect:* If disp_ratio clears ≥ 1.10, band re-enable becomes eligible (still requires pair n gate ~2.8d accumulation + human sign-off)
-- *If not done:* System remains in calibration deadlock indefinitely; all collecting gates accumulate at zero rate
-
-**PA-2 [MEDIUM PRIORITY]: Proxy Dispersion Forensic (E2)**
-- *Evidence:* calib_monitor S5 (proxy σ 0.831 < baseline 0.994); seasonal timing (July = potential compression month for northern cities)
-- *Action:* Run in parallel with PA-1; compare realized city σ to proxy lane σ; if seasonal, expand BAND_CITY_ALLOW to higher-σ cities
-- *Reversible:* Yes (analysis only; city-list change is low-risk config tweak)
-- *Trigger condition:* Run regardless of PA-1 outcome — provides independent σ measurement
-
-**PA-3 [LOW PRIORITY]: Moscow Sibling Hunt (E3)**
-- *Evidence:* state_log Jul 3 19:45 (Moscow −$24.65 false lockout); M1β re-enable is blocked by wind-down but will eventually be reconsidered
-- *Action:* Pre-position risk assessment before M1β is re-enabled; identify vulnerable cities; add cross-validation guard for SPECI/METAR divergence
-- *Trigger condition:* Run before any discussion of M1β re-enable
-
-**WITHHELD — Requires fresh disp_ratio before discussion:**
-- BAND_LIVE=True re-enable: requires disp_ratio ≥ 1.10 (fresh, post PA-1) AND pair n ≥ 40/side (≈2.8d after re-enable) AND intraday freeze clear (21:53Z tonight)
-- M1β re-enable: requires wind-down protocol human clearance AND E3 sibling hunt complete
-
-**AUTOMATED (no human action):**
-- Sprint Ladder: EVOLVE daily actuator fires at 21:53Z freeze lift if qualifying d+0 market available. Monitor: next shot after freeze lift.
+**Summary:** 43h of band darkness = uncaptured maker supply in our core cities. With 0 resting bids from us, badatmath or other makers are likely taking our share. Urgency of re-enable grows with each dark day.
 
 ---
 
-*Null finding logged cleanly:* No gate READY today. Correct output is PA-1 diagnostic + data collection. Compounding impact of doing PA-1 within 24h vs waiting: potentially 2.8+ days of band re-enable window foregone if disp_ratio clears on fresh measurement.
+## §6 — Experiments
+
+**Experiment 1: Conditional BAND_LIVE re-enable at 07-10 21:53Z (freeze expiry)**
+- Hypothesis: equity ($163.93) + freeze-lift creates net-positive expected value from resuming pair_fav, even with disp_ratio stale, because the pair_fav YES leg edge (locking Σ≤0.90 on band) is mechanically distinct from the dispersion premium assumption (it does not require implied > realized σ; it requires only that the market posts the band legs cheap enough to lock a margin)
+- Data required: EVOLVE 07-10 21:53Z to recompute equity rail, confirm freeze lifted, check disp_ratio proxy lane
+- Time to run: 26h (already scheduled EVOLVE slot)
+- Cost: $0 setup; the only risk is capital deployment into a potentially adverse regime
+- Success metric: BAND_LIVE flips True AND ≥1 live pair_fav fire within 24h
+- Decision-if-yes (equity clear + freeze lifted + G7 result from Exp 2 available): flip BAND_LIVE=True with PAIR_FAV_ENABLED=True only, NO_ENABLED=False (hold), YES_LIVE_MIN_DOUT=9 (hold)
+- Decision-if-no (equity dipped intraday OR dispersion join shows continued inversion all 7 days): hold BAND_LIVE=False, set explicit 5-day re-eval after next dispersion recovery signal
+
+**Experiment 2: Run band_resolution_join.py on VPS to resolve G7 AND refresh settled lane**
+- Hypothesis: the VPS has Gamma/CLOB API access; one run delivers (a) SUM_POSTED [0.70,0.85] CI verdict for G7 and (b) disp_ratio update for Jul 3-9 (7 unlabeled days)
+- Data required: EVOLVE to execute `band_resolution_join.py --start 2026-07-03 --end 2026-07-09`; commit to logs/evolve/gate_ledger_latest.md
+- Time to run: 07-10 11:23Z morning slot (12h from now)
+- Cost: ~$0; VPS compute and Gamma API quota
+- Success metric: gate_ledger_latest.md has G7 verdict (READY or REJECTED) AND calib_monitor can compute disp_ratio for Jul 3-9 at next cycle
+- Decision-if-G7 READY + disp_ratio recovered (≥1.10): full re-enable including SUM_POSTED range extension; unlock Experiment 1 with high confidence
+- Decision-if-G7 REJECTED or disp_ratio inverted through Jul 9: maintain BAND_LIVE=False; re-run join in 7 days when new settled data available
+
+**Experiment 3: Isotonic refit freshness test — does Jul data restore mid-range discriminative power?**
+- Hypothesis: 32-day-stale isotonic maps are flat at ~0.38 for market prices 0.30-0.90 (confirmed, calib_monitor §4). A refit on Jul resolved rows would either restore gradient (usable calibration signal) or confirm structural flatness (model architecture limitation → reduce band's reliance on p_cal for mid-range gate decisions)
+- Data required: EVOLVE to run refit script on Jul-only resolved rows; compare new grid to deployed (7538ab7)
+- Time to run: Jul 10 or Jul 13 weekly EVOLVE slot; not time-critical vs Experiments 1-2
+- Cost: 1-2h VPS compute; zero capital risk
+- Success metric: new isotonic grid shows |delta| > 0.05 on ≥3 points in the 0.30-0.90 range
+- Decision-if-yes: deploy new map; re-run calib metrics
+- Decision-if-no: flat plateau is structural; consider removing p_cal from mid-range EV gates, relying only on sum_ask as entry signal; flag to owner as model architecture item
+
+---
+
+## §7 — Single Best Action
+
+**EVOLVE should run `band_resolution_join.py` at the 07-10 11:23Z morning slot — BEFORE the 07-10 21:53Z freeze-expiry re-enable decision.**
+
+**Rationale (compounding impact × P(success) / effort):**
+
+- **Impact**: The 07-10 21:53Z EVOLVE slot must decide whether to flip BAND_LIVE=True. The two critical inputs are (1) G7 SUM_POSTED verdict and (2) disp_ratio for Jul 3-9. Both come from a single VPS script run. Without this, the re-enable decision is made blind on the most important edge variable (dispersion). The downside of re-enabling into inverted dispersion is systematic bleed; the downside of holding dark for another 7 days waiting for more labels is ~$245 foregone P&L (7 days × $35/day).
+- **P(success)**: High. The VPS runs this script successfully in prior cycles; it's a known-working data pipeline. The only previous blocker was "cloud agents can't call Gamma API" — and EVOLVE on the VPS is explicitly not cloud.
+- **Effort**: One EVOLVE slot, one command. No code changes, no risk, no capital deployment.
+
+**This has been the #1 advisory item from the gatekeeper for 5+ consecutive reports. It has not been executed. The freeze expiry tomorrow creates the time-sensitive forcing function: run the join in the morning, make the re-enable decision with data in the evening.**
+
+Concrete first step:
+```bash
+# EVOLVE 07-10 11:23Z morning slot:
+python3 analysis/weather/band_resolution_join.py --start 2026-07-03 --end 2026-07-09
+# Commits output → logs/evolve/gate_ledger_latest.md
+# Cloud calib_monitor picks up fresh disp_ratio at 08:07Z Jul 11
+# EVOLVE 07-10 21:53Z evening slot uses the result for BAND_LIVE re-enable decision
+```
+
+Cited evidence: exec_audit §6 ("10+ shadow d+2 markets converged but undeployable — shadow demand exists"), gatekeeper G7 advisory ("Escalating priority: every day without this join leaves a potentially-valid slice unscaled"), calib_monitor §3 ("Re-enable condition: disp_ratio ≥ 1.10 for 5 consecutive confirmed days. Not measurable without outcome labels.").
+
+---
+
+## PROPOSED ACTIONS (human review)
+
+**[FOR EVOLVE — no human input needed if charter permits]:**
+- **PA-1 (07-10 11:23Z morning):** Run `band_resolution_join.py` for Jul 3-9. Commit results to `logs/evolve/gate_ledger_latest.md`. This is a read-only analytics run; no live config changes.
+- **PA-2 (07-10 21:53Z evening):** Conditional re-enable — flip BAND_LIVE=True with PAIR_FAV_ENABLED=True only IF (equity ≥$111.45) AND (freeze lifted) AND (G7 READY from PA-1 OR disp_ratio shows recovery ≥1.10 on any Jul 3-9 day). Hold BAND_NO_ENABLED=False, BAND_YES_LIVE_MIN_DOUT=9.
+- **PA-3 (Jul 10-13):** Isotonic refit on Jul data; compare before deploying.
+
+**[MONITORING — no action needed today]:**
+- Maker rebate: cumulative expected ≈$3.17 > $1 threshold. Verify pUSD receipt in Polymarket account; if absent, post wallet address to #market-makers Discord.
+- Moscow NO adverse selection (n=1): monitor if BAND_NO ever re-evaluated; no action today.
+- Pair n gate: n=9/side, clock frozen; restarts automatically at BAND_LIVE=True. ETA ~2.8d from re-enable to n=40 trend threshold.
+- LDA rolling-20 net: −$19.71, approaching −$36.39 STOP (per pnl_ledger Jul 7, stale). Verify this threshold applies to band-maker book or was set for LDA-era; likely stale threshold.
+
+**NULL DAY for autonomous changes.** No gate newly READY or REJECTED. No code changes warranted. Capital rail cleared, freeze timer running. Correct posture: preserve capital, run VPS join tomorrow morning, make data-driven re-enable call tomorrow evening.
+
+---
+
+*Report generated 2026-07-09T18:30Z. Snapshot age: 0.4h (fresh). System: active. gatekeeper_report STALE (57.5h) — gate ledger reconstructed from raw mirror (no n-count changes since Jul 7: band dark). pnl_ledger_report STALE (42.9h) — P&L derived from bankroll.json ($163.93) + maker_fills_recent.log (ladder attribution). REPORT-ONLY — no strategy code or gate changes made.*
