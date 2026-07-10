@@ -1,150 +1,136 @@
-# Klaus PnL Ledger — 2026-07-07
-*Generated 2026-07-07T23:37Z | Snapshot 2026-07-07T23:29:34Z (age: 8 min — OK) | System: active*
+# Klaus PnL Ledger — 2026-07-10
+**Generated:** 2026-07-10T23:37Z (scheduled day-end run)
+**Snapshot age:** 10 min (2026-07-10T23:26:56Z) — FRESH ✓
+**System:** `active` ✓
 
-> **Prior run was STALL ABORT** (data-mirror dead 20.7h, stale capital $42.02). This run has fresh data. Full pipeline executed.
+> **NOTE — 3-DAY LEDGER GAP:** Prior ledger ran 2026-07-07T23:37Z. Runs for Jul 08 and Jul 09 were missed (cloud routine stale; state_log flagged this at 65h+ lag). Capital gap Jul 07→10 is noted in Section 1; today's report covers the Jul 10 UTC window only.
 
 ---
 
-## § 1 — P&L Explain (UTC Day 2026-07-07)
+## 1. P&L Explain — 2026-07-10 UTC
 
-### Capital Reference Points
+### Capital Anchors
+| Field | Value | Source |
+|---|---|---|
+| Capital (start of day) | $158.630 | bankroll.json `daily_start_capital` |
+| Capital (snapshot 23:26Z) | $163.164 | bankroll.json `capital` |
+| Day delta | **+$4.535** | delta |
+| Prior ledger capital (Jul 07) | $136.766 | pnl_ledger_state.json |
+| 3-day total Jul 07→10 | **+$26.398** | gap not covered by prior runs |
 
-| Checkpoint | Time (UTC) | Tracked Capital | Cash | Note |
+### Today's Fills by Leg
+
+**Engine (BAND/STWA/RECYCLE099):** $0.00. `BAND_LIVE=False` since 2026-07-06 wind-down, day 4. All 19 band shadow fire events today ran with `live=false`. Last RECYCLE099 exit: 2026-07-06 17:02Z (+$4.95, shares=9 entry=0.44 exit=0.99).
+
+**UNTRACKED TAKER fills (Jul 10, via WebSocket `[USER-WS]`):** These are fills on positions placed by a prior bot instance (PIDs 274925/424674, pre-Jul-08 restart at 22:03Z). The current instance (PID 468863) has no tracker entry for them — they generate cash flows that DO appear in `bankroll.capital` once settled.
+
+| Time (UTC) | Token | Side | Shares | Price | Cost/Proceeds | Resolution |
+|---|---|---|---|---|---|---|
+| 01:30Z | `4663735390478197` | BUY | 47.77 | $0.37 | -$17.67 | — |
+| 02:30Z | `1671958678319565` | BUY | 17.7 | $0.42 | -$7.43 | Open? |
+| 03:40Z | `1132101340603498` | BUY | 31.25 | $0.50 | -$15.63 | Open? |
+| 08:40Z | `4663735390478197` | SELL | 47.0 | $0.992 | +$46.62 | Resolved YES |
+
+**Gross P&L from settled leg (token 4663...):** +$46.62 − $17.67 = **+$28.95** pre-fee. Estimated taker fee (p=0.37, ~2%): −$0.35 buy + −$0.05 sell ≈ **+$28.55 net**.
+
+**Open UNTRACKED BUYs at snapshot:** Tokens 1671... and 1132... had no visible SELL in the 7-day log tail. Their cost ($7.43 + $15.63 = **$23.06**) is already deducted from capital; if open, they represent deployed equity not reflected in cash. Status at 23:26Z: unknown (bot shows `open_positions=0` but this only counts tracked positions).
+
+### Attribution Bottom-Up
+
+| Component | PnL | Note |
+|---|---|---|
+| Engine (BAND/STWA) | $0.00 | Dark, day 4 |
+| RECYCLE099 | $0.00 | No file for Jul 10 |
+| UNTRACKED — token 4663 resolved | +$28.55 | Net after estimated fees |
+| UNTRACKED — tokens 1671+1132 cost deployed | −$23.06 | Cost spent, proceeds unknown |
+| **Total attributed** | **+$5.49** | |
+| **Actual day delta** | **+$4.535** | |
+| **UNEXPLAINED** | **−$0.96** | |
+
+**Most likely cause of unexplained −$0.96:** Fee estimation error (taker fee model rough; actual fees may be higher) and 0.77 unaccounted shares (47.77 bought vs 47 sold on token 4663). Below $5 threshold. **NOT MODEL DEFICIENCY.**
+
+### 3-Day Gap Attribution (Jul 07→10, informational)
+From maker_fills_recent.log, Jul 08-09 UNTRACKED fills visible:
+- Jul 08 buys: 18@0.38, 130.5@0.34, 44.25@0.55 (3 prior-instance positions)
+- Jul 09 sells: 44@0.996 (+$19.48 gross win), 129@0.992 (+$76.50 gross win)
+- Jul 09 buys: 129@0.399, 37@0.38, 10@0.53 (more ladder/prior-instance positions)
+
+Not all Jul 08 buys have matching sells in the 7d log → some resolved via auto-settlement with no SELL event logged. The +$21.86 capital gain Jul 07→10-start is consistent with a mix of resolved YES positions from prior-instance ladder shots. Attribution is approximate; primary cause is unbooked auto-resolution of pre-restart UNTRACKED positions. **NOT MODEL DEFICIENCY — known tracking gap from bot restart cycle.**
+
+---
+
+## 2. Compounding Scoreboard
+
+| Metric | Value | Caveat |
+|---|---|---|
+| Equity (capital only) | **$163.16** | Cash. AUTHORITATIVE floor. |
+| Equity (upper bound) | **~$186.22** | If 2 open UNTRACKED BUYs resolve YES (+$23.06 proceeds) |
+| True equity estimate | **$163.16–$186.22** | Exact value unknown; 2 untracked positions unresolved |
+| Deployed fraction (untracked) | ~14.1% | $23.06 / $163.16 |
+| Engine fills today ($) | $0.00 | BAND_LIVE=False |
+| Engine turns/day | 0.00 | — |
+| Engine ROI/turn | N/A | — |
+
+**7-day compounding trend (engine only):**
+
+| Date | Capital | Engine Fills | Turns | Notes |
 |---|---|---|---|---|
-| Prior ledger (stale) | 02:57Z | $108.35 | $42.02 | Fixed comparator reveals: 2 open ladder shots at cost ($66.33) were invisible to tracker; cash-only read was misleading |
-| Bot restart + comparator fix | 11:36–11:40Z | $108.35 | $42.02 | Explicit reconciliation: 108.35 − 21.37 − 44.96 = 42.02 ✓ |
-| Evening EVOLVE | 22:10Z | $136.77 | $136.77 | Both shots resolved; 0 open positions, 0 resting orders |
-| Snapshot (this run) | 23:29Z | **$136.77** | **$136.77** | Authoritative |
+| Jul 07 | $136.77 | $0 | 0 | Sprint ladder +$28.42 |
+| Jul 08 | ~$136.77* | $0 | 0 | Prior-instance fills untracked |
+| Jul 09 | ~$158.63* | $0 | 0 | Prior-instance fills untracked |
+| **Jul 10** | **$163.16** | **$0** | **0** | UNTRACKED fills +$4.53 net |
 
-**Day P&L (tracked capital basis): $136.77 − $108.35 = +$28.41 (+26.2%)**
+*Estimated from bankroll progression; Jul 08-09 runs were missed.
 
-### Attribution by Leg
+**vs benchmark:** badatmath runs ~1.0× equity/day at 10-20%/turn. Klaus engine = **0 turns** for 4 consecutive days. The +$26.40 capital gain since Jul 07 is entirely from prior-instance UNTRACKED positions resolving, not from the current engine. This is not compounding — it is the wind-down tail of pre-restart positions paying out.
 
-| Leg | Entry | Exit | Shares | Cost | Proceeds | Net PnL | Source |
-|---|---|---|---|---|---|---|---|
-| Sprint Ladder – Tokyo 26°C (d+0) | 00:00Z BUY @ $0.37 | Resolved NO (lost) | 56 | $21.37 | $0.00 | **−$21.37** | state_log 22:10Z; fill tape 00:00Z |
-| Sprint Ladder – Singapore 32°C (d+0) | 02:00Z BUY @ $0.46 | Resolved YES (won) | 94.75 | $44.96 | $94.75 | **+$49.79** | state_log 22:10Z; fill tape 02:00Z; user_ws.jsonl payout 16:47Z |
-| Engine / Band (BAND_LIVE=False) | — | — | — | $0 | $0 | **$0.00** | exec audit §2: 0 posts Jul 7 |
-| RECYCLE099 / exit099 today | — | — | — | — | — | **$0.00** | exit099_live.jsonl absent (confirmed) |
-| **Total attributed** | | | | | | **+$28.42** | |
-| **Day P&L (tracked capital)** | | | | | | **+$28.41** | bankroll.json delta |
-| **UNEXPLAINED** | | | | | | **−$0.01** | Rounding only |
-
-**UNEXPLAINED = −$0.01.** Full attribution achieved. Not MODEL DEFICIENCY — this is pure rounding in the sleeve/bankroll arithmetic.
-
-### Morning Capital Gap Explained
-
-The prior STALL ABORT flagged $42.02 → $108.35 (+$66.33) as unexplained. The state_log 11:40Z resolves it definitively: the tracked-capital **comparator was broken** — it read cash only ($42.02) rather than cash + open ladder shots at cost. The comparator fix at restart exposed:
-`$108.35 = $42.02 cash + $21.37 Tokyo shot + $44.96 Singapore shot`
-No manual deposit. No unbooked resolution. Hardware/code bug only.
-
-**This was NOT a capital event. The bot's daily-loss halt was falsely tripped all morning because of it** — the halt saw a “−61% loss” that was actually 61% of equity converted to live positions.
+**Shadow fire volume today:** 19 fire events (all `live=false`), 11 cities, d+1/d+2 focus. Shadow book is active; live posts are gated by `BAND_LIVE=False`. If BAND_LIVE were enabled, the engine would have fired today.
 
 ---
 
-## § 2 — Compounding Scoreboard
+## 3. Expected Maker Rebates
 
-### Equity Estimate
+**Today's fills:** All 4 fills (3 BUY, 1 SELL) are tagged `trader_side=TAKER`. No maker fills today. No maker orders resting (`maker_resting_state={}`).
 
-| Component | Value | Caveat |
+| Type | Fills $ | Expected Rebate |
 |---|---|---|
-| Cash (bankroll.json) | $136.77 | Authoritative; CLOB-verified by EVOLVE |
-| Open engine positions | $0.00 | maker_resting_state = {} |
-| Open ladder shots | $0.00 | Both resolved; 0 open |
-| **equity_est** | **$136.77** | Cash only; complete at time of snapshot |
+| Maker fills today | $0 | $0.00 |
+| Taker fills today | ~$87.35 notional | $0.00 (taker = pays fee, no rebate) |
 
-Caveats: (1) Sprint ladder sleeve balance ($145.36) is a separate accounting pool — it is NOT additive to bankroll capital (costs already expensed, wins already repatriated); (2) open-position CLOB value not independently verified (no CLOB API access this run, but open_positions = 0 so moot).
+**Cumulative expected rebate:** $3.17 (carried from Jul 07; no new accrual).
 
-### Turn Rate & ROI
+> **USER ACTION:** Cumulative expected maker rebate ($3.17) exceeds the $1 minimum payout threshold. Payouts land daily in pUSD. Verify receipt in your Polymarket account. If no payout has been received, post to Polymarket Discord #support with your wallet address. Note: this is the *upper-bound pool-share estimate* — actual may be lower depending on competing maker volume.
 
-| Metric | Today | Benchmark (badatmath) |
-|---|---|---|
-| Band fills $ | $0.00 | — |
-| Band turns/day | **0.00** | ~1.0 |
-| Sprint ladder deployed today | $66.33 (2 shots) | — |
-| Sprint ladder ROI/shot (net) | +$28.42 on $66.33 = **+42.8%** | — |
-| Engine ROI/turn | N/A (0 turns) | 10-20%/turn |
+> **Note on mid-price fill:** Token 1132101340603498 was bought at p=0.50 (exact mid). This is the quadratically highest fee bucket (p*(1-p)=0.25 maximum). Had this been a maker fill instead of taker, it would earn the highest rebate per dollar. Flag for maker-strategy consideration if BAND_LIVE is re-enabled.
 
-**Band is fully halted.** 0 turns/day for the engine. Compounding today is entirely sprint-ladder-driven: a single net positive binary (1W, 1L → +$28.42 net on $66.33 deployed).
+---
 
-### 7-Day Trend (band engine only)
+## 4. Kill-Switch Proximity
 
-| Period | Fills $/day | Turns/day | Net P&L |
+| Check | Threshold | Current | Status |
 |---|---|---|---|
-| Jul 4 | $10.8 | ~0.07 | (not yet attributed in this ledger series) |
-| Jul 5 | $24.0 | ~0.18 | (prior ledger) |
-| Jul 6 | $31.8 (halted 22:08) | ~0.22 | (prior ledger) |
-| Jul 7 | $0.00 | 0.00 | **WIND-DOWN — band off** |
+| Day PnL vs halt | −$10.00 | +$4.53 | **CLEAR** (buffer $14.53) |
+| Capital vs weekly floor | $75.00 | $163.16 | **CLEAR** (buffer +$88.16, 117.5%) |
+| Capital vs ruin floor | $50.00 | $163.16 | **CLEAR** (buffer +$113.16, 226%) |
+| Rolling 20-trade WR | flag <30% | N/A — 0 engine fills Jul 07-10 | **N/A** |
+| Rolling 20-trade PF | flag <0.8 | N/A | **N/A** |
 
-7d band engine P&L: −$118.43 on n=42 resolved (per state_log 22:10Z). PF 0.088. All from paths already cut before Jul 7; post-wind-down band flow −$4.22 (legacy dust).
+**Rolling WR/PF context:** state_log reports 7d realized −$71.52, PF 0.108, n=26 — but ALL 26 are pre-wind-down tail-NO positions (opened Jul 02-06). Post-cut engine flow = 0. These numbers reflect the closed tail book, not ongoing engine performance.
 
----
-
-## § 3 — Expected Maker Rebates
-
-### Today
-Band posts: 0 (BAND_LIVE=False). Maker fills today: 0. Expected rebate today: **$0.00**.
-
-### 7-Day Band Fill Tape (Jul 4–6, 23 registered fills)
-
-| Fill group | n | Approx shares | p̄ | Expected rebate = Σ(sh·0.05·p·(1−p)·0.25) |
-|---|---|---|---|---|
-| YES fills [0.30–0.50] | 13 | ~80 shares | 0.44 | ~$0.22 |
-| NO fills [0.30–0.50] | 5 | ~30 shares | 0.41 | ~$0.06 |
-| YES/NO fills [0.50–0.85] excl. Moscow | 4 | ~23 shares | 0.54 | ~$0.07 |
-| Moscow NO increments @ 0.06 | 83.5 sh | 83.5 | 0.06 | ~$0.06 |
-| **7d new rebate estimate** | | | | **~$0.41** |
-
-*Upper bound — actual pool share depends on competing makers. Moscow NO at p=0.06 contributes minimally despite large share count (quadratic penalty near extremes). Highest-earning fills were the mid-price YES at p≈0.44–0.46 (Munich, Tokyo, Seoul, Shanghai).*
-
-### Cumulative
-
-| Period | Expected rebate | Note |
-|---|---|---|
-| Through Jul 5 ledger | $2.757 | Carried from prior state |
-| Jul 6–7 new | ~$0.41 | From Jul 4–6 fill tape; 0 new today |
-| **Cumulative** | **~$3.17** | Upper bound |
-
-**FLAG (carried forward):** Cumulative expected rebate **$3.17 > $1 minimum**. Polymarket pays maker rebates daily in pUSD, min $1 accrual. No receipt has been recorded in available data across any ledger run. **User should verify pUSD receipt in Polymarket account.** If no receipt has arrived despite >$3 cumulative, post to Polymarket Discord #market-makers with wallet address.
+> **CAVEAT:** WR and PF kill-switch thresholds were designed for the taker-era strategy. The current maker/band book wins ~22% of YES legs by design at 4-5× payoff structure. Reporting WR/PF proximity here for completeness only. **Do NOT recommend halt on WR alone.** Kill-switch re-derivation for maker era is pending with user.
 
 ---
 
-## § 4 — Kill-Switch Proximity
+## 5. Day Verdict
 
-*CAVEAT: WR/PF floors were specified for the taker era. Maker band book wins ~22% of YES legs by design at 4–5× payoff (pairs = composite ~60% WR on full-pair). Reporting proximity only — do NOT trigger WR/PF halts on taker-era thresholds.*
+**Equity compounded: YES — +2.86%** (capital $158.63 → $163.16, +$4.53).
 
-| Gate | Threshold | Current | Status |
-|---|---|---|---|
-| Day PnL halt | < −$10/day | +$28.41 | CLEAR |
-| Weekly floor | capital < $75 | $136.77 | CLEAR (+$61.77 buffer) |
-| Ruin floor (ratcheted) | $89.16 (0.40 × $222.90 HW) | $136.77 | CLEAR (+$47.61 buffer, 34.8% above) |
-| Wind-down equity rail | < 50% × $222.90 = $111.45 | $136.77 = 61.4% of HW | **CLEARED** (re-enable withheld) |
-| −14% daily freeze | active until 07-08 21:53Z | (expires tomorrow) | Active — no size/ceiling increases today |
-| LDA rolling-20 net | STOP at < −$36.39 | −$19.71 | Approaching; −$16.68 buffer |
-| Disp ratio | ≥1.10 to re-enable | 0.817 (stale ≥4 days) | STALE — gauge locked; Jul 3 partial 0.521°C |
+Source of gain: entirely from UNTRACKED fills (1 resolved prior-instance position, net ~+$28.55; partially offset by 2 unresolved BUY costs still deployed −$23.06). Engine contribution: $0.
 
-### Kill-Switch Re-Derivation Status
-Pending (noted in prior ledger as PENDING WITH USER). The LDA-era WR/PF floors are structurally mismatched to the current band maker book. LDA rolling-20 at −$19.71 is approaching the STOP threshold but most LDA trades are from the pre-wind-down cut paths. The −$36.39 STOP trigger would not be meaningful grounds for halting the band engine (which is already halted for separate charter reasons).
+**Binding constraint:** `BAND_LIVE=False` (day 4). The shadow band engine fired 19 times today across 11 cities — it is calibrated and would trade if enabled. The re-enable decision is scheduled for the weekly review (target 2026-07-12). Standalone-YES band premise remains dead through Jul 10: disp_ratio trigger met on only 1/8 days (Jul 3-10), never 2 consecutive, median-city ≤0.80 all days.
 
-### Band Re-Enable Gate (most proximate constraint)
-Re-enable of BAND_LIVE requires simultaneously: (1) equity ≥ 50% HW [$111.45] — **now cleared at $136.77**; (2) post-guard pair n≀40 positive trend — current n≈9/side (need ~31 more pair fills, shadow-only accrual); (3) −14% freeze expiry — **07-08 21:53Z** (tomorrow). The pair n gate is the binding constraint; at current shadow fill-rate it may take several more days of live operation to reach n=40.
+**Operational note:** `BAND_LIVE=False` freeze expired (was Jul-08 21:53Z). G7 pair evidence gate: n=29 pair combined ROI +13.1%, ambiguous at n — collection continues. MIN_LOCKOUT_LIVE re-enable deferred to Jul 11 (72h anti-thrash ends 22:05Z). No live changes today.
+
+**Capital trajectory is healthy** ($163.16 vs $50 ruin floor). No action required on capital.
 
 ---
-
-## § 5 — Day Verdict
-
-**YES — equity compounded today: +$28.41 (+26.2% on tracked start $108.35).**
-
-- Binding constraint: BAND_LIVE=False (charter wind-down rail, equity $108.35 < $111.45 threshold at start of day)
-- Engine contribution: $0.00 (band fully halted, 0 posts, 0 fills, 0 turns)
-- All compounding from sprint ladder: Singapore WIN (+$49.79) minus Tokyo LOSS (−$21.37) = +$28.42 net
-- Unexplained: −$0.01 (rounding). Full bottom-up attribution achieved
-
-**Wind-down equity rail cleared intra-day** (21:53Z: equity $136.77 = 61.4% of HW). Re-enable remains withheld: pair n≈9/side (gate requires 40), disp_ratio stale at 0.817, −14% freeze active until tomorrow 21:53Z. Capital continues growing with band dormant.
-
-**Operational note:** The tracked-capital comparator was broken until today's 11:40Z fix. The false daily-halt trip, the STALL ABORT this morning (stale $42.02 reading), and the misleading kill-switch breach flags from the prior run are all explained by the same root cause. The fix is now deployed and verified.
-
-**Sprint ladder lifetime: 8/8 resolved, 4W/4L, +$85.36 net, sleeve $145.36.** Day 5 of sprint; estimated remaining gap ~−$23.75 (day 4 gap −$52.16 + today's +$28.41).
-
----
-*Report generated by pnl-ledger-agent | snapshot age 8 min | trades.jsonl: not directly accessed (26MB); attribution derived from state_log 22:10Z + maker_fills_recent.log + exit099_live + band_struct_lite | full pipeline executed*
