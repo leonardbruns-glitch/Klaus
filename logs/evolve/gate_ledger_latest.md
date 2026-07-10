@@ -1,87 +1,118 @@
-# Gate ledger — VPS ground truth (EVOLVE daily 2026-07-09 21:53Z evening run)
+# Gate ledger — VPS ground truth (EVOLVE daily 2026-07-10 21:53Z evening run)
 
-Source: `band_resolution_join.py` run ON the VPS 2026-07-09 ~22:00Z (fires 16,893 raw
-→ 803 deduped first-fire legs, 557 unique markets, **654 resolved**) plus NEW
-`analysis/weather/band_sum_posted_slice.py` (G7 sum_posted slice + per-market-date
-regime table — the analysts' PA-1 ask, run tonight instead of the dead morning slot).
-Join is window-relative (hot-log window), not cumulative. CIs are Wilson 95% on WR
-mapped through ROI = WR/quote − 1.
+Source: `band_resolution_join.py` run ON the VPS 2026-07-10 ~22:00Z (fires 18,600 raw
+→ 829 deduped first-fire legs, 586 unique markets, **671 resolved**), plus
+`band_sum_posted_slice.py` (747 deduped YES legs), plus NEW
+`analysis/weather/settled_disp_ratio.py` — the S3 dispersion gauge UNBLOCKED (cloud
+lane was 8 days label-stale; labels only computable on this box).
+Join is window-relative (hot-log window), not cumulative — per-slice n can SHRINK
+day-over-day as old days rotate out (BAND NO d+1 n 39→24 today is retention, not
+data loss). CIs are Wilson 95% on WR mapped through ROI = WR/quote − 1.
 **Standing caveat: conditional-on-fill at OUR shadow quotes** — this class of join
 showed +8% while live fills realized −4.9% (06-18) and −45% (06-26→07-03 tape). It
 gates SHADOW→further validation, not straight to live.
 
-**CONTEXT 07-09 evening: rails CLEAR — first non-breached slot since 07-07.**
-Equity **$158.63** (all cash, CLOB-actual; 0 open ladder shots, 0 engine positions)
-= **71.2% of 30d-HW $222.90** > the 50% line $111.45. Tracked $158.63 > ruin_floor
-$89.16 (engine no-new-entries dis-armed). Daily realized **+$74.70** on daily_start
-$83.93 (+89%) — all sprint ladder (Chicago +$19.91, Tokyo 30°C +~$76 via the FIRST
-live 0.99-early-exit, Guangzhou −$14.06, Tel Aviv −$5.30). 7d realized (trades.jsonl)
-**−$79.36 PF 0.116 n=32** — all from paths cut 07-02/07-06 (band remnants −$56.27,
-Moscow M1β −$24.65); engine resolved rows today: 0; post-wind-down engine flow ≈ 0.
-−14% freeze (07-08 breach) runs to **07-10 21:53Z**: no size/ceiling increases.
-Live surface unchanged: NEG_RISK_ARB + RECYCLE099 + redemption (+ ladder).
+**CONTEXT 07-10 evening: rails CLEAR second consecutive slot; the −14% freeze
+EXPIRED at this slot (21:53Z) with no re-trip.** Equity **$163.16** (all cash
+CLOB-actual; 0 open ladder shots, 0 engine positions) = **73.2% of 30d-HW $222.90**
+> the 50% line $111.45; tracked > ruin_floor $89.16. Daily realized **+$4.53** on
+daily_start $158.63 (+2.9%) — all sprint ladder (Guangzhou +$30.00, Tokyo −$15.72,
+Shanghai −$7.41 = +$6.87 fills-basis; −$2.3 residual = payout/proxy dust, zero
+engine flow all day). 7d realized (trades.jsonl) **−$71.52 PF 0.108 n=26** — every
+row opened 07-02→07-06, i.e. 100% tail from paths already cut; post-cut engine
+flow = 0. The morning 11:23Z slot died on session limits — this run covered the
+full 07-10 backlog. Live surface unchanged: NEG_RISK_ARB + RECYCLE099 + redemption
+(+ ladder cron).
 
 | Gate / slice | n | WR | avg quote | ROI | ROI CI95 | Verdict |
 |---|---|---|---|---|---|---|
-| BAND YES (all) | 555 | 14.8% | 0.145 | +1.6% | straddles 0 | AMBIGUOUS ≈ zero edge. Path OFF (07-03 cut + wind-down) |
-| BAND YES d+2 | 399 | 13.3% | 0.137 | −2.9% | straddles 0 | AMBIGUOUS (the drag) |
-| BAND YES d+1 | 133 | 18.0% | 0.164 | +9.8% | ±~40pp | AMBIGUOUS — point-positive, conditional-on-fill; NOT actionable |
-| BAND YES d+0 | 23 | 21.7% | 0.184 | +18.2% | wide | COLLECTING (n<40) |
-| BAND NO (d+1) | 39 | 74.4% | 0.698 | +6.5% | straddles 0 | COLLECTING (n<100). favNO stays HALTED |
-| PAIR_FAV combined | 30 pairs | — | 0.885/pair | **+13.0%/$ (+0.115/pair)** | n<40 | COLLECTING; legs: YES_PAIR −33.6% / NO_PAIR +61.6% |
-| PAIR post-clip-guard | **0 resolved** | — | — | — | — | **ACCRUAL STRUCTURALLY FROZEN** while BAND_LIVE=False (pair branch nests in YES loop). Gate "post-guard n≥40" is UNREACHABLE while dark → weekly 07-12 must decide: wire band shadow-posting OR amend the re-enable condition |
-| **G7 SUM_POSTED [0.70,0.85] YES** | **382** | 16.5% | 0.148 | **+11.5%** | **[−11.4%, +38.9%]** | **AMBIGUOUS — NOT READY** (n cleared, CI straddles zero). Gatekeeper's 5-days-overdue ask is now ANSWERED |
-| G7 SUM_POSTED <0.70 YES | 163 | 10.4% | 0.139 | −24.8% | [−52.3%, +15.9%] | AMBIGUOUS, points negative |
+| BAND YES (all) | 589 | 14.6% | 0.144 | +1.2% | straddles 0 | AMBIGUOUS ≈ zero edge. Path OFF |
+| BAND YES d+2 | 432 | 13.4% | 0.136 | −1.1% | straddles 0 | AMBIGUOUS (the drag) |
+| BAND YES d+1 | 131 | 17.6% | 0.162 | +8.2% | straddles 0 | AMBIGUOUS — conditional-on-fill; NOT actionable |
+| BAND YES d+0 | 26 | 19.2% | 0.195 | −1.1% | wide | COLLECTING (n<40; 07-09 read +18.2% n=23 — sign flipped on 3 legs = noise) |
+| BAND NO (d+1) | 24 | 79.2% | 0.686 | +15.4% | straddles 0 | COLLECTING (n<100; window shrank 39→24). favNO stays HALTED |
+| PAIR_FAV combined | 29 pairs | — | 0.885/pair | **+13.1%/$** | n<40 | COLLECTING — stable vs 07-09 (+13.0% n=30); legs: YES_PAIR −31.4% / NO_PAIR +59.5% |
+| PAIR post-clip-guard | **0 resolved** | — | — | — | — | **ACCRUAL STRUCTURALLY FROZEN** while BAND_LIVE=False (pair branch nests in YES loop). Gate "post-guard n≥40" UNREACHABLE while dark → weekly 07-12 decides: band shadow-posting mode OR condition amendment |
+| **G7 SUM_POSTED [0.70,0.85] YES** | **396** | 16.7% | 0.146 | **+14.3%** | **[−8.7%, +41.6%]** | **AMBIGUOUS — NOT READY** (CI straddles; n +14 vs 07-09, drifting up not converging) |
+| G7 SUM_POSTED <0.70 YES | 183 | 9.8% | 0.140 | −29.8% | [−55.0%, +7.1%] | point-NEGATIVE, near-significant — argues against ever re-enabling the sub-0.70 book |
 | M1β lockout MAX family (taker) | 58 exec | — | — | EV −6.5%/fill | — | KILLED 07-08 (divergence study); UUWW blocklisted; margin 1.0 |
-| MIN_LOCKOUT (daily-min) maker | 197 | 100% @margin≥1.0 | — | — | CI-low 98.1% | Evidence gate PASSED; LIVE OFF (07-08 rail re-cut). Equity rail now CLEAR — re-enable **deferred to the 07-11 ledger review** (72h anti-thrash: param changed 07-08 21:53). Expected cost of deferral ≈ $0 (posted 0 orders in its 7h live window; 31 candidates/cycle, ~0 executable) |
+| MIN_LOCKOUT (daily-min) maker | 197 | 100% @margin≥1.0 | — | — | CI-low 98.1% | Evidence gate PASSED; LIVE OFF (07-08 rail re-cut). Rail clear 2 slots now — re-enable at the **07-11 ledger review** (72h anti-thrash ends 07-11 ~22:05Z). Expected cost of deferral ≈ $0 (0 posts in its 7h live window; ~32 candidates/cycle, ~0 executable) |
 | TEMPORAL_LOCK (P5) taker | 472 | — | — | −EV all slices | — | KILLED 07-08; scanner d+1 date-join bug outstanding — fix before ANY P5 reuse |
 | COUNT_LOCK | 16 cand/11d | — | — | — | — | KILLED 07-08: 0 ever executable |
 | MINMAX coherence | 11 baskets/11d | — | — | ~$5-15/wk | — | DEFERRED (fees eat 9/11; needs new executor) |
 | THERMO_MAKER_NO | 125 | — | — | EV≈0 | — | REJECTED (07-03) |
 | M1β thin-margin [0.2,0.5)°C | 31 | 74.2% | — | −0.6% | [−20.6%, +24.4%] | REJECTED — reverted 07-04; review 07-18 |
-| NEG_RISK_ARB | — | — | — | — | — | Σask floor pinned ~1.000 (Seoul probe tonight: $0.0018/sh partial, 7/11 legs fillable — no fire); stays armed (free option) |
+| NEG_RISK_ARB | — | — | — | — | — | Σask floor pinned ~1.000; stays armed (free option); 0 fires today |
 | Band dial time-series | 29 resolved days | — | — | — | — | COLLECTING (gate n≥90 days OOS; do not interpret) |
-| Isotonic (PA-1 / Experiment 3) | 4,752 live pairs / 11 days | — | — | — | — | **ANSWERED — no action.** Refit cron is NOT dead (prior ledger claim wrong): it runs daily 09:30, log fresh. Guard held LEGITIMATELY (cal_days 11<14; OOS cal Brier not improved). Fresh candidate ON JULY DATA still flat g≈0.376 for p∈[0.35,0.85] ⇒ **plateau is structural, not staleness**. Guard auto-promotes at cal_days≥14 (~07-12) iff OOS improves. Do NOT lean on p_cal for mid-range live gates |
+| Isotonic (PA-1) | — | — | — | — | — | CLOSED no-defect 07-09; plateau STRUCTURAL; auto-promote ~07-12 iff OOS Brier improves; do NOT lean on mid-range p_cal |
 
-## Regime check — YES would-post ROI by MARKET date (answers calib_monitor's stale settled lane)
+## Regime check — YES would-post ROI by MARKET date
 | date | n | WR | quote | ROI | ROI CI95 |
 |---|---|---|---|---|---|
-| 07-02 | 46 | 8.7% | 0.138 | −36.9% | [−75.1, +47.5] |
-| 07-03 | 40 | 15.0% | 0.138 | +9.1% | [−48.7, +111.4] |
-| 07-04 | 38 | 15.8% | 0.139 | +13.5% | [−46.5, +118.6] |
 | 07-05 | 46 | 15.2% | 0.151 | +0.5% | [−50.0, +86.3] |
 | 07-06 | 97 | 14.4% | 0.151 | −4.3% | [−41.6, +51.1] |
 | 07-07 | 71 | 15.5% | 0.147 | +5.3% | [−39.7, +74.3] |
 | 07-08 | 80 | 17.5% | 0.137 | +27.6% | [−21.8, +98.7] |
-| 07-09 | 77 | 13.0% | 0.143 | −8.9% | [−49.4, +56.3] |
+| 07-09 | 88 | 13.6% | 0.141 | −3.5% | [−43.6, +58.0] |
+| 07-10 | 68 | 13.2% | 0.143 | −7.4% | [−50.2, +62.8] |
 
-**Reading:** Jul 3–9 shows NEITHER confirmed dispersion inversion NOR confirmed
-recovery — every per-day CI is huge, points oscillate around zero. The research-audit
-scenario "inversion persisted all week ⇒ hold dark regardless of equity" is NOT
-confirmed; neither is its opposite.
+Points oscillate around zero, every CI huge — neither inversion nor recovery
+confirmed. Unchanged from 07-09.
 
-## Decision memo for the 07-10 21:53Z slot (research-audit PA-2)
-- Equity rail: CLEARED ($158.63 = 71% HW). −14% freeze: expires at that slot.
-- Analysts' proposed OR-condition: G7 READY → **NO (AMBIGUOUS)**; disp_ratio
-  recovery ≥1.10 → **NOT CONFIRMED** (table above). Neither branch satisfied.
-- The BINDING pre-registered condition (07-06 cut): equity AND **post-guard pair
-  n≥40 positive trend**. Post-guard resolved = 0 and cannot accrue while dark.
-  ⇒ A daily slot should NOT flip BAND_LIVE on a weaker after-the-fact condition;
-  the deadlock (band shadow-posting mode vs condition amendment) is the weekly
-  07-12 structural decision.
+## S3 DISPERSION GAUGE — UNBLOCKED (the 07-10 headline)
 
-**This run: 0 live-effect changes** (first non-breached day; the two candidates —
-MIN_LOCKOUT re-enable, BAND re-enable — both fail anti-thrash/pre-registered gates;
-deferred to 07-11 review and weekly 07-12 respectively, with ≈$0 expected cost).
+`analysis/weather/settled_disp_ratio.py` (NEW, committed): full pricer_eval files
+(not s50 subsamples), last PRE_PEAK ladder per city-date d+0, implied σ =
+p_cal-normalized std (°C) of the ladder vs realized = |resolved bucket − mode
+bucket|, resolved label = final official-floored running_max at last pre-close
+snapshot. Cross-validation on the overlap window (Jun 30–Jul 2, where the cloud
+settled lane published 0.976/0.866/0.858): this method reads 1.081/1.001/0.944 —
+consistently a touch HIGHER than the cloud lane, so any inversion it shows is not
+a harsh-method artifact. (Jun 28–29 hot files already rotated out.)
 
-Sprint-30 (day 6.99 tonight): equity **$158.63** vs day-7 target ≈ $256 → ≈ **−$98
-behind**; 23:50Z cron restates. Ladder lifetime: **14 fired, 14 resolved, 6W/8L,
-WR 42.9% vs avg fill 0.434** (at-ask coin-flips per design); lifetime net ≈ **+$110**
-(redemption/sale proceeds − recorded cost; supersedes the mis-added ≈+$14 in the
-07-08 ledger — that same-10-shot set nets ≈ +$35). Sleeve **$172.82**, event
-arithmetic reconciles EXACTLY (43.82 + 129 Tokyo credit). First live 0.99-early-exit
-WORKED (Tokyo 30°C sold ~0.99 intraday, capital recycled same day — validates the
-07-08 velocity upgrade ahead of its 07-12 review). 3/3 daily fires used; settlements
-≤36h intact; cron healthy (benign recurring `400 Could not create api key` noise).
-Watch (n=2, no action): negative-model-edge fires now 0W/2L (Munich −0.049,
-Tel Aviv −0.034); tuning rule needs n≥10 systematic.
+| Market date | n | impl σ | real | pooled ratio | median city ratio |
+|---|---|---|---|---|---|
+| 07-03 | 41 | 0.852 | 1.005 | 0.848 | 0.527 |
+| 07-04 | 39 | 0.787 | 0.886 | 0.889 | 0.722 |
+| 07-05 | 37 | 0.820 | 0.931 | 0.881 | 0.703 |
+| 07-06 | 39 | 0.777 | 0.632 | **1.228** | 0.798 |
+| 07-07 | 37 | 0.800 | 1.081 | 0.740 | 0.578 |
+| 07-08 | 40 | 0.815 | 0.983 | 0.829 | 0.578 |
+| 07-09 | 41 | 0.850 | 1.117 | 0.762 | 0.709 |
+| 07-10 | 21 | 0.886 | 1.429 | 0.620 | 0.736 (partial-day) |
+
+**Verdict: the standing re-enable trigger (disp_ratio ≥ 1.10 for 5 consecutive
+days) is NOT met — 1 of 8 new days above 1.10, never 2 consecutive; median-city
+ratio ≤ 0.80 on every day.** The market keeps pricing LESS dispersion than
+realizes; the standalone-YES band premise remains dead through 07-10. This answers
+calib-monitor S3 (8-day stale) and research-audit A1 ("do not re-enable before
+seeing Jul 3–9 dispersion") — seen, and it says NO. Data:
+`analysis/weather/settled_disp_ratio.json` (410 city-date rows, committed).
+
+## Decision memo for the 07-12 weekly (band deadlock)
+
+All three re-enable arguments now have fresh data, and none clears:
+1. Pre-registered binding condition (post-guard pair n≥40): frozen at 0, structural.
+2. Standing disp trigger (≥1.10 × 5d): measured, NOT met (table above).
+3. G7 [0.70,0.85]: n=396 AMBIGUOUS, CI [−8.7, +41.6], needs ~4× n for CI-clear.
+The only CI-clear positive anywhere remains PAIR_FAV NO counterfactual (+52.9%
+CI [+12.6,+85.5] n=32, gatekeeper G2c — trend, n<40). If the weekly breaks the
+deadlock, the cheapest gate-respecting path is shadow-posting mode (accrues G2b/G2c
+post-guard n at ~11 pairs/day with zero capital), NOT a live flip — and the
+dispersion table above argues the standalone-YES half of the band stays dead
+regardless of what the pair decision is.
+
+## Other VPS-only readouts
+
+- **yes_capture (would-post markout)**: 301 reconstructed fills, med −0.019,
+  94% adverse — winner's-curse signature intact; informational only (charter rule:
+  maker-book markout never justifies a live change).
+- **Sprint ladder** (owner-mandated, outside charter flag scope): lifetime 17
+  resolved 7W/10L (WR 41.2% vs avg fill ~0.43 — at-ask coin-flips per design),
+  net ≈ +$117 redemption-basis lifetime; today 3/3 fires, +$6.87 fills-basis.
+  Sleeve $179.69, event arithmetic exact (131.92 + 47.77 Guangzhou credit).
+  Cron healthy — log silent 17:10→22:00 is the benign cap-reached/no-open-shots
+  early-exit path (syslog shows all 10-min firings; 0 tracebacks). Watch item
+  unchanged: negative-model-edge fires 0W/2L (n=2; tuning rule needs n≥10).
+- **Sprint-30**: day 7 of 30 tonight; equity $163.16 vs day-7 target ≈ $256 →
+  ≈ −$93 behind (23:50Z cron restates).
