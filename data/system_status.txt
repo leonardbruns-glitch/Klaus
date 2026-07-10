@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+3081a6508 EVOLVE daily 2026-07-10 evening: rails clear + freeze expired, 0 live changes — S3 dispersion gauge UNBLOCKED, trigger NOT met (Jul3-10 pooled 0.62-1.23, 1/8 days >=1.10, median-city <=0.80 all days)
 1bb3720bd Research audit 2026-07-10T1356Z — equity deployed $0 (band dark 4d, freeze expires 21:53Z) | best action: verify band_resolution_join.py ran at 11:23Z today → publish Jul 3-9 disp_ratio before re-enable decision
 5b7f2c27e Gate-keeper 2026-07-10 — ready=0 rejected=0 collecting=3 ambiguous=3; G7 COLLECTING→AMBIGUOUS (n=382 VPS join, CI straddles 0)
 b93ef8733 Calib monitor 2026-07-10 — brier7=0.053 disp_ratio=0.817 3 alerts (S3 persists, S4 recalibrated, S5 unmonitorable)
@@ -11,7 +12,6 @@ da32b937f EVOLVE daily 2026-07-09 evening: rails clear, 0 live changes — G7 an
 2e0f17952 EVOLVE daily 2026-07-08 evening: breached-rail day — wind-down re-cut + kernel guard, 0 optimization
 64a4e312b Wind-down re-cut: MIN_LOCKOUT_LIVE=False (rail re-breach) + ladder kernel-floor guard
 4842bd469 Shadow sweep: temporal-lock taker killed (-EV all slices, scanner date bug found), count-lock killed (0 capacity), minmax coherence deferred
-f8ac77727 Ladder velocity: 0.99 winner early-exit + depth-adaptive sizing
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        7G  93% /
