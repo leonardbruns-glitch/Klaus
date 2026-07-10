@@ -1,77 +1,68 @@
-# Gate-Keeper Report — 2026-07-07
+# Gate-Keeper Ledger — 2026-07-10T09:00Z
 
-Generated: 2026-07-07T09:03:16Z | Snapshot age: <6h ✓ | System: active ✓  
-Prior run: 2026-07-06T09:10:00Z | Capital: $42.02 (daily_start $108.35; −$66.33 sprint ladder today)  
-**Wind-down active** (Jul06 22:10Z): BAND_LIVE=False, M1_BETA_PROBE_ENABLED=False, MIN_LOCKOUT_LIVE=False
+**Snapshot:** 2026-07-10T09:00:16Z (age: 0 min) ✓  
+**System:** `klaus systemd: active` ✓  
+**Capital:** $204.064 | 30d-HW: $222.90 | Equity rail (50%): $111.45 → **MET** ✓  
+**Wind-down:** BAND_LIVE=False since 07-06 22:08Z (43h dark at snapshot)  
+**Freeze:** −14% freeze expires **tonight 07-10 21:53Z**  
+**Prior run:** 2026-07-07T09:03:00Z (3 days ago)  
+**Band shadow confirmation:** band_struct_lite 07-07..07-10 parsed; all 4 days = **0 post records**, only md_shadow scans. BAND_SHADOW inert while BAND_LIVE=False.
 
 ---
 
 ## Gate Ledger
 
-| # | Gate | n (resolved/live) | +24h live | +24h shadow | WR | ROI | CI95 | Status | ETA |
-|---|---|---|---|---|---|---|---|---|---|
-| G1 | BAND_YES (standalone paused, dout=9) | 934 resolved | +0 | +120 shadow | 15.3% | +4.0% | [−10.9%, +21.1%] | **AMBIGUOUS** | VPS join needed; disp_ratio 0.82 << 1.10 re-enable |
-| G2a | BAND_NO (BAND_NO_ENABLED=False) | 51 live / 115 shadow | +0 | +0 | 39.2% live | neg EV | CI straddles 0 (shadow); live effectively rejected | **REJECTED** (live) / AMBIGUOUS (shadow) | Disabled; live n insufficient |
-| G2b | PAIR_FAV_YES (post-guard, live) | **9** | **+4** | n/a | null | null | null | **COLLECTING** | ~2.8d from re-enable (rate 11/day); rate=0 now |
-| G2c | PAIR_FAV_NO (post-guard, live) | **9** | **+4** | n/a | null | null | null | **COLLECTING** | ~8.3d to n=100 from re-enable; rate=0 now |
-| G3 | FILLED_VS_FIRED (fills vs all-fires ROI) | 37 fills | +0 | n/a | null | null | null | **COLLECTING** | 3 fills to n=40 watch trigger; rate=0 (BAND_LIVE=False) |
-| G4 | BASKET_EXIT | VOID | — | — | — | — | — | **VOID** | Permanently retired Jun22 |
-| G5 | THERMO_MAKER_NO | 125 | +0 | +0 | null | ≈0% | — | **REJECTED** | Action done (THERMO_MAKER_LIVE=False since Jun23) |
-| G6 | M1_BETA_LOCKOUT (thin-margin [0.2,0.5)°C) | 31 | +0 | +0 | 74.2% | −0.6% | [−20.6%, +24.4%] | **REJECTED** | Action done (M1_BETA_PROBE_ENABLED=False; floor=0.5°C) |
-| G7 | SUM_POSTED [0.70,0.85] band fires | >>100 shadow fires | +0 live | +109 shadow | null | null | null | **COLLECTING** | CI sole blocker; VPS `band_resolution_join.py` overdue |
+> **n** = resolved legs (first-fire dedup) used for CI. **+Δ** = change since prior run (07-07T09:03Z). CI95 = Wilson bootstrap on per-leg ROI. Threshold n=100 per gate definition.
 
-**n < threshold = COLLECTING; n ≥ threshold AND CI_lower > 0 = READY; n ≥ threshold AND CI_upper ≤ 0 = REJECTED; CI straddles 0 = AMBIGUOUS**
+| Gate | n (resolved) | +Δ | WR | ROI | CI95 | Status | ETA |
+|---|---|---|---|---|---|---|---|
+| **G1** BAND_YES all slices | 934 | 0 | 15.3% | +4.0% | [−10.9, +21.1] | **AMBIGUOUS** | ∞ dark; VPS join +marginal today |
+| **G2a** BAND_NO d+1 shadow | 115s / 51L | 0 | 68.7%s / 39.2%L | +1.3%s | [−11.9, +12.7]s | **AMBIGUOUS** (s) / eff. REJECTED (L) | ∞ BAND_NO_ENABLED=False |
+| **G2b** PAIR_FAV_YES (post-guard) | 9 (no resolved) | 0 | — | — | — | **COLLECTING** | rate=0; ~2.8d to n=40 from re-enable |
+| **G2c** PAIR_FAV_NO (post-guard) | 9 (no resolved); †cf n=32 | 0 | — | +52.9%†cf / +13.0%†pp | [+12.6, +85.5]†cf | **COLLECTING** (n<100) | n<40 = trend only; ~8.3d to n=100 from re-enable |
+| **G3** FILLED-vs-FIRED | 37 fills | 0 | — | — | — | **COLLECTING** | 3 fills to watch-trigger; requires BAND_LIVE |
+| **G4** BASKET_EXIT | — | — | — | — | — | **VOID** | Permanently retired 06-22 |
+| **G5** THERMO_MAKER_NO | 125 | 0 | — | ≈0% | [−9, +2] | **REJECTED** | Action complete 07-04 |
+| **G6** M1_BETA_LOCKOUT | 31 | 0 | 74.2% | −0.6% | [−20.6, +24.4] | **REJECTED** | Action complete 07-04 |
+| **G7** SUM_POSTED [0.70,0.85] | **382** ↑NEW | **+382r** | — | **+11.5%** | **[−11.4, +38.9]** | ~~COLLECTING~~ → **AMBIGUOUS** | ~1,528r to READY at current ROI; ∞ dark |
 
----
-
-## State Transitions vs Prior (2026-07-06T09:10:00Z)
-
-**Changed (+2 gates updated):**
-- **PAIR_FAV_YES**: COLLECTING n=5 → COLLECTING **n=9** (+4)  
-  New post-guard live fires: Shanghai 10:28Z, Beijing 12:01Z, Chongqing 13:58Z, Munich 14:06Z (all Jul06 d+0, all pre-wind-down). Accumulation stopped at wind-down 22:08Z.
-- **PAIR_FAV_NO**: COLLECTING n=5 → COLLECTING **n=9** (+4)  
-  Same 4 pairs as above (co-posted YES+NO legs).
-
-**Unchanged:** G1 BAND_YES, G2a BAND_NO, G3 FILLED_VS_FIRED, G4 BASKET_EXIT, G5 THERMO_MAKER, G6 M1_BETA_LOCKOUT, G7 SUM_POSTED — no status changes.
-
-**Data note (G1 shadow fires):** +120 shadow fires since prior run: 12 pre-wind-down from Jul06 archive (1 before prior cutoff + 11 after, all with `live: true`), plus 108 post-restart from today's hot band_struct.jsonl (Jul06 22:08Z–Jul07 09:03Z). Three fires in the Jul06 archive at 23:44Z, 01:04Z, 03:46Z are marked `live: true` post-wind-down — these are from the restarted process where `live` reflects market acceptability, not actual posting (no corresponding tokens in band_posted_state.json Jul07 entry). n_fires updated: 6163 → 6283.
+†cf = counterfactual VPS join 07-07 EVOLVE (pre+post guard shadow NO legs, n=32).  
+†pp = per-pair $ ROI from 07-09 EVOLVE combined join (n=30 pairs).  
+s = shadow data. L = live data (authoritative for re-enable decisions).
 
 ---
 
-## Wind-Down Status
+## State Transitions vs Prior Run (07-07T09:03Z)
 
-| Metric | Value | Threshold | Status |
+| Gate | Prior Status | Current Status | Driver |
 |---|---|---|---|
-| Equity | $42.02 | ≥$111.45 (50%×$222.90 HW) | ❌ BELOW — wind-down active |
-| Daily PnL today | −$66.33 (sprint ladder) | −14% of daily_start | Daily halt: −$15.17; breached |
-| Re-enable condition | equity ≥50%×HW AND pair n≥40 trend | n=9/40 AND $42/$111 | Not met on either leg |
-
-Capital trajectory since prior run: $141.74 (Jul06 09:10Z) → $108.35 (Jul06 22:08Z wind-down trigger) → $42.02 (Jul07 09:03Z). Today's loss: sprint ladder shots at Jul07 00:00Z (56sh @ $0.37, $20.72) and 02:00Z (94.75sh @ $0.46, $43.59) = ~$64.31 (authorized coin-flips per owner directive).
+| **G7 SUM_POSTED [0.70,0.85]** | COLLECTING (n=0 resolved) | **AMBIGUOUS** (n=382) | 07-09 22:20Z EVOLVE: VPS band_resolution_join.py → n=382, ROI +11.5%, Wilson CI=[−11.4,+38.9]; CI straddles 0 |
+| All others | (unchanged) | (unchanged) | — |
 
 ---
 
-## PROPOSED ACTIONS (Human Review)
+## PROPOSED ACTIONS (human review)
 
-**No gates newly hit READY or REJECTED this run.**
-
-This section lists only newly actionable verdicts. None exist today.
+**No gate newly READY or REJECTED this run.** No flag/param changes recommended.
 
 ---
 
-### Advisory (informational — gatekeeper does not implement)
+## Advisory Notes
 
-**[URGENT] G7 SUM_POSTED [0.70,0.85]:**  
-CI remains the sole blocker for this gate. n>>100 deduped shadow fires has been true for weeks. The VPS can close this gate in one run:
-```bash
-python3 analysis/weather/band_resolution_join.py   # with sum_posted ∈ [0.70,0.85] filter on deduped first-fire legs
-```
-This is cloud-blocked (Gamma API 403); only EVOLVE on VPS can execute. Verdict (READY or REJECTED) would immediately inform whether to restore the V3 gate extension. Escalating priority: every day without this join leaves a potentially-valid slice unscaled or an invalid slice unrejected.
+**[URGENT — VPS JOIN]** band_resolution_join.py was recommended to run at 07-10 11:23Z per 07-09 audit. G1 and G7 will receive marginal increments from pre-dark tail settlements (markets posted before 07-06 but resolved since 07-09). Expected +5–20 resolved total. G7 will remain AMBIGUOUS regardless.
 
-**[MONITORING] G2b/G2c PAIR_FAV accumulation frozen:**  
-n=9 (need 40 for trend verdict, 100 for scale-up gate). With BAND_LIVE=False, rate=0. Re-enable requires equity ≥$111.45; at $42.02 with sprint-ladder EV near zero, timeline is uncertain. Clock will restart automatically when BAND_LIVE flips True.
+**[EQUITY RAIL CLEARED — STRUCTURAL DECISION PENDING 07-12]** Capital $204.06 (09:00Z) exceeds the $111.45 re-enable rail. The −14% freeze expires **tonight at 21:53Z**. After expiry, the equity condition for BAND_LIVE re-enable is fully met. The only remaining binding blocker is the **pre-registered pair post-guard n≥40 condition (currently n=9, frozen while dark)**. Weekly slot 07-12 must decide: (a) create shadow-posting mode to accumulate pair_fav while BAND_LIVE=False, or (b) amend the re-enable condition. Human decision required before the compounding engine can restart.
 
-**[MONITORING] G3 FILLED_VS_FIRED:**  
-n=37, 3 fills short of the n=40 watch trigger. Rate=0 with BAND_LIVE=False. When band activity resumes, EVOLVE should immediately queue fill-vs-fire ROI comparison to check for winner's-curse divergence.
+**[G2c TREND — NOT A GATE VERDICT]** PAIR_FAV_NO counterfactual (07-07 EVOLVE VPS join): n=32 shadow NO legs, ROI=+52.9%, CI=[+12.6, +85.5]. The CI lower bound (+12.6%) clears zero — this is the only gate with an unambiguously positive CI at present. However: **n=32 < 40 is a trend, not a decision; n < 100 does not meet the pre-registered gate threshold.** Do not re-enable on this basis. At rate ~11 pairs/day post re-enable, n=100 requires ~8 live days.
 
-**[NOTE] G1 BAND_YES disp_ratio:**  
-disp_ratio 0.82 locked 4 days (per research audit Jul06). Re-enable tree requires disp_ratio ≥1.10 ×5d. Standalone YES correctly paused. No action until calib monitor reports disp_ratio recovery.
+**[G7 CI PATH — AMBIGUOUS IS CORRECT]** ROI +11.5% with CI lower bound −11.4% is not an edge. To push CI_lower > 0 at the current ROI estimate: approximately n~1,528 resolved are needed (4× current, assuming ROI holds). At ~50 shadow fires/day when live, that is ~23 days of active firing post re-enable. Do not label this "promising" — it is a wide interval around an uncertain mean. The verdict is AMBIGUOUS.
+
+**[G1 BAND_YES — STALE JOIN]** n=934 resolved was from a window-relative join (Jul05 22:25Z). The 07-09 EVOLVE ran a separate join (n=591 total, band YES n=465, ROI=−5.4%, CI=[−24.7,+17.9]) showing a more negative point estimate. Both aggregation windows straddle 0. Status unchanged: AMBIGUOUS. The YES cut is re-confirmed by the 07-09 join.
+
+**[CAPITAL RECOVERY — CONTEXT ONLY]** Bankroll $204.06 vs $42.02 at prior gatekeeper run (+$162 in 3 days). Recovery is entirely via sprint ladder — **not from the band engine**. Engine flow = 0 throughout. Ruin floor ($89.16) safely below current capital. All band/engine gates remain frozen.
+
+**[BAND DARK CONFIRMATION]** band_struct_lite files parsed for 07-07, 07-08, 07-09, 07-10: all contain ONLY md_shadow scan records (155/147/143/133 per day respectively). **Zero post records across all 4 days confirmed.** BAND_SHADOW=True flag is inert while BAND_LIVE=False. Shadow fire counter has not grown since 07-06 22:08Z.
+
+---
+
+*Report generated: 2026-07-10T09:00Z. Next gatekeeper: at BAND_LIVE re-enable or weekly 07-12 slot, whichever comes first. REPORT-ONLY — implement nothing.*
