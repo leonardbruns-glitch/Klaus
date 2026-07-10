@@ -2,19 +2,19 @@
 active
 
 ## Last 10 commits on klaus:
+1bb3720bd Research audit 2026-07-10T1356Z — equity deployed $0 (band dark 4d, freeze expires 21:53Z) | best action: verify band_resolution_join.py ran at 11:23Z today → publish Jul 3-9 disp_ratio before re-enable decision
+5b7f2c27e Gate-keeper 2026-07-10 — ready=0 rejected=0 collecting=3 ambiguous=3; G7 COLLECTING→AMBIGUOUS (n=382 VPS join, CI straddles 0)
+b93ef8733 Calib monitor 2026-07-10 — brier7=0.053 disp_ratio=0.817 3 alerts (S3 persists, S4 recalibrated, S5 unmonitorable)
+fc962ca31 Exec audit 2026-07-10 — fills=0 NO-share=50% 2 alerts (band dark 4d, markout gap)
 da32b937f EVOLVE daily 2026-07-09 evening: rails clear, 0 live changes — G7 answered AMBIGUOUS (n=382 CI straddles), isotonic PA-1 closed no-defect (plateau structural), 2 deferrals pre-registered
 5c8e0cb78 Research audit 2026-07-09T1830Z — equity deployed $0 (band dark 43h, freeze clears tomorrow) | best action: run band_resolution_join.py on VPS at 07-10 11:23Z before re-enable decision
 2e0f17952 EVOLVE daily 2026-07-08 evening: breached-rail day — wind-down re-cut + kernel guard, 0 optimization
 64a4e312b Wind-down re-cut: MIN_LOCKOUT_LIVE=False (rail re-breach) + ladder kernel-floor guard
 4842bd469 Shadow sweep: temporal-lock taker killed (-EV all slices, scanner date bug found), count-lock killed (0 capacity), minmax coherence deferred
 f8ac77727 Ladder velocity: 0.99 winner early-exit + depth-adaptive sizing
-84649ea92 Lockout divergence study (early) + MIN_LOCKOUT re-enable + margin 1.0 revert + UUWW blocklist + ladder 3/day-$60 (owner directive 07-08)
-0cc776cd3 Session 2026-07-08: owner mandate re-affirmed — audit, 0 live changes, capital decision queued to PENDING_HUMAN
-0a7090733 Research audit 2026-07-08T1430Z — calibration staleness (settled lane 6d stale) | best action: debug band_resolution_join cron + rebuild isotonic map
-7d6eb4b9f Calib monitor 2026-07-08 — brier7=0.053 disp_ratio=0.817 3 alerts
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        8G  93% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        7G  93% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Wed 2026-07-08 22:03:28 UTC
