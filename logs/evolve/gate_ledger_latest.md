@@ -1,118 +1,52 @@
-# Gate ledger — VPS ground truth (EVOLVE daily 2026-07-10 21:53Z evening run)
+# Gate Ledger — VPS ground truth, refreshed 2026-07-11 22:15Z (EVOLVE evening)
 
-Source: `band_resolution_join.py` run ON the VPS 2026-07-10 ~22:00Z (fires 18,600 raw
-→ 829 deduped first-fire legs, 586 unique markets, **671 resolved**), plus
-`band_sum_posted_slice.py` (747 deduped YES legs), plus NEW
-`analysis/weather/settled_disp_ratio.py` — the S3 dispersion gauge UNBLOCKED (cloud
-lane was 8 days label-stale; labels only computable on this box).
-Join is window-relative (hot-log window), not cumulative — per-slice n can SHRINK
-day-over-day as old days rotate out (BAND NO d+1 n 39→24 today is retention, not
-data loss). CIs are Wilson 95% on WR mapped through ROI = WR/quote − 1.
-**Standing caveat: conditional-on-fill at OUR shadow quotes** — this class of join
-showed +8% while live fills realized −4.9% (06-18) and −45% (06-26→07-03 tape). It
-gates SHADOW→further validation, not straight to live.
+Source: `band_resolution_join.py` run 2026-07-11 ~21:57Z on VPS (fires 20,901 raw
+→ 839 deduped first-fire legs, 596 unique markets, **resolved n=678**). Shadow
+hot-log retention now spans 2026-07-01..07-11 only (June legs rotated out —
+cumulative gate counts in gatekeeper_report track the longer history).
+NEW tonight: winner's-curse cross-tab (`winners_curse_crosstab_0711.md`) —
+**simulated join ROI is an upper bound, not an estimator** (realized fills
+−75.8% vs same-era sim +7.6%, n=75 trend-grade). Read it before treating any
+row below as live-EV.
 
-**CONTEXT 07-10 evening: rails CLEAR second consecutive slot; the −14% freeze
-EXPIRED at this slot (21:53Z) with no re-trip.** Equity **$163.16** (all cash
-CLOB-actual; 0 open ladder shots, 0 engine positions) = **73.2% of 30d-HW $222.90**
-> the 50% line $111.45; tracked > ruin_floor $89.16. Daily realized **+$4.53** on
-daily_start $158.63 (+2.9%) — all sprint ladder (Guangzhou +$30.00, Tokyo −$15.72,
-Shanghai −$7.41 = +$6.87 fills-basis; −$2.3 residual = payout/proxy dust, zero
-engine flow all day). 7d realized (trades.jsonl) **−$71.52 PF 0.108 n=26** — every
-row opened 07-02→07-06, i.e. 100% tail from paths already cut; post-cut engine
-flow = 0. The morning 11:23Z slot died on session limits — this run covered the
-full 07-10 backlog. Live surface unchanged: NEG_RISK_ARB + RECYCLE099 + redemption
-(+ ladder cron).
+**CONTEXT 07-11 evening: rails CLEAR third consecutive slot.** Equity **$205.76**
+(cash $143.34 CLOB-actual + 2 open ladder shots at TRUE cost $62.42 — London
+reconciled 31.75→40.03 vs data-api, MexCity fee-inclusive 21.78→22.39) = **92.3%
+of 30d-HW $222.90**; tracked > ruin_floor $89.16. Daily realized +$42.33
+(ladder Guangzhou: cost 24.03, 0.99-exit +65.86 + 0.5 sh residual redeem).
+Engine 7d realized flow: $0 (all engine paths were dark).
 
-| Gate / slice | n | WR | avg quote | ROI | ROI CI95 | Verdict |
-|---|---|---|---|---|---|---|
-| BAND YES (all) | 589 | 14.6% | 0.144 | +1.2% | straddles 0 | AMBIGUOUS ≈ zero edge. Path OFF |
-| BAND YES d+2 | 432 | 13.4% | 0.136 | −1.1% | straddles 0 | AMBIGUOUS (the drag) |
-| BAND YES d+1 | 131 | 17.6% | 0.162 | +8.2% | straddles 0 | AMBIGUOUS — conditional-on-fill; NOT actionable |
-| BAND YES d+0 | 26 | 19.2% | 0.195 | −1.1% | wide | COLLECTING (n<40; 07-09 read +18.2% n=23 — sign flipped on 3 legs = noise) |
-| BAND NO (d+1) | 24 | 79.2% | 0.686 | +15.4% | straddles 0 | COLLECTING (n<100; window shrank 39→24). favNO stays HALTED |
-| PAIR_FAV combined | 29 pairs | — | 0.885/pair | **+13.1%/$** | n<40 | COLLECTING — stable vs 07-09 (+13.0% n=30); legs: YES_PAIR −31.4% / NO_PAIR +59.5% |
-| PAIR post-clip-guard | **0 resolved** | — | — | — | — | **ACCRUAL STRUCTURALLY FROZEN** while BAND_LIVE=False (pair branch nests in YES loop). Gate "post-guard n≥40" UNREACHABLE while dark → weekly 07-12 decides: band shadow-posting mode OR condition amendment |
-| **G7 SUM_POSTED [0.70,0.85] YES** | **396** | 16.7% | 0.146 | **+14.3%** | **[−8.7%, +41.6%]** | **AMBIGUOUS — NOT READY** (CI straddles; n +14 vs 07-09, drifting up not converging) |
-| G7 SUM_POSTED <0.70 YES | 183 | 9.8% | 0.140 | −29.8% | [−55.0%, +7.1%] | point-NEGATIVE, near-significant — argues against ever re-enabling the sub-0.70 book |
-| M1β lockout MAX family (taker) | 58 exec | — | — | EV −6.5%/fill | — | KILLED 07-08 (divergence study); UUWW blocklisted; margin 1.0 |
-| MIN_LOCKOUT (daily-min) maker | 197 | 100% @margin≥1.0 | — | — | CI-low 98.1% | Evidence gate PASSED; LIVE OFF (07-08 rail re-cut). Rail clear 2 slots now — re-enable at the **07-11 ledger review** (72h anti-thrash ends 07-11 ~22:05Z). Expected cost of deferral ≈ $0 (0 posts in its 7h live window; ~32 candidates/cycle, ~0 executable) |
-| TEMPORAL_LOCK (P5) taker | 472 | — | — | −EV all slices | — | KILLED 07-08; scanner d+1 date-join bug outstanding — fix before ANY P5 reuse |
-| COUNT_LOCK | 16 cand/11d | — | — | — | — | KILLED 07-08: 0 ever executable |
-| MINMAX coherence | 11 baskets/11d | — | — | ~$5-15/wk | — | DEFERRED (fees eat 9/11; needs new executor) |
-| THERMO_MAKER_NO | 125 | — | — | EV≈0 | — | REJECTED (07-03) |
-| M1β thin-margin [0.2,0.5)°C | 31 | 74.2% | — | −0.6% | [−20.6%, +24.4%] | REJECTED — reverted 07-04; review 07-18 |
-| NEG_RISK_ARB | — | — | — | — | — | Σask floor pinned ~1.000; stays armed (free option); 0 fires today |
-| Band dial time-series | 29 resolved days | — | — | — | — | COLLECTING (gate n≥90 days OOS; do not interpret) |
-| Isotonic (PA-1) | — | — | — | — | — | CLOSED no-defect 07-09; plateau STRUCTURAL; auto-promote ~07-12 iff OOS Brier improves; do NOT lean on mid-range p_cal |
-
-## Regime check — YES would-post ROI by MARKET date
-| date | n | WR | quote | ROI | ROI CI95 |
+| Slice (Jul-era window) | n res | WR | avg quote | ROI (sim, cond. on fill) | Verdict |
 |---|---|---|---|---|---|
-| 07-05 | 46 | 15.2% | 0.151 | +0.5% | [−50.0, +86.3] |
-| 07-06 | 97 | 14.4% | 0.151 | −4.3% | [−41.6, +51.1] |
-| 07-07 | 71 | 15.5% | 0.147 | +5.3% | [−39.7, +74.3] |
-| 07-08 | 80 | 17.5% | 0.137 | +27.6% | [−21.8, +98.7] |
-| 07-09 | 88 | 13.6% | 0.141 | −3.5% | [−43.6, +58.0] |
-| 07-10 | 68 | 13.2% | 0.143 | −7.4% | [−50.2, +62.8] |
+| ALL YES legs | 605 | 15.2% | 0.145 | +4.8% | sim-only; winner's-curse discount applies |
+| YES d+0 | 27 | 18.5% | 0.186 | −0.6% | COLLECTING |
+| YES d+1 | 137 | 17.5% | 0.161 | +8.8% | COLLECTING |
+| YES d+2 | 441 | 14.3% | 0.138 | +3.7% | COLLECTING |
+| YES off±0 (mode) | 128 | 18.0% | 0.224 | −19.9% | NEGATIVE trend |
+| YES off±2 | 236 | 12.7% | 0.095 | +33.7% | sim-only, curse-discount |
+| ALL NO legs | 15 | 93.3% | 0.687 | +35.8% | n<40 DATA-COLLECTION |
+| YES_PAIR legs | 29 | 31.0% | 0.452 | −31.4% | pair leg split — see combined |
+| NO_PAIR legs | 29 | 69.0% | 0.433 | +59.5% | pair leg split — see combined |
+| **PAIR combined** (Σ=0.885) | 29 | — | — | **≈+13.0%/pair locked when co-filled** | COLLECTING (n<40); co-fill enforcement = the gate |
+| Realized maker fills 06-11..07-06 | 75 | 17.3% | 0.417 | **−75.8% REALIZED** | winner's curse confirmed (trend) |
 
-Points oscillate around zero, every CI huge — neither inversion nor recovery
-confirmed. Unchanged from 07-09.
+Gate-keeper cumulative view (unchanged today, band dark day 5): G1 n=934
+AMBIGUOUS CI[−10.9,+21.1] · G2c PAIR_FAV_NO CF n=32 ROI +52.9% CI[+12.6,+85.5]
+· G3 n=37 · G7 n=382 AMBIGUOUS CI[−11.4,+38.9] · G5/G6 REJECTED (done).
 
-## S3 DISPERSION GAUGE — UNBLOCKED (the 07-10 headline)
+**Flags live right now**: BAND_LIVE=False (dark day 5, S3 trigger unmet:
+disp_ratio ≥1.10 on 1/13 confirmed days, median-city ≤0.80 all Jul days) ·
+MIN_LOCKOUT_LIVE=True (re-enabled 07-11 22:06Z per pre-registered review;
+197/197 margin≥1.0 evidence; $5 maker) · NEG_RISK_ARB + RECYCLE099 on ·
+taker YES/NO off · THERMO off · M1β off.
 
-`analysis/weather/settled_disp_ratio.py` (NEW, committed): full pricer_eval files
-(not s50 subsamples), last PRE_PEAK ladder per city-date d+0, implied σ =
-p_cal-normalized std (°C) of the ladder vs realized = |resolved bucket − mode
-bucket|, resolved label = final official-floored running_max at last pre-close
-snapshot. Cross-validation on the overlap window (Jun 30–Jul 2, where the cloud
-settled lane published 0.976/0.866/0.858): this method reads 1.081/1.001/0.944 —
-consistently a touch HIGHER than the cloud lane, so any inversion it shows is not
-a harsh-method artifact. (Jun 28–29 hot files already rotated out.)
-
-| Market date | n | impl σ | real | pooled ratio | median city ratio |
-|---|---|---|---|---|---|
-| 07-03 | 41 | 0.852 | 1.005 | 0.848 | 0.527 |
-| 07-04 | 39 | 0.787 | 0.886 | 0.889 | 0.722 |
-| 07-05 | 37 | 0.820 | 0.931 | 0.881 | 0.703 |
-| 07-06 | 39 | 0.777 | 0.632 | **1.228** | 0.798 |
-| 07-07 | 37 | 0.800 | 1.081 | 0.740 | 0.578 |
-| 07-08 | 40 | 0.815 | 0.983 | 0.829 | 0.578 |
-| 07-09 | 41 | 0.850 | 1.117 | 0.762 | 0.709 |
-| 07-10 | 21 | 0.886 | 1.429 | 0.620 | 0.736 (partial-day) |
-
-**Verdict: the standing re-enable trigger (disp_ratio ≥ 1.10 for 5 consecutive
-days) is NOT met — 1 of 8 new days above 1.10, never 2 consecutive; median-city
-ratio ≤ 0.80 on every day.** The market keeps pricing LESS dispersion than
-realizes; the standalone-YES band premise remains dead through 07-10. This answers
-calib-monitor S3 (8-day stale) and research-audit A1 ("do not re-enable before
-seeing Jul 3–9 dispersion") — seen, and it says NO. Data:
-`analysis/weather/settled_disp_ratio.json` (410 city-date rows, committed).
-
-## Decision memo for the 07-12 weekly (band deadlock)
-
-All three re-enable arguments now have fresh data, and none clears:
-1. Pre-registered binding condition (post-guard pair n≥40): frozen at 0, structural.
-2. Standing disp trigger (≥1.10 × 5d): measured, NOT met (table above).
-3. G7 [0.70,0.85]: n=396 AMBIGUOUS, CI [−8.7, +41.6], needs ~4× n for CI-clear.
-The only CI-clear positive anywhere remains PAIR_FAV NO counterfactual (+52.9%
-CI [+12.6,+85.5] n=32, gatekeeper G2c — trend, n<40). If the weekly breaks the
-deadlock, the cheapest gate-respecting path is shadow-posting mode (accrues G2b/G2c
-post-guard n at ~11 pairs/day with zero capital), NOT a live flip — and the
-dispersion table above argues the standalone-YES half of the band stays dead
-regardless of what the pair decision is.
-
-## Other VPS-only readouts
-
-- **yes_capture (would-post markout)**: 301 reconstructed fills, med −0.019,
-  94% adverse — winner's-curse signature intact; informational only (charter rule:
-  maker-book markout never justifies a live change).
-- **Sprint ladder** (owner-mandated, outside charter flag scope): lifetime 17
-  resolved 7W/10L (WR 41.2% vs avg fill ~0.43 — at-ask coin-flips per design),
-  net ≈ +$117 redemption-basis lifetime; today 3/3 fires, +$6.87 fills-basis.
-  Sleeve $179.69, event arithmetic exact (131.92 + 47.77 Guangzhou credit).
-  Cron healthy — log silent 17:10→22:00 is the benign cap-reached/no-open-shots
-  early-exit path (syslog shows all 10-min firings; 0 tracebacks). Watch item
-  unchanged: negative-model-edge fires 0W/2L (n=2; tuning rule needs n≥10).
-- **Sprint-30**: day 7 of 30 tonight; equity $163.16 vs day-7 target ≈ $256 →
-  ≈ −$93 behind (23:50Z cron restates).
+**For the Jul 12 structural review** — the decision-relevant facts:
+1. Winner's curse resolved (direction): sim ROI ≠ live ROI; any YES/NO band
+   re-enable must cite REALIZED fills or co-fill-locked structures.
+2. PAIR_FAV micro-stake is the one structure adverse selection cannot touch
+   *when co-filled*; clip-guard (07-05) + a naked-leg kill condition are the
+   gates that matter, not CF ROI.
+3. S3 dispersion premise still inverted (13/13 confirmed days) — standalone
+   YES band premise remains dead.
+4. Sub-0.70 book slice sim ROI −29.8% CI[−55,+7.1] (07-10 run) — gate it out of
+   any re-enable regardless.
