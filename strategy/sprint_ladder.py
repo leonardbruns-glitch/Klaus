@@ -279,6 +279,21 @@ async def fire(token: str, ask: float, stake: float, open_cost: float = 0.0):
         return None
     res = await om.limit_buy(token, ask, stake, Direction.BUY_YES,
                              price_ceiling=round(ask + 0.015, 3))
+    # Partial fills confirm over several seconds AFTER the placement response
+    # (London 07-11: response said 68.26 sh/$31.75, wallet actually paid $40.03
+    # for 83.75 sh across 3 partials — third mis-record after Seattle 07-04 and
+    # Tokyo 07-07). The wallet is ground truth: re-read the balance for actual
+    # cost, and re-poll the order for the stabilized matched size.
+    if res is not None and "FILLED" in str(getattr(res, "status", "")):
+        await asyncio.sleep(8)
+        bal2 = await asyncio.to_thread(om.fetch_usdc_balance)
+        if bal is not None and bal2 is not None and bal2 < bal:
+            res.actual_cost = round(bal - bal2, 2)
+        oid = getattr(res, "order_id", "") or (res.raw or {}).get("orderID", "")
+        if oid:
+            _, matched, _ = await om.get_order_match(oid)
+            if matched and matched > (getattr(res, "total_size", 0.0) or 0.0):
+                res.matched_size = matched
     return res
 
 def main() -> None:
@@ -387,13 +402,19 @@ def main() -> None:
                            open_cost=sum(s["stake"] for s in open_shots)))
     if res is not None and getattr(res, "status", None) is not None and \
             "FILLED" in str(res.status):
-        shares = round(getattr(res, "total_size", 0.0) or stake / best["ask"], 2)
         # sleeve must track ACTUAL fill cost, not intended stake — partial fills
-        # (Seattle 07-04, Tokyo 07-07) silently understated the sleeve otherwise
+        # (Seattle 07-04, Tokyo 07-07, London 07-11) silently understated the
+        # sleeve otherwise. fire() attaches wallet-delta cost and re-polled
+        # matched size when the placement response undercounts.
+        shares = round(getattr(res, "matched_size", 0.0)
+                       or getattr(res, "total_size", 0.0) or stake / best["ask"], 2)
         fill_px = getattr(res, "avg_fill_price", 0.0) or best["ask"]
-        cost = round(shares * fill_px + getattr(res, "total_fee", 0.0), 2)
+        cost = round(getattr(res, "actual_cost", 0.0)
+                     or shares * fill_px + getattr(res, "total_fee", 0.0), 2)
         if not (0.0 < cost <= round(stake * 1.10, 2)):
             cost = stake
+        if shares > 0 and getattr(res, "actual_cost", 0.0):
+            fill_px = round(cost / shares, 4)
         state["sleeve"] = round(state["sleeve"] - cost, 2)
         state["fired"][today] = fired_today + 1
         state["shots"].append({"date": today, "city": best["city"],
