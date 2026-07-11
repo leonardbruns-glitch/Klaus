@@ -355,14 +355,14 @@ MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °
 # validated against Gamma resolution — the one real risk (mirror of the running_max
 # overshoot bugs). Loosen toward 0.5 after the first clean min resolutions confirm
 # provenance. Revert live: MIN_LOCKOUT_LIVE=False.
-MIN_LOCKOUT_LIVE           = False   # 2026-07-08 21:53Z EVOLVE wind-down RE-CUT (rail-driven, NOT evidence-driven):
-                                     # equity $83.93 (cash 59.59 + ladder-at-cost 24.34) < 50%·30d-HW $111.45 —
-                                     # the rail that cleared 07-07 re-breached after the 07-08 China ladder
-                                     # losses (−$50.62). The 197/197 margin≥1.0 evidence (lockout_divergence_0708)
-                                     # stands un-falsified; this flag posted 0 orders during its 7h re-enable, so
-                                     # the cut costs ≈$0. Re-enable when equity ≥ 50%·30d-HW (evidence gate
-                                     # already satisfied — flip only the rail condition). Was True (07-08 15:10
-                                     # owner-directive re-enable at equity 61% of HW).
+MIN_LOCKOUT_LIVE           = True    # 2026-07-11 21:53Z EVOLVE review-date re-enable (pre-registered 07-08 ledger
+                                     # entry: "flip on rail clear alone — evidence gate already satisfied").
+                                     # Rails at review: equity $196.87 (cash 143.34 CLOB-actual + ladder-at-cost
+                                     # 53.53) = 88.3% of 30d-HW $222.90 > 50% line $111.45, third consecutive
+                                     # clear slot; 72h param freeze expired 07-11 21:53Z. Evidence unchanged:
+                                     # 197/197 min-lockouts margin≥1.0 clean (lockout_divergence_0708). $5 maker
+                                     # stake, breaker + oracle-blocklist inherited. Was False (07-08 21:53Z
+                                     # wind-down re-cut, rail-driven — posted 0 orders in its prior 7h live).
 MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 
 # ── Thermo-ceiling MAKER on the upper tail (2026-06-08, user opt-in, BOUNDED) ──────
