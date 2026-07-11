@@ -10,8 +10,8 @@
     "ci95": [-10.9, 21.1],
     "wr": 0.153,
     "resolved": 934,
-    "ts": "2026-07-10T09:00:00Z",
-    "note": "No change. BAND_LIVE=False since 07-06 22:08Z: 0 new shadow posts, 0 new resolved (confirmed: band_struct_lite 07-07..07-10 = 0 post records). 07-09 EVOLVE join (n=591, band YES n=465, ROI=-5.4%, CI=[-24.7,+17.9]) re-confirms cut. All-time CI base: ROI +4.0% CI straddles 0 → AMBIGUOUS unchanged. VPS join expected 07-10 ~11:23Z: +marginal resolved from pre-dark tail settlements. Re-enable: BAND_LIVE decision at 07-12 structural slot."
+    "ts": "2026-07-11T09:03:00Z",
+    "note": "No change. BAND_LIVE=False since 07-06 22:08Z: 0 new shadow posts (confirmed band_struct_lite 07-10: 191 records all md_shadow no_band/sum_gate; 07-11: 130 records all md_shadow no_band/sum_gate). VPS join at 07-10 11:23Z not confirmed from data-mirror (git fetch blocked); marginal increment expected <10 resolved, held at n=934. All-time CI: ROI +4.0% CI straddles 0 -> AMBIGUOUS unchanged. Re-enable blocker: pair_fav n=9 < 40 pre-reg condition; 07-12 structural decision pending."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
@@ -41,7 +41,7 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Frozen at BAND_LIVE=False since 07-06 22:08Z. 0 new post-guard fires. 0 resolved pairs. Rate ~11/day when live. ETA n=40: ~2.8d from re-enable. ETA n=100: ~8.3d from re-enable."
+        "note": "Frozen at BAND_LIVE=False since 07-06 22:08Z. 0 new post-guard fires (confirmed). Rate ~11/day when live. ETA n=40: ~2.8d from re-enable. ETA n=100: ~8.3d from re-enable."
       },
       "pair_fav_no": {
         "n": 9,
@@ -56,11 +56,11 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Post-guard n=9, 0 resolved (frozen). COUNTERFACTUAL VPS join (07-07 EVOLVE): n=32 all-shadow NO legs, ROI=+52.9%, CI=[+12.6,+85.5] — CI lower CLEARS zero. 07-09 EVOLVE combined per-pair: n=30, ROI=+13.0%. TREND only: n=32 < 40 is a trend, n < 100 is not a gate. Do not re-enable on this. ETA n=100: ~8.3d from re-enable."
+        "note": "Post-guard n=9, 0 resolved (frozen). COUNTERFACTUAL VPS join (07-07 EVOLVE): n=32 all-shadow NO legs, ROI=+52.9%, CI=[+12.6,+85.5] -- CI lower CLEARS zero. 07-09 EVOLVE combined per-pair: n=30, ROI=+13.0%. TREND only: n=32 < 40 is a trend, n < 100 is not a gate. Do not re-enable on this. ETA n=100: ~8.3d from re-enable."
       }
     },
-    "ts": "2026-07-10T09:00:00Z",
-    "note": "No new live fires since 07-06 wind-down. G2c counterfactual CI-clear is notable trend (not READY). Weekly 07-12 structural decision pending for BAND_LIVE re-enable condition."
+    "ts": "2026-07-11T09:03:00Z",
+    "note": "No new live fires since 07-06 wind-down. G2c counterfactual CI-clear is notable trend (not READY). 07-12 structural decision pending for BAND_LIVE re-enable path."
   },
   "FILLED_VS_FIRED": {
     "n": 37,
@@ -70,8 +70,8 @@
     "ci95": [null, null],
     "wr": null,
     "resolved": 0,
-    "ts": "2026-07-10T09:00:00Z",
-    "note": "n=37 unchanged. maker_fills_recent.log 07-08..07-10 shows only UNTRACKED TAKER fills: sprint ladder shots (0.37-0.55) and redemptions (0.99). Zero band-attributed fills. 3 fills needed to cross n=40 watch trigger. Requires BAND_LIVE re-enable. When band resumes, EVOLVE must queue fill-vs-fire join immediately on crossing n=40."
+    "ts": "2026-07-11T09:03:00Z",
+    "note": "n=37 unchanged. maker_fills_recent.log Jul-08..Jul-11 shows only UNTRACKED TAKER fills: sprint/ladder shots (0.35-0.55) and redemptions (0.992-0.996). Zero band-attributed fills. 3 fills needed to cross n=40 watch trigger. Requires BAND_LIVE re-enable."
   },
   "BASKET_EXIT": {
     "n": null,
@@ -91,7 +91,7 @@
     "ci95": [-9.0, 2.0],
     "wr": null,
     "resolved": 125,
-    "ts": "2026-07-10T09:00:00Z",
+    "ts": "2026-07-11T09:03:00Z",
     "note": "REJECTED (EVOLVE Jul04 21:53Z). n=125 EV -9..+2%/sh ~= 0. THERMO_MAKER_LIVE=False since Jun23 18:40. Action complete. No change."
   },
   "M1_BETA_LOCKOUT": {
@@ -102,7 +102,7 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-07-10T09:00:00Z",
+    "ts": "2026-07-11T09:03:00Z",
     "note": "REJECTED (EVOLVE Jul04 21:53Z). METAR_LOCKOUT_TEMP_FLOOR=0.5C (commit 2813daa1e). M1_BETA_PROBE_ENABLED=False since Jul06 22:10Z. 0 new probe fires. Action complete."
   },
   "SUM_POSTED_0.70_0.85": {
@@ -110,53 +110,52 @@
     "n_label": "resolved (VPS join 07-09 22:20Z; first-fire dedup YES legs sum_posted in [0.70,0.85])",
     "n_shadow_fires_all_time": 3076,
     "n_shadow_fires_added_since_wind_down": 0,
-    "n_prev_resolved": 0,
+    "n_prev_resolved": 382,
     "n_prev_shadow_fires": 3076,
     "status": "AMBIGUOUS",
     "roi": 11.5,
     "ci95": [-11.4, 38.9],
     "wr": null,
     "resolved": 382,
-    "ts": "2026-07-10T09:00:00Z",
-    "note": "STATUS TRANSITION: COLLECTING -> AMBIGUOUS. 07-09 22:20Z EVOLVE ran band_resolution_join.py on VPS: n=382 resolved (first-fire dedup YES legs sum_posted in [0.70,0.85]), ROI=+11.5%, Wilson CI=[-11.4,+38.9]. CI straddles 0 — NOT READY. 0 new shadow fires since 07-06 22:08Z (confirmed: band_struct_lite 07-07..07-10 = 0 post records). To push CI_lower > 0 at current ROI: need ~1,528 resolved (~4x current); ~23d of live firing at 50/day post re-enable. VPS join expected 07-10 ~11:23Z: marginal increment only. AMBIGUOUS is the correct verdict."
+    "ts": "2026-07-11T09:03:00Z",
+    "note": "No change. AMBIGUOUS since 07-09 22:20Z VPS join (n=382, ROI=+11.5%, CI=[-11.4,+38.9]). 0 new shadow fires since 07-06 22:08Z (confirmed band_struct_lite 07-10/07-11: 0 post records). To push CI_lower > 0 at current ROI: need ~1,528 resolved (~4x current); ~30.6d of live firing at 50/day post re-enable. 07-12 structural decision pending."
   },
   "_run_meta": {
-    "run_ts": "2026-07-10T09:00:00Z",
-    "snapshot_ts": "2026-07-10T09:00:16Z",
+    "run_ts": "2026-07-11T09:03:00Z",
+    "snapshot_ts": "2026-07-11T09:03:02Z",
     "snapshot_age_min": 0,
-    "snapshot_commit": "da32b937f",
-    "bankroll_capital": 204.064484,
-    "bankroll_at_prior_run": 42.015964,
-    "bankroll_change_3d": 162.05,
+    "snapshot_commit": "3081a6508",
+    "bankroll_capital": 163.164484,
+    "bankroll_at_prior_run": 204.064484,
+    "bankroll_change_24h": -40.9,
+    "bankroll_change_pct_24h": -20.0,
     "equity_rail": 111.45,
     "equity_rail_met": true,
-    "freeze_expires_utc": "2026-07-10T21:53:00Z",
+    "freeze_expired": true,
+    "freeze_expired_utc": "2026-07-10T21:53:00Z",
     "open_positions": 0,
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
     "wind_down_flags": ["BAND_LIVE=False", "M1_BETA_PROBE_ENABLED=False", "MIN_LOCKOUT_LIVE=False"],
+    "band_dark_days": 5,
     "newly_ready": [],
     "newly_rejected": [],
-    "newly_ambiguous": ["SUM_POSTED_0.70_0.85"],
-    "state_transitions": [
-      "G7 SUM_POSTED_0.70_0.85: COLLECTING -> AMBIGUOUS (07-09 22:20Z VPS join n=382 resolved, ROI +11.5%, CI=[-11.4,+38.9])"
-    ],
+    "newly_ambiguous": [],
+    "state_transitions": [],
     "structural_blockers": [
-      "WIND-DOWN active: BAND_LIVE=False since 07-06 22:08Z — 0 shadow posts confirmed (band_struct_lite 07-07..07-10 = 0 post records)",
-      "BAND_SHADOW=True flag is inert while BAND_LIVE=False; shadow fire counter frozen",
-      "Pre-registered BAND_LIVE re-enable condition: post-guard pair n>=40 UNMET (n=9); weekly 07-12 structural decision pending",
-      "Equity condition MET ($204.06 > $111.45); freeze expires tonight 07-10 21:53Z",
-      "G7, G1 CI blocked — cannot reach READY/REJECTED while band dark",
-      "G2a BAND_NO: live n=51 WR=39.2% effectively REJECTED; shadow AMBIGUOUS but irrelevant"
+      "WIND-DOWN active: BAND_LIVE=False since 07-06 22:08Z -- 0 shadow posts confirmed (band_struct_lite 07-10/07-11 = 0 post records)",
+      "Pre-registered BAND_LIVE re-enable condition: post-guard pair n>=40 UNMET (n=9); 07-12 structural decision pending",
+      "Equity condition MET ($163.16 > $111.45); freeze expired 07-10 21:53Z",
+      "G1, G7 CI blocked -- cannot reach READY/REJECTED while band dark",
+      "G2a BAND_NO: live n=51 WR=39.2% effectively REJECTED; shadow AMBIGUOUS but irrelevant",
+      "S3 dispersion gauge UNBLOCKED but trigger NOT met (Jul3-10: 1/8 days >=1.10)"
     ],
-    "proposed_actions": [],
-    "advisory": [
-      "[VPS JOIN DUE] band_resolution_join.py expected 07-10 11:23Z per audit. Marginal G1/G7 increment only. G7 stays AMBIGUOUS.",
-      "[EQUITY RAIL CLEARED] $204.06 > $111.45 rail; freeze expires 07-10 21:53Z. Post-freeze: equity condition MET. Binding blocker: pair n>=40 pre-registered condition (n=9).",
-      "[07-12 STRUCTURAL DECISION PENDING] Shadow-posting mode vs condition amendment for BAND_LIVE re-enable. G2c counterfactual CI=[+12.6,+85.5] at n=32 is a compelling trend — not a gate verdict.",
-      "[G2c TREND — NOT READY] PAIR_FAV_NO counterfactual: n=32 ROI=+52.9% CI=[+12.6,+85.5]. Lower bound positive. n<40 is a trend; n<100 is not a gate. Do not re-enable on this.",
-      "[G7 CI PATH] To clear CI_lower>0 at current +11.5% ROI: ~1,528 resolved (4x current). ~23d of live firing post re-enable. AMBIGUOUS is correct.",
-      "[CAPITAL RECOVERY] Bankroll $204.06 (+$162 since 07-07 gatekeeper, all ladder). Engine flow ~0. Ruin floor $89.16 safely below."
-    ]
+    "alerts": [
+      "[BANKROLL ALERT] -$40.90 (-20.0%) in 24h (07-10T09Z -> 07-11T09Z) with band dark. Sprint/ladder source. All positions settled (0 open). Warrants Exec Auditor review.",
+      "[07-12 STRUCTURAL SLOT] Tomorrow: decide BAND_LIVE re-enable path. Options: shadow-posting mode (resolves pair n chicken-and-egg) vs. condition amendment. G2c trend CI=[+12.6,+85.5] at n=32 is compelling but not a gate.",
+      "[VPS JOIN UNCONFIRMED] band_resolution_join.py expected 07-10 11:23Z. Git fetch timed out; SSH unavailable. n=934/382 held from prior state. Flag for VPS operator verification.",
+      "[PAIR_FAV_NO TREND] Counterfactual n=32 ROI=+52.9% CI=[+12.6,+85.5]: CI lower positive. n<40 = trend, NOT a decision. Do not re-enable on this."
+    ],
+    "proposed_actions": []
   }
 }
