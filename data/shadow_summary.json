@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-07-11T07:44:56.275896+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Kharg Island no longer under Iranian control by July 31?\", \"condition_id\": \"0x7162118722a6abe965c964e8c694ff0f232221d9bb2263bd92e5902633381893\", \"fav_token\": \"46234664383113214034787313853742859435218314985",
-      "mtime_utc": "2026-07-11T07:45:06Z",
-      "n_rows": 677658,
-      "size_bytes": 417790197
+      "last_excerpt": "{\"ts\": \"2026-07-11T08:00:17.890513+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will Rodina win the most seats in the next Russian parliamentary election?\", \"condition_id\": \"0x109932ecdd80d64f17e07e962940e5d386301ef0351aacc2faf2d379a7e3ac23\", \"fav_token\": \"93929482153463883949505357400",
+      "mtime_utc": "2026-07-11T08:00:20Z",
+      "n_rows": 677859,
+      "size_bytes": 417914385
     },
     "hot/2026-07-01/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1782864001.3574529, \"record\": \"fill_join\", \"fill_ts\": 1782863882, \"detect_lag_s\": 119.4, \"title\": \"Will the highest temperature in Chengdu be 27\\u00b0C on July 1?\", \"event\": \"highest-temperature-in-chengdu-on-july-1-2026\", \"outcome\": \"Yes\", \"price\": 0.002, \"size\": 44.592, \"usdc\": 0.089184, \"c",
@@ -2151,24 +2151,24 @@
     },
     "hot/2026-07-11/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1783728121.887757, \"record\": \"fill_join\", \"fill_ts\": 1783728035, \"detect_lag_s\": 86.9, \"title\": \"Will the highest temperature in Toronto be 29\\u00b0C on July 11?\", \"event\": \"highest-temperature-in-toronto-on-july-11-2026\", \"outcome\": \"Yes\", \"price\": 0.17, \"size\": 5, \"usdc\": 0.85, \"cid\": \"0x01",
-      "last_excerpt": "{\"ts\": 1783755961.3070524, \"record\": \"fill_join\", \"fill_ts\": 1783755889, \"detect_lag_s\": 72.3, \"title\": \"Will the highest temperature in Helsinki be 26\\u00b0C or higher o\", \"event\": \"highest-temperature-in-helsinki-on-july-13-2026\", \"outcome\": \"Yes\", \"price\": 0.48, \"size\": 12.5, \"usdc\": 6, \"cid\": \"0",
-      "mtime_utc": "2026-07-11T07:46:01Z",
-      "n_rows": 1391,
-      "size_bytes": 1195878
+      "last_excerpt": "{\"ts\": 1783756921.9863348, \"record\": \"ladder\", \"event\": \"highest-temperature-in-buenos-aires-on-july-11-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"C or below on July 11?\", \"bids\": [], \"asks\": [[0.001, 13143.31], [0.002, 7121.0], [0.003, 1905.0]]}, {\"q\": \"res be 9\\u00b0C on July 11?\", \"bids\": [], \"asks",
+      "mtime_utc": "2026-07-11T08:02:02Z",
+      "n_rows": 1452,
+      "size_bytes": 1248267
     },
     "hot/2026-07-11/band_struct.jsonl": {
       "first_excerpt": "{\"ts\": 1783728150.7509236, \"record\": \"md_shadow\", \"city\": \"London\", \"date\": \"2026-07-11\", \"days_out\": 0, \"reason\": \"converged\", \"mode_ask\": 0.435}",
-      "last_excerpt": "{\"ts\": 1783755793.171374, \"record\": \"md_shadow\", \"city\": \"Chengdu\", \"date\": \"2026-07-13\", \"days_out\": 2, \"reason\": \"fire\", \"mode_lo\": 37.5, \"sum_ask\": 0.785, \"sum_posted\": 0.785, \"live\": false, \"n_legs\": 4, \"quotes\": [{\"lo\": 35.5, \"hi\": 36.5, \"ask\": 0.125, \"bid_quote\": 0.112, \"stake\": 1.0, \"off\": 2,",
-      "mtime_utc": "2026-07-11T07:43:13Z",
-      "n_rows": 2324,
-      "size_bytes": 793170
+      "last_excerpt": "{\"ts\": 1783756962.5554729, \"city\": \"tel-aviv\", \"reason\": \"no_band\", \"local_h\": 11, \"n_valid\": 0}",
+      "mtime_utc": "2026-07-11T08:02:42Z",
+      "n_rows": 2424,
+      "size_bytes": 821900
     },
     "hot/2026-07-11/binance_trade.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1783727999,\"ts_ms_local\":1783727999307,\"exchange_ts_ms\":1783727999188,\"asset\":\"SOL\",\"price\":78.13,\"qty\":57.302,\"is_buyer_maker\":false,\"taker_side\":\"BUY\"}",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1783756061,\"ts_ms_local\":1783756061691,\"exchange_ts_ms\":1783756061573,\"asset\":\"ETH\",\"price\":1800.16,\"qty\":0.0271,\"is_buyer_maker\":true,\"taker_side\":\"SELL\"}",
-      "mtime_utc": "2026-07-11T07:47:41Z",
-      "n_rows": 249332,
-      "size_bytes": 53171355
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"binance_trade\",\"ts_s\":1783756965,\"ts_ms_local\":1783756965433,\"exchange_ts_ms\":1783756965312,\"asset\":\"SOL\",\"price\":78.01,\"qty\":0.096,\"is_buyer_maker\":false,\"taker_side\":\"BUY\"}",
+      "mtime_utc": "2026-07-11T08:02:45Z",
+      "n_rows": 254263,
+      "size_bytes": 54223766
     },
     "hot/2026-07-11/count_lock.jsonl": {
       "first_excerpt": "",
@@ -2179,87 +2179,87 @@
     },
     "hot/2026-07-11/discover_signal.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1783728494,\"ts_ms_local\":1783728494553,\"token_id\":\"49762068177528036130395764281405102804685973544549236196259035481747814884904\",\"condition_id\":\"0x43119da253c084911135cbcd5c71b7c1f4621859d49b0fdabae2e43152d77c68\",\"asset\":\"SO",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1783755172,\"ts_ms_local\":1783755172793,\"token_id\":\"106597924643158276618544440357093078185004534760711779717212958818383045221682\",\"condition_id\":\"0x8b565114c788790bdc52bf102a48faa65870b161e567960772c09edfb4f41f0e\",\"asset\":\"B",
-      "mtime_utc": "2026-07-11T07:32:53Z",
-      "n_rows": 23,
-      "size_bytes": 15454
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"discover_signal\",\"source\":\"live\",\"ts_s\":1783756963,\"ts_ms_local\":1783756963561,\"token_id\":\"39929648776930057153997422355465717907113392879689405761268708975749522496079\",\"condition_id\":\"0xa7f4aea07b1b7e3a644dbfaa55b2a68743562dea91d8e4f016c57ada85ca963a\",\"asset\":\"BT",
+      "mtime_utc": "2026-07-11T08:02:44Z",
+      "n_rows": 24,
+      "size_bytes": 16122
     },
     "hot/2026-07-11/exit_policy_shadow.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"exit_policy_shadow\",\"ts_s\":1783728829,\"token_id\":\"48595763823338254919539918853815465562545948589749671386189761492398418132533\",\"condition_id\":\"0x2e83be15d42720b670d774e153461912d883f1002c761aa00338a9512c7d872e\",\"asset\":\"ETH\",\"outcome_dir\":\"down\",\"outcome_side\":\"N",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"exit_policy_shadow\",\"ts_s\":1783755859,\"token_id\":\"61339008242748820362307189411326581860854962270197269387503528467473170362961\",\"condition_id\":\"0x537437fc7025c17c0b6689c85cad1fa12772b891ccc8eaa866c90b60822cf978\",\"asset\":\"SOL\",\"outcome_dir\":\"down\",\"outcome_side\":\"N",
-      "mtime_utc": "2026-07-11T07:44:19Z",
-      "n_rows": 783,
-      "size_bytes": 543078
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"exit_policy_shadow\",\"ts_s\":1783756785,\"token_id\":\"80828522793652858730151875270818618418266779412376895060248960037911478730316\",\"condition_id\":\"0xf23aaa33567891f5109f86eba1a6f25433b6385713dcc28c88747bc663da6cf1\",\"asset\":\"SOL\",\"outcome_dir\":\"down\",\"outcome_side\":\"N",
+      "mtime_utc": "2026-07-11T07:59:46Z",
+      "n_rows": 813,
+      "size_bytes": 564015
     },
     "hot/2026-07-11/fade_shadow.jsonl": {
       "first_excerpt": "{\"ts\": 1783728027.6612043, \"city\": \"sao-paulo\", \"phase\": \"POST_PEAK\", \"regime\": \"SUNNY\", \"running_max_c\": 26.0, \"rm_age_s\": 25228.0, \"fade_bins\": [{\"lo\": 26.5, \"hi\": 27.5, \"no_tok\": \"37805177385764843113744808745770955104837475581918805624706350378114585816644\", \"no_ask\": 0.9995, \"no_bid\": 0.9795, \"",
-      "last_excerpt": "{\"ts\": 1783756039.1075897, \"city\": \"manila\", \"phase\": \"POST_PEAK\", \"regime\": \"CLOUDY\", \"running_max_c\": 30.0, \"rm_age_s\": 13639.0, \"fade_bins\": [{\"lo\": 30.5, \"hi\": 31.5, \"no_tok\": \"37495063276822329211438646452325076037947243694539287785921527090746496430541\", \"no_ask\": 0.996, \"no_bid\": 0.991, \"no_d",
-      "mtime_utc": "2026-07-11T07:47:19Z",
-      "n_rows": 6705,
-      "size_bytes": 5529024
+      "last_excerpt": "{\"ts\": 1783756959.2834475, \"city\": \"manila\", \"phase\": \"POST_PEAK\", \"regime\": \"CLOUDY\", \"running_max_c\": 30.0, \"rm_age_s\": 14559.0, \"fade_bins\": [{\"lo\": 30.5, \"hi\": 31.5, \"no_tok\": \"37495063276822329211438646452325076037947243694539287785921527090746496430541\", \"no_ask\": 0.996, \"no_bid\": 0.994, \"no_d",
+      "mtime_utc": "2026-07-11T08:02:39Z",
+      "n_rows": 6945,
+      "size_bytes": 5723585
     },
     "hot/2026-07-11/gate_trace.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1783727999,\"ts_ms_local\":1783727999392,\"token_id\":\"103959331307761541742219459961587044210853793385337405355100505886600506863\",\"condition_id\":\"0x5a77c81b38a4ef040680fafd194acd9fc482f249944fb09cec46c90c9419245c\",\"asset\":\"BTC\",\"outcome_dir\":\"up\",\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1783756062,\"ts_ms_local\":1783756062714,\"token_id\":\"48827352595146787148777192463131055082329380509230256805612309342062136311850\",\"condition_id\":\"0x7b2b1008db408ff9918e000c1211376bca6baedf3f21bb488f0da291df49d85d\",\"asset\":\"SOL\",\"outcome_dir\":\"dow",
-      "mtime_utc": "2026-07-11T07:47:42Z",
-      "n_rows": 341561,
-      "size_bytes": 213642685
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"gate_trace\",\"ts_s\":1783756965,\"ts_ms_local\":1783756965563,\"token_id\":\"17301137439374379216416739215830714723712308643978310838417365999511178012340\",\"condition_id\":\"0xcef7cbc2bd8f71d754088e29ae0c4e3e715b3ff471653745937497f140f4e335\",\"asset\":\"SOL\",\"outcome_dir\":\"dow",
+      "mtime_utc": "2026-07-11T08:02:45Z",
+      "n_rows": 353167,
+      "size_bytes": 220902475
     },
     "hot/2026-07-11/hold_path.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1783728210,\"ts_ms_local\":1783728210926,\"token_id\":\"41195904500394096292185617232703058647142001037364453737006547899760984733737\",\"condition_id\":\"0x890f60e652f352f5de21a61f222339dbbe31954c3c1822dfc083211afb173d49\",\"asset\":\"BTC\",\"outcome_dir\":\"up\",",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1783755893,\"ts_ms_local\":1783755893950,\"token_id\":\"25903349000728884920143115559893883689141089683086327714032902065067299796519\",\"condition_id\":\"0xd8f12a83e254e4302dcd677a11c4dd853ef0dc9b3ef219204a106b9e55731624\",\"asset\":\"ETH\",\"outcome_dir\":\"down",
-      "mtime_utc": "2026-07-11T07:44:55Z",
-      "n_rows": 48802,
-      "size_bytes": 47195913
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"hold_path\",\"ts_s\":1783756794,\"ts_ms_local\":1783756794503,\"token_id\":\"80828522793652858730151875270818618418266779412376895060248960037911478730316\",\"condition_id\":\"0xf23aaa33567891f5109f86eba1a6f25433b6385713dcc28c88747bc663da6cf1\",\"asset\":\"SOL\",\"outcome_dir\":\"down",
+      "mtime_utc": "2026-07-11T07:59:55Z",
+      "n_rows": 50716,
+      "size_bytes": 49050133
     },
     "hot/2026-07-11/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1783728052.9313452, \"cid\": \"0x1bd1429aecf36c9c8b41bd4bfda7ff193fbfb11df08d97135a3002897a39a329\", \"q\": \"Will the highest temperature in Paris be 36\\u00b0C on July 10?\", \"proxyWallet\": \"0xa0f311ff37c5126c11b7c5b16ab09691d3b78faa\", \"side\": \"SELL\", \"asset\": \"413965929796543231225242689849635",
-      "last_excerpt": "{\"poll_ts\": 1783756058.4982927, \"cid\": \"0x2e425de569c5b0bcfc05159c538267fd96a0860e202988ed0108e8ccc8758db0\", \"q\": \"Will the highest temperature in Seoul be 25\\u00b0C on July 13?\", \"proxyWallet\": \"0xeb1d1cd1b31070fb34b1d1de20d700f59c9959b0\", \"side\": \"BUY\", \"asset\": \"5058954385325204254883753113307924",
-      "mtime_utc": "2026-07-11T07:47:38Z",
-      "n_rows": 41353,
-      "size_bytes": 44105600
+      "last_excerpt": "{\"poll_ts\": 1783756964.0991967, \"cid\": \"0xe066a42893e09aff2b43d38a6b6938d601547ac9942e626b16ff2c9bdb327ac1\", \"q\": \"Will the highest temperature in Houston be between 90-91\\u00b0F on July 12?\", \"proxyWallet\": \"0x15d93261ee8b43844f503966d693cd75836d6b54\", \"side\": \"BUY\", \"asset\": \"952665111657321320718",
+      "mtime_utc": "2026-07-11T08:02:44Z",
+      "n_rows": 42880,
+      "size_bytes": 45719712
     },
     "hot/2026-07-11/maker_shadow.jsonl": {
       "first_excerpt": "{\"ts\": 1783728028.8800092, \"city\": \"ankara\", \"phase\": \"PRE_PEAK\", \"lo\": -999.0, \"hi\": 25.5, \"yes_tok\": \"42766563109952845530141068735472531818460461313458254477801992739323836516595\", \"no_tok\": \"3179136307026012352172857612094591872855077150087527561474521578331435501056\", \"fair\": 0.0022, \"yes_bid\":",
-      "last_excerpt": "{\"ts\": 1783756040.847475, \"city\": \"helsinki\", \"phase\": \"PRE_PEAK\", \"lo\": 28.5, \"hi\": 999.0, \"yes_tok\": \"40446538096631812589519469621065080311057727686950063495281932225912677434334\", \"no_tok\": \"61428411701578604246645676205559967899113506493296640002294627677492449128946\", \"fair\": 0.3801, \"yes_bid\"",
-      "mtime_utc": "2026-07-11T07:47:20Z",
-      "n_rows": 20658,
-      "size_bytes": 9894612
+      "last_excerpt": "{\"ts\": 1783756962.5558696, \"city\": \"tel-aviv\", \"phase\": \"PRE_PEAK\", \"lo\": 37.5, \"hi\": 999.0, \"yes_tok\": \"69932063736092472194966422827121743230881748963906194684346861433499452903274\", \"no_tok\": \"94729906689092566490051593728781752222385934032683713783642841090737366351466\", \"fair\": 0.0, \"yes_bid\": ",
+      "mtime_utc": "2026-07-11T08:02:42Z",
+      "n_rows": 21362,
+      "size_bytes": 10225955
     },
     "hot/2026-07-11/market_timeline.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1783727999,\"ts_ms_local\":1783727999392,\"token_id\":\"103959331307761541742219459961587044210853793385337405355100505886600506863\",\"condition_id\":\"0x5a77c81b38a4ef040680fafd194acd9fc482f249944fb09cec46c90c9419245c\",\"asset\":\"BTC\",\"outcome_dir\":\"",
-      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1783756061,\"ts_ms_local\":1783756061714,\"token_id\":\"94312966287718734092546622315040783860029480280114912507089812782791925887366\",\"condition_id\":\"0x0d73cfb1ec2cf3cfe1f1de4084b24df7f1e02cfb40d6fe2584061382b6c08ec1\",\"asset\":\"BTC\",\"outcome_dir\"",
-      "mtime_utc": "2026-07-11T07:47:41Z",
-      "n_rows": 341538,
-      "size_bytes": 457683158
+      "last_excerpt": "{\"schema_version\":2,\"record_type\":\"market_timeline\",\"ts_s\":1783756965,\"ts_ms_local\":1783756965563,\"token_id\":\"17301137439374379216416739215830714723712308643978310838417365999511178012340\",\"condition_id\":\"0xcef7cbc2bd8f71d754088e29ae0c4e3e715b3ff471653745937497f140f4e335\",\"asset\":\"SOL\",\"outcome_dir\"",
+      "mtime_utc": "2026-07-11T08:02:44Z",
+      "n_rows": 353167,
+      "size_bytes": 473256725
     },
     "hot/2026-07-11/metar_lockout.jsonl": {
       "first_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-07-11T00:00:12.936246+00:00\", \"ts_s\": 1783728012, \"city\": \"Seattle\", \"icao\": \"KSEA\", \"token_id\": \"8396977103848846661598629852358261835890641839254680913054596842269885343882\", \"no_token_id\": \"110319385750687097267969798",
-      "last_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-07-11T07:47:38.477600+00:00\", \"ts_s\": 1783756058, \"city\": \"San Francisco\", \"icao\": \"KSFO\", \"token_id\": \"100427105125398254419463532193606344922380088671686010843232754575032937567039\", \"no_token_id\": \"8767481176089686444",
-      "mtime_utc": "2026-07-11T07:47:38Z",
-      "n_rows": 4351,
-      "size_bytes": 6676887
+      "last_excerpt": "{\"schema_version\": 2, \"record_type\": \"metar_lockout_candidate\", \"ts_utc\": \"2026-07-11T08:02:36.937203+00:00\", \"ts_s\": 1783756956, \"city\": \"Karachi\", \"icao\": \"OPKC\", \"token_id\": \"68251051448628746943151196460774221940526362866540410630547805648770413123239\", \"no_token_id\": \"88704078968981801420020606",
+      "mtime_utc": "2026-07-11T08:02:37Z",
+      "n_rows": 4442,
+      "size_bytes": 6811825
     },
     "hot/2026-07-11/metar_min_lockout.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"metar_min_lockout_candidate\", \"ts_s\": 1783728026.2, \"ts_utc\": \"2026-07-11T00:00:26.219954+00:00\", \"city\": \"NYC\", \"icao\": \"KLGA\", \"token_id\": \"112247382971409284347319042701483233414492484324368839456625718447631040711826\", \"question\": \"Will the lowest temperatur",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"metar_min_lockout_candidate\", \"ts_s\": 1783756037.3, \"ts_utc\": \"2026-07-11T07:47:17.286802+00:00\", \"city\": \"Miami\", \"icao\": \"KMIA\", \"token_id\": \"113947359625702095997099839705356228277438932986639502328635854062007613533219\", \"question\": \"Will the lowest temperat",
-      "mtime_utc": "2026-07-11T07:47:18Z",
-      "n_rows": 14506,
-      "size_bytes": 7656761
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"metar_min_lockout_candidate\", \"ts_s\": 1783756957.1, \"ts_utc\": \"2026-07-11T08:02:37.081282+00:00\", \"city\": \"Miami\", \"icao\": \"KMIA\", \"token_id\": \"113947359625702095997099839705356228277438932986639502328635854062007613533219\", \"question\": \"Will the lowest temperat",
+      "mtime_utc": "2026-07-11T08:02:38Z",
+      "n_rows": 15040,
+      "size_bytes": 7938686
     },
     "hot/2026-07-11/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-07-11T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-07-11\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on July 11?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.098, \"coverage_best\": {\"t\": 32, \"cost\": 2.213, \"n_legs\": 18, \"units_fillable\": 44.1, \"legs\": ",
-      "last_excerpt": "\", \"ask\": 0.35}, {\"q\": \"perature in Shanghai be 35\\u00b0C on July 13?\", \"ask\": 0.12}, {\"q\": \"perature in Shanghai be 36\\u00b0C on July 13?\", \"ask\": 0.057}, {\"q\": \"n Shanghai be 37\\u00b0C or higher on July 13?\", \"ask\": 0.01}, {\"q\": \"in Shanghai be 23\\u00b0C or below on July 13?\", \"ask\": 0.08}, {\"q\": ",
-      "mtime_utc": "2026-07-11T07:40:46Z",
-      "n_rows": 489,
-      "size_bytes": 2556830
+      "last_excerpt": " \"ask\": 0.352}, {\"q\": \"perature in Shanghai be 35\\u00b0C on July 13?\", \"ask\": 0.12}, {\"q\": \"perature in Shanghai be 36\\u00b0C on July 13?\", \"ask\": 0.057}, {\"q\": \"n Shanghai be 37\\u00b0C or higher on July 13?\", \"ask\": 0.01}, {\"q\": \"in Shanghai be 23\\u00b0C or below on July 13?\", \"ask\": 0.08}, {\"q\": \"",
+      "mtime_utc": "2026-07-11T08:00:50Z",
+      "n_rows": 512,
+      "size_bytes": 2679423
     },
     "hot/2026-07-11/no_arb_probe.jsonl": {
       "first_excerpt": "{\"ts\": 1783728151, \"city\": \"paris\", \"N\": 11, \"proxy_sum_no\": 9.9095, \"real_sum_no\": 10.0, \"payoff_N_1\": 10.0, \"real_edge\": 0.0, \"n_legs_fillable\": 7, \"all_legs_fillable\": false, \"min_leg_depth_usd\": 61.4, \"real_arb\": false, \"legs\": [{\"hi\": 29.5, \"no_ask\": null, \"depth\": 0.0, \"src\": \"no_asks\"}, {\"hi\"",
-      "last_excerpt": "{\"ts\": 1783755793, \"city\": \"london\", \"N\": 11, \"proxy_sum_no\": 9.9875, \"real_sum_no\": 9.997, \"payoff_N_1\": 10.0, \"real_edge\": 0.0003, \"n_legs_fillable\": 8, \"all_legs_fillable\": false, \"min_leg_depth_usd\": 36.73, \"real_arb\": false, \"legs\": [{\"hi\": 24.5, \"no_ask\": null, \"depth\": 0.0, \"src\": \"no_asks\"},",
-      "mtime_utc": "2026-07-11T07:43:14Z",
-      "n_rows": 455,
-      "size_bytes": 422894
+      "last_excerpt": "{\"ts\": 1783756716, \"city\": \"helsinki\", \"N\": 11, \"proxy_sum_no\": 9.9835, \"real_sum_no\": 10.0395, \"payoff_N_1\": 10.0, \"real_edge\": -0.0039, \"n_legs_fillable\": 8, \"all_legs_fillable\": false, \"min_leg_depth_usd\": 72.26, \"real_arb\": false, \"legs\": [{\"hi\": 19.5, \"no_ask\": null, \"depth\": 0.0, \"src\": \"no_as",
+      "mtime_utc": "2026-07-11T07:58:37Z",
+      "n_rows": 470,
+      "size_bytes": 436927
     },
     "hot/2026-07-11/ob_delta.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"ob_delta\",\"ts_s\":1783727999,\"ts_ms_local\":1783727999053,\"exchange_ts_ms\":1783727999043,\"token_id\":\"69732743697092499563629411472506861536794046831274244698762302573370230077549\",\"condition_id\":\"0x4f67db880a83bad5be147b8d22e4a8778e0e79d046b6d75632e95dcd664dfdb6\",\"as",
@@ -2270,59 +2270,59 @@
     },
     "hot/2026-07-11/obs_receipt.jsonl": {
       "first_excerpt": "{\"recv_ts\": 1783728057.6371362, \"icao\": \"SBGR\", \"source\": \"AWC\", \"obs_valid_ts\": 1783728000.0, \"temp_c\": 18.0}",
-      "last_excerpt": "{\"recv_ts\": 1783756058.477119, \"icao\": \"VHHH\", \"source\": \"HKO\", \"obs_valid_ts\": 1783755600.0, \"temp_c\": 34.0}",
-      "mtime_utc": "2026-07-11T07:47:38Z",
-      "n_rows": 1476,
-      "size_bytes": 165327
+      "last_excerpt": "{\"recv_ts\": 1783756945.709009, \"icao\": \"KHOU\", \"source\": \"NWS5\", \"obs_valid_ts\": 1783755600.0, \"temp_c\": 27.0}",
+      "mtime_utc": "2026-07-11T08:02:25Z",
+      "n_rows": 1525,
+      "size_bytes": 170794
     },
     "hot/2026-07-11/peakscalp_shadow.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"peakscalp_gate_pass\", \"ts_utc\": \"2026-07-11T00:00:12.936246+00:00\", \"ts_s\": 1783728012.9, \"city\": \"Seattle\", \"icao\": \"KSEA\", \"end_date\": \"2026-07-10\", \"question\": \"Will the highest temperature in Seattle be between 76-77\\u00b0F on July 10?\", \"condition_id\": \"0xf",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"peakscalp_followup\", \"ts_utc\": \"2026-07-11T07:14:34.412682+00:00\", \"ts_s\": 1783754074.4, \"city\": \"Busan\", \"icao\": \"RKPK\", \"end_date\": \"2026-07-11\", \"question\": \"Will the highest temperature in Busan be 34\\u00b0C on July 11?\", \"condition_id\": \"0x922fa5d46ed72cf42",
-      "mtime_utc": "2026-07-11T07:14:34Z",
-      "n_rows": 40,
-      "size_bytes": 39391
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"peakscalp_followup\", \"ts_utc\": \"2026-07-11T08:02:36.937203+00:00\", \"ts_s\": 1783756956.9, \"city\": \"Manila\", \"icao\": \"RPLL\", \"end_date\": \"2026-07-11\", \"question\": \"Will the highest temperature in Manila be 30\\u00b0C on July 11?\", \"condition_id\": \"0x711a1cb615b8473",
+      "mtime_utc": "2026-07-11T08:02:37Z",
+      "n_rows": 44,
+      "size_bytes": 43159
     },
     "hot/2026-07-11/shadow_telemetry.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1783728010,\"uptime_s\":179799,\"queue_depth\":1,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":9689872,\"dropped_total\":0,\"rows_per_min\":3233.6,\"flush_count\":158201,\"flush_latency_p50_ms\":2.71,\"flush_latency_p95_ms\":8.83,\"rss_mb\":846.9,",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1783756010,\"uptime_s\":207799,\"queue_depth\":0,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":10781375,\"dropped_total\":0,\"rows_per_min\":3113.0,\"flush_count\":182755,\"flush_latency_p50_ms\":1.12,\"flush_latency_p95_ms\":2.61,\"rss_mb\":1209.",
-      "mtime_utc": "2026-07-11T07:46:50Z",
-      "n_rows": 464,
-      "size_bytes": 588197
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"shadow_telemetry\",\"ts_s\":1783756913,\"uptime_s\":208703,\"queue_depth\":1,\"queue_max\":50000,\"queue_pct_full\":0.0,\"written_total\":10811695,\"dropped_total\":0,\"rows_per_min\":3108.3,\"flush_count\":183559,\"flush_latency_p50_ms\":1.13,\"flush_latency_p95_ms\":2.35,\"rss_mb\":1206.",
+      "mtime_utc": "2026-07-11T08:01:53Z",
+      "n_rows": 479,
+      "size_bytes": 607257
     },
     "hot/2026-07-11/stwa_ladder_book.jsonl": {
       "first_excerpt": "{\"ts\": 1783728028.8786898, \"city\": \"ankara\", \"phase\": \"PRE_PEAK\", \"regime\": \"SUNNY\", \"running_max\": 17.0, \"model_center\": 29.59, \"buckets\": [{\"lo\": -999.0, \"hi\": 25.5, \"p_model\": 0.0016, \"p_cal\": 0.0022, \"ask_yes\": 0.0015, \"ask_no\": 0.9985, \"yes_depth_usd\": 0.0, \"no_depth_usd\": 0.0}, {\"lo\": 25.5, \"h",
-      "last_excerpt": "{\"ts\": 1783755979.262186, \"city\": \"helsinki\", \"phase\": \"PRE_PEAK\", \"regime\": \"SUNNY\", \"running_max\": 20.0, \"model_center\": 29.195, \"buckets\": [{\"lo\": -999.0, \"hi\": 19.5, \"p_model\": 0.0, \"p_cal\": 0.0, \"ask_yes\": 0.0005, \"ask_no\": 0.9995, \"yes_depth_usd\": 0.0, \"no_depth_usd\": 0.0}, {\"lo\": 19.5, \"hi\": ",
-      "mtime_utc": "2026-07-11T07:46:19Z",
-      "n_rows": 975,
-      "size_bytes": 1718237
+      "last_excerpt": "{\"ts\": 1783756962.4237328, \"city\": \"sao-paulo\", \"phase\": \"PRE_PEAK\", \"regime\": \"SUNNY\", \"running_max\": 13.0, \"model_center\": 27.436, \"buckets\": [{\"lo\": -999.0, \"hi\": 22.5, \"p_model\": 0.0, \"p_cal\": 0.0, \"ask_yes\": 0.001, \"ask_no\": 0.999, \"yes_depth_usd\": 0.0, \"no_depth_usd\": 0.0}, {\"lo\": 22.5, \"hi\": ",
+      "mtime_utc": "2026-07-11T08:02:42Z",
+      "n_rows": 1009,
+      "size_bytes": 1775165
     },
     "hot/2026-07-11/stwa_pricer_eval.jsonl": {
       "first_excerpt": "{\"city\": \"ankara\", \"lo\": -999.0, \"hi\": 25.5, \"p_mc\": 0.0, \"p_gev\": 0.0, \"p_pa\": 0.00056, \"p_ps\": 0.00161, \"p_cal\": 0.00223, \"running_max\": 17.0, \"t_close\": 1783803599.9927254, \"phase\": \"PRE_PEAK\", \"ts\": 1783728027.6612043}",
-      "last_excerpt": "{\"city\": \"wuhan\", \"lo\": 40.5, \"hi\": 999.0, \"p_mc\": 0.00475, \"p_gev\": 0.03639, \"p_pa\": 0.00388, \"p_ps\": 0.02171, \"p_cal\": 0.03018, \"running_max\": 38.0, \"t_close\": 1783785599.9957707, \"phase\": \"AT_PEAK\", \"ts\": 1783756039.1075897}",
-      "mtime_utc": "2026-07-11T07:47:23Z",
-      "n_rows": 106183,
-      "size_bytes": 23781107
+      "last_excerpt": "{\"city\": \"tel-aviv\", \"lo\": 37.5, \"hi\": 999.0, \"p_mc\": 0.0, \"p_gev\": 0.00991, \"p_pa\": 0.0, \"p_ps\": 0.0, \"p_cal\": 0.0, \"running_max\": 31.0, \"t_close\": 1783803599.9962225, \"phase\": \"PRE_PEAK\", \"ts\": 1783756959.2834475}",
+      "mtime_utc": "2026-07-11T08:02:42Z",
+      "n_rows": 109307,
+      "size_bytes": 24469996
     },
     "hot/2026-07-11/stwa_state.jsonl": {
       "first_excerpt": "{\"ts\": 1783728007, \"city\": \"amsterdam\", \"regime\": \"SUNNY\", \"running_max\": 19.0, \"last_obs_ts\": 1783727700, \"metar_age_s\": 307, \"kalman_mu\": -0.033, \"kalman_var\": 0.4355, \"v_hat_ols\": 0.0, \"pv_var_ols\": 4.0, \"x_hat_joint\": 0.422, \"v_hat_joint\": 0.0014, \"pv_var_joint\": 0.3624, \"nwp_mu\": null, \"suspend",
-      "last_excerpt": "{\"ts\": 1783756044, \"city\": \"zhengzhou\", \"regime\": \"SUNNY\", \"running_max\": null, \"last_obs_ts\": 0.0, \"metar_age_s\": null, \"kalman_mu\": -0.047, \"kalman_var\": 0.8173, \"v_hat_ols\": 0.0, \"pv_var_ols\": 4.0, \"x_hat_joint\": 0.0, \"v_hat_joint\": 0.0, \"pv_var_joint\": 0.0, \"nwp_mu\": 37.4, \"suspended\": false}",
-      "mtime_utc": "2026-07-11T07:47:23Z",
-      "n_rows": 47175,
-      "size_bytes": 14885198
+      "last_excerpt": "{\"ts\": 1783756946, \"city\": \"zhengzhou\", \"regime\": \"SUNNY\", \"running_max\": null, \"last_obs_ts\": 0.0, \"metar_age_s\": null, \"kalman_mu\": -0.001, \"kalman_var\": 0.8694, \"v_hat_ols\": 0.0, \"pv_var_ols\": 4.0, \"x_hat_joint\": 0.0, \"v_hat_joint\": 0.0, \"pv_var_joint\": 0.0, \"nwp_mu\": 38.04, \"suspended\": false}",
+      "mtime_utc": "2026-07-11T08:02:26Z",
+      "n_rows": 48705,
+      "size_bytes": 15367296
     },
     "hot/2026-07-11/temporal_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"temporal_lock_candidate\", \"ts_utc\": \"2026-07-11T00:00:12.936246+00:00\", \"ts_s\": 1783728012, \"city\": \"Sao Paulo\", \"icao\": \"SBGR\", \"end_date\": \"2026-07-10\", \"question\": \"Will the highest temperature in Sao Paulo be 27\\u00b0C on July 10?\", \"local_hour\": 21, \"month\"",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"temporal_lock_candidate\", \"ts_utc\": \"2026-07-11T07:00:05.338147+00:00\", \"ts_s\": 1783753205, \"city\": \"Manila\", \"icao\": \"RPLL\", \"end_date\": \"2026-07-11\", \"question\": \"Will the highest temperature in Manila be 34\\u00b0C or higher on July 11?\", \"local_hour\": 15, \"mo",
-      "mtime_utc": "2026-07-11T07:00:05Z",
-      "n_rows": 508,
-      "size_bytes": 265970
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"temporal_lock_candidate\", \"ts_utc\": \"2026-07-11T08:00:02.962226+00:00\", \"ts_s\": 1783756802, \"city\": \"Manila\", \"icao\": \"RPLL\", \"end_date\": \"2026-07-11\", \"question\": \"Will the highest temperature in Manila be 34\\u00b0C or higher on July 11?\", \"local_hour\": 16, \"mo",
+      "mtime_utc": "2026-07-11T08:00:03Z",
+      "n_rows": 585,
+      "size_bytes": 305380
     },
     "hot/2026-07-11/thermo_maker.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"thermo_maker_candidate\", \"ts_s\": 1783728026.8, \"city\": \"Toronto\", \"icao\": \"CYYZ\", \"token_id\": \"106149498015270158421588377732341098115881116673754602194661554436721783845545\", \"question\": \"Will the highest temperature in Toronto be 33\\u00b0C or higher on July 10",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"thermo_maker_candidate\", \"ts_s\": 1783756038.1, \"city\": \"Chicago\", \"icao\": \"KORD\", \"token_id\": \"50527814604017862930161991461752177673041975007056716720554581428614621527515\", \"question\": \"Will the highest temperature in Chicago be 96\\u00b0F or higher on July 11?",
-      "mtime_utc": "2026-07-11T07:47:19Z",
-      "n_rows": 11052,
-      "size_bytes": 5429879
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"thermo_maker_candidate\", \"ts_s\": 1783756958.1, \"city\": \"Chicago\", \"icao\": \"KORD\", \"token_id\": \"50527814604017862930161991461752177673041975007056716720554581428614621527515\", \"question\": \"Will the highest temperature in Chicago be 96\\u00b0F or higher on July 11?",
+      "mtime_utc": "2026-07-11T08:02:39Z",
+      "n_rows": 11498,
+      "size_bytes": 5648700
     },
     "hot/2026-07-11/token_trade.jsonl": {
       "first_excerpt": "{\"schema_version\":2,\"record_type\":\"token_trade\",\"ts_s\":1783727999,\"ts_ms_local\":1783727999113,\"exchange_ts_ms\":1783727999080,\"token_id\":\"69732743697092499563629411472506861536794046831274244698762302573370230077549\",\"condition_id\":\"0x4f67db880a83bad5be147b8d22e4a8778e0e79d046b6d75632e95dcd664dfdb6\",",
@@ -2340,10 +2340,10 @@
     },
     "hot/2026-07-11/window_resolution.jsonl": {
       "first_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1783728035,\"condition_id\":\"0x718a7d7061c22ae2225cd603853a34c737bf4a7b7cff06ebd0a6e8ce16d890c1\",\"asset\":\"BTC\",\"outcome_dir\":\"up\",\"window_end_ts\":1783728000,\"window_size_s\":900,\"binance_open_5m\":64222.0,\"binance_close_5m\":64161.72,\"",
-      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1783755935,\"condition_id\":\"0x596ce8e427911eeb7e26171c68ffdabffd55f3e9607d62b152a7cc72435d5edd\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"window_end_ts\":1783755900,\"window_size_s\":900,\"binance_open_5m\":1801.0,\"binance_close_5m\":1800.56,\"bi",
-      "mtime_utc": "2026-07-11T07:45:36Z",
-      "n_rows": 378,
-      "size_bytes": 195279
+      "last_excerpt": "{\"schema_version\":1,\"record_type\":\"window_resolution\",\"ts_resolved_s\":1783756835,\"condition_id\":\"0x8972371fb6e312246a4aa3278520c579595a579333e85c2ab7982f18db7ac1d2\",\"asset\":\"ETH\",\"outcome_dir\":\"up\",\"window_end_ts\":1783756800,\"window_size_s\":900,\"binance_open_5m\":1800.57,\"binance_close_5m\":1800.0,\"bi",
+      "mtime_utc": "2026-07-11T08:00:36Z",
+      "n_rows": 390,
+      "size_bytes": 201479
     },
     "met_adjustments.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-05-21T19:40:55Z\", \"city\": \"Seattle\", \"icao\": \"KSEA\", \"marine\": {\"active\": false}, \"cirrus\": {\"active\": true, \"f_sky_raw\": 0.3, \"f_sky_adj\": 0.6}, \"latent_heat\": {\"active\": false}, \"mu_baseline\": 19.98, \"mu_final\": 21.06, \"total_delta\": 1.08}",
@@ -2353,5 +2353,5 @@
       "size_bytes": 3848347
     }
   },
-  "snapshot_ts": "2026-07-11T07:47:23Z"
+  "snapshot_ts": "2026-07-11T08:02:24Z"
 }
