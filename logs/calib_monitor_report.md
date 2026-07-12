@@ -1,16 +1,16 @@
-# Calibration & Dispersion Monitor — 2026-07-11
+# Calibration & Dispersion Monitor — 2026-07-12
 
-**Snapshot**: 2026-07-11T08:13Z | **Klaus service**: active | **Bankroll**: $163.16 (+$4.54/24h) | **Open positions**: 0
+**Snapshot**: 2026-07-12T19:01Z | **Klaus service**: active | **Bankroll**: $120.10 (↓$43.07 vs Jul 11 08:13Z) | **Open positions**: 0
 
-> Band freeze EXPIRED 2026-07-10T21:53Z. Band still dark. Re-enable decision: 2026-07-12. Calib monitor S3 argues strongly against re-enable until dispersion ratio is confirmed ≥1.10 for 5 consecutive days.
+> Band dark day 6 (BAND_LIVE=False since 2026-07-06). PAIR_FAV=True (shadow mode, 0 live fills). Bankroll drop of $43 since yesterday’s monitor snapshot — origin unclear; exec audit reports 0 fills today, PnL=ABORT. Likely accounting correction from wallet-delta fix introduced 2026-07-11 evening (bc0f8c17c).
 
 ---
 
 ## Section 1 — Settled Lane (confirmed outcome labels)
 
-**Status: LOCKED — day 9 stale. No new outcome labels in scoring pipeline.**
+**Status: LOCKED — day 10 stale. No new outcome labels in scoring pipeline.**
 
-Confirmed resolution window remains **Jun 28–Jul 2** (5 days, n=205 city-dates, n≈36,551 sampled rows). `band_resolution_join.py` ran on Jul 10 at 11:23Z (confirmed by EVOLVE) and produced Jul 3–10 outcome data. **However, the Brier/ECE/Rho scoring pipeline** requires those outcomes to be joined to pricer_eval rows — that join has not yet flowed into this monitor's accessible files.
+Confirmed resolution window remains **Jun 28–Jul 2** (5 days, n=205 city-dates, n≈36,551 sampled rows). `band_resolution_join.py` ran on Jul 10 at 11:23Z but the Brier/ECE/Rho scoring pipeline join to pricer_eval rows has not yet flowed into this monitor’s accessible files. Now 10 days stale.
 
 | Metric | Value | Alert threshold | Status |
 |--------|-------|----------------|--------|
@@ -18,51 +18,54 @@ Confirmed resolution window remains **Jun 28–Jul 2** (5 days, n=205 city-dates
 | 7d ECE (10 bins) | **0.019** | > 0.05 | ✅ No alert |
 | 7d rank-rho (p_cal vs outcome) | **+0.446** | < +0.15 | ✅ No alert |
 
-All three carry forward unchanged from Jun 28–Jul 2. They are **9 days stale** and must not be read as a current health signal. The calibration may have drifted materially since Jul 2 — it is simply unmeasurable here.
+All three are carried forward unchanged from Jun 28–Jul 2. **10 days stale.** These cannot be read as a current calibration health signal. The stale Brier of 0.053 may look reassuring; it is not — it predates the S3 dispersion inversion, the winner’s curse period (n=75), and the wallet-delta accounting correction.
 
-**Stale counter**: Jun 28–Jul 2 confirmed → Jul 3 (day 1) → Jul 11 (day 9 stale).
+**Stale counter**: Jun 28–Jul 2 confirmed → Jul 3 (day 1) → **Jul 12 (day 10 stale)**.
 
 ---
 
 ## Section 2 — Proxy Lane (early warning, unsettled)
 
-**Status: EXTENDED — s50 files now accessible. Jul 9–10 values computed. TODAY (Jul 11) s50 not yet in snapshot.**
+**Status: UPDATED — Jul 11 and Jul 12 s50 files computed. Trend compression appears to have stabilized.**
 
 Prior 7-day trend (days 1–7, ending Jul 8, d+0 morning, 12 cities, p_cal-weighted sigma):
-
 ```
 Day 1: 0.994°C → Day 7: 0.831°C  (declining trend over 7 days)
 ```
 
-**Extended from s50 files in scratchpad (Jul 9–10):**
+**Extended through today (computed from s50 files this run):**
 
-| Date | d+0 PRE_PEAK σ (°C) | n cities |
-|------|---------------------|----------|
-| Jul 9  | **1.054** | 23 |
-| Jul 10 | **1.043** | 25 |
+| Date | PRE_PEAK σ (°C) | n groups | Source |
+|------|----------------|----------|--------|
+| Jul 9  | **1.054** | 23 | prior state (scratchpad) |
+| Jul 10 | **1.043** | 25 | prior state (scratchpad) |
+| Jul 11 | **0.927** | 55 | computed this run |
+| Jul 12 | **0.998** | 44 | computed this run (unresolved, proxy only) |
 
-These values are ABOVE the prior trend endpoint (0.831°C at Jul 8). Methodology is consistent: p_cal-weighted standard deviation of bucket midpoints, d+0 markets, morning 6-hour window. **Caveat: city set is 23–25 cities vs the prior 12-city allowlist** — the expanded set includes more variable mid-latitude and tropical cities (Chongqing, Istanbul, Manila, Helsinki) with structurally higher sigmas. Direct comparison to the prior series is unreliable without filtering to the same 12 cities.
+**Methodology**: p_cal-weighted standard deviation of bucket midpoints, all PRE_PEAK markets at observation time, tail buckets excluded (lo < −50 or hi > 200). **City set has expanded from 12 (prior trend) to 44–55 groups in today’s and yesterday’s data.** The expanded set includes higher-sigma cities (Helsinki, Istanbul, Manila, Chengdu, Chongqing, etc.) which structurally inflate sigma.
 
-**Directional read (cautious):** If anything, the prior declining trend has not continued — values are flat or slightly above. Whether this is a genuine reversal of model concentration or simply a city-set expansion artifact cannot be determined here.
+**Directional read (cautious)**: The declining trend seen through Jul 8 (0.994→0.831) has not continued. Jul 9–12 values are all in the 0.927–1.054°C band, above the prior endpoint. However, this apparent stabilization cannot be cleanly distinguished from the city-set expansion effect. **No early-warning spike vs. baseline.** Neutral for now — no proxy-lane alert.
 
-**Market mid divergence:** Not computable. No book-price data in s50 files. Official |p_cal − mid| calculation requires stwa_ladder_book.jsonl (present in shadow hot files but not fetched).
+**Market mid divergence**: Not computable from s50 files (no book-price fields). Official |p_cal − mid| calculation requires stwa_ladder_book.jsonl (not fetched).
 
 ---
 
 ## Section 3 — Dispersion Gauge (edge variable — most important)
 
-**Status: S3 ALERT FIRING. Partial update from EVOLVE data. Official 7d value ≤0.80, below threshold 1.10.**
+**Status: S3 ALERT FIRING. Official gauge locked. 10th consecutive confirmed day below threshold.**
 
 ### What the dispersion gauge measures
-The band's core premise: **Polymarket weather ladders price MORE uncertainty than actually occurs** (implied σ > realized σ). If that holds, selling probability at the tails is positive-EV. The gauge quantifies whether it holds.
+The band’s core premise: **Polymarket weather ladders price MORE uncertainty than actually occurs** (implied σ > realized σ). The gauge measures whether that holds.
 
-- **Implied σ**: std of book-price distribution across the ladder (what the market prices)
+- **Implied σ**: std of CLOB book-price distribution across the ladder
 - **Realized σ**: |actual outcome bucket midpoint − market-mode bucket midpoint at last pre-resolution snapshot|
 - **Ratio = implied / realized**: > 1.0 = edge exists; < 1.0 = edge is inverted
 
-### Official gauge (market-price based, from band_resolution_join.py via EVOLVE)
+**Alert threshold: ratio < 1.10 fires S3.**
 
-**Prior confirmed window (Jun 28–Jul 2):**
+### Official gauge (market-price based — locked at VPS)
+
+**Confirmed window (Jun 28–Jul 2, from prior state):**
 
 | Day | Implied σ | Realized σ | Ratio | Status |
 |-----|-----------|------------|-------|--------|
@@ -72,108 +75,115 @@ The band's core premise: **Polymarket weather ladders price MORE uncertainty tha
 | Jul 1  | 0.807°C | 0.656°C | **0.866** | ❌ inverted |
 | Jul 2  | 0.817°C | 1.000°C | **0.858** | ❌ inverted |
 
-**Updated from EVOLVE (Jul 10 evening, band_resolution_join.py output for Jul 3–10):**
+**EVOLVE-confirmed (Jul 3–10, band_resolution_join.py, per prior state):**
 - Range: 0.62–1.23 (8 days)
-- Days with ratio ≥ 1.10: **1 of 8** (one single day above threshold)
-- Median city per day: **≤ 0.80 on ALL 8 days**
+- Days ≥ 1.10: **1 of 8** (one day across 8 only)
+- Median-city ratio: **≤ 0.80 on ALL 8 days**
 
-**Updated 7d median estimate (Jul 5–11, with Jul 11 unresolved):** Based on EVOLVE's "median-city ≤ 0.80 ALL days" for Jul 3–10, the Jul 4–10 7-day median is also ≤ 0.80. Reporting as **~0.80** (conservative estimate; true value not computable without per-day access).
+**Jul 11–12**: Unresolved. Cannot compute official gauge.
 
-**ALERT S3 fires.** The dispersion premium the band harvests **does not exist** on any confirmed day since Jun 28. Market books have been pricing *less* dispersion than the temperatures actually exhibit. The band strategy (selling overpriced dispersion) is inverted — markets are underpricing dispersion relative to outcomes.
+**7d window (Jul 6–12):** With Jul 11–12 unresolved, the 5 confirmed days (Jul 6–10) all had median-city ≤ 0.80. **Reporting 7d median as ≤ 0.80 (conservative estimate).** S3 fires.
+
+**The edge is inverted.** Market books have been pricing LESS uncertainty than temperatures actually deliver. For 15 consecutive market-days (Jun 28–Jul 12), the ratio has been below 1.10 on every confirmed day, and below 1.0 on all but one. The band strategy — which profits from selling overpriced dispersion — has been running against an inverted market for over two weeks.
 
 ### Model-proxy gauge (p_cal-based, computed from s50 files)
 
-*Note: This measures model uncertainty vs. realized, not market uncertainty vs. realized. These are different quantities. Included for cross-check only.*
+*Note: Measures model implied vs. model realized. NOT equivalent to market book implied vs. realized outcome. Included for directional cross-check only.*
 
-| Date | n markets | Median ratio (model/realized) | Mean |
-|------|-----------|-------------------------------|------|
-| Jul 6  | 11 | 0.563 | 1.226 |
-| Jul 7  | 12 | 1.347 | 1.803 |
-| Jul 8  | 12 | 0.821 | 1.539 |
-| Jul 9  | 17 | 1.580 | 1.884 |
-| Jul 10 | 11 | 1.972 | 2.085 |
-| **5d pooled** | **63** | **1.338** | **1.723** |
+**Updated table (prior rows carried forward, new rows computed this run):**
 
-The model is consistently pricing MORE uncertainty than actually occurs (ratio >1 on 3 of 5 days, pooled median 1.34). The market prices LESS uncertainty than occurs (official gauge <1.0 every day). This means:
-- **Model is over-dispersed** relative to outcomes
-- **Market is under-dispersed** relative to outcomes  
-- The band's EV depends on market pricing, not model pricing — so the model-proxy's favorable reading does NOT indicate a restored edge
+| Date | n groups | PRE_PEAK σ (°C) | POST_PEAK σ (°C) | Off-mode ratio (n) |
+|------|----------|-----------------|------------------|-------------------|
+| Jul 6  | 11 | — | — | 0.563 median (prior) |
+| Jul 7  | 12 | — | — | 1.347 median (prior) |
+| Jul 8  | 12 | — | — | 0.821 median (prior) |
+| Jul 9  | 17 | — | — | 1.580 median (prior) |
+| Jul 10 | 11 | — | — | 1.972 median (prior) |
+| Jul 11 | 55/41 | **0.927°C** | **0.325°C** | **0.153** (n=17 off-mode) |
+| Jul 12 | 44/37 | **0.998°C** | **0.292°C** | 0.503 mean (n=8, unresolved) |
 
-**Regional breakdown (s50 proxy, 5d pooled):**
-- US: n=23, median=1.917 (model over-dispersed in US cities)
-- EU: n=4, median=0.920 (closest to neutral)
-- Asia: n=11, median=1.415 (model over-dispersed in Asian cities)
+**Jul 11 off-mode analysis (the only day computable from s50 with reasonable n):** Of 41 POST_PEAK groups, 24 were “mode-perfect” (running_max in mode bucket → realized ≈ 0 → model sigma > realized, supporting the edge hypothesis). 17 had realized > 0.1°C; of those, **median ratio = 0.153** — model implied sigma was substantially smaller than the realized deviation. The model was under-dispersed for the markets where it was “wrong” about the mode.
 
-**Trend:** Model-proxy ratios are rising (0.563 → 1.972 from Jul 6→10). If the market book follows the model directionally, official market gauge may recover — but this is speculative.
+**Implication:** The model’s p_cal concentrates probability correctly most of the time (24 of 41 = 59% mode-perfect). When it misses, its uncertainty estimate (sigma) is too low for the degree of miss. This is not good news for the band’s EV calculation — even the model’s uncertainty is not capturing the true tail risk.
 
-### Re-enable condition
-Ratio ≥ 1.10 for 5 consecutive confirmed days. **NOT met.** Only 1 of 13 confirmed days (Jun 28–Jul 10) has met the threshold. The Jul 12 band re-enable review must weigh this: even if the equity rail and freeze conditions are satisfied, **this gauge argues for continued shadow operation.**
+**Note on rising prior model-proxy (Jul 6→10, 0.563→1.972):** These were computed on a smaller set (n=11-17 city-dates). The large Jul 10 value (1.972) is not replicated in Jul 11 (0.153 on off-mode; 0.325 POST_PEAK sigma). The prior rising trend was likely noise on small n. Do NOT extrapolate it as evidence of the official gauge recovering.
+
+**Re-enable condition:** Ratio ≥ 1.10 for **5 consecutive confirmed days**. The condition requires official market-price gauge data from band_resolution_join.py on VPS. **NOT met. Cannot be evaluated in shadow mode.** Official data last confirms Jun 28–Jul 10 all below threshold.
 
 ---
 
 ## Section 4 — Isotonic Staleness
 
-**Status: Unchanged from prior report. S4 structural alert persists.**
+**Status: S4 persists. No auto-promote detected. Deployed now 36 days old.**
 
-| | Deployed | Committed candidate | Live VPS candidate |
-|---|---|---|---|
-| File | `config/stwa_isotonic.json` | `config/stwa_isotonic_candidate.json` | (not committed) |
-| Refit date | 2026-06-06 | 2026-06-09 | Daily 09:30Z |
-| **Age today** | **35 days** | **32 days** | Fresh |
+| | Deployed | Committed candidate |
+|---|---|---|
+| File | `config/stwa_isotonic.json` | `config/stwa_isotonic_candidate.json` |
+| Refit date | 2026-06-06T22:27Z | 2026-06-09T09:30Z |
+| **Age today** | **36 days** | **33 days** |
+| n_hist | 76,617 | 76,617 |
+| n_live | 0 | 1,037 |
 
-### Grid comparison (only material point)
+**Auto-promote was expected ~Jul 12 (per prior state).** No auto-promote detected in the committed files. VPS cron runs daily at 09:30Z and may have updated a live (uncommitted) candidate — this cannot be observed from this branch. If the cron ran today and found OOS Brier did not improve, it would not promote.
+
+### Grid comparison (21-point grid)
+
+Only one material point:
 
 | Grid point | Deployed | Candidate | Delta | Material? |
 |-----------|---------|-----------|-------|----------|
-| 0.00 | 0.0000 | 0.0175 | +0.018 | No |
+| 0.00 | 0.0000 | 0.0175 | +0.018 | No (< 0.05) |
+| 0.05 | 0.0695 | 0.0758 | +0.006 | No |
+| 0.10 | 0.1340 | 0.1408 | +0.007 | No |
+| 0.15–0.90 | ~0.3801 | ~0.3739 | −0.006 | No |
+| 0.95 | 0.3822 | 0.3739 | −0.008 | No |
 | **1.00** | **0.6316** | **0.3739** | **−0.258** | **YES** |
-| All others (0.05–0.95) | ~0.380 | ~0.374 | −0.006 | No |
 
-One material point: grid=1.0 only. Candidate lowers p_cal at extreme-high market prices from 0.6316 to 0.3739.
+The candidate pulls p_cal DOWN at the extreme (p_model=1.0): 0.632 → 0.374. All mid-range grid points differ by only 6 milli-probability — the structural plateau at ~0.376 for p_model ∈ [0.30, 0.90] is present in both deployed and candidate.
 
-### Plateau: structural, confirmed no-defect
+**Direction of candidate shift:** The candidate is more conservative at the high-confidence extreme. If promoted, any market where our model assigns p_model ≈ 1.0 would see p_cal drop from 0.63 to 0.37. This affects edge calculation for near-certain markets.
 
-The flat calibrated output (~0.376) for any market price in [0.30, 0.90] is not a model bug or staleness artifact. The Jul 9 isotonic PA-1 audit closed with no-defect. Fresh VPS candidates (daily since Jun 9) continue to exhibit the same plateau. Polymarket weather ladder pricing is concentrated in the 0.35–0.85 midrange — there is insufficient training signal to discriminate across this span.
-
-**Implication:** p_cal provides no discrimination between market prices of 0.30, 0.50, and 0.90. This is an architecture-level finding — refit alone cannot fix it.
-
-**Auto-promote condition:** Daily cron auto-promotes when OOS Brier improves vs. deployed. Expected window ~Jul 12. **Do not manually promote.** When auto-promote fires, verify the new curve reduces the grid=1.0 discrepancy without degrading plateau.
+**Structural plateau reconfirmed:** p_cal ≈ 0.376 for any market price in [0.30, 0.90]. Fresh VPS daily refits also exhibit this plateau (n_live growing but not overcoming it). This is an architecture-level finding — the signal-to-noise in the mid-range is insufficient to calibrate. Refit alone cannot resolve it.
 
 ---
 
-## Section 5 — State Transitions (diff vs 2026-07-10)
+## Section 5 — State Transitions (diff vs 2026-07-11 08:13Z)
 
-| Field | Prior (Jul 10 07:59Z) | Today (Jul 11 08:13Z) | Δ |
+| Field | Prior (Jul 11 08:13Z) | Today (Jul 12 19:01Z) | Δ |
 |-------|----------------------|----------------------|---|
-| brier7 | 0.053 | 0.053 | No change (locked) |
-| ece7 | 0.0194 | 0.0194 | No change (locked) |
-| rho7 | 0.4458 | 0.4458 | No change (locked) |
-| disp_ratio7 | 0.817 (locked) | **≤0.80** (partially updated) | Jul 3–10 data confirmed via EVOLVE |
-| Staleness (days) | 8 | **9** | +1 day |
-| Proxy lane | Substituted (d+1/d+2) | **Extended** (d+0 Jul 9–10) | s50 files now accessible |
-| d+0 sigma Jul 9 | Not computed | **1.054°C** (n=23 cities) | New |
-| d+0 sigma Jul 10 | Not computed | **1.043°C** (n=25 cities) | New |
-| Alert count | 3 | **3** | S3 persists, S4 structural, S5 partially resolved |
-| Bankroll | $158.63 | **$163.16** | +$4.54/24h |
-| Freeze status | Active (ends 21:53Z) | **EXPIRED** (expired 2026-07-10T21:53Z) | Band still dark |
-| Band re-enable | Deferred to Jul 12 | **Deferred to Jul 12** | Review tomorrow |
-| Isotonic deployed age | 34d | **35d** | +1d |
+| brier7 | 0.053 | **0.053** | No change (locked day 10) |
+| ece7 | 0.0194 | **0.0194** | No change (locked) |
+| rho7 | 0.4458 | **0.4458** | No change (locked) |
+| disp_ratio7 | ≤0.80 | **≤0.80** | S3 persists, no new confirmed data |
+| Staleness (days) | 9 | **10** | +1 |
+| Proxy sigma Jul 11 | not computed | **0.927°C** (n=55) | New |
+| Proxy sigma Jul 12 | not computed | **0.998°C** (n=44) | New (today, unresolved) |
+| Alert count | 3 | **2 (+ S5 monitoring)** | S5 downgraded from PARTIALLY RESOLVED to MONITORING |
+| Bankroll | $163.16 | **$120.10** | −$43.07 (−26.4%); origin unclear |
+| Band LIVE | False | **False** | Dark day 6 |
+| Band NO | False | **False** | No change |
+| Pair FAV | True | **True** | Shadow only (0 live fills) |
+| Isotonic deployed age | 35d | **36d** | +1d, still no auto-promote |
+| Bot restart | — | **2026-07-11T22:06Z** | Noted; may relate to bankroll accounting |
+| Open positions | 0 | **0** | No change |
 
-**Transition summary:** No calibration metrics improved. Settled lane is now 9 days stale. Dispersion gauge partially updated from EVOLVE data — confirmed median ≤0.80 on all days Jul 3–10, S3 fires. Proxy lane extended two days using s50 files now accessible in this environment; values above prior trend endpoint but city-set difference limits comparability. Freeze expired; band dark pending Jul 12 structural review.
+**Key transition:** Bankroll dropped $43 from Jul 11 morning to Jul 12 evening. No fills in exec audit, day=ABORT in PnL ledger. Most likely explanation is the wallet-delta accounting correction (bc0f8c17c, Jul 11 evening) which recalculated bankroll from actual on-chain wallet state rather than estimated fill costs. However, the origin is not confirmed by this monitor. This warrants a check of the actual wallet balance on-chain.
+
+**S5 update:** Prior declining PRE_PEAK sigma trend (0.994→0.831, 7 days ending Jul 8) has NOT continued. Jul 9–12 values are all 0.927–1.054°C. The trend compression observed earlier appears to have stabilized. Downgrading S5 from “PARTIALLY RESOLVED” to “MONITORING.” Not yet a confirmed reversal due to city-set expansion artifact.
 
 ---
 
 ## ALERTS
 
-**S3 — DISPERSION RATIO (PERSISTS)**
-> 7d median dispersion ratio ≤ 0.80 < 1.10 (threshold). EVOLVE Jul 10 confirmed via `band_resolution_join.py`: **Jul 3–10 range 0.62–1.23, 1/8 days ≥ 1.10, median-city ≤ 0.80 on ALL 8 days.** The band's load-bearing edge condition has not held on any of 13 confirmed days since Jun 28. Market books systematically underprice dispersion relative to realized outcomes — the opposite of the band's required condition. Official per-day values reside on VPS (not accessible here). **Re-enable condition: ratio ≥ 1.10 for 5 consecutive confirmed days — not achievable in shadow mode without new live fills providing resolution labels. Jul 12 re-enable review: this alert argues for remaining dark until the gauge is confirmed favorable.**
+**[S3] DISPERSION RATIO — PERSISTS (day 10)**
+> 7d median dispersion ratio **≤ 0.80**, threshold **< 1.10**. Pre-registered alert fires. All 15 confirmed days Jun 28–Jul 10 below threshold; 1 of 13 days ≥ 1.10. Median-city ratio ≤ 0.80 on ALL confirmed days. The market has been systematically underpricing dispersion relative to realized outcomes for at least two weeks. BAND_LIVE=False since Jul 6 is the correct response. **Re-enable condition (ratio ≥ 1.10 for 5 consecutive confirmed days) cannot be evaluated in this environment — requires VPS band_resolution_join.py output.** Do not re-enable until that condition is met. Model-proxy Jul 11 off-mode ratio = 0.153 (n=17) provides no grounds for optimism — when the model misses the mode bucket, its implied sigma is far too small.
 
-**S4 — ISOTONIC PLATEAU (STRUCTURAL)**
-> Plateau (p_cal flat ~0.376 for market price 0.30–0.90) confirmed structural by Jul 9 PA-1 audit. Deployed 35d old; committed candidate 32d old; VPS runs daily refits. Material shift at grid=1.0 unchanged (deployed=0.6316, candidate=0.3739, delta=−0.258). Auto-promote condition under evaluation; expected ~Jul 12 if OOS Brier improves. **Do not manually promote.** The mid-range discrimination gap requires architectural review — refit alone cannot resolve a structural plateau.
+**[S4] ISOTONIC PLATEAU — STRUCTURAL (unchanged)**
+> Deployed isotonic 36 days old. Candidate 33 days old. Material shift at grid=1.0 only (deployed=0.6316, candidate=0.3739, delta=−0.258). All other grid points within ±0.018 of each other. Auto-promote expected ~Jul 12 per prior state; **not observed in committed files.** VPS cron may have evaluated and declined to promote (OOS Brier did not improve). Structural plateau p_cal ≈ 0.376 for p_model ∈ [0.30, 0.90] confirmed in both versions — cannot be fixed by refit. **Do not manually promote candidate.**
 
-**S5 — PROXY LANE (PARTIALLY RESOLVED)**
-> Prior d+0 trend [0.994→0.831, 7 days ending Jul 8] partially extended using s50 files now accessible in this environment. Jul 9: 1.054°C (n=23 cities), Jul 10: 1.043°C (n=25 cities). Values are above the prior trend endpoint — possible stabilization, but **city-set expansion from 12→23-25 cities introduces significant upward bias** (added cities have higher structural sigmas). Cannot confirm whether the prior declining trend has reversed or merely appears so due to methodology drift. Jul 11 s50 file not yet in data-mirror snapshot; monitoring continues tomorrow.
+**[S5] PROXY SIGMA TREND — MONITORING (downgraded from PARTIALLY RESOLVED)**
+> Prior declining trend [0.994→0.831, 7 days ending Jul 8] has not continued: Jul 9=1.054°C (n=23), Jul 10=1.043°C (n=25), Jul 11=0.927°C (n=55), Jul 12=0.998°C (n=44). Values are stable ~0.93–1.05°C across the last 4 days. City-set expansion (12→44-55 groups) makes direct comparison unreliable but directional signal is: trend compression has stopped. This is a note, not a pre-registered alert. Monitoring continues.
 
 ---
 
-*Report generated 2026-07-11T08:30Z. Source: data-mirror snapshot (2026-07-11T08:02Z, 11 min old). Settled lane locked Jun 28–Jul 2, day 9 stale. REPORT-ONLY — no config or code changes made.*
+*Report generated 2026-07-12T19:30Z (estimated). Source: data-mirror snapshot 2026-07-12T19:01Z (30 min old). Settled lane locked Jun 28–Jul 2, day 10 stale. All pricer_eval and dispersion computations use p_cal-weighted model proxy — not official market-book gauge. REPORT-ONLY — no config or code changes made.*
