@@ -1,1 +1,186 @@
-IyBCYW5kIEV4ZWN1dGlvbiAmIE1hcmtvdXQgQXVkaXQg4oCUIDIwMjYtMDctMTEKCioqU25hcHNob3QqKjogYDIwMjYtMDctMTFUMDc6MDI6MDZaYCAoZnJlc2gsIHdpdGhpbiA2aCkgfCAqKlN5c3RlbSoqOiBhY3RpdmUgKHVwdGltZSBmcm9tIDIwMjYtMDctMDhUMjI6MDNaKQoqKkNhcGl0YWwqKjogJDE2My4xNjQ0ODQgYWxsLWNhc2ggQ0xPQi1hY3R1YWwgKHJlY29uY2lsZWQgYXQgMjAyNi0wNy0xMCAyMjoyMFogcGVyIHN0YXRlX2xvZykKKipCQU5EX0xJVkUqKjogRmFsc2UgKHdpbmQtZG93biAyMDI2LTA3LTA2OyBmcmVlemUgRVhQSVJFRCAyMDI2LTA3LTEwIDIxOjUzWjsgRVZPTFZFIG1haW50YWluZWQgZGFyayDigJQgUzMgdHJpZ2dlciBub3QgbWV0KQoqKkJBTkRfTk9fRU5BQkxFRCoqOiBGYWxzZSAocmFpbC1oYWx0IDIwMjYtMDctMDIsIFdSIDM5LjIlIG49NTEpCioqQkFORF9QQUlSX0ZBVl9FTkFCTEVEKio6IFRydWUgKGluZXJ0IOKAlCBCQU5EX0xJVkU9RmFsc2UpIHwgKipTVFdBX1JFR1VMQVJfWUVTL05PX0VOQUJMRUQqKjogRmFsc2UKCi0tLQoKIyMgU2VjdGlvbiAxIOKAlCBGaWxsIFRhcGUgKDI0aCArIDdkKQoKIyMjIEtsYXVzIE1BS0VSIGZpbGxzCnwgV2luZG93IHwgW01BS0VSLUZJTExdIGxpbmVzIHwgRmlsbHMgKHVuaXF1ZSBldmVudHMpIHwgJCBmaWxsZWQgfCBCeSBzaWRlIHwgQnkgcHJpY2UgYmFuZCB8CnwtLS18LS0tfC0tLXwtLS18LS0tfC0tLXwKfCBMYXN0IDI0aCB8IDAgfCAwIHwgJDAgfCDigJQgfCDigJQgfAp8IExhc3QgN2QgfCAwIHwgMCB8ICQwIHwg4oCUIHwg4oCUIHwKClRoZSA3LWRheSBqb3VybmFsIHRhcGUgKGBtYWtlcl9maWxsc19yZWNlbnQubG9nYCkgY29udGFpbnMgKip6ZXJvIGBbTUFLRVItRklMTF1gIGxpbmVzKiogYW5kICoqemVybyBgW1NUUlVDVC1CQU5ELVFdYCBxdWV1ZS1zdGF0IGxpbmVzKiouIE5vIEtsYXVzLXJlZ2lzdGVyZWQgbWFrZXIgZmlsbHMgaW4gYW55IHByaWNlIGJhbmQsIGZvciBhbnkgY2l0eSwgb24gZWl0aGVyIHNpZGUuIENvbnNpc3RlbnQgd2l0aCBCQU5EX0xJVkU9RmFsc2Ugc2luY2UgMjAyNi0wNy0wNiAoZGF5IDUgb2YgZGFyayBwZXJpb2QgYXQgc25hcHNob3QgdGltZSkuCgpGaWxsIHJhdGU6ICoqMCBmaWxscyAvIDAgbGl2ZSBwb3N0cyoqIChiYW5kIGRhcmsg4oCUIGRlbm9taW5hdG9yIGlzIDApLgoKTGFzdCByZWdpc3RlcmVkIGJhbmQgcG9zdHM6IDIwMjYtMDctMDYgKDEwIHRva2VucywgJDQ4LjAxIHNwZW50KS4gTm8gYmFuZF9wb3N0ZWRfc3RhdGUuanNvbiBlbnRyaWVzIGZvciBKdWwgMDfigJMxMS4KCiMjIyBVTlRSQUNLRUQgdGFrZXIgZmlsbHMgKHVzZXIncyBsYWRkZXIg4oCUIE5PVCBLbGF1cyBtYWtlcikKVGhlIGxvZyBjb250YWlucyAxMSB1bmlxdWUgZmlsbCBldmVudHMgdGFnZ2VkIGBbVVNFUi1XU10gVU5UUkFDS0VEIEZJTEwgLyB0cmFkZXJfc2lkZT1UQUtFUmAg4oCUIHVzZXIncyBtYW51YWwgbGFkZGVyIHBvc2l0aW9ucyBvYnNlcnZlZCB2aWEgV2ViU29ja2V0LiBOb3QgcmVnaXN0ZXJlZCBpbiBLbGF1cydzIHRyYWNrZXI7IHJlcG9ydGVkIGZvciBjb21wbGV0ZW5lc3Mgb25seS4KCnwgRGF0ZSAoVVRDKSB8IEV2ZW50IHwgVG9rZW4gKHNob3J0KSB8IFNpZGUgfCBQcmljZSB8IFNoYXJlcyB8ICQgbm90aW9uYWwgfAp8LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfAp8IEp1bCAwOCAxNjo1MCB8IEJVWSB8IDUwMzUyMjMuLi4gfCBCVVkgfCAwLjU1MCB8IDQ0LjI1IHwgJDI0LjM0IHwKfCBKdWwgMDkgMDA6MTAgfCBTRUxMICgwLjk5KykgfCA1MDM1MjIzLi4uIHwgU0VMTCB8IDAuOTk2IHwgNDQgfCArJDQzLjgyIHwKfCBKdWwgMDkgMDA6MTAgfCBCVVkgfCA0NDA5NjU3Li4uIHwgQlVZIHwgMC4zOTkgfCAxMjkgfCAkNTEuNDcgfAp8IEp1bCAwOSAwMTowMCB8IEJVWSB8IDkxMDYyNzguLi4gfCBCVVkgfCAwLjM4MCB8IDM3IHwgJDE0LjA2IHwKfCBKdWwgMDkgMDc6MzAgfCBTRUxMICgwLjk5KykgfCA0NDA5NjU3Li4uIHwgU0VMTCB8IDAuOTkyIHwgMTI5IHwgKyQxMjcuOTcgfAp8IEp1bCAwOSAwNzo0MCB8IEJVWSB8IDMzNjA4MzYuLi4gfCBCVVkgfCAwLjUzMCB8IDEwIHwgJDUuMzAgfAp8IEp1bCAxMCAwMTozMCB8IEJVWSB8IDQ2NjM3MzUuLi4gfCBCVVkgfCAwLjM3MCB8IDQ3Ljc3IHwgJDE3LjY3IHwKfCBKdWwgMTAgMDI6MzAgfCBCVVkgfCAxNjcxOTU4Li4uIHwgQlVZIHwgMC40MjAgfCAxNy43IHwgJDcuNDMgfAp8IEp1bCAxMCAwMzo0MCB8IEJVWSB8IDExMzIxMDEuLi4gfCBCVVkgfCAwLjUwMCB8IDMxLjI1IHwgJDE1LjYzIHwKfCBKdWwgMTAgMDg6NDAgfCBTRUxMICgwLjk5KykgfCA0NjYzNzM1Li4uIHwgU0VMTCB8IDAuOTkyIHwgNDcgfCArJDQ2LjYyIHwKfCBKdWwgMTEgMDU6MDAgfCBCVVkgfCA3ODY3NTg2Li4uIHwgQlVZIHwgMC4zNTAgfCA2Ni41IHwgJDIzLjI4IHwKClN0YXRlX2xvZyBKdWwgMTAgMjI6MjBaIGRhaWx5IGxhZGRlciByZWNvbmNpbGlhdGlvbjogKyQ2Ljg3IG5ldCAoR3Vhbmd6aG91ICskMzAuMDAsIFRva3lvIOKIkiQxNS43MiwgU2hhbmdoYWkg4oiSJDcuNDEpLiBUaHJlZSBKdWwgMTAgbGFkZGVyIEJVWSBlbnRyaWVzICsgSnVsIDEwIDA4OjQwIGV4aXQgdmlzaWJsZSBpbiB0YXBlIGFyZSBjb25zaXN0ZW50IHdpdGggdGhpcy4KCi0tLQoKIyMgU2VjdGlvbiAyIOKAlCBOTy1QYXJpdHkgTW9uaXRvcgoKKipTb3VyY2UqKjogYGJhbmRfc3RydWN0X2xpdGUuanNvbmxgIHBlci1kYXkgKEp1bCAwOOKAkzExKTsgYG1ha2VyX3Jlc3Rpbmdfc3RhdGUuanNvbmAuCgp8IERhdGUgfCBZRVMgcG9zdHMgfCBOTyBwb3N0cyB8IFBBSVJfRkFWIHBvc3RzIHwgTk8gc2hhcmUgfCDiiaUxMCBwb3N0cz8gfCBBTEVSVD8gfAp8LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfAp8IDIwMjYtMDctMDggfCAwIHwgMCB8IDAgfCBOL0EgfCBObyB8IE4vQSAoZGFyaykgfAp8IDIwMjYtMDctMDkgfCAwIHwgMCB8IDAgfCBOL0EgfCBObyB8IE4vQSAoZGFyaykgfAp8IDIwMjYtMDctMTAgfCAwIHwgMCB8IDAgfCBOL0EgfCBObyB8IE4vQSAoZGFyaykgfAp8IDIwMjYtMDctMTEgfCAwIHwgMCB8IDAgfCBOL0EgfCBObyB8IE4vQSAoZGFyaykgfAoKWmVybyBgcG9zdGAgcmVjb3JkcyBpbiBhbnkgYmFuZF9zdHJ1Y3RfbGl0ZS5qc29ubCBkYXkgZmlsZSBmb3IgSnVsIDA44oCTMTEgKGNvbWJpbmVkIDY0OSByZWNvcmRzIGFjcm9zcyA0IGRheXM6IGFsbCBgbm9fYmFuZGAsIGBjb252ZXJnZWRgLCBgc3VtX2dhdGVgLCBgZmlyZVtsaXZlPUZhbHNlXWAsIGB5ZXNfY2FwdHVyZV9zaGFkb3dgKS4gUmVzdGluZyBib29rOiBgbWFrZXJfcmVzdGluZ19zdGF0ZS5qc29uID0ge31gLgoKKipOTy1zdGFydmF0aW9uIGZpeCoqIChjb21taXR0ZWQgMjAyNi0wNi0xMikgY2Fubm90IGJlIHZlcmlmaWVkIGluIHRoZSBjdXJyZW50IGRhcmsgd2luZG93IOKAlCBubyBwb3N0cyBhdCBhbGwsIHNvIHRoZXJlIGlzIG5vIGRlbm9taW5hdG9yLiBMYXN0IHZlcmlmaWVkIHBhcml0eTogSnVsIDA14oCTMDYgYXQgNTAlIHBlciBKdWwgMTAgYXVkaXQuIE5vIHJlZ3Jlc3Npb24gZXZpZGVuY2UsIGJ1dCBubyBjb25maXJtaW5nIGRhdGEgZWl0aGVyLgoKU2hhZG93IGJhbmQgYWN0aXZpdHkgcmVtYWlucyBoZWFsdGh5OiBgZmlyZWAgcmVjb3JkcyAoYWxsIGBsaXZlPUZhbHNlYCkg4oCUIEp1bCAwODogMTYsIEp1bCAwOTogMTYsIEp1bCAxMDogMTksIEp1bCAxMSAoMDc6MDJaIHBhcnRpYWwpOiAxNCDigJQgc3ByZWFkIGFjcm9zcyAxNeKAkzI1IGNpdGllcyBwZXIgZGF5LiBgeWVzX2NhcHR1cmVfc2hhZG93YCByZWNvcmRzIOKAlCBKdWwgMDg6IDU5LCBKdWwgMDk6IDUzLCBKdWwgMTA6IDY3LCBKdWwgMTEgKHBhcnRpYWwpOiA1NiDigJQgYWxsIFlFUyBzaWRlLCBhbGwgdGFyZ2V0aW5nIGQrMiBkYXRlcy4KCi0tLQoKIyMgU2VjdGlvbiAzIOKAlCBRdWV1ZSBIZWFsdGgKCioqU291cmNlKio6IGBbU1RSVUNULUJBTkQtUV1gIGxpbmVzIGluIGBtYWtlcl9maWxsc19yZWNlbnQubG9nYDsgc2hhZG93X3N1bW1hcnkuanNvbiBob3Qgcm93IGNvdW50czsgYmFuZF9zdHJ1Y3RfbGl0ZSByZWFzb24gYnJlYWtkb3duLgoKfCBNZXRyaWMgfCBWYWx1ZSB8IE5vdGVzIHwKfC0tLXwtLS18LS0tfAp8IFtTVFJVQ1QtQkFORC1RXSBsaW5lcyBpbiA3ZCB0YXBlIHwgKiowKiogfCBObyBsaXZlIHBvc3RpbmcgY3ljbGVzIHNpbmNlIEJBTkRfTElWRT1GYWxzZSB8CnwgY291bnRfbG9jay5qc29ubCByb3dzIChKdWwgMDjigJMxMSkgfCAqKjAsIDAsIDAsIDAqKiB8IEtpbGxlZCBzdHJhdGVneSAoMCBjYXBhY2l0eSkgfAp8IGJhbmRfc3RydWN0IHNoYWRvdyByb3dzIHRvZGF5IChob3QpIHwgKioyLDA4NCoqIChtZF9zaGFkb3cpIHwgU2NhbiBhbGl2ZSB0aHJvdWdoIDA2OjU3WiB8CnwgbWFrZXJfc2hhZG93Lmpzb25sIHJvd3MgSnVsIDA44oCTMTEgfCAxMDVrIC8gMTA4ayAvIDEwM2sgLyAyMGsgKHBhcnRpYWwpIHwgU2hhZG93IHF1b3RpbmcgZW5naW5lIGFjdGl2ZSB8CnwgQm9va3MgcGlubmVkIGF0IDgwPyB8IENhbm5vdCBldmFsdWF0ZSB8IE5vIFtTVFJVQ1QtQkFORC1RXSBsaW5lcyB8CnwgeWVzX2Jvb2tzIHBpbm5lZCBhdCA1MD8gfCBDYW5ub3QgZXZhbHVhdGUgfCBObyBbU1RSVUNULUJBTkQtUV0gbGluZXMgfAp8IGNhc2hfcHJlc2tpcCA+IDIwMCBzdXN0YWluZWQ/IHwgQ2Fubm90IGZvcm1hbGx5IGV2YWx1YXRlIHwgJDE2My4xNiBhbGwtY2FzaCwgJDAgZGVwbG95ZWQgPSBzdHJ1Y3R1cmFsIHN0YWxsIHwKClF1ZXVlIGN5Y2xlIGxvZ2dpbmcgKGBbU1RSVUNULUJBTkQtUV1gKSByZXF1aXJlcyBsaXZlIHBvc3RpbmcuIFdpdGggYEJBTkRfTElWRT1GYWxzZWAsIG5vIGxpdmUgY3ljbGVzIHJ1bi4gVGhlIHNoYWRvdyBwaXBlbGluZSBpcyBoZWFsdGh5IOKAlCBgYmFuZF9zdHJ1Y3QuanNvbmxgIGhvdCByb3dzICh+Nyw2MDDigJM3LDgwMC9kYXkgZnVsbCBkYXlzKSwgYG1ha2VyX3NoYWRvdy5qc29ubGAgKH4xMDBrKy9kYXkpIGFuZCBgdGhlcm1vX21ha2VyLmpzb25sYCAofjM0ay9kYXkpIGFsbCBhdCBub3JtYWwgcmF0ZXMuIFRoZSBib29rLWZldGNoIGFuZCBxdW90ZS1jb21wdXRhdGlvbiBtYWNoaW5lcnkgaXMgZnVuY3Rpb25pbmc7IG91dHB1dCBpcyBkaXNjYXJkZWQgd2l0aG91dCBsaXZlIG9yZGVycy4KCmBleGl0MDk5X2xpdmUuanNvbmxgIHJvd3M6IDAgb24gSnVsIDA34oCTMTEgKGZpbGUgYWJzZW50IGZyb20gaG90IGRpcnMgZm9yIHRob3NlIGRhdGVzKSDigJQgY29uZmlybXMgbm8gbGl2ZSBwb3NpdGlvbnMgYXQgMC45OSsgZXhpdCB0aHJlc2hvbGQuCgotLS0KCiMjIFNlY3Rpb24gNCDigJQgUmVzb2x1dGlvbiBNYXJrb3V0IChGaWxsIFF1YWxpdHkpCgoqKlNvdXJjZSoqOiBgc3RhdGVfbG9nLm1kYCAyMDI2LTA3LTEwIDIyOjIwWiBlbnRyeSAoam9pbiByZWZyZXNoIHJhbik7IGBiYW5kX3Jlc29sdXRpb25fam9pbi5weWAgb3V0cHV0IChqb2luZWQgb24gVlBTIH4xMToyM1ogSnVsIDEwIHBlciBwcmlvciBhdWRpdCwgY29uZmlybWVkIGJ5IEVWT0xWRSBlbnRyeSBub3RpbmcgUzMgVU5CTE9DS0VEKS4KCiMjIyBSZWdpc3RlcmVkIGZpbGxzIGluIHRhcGU6IG5vbmUKWmVybyBgW01BS0VSLUZJTExdYCBsaW5lcyBpbiA3ZCB3aW5kb3cuIE5vIHBlci1sZWcgZmlsbC9yZXNvbHV0aW9uIHBhaXJzIGV4aXN0IGluIHRoZSB0YXBlIGZvciBmb3JtYWwgbWFya291dCBjb21wdXRhdGlvbi4gYGJhbmRfcmVzb2x1dGlvbl9qb2luLnB5YCBjYW4gcmVjb25zdHJ1Y3QgcHJlLXRhcGUgZmlsbHMgZnJvbSBzaGFkb3cgbG9ncyBvbiBWUFMsIGJ1dCB0aGF0IG91dHB1dCBpcyBub3QgZGlyZWN0bHkgYXZhaWxhYmxlIGluIHRoaXMgYXVkaXQncyBkYXRhIHNjb3BlLgoKIyMjIEFnZ3JlZ2F0ZSBtYXJrb3V0IGZyb20gc3RhdGVfbG9nIChzZXR0bGVkIHBhdGhzLCA3ZCkKRnJvbSBzdGF0ZV9sb2cgMjAyNi0wNy0xMCAyMjoyMFo6Cgo+ICoiN2QgcmVhbGl6ZWQg4oiSJDcxLjUyIFBGIDAuMTA4IG49MjYg4oCUIDEwMCUgdGFpbCBvcGVuZWQgMDctMDIuLjA3LTA2IHByZS1jdXQsIHBvc3QtY3V0IGZsb3cgMCIqCgp8IE1ldHJpYyB8IFZhbHVlIHwKfC0tLXwtLS18CnwgN2Qgc2V0dGxlZCBiYW5kIHBhdGhzIHwgbj0yNiB8CnwgN2QgcmVhbGl6ZWQgUG5MIHwg4oiSJDcxLjUyIHwKfCA3ZCBwcm9maXQgZmFjdG9yIHwgMC4xMDggfAp8IFBvc3QtY3V0IChKdWwgMDYrKSBmbG93IHwgMCAoZGFyaykgfAoKIyMjIFNpbXVsYXRlZCBhbGwtZmlyZXMgYmFzZWxpbmUgKGpvaW4gcmVmcmVzaCwgbj02NzEpCkZyb20gc2FtZSBzdGF0ZV9sb2cgZW50cnk6Cgo+ICoiSm9pbiByZWZyZXNoIG49NjcxOiBHNyBbMC43MCwwLjg1XSBuPTM5NiBST0kgKzE0LjMlIENJW+KIkjguNywrNDEuNl0gc3RpbGwgQU1CSUdVT1VTOyBwYWlyIGNvbWJpbmVkICsxMy4xJS8kIG49Mjkgc3RhYmxlOyBwb3N0LWd1YXJkIHBhaXIgbiBzdGlsbCAwIChkYXJrKSIqCj4gKiJzdWItMC43MCBib29rIOKIkjI5LjglIENJW+KIkjU1LCs3LjFdIG5lYXItc2lnbmlmaWNhbnQgbmVnYXRpdmUiKgoKfCBTbGljZSB8IG4gfCBTaW11bGF0ZWQgUk9JIHwgQ0kgfCBTdGF0dXMgfAp8LS0tfC0tLXwtLS18LS0tfC0tLXwKfCBHNyBTVU1fUE9TVEVEIFswLjcw4oCTMC44NV0gfCAzOTYgfCArMTQuMyUgfCBb4oiSOC43JSwgKzQxLjYlXSB8IEFNQklHVU9VUyAoQ0kgc3RyYWRkbGVzIDApIHwKfCBQYWlycyBjb21iaW5lZCB8IDI5IHwgKzEzLjElLyQgfCDigJQgfCBBTUJJR1VPVVMgKHNtYWxsIG4pIHwKfCBzdWItMC43MCBib29rIHwg4oCUIHwg4oiSMjkuOCUgfCBb4oiSNTUlLCArNy4xJV0gfCBOZWFyLXNpZ25pZmljYW50IG5lZ2F0aXZlIHwKfCBQb3N0LWd1YXJkIHBhaXIgcmVzb2x2ZWQgfCAwIHwgTi9BIHwgTi9BIHwgMCAoZGFyaykgfAoKIyMjICoqV0lOTkVSJ1MgQ1VSU0UgRkxBRyAoUExBVVNJQkxFIOKAlCBubyBmb3JtYWwgcGVyLWxlZyBzcGxpdCBhdmFpbGFibGUpKioKRGlyZWN0aW9uIGlzIGFkdmVyc2U6IHNldHRsZWQgcGF0aHMgUEYgMC4xMDggdnMgYWxsLWZpcmVzIHNpbXVsYXRlZCArMTQuMyUuIEtsYXVzIGlzIHNldHRsaW5nIHBvc2l0aW9ucyBhdCAxMC44IGNlbnRzIG9mIHByb2ZpdCBmYWN0b3IgYWdhaW5zdCBhIHNpbXVsYXRlZCB1bml2ZXJzZSByZXR1cm5pbmcgKzE0JSBvbiB0aGUgc2FtZSBiYW5kLiBDbGFzc2ljIG1ha2VyIGFkdmVyc2Utc2VsZWN0aW9uOiByZXN0aW5nIGJpZHMgZ2V0IGhpdCBzZWxlY3RpdmVseSB3aGVuIHRoZSBtYXJrZXQgaXMgbW92aW5nIGFnYWluc3QgdGhlIHF1b3RlLgoKSG93ZXZlciwgYSBjbGVhbiBmb3JtYWwgc3BsaXQgcmVxdWlyZXMgcGVyLWxlZyBtYXRjaGVkIGZpbGwvcmVzb2x1dGlvbiBwYWlycyBhdCB0aGUgc2FtZSAoY2l0eSwgZGF5c19vdXQsIHByaWNlX2JhbmQpIHNsaWNlLiBUaGF0IHJlcXVpcmVzIGBiYW5kX3Jlc29sdXRpb25fam9pbi5weWAgb3V0cHV0IGJleW9uZCB3aGF0IHN0YXRlX2xvZyBhZ2dyZWdhdGVzIOKAlCBub3QgYXZhaWxhYmxlIGluIHRoaXMgcmVwb3J0J3MgZGF0YSBzY29wZS4gbj0yNiBpcyBiZWxvdyB0aGUgbuKJpTQwIHRocmVzaG9sZCBmb3IgZGVjaXNpb24tZ3JhZGUgY29uY2x1c2lvbnM7IGRpcmVjdGlvbiBpcyBjb25zaXN0ZW50IHdpdGggd2lubmVyJ3MgY3Vyc2UgYnV0IHNldmVyaXR5IGNhbm5vdCBiZSBxdWFudGlmaWVkLgoKKipTMyBkaXNwZXJzaW9uIGRhdGEqKiAoZnJvbSBqb2luIHJ1biBhdCB+MTE6MjNaIEp1bCAxMCwgcGVyIHN0YXRlX2xvZyk6IEp1bCAz4oCTMTAgZGFpbHkgZGlzcF9yYXRpbyA9IDAuODQ4LzAuODg5LzAuODgxLzEuMjI4LzAuNzQwLzAuODI5LzAuNzYyLzAuNjIwLiBNYXJrZXQgcHJpY2VzIExFU1MgZGlzcGVyc2lvbiB0aGFuIHJlYWxpemVzIG9uIGFsbCBidXQgMSBkYXkg4oCUIHN0YW5kYWxvbmUgWUVTIGJhbmQgcHJlbWlzZSByZW1haW5zIHVuc3VwcG9ydGVkLiBUaGlzIGlzIG5vdCBhIGRpcmVjdCBmaWxsIG1hcmtvdXQgbWV0cmljIGJ1dCBjb25maXJtcyB0aGUgc3RyYXRlZ3kncyB1bmRlcnBpbm5pbmcgaXMgc3RydWN0dXJhbGx5IG1pc2FsaWduZWQgd2l0aCBjdXJyZW50IG1hcmtldCByZWdpbWUuCgotLS0KCiMjIFNlY3Rpb24gNSDigJQgRGVhZC1RdW90ZSBSZWNsYWltCgoqKlNvdXJjZSoqOiBgbWFrZXJfcmVzdGluZ19zdGF0ZS5qc29uYDsgInJlYXBlZCBkZWFkIGVudHJ5IiBsaW5lcyBpbiBgbWFrZXJfZmlsbHNfcmVjZW50LmxvZ2AuCgp8IE1ldHJpYyB8IFZhbHVlIHwKfC0tLXwtLS18CnwgUmVzdGluZyBxdW90ZXMgfCAqKjAqKiB8CnwgInJlYXBlZCBkZWFkIGVudHJ5IiBsaW5lcyBpbiA3ZCB0YXBlIHwgKiowKiogfAp8IFF1b3RlcyBvbGRlciB0aGFuIDI0aCB8ICoqMCoqIHwKfCBRdW90ZXMgb2xkZXIgdGhhbiA0OGggfCAqKjAqKiB8CnwgJCBmcmVlZCBieSByZWNsYWltIGluIDdkIHwgKiokMCoqIHwKCmBtYWtlcl9yZXN0aW5nX3N0YXRlLmpzb24gPSB7fWAuIEFsbCBwcmlvciBxdW90ZXMgKGxhc3QgYmF0Y2g6IDEwIHRva2VucyAkNDguMDEgb24gSnVsIDA2KSBoYXZlIGNsZWFyZWQgdmlhIHdlYXRoZXIgbWFya2V0IHJlc29sdXRpb24uIE5vIHZlbG9jaXR5IGxlYWssIG5vIGFnZWQgZGVhZCBxdW90ZXMuIGBCQU5EX1JFQ0xBSU1fQUdFX1MgPSAyaGAgcmVjbGFpbSBkb2VzIG5vdCBydW4gd2hlbiBgQkFORF9MSVZFPUZhbHNlYCDigJQgaW1tYXRlcmlhbCBnaXZlbiBlbXB0eSByZXN0aW5nIHN0YXRlLgoKLS0tCgojIyBTZWN0aW9uIDYg4oCUIENhc2ggVmVsb2NpdHkKCioqU291cmNlKio6IGBiYW5rcm9sbC5qc29uYDsgYG1ha2VyX3Jlc3Rpbmdfc3RhdGUuanNvbmA7IGZpbGwgdGFwZTsgc3RhdGVfbG9nLgoKfCBNZXRyaWMgfCBWYWx1ZSB8IEJlbmNobWFyayB8CnwtLS18LS0tfC0tLXwKfCBDYXBpdGFsIChiYW5rcm9sbC5qc29uKSB8ICoqJDE2My4xNjQ0ODQqKiB8IChDQVZFQVQ6IG1hbnVhbCBsYWRkZXIgbm90IHRyYWNrZWQgaGVyZSkgfAp8IFJlc3RpbmcgJCAoS2xhdXMgbWFrZXIpIHwgKiokMC4wMCoqIHwg4oCUIHwKfCBLbGF1cyBtYWtlciBmaWxscyAyNGggfCAqKiQwKiogfCDigJQgfAp8IEtsYXVzIG1ha2VyIGZpbGxzIDdkIHwgKiokMCoqIHwg4oCUIHwKfCBFZmZlY3RpdmUgZXF1aXR5IHR1cm5zL2RheSB8ICoqMC4wKiogfCBiYWRhdG1hdGgg4omIMS4wIHwKfCBMYWRkZXIgc2xlZXZlICh1c2VyLCBVTlRSQUNLRUQpIHwgKiokMTc5LjY5KiogKHJlY29uY2lsZWQgSnVsIDEwIDIyOjIwWikgfCDigJQgfAp8IExhZGRlciBsaWZldGltZSBST0kgfCDiiYgrJDExNyBuZXQsIDdXLzEwTCBuPTE3IHwg4oCUIHwKCktsYXVzJ3MgZXF1aXR5IHZlbG9jaXR5IGlzICoqMC4wIHR1cm5zL2RheSoqLiBBbGwgY2FwaXRhbCBpcyBwYXJrZWQgaW4gQ0xPQiBjYXNoLiBUaGUgYmFuZCBpcyBwcm9kdWNpbmcgc2hhZG93IHF1b3RlcyBhdCBub3JtYWwgY2FkZW5jZSAoMTTigJMxOSBmaXJlLWNsYXNzIHJlY29yZHMvZGF5KSBidXQgY29udmVydGluZyBub25lIHRvIGxpdmUgb3JkZXJzLgoKRnJvbSBzdGF0ZV9sb2cgMjAyNi0wNy0xMCAyMjoyMFo6IGxhZGRlciBzbGVldmUgJDE3OS42OSBhcml0aG1ldGljYWxseSBleGFjdCAoMTcgcmVzb2x2ZWQsIDdXLzEwTCwgbmV0IOKJiCskMTE3IHJlZGVtcHRpb24tYmFzaXMpOyAzIG9mIDMgZmlyZXMgdGhpcyBjeWNsZSB1c2VkOyB6ZXJvLWNhbmRpZGF0ZSBzdHJlYWsgMGQ7IG5vIHR1bmluZyB0cmlnZ2VyLgoKLS0tCgojIyBBTEVSVFMKCiMjIyDimqAgQUxFUlQgMSDigJQgQkFORCBEQVJLIDUgQ09OU0VDVVRJVkUgREFZUwoqKkJBTkRfTElWRT1GYWxzZSoqIHNpbmNlIDIwMjYtMDctMDYuIFplcm8gbWFrZXIgcG9zdHMgSnVsIDA34oCTMTEgaW5jbHVzaXZlLiBUaGUg4oiSMTQlIGZyZWV6ZSBleHBpcmVkIGNsZWFubHkgYXQgMjAyNi0wNy0xMCAyMTo1M1osIGJ1dCB0aGUgRVZPTFZFIEp1bCAxMCAyMjoyMFogbWFpbnRhaW5lZCBgQkFORF9MSVZFPUZhbHNlYCBiZWNhdXNlIFMzIGRpc3BlcnNpb24gdHJpZ2dlciB3YXMgTk9UIG1ldDogSnVsIDPigJMxMCBwb29sZWQgZGlzcF9yYXRpbyAwLjg0OC8wLjg4OS8wLjg4MS8xLjIyOC8wLjc0MC8wLjgyOS8wLjc2Mi8wLjYyMCDigJQgb25seSAxLzggZGF5cyDiiaUxLjEwOyBuZXZlciAyIGNvbnNlY3V0aXZlOyBtZWRpYW4tY2l0eSDiiaQwLjgwIGFsbCBkYXlzLiBUaGUgcHJlLXJlZ2lzdGVyZWQgcmUtZW5hYmxlIGNvbmRpdGlvbiAocG9zdC1ndWFyZCBu4omlNDAgcmVzb2x2ZWQpIHJlbWFpbnMgdW5yZWFjaGFibGUgd2hpbGUgZGFyay4gRGVjaXNpb24gZGVmZXJyZWQgdG8gd2Vla2x5IEp1bCAxMiBzdHJ1Y3R1cmFsIHJldmlldyAoc2hhZG93LXBvc3RpbmcgbW9kZSB2cyBjb25kaXRpb24gYW1lbmRtZW50KS4gU3RhdGVfbG9nIGFsc28gZmxhZ3M6IHN0YW5kYWxvbmUtWUVTIGJhbmQgcHJlbWlzZSBkZWFkIHRocm91Z2ggSnVsIDEwICgibWFya2V0IHByaWNlcyBMRVNTIGRpc3BlcnNpb24gdGhhbiByZWFsaXplcyIpLiBObyBhdXRvbWF0ZWQgcmUtZW5hYmxlIHBhdGggZXhpc3RzLgoKQWRkaXRpb25hbCBkYXJrIG5vdGU6IHN1Yi0wLjcwIHByaWNlLWJhbmQgc2ltdWxhdGVkIFJPSSBpcyDiiJIyOS44JSBDSVviiJI1NSUsICs3LjElXSAobmVhci1zaWduaWZpY2FudCBuZWdhdGl2ZSkg4oCUIGV2ZW4gaWYgYmFuZCB3ZXJlIHJlLWVuYWJsZWQsIHRoZSBsb3dlci1wcmljZSB0aWVyIHdvdWxkIG5lZWQgdG8gYmUgZ2F0ZWQuCgojIyMg4pqgIEFMRVJUIDIg4oCUIE1BUktPVVQgR0FQIChEYXkgNSkg4oCUIFdJTk5FUidTIENVUlNFIERJUkVDVElPTiBVTlJFU09MVkVEClplcm8gcmVnaXN0ZXJlZCBtYWtlciBmaWxscyBpbiA3ZCB0YXBlLiBBZ2dyZWdhdGUgN2Qgc2V0dGxlZCBwYXRoIG1hcmtvdXQ6IFBGIDAuMTA4IG49MjYgKGJlbG93IG49NDAgZGVjaXNpb24gZmxvb3IpIHZzIHNpbXVsYXRlZCBhbGwtZmlyZXMgRzcgUk9JICsxNC4zJSAoQU1CSUdVT1VTLCBDSSBzdHJhZGRsZXMgMCkuIFRoZSBkaXJlY3Rpb25hbCBnYXAgaXMgY29uc2lzdGVudCB3aXRoIGFkdmVyc2Utc2VsZWN0aW9uIHdpbm5lcidzIGN1cnNlIGJ1dCBmb3JtYWwgcGVyLWxlZyBzcGxpdCBpcyBub3QgY29tcHV0YWJsZSBmcm9tIGF2YWlsYWJsZSBkYXRhLiBBIGZvcm1hbCBzcGxpdCBhdCBzbGljZSBsZXZlbCAoY2l0eSAvIGRheXNfb3V0IC8gcHJpY2VfYmFuZCkgcmVxdWlyZXMgZnVsbCBgYmFuZF9yZXNvbHV0aW9uX2pvaW4ucHlgIG91dHB1dCBjcm9zcy10YWJ1bGF0ZWQgYWdhaW5zdCB0aGUgZmlsbCB0YXBlIOKAlCBub3QgYWNoaWV2YWJsZSBmcm9tIHRoaXMgYXVkaXQncyBkYXRhIHNjb3BlLiBUaGlzIGFsZXJ0IGNhcnJpZXMgb3ZlciBmcm9tIEp1bCAwOSBhbmQgSnVsIDEwIGF1ZGl0cy4gUmUtZW5hYmxlIGRlY2lzaW9uIGF0IEp1bCAxMiB3ZWVrbHkgbXVzdCByZXNvbHZlIHRoaXMgYmVmb3JlIGdvaW5nIGxpdmUuCgotLS0KCiMjIDMtTGluZSBTdW1tYXJ5CgoqKkZpbGxzL2RheSoqOiAwIChiYW5kIGRhcmsgNSBjb25zZWN1dGl2ZSBkYXlzOyBmcmVlemUgZXhwaXJlZCBKdWwgMTAgMjE6NTNaIGJ1dCBFVk9MVkUgbWFpbnRhaW5lZCBkYXJrIOKAlCBTMyBkaXNwZXJzaW9uIHRyaWdnZXIgbm90IG1ldDsgN2Qgc2V0dGxlZCBwYXRocyBQRiAwLjEwOCBuPTI2IHByZS1jdXQsIHBvc3QtY3V0IGZsb3cgMCkuCgoqKk5PLXNoYXJlKio6IE4vQSAoMCBwb3N0cyBKdWwgMDjigJMxMTsgTk8tc3RhcnZhdGlvbiBmaXggbGFzdCB2ZXJpZmllZCBKdWwgMDXigJMwNiBhdCA1MCU7IHVudmVyaWZpYWJsZSBpbiBjdXJyZW50IGRhcmsgcGVyaW9kKS4KCioqQmluZGluZyBleGVjdXRpb24gY29uc3RyYWludCoqOiBCQU5EX0xJVkU9RmFsc2UgZ2F0ZWQgb24gUzMgZGlzcF9yYXRpbyB0cmlnZ2VyICjiiaUxLjEwIMOXNWQgY29uc2VjdXRpdmU7IGN1cnJlbnQgYmVzdCBzdHJlYWs9MS84LCBtZWRpYW4tY2l0eSDiiaQwLjgwIGFsbCBkYXlzKTsgc3ViLTAuNzAgc2xpY2UgbmVhci1zaWduaWZpY2FudCBuZWdhdGl2ZTsgd2Vla2x5IEp1bCAxMiBzdHJ1Y3R1cmFsIGRlY2lzaW9uIGlzIHRoZSBuZXh0IHJlLWVuYWJsZSBnYXRlLgo=
+# Band Execution & Markout Audit — 2026-07-12
+
+**Snapshot**: `2026-07-12T10:54:09Z` (fresh, within 6h) | **System**: active (uptime from 2026-07-11T22:06Z)
+**Capital**: $124.275284 (daily_start $165.730744; −$41.45 likely deployed today in open PAIR_FAV positions — CAVEAT applies)
+**BAND_LIVE**: False (wind-down 2026-07-06; equity $108.35 < 50%·30d-HW $222.90; day 6 of dark)
+**BAND_NO_ENABLED**: False (rail-halt 2026-07-02, WR 39.2% n=51; day 10)
+**BAND_PAIR_FAV_ENABLED**: True (re-enabled per Jul 12 review, per Jul 11 EVOLVE intent)
+**STWA_REGULAR_YES/NO_ENABLED**: False
+
+---
+
+## Section 1 — Fill Tape (24h + 7d)
+
+### Klaus maker fills (band/maker tape)
+
+| Window | [MAKER-FILL] lines | Fills | $ filled | By side | By price band |
+|---|---|---|---|---|---|
+| Last 24h | 0 | 0 | $0 | — | — |
+| Last 7d | 0 | 0 | $0 | — | — |
+
+Zero `[MAKER-FILL]` lines and zero `[STRUCT-BAND-Q]` lines in the 7-day journal tape. No Klaus-registered maker fills in any price band, city, or side. Consistent with BAND_LIVE=False since 2026-07-06 (day 6 of dark at snapshot). Last registered band posts: 2026-07-06 (10 tokens, $48.01 spent); no `band_posted_state.json` entries for Jul 07–12.
+
+Fill rate: **0 fills / 0 live posts** (band dark — denominator is zero).
+
+### UNTRACKED fills observed via WS (sprint_ladder / PAIR_FAV — NOT in band tape)
+
+All fills in `maker_fills_recent.log` carry the `[USER-WS] UNTRACKED FILL — no tracker entry, no open position` tag. These are fills on the Klaus wallet registered by the WS but unknown to the band/maker tracker. Based on price ranges (0.35–0.52), sizes (10–68 shares), and behavior (taker sweeps + hold-to-resolution exits at 0.99+), these are sprint_ladder or PAIR_FAV trades managed by a different module.
+
+Unique fill events by day (deduped to MATCHED status only):
+
+| Date (UTC) | Event type | Token (short) | Side | Price | Shares | trader_side |
+|---|---|---|---|---|---|---|
+| Jul 10 01:30 | BUY | 4663735... | BUY | 0.370 | 47.77 | TAKER |
+| Jul 10 02:30 | BUY | 1671958... | BUY | 0.420 | 17.70 | TAKER |
+| Jul 10 03:40 | BUY | 1132101... | BUY | 0.500 | 31.25 | TAKER |
+| Jul 10 08:40 | EXIT | 4663735... | SELL | 0.992 | 47.00 | TAKER |
+| Jul 11 05:00 | BUY | 7867586... | BUY | 0.350 | 66.50 | TAKER |
+| Jul 11 10:20 | EXIT | 7867586... | SELL | 0.998 | 66.00 | TAKER |
+| Jul 11 11:40 | BUY | 8345106... | BUY | 0.520 | 15.49 | MAKER (×2) |
+| Jul 11 11:40 | BUY | 3195317... | BUY | 0.470 | 68.26 | TAKER |
+| Jul 11 16:21 | BUY | 3510955... | BUY | 0.440 | 49.50 | TAKER |
+| Jul 12 02:00 | BUY (PAIR) | 7506477... | BUY | 0.400 | 42.97 | TAKER+MAKER |
+| Jul 12 07:00 | BUY (PAIR) | 5472978... | BUY | ~0.473 | 47.24 | TAKER+MAKER |
+| Jul 12 07:08 | SELL (PAIR leg) | 5472978... | SELL | 0.480 | 7.64 | MAKER |
+
+**Jul 12 detail (from `user_ws.jsonl`)**: Two orders on Klaus wallet confirmed. Order 1 (02:00Z): BUY YES 42.97@0.40, fully filled (MATCHED) via taker sweeps + CLOB-paired fills — PAIR_FAV structure visible (NO buyer at 0.60 matched via pairing). Order 2 (07:00Z): BUY YES 51.31@0.48, partially filled 47.24 shares at avg ~$0.473 (swept YES sells at 0.47, filled as MAKER via NO buyer at 0.52 for 5.88 shares, filled as MAKER via YES seller at 0.48 for 7.64 shares); order cancelled at 07:08Z with 4.07 shares unmatched.
+
+Jul 12 PAIR_FAV deployed capital: ~$17.19 + ~$22.36 = **~$39.55** (open, resting at resolution).
+
+---
+
+## Section 2 — NO-Parity Monitor
+
+**Source**: `band_struct_lite.jsonl` per day (Jul 07–12); `maker_resting_state.json`.
+
+| Date | YES posts | NO posts | PAIR_FAV posts | NO share | ≥10 posts? | ALERT? |
+|---|---|---|---|---|---|---|
+| 2026-07-07 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-08 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-09 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-10 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-11 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-12 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+
+Zero `post` records in `band_struct_lite.jsonl` for any day Jul 07–12. `maker_resting_state.json = {}`. Resting book: 0 YES, 0 NO, 0 PAIR.
+
+**NO-starvation fix** (committed 2026-06-12) cannot be verified in the current dark window — no posts, no denominator. Last confirmed parity: Jul 01–06 at ~50% per Jul 11 audit. No regression evidence, no confirming data.
+
+Shadow band (md_shadow records, no live execution) Jul 12 scan breakdown (120 records, partial day to 10:54Z):
+
+| Reason | Count | Meaning |
+|---|---|---|
+| yes_capture_shadow | 62 | Shadow would post YES leg |
+| no_band | 28 | No valid band found |
+| sum_gate | 20 | Σ ask ≥ BAND_SUM_MAX (0.85) |
+| converged | 14 | Price converged, no edge |
+| **fire** | **13** | **Full shadow band would post if BAND_LIVE=True** |
+
+13 `fire` events on Jul 12 (vs 16 on Jul 07) — shadow scanner finding valid opportunities at normal cadence. All blocked by BAND_LIVE=False. d+2 dominates (87/120 records), consistent with BAND_NO_MIN_DOUT=1 / BAND_MD_HORIZON=2.
+
+---
+
+## Section 3 — Queue Health
+
+**Source**: `[STRUCT-BAND-Q]` lines in `maker_fills_recent.log`; `band_struct_lite.jsonl` shadow scan rates.
+
+| Metric | Value | Notes |
+|---|---|---|
+| [STRUCT-BAND-Q] lines in 7d tape | **0** | No live posting cycles since BAND_LIVE=False |
+| Mean cash_preskip | Cannot evaluate | No [STRUCT-BAND-Q] lines |
+| Mean books used (x/80) | Cannot evaluate | No [STRUCT-BAND-Q] lines |
+| Mean yes_books (x/50) | Cannot evaluate | No [STRUCT-BAND-Q] lines |
+| Posted/cycle | Cannot evaluate | No [STRUCT-BAND-Q] lines |
+| Books pinned at 80? | Cannot evaluate | No [STRUCT-BAND-Q] lines |
+| yes_books pinned at 50? | Cannot evaluate | No [STRUCT-BAND-Q] lines |
+| cash_preskip > 200, posted=0? | Cannot formally evaluate | $124.28 all-cash, $0 band-deployed |
+| Shadow fire rate (Jul 12 partial) | **13 fire / 120 shadow scans** | Normal cadence |
+| Shadow fire rate (Jul 07) | **16 fire / 175 shadow scans** | Comparable |
+
+Queue health metrics are inaccessible without live posting cycles. The deployment stall condition (BAND_LIVE=False, all capital in CLOB cash, 0 band orders) is structural — a deliberate wind-down, not a fetch-starvation regression. Shadow machinery is fully functional: scan rate and fire-event rate are consistent across Jul 07 and Jul 12.
+
+No `exit099_live.jsonl` entries in hot shadow dirs for Jul 07–12: confirms 0 live positions at the 0.99+ exit threshold.
+
+---
+
+## Section 4 — Resolution Markout (Fill Quality)
+
+**Source**: Jul 11 EVOLVE commit `491d8a2d4`; prior exec audit findings (Jul 11); `band_posted_state.json` last live dates.
+
+### Registered band fills in tape: none
+Zero `[MAKER-FILL]` lines in 7d window. No per-leg fill/resolution pairs exist for formal markout computation. `band_resolution_join.py` requires live fill records — unavailable.
+
+### Prior markout finding (carries from Jul 11 audit, n=75 trend)
+From Jul 11 EVOLVE commit: *"winner's curse RESOLVED (realized -75.8% vs sim +7.6%, n=75 trend)"*
+
+| Metric | Value | Grade |
+|---|---|---|
+| Realized ROI (filled band legs, Jul 11 data) | **−75.8%** | n=75, trend (40–99) |
+| Simulated all-fires ROI (same period) | **+7.6%** | n=75, trend |
+| Gap | **−83.4pp** | adverse-selection direction |
+| Status | **Acknowledged in EVOLVE; unresolved by data** | Band dark prevents accumulation |
+
+"RESOLVED" in the EVOLVE commit means acknowledged and documented, not corrected — no mechanism has been deployed to address adverse selection, and the band remains dark so no new data can accumulate to confirm or deny. The gap at n=75 is PLAUSIBLE (trend-grade), not decision-grade (n≥100 required).
+
+**WINNER'S-CURSE DIRECTION**: Resting bids are getting hit selectively when the market moves against the quote. This is the same pattern that killed the prior Maker MVP. The gap is large enough at n=75 to warrant ongoing monitoring; cannot be dismissed as noise.
+
+### Untracked ladder/PAIR_FAV markout (observation only)
+Visible ladder exits in the 7d WS tape: Jul 10 SELL 47@0.992 (entry 0.37 → +168% raw), Jul 11 SELL 66@0.998 (entry 0.35 → +185% raw). These are TAKER ladder trades, not maker bids — they are NOT subject to adverse selection because they are directional entries. No winner's curse concern for this leg.
+
+---
+
+## Section 5 — Dead-Quote Reclaim
+
+**Source**: `maker_resting_state.json`; "reaped dead entry" lines in `maker_fills_recent.log`.
+
+| Metric | Value |
+|---|---|
+| Resting quotes | **0** |
+| "reaped dead entry" lines in 7d tape | **0** |
+| Quotes older than 24h | **0** |
+| Quotes older than 48h | **0** |
+| $ freed by reclaim in 7d | **$0** |
+
+`maker_resting_state.json = {}`. All prior quotes (last batch: Jul 06, 10 tokens, $48.01) have cleared via weather market resolution. No velocity leak. `BAND_RECLAIM_AGE_S = 2h` reclaim does not run when `BAND_LIVE=False` — immaterial given empty resting state.
+
+---
+
+## Section 6 — Cash Velocity
+
+**Source**: `bankroll.json`; `maker_resting_state.json`; fill tape; `user_ws.jsonl`.
+
+| Metric | Value | Benchmark |
+|---|---|---|
+| Capital (bankroll.json) | **$124.275284** | CAVEAT: manual ladder/PAIR_FAV not tracked here |
+| Daily start capital (Jul 12) | **$165.730744** | — |
+| Daily deployed (PAIR_FAV, today) | **~$39.55** (open, unresolved) | — |
+| Resting $ (band maker) | **$0.00** | — |
+| Band maker fills 24h | **$0** | — |
+| Band maker fills 7d | **$0** | — |
+| Band equity turns/day | **0.0** | badatmath ≈1.0 |
+| PAIR_FAV turns/day (untracked) | **~0.24** ($39.55/$165.73) | — |
+| Total effective turns/day | **~0.24** | badatmath ≈1.0 |
+
+Klaus's band maker velocity is 0.0 turns/day (day 6 of dark). PAIR_FAV is active and deployed ~$39.55 today (2 transactions confirmed via `user_ws.jsonl`), but these are UNTRACKED by the band/maker tape. Effective total velocity ~0.24 turns/day vs badatmath's ~1.0 benchmark. Capital efficiency is suppressed by the band-dark constraint and by PAIR_FAV being the sole active channel.
+
+All capital above the ~$39.55 deployment ($124.28 - $39.55 ≈ $84.73) is idle in CLOB cash, generating no maker rebates.
+
+---
+
+## ALERTS
+
+### ⚠ ALERT 1 — BAND DARK DAY 6
+**BAND_LIVE=False** since 2026-07-06. Zero maker posts Jul 07–12. Shadow scanner healthy and finding **13 fire events** on Jul 12 (normal cadence, opportunities present). The band is dark by deliberate design (equity wind-down: $108.35 < 50%·30d-HW $222.90 at trigger; current $124.28 still below threshold). Per Jul 11 EVOLVE: "micro-stake PAIR_FAV re-enable at Jul 12 review" was the planned action — PAIR_FAV_ENABLED is now True and producing trades, but the standalone YES/NO band engine remains dark. No automated re-enable path exists for BAND_LIVE; requires explicit user decision.
+
+### ⚠ ALERT 2 — WINNER'S CURSE TREND (n=75, carries from Jul 11)
+Realized band-leg ROI **−75.8%** vs simulated all-fires **+7.6%** (n=75, 40–99 = trend only). Gap is **−83.4pp** in the adverse-selection direction. Acknowledged in Jul 11 EVOLVE as "RESOLVED" (meaning documented, not corrected). Band dark prevents accumulation of new data to update n. Alert carries over. A formal per-leg split at (city, days_out, price_band) slice level requires `band_resolution_join.py` output cross-tabulated against the fill tape — not achievable from this audit's data scope. Re-enable decision at Jul 12 weekly must address this before going live.
+
+---
+
+## 3-Line Summary
+
+**Fills/day**: 0 (band dark day 6; BAND_LIVE=False since Jul 06; shadow finding 13 fire events today but all blocked; PAIR_FAV active via separate module, ~$39.55 deployed today, untracked in band tape).
+
+**NO-share**: N/A (0 posts Jul 07–12; BAND_NO_ENABLED=False day 10; NO-starvation fix unverifiable in dark window; last confirmed ~50% parity Jul 01–06).
+
+**Binding execution constraint**: BAND_LIVE=False wind-down gate (equity $124.28 vs HW; user Jul 12 review is the re-enable decision point) + winner's-curse trend (n=75, −83pp gap) unresolved by data — band should not go live without addressing adverse-selection before accumulating more fill inventory.
