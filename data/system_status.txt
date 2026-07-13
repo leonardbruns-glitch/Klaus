@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+5d26638ce Research audit 2026-07-13T1400Z — bottleneck: inverted dispersion premium (S3 d11, ratio ≤0.80) | best action: validate UPDOWN-SNIPER side-mapping on first live settlement
+e182a0eeb Research audit 2026-07-13T~UTC — CRITICAL: strategy pivot UPDOWN-SNIPER live, equity $39.40 | best action: verify sniper order type (maker vs taker) then hold for n≥100 shadow gate ~Jul14 22Z
 338fef539 UPDOWN-SNIPER LIVE — owner floor waiver recorded, scoped rails
 0872daa7e UPDOWN-SNIPER live executor: certainty-cell taker, market-confirmation gate (ask>=0.90), basis move-floor 6bps, rails $5 clip/-$6 day-stop/3-loss halt
 c92ef4888 PENDING_HUMAN: updown-sniper live-arm decision (floor waiver or deposit)
@@ -10,14 +12,12 @@ eb4fd468a UPDOWN-SNIPER: fee-wall falsified (fee=0.07·p·(1−p) takers-only), 
 0fcfbb5d9 SPRINT_LADDER disarmed 2026-07-13 — true equity $39.45 < $40 INVARIANTS floor; ladder 0W/7L −$165 since 07-11
 57d6550f0 Calib monitor 2026-07-13 — brier7=0.053 disp_ratio=≤0.80 3 alerts (S3 d11, S4 structural, S5 monitoring) + bankroll alarm -$32.69
 1a2e8fa63 PnL ledger 2026-07-13 — day=ABORT turns=0 roi/turn=N/A% unexplained=-$59.34 (stale 22h46m, 2nd consecutive ABORT, Jul12 loss -$61.91 sprint-ladder+untracked-fills)
-4dfa1cd20 Calib monitor 2026-07-12 — brier7=0.053 disp_ratio=≤0.80 2 alerts (S3 persists d10, S4 structural)
-f96a8732e Exec audit 2026-07-12 — fills=0 NO-share=N/A 2 alerts (band dark 6d, winner's curse trend n=75)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   87G        6G  94% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   87G        6G  95% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Mon 2026-07-13 15:12:03 UTC
+ActiveEnterTimestamp=Mon 2026-07-13 22:06:10 UTC
 
 ## Open positions (count):
 0
