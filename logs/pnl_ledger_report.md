@@ -1,153 +1,191 @@
-# Klaus PnL Ledger — 2026-07-13
-**Generated:** 2026-07-13T23:37Z (scheduled day-end run)
-**Snapshot age:** 22h 46m (last push: 2026-07-13T00:51:35Z) — STALE ✗ → **ABORT**
-**System status:** `active` ✓ (bot uptime from 2026-07-11T22:06:15Z, now day 2)
+# Klaus PnL Ledger — 2026-07-13 UTC
+_Generated: 2026-07-13T23:37Z | Snapshot: 2026-07-13T23:36:35Z (fresh, 1 min) | Service: active_
 
 ---
 
-## ⚠ ABORT — SNAPSHOT STALE (22h 46m > 6h threshold)
+## SECTION 1 — P&L EXPLAIN
 
-This is the **second consecutive ABORT day** (Jul 12 aborted at 21h stale; Jul 13 at 22h 46m stale). The data-mirror push cadence is structurally broken for the 23:37Z report slot: the mirror appears to snapshot once at ~00:51Z each day, yielding a guaranteed ~22h gap by report time. No intraday data after 00:51Z is available. **The data-mirror must be re-scheduled to push hourly or at 23:00Z, or this report will abort every night indefinitely.**
+### Capital Frame
 
-Full-day PnL cannot be attributed from snapshot data alone. The sections below use the most recent reliable sources:
-- `bankroll.json` saved at **2026-07-13T00:00:09Z** (23h 37m before report time)
-- `state_log.md` entries through **2026-07-12T19:20Z** (28h before report time)
-- `maker_fills_recent.log` through **2026-07-12T17:10Z** (31h before report time)
-- Shadow band_struct: only through **2026-07-13T00:49:54Z** (22h 47m before report time)
+| Item | Value | Source |
+|---|---|---|
+| Day start capital | $103.824444 | bankroll.json `daily_start_capital` (set at midnight UTC) |
+| Capital now | $34.7427 | bankroll.json `capital` (saved 23:39 UTC) |
+| **Day P&L (raw)** | **−$69.082** | Delta above |
+| Day vs prior report (Jul 10) | −$128.42 | $163.16 → $103.82 (Jul 10→13 start) + today |
+| Cumulative total_pnl | −$75.397 | bankroll.json `total_pnl` |
 
-Numbers below reflect the midnight-UTC snapshot, not end-of-day.
+Note: `bankroll.json` is not authoritative for manual flows. The -$69.08 day figure assumes no user deposit/withdrawal on Jul 13. **FLAG**: if any deposit/withdrawal occurred today, this figure is wrong — user must confirm.
 
 ---
 
-## Section 1 — P&L Explain (best-effort, midnight-UTC snapshot)
+### Attributed P&L by Leg
 
-### Capital Chain
+All fills are **UNTRACKED** (no tracker entry, no open position) and appear as ORPHAN exits in trades.jsonl with `entry_price: 0.0` and `net_pnl: 0.0`. Attribution uses maker_fills_recent.log (7d tape) cross-referenced with order_lifecycle.jsonl. The `entry_class` field is absent from all 8,157 rows in trades.jsonl — classification below is inferred from token/price/size signatures.
 
-| Event | Time (UTC) | Capital / Equity |
-|---|---|---|
-| Last real PnL report | 2026-07-10T23:37Z | $163.164 (all-cash) |
-| Jul 11 22:06Z equity (state_log) | 2026-07-11T22:06Z | $205.76 = $143.34 cash + $62.42 open ladder shots |
-| Jul 12 daily_start (bankroll.json) | 2026-07-12T00:00Z | $165.730 |
-| Jul 12 intraday (state_log 19:20Z) | 2026-07-12T19:20Z | ~$120 tracked (includes open shots at cost) |
-| **Jul 13 snapshot (bankroll.json)** | **2026-07-13T00:00Z** | **$103.824** |
-| **Change vs Jul 10 real report** | | **−$59.34 (−36.4%)** |
-| **Jul 12 alone (start→midnight)** | | **−$61.91 (−37.4%)** |
+| Time UTC | Class | Side | Shares | Entry $ | Exit $ | Attributed Net | Confidence |
+|---|---|---|---|---|---|---|---|
+| 03:40 | SPRINT_LADDER | BUY_YES | 51.50 | 0.449 | ~0 (inferred) | **−$23.12** | ESTIMATE |
+| 05:10 | SPRINT_LADDER | BUY_YES | 45.00 | 0.526 | ~0 (inferred) | **−$23.67** | ESTIMATE |
+| 10:49 | UPDOWN_SNIPER | BUY_YES | 39.25 | 0.990 | 0.920 | **−$2.89** | CONFIRMED |
+| 12:29 | UPDOWN_SNIPER | BUY_YES | 5.50 | 0.960 | unresolved | **?** | UNKNOWN |
+| 12:34 | WEATHER_BAND_NO (maker) | BUY_NO | 35.17 | 0.030 | unresolved | **?** | UNKNOWN |
+| 12:35 | UPDOWN_SNIPER | BUY_NO | 5.50 | ~0.03 (inferred) | 0.980 | **~+$5.2** | ESTIMATE |
+| 16:49 | UPDOWN_SNIPER | BUY_YES | 5.40 | 0.970 | 0.730 | **−$1.39** | CONFIRMED |
+| 20:13 | UPDOWN_SNIPER | BUY_NO | 6.00 | 0.970 | 0.960 | **−$0.06** | CONFIRMED |
+| 20:43 | UPDOWN_SNIPER | BUY_YES | 5.00 | 0.960 | 0.950 | **−$0.22** | CONFIRMED |
+| 22:09 | UPDOWN_SNIPER | BUY_YES | 5.335 | 0.970 | 0.950 | **−$0.21** | CONFIRMED |
+| 22:59 | UPDOWN_SNIPER | BUY_NO | 5.50 | 0.920 | 0.950 | **+$0.17** | CONFIRMED |
 
-### Attribution
+**UPDOWN_SNIPER subtotal (confirmed):** −$4.60 (6 confirmed round-trips, 1 win / 5 losses)
+**SPRINT_LADDER subtotal (estimated):** −$46.79 (both shots assumed full-loss; consistent with "0W/7L −$165 since Jul 11" ladder record)
 
-| Source | PnL | Notes |
-|---|---|---|
-| trades.jsonl closes Jul 7–13 | $0.00 | Zero rows with ts_close in this window |
-| RECYCLE099 (exit099_live.jsonl) | $0.00 | No file present for Jul 7–13 |
-| Sprint_ladder (state_log) | −$? | Jul 12 ladder fires visible: Toronto ~$16.42 deployed; prior shots at cost $62.42 at Jul 11 22:06Z; resolves not in trades.jsonl |
-| Jul 12 untracked maker fills | ~−? | SELL NO 41.87 sh @0.40 + BUY YES 33.72 sh @0.47 (TAKER) + BUY 5.88 sh @0.52 (MAKER) + SELL 7.64 sh @0.48 (MAKER) + BUY 31 sh @0.52 (TAKER) — all UNTRACKED (no bot tracker entry) |
-| Jul 11 ladder shots resolving | +$22.39 (implied) | $143.34 cash Jul 11 22:06Z → $165.73 Jul 12 start: difference = +$22.39 net from overnight resolution |
-| **UNEXPLAINED** | **−$59.34** | Exceeds $5 threshold — investigation below |
-
-### UNEXPLAINED = −$59.34 — Investigation
-
-|UNEXPLAINED| = $59.34 >> $5 threshold. This is not noise.
-
-**Most likely causes (ranked):**
-
-1. **Sprint_ladder losses (PRIMARY):** The Jul 12 state_log entry at 19:20Z shows "Tracked ~$120 vs ruin_floor $89.16" and confirms "Toronto FIRED $16.42 today." The Jul 11 state_log confirmed 2 open shots at cost $62.42 (London $40.03 + MexCity $22.39 at restated cost). Jul 12 daily_start = $165.73. If both Jul 11 shots resolved poorly overnight plus new Jul 12 shots lost, a $61.91 single-day loss is consistent. Ladder lifetime as of Jul 10: 17 resolved, 7W/10L net ≈+$117 redemption-basis — but that predates Jul 12. The -$40.90 ladder alert flagged in Jul 11 gate-keeper commit now appears confirmed.
-
-2. **STWA-family resolutions not in trades.jsonl (SECONDARY):** STWA fills appear in trades.jsonl only at resolution. Zero resolution rows for Jul 7–13 suggests either no STWA positions opened, or they were placed pre-restart and resolved without being tracked in the live session. The Jul 12 untracked fills (SELL NO @0.40, 41.87 sh = $16.75 notional received; TAKER BUY YES @0.47, 33.72 sh = $15.85 cost; TAKER BUY @0.52, 31 sh = $16.12 cost) total ~$32 in taker buy costs that represent UNTRACKED real-capital deployment. These are from resting orders placed pre-Jul-11-restart that filled post-restart against a new tracker state. **This is a MODEL DEFICIENCY — the UNTRACKED FILL warnings confirm the bot's tracker missed these fills after restart; the positions existed on-chain but were invisible to risk management.**
-
-3. **Manual flows (POSSIBLE):** Cannot rule out — bankroll is not authoritative per schema notes. FLAG: if no manual deposit/withdrawal occurred, the −$59.34 is fully bot-driven.
-
-**Model deficiency note:** The 20 untracked CONFIRMED fills on Jul 12 represent material capital movement (~$32 taker cost + maker fills) with zero risk management awareness. Tracker state lost at the Jul 11 22:06Z restart did not recover from the CLOB's resting order state.
+**Total attributed: ~−$51.4** (point estimate assuming ladder resolves 0)
 
 ---
 
-## Section 2 — Compounding Scoreboard
+### Unexplained P&L
 
-**Equity estimate (caveat-heavy):**
+| Item | $USD |
+|---|---|
+| Capital delta (ground truth) | −69.082 |
+| Attributed (ladder + sniper confirmed/estimated) | −51.4 |
+| **UNEXPLAINED** | **−$17.7** |
 
-| Component | Value | Confidence |
-|---|---|---|
-| Cash (bankroll.json 00:00Z) | $103.824 | HIGH — from bankroll file |
-| Open positions at cost | Unknown | Mirror has no open_positions; state_log 19:20Z had "~$120 tracked" including shots; at midnight it may be $0 or residual |
-| **Equity estimate** | **$103.82 (lower bound)** | Assumes no open shots at midnight; uncertain |
+**|UNEXPLAINED| = $17.7 > $5 → Investigation required.**
 
-**Caveat:** The Jul 11 equity of $205.76 included $62.42 in open shots. If ladder shots fired Jul 12 remain open at midnight, actual equity could be higher than $103.82 (cash) — but the state_log context at 19:20Z suggests shots were in-flight. This estimate is the cash floor only.
+Most likely causes (ranked):
 
-| Metric | Value | Notes |
-|---|---|---|
-| Equity est. | $103.82 | Cash only; open shots unknown |
-| Deployed fraction | ~0% (band dark) | BAND_LIVE=False, STWA disabled |
-| Fills today (Jul 13 data) | $0 known | No activity after 00:49Z snapshot |
-| Turns/day (Jul 13) | 0 | No fills |
-| ROI/turn (Jul 13) | N/A | |
-| Badatmath benchmark | ~1.0 turn/day at 10–20%/turn | We are at 0 turns for 7th consecutive day |
+1. **Prior-session tracker-restart positions resolving today** (PRIMARY): Tracker-restart bug confirmed in prior_state. PID 871954 ran Jul 12 00:00–22:06 UTC. Any maker-resting band or STWA positions opened in that session would surface as CONFIRMED fills without tracker entries when they resolved. These would not appear in today's maker_fills_recent.log if the fill event was logged by the prior PID but the resolution event fell today. Volume consistent: $17.7 is within one or two large untracked band fills.
 
-**7-day trend:** Band has been dark since Jul 6 (BAND_LIVE=False). Jul 7–13 realized fills = $0 from engine. Only sprint_ladder and MIN_LOCKOUT_LIVE are live. This is not compounding — it is capital drawdown from ladder shots with a broken tracker.
+2. **Sprint Ladder exit not at zero**: The ladder exit price is estimated as 0. If a ladder shot partially resolved (e.g., weather condition DID occur on one city), the actual loss would be lower and the unexplained gap would be larger. Conversely, if ladder exit price > 0, estimated loss < actual, implying more unexplained P&L.
 
----
+3. **12:29 YES + 12:34 NO open legs**: UPDOWN YES 5.5sh @0.96 and band NO 35.17sh @0.03 have no matching exits in today's log. If YES resolves to 0: −$5.28 added loss. If NO resolves to 0: −$1.05 added loss (band NO at 0.03 ≈ ~97% YES probability; likely also lost).
 
-## Section 3 — Expected Maker Rebates
+4. **Manual flows**: Cannot rule out without user confirmation. **FLAG for user.**
 
-| Source | Expected Rebate | Formula |
-|---|---|---|
-| Jul 12 untracked MAKER fills: SELL NO @0.40, 41.87 sh | $0.13 | 41.87 × 0.05 × 0.40 × 0.60 × 0.25 |
-| Jul 12 untracked MAKER fills: BUY @0.52, 15.49 sh total | $0.075 | 15.49 × 0.05 × 0.52 × 0.48 × 0.25 |
-| Jul 12 untracked MAKER fills: SELL @0.48, 7.64 sh | $0.024 | 7.64 × 0.05 × 0.48 × 0.52 × 0.25 |
-| **Jul 12 new estimate** | **$0.22** | Upper bound — competing makers reduce actual share |
-| Cumulative carried (Jul 10) | $3.17 | |
-| **Cumulative expected** | **$3.39** | |
-
-**Notes:**
-- The fat-middle SELL NO @0.40 (p=0.40, 1−p=0.60) and SELL @0.48 (near mid) are the highest-earning legs by p*(1-p). The TAKER fills earn no rebate.
-- Cumulative expected rebate = **$3.39 > $1 min accrual**. Polymarket rebates land daily in pUSD. **ACTION FOR USER: verify whether any pUSD rebates have been received to date.** Given Jul 12's activity, at least one daily accrual should have posted if the wallet is eligible. No payout receipt has been recorded in any observed log.
-- Note: these are UNTRACKED fills — rebate may not be attributed to the bot's wallets correctly if orders were placed in a different session state.
+**ASSESSMENT: NOT noise. PRIMARY cause = tracker-restart bug (MODEL DEFICIENCY), not manual flows, but manual flows must be user-verified.**
 
 ---
 
-## Section 4 — Kill-Switch Proximity
+## SECTION 2 — COMPOUNDING SCOREBOARD
 
-**CAVEAT:** WR/PF thresholds were specified for the taker era. Maker YES legs win ~22% by design at 4–5× payoff. Rolling 20-trade WR and PF are computed from all-time trades.jsonl (last 20 resolved). Do NOT halt on WR alone; a kill-switch re-derivation for the maker era is pending with the user.
+### Equity Estimate
 
-| Metric | Value | Threshold | Status |
+| Item | Value | Caveat |
+|---|---|---|
+| Cash (bankroll.json) | $34.743 | Authoritative for cash |
+| Resting maker orders | $0.00 | maker_resting_state.json = `{}` |
+| Open positions | $0.00 | system_status: 0 open positions at 23:36 UTC |
+| **Equity estimate** | **$34.743** | Cash floor only. Resting-order cost included only if mirrored. Bot restart at 22:06 UTC clears any pre-restart open-position state. |
+
+### Fills & Turns
+
+| Metric | Value | Method |
+|---|---|---|
+| BUY-side notional (entries) | ~$118.62 | 2 ladder ($46.79) + 8 UPDOWN-SNIPER entries (~$71.83), all UNTRACKED |
+| SELL-side notional (exits) | ~$66.22 | 7 ORPHAN exits via order_lifecycle.jsonl |
+| Average equity during day | ~$69.28 | ($103.82 + $34.74) / 2 |
+| **Turns/day** | **~1.71×** | $118.62 / $69.28 avg equity |
+| Gross P&L | −$69.08 | Capital delta |
+| **ROI/turn** | **~−40%** | −$69.08 / ($69.28 × 1.71) |
+
+**CAVEATS**: Equity denominator uses a simple average; intraday capital was non-linear (large drops at ladder resolution). Turns figure is a lower bound — untracked prior-session fills not captured in maker_fills_recent.log are excluded.
+
+### 7-Day Trend vs Benchmark
+
+| Period | Capital | Day PnL | Turns (est) | ROI/turn |
+|---|---|---|---|---|
+| Jul 10 (last real report) | $163.16 | — | — | — |
+| Jul 11 (ABORT day 1) | ~$165.73 → ? | unknown | unknown | unknown |
+| Jul 12 (ABORT day 2) | $165.73 → $103.82 | −$61.91 | unknown | negative |
+| **Jul 13 (today)** | $103.82 → $34.74 | **−$69.08** | **~1.71×** | **−40%** |
+
+**Benchmark**: badatmath ~1.0× equity/day at 10-20%/turn. Our Jun 11 baseline: ~0.2-0.5 turns at ~3%.
+
+Today's turn rate (1.71×) exceeds benchmark but ROI/turn is sharply negative. High turnover amplifying losses, not returns. The sprint ladder contributed outsized notional (2 large shots at $23-24 each) with zero confirmed wins since Jul 11.
+
+---
+
+## SECTION 3 — EXPECTED MAKER REBATES
+
+### Today's Maker Fills
+
+| Time | Token (short) | Side | Shares | Price p | p×(1−p) | Est. Rebate |
+|---|---|---|---|---|---|---|
+| 12:34 | 9373... | BUY_NO (MAKER) | 35.17 | 0.030 | 0.0291 | $0.013 |
+
+Formula: `shares × 0.05 × p × (1−p) × 0.25`
+
+**Today's expected maker rebate: $0.013** (negligible; p=0.03 is near-extreme where fee earnings collapse)
+
+Note: BAND_LIVE=False since Jul 6. Maker fills today appear to be residual from prior sessions or UPDOWN-SNIPER band overlap. No new maker-band fills expected while live flag is off.
+
+### Cumulative Expected Rebates
+
+| Period | Expected |
+|---|---|
+| Through Jul 10 (carried from prior state) | $3.17 |
+| Jul 11–12 (untracked, prior state estimate) | $0.22 |
+| Jul 13 (today) | $0.01 |
+| **Cumulative total (upper bound)** | **$3.40** |
+
+**⚠️ USER ACTION REQUIRED**: Cumulative expected rebate $3.40 exceeds the $1.00 pUSD minimum payout threshold. Actual rebate = pool-share of Polymarket maker category fees — $3.40 is an upper bound, not a guarantee. If no pUSD rebate has been received since band trading began (Jun 17), user should verify wallet for pUSD deposits. Payouts land daily in pUSD; if none received despite continuous band activity Jun 17–Jul 6, there may be an eligibility or category-mapping issue.
+
+Mid-price fills (p near 0.5) earn quadratically more — all today's maker fills were at p=0.03 (near-extreme), earning ~$0/fill. The bulk of rebate expectation ($3.17) accumulated during the Jun band era when YES bids were posted at 0.10–0.45.
+
+---
+
+## SECTION 4 — KILL-SWITCH PROXIMITY
+
+| Switch | Value | Floor | Status |
 |---|---|---|---|
-| Capital vs weekly floor ($75) | $103.82 | Halt if <$75 | **CLEAR** — $28.82 buffer |
-| Capital vs ruin floor ($50) | $103.82 | Stop if <$50 | **CLEAR** — $53.82 buffer |
-| Day PnL vs −$10 halt (Jul 13) | $0 known | Stop if <−$10/day | **CLEAR** (no activity) |
-| Day PnL vs −$10 halt (Jul 12) | ~−$61.91 | Stop if <−$10/day | **BREACHED** — Jul 12 loss far exceeds daily halt |
-| Rolling 20 WR (trades.jsonl) | 40.0% (8/20) | Flag if <30% | CLEAR on WR threshold |
-| Rolling 20 PF (trades.jsonl) | 0.08 | Halt if <0.8 | **⚠ CRITICAL BREACH** |
-| BAND_LIVE | False | | Dark — 7th day |
+| Day P&L vs −$10 halt | −$69.08 | −$10 | **BREACHED ×6.9** |
+| Capital vs ruin floor ($89.16 in live config) | $34.74 | $89.16 | **BREACHED** |
+| Capital vs 50% × 30d-HW ($222.90) | $34.74 | $111.45 | **BREACHED** |
+| Capital vs CLAUDE.md max drawdown ($75) | $34.74 | $75 | **BREACHED** |
+| Equity as % of 30d-HW | 15.6% | 50% | **BREACHED** |
+| EVOLVE rail action | MIN_LOCKOUT reverted | — | **ACTIVE — 0 orders since 22:06 UTC** |
+| SPRINT_LADDER | 0W/7L −$165 since Jul 11 | — | **DISARMED** |
+| BAND_LIVE | False | — | Disarmed Jul 6 |
+| BAND_NO_ENABLED | False | — | Disarmed Jul 2 |
+| LDA | STOP (rolling-20 −$36.39) | −$30 | Stopped |
+| UPDOWN_SNIPER | 1W/5L today visible | — | Live but EVOLVE-locked |
 
-### Rolling 20 Detail
+### Rolling 20-Trade WR / PF
 
-Last 20 closed trades (trades.jsonl, all 2026-07-06):
+Rolling 20 from prior_state.json (last known good): WR=40.0% (8/20), PF=0.08.
+These 20 trades are from Jul 6 band wind-down cluster and are now 7 days old. PF=0.08 is a **CRITICAL BREACH** of the 0.8 halt threshold.
 
-| # | PnL | Direction |
-|---|---|---|
-| 1–6 | +$0.49 to +$0.83 | Small wins |
-| 7 | −$4.41 | Loss |
-| 8 | −$3.96 | Loss |
-| 9 | −$3.96 | Loss |
-| 10 | −$3.55 | Loss |
-| 11 | +$0.91 | Win |
-| 12 | −$1.01 | Loss |
-| 13 | **−$24.65** | **Large loss** |
-| 14 | −$4.14 | Loss |
-| 15 | −$0.08 | Small loss |
-| **GROSS WIN** | **$4.68** | |
-| **GROSS LOSS** | **$58.25** | |
-| **PF = 0.08** | | **Kill threshold: 0.8** |
+Today's UPDOWN-SNIPER results add: 1W/5L visible = 16.7% WR on confirmed round-trips. If added to rolling 20: estimated rolling WR ≈ 36% (falling), PF worsens.
 
-**Kill-switch PF alarm:** PF = 0.08 is 10× below the 0.8 halt threshold. However, ALL 20 trades are from 2026-07-06 (the wind-down day) — this is historical stale data from a single catastrophic session, not current engine behavior. The engine has had zero new resolves since Jul 6 (band dark). The PF alarm is **technically valid but context-dependent**: it reflects the Jul 6 cluster of band maker fills that resolved against us (winner's curse, now confirmed in Jul 11 EVOLVE). The band that generated these trades is disabled. **Reporting proximity, not recommending halt** — per the maker-era caveat and the fact that the band responsible for these fills is now off.
+**⚠️ IMPORTANT CAVEAT**: The WR/PF kill-switch floors (30% WR, PF 0.8) were specified for the taker-era BTC/ETH/SOL momentum strategy. UPDOWN-SNIPER is a certainty-cell strategy — it buys at extreme prices (0.92-0.99) and holds until resolution or stop-out. WR is structurally lower (many small losses, occasional large wins). **Do not recommend halt on WR alone.** The relevant kill signal here is the EVOLVE rail (equity below 50% of 30d-HW), which has already fired and locked the bot.
+
+**Kill-switch re-derivation proposal remains pending with user.**
+
+### Current Operational State
+
+All major strategies disabled or locked as of 23:36 UTC:
+- MIN_LOCKOUT_LIVE reverted → sniper cannot open new positions
+- SPRINT_LADDER disarmed
+- BAND_LIVE=False, BAND_NO_ENABLED=False
+- LDA in STOP
+- **Bot is in de facto shutdown with 0 open positions and 0 resting orders**
 
 ---
 
-## Section 5 — Day Verdict
+## SECTION 5 — DAY VERDICT
 
-**Jul 13 (to midnight UTC):** Equity **flat** (no activity) at $103.82 cash. No fills, no resolves, no attributed PnL. Bot running but band dark day 7, all STWA paths disabled, sprint_ladder is the only active live path. Binding constraint: **BAND_LIVE=False** (equity below 50%·30d-HW; EVOLVE review required to re-enable).
+**Equity compounded today: NO. −66.5% from start ($103.82 → $34.74).**
 
-**Structural verdict on Jul 12:** −$61.91 loss from $165.73 start is the largest single-day loss since Jul 8 (−$43.78 Guangzhou shot). Primary driver is sprint_ladder shots that resolved adversely + pre-restart untracked MAKER fills that constitute an unmanaged capital outflow. The tracker restart bug is a MODEL DEFICIENCY that must be fixed before any new MAKER or band activity.
+Binding constraint: SPRINT_LADDER adversarial resolutions (primary — ~$46.79 estimated loss from 2 shots, consistent with 0W/7L history). Secondary: UPDOWN_SNIPER edge is negative at the current certainty-cell threshold (5 losses, 1 winner on confirmed round-trips today; large 39sh position at 10:49 lost $2.89 on a 0.99 entry priced with near-zero fee margin).
 
-**Three-day view (Jul 10→13):** −$59.34 (−36.4%) from last real report. All from non-engine paths (ladder + untracked fills). Engine itself silent. This is not edge drift — it is pure capital bleed from un-gated variance paths.
+The 16:49 trade (BUY YES @0.97 → SELL @0.73, −$1.39) was a severe adverse move: price dropped from 0.97 to 0.73 in seconds, suggesting the sniper is not reliably entering at resolution-edge and is taking directional risk, not certainty risk.
 
-**Data-mirror stall — CRITICAL OPERATIONAL FLAG:**  
-Two consecutive ABORT days. The snapshot cadence (once at ~00:51Z) is incompatible with a 23:37Z report. Unless the data-mirror push is rescheduled, this report will abort every day indefinitely. Recommend: add a cron at 22:00Z or 23:00Z on the VPS to push to data-mirror. Without this, the day-end PnL ledger is permanently blind.
+**Three consecutive days of significant loss (Jul 11 unknown, Jul 12 −$61.91, Jul 13 −$69.08). EVOLVE rail has fired correctly. Bot is locked. Capital at $34.74 is 15.6% of 30d peak.**
+
+**Five losing sessions since last real report (Jul 10). The sprint ladder configuration is demonstrably broken (0W/7L). UPDOWN-SNIPER requires re-evaluation before any capital deployment resumes.**
+
+---
+
+_Data sources: bankroll.json, maker_fills_recent.log, order_lifecycle.jsonl, band_struct_lite.jsonl (168 rows, live=False), lda_status.txt, system_status.txt, integrity_report.json, prior ledger state (2026-07-13 ABORT). trades.jsonl: 7 ORPHAN rows, entry_class field absent in all 8,157 rows (MODEL DEFICIENCY). exit099_live.jsonl: not present for 2026-07-13._
