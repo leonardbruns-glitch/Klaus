@@ -97,3 +97,19 @@ INVARIANTS preamble. Waiver is SCOPED: only klaus_updown_sniper.service, $5 clip
 day-stop −$6, 3-consecutive-loss halt, $15 max open. All other live paths remain
 halted (ladder disarmed 09:25Z, engine ruin-floor armed). n≥100 shadow gate continues
 accumulating in parallel; policy re-fit from shadow data due within 36h.
+
+## 2026-07-13 22:12 UTC — EVOLVE evening (kernel-adjacent record)
+- **Trading continues below the kernel floor under owner waiver.** Equity $34.86
+  CLOB-actual (< $40 kernel, < $50 ruin, < $75 weekly floors). Owner explicitly armed
+  UPDOWN-SNIPER live at 10:46Z with the floor waiver recorded. The loop did NOT
+  re-litigate the arm; it fixed the path's settlement-booking bug (84/196 labels wrong),
+  added SIG_FLOOR against the σ-junk certainty mode (the day's one true loss), and
+  corrected phantom accounting (−9.79 booked → −4.29 true).
+- **Rail-proportionality tension left for interactive review:** the owner-set sniper
+  rails ($5 clip, −$6 day-stop) were sized at arm time. At $34.86 equity a worst-case
+  day (stop + one-clip overshoot ≈ −$11) is ~32% of equity; two such days reach the $20
+  reserve. The loop did not override owner-set numbers same-day; flagging that either a
+  deposit or proportional rail shrink (e.g. clip $3 / stop −$4) is needed if equity
+  stays this low.
+- **Rails acted on false data today (resolved):** the −$6 day-stop tripped on phantom
+  realized −9.79; truth was −4.29. Fixed at source (settle booking). INVARIANTS #4.

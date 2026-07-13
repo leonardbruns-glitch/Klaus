@@ -355,14 +355,12 @@ MIN_LOCKOUT_MIN_MARGIN_C   = 0.5     # SHADOW log threshold: running_min this °
 # validated against Gamma resolution — the one real risk (mirror of the running_max
 # overshoot bugs). Loosen toward 0.5 after the first clean min resolutions confirm
 # provenance. Revert live: MIN_LOCKOUT_LIVE=False.
-MIN_LOCKOUT_LIVE           = True    # 2026-07-11 21:53Z EVOLVE review-date re-enable (pre-registered 07-08 ledger
-                                     # entry: "flip on rail clear alone — evidence gate already satisfied").
-                                     # Rails at review: equity $196.87 (cash 143.34 CLOB-actual + ladder-at-cost
-                                     # 53.53) = 88.3% of 30d-HW $222.90 > 50% line $111.45, third consecutive
-                                     # clear slot; 72h param freeze expired 07-11 21:53Z. Evidence unchanged:
-                                     # 197/197 min-lockouts margin≥1.0 clean (lockout_divergence_0708). $5 maker
-                                     # stake, breaker + oracle-blocklist inherited. Was False (07-08 21:53Z
-                                     # wind-down re-cut, rail-driven — posted 0 orders in its prior 7h live).
+MIN_LOCKOUT_LIVE           = False   # 2026-07-13 21:53Z EVOLVE pre-registered revert (07-11 ledger revert_condition:
+                                     # "equity rail re-breach (<50% 30d-HW at a 21:53Z computation)"): equity $34.86
+                                     # CLOB-actual = 15.6% of 30d-HW $222.90. Path posted 0 orders while live
+                                     # (engine ruin_floor $89.16 already blocks entries mechanically). Evidence gate
+                                     # for the NEXT re-enable is unchanged (197/197 margin≥1.0 clean,
+                                     # lockout_divergence_0708) — flip back per charter on rail clear.
 MIN_LOCKOUT_LIVE_MIN_MARGIN_C = 1.0
 
 # ── Thermo-ceiling MAKER on the upper tail (2026-06-08, user opt-in, BOUNDED) ──────
