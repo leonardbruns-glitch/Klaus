@@ -44,3 +44,13 @@ absolute $ IF one re-validates (NO d+1 +6.6% n=62 collecting; lockout divergence
 study 07-13). Decision: (a) deposit + patient evidence-gated rebuild, (b) ride the
 $137 ladder lottery as-is (current posture), or (c) explicitly accept higher ruin
 probability (e.g. 3 shots/day). Bot continues (b) until told otherwise.
+
+## 2026-07-13 — UPDOWN-SNIPER live-arm decision (owner input required)
+Owner mandated 5/15-min BTC. Research findings (state_log 10:35 UTC): fee-wall premise
+falsified (true fee 0.07·p·(1−p), takers only, makers free); stable +EV niche = buying
+near-certainty (0.90–0.99) in the final 15–120s, WR 0.95–1.00, +1–7%/$ net, ~$55k/day
+of such flow, dispersed across 200+ wallets. Shadow recorder klaus_updown_shadow.service
+is live; n≥100 fill-simulation gate expected within ~24–36h.
+DECISION NEEDED: equity $39.45 < $40 INVARIANTS floor. Going live (clips $5–12, daily
+stop −$6, halt on 3 consecutive losses) requires EITHER an explicit owner floor waiver
+for this strategy OR a deposit raising equity above $40. Reply in chat.
