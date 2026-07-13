@@ -2,6 +2,9 @@
 active
 
 ## Last 10 commits on klaus:
+c92ef4888 PENDING_HUMAN: updown-sniper live-arm decision (floor waiver or deposit)
+eb4fd468a UPDOWN-SNIPER: fee-wall falsified (fee=0.07·p·(1−p) takers-only), certainty-cell edge stable across 2 tape eras, shadow recorder live
+0e663f7fa Gate-keeper 2026-07-13 — ready=0 rejected=0 collecting=3 ambiguous=3; G3 WATCH_ITEM (winner's curse n=75, filled ROI -75.8% vs sim +7.6%); bankroll CRITICAL $87.40 < ruin_floor $89.16
 0fcfbb5d9 SPRINT_LADDER disarmed 2026-07-13 — true equity $39.45 < $40 INVARIANTS floor; ladder 0W/7L −$165 since 07-11
 57d6550f0 Calib monitor 2026-07-13 — brier7=0.053 disp_ratio=≤0.80 3 alerts (S3 d11, S4 structural, S5 monitoring) + bankroll alarm -$32.69
 1a2e8fa63 PnL ledger 2026-07-13 — day=ABORT turns=0 roi/turn=N/A% unexplained=-$59.34 (stale 22h46m, 2nd consecutive ABORT, Jul12 loss -$61.91 sprint-ladder+untracked-fills)
@@ -9,9 +12,6 @@ active
 f96a8732e Exec audit 2026-07-12 — fills=0 NO-share=N/A 2 alerts (band dark 6d, winner's curse trend n=75)
 8e5f59e9f PnL ledger 2026-07-12 — day=ABORT turns=N/A roi/turn=N/A% unexplained=N/A
 491d8a2d4 EVOLVE daily 2026-07-11 evening (covered full day): MIN_LOCKOUT_LIVE re-enabled per pre-registered review + winner's curse RESOLVED (realized -75.8% vs sim +7.6%, n=75 trend) + ladder fill-cost wallet-delta fix
-c704ff1ed MIN_LOCKOUT_LIVE False->True — pre-registered review-date re-enable (rails clear)
-bc0f8c17c sprint_ladder: record ACTUAL fill cost via wallet delta + stabilized matched size
-a44b8458f Research audit 2026-07-11T1045Z — equity deployed $0 (band dark 5d, S3 inverted 13/13 days) | best action: winner's curse VPS cross-tab today → micro-stake PAIR_FAV re-enable at Jul 12 review
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   84G        9G  91% /
