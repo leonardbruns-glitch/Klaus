@@ -88,3 +88,12 @@ reviews this whenever one happens to occur. The weekly agent processes open item
    registered tonight. If interactive sessions bypass the ledger, review_dates and
    revert_conditions silently vanish from the loop's working set — worth a line in
    CLAUDE.md or the charter's deployment discipline at the next weekly.
+
+## 2026-07-13 10:46 UTC — INVARIANTS #2 floor waiver (owner, interactive)
+Equity $39.40 < $40 floor. Owner explicitly directed live trading of UPDOWN-SNIPER
+("you have to make it happen with 5-15min btc markets" → "can we start now" → "go
+live"). Interactive session + owner instruction = constitutional authority per
+INVARIANTS preamble. Waiver is SCOPED: only klaus_updown_sniper.service, $5 clips,
+day-stop −$6, 3-consecutive-loss halt, $15 max open. All other live paths remain
+halted (ladder disarmed 09:25Z, engine ruin-floor armed). n≥100 shadow gate continues
+accumulating in parallel; policy re-fit from shadow data due within 36h.

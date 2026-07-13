@@ -51,6 +51,6 @@ falsified (true fee 0.07·p·(1−p), takers only, makers free); stable +EV nich
 near-certainty (0.90–0.99) in the final 15–120s, WR 0.95–1.00, +1–7%/$ net, ~$55k/day
 of such flow, dispersed across 200+ wallets. Shadow recorder klaus_updown_shadow.service
 is live; n≥100 fill-simulation gate expected within ~24–36h.
-DECISION NEEDED: equity $39.45 < $40 INVARIANTS floor. Going live (clips $5–12, daily
+DECISION NEEDED: ANSWERED 2026-07-13 10:46Z — owner waived floor in chat ("go live"); sniper armed with scoped rails (see ESCALATIONS.md same date).
 stop −$6, halt on 3 consecutive losses) requires EITHER an explicit owner floor waiver
 for this strategy OR a deposit raising equity above $40. Reply in chat.

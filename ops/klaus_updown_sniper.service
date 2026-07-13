@@ -6,7 +6,7 @@ After=network-online.target
 Type=simple
 WorkingDirectory=/root/Klaus
 Environment=PYTHONPATH=/root/Klaus
-Environment=UPDOWN_LIVE=0
+Environment=UPDOWN_LIVE=1
 EnvironmentFile=-/root/Klaus/.env
 ExecStart=/usr/bin/python3 /root/Klaus/strategy/updown_sniper.py
 Restart=always
