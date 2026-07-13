@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+338fef539 UPDOWN-SNIPER LIVE — owner floor waiver recorded, scoped rails
+0872daa7e UPDOWN-SNIPER live executor: certainty-cell taker, market-confirmation gate (ask>=0.90), basis move-floor 6bps, rails $5 clip/-$6 day-stop/3-loss halt
 c92ef4888 PENDING_HUMAN: updown-sniper live-arm decision (floor waiver or deposit)
 eb4fd468a UPDOWN-SNIPER: fee-wall falsified (fee=0.07·p·(1−p) takers-only), certainty-cell edge stable across 2 tape eras, shadow recorder live
 0e663f7fa Gate-keeper 2026-07-13 — ready=0 rejected=0 collecting=3 ambiguous=3; G3 WATCH_ITEM (winner's curse n=75, filled ROI -75.8% vs sim +7.6%); bankroll CRITICAL $87.40 < ruin_floor $89.16
@@ -10,8 +12,6 @@ eb4fd468a UPDOWN-SNIPER: fee-wall falsified (fee=0.07·p·(1−p) takers-only), 
 1a2e8fa63 PnL ledger 2026-07-13 — day=ABORT turns=0 roi/turn=N/A% unexplained=-$59.34 (stale 22h46m, 2nd consecutive ABORT, Jul12 loss -$61.91 sprint-ladder+untracked-fills)
 4dfa1cd20 Calib monitor 2026-07-12 — brier7=0.053 disp_ratio=≤0.80 2 alerts (S3 persists d10, S4 structural)
 f96a8732e Exec audit 2026-07-12 — fills=0 NO-share=N/A 2 alerts (band dark 6d, winner's curse trend n=75)
-8e5f59e9f PnL ledger 2026-07-12 — day=ABORT turns=N/A roi/turn=N/A% unexplained=N/A
-491d8a2d4 EVOLVE daily 2026-07-11 evening (covered full day): MIN_LOCKOUT_LIVE re-enabled per pre-registered review + winner's curse RESOLVED (realized -75.8% vs sim +7.6%, n=75 trend) + ladder fill-cost wallet-delta fix
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   84G        9G  91% /
