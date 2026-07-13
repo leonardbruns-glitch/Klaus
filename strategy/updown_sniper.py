@@ -31,6 +31,9 @@ ASK_MIN = 0.90
 ASK_MAX = {900: 0.97, 300: 0.99}
 P_MIN = 0.99
 MOVE_FLOOR = 0.0006          # 6 bps: Chainlink/Binance basis guard
+SIG_FLOOR = 0.00005          # 0.5bp/sqrt(s) floor on sigma1s: certainty built on a
+                             # calmer estimate is sigma-junk (2026-07-13 15m loss:
+                             # sig1s 0.195bp -> p 0.9996, then a 13bp reversal = 6z)
 EDGE_MIN = 0.010
 CLIP_USD = 5.0
 RESERVE_USD = 2.0
@@ -148,6 +151,7 @@ class Sniper:
                 px, op, sig = self.spot.px, win["open_px"], self.spot.sigma1s()
                 if not (px and op and sig and sig > 0):
                     continue
+                sig = max(sig, SIG_FLOOR)
                 move = px / op - 1.0
                 if abs(move) < MOVE_FLOOR:
                     continue
@@ -194,12 +198,19 @@ class Sniper:
                 for ev in evs or []:
                     for m in ev.get("markets") or []:
                         try:
-                            op = json.loads(m.get("outcomePrices") or "[]")
+                            op = [float(x) for x in json.loads(m.get("outcomePrices") or "[]")]
                         except Exception:
                             op = []
-                        if len(op) == 2 and float(op[0]) + float(op[1]) == 1.0:
-                            winner = win["outcomes"][0] if float(op[0]) == 1.0 else win["outcomes"][1]
-                if winner is None and now < win["end"] + 900:
+                        # exact 1/0 only: pre-resolution live prices also sum to 1.0
+                        # (2026-07-13 bug booked winner="Down" on 84/196 windows)
+                        if sorted(op) == [0.0, 1.0]:
+                            winner = win["outcomes"][0] if op[0] == 1.0 else win["outcomes"][1]
+                if winner is None:
+                    # never book a position off anything but a true resolution;
+                    # positionless windows get cleaned up after 15 min
+                    if slug not in self.st["open"] and now > win["end"] + 900:
+                        self.done.add(slug)
+                        self.windows.pop(slug, None)
                     continue
                 pos = self.st["open"].pop(slug, None)
                 if pos:

@@ -128,11 +128,13 @@ class Runner:
                 for ev in evs or []:
                     for m in ev.get("markets") or []:
                         try:
-                            op = json.loads(m.get("outcomePrices") or "[]")
+                            op = [float(x) for x in json.loads(m.get("outcomePrices") or "[]")]
                         except Exception:
                             op = []
-                        if len(op) == 2 and float(op[0]) + float(op[1]) == 1.0:
-                            winner = win["outcomes"][0] if float(op[0]) == 1.0 else win["outcomes"][1]
+                        # exact 1/0 only: pre-resolution live prices also sum to 1.0
+                        # (2026-07-13 bug mislabeled winner on 84/196 windows)
+                        if sorted(op) == [0.0, 1.0]:
+                            winner = win["outcomes"][0] if op[0] == 1.0 else win["outcomes"][1]
                             out({"type": "res", "slug": slug, "winner": winner,
                                  "b_open": win["open_px"],
                                  "b_close": self.spot.at(win["end"])})
