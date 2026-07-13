@@ -1,24 +1,24 @@
 {
-  "date": "2026-07-12",
-  "snapshot_ts": "2026-07-12T19:01Z",
+  "date": "2026-07-13",
+  "snapshot_ts": "2026-07-13T07:58Z",
   "brier7": 0.053,
-  "brier7_note": "LOCKED. Day 10 stale. Jun 28–Jul 2 window unchanged. band_resolution_join.py ran Jul 10T11:23Z but Brier scoring pipeline requires label-join through pricer_eval — not yet reflected here.",
+  "brier7_note": "LOCKED. Day 11 stale. Jun 28–Jul 2 window unchanged. band_resolution_join.py has continued running on VPS but Brier/ECE/Rho scoring pipeline output is inaccessible from this branch.",
   "ece7": 0.0194,
-  "ece7_note": "LOCKED. Day 10 stale.",
+  "ece7_note": "LOCKED. Day 11 stale.",
   "rho7": 0.4458,
-  "rho7_note": "LOCKED. Day 10 stale.",
+  "rho7_note": "LOCKED. Day 11 stale.",
   "disp_ratio7": 0.80,
-  "disp_ratio7_note": "ALERT PERSISTS S3. All 15 confirmed days Jun 28–Jul 10: range 0.62–1.23, 1/13 days >=1.10, median-city <=0.80 ALL days. 7d window Jul 6–12: 5 confirmed days all <=0.80; Jul 11–12 unresolved. Reporting <=0.80. Official per-day values accessible only on VPS.",
-  "settled_lane_staleness_days": 10,
+  "disp_ratio7_note": "ALERT PERSISTS S3. Day 11 of confirmed dispersion inversion. 7d window Jul 7–13: Jul 7–12 confirmed resolved, official per-day values not accessible (VPS only). All 15 confirmed days Jun 28–Jul 10 below 1.10 in official gauge; median-city ≤0.80 on ALL confirmed days. Jul 11–12 now resolved overnight but no official ratio accessible. Jul 13 in progress. Reporting ≤0.80. Re-enable condition (≥1.10 for 5 consecutive confirmed days) NOT met.",
+  "settled_lane_staleness_days": 11,
   "n_resolved_city_dates": 205,
-  "n_resolved_brier": 36551,
+  "n_resolved_city_dates_note": "Reflects Jun 28–Jul 2 scoring pipeline window only. More city-dates have resolved (band_resolution_join.py running on VPS) but are not in this monitor's scoring pipeline.",
   "disp_by_date": {
     "2026-06-28": {"n": 25, "n_finite": 17, "ratio": 0.807, "impl": 0.807, "real": 1.0},
     "2026-06-29": {"n": 28, "n_finite": 19, "ratio": 0.663, "impl": 0.794, "real": 1.0},
     "2026-06-30": {"n": 22, "n_finite": 14, "ratio": 0.976, "impl": 0.860, "real": 0.917},
     "2026-07-01": {"n": 26, "n_finite": 17, "ratio": 0.866, "impl": 0.807, "real": 0.656},
     "2026-07-02": {"n": 24, "n_finite": 12, "ratio": 0.858, "impl": 0.817, "real": 1.0},
-    "2026-07-03": {"n": null, "ratio": null, "note": "Resolved per EVOLVE Jul 10. Per-day value not accessible (VPS only)."},
+    "2026-07-03": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible (VPS only)."},
     "2026-07-04": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible."},
     "2026-07-05": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible."},
     "2026-07-06": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible. Model-proxy median ratio (off-mode, n<20): 0.563 (prior state)."},
@@ -26,11 +26,12 @@
     "2026-07-08": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible. Model-proxy: 0.821 (prior state, n<20)."},
     "2026-07-09": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible. Model-proxy: 1.580 (prior state, n<20)."},
     "2026-07-10": {"n": null, "ratio": null, "note": "Resolved. Per-day not accessible. Model-proxy: 1.972 (prior state, n<20)."},
-    "2026-07-11": {"n": null, "ratio": null, "note": "Resolved overnight. No official data. Model-proxy POST_PEAK off-mode: 0.153 median (n=17); 24/41 mode-perfect (ratio=inf). PRE_PEAK sigma: 0.927C (n=55 groups, expanded city set)."},
-    "2026-07-12": {"n": null, "ratio": null, "note": "TODAY — markets partially resolved (snapshot 19:01Z). PRE_PEAK sigma: 0.998C (n=44 groups). POST_PEAK implied sigma: 0.292C (n=37 groups, mostly unresolved)."}
+    "2026-07-11": {"n": null, "ratio": null, "note": "Resolved overnight (prior state: 'resolved overnight'). No official data. Model-proxy POST_PEAK off-mode: 0.153 median (n=17); 24/41 mode-perfect (ratio=inf). PRE_PEAK sigma: 0.927°C (n=55 groups)."},
+    "2026-07-12": {"n": null, "ratio": null, "note": "Fully resolved by Jul 13 morning. No official data. Model-proxy off-mode: 0.615 median (n=8, computed at 19:01Z when partially unresolved — running_max proxy). PRE_PEAK sigma: 0.998°C (n=44 groups)."},
+    "2026-07-13": {"n": null, "ratio": null, "note": "TODAY — in progress at snapshot 07:58Z. No dispersion data available."}
   },
   "disp_proxy_s50": {
-    "methodology": "p_cal-weighted std of bucket midpoints using s50-sampled pricer rows (tail buckets excluded: lo<-50 or hi>200). PRE_PEAK sigma = all PRE_PEAK groups at observation time. Off-mode ratio = implied/realized for POST_PEAK groups where realized>0.1C (running_max as resolution proxy). NOT equivalent to official market-book-based gauge.",
+    "methodology": "p_cal-weighted std of bucket midpoints using s50-sampled pricer rows (tail buckets excluded: lo<-50 or hi>200). PRE_PEAK sigma = all PRE_PEAK groups at observation time. Off-mode ratio = implied/realized for POST_PEAK groups where realized>0.1°C (running_max as resolution proxy). NOT equivalent to official market-book-based gauge.",
     "2026-07-06": {"n": 11, "median": 0.563, "mean": 1.226, "range": [0.32, 5.30], "source": "prior state"},
     "2026-07-07": {"n": 12, "median": 1.347, "mean": 1.803, "range": [0.43, 4.89], "source": "prior state"},
     "2026-07-08": {"n": 12, "median": 0.821, "mean": 1.539, "range": [0.25, 5.82], "source": "prior state"},
@@ -41,53 +42,54 @@
       "post_peak_n_groups": 41, "post_peak_implied_median_c": 0.325, "post_peak_implied_mean_c": 0.387,
       "off_mode_n": 17, "off_mode_median_ratio": 0.153,
       "mode_perfect_n": 24, "mode_perfect_fraction": 0.585,
-      "source": "computed this run from s50 scratchpad"
+      "status": "RESOLVED",
+      "source": "computed prior run from s50 scratchpad"
     },
     "2026-07-12": {
       "pre_peak_n_groups": 44, "pre_peak_median_sigma_c": 0.998, "pre_peak_mean_sigma_c": 0.982,
       "post_peak_n_groups": 37, "post_peak_implied_median_c": 0.292, "post_peak_implied_mean_c": 0.397,
       "off_mode_n": 8, "off_mode_median_ratio": 0.615,
-      "note": "UNRESOLVED — markets still open at snapshot time 19:01Z. Proxy only.",
-      "source": "computed this run from today s50"
+      "note": "NOW RESOLVED (Jul 13). Was unresolved at computation time 19:01Z — off_mode_ratio 0.615 used running_max as resolution proxy; official value pending VPS.",
+      "source": "computed prior run from s50"
     },
-    "pre_peak_trend_note": "Prior 7-day trend ending Jul 8 (12 cities): [0.994,0.950,0.906,0.885,0.862,0.822,0.831]. Jul 9: 1.054C (n=23). Jul 10: 1.043C (n=25). Jul 11: 0.927C (n=55). Jul 12: 0.998C (n=44). Trend compression appears to have stabilized since Jul 9. City-set expansion from 12 to 44-55 groups inflates sigma; caution on direct comparison."
+    "2026-07-13": {
+      "note": "Not computed. Snapshot at 07:58Z — day in progress, no meaningful proxy available.",
+      "source": "n/a"
+    },
+    "pre_peak_trend_note": "Jul 9–12 PRE_PEAK sigma trend: 1.054, 1.043, 0.927, 0.998°C. Stable ~0.93–1.05°C band. Prior Jul 1–8 declining trend (0.994→0.831) has not continued — compression appears to have stopped. City-set expansion (12↔44-55 groups) limits direct comparison. No spike."
   },
   "proxy_lane": {
-    "today_date": "2026-07-12",
-    "snapshot_utc": "2026-07-12T19:01Z",
-    "status": "UPDATED",
-    "jul11_pre_peak_sigma_c": 0.927,
-    "jul11_n_groups": 55,
+    "today_date": "2026-07-13",
+    "snapshot_utc": "2026-07-13T07:58Z",
+    "status": "NO NEW COMPUTATION — day in progress at snapshot time",
     "jul12_pre_peak_sigma_c": 0.998,
     "jul12_n_groups": 44,
-    "trend_note": "Prior declining trend [0.994->0.831] has not continued. Values stable 0.927-1.054 since Jul 9. City-set expansion limits comparability. No spike vs baseline."
+    "trend_note": "Jul 9–12 sigma stable 0.927–1.054°C (n=23–55). No spike vs baseline. City-set expansion 12↔44-55 groups limits comparability with prior Jul 1–8 trend."
   },
-  "bankroll": 120.095284,
-  "bankroll_prev": 163.164484,
-  "bankroll_delta_24h": -43.069,
-  "bankroll_delta_note": "Large drop. Exec audit 0 fills, day=ABORT. Most likely: wallet-delta accounting correction (bc0f8c17c Jul 11 evening) recalculated bankroll from on-chain state. Not confirmed by this monitor. Recommend cross-check of on-chain wallet balance.",
+  "bankroll": 87.403934,
+  "bankroll_prev": 120.095284,
+  "bankroll_delta_24h": -32.691,
+  "bankroll_delta_note": "ALARM (not pre-registered). $32.69 drop overnight (Jul 12 19:01Z → Jul 13 07:58Z) with BAND_LIVE=False and exec audit 0 fills. Previous day also dropped $43.07. Two-day cumulative: $163.16 → $87.40 = −$75.76 (−46.4%). Jul 12 drop attributed to wallet-delta accounting correction (bc0f8c17c); today's origin not confirmed. Possible causes: on-chain settlement of pre-wind-down YES positions, continued accounting normalization, or unrecorded fills. Requires direct VPS/wallet investigation.",
   "band_live": false,
-  "band_live_dark_days": 6,
+  "band_live_dark_days": 7,
   "band_no_enabled": false,
   "band_pair_fav_enabled": true,
   "band_pair_fav_live_fills": 0,
-  "band_yes_live_min_dout": 0,
   "service_status": "active",
   "bot_restart_utc": "2026-07-11T22:06Z",
   "open_positions": 0,
-  "pnl_today": "ABORT",
   "isotonic_deployed_refit": "2026-06-06T22:27:08Z",
-  "isotonic_deployed_age_days": 36,
+  "isotonic_deployed_age_days": 37,
   "isotonic_candidate_committed_refit": "2026-06-09T09:30:36Z",
-  "isotonic_candidate_committed_age_days": 33,
+  "isotonic_candidate_committed_age_days": 34,
   "isotonic_auto_promote_detected": false,
-  "isotonic_auto_promote_note": "Expected ~Jul 12. Not observed in committed files. VPS cron may have declined (OOS Brier not improved enough) or promoted uncommitted live candidate.",
+  "isotonic_auto_promote_note": "Expected ~Jul 12 per prior state. NOT observed — committed refit dates unchanged (deployed 2026-06-06, candidate 2026-06-09). Day 37 without auto-promote. VPS cron likely declined promotion (OOS Brier not improved by structural plateau data). Structural plateau p_cal~0.376 for p_model in [0.30,0.90] persists in both deployed and candidate. Material shift at grid=1.0 only: deployed=0.6316 vs candidate=0.3739, delta=-0.258 (unchanged day 34). Do not manually promote.",
   "isotonic_plateau_structural": true,
   "isotonic_material_shift_grid1": -0.2577,
-  "isotonic_material_shift_note": "Deployed=0.6316, candidate=0.3739 at grid=1.0. Unchanged. Direction: candidate lowers p_cal at extreme. All other grid points differ <0.02.",
   "alerts": [
-    "PERSISTS S3: Dispersion ratio 7d median <=0.80 (threshold <1.10). 15 confirmed days Jun 28-Jul 10, all below threshold, 1/13 days >=1.10. Median-city ratio <=0.80 on ALL confirmed days. Edge inverted for entire confirmed period. Band dark day 6 is correct response. Re-enable requires ratio>=1.10 for 5 consecutive confirmed days — NOT met. Cannot evaluate in shadow without VPS band_resolution_join.py output.",
-    "STRUCTURAL S4: Isotonic plateau p_cal~0.376 for p_model in [0.30,0.90] confirmed structural. Deployed 36d old. Material shift at grid=1.0 (deployed=0.6316 vs candidate=0.3739, delta=-0.258) unchanged. Auto-promote not detected in committed files (expected ~Jul 12). Do not manually promote.",
-    "MONITORING S5: Prior declining PRE_PEAK proxy trend (0.994->0.831, 7 days ending Jul 8) has NOT continued. Jul 9-12 values stable 0.927-1.054C. Trend compression appears to have stopped. City-set expansion limits confidence. Not a pre-registered alert. Downgraded from PARTIALLY_RESOLVED to MONITORING."
+    "PERSISTS S3: Dispersion ratio 7d median ≤0.80 (threshold <1.10). Day 11 confirmed inversion. All 15 confirmed days Jun 28–Jul 10 below threshold; 1/13 days ≥1.10. Jul 11–12 now resolved but official ratios not accessible. Model-proxy Jul 11 off-mode ratio=0.153 (n=17), Jul 12 off-mode ratio=0.615 (n=8, was unresolved). Band dark day 7 is correct response. Re-enable condition (ratio≥1.10 for 5 consecutive confirmed days) NOT met and cannot be evaluated in shadow. Do NOT re-enable band.",
+    "STRUCTURAL S4: Isotonic plateau p_cal~0.376 for p_model in [0.30,0.90]. Deployed 37d old. Candidate 34d old. Auto-promote NOT detected (day 37). Material shift at grid=1.0 (deployed=0.6316 vs candidate=0.3739, delta=-0.258). All other grid points within ±0.018. VPS cron declining daily refits — OOS Brier not improving over structural plateau. Do not manually promote.",
+    "MONITORING S5: PRE_PEAK proxy sigma trend: Jul 9–12 stable ~0.93–1.05°C (n=23–55 groups/day). Prior declining trend [0.994→0.831, 7 days ending Jul 8] has not continued. City-set expansion (12↔44-55 groups) limits confidence. Not a pre-registered alert. Monitoring continues.",
+    "UNREGISTERED BANKROLL ALARM: Bankroll $87.40 (down $32.69 from $120.10 overnight, -27.2%). Two-day drop: -$75.76 (-46.4% from $163.16). BAND_LIVE=False, exec audit 0 fills. Cause not confirmed. Recommend VPS wallet balance cross-check immediately."
   ]
 }
