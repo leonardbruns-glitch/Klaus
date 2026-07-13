@@ -10,12 +10,12 @@
     "ci95": [-10.9, 21.1],
     "wr": 0.153,
     "resolved": 934,
-    "ts": "2026-07-11T09:03:00Z",
-    "note": "No change. BAND_LIVE=False since 07-06 22:08Z: 0 new shadow posts (confirmed band_struct_lite 07-10: 191 records all md_shadow no_band/sum_gate; 07-11: 130 records all md_shadow no_band/sum_gate). VPS join at 07-10 11:23Z not confirmed from data-mirror (git fetch blocked); marginal increment expected <10 resolved, held at n=934. All-time CI: ROI +4.0% CI straddles 0 -> AMBIGUOUS unchanged. Re-enable blocker: pair_fav n=9 < 40 pre-reg condition; 07-12 structural decision pending."
+    "ts": "2026-07-13T09:00:00Z",
+    "note": "No change. Band dark day 7 (BAND_LIVE=False since Jul-06 22:08Z). Confirmed 0 post records in Jul-11 lite (177 rows), Jul-12 lite (170 rows), Jul-13 lite partial (127 rows) — all md_shadow no_band/sum_gate/converged/yes_capture_shadow only. n held 934. CRITICAL: ROI +4.0% is now declared an UPPER BOUND (not estimator) per winner's curse analysis (state_log Jul-11 22:15Z, analysis/weather/winners_curse_crosstab_0711.py): filled WR 17.3% vs sim 92.9% on NO d+1 0.60-0.85 same era; simulation CI biased. No band re-enable may cite this ROI. CI straddles 0 -> AMBIGUOUS technically, but sim CI is effectively invalid until winner's curse gap is resolved."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
-    "n_label": "post-guard pair legs (9 pairs; restart 2026-07-05T22:20:00Z; frozen at BAND_LIVE=False 07-06 22:08Z)",
+    "n_label": "post-guard pair legs (restart 2026-07-05T22:20:00Z; frozen at BAND_LIVE=False 07-06 22:08Z)",
     "n_prev": 9,
     "status": "AMBIGUOUS",
     "roi": null,
@@ -31,7 +31,7 @@
         "roi": 1.3,
         "ci95": [-11.9, 12.7],
         "status": "AMBIGUOUS",
-        "note": "BAND_NO_ENABLED=False since Jul02. No new fires. Shadow CI AMBIGUOUS (straddles 0). Live n=51 WR=39.2% = effectively REJECTED. Do NOT re-enable on shadow CI alone."
+        "note": "BAND_NO_ENABLED=False since Jul-02. No new fires. Shadow CI AMBIGUOUS (straddles 0). Live n=51 WR=39.2% = effectively REJECTED. Do NOT re-enable on shadow CI alone."
       },
       "pair_fav_yes": {
         "n": 9,
@@ -41,7 +41,7 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Frozen at BAND_LIVE=False since 07-06 22:08Z. 0 new post-guard fires (confirmed). Rate ~11/day when live. ETA n=40: ~2.8d from re-enable. ETA n=100: ~8.3d from re-enable."
+        "note": "Frozen at BAND_LIVE=False since Jul-06 22:08Z. 0 new post-guard fires confirmed. Rate ~11/day when live. ETA n=40: ~2.8d from re-enable. ETA n=100: ~8.3d from re-enable."
       },
       "pair_fav_no": {
         "n": 9,
@@ -56,22 +56,28 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Post-guard n=9, 0 resolved (frozen). COUNTERFACTUAL VPS join (07-07 EVOLVE): n=32 all-shadow NO legs, ROI=+52.9%, CI=[+12.6,+85.5] -- CI lower CLEARS zero. 07-09 EVOLVE combined per-pair: n=30, ROI=+13.0%. TREND only: n=32 < 40 is a trend, n < 100 is not a gate. Do not re-enable on this. ETA n=100: ~8.3d from re-enable."
+        "note": "Post-guard n=9, 0 new (frozen). COUNTERFACTUAL CI=[+12.6,+85.5] at n=32 QUALIFIED: state_log Jul-11 22:15Z confirms CF ROI inherits simulation bias (winner's curse). Co-filled pair (Sigma <= 0.92, pays 1.0 on completion) is the exception — adverse selection in naked leg only. Exec Auditor should cross-tab co-fill rate. Do not re-enable on CF ROI alone. ETA n=100: ~8.3d from re-enable."
       }
     },
-    "ts": "2026-07-11T09:03:00Z",
-    "note": "No new live fires since 07-06 wind-down. G2c counterfactual CI-clear is notable trend (not READY). 07-12 structural decision pending for BAND_LIVE re-enable path."
+    "ts": "2026-07-13T09:00:00Z",
+    "note": "No new live fires since Jul-06 wind-down. CF CI-clear qualified by winner's curse. Jul-12 structural decision not taken per commit log. Still pending."
   },
   "FILLED_VS_FIRED": {
-    "n": 37,
+    "n": 75,
     "n_prev": 37,
-    "status": "COLLECTING",
-    "roi": null,
-    "ci95": [null, null],
-    "wr": null,
-    "resolved": 0,
-    "ts": "2026-07-11T09:03:00Z",
-    "note": "n=37 unchanged. maker_fills_recent.log Jul-08..Jul-11 shows only UNTRACKED TAKER fills: sprint/ladder shots (0.35-0.55) and redemptions (0.992-0.996). Zero band-attributed fills. 3 fills needed to cross n=40 watch trigger. Requires BAND_LIVE re-enable."
+    "n_added_since_prior": 38,
+    "status": "WATCH_ITEM",
+    "roi": -75.8,
+    "roi_sim": 7.6,
+    "gap_pp": -83.4,
+    "wr_filled": 0.173,
+    "avg_entry_px": 0.417,
+    "ci95": [-75.0, -34.2],
+    "ci95_method": "Wilson WR CI [10.4%, 27.4%] translated to ROI at avg_px=0.417; CI entirely negative",
+    "resolved": 75,
+    "resolved_scope": "WEATHER_MAKER fills 2026-06-11..2026-07-06 all-time VPS join (winners_curse_crosstab_0711.py)",
+    "ts": "2026-07-13T09:00:00Z",
+    "note": "NEW TRANSITION: COLLECTING (n=37) -> WATCH_ITEM (n=75). Crosses pre-registered n>=40 threshold. Data: state_log 2026-07-11 22:15Z: 13W/62L at avg px 0.417, ROI -75.8% (-$173.78/$229.36) vs sim +7.6% (n=3,418 same era) = -83.4pp gap. Per-cell: NO d+1 0.60-0.85 filled WR=20% (n=15) vs sim 92.9% (n=14). Winner's curse STRUCTURAL. Exception: co-filled PAIR (adverse selection in naked leg only). Exec Auditor flag: cross-tab co-fill rate under Jul-05 clip-guard. No new maker_fills_recent.log band-attributed fills since prior run (Jul-11..Jul-13 log = only sprint/ladder UNTRACKED fills)."
   },
   "BASKET_EXIT": {
     "n": null,
@@ -81,7 +87,7 @@
     "wr": null,
     "resolved": null,
     "ts": "2026-06-22T07:35:00Z",
-    "note": "GATE PERMANENTLY RETIRED (state_log Jun22T07:35). 4 fatal flaws. Do not revisit."
+    "note": "GATE PERMANENTLY RETIRED (state_log Jun-22T07:35). 4 fatal flaws. Do not revisit."
   },
   "THERMO_MAKER_NO": {
     "n": 125,
@@ -91,8 +97,8 @@
     "ci95": [-9.0, 2.0],
     "wr": null,
     "resolved": 125,
-    "ts": "2026-07-11T09:03:00Z",
-    "note": "REJECTED (EVOLVE Jul04 21:53Z). n=125 EV -9..+2%/sh ~= 0. THERMO_MAKER_LIVE=False since Jun23 18:40. Action complete. No change."
+    "ts": "2026-07-13T09:00:00Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). THERMO_MAKER_LIVE=False since Jun-23 18:40. Action complete."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -102,8 +108,8 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-07-11T09:03:00Z",
-    "note": "REJECTED (EVOLVE Jul04 21:53Z). METAR_LOCKOUT_TEMP_FLOOR=0.5C (commit 2813daa1e). M1_BETA_PROBE_ENABLED=False since Jul06 22:10Z. 0 new probe fires. Action complete."
+    "ts": "2026-07-13T09:00:00Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). METAR_LOCKOUT_TEMP_FLOOR=0.5C (commit 2813daa1e). M1_BETA_PROBE_ENABLED=False since Jul-06 22:10Z. 0 new probe fires."
   },
   "SUM_POSTED_0.70_0.85": {
     "n": 382,
@@ -117,44 +123,56 @@
     "ci95": [-11.4, 38.9],
     "wr": null,
     "resolved": 382,
-    "ts": "2026-07-11T09:03:00Z",
-    "note": "No change. AMBIGUOUS since 07-09 22:20Z VPS join (n=382, ROI=+11.5%, CI=[-11.4,+38.9]). 0 new shadow fires since 07-06 22:08Z (confirmed band_struct_lite 07-10/07-11: 0 post records). To push CI_lower > 0 at current ROI: need ~1,528 resolved (~4x current); ~30.6d of live firing at 50/day post re-enable. 07-12 structural decision pending."
+    "ts": "2026-07-13T09:00:00Z",
+    "note": "No change. AMBIGUOUS (n=382, ROI=+11.5%, CI=[-11.4,+38.9]). 0 new shadow fires since Jul-06 22:08Z confirmed (Jul-11/12/13 lite = 0 post records). CRITICAL: ROI +11.5% is UPPER BOUND per winner's curse analysis (state_log Jul-11 22:15Z). To push CI_lower > 0 at current ROI: need ~1,528 resolved (~4x current); ~30.6d live at 50/day post re-enable — and even then, sim ROI is biased upward. No structural decision taken Jul-12 (per commit log)."
   },
   "_run_meta": {
-    "run_ts": "2026-07-11T09:03:00Z",
-    "snapshot_ts": "2026-07-11T09:03:02Z",
-    "snapshot_age_min": 0,
-    "snapshot_commit": "3081a6508",
-    "bankroll_capital": 163.164484,
-    "bankroll_at_prior_run": 204.064484,
-    "bankroll_change_24h": -40.9,
-    "bankroll_change_pct_24h": -20.0,
-    "equity_rail": 111.45,
-    "equity_rail_met": true,
-    "freeze_expired": true,
-    "freeze_expired_utc": "2026-07-10T21:53:00Z",
+    "run_ts": "2026-07-13T09:00:00Z",
+    "snapshot_ts": "2026-07-13T08:58:39Z",
+    "snapshot_age_min": 1,
+    "snapshot_commit": "f96a8732e",
+    "bankroll_capital": 87.403934,
+    "bankroll_at_prior_run": 163.164484,
+    "bankroll_change_48h": -75.76,
+    "bankroll_change_pct_48h": -46.4,
+    "daily_start_capital": 103.824444,
+    "intraday_draw": -16.42,
+    "ruin_floor_state_log": 89.16,
+    "bankroll_below_ruin_floor": true,
     "open_positions": 0,
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
-    "wind_down_flags": ["BAND_LIVE=False", "M1_BETA_PROBE_ENABLED=False", "MIN_LOCKOUT_LIVE=False"],
-    "band_dark_days": 5,
+    "band_dark_days": 7,
     "newly_ready": [],
     "newly_rejected": [],
+    "newly_watch_item": ["FILLED_VS_FIRED"],
     "newly_ambiguous": [],
-    "state_transitions": [],
+    "state_transitions": [
+      {
+        "gate": "FILLED_VS_FIRED",
+        "from": "COLLECTING",
+        "to": "WATCH_ITEM",
+        "trigger": "n=75 crosses pre-registered n=40 threshold; winner's curse analysis state_log Jul-11 22:15Z",
+        "n_added": 38,
+        "roi_filled": -75.8,
+        "roi_sim": 7.6,
+        "gap_pp": -83.4
+      }
+    ],
     "structural_blockers": [
-      "WIND-DOWN active: BAND_LIVE=False since 07-06 22:08Z -- 0 shadow posts confirmed (band_struct_lite 07-10/07-11 = 0 post records)",
-      "Pre-registered BAND_LIVE re-enable condition: post-guard pair n>=40 UNMET (n=9); 07-12 structural decision pending",
-      "Equity condition MET ($163.16 > $111.45); freeze expired 07-10 21:53Z",
-      "G1, G7 CI blocked -- cannot reach READY/REJECTED while band dark",
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — 0 shadow posts confirmed (Jul-11/12/13 lite = 0 post records)",
+      "Pre-registered BAND_LIVE re-enable condition: post-guard pair n>=40 UNMET (n=9); frozen while band dark",
+      "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND — no band re-enable may cite G1 or G7 sim CI as evidence",
+      "S3 dispersion gauge: UNBLOCKED but NOT met (Jul3-10: 1/8 days >=1.10, never 2 consecutive); standalone YES band dead through Jul-10",
       "G2a BAND_NO: live n=51 WR=39.2% effectively REJECTED; shadow AMBIGUOUS but irrelevant",
-      "S3 dispersion gauge UNBLOCKED but trigger NOT met (Jul3-10: 1/8 days >=1.10)"
+      "Jul-12 structural slot: no decision taken (no EVOLVE/structural commit on Jul-12 per system_status)"
     ],
     "alerts": [
-      "[BANKROLL ALERT] -$40.90 (-20.0%) in 24h (07-10T09Z -> 07-11T09Z) with band dark. Sprint/ladder source. All positions settled (0 open). Warrants Exec Auditor review.",
-      "[07-12 STRUCTURAL SLOT] Tomorrow: decide BAND_LIVE re-enable path. Options: shadow-posting mode (resolves pair n chicken-and-egg) vs. condition amendment. G2c trend CI=[+12.6,+85.5] at n=32 is compelling but not a gate.",
-      "[VPS JOIN UNCONFIRMED] band_resolution_join.py expected 07-10 11:23Z. Git fetch timed out; SSH unavailable. n=934/382 held from prior state. Flag for VPS operator verification.",
-      "[PAIR_FAV_NO TREND] Counterfactual n=32 ROI=+52.9% CI=[+12.6,+85.5]: CI lower positive. n<40 = trend, NOT a decision. Do not re-enable on this."
+      "[BANKROLL CRITICAL] Capital $87.40 BELOW ruin_floor $89.16 (state_log Jul-12 19:20Z). -$75.76 (-46.4%) in 48h from prior run. Source: sprint/ladder UNTRACKED TAKER fills (not band). Jul-13 open: 51.5sh@0.449 + 45sh@0.526 unexited in maker_fills_recent.log.",
+      "[G3 NEW WATCH_ITEM] FILLED_VS_FIRED crosses n=40 threshold at n=75. Filled ROI=-75.8% vs sim+7.6% = -83.4pp gap. CI entirely negative [-75%, -34%]. Exec Auditor mandatory. Winner's curse STRUCTURAL (per-cell confirmed).",
+      "[BLOCKER] Winner's curse analysis (state_log Jul-11 22:15Z): simulation ROI is UPPER BOUND. G1 ROI +4.0% and G7 ROI +11.5% are NOT valid re-enable evidence. Exception: co-filled PAIR — cross-tab co-fill rate under Jul-05 clip-guard.",
+      "[CF TREND QUALIFIED] G2c counterfactual CI=[+12.6,+85.5] at n=32 inherits sim bias per state_log Jul-11 22:15Z. Not a clean gate.",
+      "[VPS JOIN UNCONFIRMED] band_resolution_join.py join refresh since Jul-10 11:23Z unconfirmed (git fetch blocked, MCP fetch used instead). n=934/382 held. Flag for VPS operator."
     ],
     "proposed_actions": []
   }
