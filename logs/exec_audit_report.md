@@ -1,186 +1,217 @@
-# Band Execution & Markout Audit — 2026-07-12
+# Band Execution & Markout Audit — 2026-07-14
 
-**Snapshot**: `2026-07-12T10:54:09Z` (fresh, within 6h) | **System**: active (uptime from 2026-07-11T22:06Z)
-**Capital**: $124.275284 (daily_start $165.730744; −$41.45 likely deployed today in open PAIR_FAV positions — CAVEAT applies)
-**BAND_LIVE**: False (wind-down 2026-07-06; equity $108.35 < 50%·30d-HW $222.90; day 6 of dark)
-**BAND_NO_ENABLED**: False (rail-halt 2026-07-02, WR 39.2% n=51; day 10)
-**BAND_PAIR_FAV_ENABLED**: True (re-enabled per Jul 12 review, per Jul 11 EVOLVE intent)
+**Snapshot**: `2026-07-14T06:57:07Z` (fresh if routine runs before 12:57Z UTC) | **System**: active (restart 2026-07-13T22:06:10Z)
+**Capital**: $34.6929 (daily_start $34.7427; CAVEAT: manual sells not reflected — do not conclude PnL from this alone)
+**BAND_LIVE**: False (wind-down 2026-07-06; equity $108.35 < 50%·30d-HW $222.90; day 8 of dark)
+**BAND_NO_ENABLED**: False (rail-halt 2026-07-02, WR 39.2% n=51; day 12)
+**BAND_PAIR_FAV_ENABLED**: True (gated by BAND_LIVE=False for live execution)
 **STWA_REGULAR_YES/NO_ENABLED**: False
+**Active live strategy**: UPDOWN-SNIPER (live since ~2026-07-13T10Z on owner floor waiver; sniper fills now dominate the tape)
 
 ---
 
 ## Section 1 — Fill Tape (24h + 7d)
 
-### Klaus maker fills (band/maker tape)
+### Band maker fills (registered via [MAKER-FILL])
 
-| Window | [MAKER-FILL] lines | Fills | $ filled | By side | By price band |
-|---|---|---|---|---|---|
-| Last 24h | 0 | 0 | $0 | — | — |
-| Last 7d | 0 | 0 | $0 | — | — |
+| Window | [MAKER-FILL] lines | [STRUCT-BAND-Q] lines | Klaus-registered fills | $ filled |
+|---|---|---|---|---|
+| Last 24h | **0** | **0** | 0 | $0 |
+| Last 7d | **0** | **0** | 0 | $0 |
 
-Zero `[MAKER-FILL]` lines and zero `[STRUCT-BAND-Q]` lines in the 7-day journal tape. No Klaus-registered maker fills in any price band, city, or side. Consistent with BAND_LIVE=False since 2026-07-06 (day 6 of dark at snapshot). Last registered band posts: 2026-07-06 (10 tokens, $48.01 spent); no `band_posted_state.json` entries for Jul 07–12.
+Zero `[MAKER-FILL]` or `[STRUCT-BAND-Q]` lines in the 7-day tape. BAND_LIVE=False since Jul 06 (day 8). All band maker pipeline metrics (fill count, fill rate, time-to-fill, city breakdown) are unavailable.
 
-Fill rate: **0 fills / 0 live posts** (band dark — denominator is zero).
+### UNTRACKED fills observed via user WS (all strategies — NOT band maker tape)
 
-### UNTRACKED fills observed via WS (sprint_ladder / PAIR_FAV — NOT in band tape)
+All entries in `maker_fills_recent.log` carry `[USER-WS] UNTRACKED FILL — no tracker entry, no open position`. These are fills on the Klaus wallet registered by the WS but unknown to the band/maker tracker.
 
-All fills in `maker_fills_recent.log` carry the `[USER-WS] UNTRACKED FILL — no tracker entry, no open position` tag. These are fills on the Klaus wallet registered by the WS but unknown to the band/maker tracker. Based on price ranges (0.35–0.52), sizes (10–68 shares), and behavior (taker sweeps + hold-to-resolution exits at 0.99+), these are sprint_ladder or PAIR_FAV trades managed by a different module.
+**Character shift at Jul 13 10:49Z**: Pre-Jul 13 fills are large-lot (33–68 shares, prices 0.40–0.52), consistent with residual PAIR_FAV/BAND runoff. Jul 13 10:49Z onwards: small-lot (~5–6 shares, prices 0.92–0.99, $5–6 notional) = UPDOWN-SNIPER taker orders.
 
-Unique fill events by day (deduped to MATCHED status only):
+**24h window (Jul 13 ~10:49Z to Jul 14 ~07:00Z) — UPDOWN-SNIPER only:**
 
-| Date (UTC) | Event type | Token (short) | Side | Price | Shares | trader_side |
-|---|---|---|---|---|---|---|
-| Jul 10 01:30 | BUY | 4663735... | BUY | 0.370 | 47.77 | TAKER |
-| Jul 10 02:30 | BUY | 1671958... | BUY | 0.420 | 17.70 | TAKER |
-| Jul 10 03:40 | BUY | 1132101... | BUY | 0.500 | 31.25 | TAKER |
-| Jul 10 08:40 | EXIT | 4663735... | SELL | 0.992 | 47.00 | TAKER |
-| Jul 11 05:00 | BUY | 7867586... | BUY | 0.350 | 66.50 | TAKER |
-| Jul 11 10:20 | EXIT | 7867586... | SELL | 0.998 | 66.00 | TAKER |
-| Jul 11 11:40 | BUY | 8345106... | BUY | 0.520 | 15.49 | MAKER (×2) |
-| Jul 11 11:40 | BUY | 3195317... | BUY | 0.470 | 68.26 | TAKER |
-| Jul 11 16:21 | BUY | 3510955... | BUY | 0.440 | 49.50 | TAKER |
-| Jul 12 02:00 | BUY (PAIR) | 7506477... | BUY | 0.400 | 42.97 | TAKER+MAKER |
-| Jul 12 07:00 | BUY (PAIR) | 5472978... | BUY | ~0.473 | 47.24 | TAKER+MAKER |
-| Jul 12 07:08 | SELL (PAIR leg) | 5472978... | SELL | 0.480 | 7.64 | MAKER |
+| Time (UTC) | Token (short) | Side | Price | Shares | Notional | trader_side | Notes |
+|---|---|---|---|---|---|---|---|
+| Jul 13 10:49 | 7664067… | BUY | 0.990 | 39.39 | $38.99 | TAKER | Entry |
+| Jul 13 10:49 | 7664067… | SELL | 0.920 | 39.25 | $36.11 | TAKER | Early exit −7.1% |
+| Jul 13 12:29 | 7678294… | BUY | 0.960 | 5.50 | $5.28 | TAKER | Entry (exit not in tape) |
+| Jul 13 12:34 | 9373565… | BUY | 0.030 | 35.17 | $1.06 | MAKER | NO certainty cell |
+| Jul 13 12:35 | 4306971… | SELL | 0.990 | 5.50 | $5.45 | TAKER | Resolution exit (+) |
+| Jul 13 16:49 | 6224974… | BUY | 0.970 | 5.50 | $5.34 | TAKER | Entry |
+| Jul 13 16:49 | 6224974… | SELL | 0.730 | 5.40 | $3.94 | TAKER | Exit at **−24.7%** |
+| Jul 13 20:13 | 7811631… | BUY | 0.970 | 6.00 | $5.82 | TAKER | Entry |
+| Jul 13 20:13 | 7811631… | SELL | 0.960 | 6.00 | $5.76 | TAKER | Exit −1.0% |
+| Jul 13 20:43 | 2634559… | BUY | 0.960 | 5.18 | $4.97 | TAKER | Entry |
+| Jul 13 20:43 | 2634559… | SELL | 0.950 | 5.00 | $4.75 | TAKER | Exit −1.0% |
+| Jul 13 22:09 | 2737864… | BUY | 0.970 | 5.50 | $5.34 | TAKER | Entry |
+| Jul 13 22:09 | 2737864… | SELL | 0.950 | 5.40 | $5.13 | TAKER | Exit −2.1% |
+| Jul 13 22:59 | 2611012… | BUY | 0.920 | 5.50 | $5.06 | TAKER | Entry |
+| Jul 13 22:59 | 2611012… | SELL | 0.950 | 5.50 | $5.23 | TAKER | Exit +3.3% |
+| Jul 14 02:14 | 3199513… | BUY | 0.040 | 40.00 | $1.60 | MAKER | NO certainty cell |
+| Jul 14 02:15 | 1078405… | SELL | 0.990 | 5.00 | $4.95 | TAKER | Resolution exit (+) |
+| Jul 14 04:29 | 6572132… | BUY | 0.980 | 5.50 | $5.39 | TAKER | Entry |
+| Jul 14 04:29 | 6572132… | SELL | 0.990 | 5.50 | $5.45 | TAKER | Exit +1.0% |
 
-**Jul 12 detail (from `user_ws.jsonl`)**: Two orders on Klaus wallet confirmed. Order 1 (02:00Z): BUY YES 42.97@0.40, fully filled (MATCHED) via taker sweeps + CLOB-paired fills — PAIR_FAV structure visible (NO buyer at 0.60 matched via pairing). Order 2 (07:00Z): BUY YES 51.31@0.48, partially filled 47.24 shares at avg ~$0.473 (swept YES sells at 0.47, filled as MAKER via NO buyer at 0.52 for 5.88 shares, filled as MAKER via YES seller at 0.48 for 7.64 shares); order cancelled at 07:08Z with 4.07 shares unmatched.
+**24h counts:** 12 unique token events (19 fill records deduped); 9 BUY / 10 SELL; 2 MAKER-side (NO certainty cells at 0.03–0.04); buy notional ~$78.9, sell notional ~$76.8.
 
-Jul 12 PAIR_FAV deployed capital: ~$17.19 + ~$22.36 = **~$39.55** (open, resting at resolution).
+**By price band (24h):**
+
+| Band | Fill count | Notional | Notes |
+|---|---|---|---|
+| <0.10 | 2 | $2.66 | MAKER — NO certainty cells |
+| 0.10–0.30 | 0 | $0 | — |
+| 0.30–0.50 | 0 | $0 | — |
+| 0.50–0.85 | 0 | $0 | — |
+| >0.85 | 17 | $152.99 | UPDOWN-SNIPER YES entries/exits |
+
+**7d window (Jul 11–14):** Additional large-lot fills Jul 11–12 (PAIR_FAV runoff): SELL 0.998×66 ($65.87), BUY 0.47×68.26 ($32.08), BUY 0.44×49.50 ($21.78), BUY 0.52×15.49 ($8.05 MAKER), BUY 0.52×31 ($16.12), BUY 0.47×33.72 ($15.85), plus mixed 0.40-range pair fills ~$52. Jul 13 pre-sniper: BUY 0.449×51.5 ($23.12), BUY 0.526×45 ($23.67). 7d total: ~25–28 token events, ~$390–430 notional.
 
 ---
 
 ## Section 2 — NO-Parity Monitor
 
-**Source**: `band_struct_lite.jsonl` per day (Jul 07–12); `maker_resting_state.json`.
+**Source**: `band_struct_lite.jsonl` daily dirs Jul 09–14; `maker_resting_state.json`; `band_config.txt`.
 
-| Date | YES posts | NO posts | PAIR_FAV posts | NO share | ≥10 posts? | ALERT? |
+**Live posts by side:**
+
+| Date | YES live | NO live | Total live | NO share | ≥10 posts? | ALERT? |
 |---|---|---|---|---|---|---|
-| 2026-07-07 | 0 | 0 | 0 | N/A | No | N/A (dark) |
-| 2026-07-08 | 0 | 0 | 0 | N/A | No | N/A (dark) |
 | 2026-07-09 | 0 | 0 | 0 | N/A | No | N/A (dark) |
 | 2026-07-10 | 0 | 0 | 0 | N/A | No | N/A (dark) |
 | 2026-07-11 | 0 | 0 | 0 | N/A | No | N/A (dark) |
 | 2026-07-12 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-13 | 0 | 0 | 0 | N/A | No | N/A (dark) |
+| 2026-07-14 | 0 | 0 | 0 | N/A | No | N/A (dark) |
 
-Zero `post` records in `band_struct_lite.jsonl` for any day Jul 07–12. `maker_resting_state.json = {}`. Resting book: 0 YES, 0 NO, 0 PAIR.
+`maker_resting_state.json = {}`. Zero resting orders. Alert threshold (NO share <25% on days ≥10 live posts) cannot fire.
 
-**NO-starvation fix** (committed 2026-06-12) cannot be verified in the current dark window — no posts, no denominator. Last confirmed parity: Jul 01–06 at ~50% per Jul 11 audit. No regression evidence, no confirming data.
+**Shadow scan summary (`fire` records only):**
 
-Shadow band (md_shadow records, no live execution) Jul 12 scan breakdown (120 records, partial day to 10:54Z):
+| Date | YES shadow fires | NO shadow fires | live=True fires | Notes |
+|---|---|---|---|---|
+| 2026-07-13 | 11 | 0 | 0 | all shadow; BAND_NO_ENABLED=False |
+| 2026-07-14 (to ~07Z) | 7 | 0 | 0 | d+2 fires: Munich, Seoul, Shanghai, Taipei, Beijing, Tokyo; d+1: Munich |
 
-| Reason | Count | Meaning |
-|---|---|---|
-| yes_capture_shadow | 62 | Shadow would post YES leg |
-| no_band | 28 | No valid band found |
-| sum_gate | 20 | Σ ask ≥ BAND_SUM_MAX (0.85) |
-| converged | 14 | Price converged, no edge |
-| **fire** | **13** | **Full shadow band would post if BAND_LIVE=True** |
+NO-starvation fix (2026-06-12) is unverifiable in the dark window — no live-post denominator. Last confirmed ~50% parity: Jul 01–06.
 
-13 `fire` events on Jul 12 (vs 16 on Jul 07) — shadow scanner finding valid opportunities at normal cadence. All blocked by BAND_LIVE=False. d+2 dominates (87/120 records), consistent with BAND_NO_MIN_DOUT=1 / BAND_MD_HORIZON=2.
+**D+1 market scan (Jul 14)**: All 10 cities hit `sum_gate` for Jul 15 (Σask 0.89–1.014). The entire d+1 slate is blocked — markets for tomorrow's weather have converged inside band width. Only d+2 (Jul 16) shows viable shadow fire opportunities.
 
 ---
 
 ## Section 3 — Queue Health
 
-**Source**: `[STRUCT-BAND-Q]` lines in `maker_fills_recent.log`; `band_struct_lite.jsonl` shadow scan rates.
+**Source**: `[STRUCT-BAND-Q]` lines in fill tape; `maker_resting_state.json`.
 
-| Metric | Value | Notes |
-|---|---|---|
-| [STRUCT-BAND-Q] lines in 7d tape | **0** | No live posting cycles since BAND_LIVE=False |
-| Mean cash_preskip | Cannot evaluate | No [STRUCT-BAND-Q] lines |
-| Mean books used (x/80) | Cannot evaluate | No [STRUCT-BAND-Q] lines |
-| Mean yes_books (x/50) | Cannot evaluate | No [STRUCT-BAND-Q] lines |
-| Posted/cycle | Cannot evaluate | No [STRUCT-BAND-Q] lines |
-| Books pinned at 80? | Cannot evaluate | No [STRUCT-BAND-Q] lines |
-| yes_books pinned at 50? | Cannot evaluate | No [STRUCT-BAND-Q] lines |
-| cash_preskip > 200, posted=0? | Cannot formally evaluate | $124.28 all-cash, $0 band-deployed |
-| Shadow fire rate (Jul 12 partial) | **13 fire / 120 shadow scans** | Normal cadence |
-| Shadow fire rate (Jul 07) | **16 fire / 175 shadow scans** | Comparable |
+| Metric | Value |
+|---|---|
+| [STRUCT-BAND-Q] lines in 7d tape | **0** |
+| Live posting cycles | 0 |
+| Mean cash_preskip | Cannot evaluate |
+| Mean books used (x/80) | Cannot evaluate — books pinned alert also cannot evaluate |
+| Mean yes_books (x/50) | Cannot evaluate — yes_books pinned alert also cannot evaluate |
+| posted/cycle | Cannot evaluate |
+| Resting orders | **0** |
+| Band shadow scan cadence | Functional (5-min intervals, consistent fire events) |
 
-Queue health metrics are inaccessible without live posting cycles. The deployment stall condition (BAND_LIVE=False, all capital in CLOB cash, 0 band orders) is structural — a deliberate wind-down, not a fetch-starvation regression. Shadow machinery is fully functional: scan rate and fire-event rate are consistent across Jul 07 and Jul 12.
-
-No `exit099_live.jsonl` entries in hot shadow dirs for Jul 07–12: confirms 0 live positions at the 0.99+ exit threshold.
+No pre-registered alert conditions can be evaluated without `[STRUCT-BAND-Q]` data. Band engine is dark by design (BAND_LIVE=False), not a fetch-starvation regression. Shadow scanning continues normally.
 
 ---
 
 ## Section 4 — Resolution Markout (Fill Quality)
 
-**Source**: Jul 11 EVOLVE commit `491d8a2d4`; prior exec audit findings (Jul 11); `band_posted_state.json` last live dates.
+### Band maker fill markout
+Cannot compute: zero `[MAKER-FILL]` entries. `band_resolution_join.py` requires a fill tape — unavailable.
 
-### Registered band fills in tape: none
-Zero `[MAKER-FILL]` lines in 7d window. No per-leg fill/resolution pairs exist for formal markout computation. `band_resolution_join.py` requires live fill records — unavailable.
+**Prior finding carries from Jul 12 audit (n=75, trend):**
 
-### Prior markout finding (carries from Jul 11 audit, n=75 trend)
-From Jul 11 EVOLVE commit: *"winner's curse RESOLVED (realized -75.8% vs sim +7.6%, n=75 trend)"*
+| Metric | Value |
+|---|---|
+| Realized ROI, filled band legs | −75.8% |
+| Simulated all-fires ROI (same slice) | +7.6% |
+| Gap (adverse selection) | **−83.4pp** |
+| Status | Band dark since Jul 06 — no new observations accumulating |
 
-| Metric | Value | Grade |
-|---|---|---|
-| Realized ROI (filled band legs, Jul 11 data) | **−75.8%** | n=75, trend (40–99) |
-| Simulated all-fires ROI (same period) | **+7.6%** | n=75, trend |
-| Gap | **−83.4pp** | adverse-selection direction |
-| Status | **Acknowledged in EVOLVE; unresolved by data** | Band dark prevents accumulation |
+The −83.4pp gap at n=75 is trend-grade (not decision-grade; need n≥100). Unresolved by any code change. BAND_LIVE=False prevents accumulation of new fill data to confirm or deny. This finding must be addressed before any BAND_LIVE re-enable.
 
-"RESOLVED" in the EVOLVE commit means acknowledged and documented, not corrected — no mechanism has been deployed to address adverse selection, and the band remains dark so no new data can accumulate to confirm or deny. The gap at n=75 is PLAUSIBLE (trend-grade), not decision-grade (n≥100 required).
+### UPDOWN-SNIPER fill markout (observable round-trips, n=7)
 
-**WINNER'S-CURSE DIRECTION**: Resting bids are getting hit selectively when the market moves against the quote. This is the same pattern that killed the prior Maker MVP. The gap is large enough at n=75 to warrant ongoing monitoring; cannot be dismissed as noise.
+n=7 — data collection phase. No conclusions per ground rules (n<40).
 
-### Untracked ladder/PAIR_FAV markout (observation only)
-Visible ladder exits in the 7d WS tape: Jul 10 SELL 47@0.992 (entry 0.37 → +168% raw), Jul 11 SELL 66@0.998 (entry 0.35 → +185% raw). These are TAKER ladder trades, not maker bids — they are NOT subject to adverse selection because they are directional entries. No winner's curse concern for this leg.
+| Token (short) | Entry px | Exit px | Net/sh | Net $ | Result |
+|---|---|---|---|---|---|
+| 7664067… | 0.990 | 0.920 | −0.070 | −$2.75 | LOSS |
+| 6224974… | 0.970 | 0.730 | −0.240 | −$1.30 | **LOSS (worst)** |
+| 7811631… | 0.970 | 0.960 | −0.010 | −$0.06 | loss |
+| 2634559… | 0.960 | 0.950 | −0.010 | −$0.05 | loss |
+| 2737864… | 0.970 | 0.950 | −0.020 | −$0.11 | loss |
+| 2611012… | 0.920 | 0.950 | +0.030 | +$0.17 | WIN |
+| 6572132… | 0.980 | 0.990 | +0.010 | +$0.06 | win |
+
+WR: **2/7 = 28.6%** (below 40% target; n<40 = trend only). Net from observable pairs: **−$4.04**.
+
+Two additional resolution exits at 0.99 (tokens 4306971…, 1078405…) suggest some positions close profitably, but entry prices are not in this tape window.
+
+**Markout observation (n<40, not conclusive):** The two worst exits (−7.1% and −24.7%) are positions where the market moved against the entry before the stop fired. Token 6224974… (entry 0.97, exit 0.73) is a −24.7% drawdown on a position that started at 97¢ certainty — consistent with the G3 watch item raised before go-live: *"filled ROI −75.8% vs sim +7.6%"*. The mechanism is the same: the sniper fills when a certainty signal is triggered, but the signal selects for adverse moves. Not confirmed at n=7; monitor through n=40.
+
+Capital moved $39.40 → $34.69 = **−$4.71 (~24h since go-live)**. Consistent with observed round-trip losses above.
 
 ---
 
 ## Section 5 — Dead-Quote Reclaim
 
-**Source**: `maker_resting_state.json`; "reaped dead entry" lines in `maker_fills_recent.log`.
-
 | Metric | Value |
 |---|---|
 | Resting quotes | **0** |
 | "reaped dead entry" lines in 7d tape | **0** |
-| Quotes older than 24h | **0** |
-| Quotes older than 48h | **0** |
-| $ freed by reclaim in 7d | **$0** |
+| Quotes >24h old | **0** |
+| Quotes >48h old | **0** (alert threshold) |
+| $ freed by reclaim (7d) | $0 |
 
-`maker_resting_state.json = {}`. All prior quotes (last batch: Jul 06, 10 tokens, $48.01) have cleared via weather market resolution. No velocity leak. `BAND_RECLAIM_AGE_S = 2h` reclaim does not run when `BAND_LIVE=False` — immaterial given empty resting state.
+`maker_resting_state.json = {}`. All prior BAND quotes (last batch Jul 06, 10 tokens, $48.01) have cleared via weather market resolution. No velocity leak. Alert (>20 quotes older than 48h) does not fire.
 
 ---
 
 ## Section 6 — Cash Velocity
 
-**Source**: `bankroll.json`; `maker_resting_state.json`; fill tape; `user_ws.jsonl`.
-
 | Metric | Value | Benchmark |
 |---|---|---|
-| Capital (bankroll.json) | **$124.275284** | CAVEAT: manual ladder/PAIR_FAV not tracked here |
-| Daily start capital (Jul 12) | **$165.730744** | — |
-| Daily deployed (PAIR_FAV, today) | **~$39.55** (open, unresolved) | — |
-| Resting $ (band maker) | **$0.00** | — |
+| Capital (bankroll.json) | **$34.69** | CAVEAT applies |
+| Daily start capital (Jul 14) | $34.74 | — |
+| Resting $ (band maker) | **$0** | — |
 | Band maker fills 24h | **$0** | — |
-| Band maker fills 7d | **$0** | — |
-| Band equity turns/day | **0.0** | badatmath ≈1.0 |
-| PAIR_FAV turns/day (untracked) | **~0.24** ($39.55/$165.73) | — |
-| Total effective turns/day | **~0.24** | badatmath ≈1.0 |
+| Band maker equity turns/day | **0.0** | badatmath ≈1.0 |
+| UPDOWN-SNIPER buy volume 24h | ~$78.9 | — |
+| UPDOWN-SNIPER equity turns/day | **~2.2** ($78.9 / ~$37 avg capital) | badatmath ≈1.0 |
+| Observed ROI/turn (sniper, n=7 pairs) | **~−10.9%** (−$4.04 / $37) | badatmath +10–20%/turn |
 
-Klaus's band maker velocity is 0.0 turns/day (day 6 of dark). PAIR_FAV is active and deployed ~$39.55 today (2 transactions confirmed via `user_ws.jsonl`), but these are UNTRACKED by the band/maker tape. Effective total velocity ~0.24 turns/day vs badatmath's ~1.0 benchmark. Capital efficiency is suppressed by the band-dark constraint and by PAIR_FAV being the sole active channel.
-
-All capital above the ~$39.55 deployment ($124.28 - $39.55 ≈ $84.73) is idle in CLOB cash, generating no maker rebates.
+Band maker is 0.0 turns/day (day 8 of dark). UPDOWN-SNIPER turns at ~2.2x/day — faster cadence than badatmath's benchmark — but at negative observed ROI on visible trades. Capital is not idle but return stream is negative in observable data (n<40; trend only).
 
 ---
 
 ## ALERTS
 
-### ⚠ ALERT 1 — BAND DARK DAY 6
-**BAND_LIVE=False** since 2026-07-06. Zero maker posts Jul 07–12. Shadow scanner healthy and finding **13 fire events** on Jul 12 (normal cadence, opportunities present). The band is dark by deliberate design (equity wind-down: $108.35 < 50%·30d-HW $222.90 at trigger; current $124.28 still below threshold). Per Jul 11 EVOLVE: "micro-stake PAIR_FAV re-enable at Jul 12 review" was the planned action — PAIR_FAV_ENABLED is now True and producing trades, but the standalone YES/NO band engine remains dark. No automated re-enable path exists for BAND_LIVE; requires explicit user decision.
+### ⚠ ALERT 1 — UPDOWN-SNIPER EARLY ADVERSE FILLS (n=7, data collection)
 
-### ⚠ ALERT 2 — WINNER'S CURSE TREND (n=75, carries from Jul 11)
-Realized band-leg ROI **−75.8%** vs simulated all-fires **+7.6%** (n=75, 40–99 = trend only). Gap is **−83.4pp** in the adverse-selection direction. Acknowledged in Jul 11 EVOLVE as "RESOLVED" (meaning documented, not corrected). Band dark prevents accumulation of new data to update n. Alert carries over. A formal per-leg split at (city, days_out, price_band) slice level requires `band_resolution_join.py` output cross-tabulated against the fill tape — not achievable from this audit's data scope. Re-enable decision at Jul 12 weekly must address this before going live.
+Observable round-trips: WR **2/7 (28.6%)**, net **−$4.04**, capital **−$4.71 in ~24h** since go-live. Worst exit: token 6224974…, entry 0.97, exit 0.73 (−24.7% on position). Five of seven visible round-trips are losses. This echoes the pre-live G3 watch item (filled ROI −75.8% vs sim +7.6%). n<40 = no conclusions; this is a data-collection observation. **The −$6/day day-stop has consumed $4.71 of $6 ($0.05 on Jul 14 so far); if the remaining 24h adds similar losses the day-stop fires.**
+
+### ⚠ ALERT 2 — WINNER'S CURSE TREND (BAND, n=75, carries from Jul 12 audit)
+
+Realized band-leg ROI **−75.8%** vs simulated all-fires **+7.6%** (n=75, trend). Gap: **−83.4pp** in adverse-selection direction. Band dark since Jul 06 — no new data accumulating. No corrective mechanism deployed. BAND_LIVE re-enable requires addressing this before accumulating new fill inventory.
+
+---
+
+### Alerts that DID NOT fire:
+- NO-parity <25% on days ≥10 live posts: not evaluable (0 live posts)
+- Books pinned at 80 (fetch starvation regression): not evaluable (no STRUCT-BAND-Q data)
+- yes_books pinned at 50: not evaluable
+- Dead-quotes >20 older than 48h: **does not fire** (0 resting quotes)
+- Cash_preskip >200 sustained with posted=0: not formally evaluable (no queue data)
 
 ---
 
 ## 3-Line Summary
 
-**Fills/day**: 0 (band dark day 6; BAND_LIVE=False since Jul 06; shadow finding 13 fire events today but all blocked; PAIR_FAV active via separate module, ~$39.55 deployed today, untracked in band tape).
+**Fills/day**: 0 band maker fills (dark day 8); ~12 UPDOWN-SNIPER token events in 24h (~$78.9 buy notional, all UNTRACKED by band tape); 7d tape also contains Jul 11–12 large-lot PAIR_FAV runoff fills (0.40–0.52 range, now cleared).
 
-**NO-share**: N/A (0 posts Jul 07–12; BAND_NO_ENABLED=False day 10; NO-starvation fix unverifiable in dark window; last confirmed ~50% parity Jul 01–06).
+**NO-share**: N/A — 0 live band posts since Jul 06; BAND_NO_ENABLED=False since Jul 02; shadow scanner healthy, d+1 markets fully sum-gated (Jul 15), d+2 showing 7 shadow fires (Jul 16); NO-starvation fix unverifiable in dark window.
 
-**Binding execution constraint**: BAND_LIVE=False wind-down gate (equity $124.28 vs HW; user Jul 12 review is the re-enable decision point) + winner's-curse trend (n=75, −83pp gap) unresolved by data — band should not go live without addressing adverse-selection before accumulating more fill inventory.
+**Binding execution constraint**: UPDOWN-SNIPER is the sole active revenue engine (day 1 live); early observable data shows WR 2/7 and −$4.71 drawdown consuming 79% of the −$6/day day-stop rail, with adverse-exit pattern resembling the pre-live G3 winner's-curse watch item — the day-stop is the proximate risk gate today.
