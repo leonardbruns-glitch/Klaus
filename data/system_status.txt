@@ -2,16 +2,16 @@
 active
 
 ## Last 10 commits on klaus:
+e6f292e1f Research audit 2026-07-14T1000Z — sniper ROI/turn (post-SIG_FLOOR n=7 57% WR, stop-sell unknown) | best action: reduce stake to $2/fire + inspect stop mechanism
+402813f5b Gate-keeper 2026-07-14 — ready=0 rejected=0 collecting=2 ambiguous=3 watch=1
+fb1ce5e95 Calib monitor 2026-07-14 — brier7=0.053 disp_ratio=≤0.80 1 alert (S3 d12 INVERTED — data access degraded)
+274f76218 Exec audit 2026-07-14 — fills=0 NO-share=N/A 2 alerts
+2ff4605c3 PnL ledger 2026-07-13 — day=-69.08 turns=1.71 roi/turn=-40% unexplained=-17.7
 ab7d1768c EVOLVE 2026-07-13 evening: MIN_LOCKOUT_LIVE revert (pre-registered condition fired: equity $34.86 = 15.6% of 30d-HW < 50% rail; 0 orders posted while live), backlog reviews closed (07-12 slots + 07-13 morning died on session limits), gate ledger + daily report + escalations
 52416be67 UPDOWN settle-bug fix + SIG_FLOOR: winner only on exact 1/0 outcomePrices (84/196 labels were wrong; true win booked as -5.33 loss, wallet redeemed +5.50), never book without true resolution; sigma floor 0.5bp/sqrt(s) kills the sigma-junk certainty mode (true-label tape 07-13: v1 8 fires 7W1L -$4.02 vs floored 6/6W +$0.83). TRUE day-1: 4W/1L -$4.29 (booked -9.79 was phantom)
 5d26638ce Research audit 2026-07-13T1400Z — bottleneck: inverted dispersion premium (S3 d11, ratio ≤0.80) | best action: validate UPDOWN-SNIPER side-mapping on first live settlement
 e182a0eeb Research audit 2026-07-13T~UTC — CRITICAL: strategy pivot UPDOWN-SNIPER live, equity $39.40 | best action: verify sniper order type (maker vs taker) then hold for n≥100 shadow gate ~Jul14 22Z
 338fef539 UPDOWN-SNIPER LIVE — owner floor waiver recorded, scoped rails
-0872daa7e UPDOWN-SNIPER live executor: certainty-cell taker, market-confirmation gate (ask>=0.90), basis move-floor 6bps, rails $5 clip/-$6 day-stop/3-loss halt
-c92ef4888 PENDING_HUMAN: updown-sniper live-arm decision (floor waiver or deposit)
-eb4fd468a UPDOWN-SNIPER: fee-wall falsified (fee=0.07·p·(1−p) takers-only), certainty-cell edge stable across 2 tape eras, shadow recorder live
-0e663f7fa Gate-keeper 2026-07-13 — ready=0 rejected=0 collecting=3 ambiguous=3; G3 WATCH_ITEM (winner's curse n=75, filled ROI -75.8% vs sim +7.6%); bankroll CRITICAL $87.40 < ruin_floor $89.16
-0fcfbb5d9 SPRINT_LADDER disarmed 2026-07-13 — true equity $39.45 < $40 INVARIANTS floor; ladder 0W/7L −$165 since 07-11
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   87G        6G  94% /
