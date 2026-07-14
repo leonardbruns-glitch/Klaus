@@ -6617,6 +6617,23 @@ class KlausBot:
         now = time.time()
         _WINDOW_END_HORIZON = 120  # seconds before close to start checking
 
+        # UPDOWN-SNIPER holds updown tokens to redemption by design (separate
+        # process, shared wallet) — its positions never appear in
+        # risk.open_positions, so without this guard the sweep force-sells its
+        # winners at the bid and the sniper's settle bookkeeping diverges from
+        # wallet truth. Fail-open: unreadable state file → empty set.
+        _sniper_held: set = set()
+        try:
+            with open("logs/updown_sniper_state.json") as _snf:
+                _snst = json.load(_snf)
+            _sniper_held = {
+                str(v.get("token"))
+                for v in (_snst.get("open") or {}).values()
+                if v.get("token")
+            }
+        except Exception:
+            pass
+
         for token_id, token in list(self.feed.tokens.items()):
             if token.market_type != "updown":
                 continue
@@ -6664,6 +6681,10 @@ class KlausBot:
             # Without this, the sweep races the recovery and force-sells shares
             # before open_position() can track them as a normal position.
             if token_id in self._pending_entries:
+                continue
+            # Held by the updown sniper (hold-to-redemption policy) — not an
+            # orphan; the Redeemer converts winners to cash after resolution.
+            if token_id in _sniper_held:
                 continue
             token_meta = self.feed.tokens.get(token_id)
             ob = self.feed.get_order_book(token_id)
