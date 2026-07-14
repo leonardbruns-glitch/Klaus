@@ -35,8 +35,14 @@ SIG_FLOOR = 0.00005          # 0.5bp/sqrt(s) floor on sigma1s: certainty built o
                              # calmer estimate is sigma-junk (2026-07-13 15m loss:
                              # sig1s 0.195bp -> p 0.9996, then a 13bp reversal = 6z)
 EDGE_MIN = 0.010
-CLIP_USD = 5.0
-RESERVE_USD = 2.0
+CLIP_USD = 2.0               # 5.0 -> 2.0 2026-07-14: gate-collection mode — extends
+                             # runway to the n>=100 gate; wallet-truth realized since
+                             # go-live is negative (-$5.48 incl. untracked 10:49 fill),
+                             # so collect the gate at minimum size, not harvest size
+RESERVE_USD = 20.0           # 2.0 -> 20.0 2026-07-14: owner floor waiver (07-13,
+                             # equity $39.40) has no lower bound — this stops fires at
+                             # wallet <$22 so one path cannot burn to ruin; $20 matches
+                             # the owner's sprint-ladder hard cash reserve
 MAX_OPEN_COST = 15.0
 MAX_FIRES_DAY = 60
 DAILY_STOP_LOSS = 6.0
