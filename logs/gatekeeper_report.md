@@ -1,134 +1,107 @@
-# Klaus Gate-Keeper Report — 2026-07-13
+# Gate-Keeper Ledger — 2026-07-14T09:15Z
 
-**Run timestamp:** 2026-07-13T09:00Z  
-**Prior run:** 2026-07-11T09:03Z (+48h gap)  
-**Snapshot age:** 1h (2026-07-13T08:58:39Z — within 6h limit ✓)  
-**System status:** `active` ✓  
-**Bankroll:** $87.40 (⚠️ BELOW ruin_floor $89.16 per state_log Jul-12 19:20Z)  
-**Band dark:** Day 7 (BAND_LIVE=False since 2026-07-06 22:08Z)
+**Run ts:** 2026-07-14T09:15:40Z  
+**Snapshot ts:** 2026-07-14T08:59:16Z (age: 16 min — OK)  
+**Snapshot commit:** ab7d1768c  
+**Prior run ts:** 2026-07-13T09:00:00Z (+24h)  
+**System:** `klaus systemd: active` — PASS  
+**Bankroll:** $34.69 (prior: $87.40 → **−$52.71 / −60.3% in 24h**)  
+**Band dark:** day 8 (BAND_LIVE=False since 2026-07-06T22:08Z)  
 
 ---
 
 ## Gate Ledger
 
-| Gate | n | +48h | WR | ROI | CI95 | Status | ETA |
-|------|---|------|----|-----|------|--------|-----|
-| G1 BAND_YES (all slices) | 934 | +0 | 15.3% | +4.0%† | [−10.9, +21.1] | AMBIGUOUS | ∞ (band dark) |
-| G2a BAND_NO d+1 (shadow) | 115 | +0 | 68.7% | +1.3% | [−11.9, +12.7] | AMBIGUOUS* | ∞ (disabled) |
-| G2b PAIR_FAV YES (post-guard) | 9 | +0 | N/A | N/A | N/A | COLLECTING | ∞ (band dark) |
-| G2c PAIR_FAV NO (post-guard) | 9 | +0 | N/A | N/A | N/A | COLLECTING | ∞ (band dark) |
-| G3 FILLED_VS_FIRED | **75** | **+38** | 17.3% | **−75.8%** | **[−75%, −34%]** | **⚠️ WATCH_ITEM** | n/a (threshold crossed) |
-| G4 BASKET_EXIT | — | — | — | — | — | VOID (retired) | — |
-| G5 THERMO_MAKER_NO | 125 | +0 | — | ~0% | [−9, +2] | REJECTED | done |
-| G6 M1_BETA_LOCKOUT | 31 | +0 | 74.2% | −0.6% | [−20.6, +24.4] | REJECTED | done |
-| G7 SUM_POSTED [0.70, 0.85] | 382 | +0 | — | +11.5%† | [−11.4, +38.9] | AMBIGUOUS | ∞ (band dark) |
+| Gate | n | +24h | WR | ROI | CI95 | Status | ETA |
+|---|---|---|---|---|---|---|---|
+| G1 BAND_YES (per slice) | 934 resolved | 0 | 15.3% | +4.0%† | [−10.9, +21.1] | **AMBIGUOUS** | ∞ (band dark) |
+| G2a BAND_NO d+1/d+2 | 115 resolved | 0 | 68.7%‡ | +1.3% | [−11.9, +12.7] | **AMBIGUOUS** | ∞ (disabled) |
+| G2b PAIR_FAV YES | 9 post-guard | 0 | — | — | — | **COLLECTING** | ∞ (band dark) |
+| G2c PAIR_FAV NO | 9 post-guard | 0 | — | — | — | **COLLECTING** | ∞ (band dark) |
+| G3 FILLED_VS_FIRED | 75 filled | 0 | 17.3% | −75.8% | [−75.0, −34.2] | **WATCH_ITEM** | n/a |
+| G4 BASKET_EXIT | — | — | — | — | — | **VOID** | retired |
+| G5 THERMO_MAKER_NO | 125 resolved | 0 | — | 0.0% | [−9.0, +2.0] | **REJECTED** | done |
+| G6 M1_BETA_LOCKOUT | 31 resolved | 0 | 74.2% | −0.6% | [−20.6, +24.4] | **REJECTED** | done |
+| G7 SUM_POSTED [0.70,0.85] | 382 resolved | 0 | — | +11.5%† | [−11.4, +38.9] | **AMBIGUOUS** | ∞ (band dark) |
 
-† **ROI declared UPPER BOUND (not estimator)** per winner's curse analysis (state_log 2026-07-11 22:15Z). Simulation CI is biased — band re-enable may NOT cite G1 or G7 sim ROI as evidence.  
-\* G2a BAND_NO shadow AMBIGUOUS but irrelevant: live n=51 WR=39.2% = effectively REJECTED. BAND_NO_ENABLED=False, not to be re-enabled on shadow CI alone.
-
----
-
-## State Transitions vs Prior Run (2026-07-11T09:03Z)
-
-| Gate | Prior status | Current status | Trigger |
-|------|-------------|----------------|---------|
-| **G3 FILLED_VS_FIRED** | COLLECTING (n=37) | **WATCH_ITEM (n=75)** | n crossed pre-registered threshold of 40 filled resolves; winner's curse analysis (state_log Jul-11 22:15Z) provides n=75 with ROI=−75.8% vs sim+7.6% |
-| All others | unchanged | unchanged | Band dark day 7, 0 new posts |
-
-**Newly READY:** 0  
-**Newly REJECTED:** 0  
+† ROI is an **UPPER BOUND**, not an estimator — winner's curse confirmed (G3 WATCH_ITEM, state_log 2026-07-11 22:15Z). No gate may cite these values as re-enable evidence.  
+‡ Shadow WR only; live n=51 WR=39.2% (effectively REJECTED per Jul-02 EVOLVE decision).
 
 ---
 
-## G3 WATCH_ITEM — Detail
+## State Transitions vs Prior Run
 
-**Pre-registered rule:** n ≥ 40 filled resolves → "winner's-curse watch item for the Exec Auditor"
+**None.** All 7 gates hold identical n, status, and CI from the 2026-07-13T09:00Z run.
 
-**Source:** `analysis/weather/winners_curse_crosstab_0711.py` + `state_log 2026-07-11 22:15Z`
+- **Band dark day 8:** BAND_LIVE=False since Jul-06 22:08Z. Zero post records confirmed across all 6 daily band_struct_lite files (Jul-09 through Jul-14). Shadow fire events accumulate (~11–15 first-fire dedup'd fires/day in lite files) but these are counterfactual and carry the same winner's curse bias — they do not resolve and cannot advance any gate.
+- **G3 WATCH_ITEM holds:** maker_fills_recent.log (Jul-11 through Jul-14) contains zero MAKER-FILL or STRUCT-BAND-Q entries. All 108 logged fill lines are UNTRACKED sprint/ladder/orphan-sell events. No new band-attributed fills.
+- **G5/G6 REJECTED:** no new thermo or metar-lockout fills (services dark; only candidate records logged).
 
-**Finding:**
-- n=75 WEATHER_MAKER fills resolved (06-11..07-06 all-time VPS join)
-- WR: 13W / 62L = 17.3% at avg entry px 0.417
-- Filled ROI: −75.8% ($−173.78 / $229.36 invested)
-- Sim (same-era shadow) ROI: +7.6% (n=3,418)
-- **Gap: −83.4pp, filled vs fired**
+---
 
-**CI on filled ROI (Wilson method on WR, with avg_px=0.417):**
-- WR Wilson 95% CI: [10.4%, 27.4%]
-- Translated to ROI: [−75.0%, −34.2%]
-- **CI entirely negative: both bounds < 0**
+## Context Changes Since Prior Run (not gate transitions)
 
-**Per-cell same sign:** filled WR=20% (n=15) vs sim=92.9% (n=14) on NO d+1 0.60–0.85 — winner's curse is structural across slices, not a single-cell artifact.
+### Capital Erosion
+- Prior bankroll: $87.40 (itself below ruin_floor $89.16)
+- Current bankroll: **$34.69** (−$52.71 / −60.3% in 24h)
+- Source per state_log: SPRINT_LADDER UNTRACKED taker fills + UPDOWN-SNIPER day-1 losses (−$4.29 true net after settle-bug fix)
+- SPRINT_LADDER disarmed 2026-07-13T09:25Z (kernel floor breach; 0W/7L −$164.7 all-time)
 
-**Exception noted in state_log:** Co-filled PAIR (Σask ≤ 0.92 pays 1.0 on completion regardless) — adverse selection lives in the naked leg only. PAIR_FAV co-fill rate under Jul-05 clip-guard may be viable; do not conflate with naked-leg ROI.
+### UPDOWN-SNIPER (not a canonical gate — context only)
+- Went live 2026-07-13T10:46Z (owner "go live" = INVARIANTS #2 floor waiver recorded)
+- Day-1 (true labels, post settle-bug-fix): 5 fires, 4W/1L, net −$4.29
+- Settle-bug fixed 2026-07-13T22:05Z (84/196 prior resolution labels were wrong; day-1 corrected)
+- SIG_FLOOR 0.5bp/√s deployed (removes σ-collapse fires; floored tape 6W/0L +$0.83 vs v1 7W/1L −$4.02)
+- Both services restarted 22:06Z
+- Pre-registered gate: n≥100 fill-sim offline → NOT YET MET (~24–36h from go-live = ~Jul-15 10:00Z)
+- trades.jsonl: 0 closed sniper trades logged (orphan-sell entries only; sniper trades may be in separate shadow log)
 
-**Blocker implication:** State_log explicitly: *"no YES/NO band re-enable may cite sim ROI alone."* This blocks any READY verdict for G1 and G7 based on shadow CI.
+### MIN_LOCKOUT_LIVE Revert
+- Pre-registered revert condition fired: equity $34.86 = 15.6% of 30d-HW $222.90 < 50% rail
+- MIN_LOCKOUT_LIVE set False 2026-07-13T22:08Z per EVOLVE commit
+- 0 orders posted during 2d live window (engine ruin_floor $89.16 mechanically blocked all entries)
+- G6 status unchanged (REJECTED since Jul-04); this revert has no gate impact
+
+---
+
+## Shadow Fire Accumulation (informational, not gate-advancing)
+
+Band still dark → resolution data frozen. Shadow fires accumulate as counterfactual.
+
+| Day | Band shadow fires (lite, dedup'd) | G7 [0.70–0.85] |
+|---|---|---|
+| 2026-07-09 | 16 | 13 |
+| 2026-07-10 | 19 | 12 |
+| 2026-07-11 | 18 | 13 |
+| 2026-07-12 | 14 | 9 |
+| 2026-07-13 | 11 | 9 |
+| 2026-07-14 (partial ~9h, lite) | 7 | 6 |
+
+Average rate when band live (historical): ~50 posts/day. At this rate:
+- G2b/G2c pair n→100: ~8.3d from re-enable
+- G7 resolved n already ≥ threshold (n=382); CI is the blocker, not count
 
 ---
 
 ## Structural Blockers (unchanged)
 
-1. BAND_LIVE=False since Jul-06 22:08Z — day 7 of darkness. All G1/G7/G2 shadow accumulation frozen.
-2. Pre-registered BAND_LIVE re-enable condition: post-guard pair n ≥ 40 UNMET (n=9). Frozen while band dark.
-3. Winner's curse (G3 WATCH_ITEM): sim ROI is an upper bound. No re-enable on shadow CI alone.
-4. S3 dispersion gauge: UNBLOCKED but trigger NOT met (Jul3–10: 1/8 days ≥ 1.10, never 2 consecutive). Standalone YES band premise dead through Jul-10.
-5. G2a BAND_NO: live n=51 WR=39.2% = effectively REJECTED. Do not re-enable.
-6. 07-12 structural BAND_LIVE decision: Not taken (system_status commits show no Jul-12 EVOLVE/structural change). Still pending as of this run.
-
----
-
-## Alerts
-
-### ⚠️ CRITICAL: Bankroll Below Ruin Floor
-- **Current:** $87.40 (Jul-13 08:58Z)
-- **Ruin floor:** $89.16 (dynamic, per state_log Jul-12 19:20Z)
-- **Prior run:** $163.16 (Jul-11 09:03Z) → **−$75.76 (−46.4%) in 48h**
-- **Prior alarm already fired:** −$40.90 (−20%) Jul-10→Jul-11
-- **Source:** Sprint/ladder UNTRACKED TAKER fills (Jul-11..Jul-13 in maker_fills_recent.log), not band trades
-- **Jul-13 intraday:** $103.82 start → $87.40 = −$16.42 so far today. Two large open BUY fills visible (51.5 sh @0.449, 45 sh @0.526 — no exit yet in log)
-- **Band is NOT the source** (0 band fires since Jul-06). Draws are from sprint/ladder system.
-
-### ⚠️ G3 WATCH_ITEM — New Transition (see detail above)
-- n=75 crossed n=40 threshold
-- Filled ROI −75.8% vs sim +7.6% → −83.4pp gap
-- CI entirely negative [−75%, −34%]
-- Exec Auditor mandate: flag and investigate co-fill rate on PAIR leg
-
-### INFO: G2c PAIR_FAV NO counterfactual CI qualified
-- Counterfactual n=32 ROI=+52.9% CI=[+12.6,+85.5] (reported as trend prior run)
-- State_log Jul-11 22:15Z: "CF ROI +52.9% n=32 inherits the sim bias"
-- Do not use as re-enable evidence. Pair co-fill at clip-guard is the relevant measure.
-
-### INFO: Jul-12 structural slot — no decision taken
-- Owner directive Jul-12 19:20Z: "switch to BTC 5/15m $10k, no restrictions" — DECLINED with evidence (3rd audit). Ladder remains active.
-- No BAND_LIVE re-enable decision taken Jul-12 per system_status commit log.
-- Next structural slot not pre-registered; recommend human sets one.
+1. **WIND-DOWN active:** BAND_LIVE=False since Jul-06 22:08Z. All band gates frozen.
+2. **Winner's curse CONFIRMED (G3):** sim ROI is UPPER BOUND. G1 +4.0% and G7 +11.5% are NOT valid re-enable evidence. Exception: co-filled PAIR (adverse selection only in naked leg).
+3. **Pre-registered re-enable condition UNMET:** post-guard pair n≥40 required; current n=9 (frozen). Cannot re-enable without this.
+4. **G2a BAND_NO:** live n=51 WR=39.2% effectively REJECTED (shadow AMBIGUOUS is irrelevant).
+5. **Capital at $34.69:** below SPRINT_LADDER kernel floor $40, well below engine ruin_floor $89.16. UPDOWN-SNIPER is the only active live strategy.
+6. **VPS join unconfirmed:** band_resolution_join.py join refresh since Jul-10 11:23Z unconfirmed (network-blocked in this sandbox; GitHub MCP used for data access). n=934/382 held. Flag for VPS operator.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**No gates newly hit READY or REJECTED. No flag changes recommended.**
+**No gates newly READY or REJECTED this run.**
 
-Watch items for human attention (report-only, no implementation):
+All gates are frozen in their prior-run state. No flag or parameter change is proposed.
 
-1. **BANKROLL CRITICAL:** Capital $87.40 < ruin_floor $89.16. Sprint/ladder system is burning cash. Exec Auditor should audit Jul-11..Jul-13 untracked fills and reconcile sleeve vs capital.
+**Standing watch items (from prior runs, unchanged):**
 
-2. **G3 WATCH_ITEM active:** Exec Auditor should cross-tab co-fill rate on the PAIR leg (co-filled pairs pay 1.0 regardless of leg outcome) vs naked-leg fills. If co-fill rate is high at clip-guard, PAIR_FAV may retain edge despite naked-leg winner's curse.
-
-3. **Structural decision:** BAND_LIVE re-enable condition (pair n≥40) is unreachable while band dark. Human must either: (a) amend the pre-registered condition to allow shadow-posting mode to accumulate pair data, or (b) accept that re-enable path is indefinitely blocked. This was pending from Jul-09 EVOLVE; not addressed Jul-12.
-
----
-
-## Gate Accumulation Rates
-
-| Gate | Rate (posts/day when live) | Days to threshold (from re-enable) | Note |
-|------|---------------------------|--------------------------------------|------|
-| G1 BAND_YES | ~50 resolves/day (historic) | n=934 >> 100; CI is blocker, not n | sim CI is upper-bound bias |
-| G2b/G2c PAIR_FAV | ~11/day when live | ~8.3d to n=100 from re-enable | band dark = 0/day |
-| G3 FILLED_VS_FIRED | n/a (n=75 > 40) | WATCH_ITEM active | no pre-reg threshold beyond 40 |
-| G7 SUM_POSTED | ~50 resolves/day | ~1,528 needed to push CI lower; ~30.6d | sim CI upper-bound bias |
-
----
-
-*Report generated by Klaus Gate-Keeper Agent. REPORT-ONLY: no code or flag changes made.*
+- **[G3 WATCH_ITEM]** Winner's curse gap confirmed at n=75 filled (ROI −75.8% vs sim +7.6% = −83.4pp). Exec Auditor cross-tab of co-fill rate under Jul-05 clip-guard remains mandatory before any band re-enable discussion.
+- **[CAPITAL CRITICAL]** $34.69 is 38.9% of engine ruin_floor $89.16. The only path that does not require a deposit is UPDOWN-SNIPER growing capital back. Monitor sniper gate (n≥100 fill-sim, target ~Jul-15 10:00Z).
+- **[BAND RE-ENABLE BLOCKED]** Three independent blockers must ALL clear before band re-enable: (a) pair n≥40 post-guard, (b) winner's curse cross-tab closes, (c) explicit owner instruction. None are close.
