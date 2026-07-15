@@ -38,14 +38,20 @@ EDGE_MIN = 0.010
 CLIP_USD = 2.0               # 5.0 -> 2.0 2026-07-14: gate-collection mode — extends
                              # runway to the n>=100 gate; wallet-truth realized since
                              # go-live is negative (-$5.48 incl. untracked 10:49 fill),
-                             # so collect the gate at minimum size, not harvest size
+                             # so collect the gate at minimum size, not harvest size.
+                             # NOTE 07-15: CLOB 5-share buy minimum means the true
+                             # minimum fire is 5 shares = $4.50-4.95 at ask 0.90-0.99;
+                             # $2 is unreachable. est_cost in signal_loop carries the
+                             # real number into the depth + reserve gates.
 RESERVE_USD = 20.0           # 2.0 -> 20.0 2026-07-14: owner floor waiver (07-13,
                              # equity $39.40) has no lower bound — this stops fires at
                              # wallet <$22 so one path cannot burn to ruin; $20 matches
                              # the owner's sprint-ladder hard cash reserve
 MAX_OPEN_COST = 15.0
 MAX_FIRES_DAY = 60
-DAILY_STOP_LOSS = 6.0
+DAILY_STOP_LOSS = 4.5        # 6.0 -> 4.5 2026-07-15: true clip is $4.50-4.95 (5-share
+                             # CLOB min), so one full-clip loss must end the day —
+                             # $4.9 = 14% of $34.9 equity, the engine daily-loss rail
 MAX_CONSEC_LOSS = 3
 
 def log(rec):
@@ -171,14 +177,19 @@ class Sniper:
                 if ask is None or not (ASK_MIN <= ask <= ASK_MAX[win["step"]]):
                     continue
                 edge = p_model - ask - 0.07 * ask * (1 - ask)
-                if edge < EDGE_MIN or sz * ask < CLIP_USD:
+                # CLOB enforces a 5-share buy minimum: order_manager snaps a
+                # CLIP_USD stake UP to 5 shares, so true cost = max(CLIP, 5*ask)
+                # ($4.50-4.95 at ask 0.90-0.99). Gate depth and cash on that,
+                # not on the nominal clip (07-15: every post-fix fill was 5.0 sh).
+                est_cost = max(CLIP_USD, 5.0 * ask)
+                if edge < EDGE_MIN or sz * ask < est_cost:
                     continue
                 why = self.rails_ok()
                 if why:
                     log({"event": "skip_rails", "why": why, "slug": win["slug"]})
                     continue
                 bal = await asyncio.to_thread(self.om.fetch_usdc_balance) if LIVE else 99.0
-                if bal is None or bal - CLIP_USD < RESERVE_USD:
+                if bal is None or bal - est_cost < RESERVE_USD:
                     log({"event": "skip_cash", "balance": bal})
                     continue
                 if LIVE:

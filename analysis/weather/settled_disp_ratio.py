@@ -20,9 +20,10 @@ import json, glob, math, os, time
 from collections import defaultdict
 
 HOT = "/root/Klaus/logs/shadow/hot"
-DATES = ["2026-06-28","2026-06-29","2026-06-30","2026-07-01","2026-07-02","2026-07-03",
-         "2026-07-04","2026-07-05","2026-07-06","2026-07-07","2026-07-08","2026-07-09",
-         "2026-07-10"]
+# rolling window: last 18 hot-log day dirs (was a hard-coded list ending 07-10,
+# which read as a "dead feed" in the S3 gauge once the calendar moved past it)
+DATES = sorted(d for d in os.listdir(HOT)
+               if len(d) == 10 and d.startswith("202") and os.path.isdir(f"{HOT}/{d}"))[-18:]
 NOW = time.time()
 
 def center(lo, hi):
