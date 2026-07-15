@@ -76,3 +76,71 @@
    recovery engine is a $0.23/win sniper. At the current rate, weeks, not days.
 4. Claude session limits killed 4 of the last 8 evolve slots — the morning slot ran
    today; if the evening slot dies, this report covers the day.
+
+---
+
+# Evening slot (21:53 UTC)
+
+## Health & equity (first, honestly)
+- All three services **active** (`klaus`, `klaus_updown_sniper`, `klaus_updown_shadow`);
+  no crashloop flag, no `UPDOWN_STOP`, no backlog (morning slot ended rc=0).
+- One self-healed incident: **02:40Z klaus event-loop stall** (curl 30s timeout in
+  `fetch_token_balance` froze the loop 50s) → internal watchdog forced exit, systemd
+  restarted, clean recovery. Watch frequency; no action needed at 1 occurrence.
+- **Equity: $38.48 cash, 0 open positions** (22:00Z) — still under the $40 kernel
+  floor (standing 07-13 owner waiver, sniper only) but **+$4.44 since the 07-14
+  22:04Z fixes** and +$1.47 since the morning slot. Trajectory positive.
+- Reconciliation: sniper tape explains +$3.64 of the +$4.44; residual **+$0.80
+  unattributed inflow**, most plausibly Polymarket auto-redeem of residual weather
+  winner dust (7 confirmed winners on disk, no bot tx involved). Logged as a watch
+  item — an unattributed OUTFLOW would be a halt-and-hunt.
+
+## Sniper gate status (the number the loop turns on)
+- `shadow_grade.py --refetch` 22:02Z: **n=76 true-labeled windows, WR 98.7%,
+  Wilson CI [92.9, 99.8] vs breakeven ≈96.2%** — the point estimate clears, the
+  CI lower bound does not. **KELLY activation condition (n≥100 AND CI-lo >
+  breakeven) NOT met → flag stays OFF.** At the post-14:35Z fire rate, n=100
+  arrives in ~1 day; note that even 100/100 wins puts Wilson CI-lo only ≈96.3 —
+  the gate will likely need n≈150 to resolve either way. That is the design
+  working, not a delay to fix.
+- Live tape post-fix: **17 fills / 17 settles, 17W/0L, +$3.64**; today 16 fires,
+  +$3.54 realized, consec_loss 0, open={}. Zero orphan-sells (07-14 sweep fix
+  holding). Fill rate 77.3% (5 FOK misses at $0 cost — offline gate n grows on
+  policy windows, so misses don't slow the gate).
+- Depth headroom for the sizer: certainty-cell touch ask depth med **$791**
+  (p10 $31); 92% of snaps hold ≥$25 ⇒ CLIP_CAP $25 is not depth-bound at
+  activation.
+
+## Actions taken (0 live changes — cap already consumed 11:34Z + 14:35Z)
+1. REVIEW-CLOSE (bookkeeping): 07-13 winner-extraction BUGFIX → **KEEP**. 17/17
+   post-fix settles consistent with redemption cash; zero settle-vs-Gamma
+   disagreements; the regraded shadow feed is functioning as the gate sensor.
+2. Gate ledger refreshed and committed (sniper rows lead); experiments.jsonl
+   updated with tonight's readouts + registered `updown_multiasset_15m`
+   (eth/sol/xrp tape day 1 of 2, per-asset n≥100 gates, review 07-17).
+
+## Actions REJECTED (with the failed gate)
+- **KELLY activation** — n=76 < 100 and CI-lo 92.9 < 96.2. Pre-registered
+  condition unmet.
+- **Gate kill** — point estimate 98.7% > breakeven; not remotely triggered.
+- **eth/sol/xrp cell promotion** — tape day 1 of the ≥2-day requirement; zero
+  graded windows.
+- **Band/weather re-enable** — disp_ratio last 5 settled days 0.718/0.816/0.675/
+  0.942/1.040(partial), all <1.10; equity rail also unmet.
+- Any further live tuning — daily 2-change anti-thrash cap consumed.
+
+## Experiments
+- `updown_shadow_offline_gate` COLLECTING (n=76, review 07-16).
+- `updown_sniper_live` COLLECTING (17 clean post-fix samples, review 07-16).
+- `updown_multiasset_15m` COLLECTING (day 1/2, review 07-17).
+- Weather rows unchanged (band trigger standing-condition not met; NEG_RISK_ARB
+  functioning — traded 07-14 19:20Z; RECYCLE099 alive, idle as expected).
+
+## Standing risks
+- Equity below kernel floor (waived, sniper-only) — every fire is ~13% of equity
+  until the wallet rebuilds; rails: RESERVE $20+est_cost, DAILY_STOP 4.5,
+  single-loss day-halt by construction.
+- The whole path rides on WR holding ≥~96.2% at 5-share minimum clips; the n≥100
+  gate is the only thing that converts this from streak to edge. No sizing moves
+  before it clears.
+- +$0.80 unattributed inflow (watch item); 02:40Z stall-restart pattern (watch).

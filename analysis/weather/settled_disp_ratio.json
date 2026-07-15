@@ -1,5 +1,5 @@
 {
- "generated_utc": "2026-07-15T11:33:16Z",
+ "generated_utc": "2026-07-15T21:58:58Z",
  "method": "full pricer_eval, last PRE_PEAK ladder, p_cal-normalized std vs |resolved-mode|, resolved=final running_max",
  "days": {
   "2026-07-05": {
@@ -81,6 +81,14 @@
    "pooled_ratio": 0.942,
    "median_city_ratio": 0.805,
    "n_real_pos": 23
+  },
+  "2026-07-15": {
+   "n": 20,
+   "impl_mean": 0.832,
+   "real_mean": 0.8,
+   "pooled_ratio": 1.04,
+   "median_city_ratio": 0.807,
+   "n_real_pos": 9
   }
  },
  "rows": [
@@ -3514,6 +3522,15 @@
    "n_buckets": 11
   },
   {
+   "city": "guangzhou",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.1455,
+   "real": 5.0,
+   "run_max": 30.0,
+   "n_buckets": 11
+  },
+  {
    "city": "san-francisco",
    "date": "2026-07-14",
    "t_close": 1784102400,
@@ -3523,12 +3540,183 @@
    "n_buckets": 11
   },
   {
+   "city": "shenzhen",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 0.9027,
+   "real": 1.0,
+   "run_max": 29.0,
+   "n_buckets": 11
+  },
+  {
    "city": "seattle",
    "date": "2026-07-14",
    "t_close": 1784102400,
    "impl": 0.0398,
    "real": 1.1111,
    "run_max": 29.4,
+   "n_buckets": 11
+  },
+  {
+   "city": "wellington",
+   "date": "2026-07-15",
+   "t_close": 1784116800,
+   "impl": 0.4225,
+   "real": 0.0,
+   "run_max": 15.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "taipei",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.1164,
+   "real": 2.0,
+   "run_max": 34.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "busan",
+   "date": "2026-07-15",
+   "t_close": 1784127600,
+   "impl": 1.0236,
+   "real": 0.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "moscow",
+   "date": "2026-07-15",
+   "t_close": 1784149200,
+   "impl": 1.0857,
+   "real": 0.0,
+   "run_max": 23.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "manila",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.1294,
+   "real": 2.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "qingdao",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 0.0376,
+   "real": 0.0,
+   "run_max": 30.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "tokyo",
+   "date": "2026-07-15",
+   "t_close": 1784127600,
+   "impl": 0.178,
+   "real": 0.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "shanghai",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.0843,
+   "real": 0.0,
+   "run_max": 39.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "wuhan",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.0799,
+   "real": 0.0,
+   "run_max": 37.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "beijing",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 0.8066,
+   "real": 1.0,
+   "run_max": 38.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "kuala-lumpur",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 0.6684,
+   "real": 0.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "chengdu",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.1619,
+   "real": 1.0,
+   "run_max": 38.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "chongqing",
+   "date": "2026-07-15",
+   "t_close": 1784131200,
+   "impl": 1.2857,
+   "real": 2.0,
+   "run_max": 40.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "lucknow",
+   "date": "2026-07-15",
+   "t_close": 1784142000,
+   "impl": 0.5,
+   "real": 0.0,
+   "run_max": 35.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "tel-aviv",
+   "date": "2026-07-15",
+   "t_close": 1784149200,
+   "impl": 0.9771,
+   "real": 1.0,
+   "run_max": 32.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "istanbul",
+   "date": "2026-07-15",
+   "t_close": 1784149200,
+   "impl": 0.7611,
+   "real": 0.0,
+   "run_max": 27.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "jeddah",
+   "date": "2026-07-15",
+   "t_close": 1784149200,
+   "impl": 0.0,
+   "real": 0.0,
+   "run_max": 38.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "ankara",
+   "date": "2026-07-15",
+   "t_close": 1784149200,
+   "impl": 1.2803,
+   "real": 1.0,
+   "run_max": 29.0,
    "n_buckets": 11
   }
  ]
