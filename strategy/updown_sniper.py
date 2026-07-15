@@ -57,6 +57,13 @@ DAILY_STOP_LOSS = 4.5        # 6.0 -> 4.5 2026-07-15: true clip is $4.50-4.95 (5
                              # CLOB min), so one full-clip loss must end the day —
                              # $4.9 = 14% of $34.9 equity, the engine daily-loss rail
 MAX_CONSEC_LOSS = 3
+KELLY_LIVE = os.environ.get("UPDOWN_KELLY", "0") == "1"
+KELLY_FRAC = 0.10            # per-fire fraction of free USDC — the compounding sizer.
+CLIP_CAP_USD = 25.0          # ACTIVATION GATE (pre-registered 2026-07-15): flip
+                             # UPDOWN_KELLY=1 only when shadow_grade n>=100 AND Wilson
+                             # CI lower bound > per-fire breakeven. 0.10 ~= 0.2x Kelly
+                             # at the point-estimate edge; cap $25/fire pending review
+                             # at bankroll >$250. Until then clip stays CLIP_USD.
 
 def log(rec):
     rec["ts"] = round(time.time(), 3)
@@ -93,7 +100,9 @@ class Sniper:
             return "stop_file"
         if self.st["fires"] >= MAX_FIRES_DAY:
             return "fires_cap"
-        if self.st["realized"] <= -DAILY_STOP_LOSS:
+        day_stop = DAILY_STOP_LOSS if not KELLY_LIVE else \
+            max(DAILY_STOP_LOSS, 1.2 * self.st.get("last_clip", 0.0))
+        if self.st["realized"] <= -day_stop:
             return "daily_stop"
         if self.st["consec_loss"] >= MAX_CONSEC_LOSS:
             return "consec_loss"
@@ -132,10 +141,10 @@ class Sniper:
         except Exception:
             return (None, None)
 
-    async def fire(self, win, side_idx, side, ask, p_model, t_left):
+    async def fire(self, win, side_idx, side, ask, p_model, t_left, clip=CLIP_USD):
         from execution.order_manager import Direction
         token = win["tokens"][side_idx]
-        res = await self.om.limit_buy(token, ask, CLIP_USD, Direction.BUY_YES,
+        res = await self.om.limit_buy(token, ask, clip, Direction.BUY_YES,
                                       price_ceiling=round(min(ask + 0.005,
                                                               ASK_MAX[win["step"]]), 3))
         status = str(getattr(res, "status", "")) if res else "None"
@@ -196,8 +205,16 @@ class Sniper:
                 if bal is None or bal - est_cost < RESERVE_USD:
                     log({"event": "skip_cash", "balance": bal})
                     continue
+                clip = CLIP_USD
+                if KELLY_LIVE and bal:
+                    clip = min(max(CLIP_USD, KELLY_FRAC * bal), CLIP_CAP_USD)
+                    est_cost = max(clip, 5.0 * ask)
+                    if sz * ask < est_cost or bal - est_cost < RESERVE_USD:
+                        log({"event": "skip_cash", "balance": bal, "clip": clip})
+                        continue
+                    self.st["last_clip"] = clip
                 if LIVE:
-                    await self.fire(win, side_idx, side, ask, p_model, t_left)
+                    await self.fire(win, side_idx, side, ask, p_model, t_left, clip)
                 else:
                     log({"event": "DRY_FIRE", "slug": win["slug"], "side": side,
                          "ask": ask, "p_model": round(p_model, 4),

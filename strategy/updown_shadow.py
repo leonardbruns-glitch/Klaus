@@ -17,8 +17,13 @@ LOG_DIR = "/root/Klaus/logs/shadow/updown_sniper"
 HDR = {"User-Agent": "Mozilla/5.0"}
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
-BINANCE_WS = "wss://stream.binance.com:9443/ws/btcusdt@trade"
+BINANCE_WS = "wss://stream.binance.com:9443/ws/{sym}@trade"
 SAMPLE_WINDOW = {300: 300, 900: 240}      # sample when t_left <= this
+# asset -> (binance symbol, cadences to record). Non-BTC record 15m only:
+# 5m volume is ~nil there (probe 2026-07-15: eth-5m $20/day, sol/xrp-5m ~0),
+# and BTC-only keeps the live sniper's gate ledger clean (it trades btc-*).
+ASSETS = {"btc": ("btcusdt", (300, 900)), "eth": ("ethusdt", (900,)),
+          "sol": ("solusdt", (900,)), "xrp": ("xrpusdt", (900,))}
 CADENCE_FAR, CADENCE_NEAR = 2.0, 1.0      # s; near = t_left <= 60
 
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -30,8 +35,9 @@ def out(rec):
         f.write(json.dumps(rec) + "\n")
 
 class Spot:
-    """Binance BTCUSDT via ws; keeps (ts, px) for sigma + window opens."""
-    def __init__(self):
+    """Binance spot via ws; keeps (ts, px) for sigma + window opens."""
+    def __init__(self, sym="btcusdt"):
+        self.sym = sym
         self.px = None
         self.hist = collections.deque()          # (ts, px) ~1/s downsampled
         self._last_keep = 0.0
@@ -40,7 +46,8 @@ class Spot:
         while True:
             try:
                 async with aiohttp.ClientSession() as s:
-                    async with s.ws_connect(BINANCE_WS, heartbeat=20) as ws:
+                    async with s.ws_connect(BINANCE_WS.format(sym=self.sym),
+                                            heartbeat=20) as ws:
                         async for msg in ws:
                             if msg.type != aiohttp.WSMsgType.TEXT:
                                 continue
@@ -53,7 +60,8 @@ class Spot:
                                 while self.hist and now - self.hist[0][0] > 2100:
                                     self.hist.popleft()
             except Exception as e:
-                out({"type": "err", "where": "binance_ws", "err": str(e)[:200]})
+                out({"type": "err", "where": f"binance_ws:{self.sym}",
+                     "err": str(e)[:200]})
                 await asyncio.sleep(3)
 
     def at(self, ts):
@@ -89,33 +97,35 @@ async def gj(sess, url):
 
 class Runner:
     def __init__(self):
-        self.spot = Spot()
+        self.spots = {a: Spot(sym) for a, (sym, _) in ASSETS.items()}
+        self.spot = self.spots["btc"]
         self.windows = {}        # slug -> dict
         self.done = set()
 
     async def discover(self, sess):
         while True:
             now = int(time.time())
-            for step in (300, 900):
-                for off in (0, step):
-                    w = now - now % step + off
-                    slug = f"btc-updown-{'5m' if step==300 else '15m'}-{w}"
-                    if slug in self.windows or slug in self.done:
-                        continue
-                    evs = await gj(sess, f"{GAMMA}/events?slug={slug}")
-                    for ev in evs or []:
-                        for m in ev.get("markets") or []:
-                            try:
-                                toks = json.loads(m.get("clobTokenIds") or "[]")
-                                ocs = json.loads(m.get("outcomes") or "[]")
-                            except Exception:
-                                continue
-                            if len(toks) == 2 and m.get("acceptingOrders"):
-                                self.windows[slug] = {
-                                    "slug": slug, "step": step, "w": w,
-                                    "end": w + step, "tokens": toks,
-                                    "outcomes": ocs, "cid": m["conditionId"],
-                                    "open_px": None}
+            for asset, (_, steps) in ASSETS.items():
+                for step in steps:
+                    for off in (0, step):
+                        w = now - now % step + off
+                        slug = f"{asset}-updown-{'5m' if step==300 else '15m'}-{w}"
+                        if slug in self.windows or slug in self.done:
+                            continue
+                        evs = await gj(sess, f"{GAMMA}/events?slug={slug}")
+                        for ev in evs or []:
+                            for m in ev.get("markets") or []:
+                                try:
+                                    toks = json.loads(m.get("clobTokenIds") or "[]")
+                                    ocs = json.loads(m.get("outcomes") or "[]")
+                                except Exception:
+                                    continue
+                                if len(toks) == 2 and m.get("acceptingOrders"):
+                                    self.windows[slug] = {
+                                        "slug": slug, "asset": asset, "step": step,
+                                        "w": w, "end": w + step, "tokens": toks,
+                                        "outcomes": ocs, "cid": m["conditionId"],
+                                        "open_px": None}
             await asyncio.sleep(20)
 
     async def resolve(self, sess):
@@ -135,9 +145,10 @@ class Runner:
                         # (2026-07-13 bug mislabeled winner on 84/196 windows)
                         if sorted(op) == [0.0, 1.0]:
                             winner = win["outcomes"][0] if op[0] == 1.0 else win["outcomes"][1]
+                            sp = self.spots[win.get("asset", "btc")]
                             out({"type": "res", "slug": slug, "winner": winner,
                                  "b_open": win["open_px"],
-                                 "b_close": self.spot.at(win["end"])})
+                                 "b_close": sp.at(win["end"])})
                             self.done.add(slug)
                             del self.windows[slug]
                 if now > win["end"] + 900 and slug in self.windows:
@@ -168,12 +179,13 @@ class Runner:
                 t_left = win["end"] - now
                 in_win = win["w"] <= now < win["end"]
                 if in_win and win["open_px"] is None:
-                    win["open_px"] = self.spot.at(win["w"])
+                    win["open_px"] = self.spots[win.get("asset", "btc")].at(win["w"])
                 if in_win and 0 < t_left <= SAMPLE_WINDOW[win["step"]]:
                     active.append((win, t_left))
             for win, t_left in active:
-                px, op = self.spot.px, win["open_px"]
-                sig = self.spot.sigma1s()
+                sp = self.spots[win.get("asset", "btc")]
+                px, op = sp.px, win["open_px"]
+                sig = sp.sigma1s()
                 move = z = p_up = None
                 if px and op and sig and sig > 0:
                     move = px / op - 1.0
@@ -182,7 +194,8 @@ class Runner:
                 b0, b1 = await asyncio.gather(
                     self.book(sess, win["tokens"][0]),
                     self.book(sess, win["tokens"][1]))
-                out({"type": "snap", "slug": win["slug"], "step": win["step"],
+                out({"type": "snap", "slug": win["slug"],
+                     "asset": win.get("asset", "btc"), "step": win["step"],
                      "t_left": round(t_left, 2), "b_px": px, "b_open": op,
                      "move": move, "sigma1s": sig, "z": z, "p_up": p_up,
                      "up": b0, "down": b1})
@@ -193,8 +206,10 @@ class Runner:
         conn = aiohttp.TCPConnector(limit=8)
         async with aiohttp.ClientSession(connector=conn, headers=HDR,
                                          timeout=aiohttp.ClientTimeout(total=15)) as sess:
-            out({"type": "start", "pid": os.getpid()})
-            await asyncio.gather(self.spot.run(), self.discover(sess),
+            out({"type": "start", "pid": os.getpid(),
+                 "assets": list(ASSETS)})
+            await asyncio.gather(*(sp.run() for sp in self.spots.values()),
+                                 self.discover(sess),
                                  self.resolve(sess), self.sample(sess))
 
 if __name__ == "__main__":

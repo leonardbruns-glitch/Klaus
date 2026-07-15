@@ -114,6 +114,8 @@ def main():
             except Exception:
                 continue
             if d.get("type") == "snap":
+                if not d["slug"].startswith("btc-"):
+                    continue  # BTC-only, mirroring the live sniper's gate ledger
                 snaps.append(d)
             elif d.get("type") == "res" and d["ts"] >= FIX_TS:
                 truth[d["slug"]] = d["winner"]

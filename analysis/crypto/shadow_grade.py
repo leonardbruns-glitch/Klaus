@@ -60,6 +60,10 @@ def main():
                     void_slugs.add(d["slug"])
             elif t == "snap":
                 slug = d["slug"]
+                # gate ledger is BTC-only: the live sniper trades btc-*; multi-asset
+                # shadow (eth/sol/xrp 15m, recording since 2026-07-15) grades separately
+                if not slug.startswith("btc-"):
+                    continue
                 if slug in first_fire:
                     continue
                 step = d.get("step")
