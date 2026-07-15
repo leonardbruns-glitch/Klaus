@@ -2,19 +2,19 @@
 active
 
 ## Last 10 commits on klaus:
+7e569bb46 Sniper rails on TRUE fire cost (CLOB 5-share min): est_cost gates depth+reserve, DAILY_STOP 6->4.5; disp_ratio rolling dates
+a963c49f8 Research audit 2026-07-15T1045Z — capital/equity-deployed | best action: verify updown_shadow service running on VPS
+57591a5f6 Gate-keeper 2026-07-15 — ready=0 rejected=0 collecting=2 ambiguous=3 watch=1
+8aa74c92e Calib monitor 2026-07-15 — brier7=0.053 disp_ratio=≤0.80 S3-d13 S4-confirmed
+0a7fa43b5 Exec audit 2026-07-15 — fills=0 NO-share=N/A 3 alerts
+be4c2f7a1 PnL ledger 2026-07-14 — day=-0.61 turns=2.50 roi/turn=-0.71% unexplained=+0.15
 93133b9d5 EVOLVE daily 2026-07-14 (evening, covers full day) — orphan-sweep cannibalization found+fixed, sniper cut to $2 clips
 571b58b39 Sniper risk cut: CLIP_USD 5->2, RESERVE_USD 2->20 (gate-collection mode)
 7f3234c4d Fix: window-end orphan sweep no longer force-sells UPDOWN-SNIPER positions
 e6f292e1f Research audit 2026-07-14T1000Z — sniper ROI/turn (post-SIG_FLOOR n=7 57% WR, stop-sell unknown) | best action: reduce stake to $2/fire + inspect stop mechanism
-402813f5b Gate-keeper 2026-07-14 — ready=0 rejected=0 collecting=2 ambiguous=3 watch=1
-fb1ce5e95 Calib monitor 2026-07-14 — brier7=0.053 disp_ratio=≤0.80 1 alert (S3 d12 INVERTED — data access degraded)
-274f76218 Exec audit 2026-07-14 — fills=0 NO-share=N/A 2 alerts
-2ff4605c3 PnL ledger 2026-07-13 — day=-69.08 turns=1.71 roi/turn=-40% unexplained=-17.7
-ab7d1768c EVOLVE 2026-07-13 evening: MIN_LOCKOUT_LIVE revert (pre-registered condition fired: equity $34.86 = 15.6% of 30d-HW < 50% rail; 0 orders posted while live), backlog reviews closed (07-12 slots + 07-13 morning died on session limits), gate ledger + daily report + escalations
-52416be67 UPDOWN settle-bug fix + SIG_FLOOR: winner only on exact 1/0 outcomePrices (84/196 labels were wrong; true win booked as -5.33 loss, wallet redeemed +5.50), never book without true resolution; sigma floor 0.5bp/sqrt(s) kills the sigma-junk certainty mode (true-label tape 07-13: v1 8 fires 7W1L -$4.02 vs floored 6/6W +$0.83). TRUE day-1: 4W/1L -$4.29 (booked -9.79 was phantom)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        5G  95% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        5G  96% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Wed 2026-07-15 02:40:11 UTC
