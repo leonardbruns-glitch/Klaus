@@ -1,223 +1,204 @@
-# Research Audit — 2026-07-14
+# Research Audit Report — 2026-07-15
 
-**Run time**: 2026-07-14T~10:00Z
-**Specialist reports read**: exec_audit (07:07Z ✓), calib_monitor (08:07Z ✓), gatekeeper (09:15Z ✓), pnl_ledger (23:37Z Jul 13 ✓) — all within 36h threshold
-**Snapshot freshness**: Gatekeeper confirms 2026-07-14T08:59:16Z (age 16 min) — **PASS**
-**System status**: `klaus systemd: active` per gatekeeper 09:15Z — **PASS**
-**Data access note**: git fetch timed out (network-blocked in sandbox); raw mirror files obtained via GitHub MCP after exec_audit cutoff. data-mirror SNAPSHOT.md ts: 2026-07-14T10:15:16Z — PASS. Fill tape below incorporates data through 10:15Z (beyond exec_audit's 06:57Z view). Calib monitor independently flagged same MCP/network issue.
-**Band flags (from band_config.txt, data-mirror 10:15Z)**: BAND_LIVE=False (line 284), BAND_NO_ENABLED=False (line 432), BAND_PAIR_FAV_ENABLED=True (line 512, gated by BAND_LIVE). UPDOWN-SNIPER live since Jul 13 10:46Z on owner floor waiver.
-**Bankroll (data-mirror 10:15Z)**: capital $34.4446, daily_start $34.7427, total_pnl −$75.397.
-
----
-
-## 1. PRIMARY BOTTLENECK FOR COMPOUNDING
-
-**Bottleneck: ROI/turn on UPDOWN-SNIPER — the only active revenue engine.**
-
-Compounding formula: equity × ROI/turn × turns/day.
-
-| Dimension | Value | Source |
-|---|---|---|
-| Equity deployed | $34.69 (< ruin_floor $89.16) | exec_audit §6 |
-| Turns/day | ~1.71× Jul 13 | pnl_ledger §2 |
-| ROI/turn | **~−40%** Jul 13 | pnl_ledger §2 |
-| Jul 14 net (midnight–10:15Z) | **−$0.30** | data-mirror bankroll.json |
-
-The turns/day (1.71×) already match or exceed the badatmath benchmark (~1.0×). The equity level ($34.69) is constrained but not zero. The binding failure is ROI/turn: negative returns are being turned 1.71× per day, compounding the drawdown.
-
-The Jul 13 ROI/turn figure (−40%) was dominated by SPRINT_LADDER (estimated −$46.79 from 2 shots, 0W/7L confirmed disarmed). Stripping the ladder, sniper-only Jul 13: 1W/5L visible, net ~−$4.60 (pnl_ledger §1). UPDOWN-SNIPER post-SIG_FLOOR (22:06Z Jul 13 restart): floored tape 6W/0L +$0.83, Jul 14 post-fix observable round-trips 4W/3L +57% WR (n=7, data-collection).
-
-**The bottleneck resolves when sniper ROI/turn is confirmed positive.** The gatekeeper pre-registered gate for this is n≥100 fill-sim, ETA ~Jul 15 10:00Z (~25h from exec_audit time). This is the only live gate accumulating data today.
-
-Dispersion premium inversion (calib_monitor S3, day 12) keeps the band dark independently. But the band is not the current compounding engine — the sniper is. The sniper's edge is calibration-independent (certainty-cell taker), so the dispersion inversion is not the active bottleneck today; it is a band-specific blocking condition.
+**Generated:** 2026-07-15T10:45Z (automated)
+**Snapshot:** 2026-07-15T10:17:46Z (age ≈ 27 min — FRESH ✓)
+**System:** `klaus systemd: active` ✓ — uptime since 2026-07-15T02:40:11Z
+**Capital:** $36.54 | **Ruin floor:** $89.16 | **Cap/floor:** 41.0%
+**Band dark:** Day 9 (BAND_LIVE=False since 2026-07-06T22:08Z)
+**Specialist reports read:**
+- exec_audit_report.md — 2026-07-15T07:07Z ✓ (<36h)
+- calib_monitor_report.md — 2026-07-15T12:00Z ✓ (<36h)
+- gatekeeper_report.md — 2026-07-15T09:15Z ✓ (<36h)
+- pnl_ledger_report.md — 2026-07-14T23:42Z ✓ (<36h)
 
 ---
 
-## 2. EXISTING-SYSTEM OPTIMIZATION
+## §1 — PRIMARY COMPOUNDING BOTTLENECK
 
-**A. SIG_FLOOR fix (0.5bp/√s) — already deployed at 22:06Z Jul 13.** No action.
-- Pre-fix: 7W/1L −$4.02 on sniper fills (exec_audit §4 note, gatekeeper context); settle-bug also contaminated labels.
-- Post-fix floored tape: 6W/0L +$0.83 (exec_audit §4). A materially different result but n<10.
-- Expected delta: unknown until n≥40. Confidence: low. Effort: done.
+**Bottleneck: Equity deployed.** Capital $36.54 is 41.0% of the engine ruin floor ($89.16), which mechanically blocks every band strategy path regardless of gate status, dispersion recovery, or calibration. No other bottleneck matters until this is crossed.
 
-**B. Day-stop status (corrected from exec_audit ALERT 1).** Passive monitor only.
-- Exec_audit ALERT 1 measured −$4.71 of −$6.00 from *go-live* (Jul 13 10:49Z) spanning the midnight boundary — a multi-day figure. Jul 14 day-stop resets at midnight UTC.
-- Bankroll.json (data-mirror 10:15Z): daily_start $34.7427, capital $34.4446 = **−$0.30 of −$6.00 (5%) consumed today**. No urgency.
-- Additional fills observed 09:34–09:49Z (beyond exec_audit window): MAKER NO cell (win), 0.98→0.95 (−$0.16), 0.92→0.88 (−$0.22, 3-second adverse exit). Net: roughly −$0.30 for Jul 14. Day-stop not at risk today.
-- The 0.92→0.88 exit in 3 seconds is notable: "hold to redemption, never sell" policy from state_log 10:46Z entry appears to have a stop mechanism overriding it (same pattern as pre-fix 16:49 exit). UNKNOWN mechanism — monitor. Not a crisis at current loss magnitude.
-- Delta: preserving trading day. Confidence: high. Effort: monitor.
+**Evidence from specialist reports:**
 
-**C. Certainty-cell NO maker positions (0.03–0.04 prices, multiple per day).** Not a leak.
-- Two MAKER fills at extreme prices; expected rebate $0.013 total (pnl_ledger §3). Negligible.
-- These appear to be sniper sub-strategy (NO certainty cells) operating alongside YES entries.
-- No optimization available; position sizing and selection is already correct for fee avoidance at extremes.
+- *Gatekeeper*: "Capital $36.54 < engine ruin_floor $89.16 — all band paths mechanically blocked regardless of gate status." All seven active gates are frozen at their current state.
+- *PnL Ledger*: Capital $34.13 (EOD Jul 14) → $36.54 (Jul 15T09:15Z) = +$2.41 in ~9.5h from UPDOWN-SNIPER. Extrapolated ~$5.80/day if sustained; CAVEAT: some fires logged after snapshot may not have resolved yet.
+- *Exec Audit*: Band turns/day = 0.0. SNIPER turns/day ≈ 2.50. Deployed capital per turn: $2 clip.
+- *PnL Ledger kill-switch table*: Capital breaches all three floors — ruin ($50), weekly ($75), 50%·HWM ($111.45). BAND_LIVE re-enable condition is $111.45 minimum; current is 32.8% of that.
 
-**D. PAIR_FAV (n=9 post-guard, frozen).** No action while BAND_LIVE=False.
-- Gatekeeper: G2b/G2c need n≥100; at ~50 posts/day when live = 8.3d from re-enable.
-- Three independent blockers precede re-enable: G3 cross-tab, pair n≥40, explicit owner instruction. None close.
+**Compounding path:** SNIPER accumulates capital until (a) capital crosses ruin floor → band gates become unblocked, AND (b) dispersion S3 recovers. These are parallel constraints; neither alone unblocks the band. At current sniper rate, ruin floor crossing is ~13 days out (rough estimate Jul 28); dispersion S3 has shown no recovery signal in 13 days.
 
-**E. D+1 market slate fully sum-gated (exec_audit §2).** Data only, not actionable.
-- All 10 cities blocked for Jul 15 (Σask 0.89–1.014 inside band width). Only d+2 (Jul 16) viable (7 shadow fires seen).
-- Confirms posting volume tomorrow = zero even if band re-enabled today.
-
-**F. SPRINT_LADDER: correctly disarmed.** 0W/7L −$164.7 all-time. No rehabilitation path. Leave dark.
-
-**Summary**: No execution or parameter optimization is available until SIG_FLOOR data matures to n≥40. The correct posture is monitor-only. The single adjustable knob is sniper stake size — see §7.
+**Rank of remaining blockers (after capital):** dispersion edge (S3 day 13) > data collection (all gates frozen) > calibration (S4 confirmed) > fills (SNIPER untracked) > reliability (tracker blindness) > NO-parity (N/A offline) > turns/day (constrained by clip size).
 
 ---
 
-## 3. GATE PIPELINE REVIEW
+## §2 — EXISTING-SYSTEM OPTIMIZATION
 
-From gatekeeper_report (09:15Z). Zero state transitions in 24h. All band gates frozen.
+What the four reports collectively imply — items ranked by expected delta × confidence / effort:
 
-| Gate | Status | n | Primary blocker | Nearest acceleration lever |
+### 2A. Sniper Position-State Persistence at Restart (HIGH priority)
+- *Source*: Exec Audit ALERT-2, state_log Jul-14 22:04Z
+- *Finding*: Tracker blindness on restart caused the orphan-sweep bug ($11.63 measured impact, fixed Jul-14). Fix routes around positions in `logs/updown_sniper_state.json`. But state_log notes the fix is "fail-open" — if the JSON file is missing at restart, the skip logic has no effect.
+- *Expected delta*: Prevent recurrence of the orphan-sell bug. The Jul 14 pre-fix tape shows -$11.63 booked vs -$1.91 true over 21 positions — $9.72 drag from a single bug cycle.
+- *Confidence*: HIGH. Root cause confirmed, fix mechanism clear.
+- *Effort*: LOW — verify state file is persisted to disk after every new fill open and loaded correctly on startup.
+
+### 2B. Deploy Isotonic Candidate to Band Shadow (NOT live)
+- *Source*: Calib Monitor S4 CONFIRMED
+- *Finding*: Candidate curve (Jun 9, n=1,037) lowers p_cal at p_raw=1.0 from 0.6316 → 0.3739 (Δ = −0.2577). Deployed curve is 36 days stale. Candidate has been sitting unreviewed since Jun 9 — a 36-day supervision gap.
+- *Expected delta*: Shadow EV estimates become more realistic before band re-enables. Lower ceiling p_cal means fewer shadow fires classified as "high confidence" by a stale, optimistic ceiling — better pre-conditions for G1/G7 gate recalibration.
+- *Confidence*: MEDIUM. Candidate validated on n=1,037 but predates July data. Direction is correct (market does not pay 0.63 at near-certainty because liquidity collapses post-peak).
+- *Effort*: MEDIUM. Shadow-only swap; no live capital impact.
+
+### 2C. Shadow Recorder Continuity Verification
+- *Source*: Gatekeeper §Observations (SNIPER n≥100 gate, ~Jul 20)
+- *Finding*: Post-fix clean tape started Jul-14T22:04Z. At 7 confirmed fires in 9.5h today = ~17.7 fills/day, the informal n≥100 gate is expected around Jul 20. Pre-fix tape is VOID. If the shadow recorder (`updown_shadow` service) has gaps, gate data is irrecoverable.
+- *Expected delta*: Gate reaches n≥100 on schedule and provides a formal re-enable decision point. If shadow is dark, gate slips by days.
+- *Confidence*: HIGH that this matters; UNKNOWN if shadow is running (not confirmed in any specialist report today).
+- *Effort*: LOW — one VPS status check.
+
+### 2D. Sniper Clip Ceiling Calibration (deferred to n≥50 clean fills)
+- *Source*: PnL Ledger (true 17W/1L WR = 94.4%), Exec Audit (turns/day 2.50 at $2/clip)
+- *Finding*: At $2/clip, EV per trade ranges from +$0.09 (entry 0.90, 94% WR) to −$0.08 (entry 0.98, 94% WR). The fill entry price distribution is the swing variable. Positive net +$2.41 today is encouraging but n is small and some fills unresolved.
+- *Decision*: Collect 50 clean post-fix settled fills before any clip change. NOT an action for today.
+- *Confidence*: LOW until n≥50.
+
+---
+
+## §3 — GATE PIPELINE REVIEW
+
+From gatekeeper_report — all gate n-counts are frozen (BAND_LIVE=False since Jul 6, zero new band resolutions).
+
+| Gate | Status | n | CI95 | ETA / Notes |
 |---|---|---|---|---|
-| G1 BAND_YES | AMBIGUOUS | 934 | G3 cross-tab unresolved + disp_ratio inverted | G3 cross-tab (Experiment B) |
-| G2a BAND_NO | AMBIGUOUS (live WR 39.2% = REJECTED) | 115 live / 0 new | live WR below threshold; BAND_NO_ENABLED=False | None — live WR is the verdict |
-| G2b/G2c PAIR_FAV | COLLECTING | 9 post-guard | BAND_LIVE=False; frozen | Cannot accelerate without band re-enable |
-| G3 FILLED_VS_FIRED | WATCH_ITEM | 75 filled | Co-fill cross-tab under clip-guard pending since Jul-11 | VPS operator 2h analysis |
-| G5 THERMO | REJECTED | 125 | Done | — |
-| G6 M1_BETA | REJECTED | 31 | Done | — |
-| G7 SUM_POSTED | AMBIGUOUS | 382 | CI spans zero; BAND_LIVE frozen | CI blocker; n is sufficient |
-| **UPDOWN-SNIPER** | **PRE-REGISTERED** | **~40-50 est.** | **n≥100 fill-sim unmet** | **Passive accumulation; ~Jul 15 10:00Z** |
+| G1 BAND_YES | AMBIGUOUS | 934 | [−10.9, +21.1] | n≥threshold; CI straddles 0; winner's curse = upper bound; band dark prevents new data |
+| G2a BAND_NO d+1 | AMBIGUOUS (effective REJECTED) | 115 shadow / 51 live | [−11.9, +12.7] | Live WR 39.2% → REJECTED in practice; capital floor also blocks |
+| G2b PAIR_FAV YES | COLLECTING | 9 | — | ~8.3d from band re-enable; rate 11/day frozen |
+| G2c PAIR_FAV NO | COLLECTING | 9 | — | CF CI=[+12.6, +85.5] at n=32 — winner's curse blocker applies |
+| G3 FILLED_vs_FIRED | WATCH_ITEM | 75 | [−75.0, −34.2] | Winner's curse CONFIRMED; filled ROI −75.8% vs sim +7.6%; frozen at n=75 |
+| G5 THERMO | REJECTED | 125 | [−9.0, +2.0] | Done |
+| G6 M1_BETA | REJECTED | 31 | [−20.6, +24.4] | Done (EVOLVE Jul-04) |
+| G7 SUM_POSTED [0.70,0.85] | AMBIGUOUS | 382 | [−11.4, +38.9] | n≥threshold; CI straddles 0; winner's curse = upper bound |
+| **SNIPER n≥100** | COLLECTING (informal) | ~17+ post-fix | — | Clean data from Jul-14T22:04Z; est. n=100 by ~Jul 20 |
 
-**Nearest gate transition: UPDOWN-SNIPER n≥100, ETA ~Jul 15 10:00Z.**
+**No gates newly READY or REJECTED this run.**
 
-Acceleration without degrading expectancy:
-- Do **not** increase stake size to generate more fires — this amplifies losses at a potentially-negative ROI before edge is confirmed.
-- Do **not** expand sniper scope (add assets) without backtesting — breadth without validation degrades expectancy.
-- The fill-sim offline approach is correct design. The gate will clear by natural accumulation.
-- The n=25 Experiment A tripwire (§6) provides an intermediate checkpoint ~22h out.
+**Nearest progression gate**: SNIPER n≥100 (informal). Only gate that can reach a decision threshold within 7 days — it requires no band re-enable and accumulates purely from live SNIPER operation. **Do NOT accelerate by widening SNIPER thresholds** — that changes the distribution being tested and voids the offline calibration.
 
-**Post-SIG_FLOOR sniper counting note (gatekeeper §context)**: The settle-bug fix (22:05Z Jul 13) corrected 84/196 prior resolution labels. The gatekeeper records day-1 net as 4W/1L −$4.29 (post-settle-fix accounting), while exec_audit counts 2W/5L (observable tape round-trips). Both cover different windows. For gate purposes, the clean post-SIG_FLOOR post-restart tape (from 22:06Z Jul 13) is the canonical data series; prior results are dead data.
+**G1/G7 unblock condition**: Winner's curse G3 must be resolved first (requires co-fill cross-tab with exec auditor, per gatekeeper). G3 is frozen at n=75 until band posts again. The G3 → G1/G7 dependency chain means band-YES re-enable is at minimum 13+ days out.
 
 ---
 
-## 4. ASSUMPTION ATTACK
+## §4 — ASSUMPTION ATTACK
 
-**Load-bearing assumptions of the band system today:**
+**Three load-bearing assumptions of the band system as of today:**
 
-### Assumption 1: Dispersion premium persists (implied width > realized width)
-**STATUS: FAILED**
+### Assumption A: Dispersion premium persists (market prices wider distributions than realized)
+**Status: CURRENTLY FALSE. S3 CRITICAL day 13.**
+- Calib Monitor: disp_ratio7 ≤ 0.80 for 13 consecutive days (July 3–15). Market-implied temperature distributions are *tighter* than realized. The band-YES edge thesis depends on implied > realized; this is inverted.
+- Model quotes today (Wuhan, Chengdu d+2): implied σ = 1.20–1.27°C vs reference true σ = 1.30°C. Inversion persists.
+- No recovery signal. Calib Monitor recommends no band re-enable until disp_ratio7 > 1.10 for 3+ consecutive days.
+- **Threat level**: HIGH. Band correctly dark.
 
-calib_monitor S3 FIRES (day 12): disp_ratio7 ≤ 0.80 for 12 consecutive days. The ratio is not merely below the 1.10 threshold — it is inverted (market-implied temperature band width is *less* than realized bucket spread). The band market-maker is on the wrong side of dispersion risk at current prices.
+### Assumption B: Fills are not adversely selected (winner's curse is manageable)
+**Status: CONFIRMED VIOLATED. G3 WATCH_ITEM at n=75.**
+- Gatekeeper: Filled ROI = −75.8%, CI [−75.0, −34.2]. Sim ROI = +7.6%. Gap = 82.6 pp. CI does NOT straddle zero — winner's curse is real and structural, not statistical noise at n=75.
+- Gatekeeper: "Sim ROI is an UPPER BOUND. G1 and G7 AMBIGUOUS CI cannot serve as re-enable evidence."
+- Zero new fills since Jul 6; sample frozen at n=75. No path to resolve this while band is dark.
+- **Threat level**: HIGH. Requires co-fill cross-tab analysis to identify adversely selected legs.
 
-Evidence supporting failure: exec_audit confirms 0 live posts since Jul 06 (band posting nothing is the mechanical consequence of the sum_gate blocking inverted-premium markets); research audit Jul 13 explicitly named S3 d11 as primary bottleneck; calib_monitor confirms identical values for 2 consecutive days (stability, not transient noise).
-
-What could recover it: seasonal variance widening in late-July temperature distributions; LP repricing after sustained mispricing. Neither has a reliable ETA. The 12-day persistence eliminates transient-noise hypothesis.
-
-**Verdict: This assumption is broken today. Band re-enable requires ≥3 consecutive days above 1.10. No credible evidence for near-term recovery.**
-
-### Assumption 2: Fills are not adversely selected
-**STATUS: THREATENED**
-
-G3 WATCH_ITEM (n=75, trend-grade): realized band-leg ROI −75.8% vs simulated all-fires +7.6% = **−83.4pp adverse-selection gap** (exec_audit §4 carry). The band fills when the market moves against the quote, sits unfilled when it moves for. This is adverse selection, not execution noise.
-
-UPDOWN-SNIPER shows the same pattern in miniature at n<40 (not conclusive): worst exit token 6224974 (entry 0.97, exit 0.73 = −24.7%) and token 7664067 (entry 0.99, exit 0.92 = −7.1%) — both entered at certainty-signal trigger and experienced immediate adverse moves.
-
-SIG_FLOOR fix hypothesis: σ-collapse entries (fills occurring when volatility is collapsing = predictably adverse) are now gated by the 0.5bp/√s floor. Post-fix observable round-trips (22:06Z Jul 13 through 10:15Z Jul 14, data-mirror tape): 4W/3L (57% WR, n=7) — wins at +3.3%, +1.0%, resolution +$0.05, resolution +$0.05; losses at −2.1%, −3.1%, −4.3%. The 09:49 exit (0.92→0.88 in 3 seconds) is the worst post-fix loss and shares the "immediate adverse" pattern from pre-fix. n=7 = data-collection; 57% WR is above the 40% target but CI is wide. The 09:49 trade also reveals an unknown exit mechanism ("never sell" policy may have a stop override — worth VPS inspection).
-
-**Verdict: Adverse selection is the systemic defect across both strategies. SIG_FLOOR is the current mitigation; early post-fix data (n=7, 57% WR) is trending positive but not decision-grade.**
-
-### Assumption 3: Recycle velocity scales (RECYCLE099 convergence sells drive capital utilization)
-**STATUS: N/A — untestable**
-
-RECYCLE099 requires BAND_LIVE=True and resting positions on the book. Zero resting positions since Jul 06 (exec_audit §5: `maker_resting_state.json = {}`). Band shadow fires average 11–19/day (gatekeeper shadow table), suggesting volume would exist if band were live — but the mechanism is idle.
-
-**Verdict: Cannot evaluate. Moot until Assumptions 1 and 2 are resolved.**
+### Assumption C: Recycle velocity scales with capital deployment
+**Status: VOID. Zero RECYCLE099 events since Jul 6.**
+- PnL Ledger: exit099_live.jsonl absent Jul 14. Exec Audit: zero recycled events.
+- Cannot evaluate while band is dark. Last validated during Jun–Jul 5 active band window.
+- **Note**: When band re-enables, recycle velocity is the first assumption to verify — any positive rate is unambiguously favorable, but the current base rate is zero.
 
 ---
 
-## 5. MARKET INTELLIGENCE (day 14 mod 3 = 2 — Platform Mechanics)
+## §5 — MARKET INTELLIGENCE (Day mod 3 = 0: Competitor Posture)
 
-*Note: docs.polymarket.com and Polymarket announcements inaccessible from this sandbox (same network block that prevented git fetch). The following is derived from fill tape and specialist reports only. Delta vs state_log knowledge:*
+**Badatmath activity today (00:00–10:16Z UTC)** — from `data/shadow/badatmath_watch.jsonl` (snapshot 10:17Z):
 
-**Maker rebate — most material finding:**
-Two maker fills in 24h tape: 0.030 (35.17sh, $1.06) and 0.040 (40sh, $1.60). Expected rebate: ~$0.013 total (pnl_ledger §3: `shares × 0.05 × p × (1−p) × 0.25`). Near-extreme maker positions earn effectively zero rebate — the quadratic `p(1−p)` factor collapses below 0.03 at p=0.03.
+- **Fill count**: 2,776 fill_join records in 10.3h = **270 fills/hour, 4.5/minute**
+- **USDC deployed**: $7,681 total, avg $2.77/fill, max $15.00/fill (run rate ~$18.5K/day)
+- **Price range**: 0.022–0.884, median 0.22 — predominantly cheap YES (<0.45) on non-mode buckets
+- **Detect lag**: avg 78.5s, min 20.3s, max 153.0s
 
-**Cumulative rebate flag (pnl_ledger §3)**: Expected cumulative rebate $3.40 through Jul 13 exceeds $1.00 pUSD payout threshold. If no pUSD received since Jun 17 band start, eligibility or category-mapping issue may exist with Polymarket's maker-rebate pool. **This is a potential free capital leak requiring user verification.**
+**City coverage** (last hour of tape): Seoul (repeated 3 fills, 0.10 YES for d+2 Jul 17), Warsaw (0.21), Busan (0.15 + 0.23), Mexico City (0.44 mode bucket), Austin (0.18 + 0.07), Sao Paulo (0.137), San Francisco (0.189), London (0.24 d+2 Jul 17), Helsinki (0.712 NO), Chicago (0.21).
 
-**Taker fee rates (observable, unchanged):** Sniper entries at 0.92–0.99 prices correctly target extreme zones where fee rate approaches 0% (consistent with CLAUDE.md and the 2026-03-30 fee reform documentation). No new fee category changes observed in the tape. The 8 new categories added 2026-03-30 appear stable; updown rates ~1.56% at 50% implied odds remain unchanged.
+**Structural deltas vs prior state_log knowledge:**
 
-**No new weather cities, products, or platform mechanism changes detected in observable data.** Live site verification blocked — no delta can be confirmed from external announcements.
+1. **Scale unchanged/increasing**: $7.7K in 10h = ~$18.5K/day. Prior reference (hot/Jul-05) showed comparable deployment. No reduction in activity.
 
----
+2. **Detect lag degraded 2.5×**: Jul-05 hot file shows avg detect lag ~32s inferred from batch timestamps. Today: avg 78.5s. Our watcher is observing competitor fills 2.5× slower. This has no impact on our strategy (we are not racing him on maker bids) but reduces the quality of the badatmath intelligence signal.
 
-## 6. THREE EXPERIMENTS
+3. **Pattern consistent**: Median price 0.22, bulk YES on non-mode buckets, same cities as prior state_log entries. No observable strategy shift.
 
-### Experiment A: Post-SIG_FLOOR WR breakpoint at n=25 (~22h horizon)
-**Hypothesis**: SIG_FLOOR fix eliminated σ-collapse adverse entries. If WR ≥40% holds at n=25 post-fix (22:06Z Jul 13 onward), this is the first falsifiable positive-edge signal.
+4. **Helsinki NO fill at 0.712** (last-hour tape): This is a NO bet on the mode bucket, consistent with his documented favorite-NO overlay. Price 0.712 implies expected YES ~0.288. His NO fill here means he's betting this bucket does NOT win.
 
-| Item | Detail |
-|---|---|
-| Data | maker_fills_recent.log: post-22:06Z Jul 13 entries only; classified by SIG_FLOOR version flag |
-| Time | Naturally accumulates; n=25 ETA ~Jul 15 08:00Z at 6–8 fires/day |
-| Cost | $0 — passive observation |
-| Success metric | Post-fix WR ≥40%, n=25, 90% CI lower-bound ≥0% |
-| Decision-yes | Proceed to n=100 gate; no stake change. Begin documenting READY conditions |
-| Decision-no (WR<30% at n=25) | Alert owner; consider sniper halt before more capital depleted |
-
-### Experiment B: Winner's-curse co-fill cross-tab under Jul-05 clip-guard (2h VPS)
-**Hypothesis**: The −83.4pp G3 adverse-selection gap is driven by a specific fill pattern fixable by the Jul-05 clip-guard (co-fills when market is already moving against quote). If co-fill rate under clip-guard < 30%, the guard closes the gap and band re-enable becomes discussable contingent on dispersion recovery.
-
-| Item | Detail |
-|---|---|
-| Data | VPS: band_resolution_join.py output + STRUCT-BAND-Q fill logs Jul 01–06 (with/without clip-guard applied) |
-| Time | 2h VPS operator analysis; gate-keeper has flagged this since Jul-11 22:15Z (4 days pending) |
-| Cost | $0 capital; ~2h VPS operator time |
-| Success metric | Co-fill rate under clip-guard < 30% of total fills |
-| Decision-yes | Clip-guard closes adverse-selection gap → band re-enable becomes unblocked on G3 dimension (still requires disp_ratio recovery + pair n≥40 + owner instruction) |
-| Decision-no | Adverse selection persists with clip-guard → band requires architectural change (passive limit orders only; no aggressive crossing) |
-
-### Experiment C: Define disp_ratio recovery tripwire (0h — define today)
-**Hypothesis**: The disp_ratio inversion may reverse seasonally (late-July temperature variance widening). Defining a precise numeric tripwire now eliminates ambiguity and delay when/if recovery occurs.
-
-| Item | Detail |
-|---|---|
-| Data | calib_monitor disp_ratio7 daily values (already tracked; currently day 12 ≤0.80) |
-| Time | 0h to define; tripwire is evaluated automatically in daily calib_monitor |
-| Cost | $0 |
-| Success metric | disp_ratio7 > 1.10 for **3 consecutive calendar days** |
-| Decision-yes | Combined with G3 cross-tab (Experiment B) complete + pair n≥40 → publish dated BAND_LIVE re-enable proposal. Do not re-enable on dispersion alone. |
-| Decision-no (remains inverted) | Maintain band dark indefinitely. Do not attempt re-enable for "morale." Data wins. |
+**Leaderboard teardown**: Direct leaderboard API access unavailable in this environment. Last known figure ($4.2M/yr, state_log research) cannot be updated today. Delta: no new information.
 
 ---
 
-## 7. SINGLE BEST ACTION
+## §6 — THREE EXPERIMENTS
 
-**Reduce UPDOWN-SNIPER per-fire position size to $2.00/fire (from current ~$5.30/fire) to extend the data-collection runway to the n≥100 gate without triggering the day-stop.**
+### Experiment 1: Verify post-fix SNIPER WR on first 30 clean settles
+- **Hypothesis**: True WR on post-fix sniper (Jul-14T22:04Z onward) ≥ 88% on a clean n≥30 sample, confirming orphan-sweep fix restored expected edge.
+- **Data**: `logs/updown_sniper_state.json` + resolution outcome join via Gamma API (VPS). Pre-registered MOVE_FLOOR=6bp, SIG_FLOOR.
+- **Time**: ~3 days to accumulate (n=30 at ~10/day → Jul 18)
+- **Cost**: 0 (observation)
+- **Success metric**: WR ≥ 88%, avg entry ≤ 0.95, EV per $2 clip > $0.00
+- **Decision-if-yes**: Propose clip increase to $3 when n≥50, pending n≥100 formal gate
+- **Decision-if-no**: Stop sniper immediately, investigate signal or entry-price distribution. 6%+ loss rate at $2/clip with 0.90–0.98 entries → -EV strategy, not a calibration rounding error.
 
-**Compounding impact × P(success) / effort:**
-- Impact: high — prevents day-stop from wiping 24h data accumulation windows; triples the number of observable fires before halt fires
-- P(success): high — mechanical change with no model dependency; stake reduction cannot degrade WR
-- Effort: low — single config parameter change
+### Experiment 2: Isotonic candidate shadow-only deployment
+- **Hypothesis**: Deploying the Jun-9 candidate curve to band shadow fires will reduce median shadow EV by 10–35% (0.6316 → 0.3739 ceiling) without changing fire rate, producing more realistic G1/G7 pre-conditions.
+- **Data**: Candidate file exists (Jun 9, n=1,037). Today's band_struct shadow: ~10 fires/day.
+- **Time**: 2–3 days of shadow comparison (Jul 17–18)
+- **Cost**: 0 (shadow only, no live capital)
+- **Success metric**: Shadow EV shifts predictably, fire rate unchanged
+- **Decision-if-yes**: Deploy candidate permanently; schedule a fresh Jul-data refit before band re-enable
+- **Decision-if-no** (fire rate collapses or EV inverts): Candidate has a fitting artifact. Request fresh refit from Jun-9 + July data merge.
 
-**Justification from specialist reports:**
-- *Exec_audit ALERT 1* + *data-mirror bankroll*: Jul 14 day P&L = −$0.30 (5% of −$6 stop; day-stop urgency was a go-live-to-cutoff figure, not Jul 14). However, the 09:49Z fill (0.92→0.88, −$0.22) shows the sniper still generates adverse exits post-SIG_FLOOR. At $5.30/fire, a −24.7% exit (pre-fix worst) costs −$1.30; at $2.00/fire it costs −$0.49.
-- *Gatekeeper*: n≥100 gate ETA ~Jul 15 10:00Z assumes continuous sniper operation. Each day-stop fired = 24h of data lost = ETA slips by a day while capital erodes at ~$0.05-1.30/halt-event.
-- *PnL ledger §1*: The two largest sniper losses Jul 13 (−$2.89 on 39sh entry, and −$1.39 on 5.4sh entry) were stake-amplified. At $2/fire, these would have been −$0.15 and −$0.52 respectively.
-- *Post-fix evidence* (data-mirror tape, n=7 post-fix): 4W/3L 57% WR is above target but n<40. This is not yet the evidence base for maintaining current stake. Stake should match data confidence level.
+### Experiment 3: Dispersion gauge daily trend watch
+- **Hypothesis**: disp_ratio7 crosses 1.10 within 5–7 days if July weather variance reverts to seasonal norms. A positive trend (3 consecutive daily increases) would justify pre-positioning band capital decisions now.
+- **Data**: Daily calib_monitor readings (already automated)
+- **Time**: 5–7 days (end date ~Jul 20–22)
+- **Cost**: 0 (observation)
+- **Success metric**: disp_ratio7 > 1.10 on 3 consecutive days, confirmed with direct book data (not carry-forward)
+- **Decision-if-yes**: Initiate capital planning for band re-enable — pair_fav YES first (lowest winner's-curse exposure), NO-band excluded pending G2a re-evaluation
+- **Decision-if-no** (S3 persists through Jul 22): Assess structural regime shift. Consult badatmath fill prices vs Kalman model forecasts. The band thesis may require a seasonal adjustment.
 
-**Concrete first step (PROPOSED ACTION — human review required):**
-Edit sniper configuration `per_fire_stake` (or equivalent) from ~$5.50 to $2.00. Restart with live traffic. Run to n=25 (Experiment A checkpoint, ~22h). If WR ≥40% at n=25: maintain $2 to n=100. If WR ≥40% confirmed at n=100: restore to $5 for full capital deployment.
+---
+
+## §7 — SINGLE BEST ACTION
+
+**Verify the UPDOWN-SNIPER shadow recorder (`updown_shadow` service) is running and logging clean fires into `logs/shadow/updown_sniper/`.**
+
+**Why this action, why now**: The gatekeeper_report identifies the SNIPER n≥100 offline gate as the only gate that can reach a decision threshold in the current window (~Jul 20). This gate is the earliest possible formal re-enable evidence for the only active revenue path. All band gates are frozen. The SNIPER gate is accumulating live — but only if the shadow recorder is running.
+
+The exec_audit_report confirms all sniper fills are UNTRACKED in the main bot. The shadow recorder is the sole system generating fill-sim data for the offline gate. If it went down at the Jul-14T22:04Z restart — a plausible failure mode given the concurrent bot restart — over 24h of gate-accumulating data are already unrecoverably lost.
+
+**Concrete first step**: `systemctl status updown_shadow` on VPS. Check `logs/shadow/updown_sniper/` for today's records. If running: no action needed. If dark: restart immediately. The gate data missed while dark cannot be reconstructed.
+
+**Expected impact**: 0 effort if healthy. Prevents a 2–4 day slip in the Jul-20 gate date if shadow has been dark since restart.
+
+*Sources: Gatekeeper §Observations (sniper n≥100 gate), Exec Audit ALERT-2 (tracker blindness), state_log Jul-13T10:35Z (INVARIANTS #2 shadow-first requirement).*
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-1. **[IMMEDIATE — SNIPER SIZING]** Reduce per-fire stake to $2.00 until n=25 post-SIG_FLOOR validates WR ≥40% (see §7). Cited: exec_audit ALERT 1, gatekeeper sniper gate ETA, pnl_ledger §1 stake-amplified losses.
+*None of the following are implemented. All require owner review.*
 
-2. **[IMMEDIATE — REBATE VERIFICATION]** Verify pUSD wallet for maker rebate deposits since Jun 17. Cumulative expected $3.40 > $1.00 payout threshold per pnl_ledger §3. If zero received, contact Polymarket support with maker category mapping evidence. Free capital.
+1. **Verify `updown_shadow` service on VPS** (§7). Zero risk; potentially irrecoverable gate data loss if dark.
 
-3. **[2H VPS — BAND GATE]** Complete G3 co-fill cross-tab under Jul-05 clip-guard (Experiment B). This is the mandatory prerequisite for any BAND_LIVE re-enable discussion. Pending since Jul-11 22:15Z (4 days overdue). Blocking the entire band gate pipeline.
+2. **Verify `logs/updown_sniper_state.json` is persisted to disk on every fill open and loaded on startup**. The orphan-sweep fix is fail-open — missing state file at restart = bug recurs.
 
-4. **[PASSIVE — BAND MONITOR]** Lock in Experiment C tripwire: disp_ratio7 > 1.10 for ≥3 consecutive calendar days = trigger for BAND_LIVE re-enable proposal. Requires *also*: G3 cross-tab complete + pair n≥40 + owner instruction. Do not re-enable on dispersion signal alone.
+3. **Review isotonic candidate (Jun-9) for shadow deployment** (Experiment 2). 36-day supervision gap flagged by S4 alert. No live capital at risk.
 
-5. **[VPS INSPECTION — SNIPER STOP MECHANISM]** Policy spec (state_log 10:46Z): "hold to redemption, never sell." But fill tape shows mid-window SELL exits in 3–17 seconds in multiple pre- and post-fix trades. Inspect updown_sniper.py for any stop-loss or consecutive-loss halt that forces a market-sell mid-window. If this mechanism exists and triggers prematurely, it is likely the primary driver of sniper losses — stops are harvesting adverse noise in positions that would redeem at 1.0. Low effort, high VoI. Cross-reference the 09:49Z exit (0.92→0.88 in 3s) and 16:49Z pre-fix exit (0.97→0.73 in 3s) as specific examples.
+4. **Do NOT re-enable any band strategy** until all three pre-registered conditions are met: (a) capital > $89.16 ruin floor, (b) disp_ratio7 > 1.10 for 3+ consecutive days, (c) partial resolution of G3 winner's-curse cross-tab. All three are currently active blockers. Single-condition re-enable violates pre-registered criteria.
 
-6. **[NO ACTION — SPRINT_LADDER]** Confirmed disarmed, 0W/7L, no rehabilitation path. Leave dark.
+5. **Wallet verification** (PnL Ledger §1 flag): Confirm Polymarket pUSD balance ≈ $36.54. The $360 MAKER SELL of 367.66 shares (Jul-14T15:49Z) is untracked — if proceeds are not in bankroll.json, true wallet may show ~$370+. Discrepancy > $5 = escalate immediately.
 
 ---
 
-*Research audit by research-agent@Klaus — 2026-07-14*
-*Primary bottleneck: UPDOWN-SNIPER ROI/turn (post-SIG_FLOOR n=7 57% WR — early positive but not decision-grade; stop mechanism unknown) | Best action: reduce sniper stake to $2/fire + inspect stop-sell mechanism*
+*Data sources: exec_audit_report.md (07:07Z ✓), calib_monitor_report.md (12:00Z ✓), gatekeeper_report.md (09:15Z ✓), pnl_ledger_report.md (23:42Z Jul-14 ✓), data-mirror SNAPSHOT.md (10:17Z), band_config.txt, bankroll.json ($36.54), state_log.md, maker_fills_recent.log (186 lines, Jul 12–15), shadow/badatmath_watch.jsonl (2,776 fill_joins, 10:17Z). All specialist reports within 36h ✓. No raw log recomputation where specialist report already covered the measurement.*
