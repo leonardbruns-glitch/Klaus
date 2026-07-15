@@ -28,6 +28,23 @@ recent=$(wc -l <"$STATE")
 last=$(tail -1 "$STATE" 2>/dev/null || echo 0)
 [ -n "$last" ] || last=0
 
+# Aux live services (UPDOWN sniper = the live capital path since 07-13; shadow = its
+# gate sensor). Active-check only: they have no heartbeat file (event-driven logs),
+# so staleness can't be checked without false positives in quiet hours.
+for svc in klaus_updown_sniper klaus_updown_shadow; do
+  if [ "$(systemctl is-active "$svc")" != "active" ]; then
+    st="/var/lib/${svc}_liveness.last"
+    lastr=$(cat "$st" 2>/dev/null || echo 0)
+    if [ $((now - lastr)) -ge "$COOLDOWN" ]; then
+      echo "$now" >"$st"
+      log "restarting $svc (inactive)"
+      systemctl restart "$svc"
+    else
+      log "$svc inactive but inside cooldown"
+    fi
+  fi
+done
+
 unhealthy=""
 if [ "$(systemctl is-active klaus)" != "active" ]; then
   unhealthy="service-inactive"
