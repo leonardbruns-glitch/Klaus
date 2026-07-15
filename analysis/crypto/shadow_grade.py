@@ -12,12 +12,12 @@ Run nightly; accumulates toward the n>=100 gate in experiments.jsonl.
 import glob, json, math, sys, urllib.request
 
 FIX_TS = 1783980283.0
-T_MAX = {900: 120, 300: 30}
+T_MAX = {900: 120, 300: 60}  # mirror live 2026-07-15
 T_MIN = 5.0
 ASK_MIN = 0.90
 ASK_MAX = {900: 0.97, 300: 0.99}
 P_MIN = 0.99
-MOVE_FLOOR = 0.0006
+MOVE_FLOOR = 0.0004  # mirror live 2026-07-15
 SIG_FLOOR = 0.00005
 EDGE_MIN = 0.010
 CLIP_USD = 5.0

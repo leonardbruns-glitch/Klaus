@@ -25,12 +25,16 @@ LOG = "/root/Klaus/logs/updown_sniper.jsonl"
 STATE = "/root/Klaus/logs/updown_sniper_state.json"
 STOP_FILE = "/root/Klaus/logs/UPDOWN_STOP"
 
-T_MAX = {900: 120, 300: 30}
+T_MAX = {900: 120, 300: 60}  # 5m 30->60s 2026-07-15: gate-sweep added slice 18/18 true-label;
+                             # SIG_FLOOR forces >=6.5bp for p>=0.99 at t_left>30s, so no
+                             # low-certainty cell opens (the p<0.99 & >30s combo cell lost)
 T_MIN = 5.0
 ASK_MIN = 0.90
 ASK_MAX = {900: 0.97, 300: 0.99}
 P_MIN = 0.99
-MOVE_FLOOR = 0.0006          # 6 bps: Chainlink/Binance basis guard
+MOVE_FLOOR = 0.0004          # 6->4 bps 2026-07-15: gate-sweep added slice 20/20 true-label;
+                             # basis guard keeps 4x margin over observed <1bp Chainlink/
+                             # Binance basis; certainty still gated by P_MIN + SIG_FLOOR
 SIG_FLOOR = 0.00005          # 0.5bp/sqrt(s) floor on sigma1s: certainty built on a
                              # calmer estimate is sigma-junk (2026-07-13 15m loss:
                              # sig1s 0.195bp -> p 0.9996, then a 13bp reversal = 6z)
