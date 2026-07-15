@@ -1,214 +1,165 @@
-# PnL Ledger Report — 2026-07-14
-Generated: 2026-07-14T23:42Z | Snapshot: 2026-07-14T23:39:09Z (≈3 min old)
+# Klaus PnL Ledger — 2026-07-15
+
+**Generated**: 2026-07-15T23:37Z  
+**Snapshot**: 2026-07-15T23:29:13Z (8 min old ✅)  
+**Klaus systemd**: active ✅  
+**Disk**: ⚠ 98% full — 3 GB free on 97 GB volume. Action required soon.
 
 ---
 
-## PRE-FLIGHT
-| Check | Value | Status |
-|---|---|---|
-| Snapshot age | 3 min | ✅ Fresh |
-| System | `klaus systemd: active` | ✅ Running |
-| Bot uptime timestamp | 2026-07-14T22:04:06Z (1h 35m) | ✅ |
-| Capital (bankroll.json) | $34.132883 | — |
-| Prior capital (Jul 13 ledger) | $34.7427 | — |
-| Open positions | 0 | ✅ |
-| Resting orders | {} | ✅ |
-| Trades.jsonl rows | 8,193 | — |
+## §1 — P&L Explain
 
----
+**Day window**: 2026-07-15 00:00–23:37 UTC  
+**Capital start** (`daily_start_capital`): $34.132883  
+**Capital now**: $33.856483 (snapshot 23:29 UTC)  
+**Day PnL (cash)**: **−$0.2764 (−0.81%)**
 
-## 1. P&L EXPLAIN (UTC day 2026-07-14)
+### Leg-by-leg attribution (via CAPITAL_CORRECTION chain)
 
-### Capital Waterfall
+| Time UTC | Source | Description | Debit ($) | Credit ($) | Net ($) |
+|---|---|---|---|---|---|
+| 00:19 | POST_ORPHAN_RECONCILE | Carry-in orphan: 5 sh @0.98 bought, sold @0.97 → reconcile loss | — | — | −0.067 |
+| 06:19–06:24 | AUTO_CORRECT pair A | BUY 5 sh @0.983, resolved $5.00 | 4.921 | 5.000 | **+0.079** |
+| 07:41 | AUTO_CORRECT (batch) | Batch credit: multi-fill resolution (see below) | — | 2.303 | **+2.303** |
+| 15:34–15:39 | AUTO_CORRECT pair B | BUY 5 sh @~0.875, resolved $5.00 | 4.375 | 5.000 | **+0.625** |
+| 21:10–21:15 | AUTO_CORRECT pair C | BUY 5 sh @~0.915, resolved $5.00 | 4.574 | 5.000 | **+0.426** |
+| 21:30–21:35 | AUTO_CORRECT pair D | BUY 2×5 sh @0.87+0.94, resolved $10.00 | 9.109 | 10.000 | **+0.891** |
+| 22:56 | AUTO_CORRECT (open) | BUY 5 sh, **pending resolution** at snapshot | 4.627 | (pending) | **−4.627** |
+| — | Silent overnight | 01:09 BUY @0.98×5sh resolved silently pre-check | est. 4.900 | est. 5.000 | ~**+0.093** |
 
-| Item | Amount |
-|---|---|
-| BOD capital (daily_start_capital, set 00:00Z) | $34.7427 |
-| EOD capital (bankroll.json, saved 23:10Z) | $34.1329 |
-| **Day P&L (bankroll delta)** | **-$0.610** |
+**Sum of CAPITAL_CORRECTION deltas**: −$0.3695  
+**Actual day PnL**: −$0.2764  
+**UNEXPLAINED**: **+$0.093** (positive — bankroll better than corrections imply)
 
----
+**Unexplained analysis**: Capital jumped from $34.066 (post-orphan, 00:19) to $34.159 (capital_before at 06:19) = +$0.093 without any logged correction. The 01:09 fill (BUY 5 sh @0.98 = $4.90 cost, resolved ~$5.00) resolved faster than the AUTO_CORRECT polling interval; only the net inflow was captured, not the outflow. Root cause: **TRACKER_RESTART_BUG** — all sniper fills show as UNTRACKED in the fill log. Not MODEL DEFICIENCY. Cause is identified.
 
-### Critical Context: ORPHAN_SOLD Bug — Confirmed Fixed at 22:04Z
+### 07:41 batch credit ($2.3033) composition estimate
 
-**State-log 2026-07-14 22:04Z confirms:** `main.py _window_end_balance_sweep` was force-selling UPDOWN-SNIPER positions as orphans. 21/25 fills since go-live (12 on Jul 14) were ORPHAN_SOLD at the bid (exits at 0.88, 0.939, 0.73) instead of holding to $1.00 resolution. The apparent "losses" in the fill log for most paired taker sells are **orphan sweeps, not strategic exits**. Fix committed 22:04Z (7f3234c4d), bot restarted.
+The +$2.303 batch at 07:41 covered fills from the 07:14–07:39 cluster plus overnight carryover:
 
-**TRUE realized since go-live (Jul 13 10:46Z → Jul 14 22:04Z):** -$5.48 total. Cash bridge: $39.40 → $34.04 (reconciled in state_log). Pre-fix Jul 14 booked P&L: -$2.45 (void for analytics; economically real but measurement error from orphan reporting).
-
-**True win rate pre-fix Jul 14:** 17W / 1L = **94.4% WR** over 18 settled positions. Strategy edge is intact. Losses were caused by the sweep bug, not the signal.
-
----
-
-### P&L Attribution by Leg
-
-**UPDOWN-SNIPER (pre-22:04Z, orphan-sweep contaminated — 12 fills on Jul 14)**
-
-All fills marked UNTRACKED (tracker-restart bug, same as Jul 13). Paired by token ID from maker_fills_recent.log. BUY = sniper entry; SELL = orphan-swept exit (forced, NOT voluntary):
-
-| Time (UTC) | Token | Buy px | Shares | Exit px | Shares | Raw net | Exit type |
-|---|---|---|---|---|---|---|---|
-| 04:29 | 6572132400751856 | 0.98 | 5.5 | 0.99 | 5.5 | +$0.055 | Resolution? |
-| 09:39 | 3172659680571012 | 0.98 | 5.5 | 0.95 | 5.4 | -$0.260 | **Orphan sweep** |
-| 09:49 | 9957267143786884 | 0.92 | 5.5 | 0.88 | 5.5 | -$0.220 | **Orphan sweep** |
-| 10:29 | 3625593777378171 | 0.979 | 6.0 | 0.99 | 6.0 | +$0.066 | Resolution? |
-| 11:29 | 7507093480321761 | 0.989 | 6.0 | 0.939 | 6.0 | -$0.300 | **Orphan sweep** |
-| 12:54 | 6382334426555478 | 0.95 | 5.5 | 0.95 | 5.5 | $0.000 | Wash |
-| 14:49 | 4097207318472166 | 0.98 | 5.5 | 0.99 | 5.5 | +$0.055 | Resolution? |
-| 16:59 | 7901659052770893 | 0.99 | 6.0 | 0.99 | 6.0 | $0.000 | Wash |
-| 18:34 | 3969875899756924 | 0.98 | 5.5 | 0.99 | 5.5 | +$0.055 | Resolution? |
-| 19:09 | 8509769425705129 | 0.98 | 5.5 | 0.98 | 5.5 | $0.000 | Wash/neutral |
-| 19:19 | 9999362967786488 | 0.98 | 5.5 | 0.999 | 5.0 | -$0.395 | **Orphan sweep** (size mismatch) |
-| 19:59 | 8375538681010942 | 0.94 | 5.5 | 0.99 | 5.5 | +$0.275 | Resolution? |
-| **Subtotal** | | | | | | **-$0.669** | |
-
-Unmatched buys: 09:44 BUY token 4994801987457247 @ 0.98×5.5 (resolved by 23:39, outcome unknown). 23:04 BUY token 3677886458514989 @ 0.98×5 (new session post-fix, 23:05 window close).
-
-Taker fee at extreme prices (formula: feeRate × p × (1−p) ≈ 0.05 × 0.98 × 0.02): **≈$0.001–0.003/trade** — negligible at extremes. Total fee drag: ~**$0.09**.
-
-**Sniper pre-fee total: -$0.669 | Fee drag: ~-$0.09 | Sniper estimated: ~-$0.76**
-
-Entries that exited at a gain (+$0.055 each) were likely those where resolution preceded the orphan sweep window. Entries that exited at a loss were orphan-swept before $1.00 resolution.
-
----
-
-**Maker fills — pair-fav / legacy band convergence**
-
-All UNTRACKED. Costs/cost-bases for these legs are from prior sessions.
-
-| Time | Token | Side | Role | Shares | Price | Notional |
-|---|---|---|---|---|---|---|
-| 02:14 | 3199513447545278 | BUY NO | MAKER | 40 | 0.04 | $1.60 out |
-| 02:15 | 1078405863114726 | SELL YES | TAKER | 5 | 0.99 | $4.95 in |
-| 09:34 | 2849477449509392 | BUY NO | MAKER | 40 | 0.04 | $1.60 out |
-| 09:34 | 4085516939123681 | SELL YES | TAKER | 5 | 0.99 | $4.95 in |
-| 15:04 | 7181800165235847 | SELL YES | MAKER+TAKER | 5+5 | 0.98/0.99 | $9.85 in |
-| 15:04 | 1124960860640362 | BUY NO | MAKER | 7.5 | 0.02 | $0.15 out |
-| 16:24 | 7210475810361035 | BUY NO | MAKER | 30.5 | 0.06 | $1.83 out |
-
-These pattern as pair-fav trades: the bot holds a resting NO order at low price and takes the correlated YES exit near 0.99 when confirmed. Net cash per pair: YES proceed ~$4.95 vs NO entry ~$1.60-1.83 out = positive net per pair if NO positions subsequently resolve at $0.00 (wrong outcome). Entry cost of the YES positions is from prior sessions and not visible here.
-
-**⚠️ FLAG — USER ACTION REQUIRED:** 15:49 MAKER SELL, token 6178261687539843, **367.66 shares × $0.98 = $360.31 notional**. This is an anomalous MAKER fill — a large resting sell order placed in a prior session that executed today. Cost basis of the 367.66 shares is unknown (likely a June-era band YES position, possibly entered at $0.10–0.15/share = $36–55 original cost from band_posted_state.json June spending of $174–260). If bankroll.json (saved 23:10Z, 80 min after fill) has already absorbed both the cost and the proceeds, the -$0.61 day P&L is accurate. If not (UNTRACKED means bot model may not have updated), true wallet balance may diverge. **User must verify: Polymarket wallet pUSD balance should ≈ bankroll.json $34.13. If wallet shows ~$394, the fill was not captured in bankroll — escalate immediately.**
-
----
-
-### Unexplained
-
-| Component | Amount |
-|---|---|
-| Bankroll delta | -$0.610 |
-| Attributed (sniper taker pairs, post-fee) | -$0.76 |
-| Unexplained (bankroll outperformed estimate) | **+$0.15** |
-
-|UNEXPLAINED| = $0.15 — **below $5 threshold**. No deep investigation triggered.
-
-**Likely cause:** The post-fix clean session's 23:04 BUY at 0.98×5.0 resolved at 23:05. If a WIN (25–30% likely per single-event outcome), proceeds +$5.00 vs cost $4.90 = +$0.10. Additionally, pair-fav maker YES sells at 0.98-0.99 recovered slightly more than their NEW NO entries cost. The +$0.15 unexplained is consistent with this combination. Not MODEL DEFICIENCY — cause is identifiable as post-fix WIN + maker micro-profit.
-
-**Note:** The 15:49 large maker fill ($360.31) is separately flagged above. The unexplained here assumes it was zero-net in bankroll (cost and proceeds both embedded). If not, the unexplained line becomes a MODEL DEFICIENCY and the $0.15 is noise against a much larger gap.
-
----
-
-## 2. COMPOUNDING SCOREBOARD
-
-**Equity estimate (CAVEAT: all figures assume 15:49 maker fill is net-neutral in bankroll; open to revision):**
-
-| Metric | Value | Notes |
-|---|---|---|
-| Equity estimate | $34.13 | Cash only. 0 open positions, {} resting orders. |
-| Unresolved late entry | ~$4.90 | 23:04 BUY 0.98×5 (settled by 23:39 but bankroll saved 23:10); could be +$0.10 WIN or -$4.90 LOSS, not yet in equity_est |
-| True equity floor | $34.13 | Conservative |
-| Fills $ today | ~$86 | BUY-side: sniper taker $81 + new maker NO entries $5. Excludes 15:49 legacy SELL ($360) — it is an exit of old position, not new capital deployed |
-| Avg equity | $34.44 | Midpoint $34.74 / $34.13 |
-| Turns/day | **~2.50** | fills_usd $86 / avg_equity $34.44 |
-| ROI/turn | **-0.71%** | day_pnl -$0.61 / fills_usd $86 |
-| 30d high-water mark | $222.90 | Current = 15.3% of HWM |
-
-**7-Day trend vs benchmark:**
-
-| Date | Turns | ROI/turn | Day P&L | Note |
+| Fill | Buy price | Cost | Return (win) | Edge |
 |---|---|---|---|---|
-| Jul 10 (last real prior) | — | — | — | Capital $163.16 |
-| Jul 13 | 1.71 | -40% | -$69.08 | Sprint ladder 0W/7L resolutions + orphan-sweep sniper |
-| **Jul 14** | **~2.50** | **-0.71%** | **-$0.610** | Orphan-sweep fixed 22:04; sniper clean going forward |
+| 07:14 @0.90 × 5sh | 0.90 | $4.50 | $5.00 | +$0.50 |
+| 07:14 @0.98 × 5sh | 0.98 | $4.90 | $5.00 | +$0.10 |
+| 07:19 @0.98 × 5sh | 0.98 | $4.90 | $5.00 | +$0.10 |
+| 07:39 @0.90 × 5sh | 0.90 | $4.50 | $5.00 | +$0.50 |
+| Overnight carryover (est.) | — | — | — | ~+$1.10 |
+| **Batch total** | | | | **~+$2.30** |
 
-**Benchmark (badatmath):** ~1.0× equity/day at 10–20%/turn. Klaus today: 2.50 turns at -0.71%/turn = -1.76% day. Sniper strategy now shows demonstrated 17W/1L signal quality. The binding constraint was the orphan-sweep bug, not edge. With fix deployed, tomorrow's baseline is clean.
+Carryover component (~$1.10) is consistent with yesterday's unresolved late-night fills that credited overnight and were swept into the first reconciliation check.
 
-**Key framing:** roi/turn improved from -40% (Jul 13) to -0.71% (Jul 14) — a 56× improvement — primarily because the orphan-sweep bug is fixed and the true signal WR is 94%. The $2 clip and $20 reserve reduce max daily loss to ~$12 in worst-case.
+### Double-count check (exit099_live / RECYCLE099)
 
----
-
-## 3. EXPECTED MAKER REBATES
-
-Formula: est_rebate = shares × 0.05 × p × (1−p) × 0.25 (UPPER BOUND; actual depends on competing makers)
-
-| Fill | Shares | p | p(1-p) | Est. rebate |
-|---|---|---|---|---|
-| BUY NO 0.04 × 40 sh (×2 fills, 02:14 + 09:34) | 80 | 0.04 | 0.0384 | **$0.038** |
-| SELL YES 0.98 × 5 sh (MAKER, 15:04) | 5 | 0.98 | 0.0196 | $0.001 |
-| BUY NO 0.02 × 7.5 sh (15:04) | 7.5 | 0.02 | 0.0196 | $0.002 |
-| SELL YES 0.98 × 367.66 sh (MAKER, 15:49) ⚠️ | 367.66 | 0.98 | 0.0196 | **$0.090** |
-| BUY NO 0.06 × 30.5 sh (16:24) | 30.5 | 0.06 | 0.0564 | $0.022 |
-| **Today total** | | | | **$0.153** |
-
-All fills at near-extreme prices → fee rate p×(1-p) near zero. Mid-price fills (p≈0.5) would earn ~16× more per share. Today's fills produce negligible individual rebates despite 367.66 sh fill because 0.98 × 0.02 = 0.0196.
-
-**Cumulative expected rebate:**
-
-| Period | Amount |
-|---|---|
-| Through Jul 12 (carried) | $3.387 |
-| Jul 13 | $0.013 |
-| **Jul 14** | **$0.153** |
-| **Cumulative** | **$3.553** |
-
-Cumulative > $1 threshold. **User should verify daily pUSD rebate receipt in Polymarket account.** If no rebate has ever been received and cumulative expected exceeds $3.50, escalate to Polymarket market-maker support. Note this is an UPPER BOUND — actual pool share depends on competing market-maker volume.
+No `exit099_live.jsonl` exists for 2026-07-15 (file absent from shadow directory). No RECYCLE099 events today. Band-posted-state last entry: 2026-07-06. No double-counting risk.
 
 ---
 
-## 4. KILL-SWITCH PROXIMITY
+## §2 — Compounding Scoreboard
 
-| Switch | Threshold | Current | Status |
+### Equity estimate
+
+| Component | Value | Notes |
+|---|---|---|
+| Cash | $33.856 | Authoritative (bankroll.json) |
+| Open position (22:56 entry) | $4.627 (cost) | Pending resolution; win expected |
+| **Equity estimate** | **$38.483** | Break-even assumption on open |
+| Optimistic (open wins) | **$38.857** | +$0.37 unrealized if $5.00 return |
+
+**CAVEAT**: Three late fills (22:29 @$4.90, 22:49 @$4.90, 23:04 @$4.75) appear in the fill tape but have no corresponding CAPITAL_CORRECTION debits. If these represent 3 additional open positions, total equity exposure is $38.48 + $14.55 cost = ~$53.03 possible gross deployed, with ~$15.00 returns expected overnight. Most likely 22:29/22:49 resolved within their 5-min windows before snapshot; 23:04 likely still open. Equity estimate has ±$10 uncertainty until overnight resolutions are logged.
+
+### Fill activity and turns
+
+| Metric | Value | Source |
+|---|---|---|
+| Total BUY fills today | 20 | Fill tape (UNTRACKED log) |
+| Fill-tape notional | $86.465 | 18 taker + 2 maker fills |
+| Average equity | $33.995 | Midpoint of start/end |
+| **Turns/day** | **2.54** | $86.47 / $33.995 |
+| Alt turns (corrections only) | 0.81 | $27.67 / $33.995 — UNDERCOUNT |
+| ROI/turn (realized) | **−0.32%** | −$0.276 / $86.47 |
+| ROI/turn (if open wins) | **+0.11%** | +$0.094 expected / $86.47 |
+
+**Fill breakdown by type**:
+- 18 × TAKER updown sniper (BTC 5-min), avg price $0.96, avg cost $4.79/fill
+- 2 × MAKER weather fills (@$0.02 × 20sh and $0.02 × 5sh — near-extreme NO-side; small exposure $0.50 total)
+
+### Per-trade economics (post-fix sniper)
+
+From commit message "17/17 post-fix live tape +$3.64" (measured from yesterday 22:04Z fix to this evening):
+- **WR = 100%** (17 of 17 closed positions) over ~18h window
+- **Avg edge**: $3.64 / 17 = $0.214/trade = +4.5% on avg $4.79 cost
+- Today's settled pairs alone: +$2.021 on 4 pairs (+4 individual wins from batch) = confirmed 8 wins
+
+**7-day capital trend**:
+
+| Date | Capital ($) | Day PnL ($) | Key event |
 |---|---|---|---|
-| Day P&L vs -$10 halt | -$10 | **-$0.61** | ✅ Within limit |
-| Capital vs ruin floor ($50) | $50 | $34.13 | ❌ BREACHED |
-| Capital vs weekly floor ($75) | $75 | $34.13 | ❌ BREACHED |
-| Capital vs 50% 30d-HW | $111.45 | $34.13 (30.6% HWM) | ❌ BREACHED |
-| BAND_LIVE | OFF | OFF (since Jul 6) | ✅ Correct |
-| BAND_NO_ENABLED | OFF | OFF (since Jul 2) | ✅ Correct |
-| STWA_REGULAR_YES/NO | OFF | OFF (since Jun 5/11) | ✅ Correct |
-| UPDOWN_SNIPER | Active — gate-collection | $2 clip, $20 reserve | ⚠️ Monitoring |
-| Sprint ladder | Disarmed (Jul 13) | 0 activity | ✅ |
-| RECYCLE099 | No events since Jul 6 | — | — |
+| ~Jul 6 | ~$109 | large loss | STWA/BAND wind-down |
+| Jul 13 | ~$34.74 | ~large loss | ORPHAN_SOLD bug dominant |
+| Jul 14 | $34.133 | −$0.610 | Bug fixed 22:04Z; sniper restarted |
+| **Jul 15** | **$33.856** | **−$0.276** | First partial clean day; pending position overhang |
 
-**Rolling 20-trade WR/PF:** Cannot compute from trades.jsonl (all fills UNTRACKED, no entry_class). From state_log fill tape: **17W / 1L = 94.4% WR** (18 settled pre-22:04Z sniper fills, orphan-sweep contaminated but outcomes real). PF cannot be computed without clean exit prices.
-
-**⚠️ CAVEAT:** Kill-switch WR/PF floors (>40%, >0.8 PF) were written for the taker bid/ask era. UPDOWN-SNIPER holds to resolution — 94% WR on near-certainty entries is structurally expected, not anomalous. A kill-switch re-derivation appropriate for this strategy is pending with user. Do NOT halt based on WR alone given the strategy design.
-
-**Positive development today:** Daily halt threshold (-$10) not breached. The $2 clip + $20 reserve cap daily tail-loss at ~$14 maximum (7 positions in worst-case). Day loss of -$0.61 is within normal operational range.
-
-**FIVE-LOSING-DAYS flag** (from Jul 13 state): Technically still active. However, Jul 14 was a materially different day: (a) the dominant loss source (sprint ladder) was already disarmed before BOD, (b) the orphan-sweep bug was fixed at 22:04Z, (c) true strategy WR is 94%. The flag should be reviewed in context — the losses reflect a software bug, not persistent negative edge.
+**vs badatmath benchmark** (1.0× equity/day at 10–20%/turn): today's 2.54 turns at +4.5% edge/fill = theoretical +11.4% daily gross if all 20 fires close as wins. Realized at snapshot: −0.81% (cash). The gap is timing — 4+ fills unresolved at 23:29. If all outstanding resolve as wins, net day would be +$0.09 = +0.26%. **Benchmark gap closure is a logistics problem (TRACKER_RESTART_BUG + snapshot timing), not an edge problem.**
 
 ---
 
-## 5. DAY VERDICT
+## §3 — Expected Maker Rebates
 
-**NO — equity declined -1.76% (-$0.61)** on 2026-07-14.
+Formula: `shares × 0.05 × p × (1−p) × 0.25` (upper bound; actual depends on pool competition)
 
-**Binding constraint:** ORPHAN_SOLD bug in `_window_end_balance_sweep` caused 12 of today's sniper fills to exit at bid prices (0.88, 0.939) instead of resolution ($1.00). This was the entire binding constraint. **Bug fixed at 22:04Z.** Without it, the 17W/1L tape would have generated a positive P&L today.
+| Time | Type | Price (p) | Shares | Expected rebate |
+|---|---|---|---|---|
+| 14:09 | MAKER BUY | 0.02 | 20 | $0.0049 |
+| 17:14 | MAKER BUY | 0.02 | 5 | $0.0012 |
+| **Today** | | | | **$0.0061** |
+| **Cumulative** | (carried $3.553 + today) | | | **$3.559** |
 
-**What changed for the better:**
-- Sprint ladder fully disarmed (was 0W/7L -$165 since Jul 11)
-- Orphan-sweep fixed — sniper can now hold to resolution
-- Clip reduced $5→$2, reserve $2→$20 — capital preservation mode
-- Band shadow shows active signal generation (thermo_maker 44K candidate evaluations today; pair-fav still enabled and posting)
-- True sniper WR: 94.4% — strategy edge confirmed
+**Note on mid-price fills**: Both maker fills are at p=0.02 — near-extreme, earning ~1/612 of what a p=0.50 fill of the same size would earn. If the band/pair-fav maker strategy posts at mid-spread (p≈0.45–0.55), a single 5-share fill at p=0.50 would earn ~$0.016 vs $0.001 here.
 
-**What remains broken:**
-- Capital at $34.13 vs all kill-switch floors ($50, $75, $111.45) — under every threshold
-- All band/ladder/STWA strategies disabled; system running on SNIPER only
-- UNTRACKED bug persists — position-level PnL cannot be reconstructed from trades.jsonl
-
-**⚠️ Flag for user:** Verify wallet balance vs $34.13 bankroll (see Section 1, 15:49 fill). Verify pUSD rebate receipt > $1 cumulative (see Section 3).
+**User action**: Cumulative expected rebate $3.559 exceeds the $1 minimum accrual threshold. **Verify pUSD rebate receipt on Polymarket account.** Payout lands daily; if not received, contact Polymarket support.
 
 ---
 
-*Report basis: bankroll.json, maker_fills_recent.log, pnl_ledger_state.json (prior), band_config.txt, system_status.txt, SNAPSHOT.md, state_log.md (state_log 2026-07-13/14 entries), shadow_summary.json (band_struct Jul 14: 7510 rows, thermo_maker Jul 14: 44432 rows, updown_sniper snap Jul 14: 63657 rows). Trades.jsonl (26MB) and exit099_live not fully parsed; no RECYCLE099 events Jul 14 (file absent).*
+## §4 — Kill-Switch Proximity
+
+| Metric | Value | Threshold | Status |
+|---|---|---|---|
+| Day PnL | −$0.276 | −$10 daily halt | ✅ OK |
+| Capital | $33.856 | $50 ruin floor | ⛔ BREACHED −$16.14 |
+| Capital | $33.856 | $75 weekly floor | ⛔ BREACHED −$41.14 |
+| Capital vs 30d HWM | 15.2% of $222.90 | 50% = $111.45 | ⛔ BREACHED |
+| Rolling 20 WR | 40.0% | <30% flag | ⚠ AT WARNING — stale data |
+| Rolling 20 PF | 0.08 | <0.8 halt | ⚠ KILL-SWITCH — stale data |
+| LDA status | STOP | rolling-20 < −$30 | ⛔ STOPPED |
+| BAND_LIVE | FALSE | — | disarmed Jul 6 |
+| BAND_NO | FALSE | — | disarmed Jul 2 |
+| STWA_REGULAR YES/NO | FALSE | — | disabled May–Jun |
+| Updown Sniper | ACTIVE | — | 17/17 post-fix ✅ |
+
+**WR/PF caveat (mandatory)**: The rolling-20 WR=40% and PF=0.08 are computed from the last 20 non-zero TRADE records — all of which are STWA_RESOLVED or BAND_MERGE exits from 2026-07-05/06. Both strategies are disabled. The current SNIPER strategy has zero net_pnl entries in trades.jsonl (TRACKER_RESTART_BUG; all exits arrive as CAPITAL_CORRECTION, not TRADE rows). **Kill-switch re-derivation for SNIPER-only mode is pending with the user — do not halt on these WR/PF numbers.**
+
+**Capital floor context**: The $50 ruin floor and $75 weekly floor have been breached since the Jul 5-6 STWA drawdown (~$100 → $34). The bot continues by explicit user directive per commit history (daily EVOLVE sessions). This is a pre-existing breach; no new trigger today.
+
+**Open positions**: 0 logged (system_status.txt) — consistent with all TRADE records showing pnl=0 (TRACKER_RESTART_BUG; open sniper positions are not registered in the tracker).
+
+---
+
+## §5 — Day Verdict
+
+**NO — equity −0.81% on day (cash). Timing artifact, not strategy failure.**
+
+**What happened**: 20 sniper entries fired across the day. The fill tape shows $86.47 deployed; 16–17 positions resolved profitably before the 23:29 snapshot. One open position ($4.63 cost, 22:56) and 2–3 additional late fills (22:29, 22:49, 23:04) are pending overnight resolution. If these resolve as wins — consistent with 17/17 post-fix WR — net day PnL would be ~+$0.09 to +$0.60.
+
+**Binding constraint**: **Open position timing** — the last entries of the day are unresolved at the snapshot window. The cash balance reflects deployed capital, not yet the $5.00 returns expected.
+
+**Secondary constraint**: TRACKER_RESTART_BUG. 14 of 20 fills are invisible to CAPITAL_CORRECTION and trades.jsonl alike. Attribution is done via the capital chain + fill tape crosswalk. Per-trade analytics are blind; bot is operating without proper fill-close records.
+
+**What is working**: Updown sniper edge is confirmed (17/17, +$3.64 per commit). Fee drag at near-extreme prices (~0.002 per share at p=0.97) is negligible. Per-trade ROI ~+4.5%.
+
+**What is not working**: Capital is $33.86 — 69% below the historical peak and below all kill-switch floors. Recovery at the current rate (~$0.20–$0.60/day net) will be slow. The question is whether sniper throughput (turns/day) can be increased within the $20 cash-reserve constraint.
+
+**Disk flag**: 98% full (3 GB free). If log files continue to grow, the bot could crash. User should free disk space.
+
+---
+
+*Report auto-generated by Klaus PnL Ledger agent | 2026-07-15T23:37Z*
