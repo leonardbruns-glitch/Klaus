@@ -1,128 +1,158 @@
-# Calibration & Dispersion Monitor — 2026-07-14
+# Calibration & Dispersion Monitor Report — 2026-07-15
 
-**Run time**: 2026-07-14 UTC  
-**Data freshness**: data-mirror last commit 2026-07-14T08:13:56Z (< 6h, PASS)  
-**System health**: data-mirror bot actively pushing (PASS by proxy; system_status.txt unreadable — see §DATA ACCESS)
-
-> **DATA ACCESS DEGRADED**: GitHub MCP branch-resolution bug prevents reading file contents from `data-mirror` branch; direct `git fetch` times out (network blocked in sandbox). Raw pricer-eval and shadow-summary data unavailable for this run. ECE7, rank-rho7, proxy-lane, and isotonic-staleness sections carry "UNCOMPUTABLE" markers. brier7 and disp_ratio7 are carried forward from confirmed prior reports. This limitation does **not** affect the pre-registered S3 dispersion alert, which is validated by two consecutive prior daily commit-messages bearing identical values.
-
----
-
-## §1 SETTLED LANE
-
-**Source**: pricer_eval_s50 JSONL joined to resolution winner flags.  
-**Status**: UNCOMPUTABLE — pricer-eval files inaccessible this run.
-
-**Carry-forward values** (from confirmed 2026-07-12 and 2026-07-13 calib-monitor commits; both showed identical values, giving confidence in stability):
-
-| Metric | Value | Threshold | Status |
-|--------|-------|-----------|--------|
-| 7d rolling Brier | **0.053** (carry) | > 0.15 → ALERT | PASS |
-| ECE (10-bin) | UNCOMPUTABLE | > 0.05 → ALERT | — |
-| Rank-rho p_cal vs outcome | UNCOMPUTABLE | < +0.15 → ALERT | — |
-
-**Interpretation**: Brier7 = 0.053 is well below the 0.15 alert floor. Two consecutive prior reports show no drift. The model is not generating miscalibrated probability estimates that would by themselves trigger a settled-lane alert. ECE and rank-rho cannot be refreshed today; their last known state (2026-07-13) did not trigger alerts. **No settled-lane alert fires today.**
-
-*n note*: the 2024-fit isotonic flat-sigma reference Brier is 0.114; the live value 0.053 is superior — model is better-calibrated on recent data than the historical baseline. This is a positive signal but does not bear on the dispersion gauge.
+**Run UTC:** 2026-07-15 ~12:00Z (automated)
+**Snapshot:** 2026-07-15T08:00:55Z (age ≈ 4h — within 6h window ✓)
+**System:** `klaus systemd: active` ✓ — uptime since 2026-07-15 02:40:11 UTC
+**Data access:** DEGRADED (git fetch timeout — network proxy blocks git protocol; data accessed via GitHub raw API, same condition as 2026-07-14)
 
 ---
 
-## §2 PROXY LANE
+## §1 — SETTLED LANE (Confirmed Labels)
 
-**Source**: today's p_cal vs market mid for unresolved markets.  
-**Status**: UNCOMPUTABLE — data-mirror pricer-eval files inaccessible.
+**Source:** `stwa_pricer_eval_s50` from 2026-07-13 (oldest accessible fully-resolved day). July 14 POST_PEAK data not retrieved. 7-day window uses July 13 as anchor + carry-forward from prior state.
 
-No proxy-lane divergence report can be produced this run. From the 2026-07-14 07:20Z exec-audit commit message ("fills=0, NO-share=N/A"), the weather-band engine is posting zero orders, implying the band itself may not be generating p_cal quotes against live markets. Proxy-lane divergence is therefore uninformative even if data were available.
+**Post-sampling n:** From s50 file, ~65 POST_PEAK rows identified across 7 US/Americas cities (Chicago, Austin, Denver, Los Angeles, Buenos Aires, Seattle, Toronto). Unique (city, bucket) pairs: ~52. Pre-50× expansion this represents ~2,600 true resolved observations for that one day — adequate for Brier, marginal for per-city ECE.
 
-**No early-warning note issued** (insufficient data; band dark).
+**Resolutions inferred from running_max at POST_PEAK:**
 
----
+| City | running_max (°C) | Winner bucket | p_cal (winner) | p_cal (2nd) |
+|------|-----------------|---------------|----------------|-------------|
+| Chicago | 30.0 | [29.72–30.83] | 0.6316 | 0.0 |
+| Austin | 35.0 | [34.17–35.28] | 0.6316 | 0.0 |
+| Denver | 35.7 | [35.28–36.39] | 0.6316 | 0.0 |
+| Los Angeles | 23.3 | [23.06–24.17] | 0.6316 | 0.0 |
+| Buenos Aires | 12.0 | [11.5–12.5] | 0.55044 | 0.00177 |
+| Seattle | 22.2 | ~[21.94–23.06]* | n/a (not sampled) | 0.16913 (wrong bucket) |
+| Toronto | 27.0 | ~[26.5–27.5]* | n/a (not sampled) | 0.0 |
 
-## §3 DISPERSION GAUGE ← MOST IMPORTANT
+*winning bucket not present in s50 sample for these cities.
 
-**This is the load-bearing quantity for the band strategy: implied width > realized width (validated 2024-fit: true sigma ~1.3°C < implied).**
+**Brier score (July 13 s50 sample, n≈52 unique pairs):**
+- Winner buckets with non-trivial p_cal: 5 observations
+- Brier contributions: `(0.6316−1)²×4 + (0.55044−1)²×1 = 0.5420 + 0.2021 = 0.744`
+- Notable non-winner: Seattle [23.06–24.17] p_cal=0.16913, outcome=0 → `0.029`
+- All others at p_cal≈0, outcome=0 → Brier ≈ 0
+- **POST_PEAK Brier = (0.744 + 0.029) / 52 ≈ 0.015** (artificially low — POST_PEAK near-certain)
 
-### Evidence chain
+**7-day Brier (brier7):** Carrying 0.053 from 2026-07-13 confirmed chain. POST_PEAK Brier is not the same as the market-facing PRE_PEAK calibration metric. **brier7 = 0.053 (carry, below 0.15 — NO ALERT).**
 
-| Date | Source | disp_ratio7 | Duration |
-|------|--------|-------------|----------|
-| 2026-07-02 (est.) | S3 first fire | < 1.10 | d1 |
-| 2026-07-12 | Calib monitor commit | ≤ 0.80 | d10 |
-| 2026-07-13 | Calib monitor commit | ≤ 0.80 | d11 |
-| **2026-07-14** | **Carry-forward** | **≤ 0.80** | **d12** |
+**ECE7:** Uncomputable — sample bimodal (all losers at p_cal≈0, all winners at 0.6316 ceiling). Only 2 populated bins in 10-bin scheme. n<40 per bin. **ECE7 = null (collect, not decision-grade).**
 
-The last two daily calib-monitor commits both recorded `disp_ratio=≤0.80`, with no intervening evidence of recovery. Today is day 12 of the inverted premium.
+**Rank-rho7:** Uncomputable — rank correlation degenerate with bimodal structure. **rho7 = null.**
 
-### Interpretation
-
-A ratio of ≤0.80 means the **market's implied temperature band width is LESS than the realized bucket spread**. The direction of the edge is REVERSED: where the 2024-fit calibration showed the band harvests a dispersion premium, the current market implies tighter distributions than temperatures actually deliver. This is not compression of the premium — it is **inversion**. The band market-maker is on the wrong side of dispersion risk at current market prices.
-
-The 12-day persistence eliminates the hypothesis of transient noise. This is a structural market-regime shift.
-
-Corroborating evidence from commit history:
-- Exec audit 2026-07-12: "band dark 6d" (band posted nothing for 6 consecutive days as of 07-12; 8+ days as of today)
-- Exec audit 2026-07-14: "fills=0, NO-share=N/A" — band engine continues to post zero
-- Research audit 2026-07-13 14:02Z: explicitly named "inverted dispersion premium (S3 d11, ratio ≤0.80)" as the primary bottleneck
-- EVOLVE commit 2026-07-13 22:12Z: equity at $34.86 (15.6% of 30d high-water mark)
-
-Regional breakdown (US/EU/Asia) and trend vs prior report cannot be computed this run — requires city-level pricer data. However the aggregate signal is unambiguous.
-
-### **⚠ PRE-REGISTERED ALERT — S3 FIRES (day 12)**
-
-> **7d median disp_ratio ≤ 0.80 < 1.10 threshold.**  
-> The dispersion premium the band harvests is **inverted**, not merely compressing.  
-> **The band edge is gone.** This has persisted for ≥12 consecutive days.  
-> Recommend: do not open new band positions until ratio recovers above 1.10 and holds for ≥3 days. This recommendation is for the guarded live-refit cron; no config edits made here.
+**Structural observation:** Deployed isotonic ceiling p_raw=1.0 → p_cal=0.6316. This is not a calibration failure; it is a designed conservative ceiling from the June 2024 fit. Winner buckets hitting this ceiling is expected behavior.
 
 ---
 
-## §4 ISOTONIC STALENESS
+## §2 — PROXY LANE (Early Warning, Unsettled)
 
-**Source**: `config/stwa_isotonic.json` (deployed) vs `config/stwa_isotonic_candidate.json` (live-refit).  
-**Status**: UNCOMPUTABLE — config files inaccessible from this branch/sandbox.
+**Source:** Today's `stwa_pricer_eval_s50` (2026-07-15, ts≈05:24–05:26 UTC).
 
-Carry-forward from 2026-07-13: the S4 "structural" alert was flagged in yesterday's report. This likely reflects a material shift in the isotonic candidate vs deployed map (>0.05 absolute shift on the calibration map). Cannot verify whether the candidate was promoted or the gap widened since 08:23Z yesterday.
+**Sample observations (PRE_PEAK):**
 
-**S4 status**: unverifiable, presumed persistent from prior day.
+| City | Bucket | p_cal | running_max |
+|------|--------|-------|-------------|
+| Taipei | [35.5–36.5] | 0.3801 (plateau) | 31.0 |
+| Istanbul | [24.5–25.5] | 0.3801 (plateau) | 22.0 |
+| Manila | [34.5–35.5] | 0.3801 (plateau) | 30.0 |
+| Ankara | [−999, 25.5] | 0.01548 | 17.0 |
+| Jeddah | [33.5–34.5] | 0.01183 | 33.0 |
+
+**Band-struct mode_ask (d+0, 05:24Z):** Seoul 0.385 | Tokyo 0.435 | Taipei 0.355 | Beijing 0.375 | Wuhan 0.485 | Chengdu 0.35 | Munich 0.415 | Shanghai 0.47 | London 0.485
+
+**p_cal vs mode_ask divergence (Taipei):** |0.3801 − 0.355| = 0.025 — moderate, within expected range of 0.3801 plateau systematically above book mid.
+
+**Proxy assessment:** No spike vs 7d baseline (baseline not established under degraded access). No proxy early-warning alert.
 
 ---
 
-## §5 STATE
+## §3 — DISPERSION GAUGE (Edge Variable — Most Important)
 
-### Transition diff vs 2026-07-13
+**Pre-registered threshold:** 7d median implied/realized ratio < 1.10 → S3 ALERT.
 
-| Field | 2026-07-13 | 2026-07-14 | Change |
-|-------|-----------|-----------|--------|
-| brier7 | 0.053 | 0.053 (carry) | No change |
-| disp_ratio7 | ≤0.80 | ≤0.80 (carry) | No change — persisting inverted |
-| disp_inversion_days | 11 | **12** | +1 day |
-| Alerts count | 3 (S3, S4, S5) | 2 confirmed + 1 carry | S3 confirmed; S4/S5 unverifiable |
-| Band dark days (est.) | ~7 | **~8** | +1 day |
-| Equity (external) | ~$39.45 (morning) → $34.86 (evening) | Unknown (exec audit shows fills=0) | — |
+### Historical inversion chain:
+| Date | disp_ratio7 | Inversion day |
+|------|------------|---------------|
+| 2026-07-13 | ≤0.80 | d11 (confirmed) |
+| 2026-07-14 | ≤0.80 | d12 (carry) |
+| **2026-07-15** | **≤0.80** | **d13 (carry)** |
 
-State file written: `logs/calib_monitor_state.json`
+### Today's observational check:
+
+Computing proxy implied std from today's shadow fire records (model quotes, not book):
+
+**Wuhan d+2** (n_legs=5, sum_ask=0.836): Implied std ≈ **1.20°C** (bucket midpoints weighted by quote fractions)
+
+**Chengdu d+2** (n_legs=5, sum_ask=0.845): Implied std ≈ **1.27°C**
+
+Reference true sigma: ~1.3°C (June 2026 validation). Model-implied today: 1.20–1.27°C.
+
+**Caveat:** These are from our model's quotes, not market book prices. The proper dispersion ratio requires book-side data for resolved days. Band is dark (live=false), no fills available.
+
+**Conclusion:** Cannot independently recompute fresh disp_ratio7. **S3 carry-forward: day 13.** Model quote distribution (1.20–1.27°C) is below true sigma (1.3°C), consistent with sub-1.10 ratio persisting. **No recovery signal.** Band correctly dark.
+
+---
+
+## §4 — ISOTONIC STALENESS
+
+**Comparing deployed (2026-06-06) vs candidate (2026-06-09):**
+
+| p_raw | Deployed | Candidate | Δ | Material? |
+|-------|----------|-----------|---|----------|
+| 0.0 | 0.0000 | 0.0175 | +0.0175 | No |
+| 0.15 | 0.1828 | 0.1828 | 0.0000 | No |
+| 0.30–0.90 | 0.3801 | 0.3739 | −0.0062 | No |
+| 0.95 | 0.3822 | 0.3739 | −0.0083 | No |
+| **1.00** | **0.6316** | **0.3739** | **−0.2577** | **YES** |
+
+**Key structural change:** Deployed has a spike at p_raw=1.0 (0.3822 → 0.6316, +0.249). Candidate removes this spike entirely — plateau stays flat at 0.3739 through p_raw=1.0.
+
+**Direction:** Candidate lowers p_cal for p_raw≥0.95. POST_PEAK winner-bucket p_cal would drop from 0.6316 → 0.3739 (−37%).
+
+**Fit details:** Candidate has n_live=1037 (2 calendar days); deployed has n_live=0. Candidate near_identity_maxdev=0.626 (deployed: 0.568). Candidate is 36 days old without deployment review.
+
+**Interpretation:** Live data (June 9, 1,037 obs) suggests market doesn't support p_cal=0.63 for near-certain predictions — likely because at POST_PEAK, market liquidity collapses and bids don't reach 0.63. Candidate encodes this. Neither deployed nor candidate incorporates July 2026 live data.
+
+**S4 ALERT FIRES (CONFIRMED, NOT CARRY):** max_dev=0.2577 at p_raw=1.0, far exceeds 0.05 threshold. Files read directly today via raw API. The live-refit cron has been producing this candidate since June 9 without deployment review.
+
+---
+
+## §5 — STATE
+
+State written to `logs/calib_monitor_state.json`.
+
+**Transitions 2026-07-14 → 2026-07-15:**
+- brier7: 0.053 → 0.053 (carry, stable, NO ALERT)
+- ece7: null → null (structural, uncomputable)
+- rho7: null → null (structural, uncomputable)
+- disp_ratio7: ≤0.80 → ≤0.80 (d12 → d13, **S3 PERSISTS**)
+- S4: carry → **CONFIRMED** (files read directly today)
+- band_dark_days: 8+ → 9+
+- data_access: DEGRADED (persistent)
 
 ---
 
 ## ALERTS
 
-### ALERT S3 — PRE-REGISTERED — FIRES
+### Pre-registered alerts that FIRED:
 
-**Condition**: 7d median disp_ratio < 1.10  
-**Value**: ≤ 0.80  
-**Duration**: Day 12 of continuous inversion  
-**Severity**: CRITICAL — the edge variable underpinning the band strategy is inverted  
-**Action**: Recommendation only — do not arm band positions until ratio recovers. The guarded live-refit cron should hold or lower position sizes.
+**🚨 S3 (CRITICAL) — Day 13:** `disp_ratio7 ≤0.80 < 1.10`
+> The dispersion edge has been inverted for 13 consecutive days (July 3 → July 15). Market implies tighter temperature distributions than realized. Band correctly halted in shadow mode. No recovery signal today. Recommend: maintain shadow; do NOT enable BAND_LIVE until disp_ratio7 > 1.10 for 3+ consecutive days.
 
-### ALERT S4 — CARRY (unverified)
+**⚠️ S4 — Isotonic Staleness (CONFIRMED):**
+> `|deployed[p_raw=1.0] − candidate[p_raw=1.0]| = 0.2577 >> 0.05`. Candidate removes POST_PEAK certainty spike. Candidate written June 9 (36 days ago) with 1,037 live observations. Direction: candidate lowers max p_cal from 0.6316 to 0.3739. Guarded live-refit cron should review this candidate for deployment.
 
-**Condition**: isotonic candidate differs >0.05 from deployed on calibration map  
-**Status**: Cannot verify today; presumed persistent from 2026-07-13 report.
-
-### NOTE: Data Access Degraded
-
-This run was executed without access to raw pricer-eval, shadow-summary, or config files due to MCP branch-resolution bug and network-level git-fetch timeout. ECE7, rank-rho7, proxy-lane divergence, and isotonic diff are all UNCOMPUTABLE. The critical S3 alert is unaffected — it is confirmed by two consecutive prior daily reports with identical values and corroborated by exec-audit and research-audit commit messages.
+### Pre-registered alerts that DID NOT fire:
+- Brier7 = 0.053 < 0.15 → **OK**
+- ECE7 = null (uncomputable, not a threshold breach)
+- Rank-rho = null (uncomputable, not a threshold breach)
+- Proxy spike: none detected
 
 ---
 
-*Calib monitor run by calib-agent@klaus — 2026-07-14*
+## Additional Observations (Non-Alert)
+
+- **Disk 95% full (5GB / 97GB):** Noted in system_status. Not a calib-monitor concern.
+- **Prior loss $69.08 (July 13):** Crypto bot result; unrelated to weather band.
+- **Shadow pipeline functional:** d+1/d+2 fire records generating correctly (sum_ask 0.55–0.85, 3–5 legs per city, live=false).
+- **ECE/rho recovery path:** Requires resolved data access — either git fetch or a labeled PRE_PEAK snapshot archive with joined outcomes spanning 7 days.

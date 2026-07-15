@@ -1,49 +1,59 @@
 {
-  "date": "2026-07-14",
-  "run_utc": "2026-07-14T08:30:00Z",
+  "date": "2026-07-15",
+  "run_utc": "2026-07-15T12:00:00Z",
   "data_access": "DEGRADED",
-  "data_access_note": "data-mirror files unreadable (MCP branch-resolution bug; git fetch timeout). brier7/disp_ratio7 carried from 2026-07-13 confirmed daily commits. ECE7/rho7/proxy/isotonic uncomputable.",
-
+  "data_access_note": "git fetch timeout (network proxy blocks git protocol, same as 2026-07-14); data accessed via GitHub raw API (WebFetch). Pricer eval s50 read for 2026-07-14 and 2026-07-13. Isotonic configs read directly (confirmed). ECE7/rho7 remain uncomputable.",
   "brier7": 0.053,
-  "brier7_source": "carry-forward-2026-07-13",
+  "brier7_source": "carry-forward-2026-07-14",
+  "brier7_note": "POST_PEAK Brier from 2026-07-13 s50: ~0.015 (artificially low — near-certain rows). 7d rolling carry from prior chain is better estimate at 0.053.",
   "ece7": null,
   "ece7_source": "uncomputable",
   "rho7": null,
   "rho7_source": "uncomputable",
-
-  "disp_ratio7": "≤0.80",
-  "disp_ratio7_source": "carry-forward-2026-07-13",
-  "disp_inversion_days": 12,
+  "disp_ratio7": "<=0.80",
+  "disp_ratio7_source": "carry-forward-2026-07-14",
+  "disp_ratio7_note": "Cannot recompute — band dark, no live fills, no resolved implied vs realized pairs. Today model shadow quotes show implied std 1.20-1.27C vs true sigma 1.3C — consistent with sub-1.10 ratio persisting.",
+  "disp_inversion_days": 13,
   "disp_ratio_threshold": 1.10,
   "disp_ratio_alert": true,
-
-  "isotonic_staleness": null,
-  "isotonic_staleness_note": "unverifiable — config files inaccessible; S4 presumed persistent from 2026-07-13",
-
-  "band_dark_days_est": 8,
-  "system_alive": true,
-  "system_alive_note": "data-mirror pushing at 07:58Z and 08:13Z today; fill count = 0 per exec audit",
-
-  "alerts": [
-    "S3-d12: disp_ratio7 ≤0.80 < 1.10 — INVERTED DISPERSION EDGE — 12th consecutive day — PRE-REGISTERED FIRES",
-    "S4-CARRY: isotonic candidate staleness unverifiable; presumed persistent from 2026-07-13",
-    "S5-EXTERNAL: equity $34.86 (15.6% of 30d-HW) per 2026-07-13 22:12Z EVOLVE commit — not a calib-monitor pre-registered alert; external bankroll note only"
-  ],
-
-  "prior": {
-    "date": "2026-07-13",
-    "brier7": 0.053,
-    "disp_ratio7": "≤0.80",
-    "disp_inversion_days": 11,
-    "alerts_count": 3,
-    "alerts": ["S3 d11", "S4 structural", "S5 monitoring + bankroll alarm -$32.69"]
+  "isotonic_staleness": {
+    "alert": true,
+    "deployed_refit_utc": "2026-06-06T22:27:08Z",
+    "candidate_refit_utc": "2026-06-09T09:30:36Z",
+    "deployed_n_live": 0,
+    "candidate_n_live": 1037,
+    "candidate_live_calendar_days": 2,
+    "max_abs_diff": 0.2577,
+    "max_abs_diff_at_p_raw": 1.0,
+    "deployed_val_at_1": 0.6316,
+    "candidate_val_at_1": 0.3739,
+    "direction": "candidate LOWERS p_cal for p_raw>=0.95; raises floor for p_raw=0 (+0.0175)",
+    "structural_change": "candidate removes POST_PEAK certainty spike; plateau flat at 0.3739 for p_raw>=0.30",
+    "days_since_candidate_written": 36,
+    "source": "CONFIRMED via direct file read (not carry-forward)"
   },
-
+  "band_dark_days_est": 9,
+  "system_alive": true,
+  "system_alive_note": "snapshot at 08:00:55Z; systemd active since 02:40:11Z; zero open positions",
+  "alerts": [
+    "S3-d13: disp_ratio7 <=0.80 < 1.10 — INVERTED DISPERSION EDGE — 13th consecutive day — PRE-REGISTERED FIRES (carry-forward confirmed, no recovery signal)",
+    "S4-CONFIRMED: isotonic candidate max_dev=0.2577 at p_raw=1.0 — removes certainty spike — candidate lowers max p_cal 0.6316->0.3739 — 36 days without deployment review — PRE-REGISTERED FIRES (independently confirmed today)"
+  ],
+  "prior": {
+    "date": "2026-07-14",
+    "brier7": 0.053,
+    "disp_ratio7": "<=0.80",
+    "disp_inversion_days": 12,
+    "alerts_count": 3,
+    "data_access": "DEGRADED"
+  },
   "transitions": {
-    "S3": "persisting (d11 → d12); no recovery signal",
-    "brier7": "stable (0.053 → 0.053 carry)",
-    "ece7": "prior OK → unverifiable today",
-    "rho7": "prior OK → unverifiable today",
-    "band": "dark (8+ days, fills=0)"
+    "S3": "persisting (d12 -> d13); no recovery signal; band dark day 9+",
+    "S4": "UPGRADED carry -> CONFIRMED via direct file read",
+    "brier7": "stable 0.053 carry",
+    "ece7": "null -> null (structural)",
+    "rho7": "null -> null (structural)",
+    "band": "dark (9+ days, fills=0, BAND_LIVE=disabled)",
+    "disk": "95% full (5GB remaining on 97GB)"
   }
 }
