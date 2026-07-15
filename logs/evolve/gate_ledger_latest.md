@@ -1,41 +1,36 @@
-# Gate Ledger — refreshed 2026-07-14 22:15 UTC (EVOLVE evening slot; morning slot died on session limit, this run covers the full day)
+# Gate Ledger — refreshed 2026-07-15 11:36 UTC (EVOLVE morning slot)
 
-Source: `band_resolution_join.py` run ON-BOX 22:08Z (n=760 resolved deduped legs this
-join era) + `settled_disp_ratio.py` 22:12Z + wallet-truth reconciliation of the
-UPDOWN-SNIPER tape. **Context: equity $34.04 CLOB-actual cash, 0 open positions =
-15.3% of 30d-HW $222.90 — kernel floor $40 breached (owner-waived 07-13 for
-UPDOWN-SNIPER only); all weather live paths mechanically blocked by engine ruin_floor
-$89.16 and flag-dark. Sim-join ROI is an UPPER BOUND (winners_curse_crosstab_0711);
-no re-enable may cite it alone.**
+Source: `band_resolution_join.py` run ON-BOX 11:27Z (n=672 resolved deduped legs this
+join era) + `settled_disp_ratio.py` (rolling-dates fix, rows through 07-14) +
+`analysis/crypto/shadow_grade.py --refetch` 11:30Z + live sniper tape wallet-truth.
+**Context: cash $37.01 (11:23Z), 0 open positions = 16.6% of 30d-HW $222.90 — kernel
+floor $40 breached (standing 07-13 owner waiver, UPDOWN-SNIPER only); all weather live
+paths mechanically blocked by engine ruin_floor $89.16 and flag-dark (band dark day 9).
+Sim-join ROI is an UPPER BOUND (winners_curse_crosstab_0711); no re-enable may cite it
+alone.**
 
 | Slice | n | WR | avg quote | ROI | CI / note | Verdict |
 |---|---|---|---|---|---|---|
-| BAND YES all (sim join, this era) | 722 | 15.5% | 0.146 | +6.3% | sim upper bound | AMBIGUOUS (dark; rail + curse) |
-| BAND YES off±0 | 151 | 16.6% | 0.226 | −26.7% | sim; negative even as upper bound | REJECTED at center |
-| BAND YES off±2 | 286 | 13.3% | 0.097 | +37.5% | sim upper bound | AMBIGUOUS |
-| YES_PAIR (post-guard era) | 19 | 31.6% | 0.457 | −30.8% | naked-leg curse visible | COLLECTING/NEGATIVE |
-| NO_PAIR (post-guard era) | 19 | 68.4% | 0.422 | +62.0% | co-fill pays regardless | COLLECTING (n<40) |
+| BAND YES all (sim join, this era) | 646 | 15.9% | 0.146 | +9.4% | sim upper bound | AMBIGUOUS (dark; rail + curse) |
+| BAND YES off±0 | 133 | 17.3% | 0.226 | −23.5% | sim; negative even as upper bound | REJECTED at center |
+| BAND YES off±2 | 259 | 12.7% | 0.095 | +33.5% | sim upper bound | AMBIGUOUS |
+| YES_PAIR (post-guard era) | 13 | 38.5% | 0.443 | −13.1% | naked-leg curse visible | COLLECTING/NEGATIVE |
+| NO_PAIR (post-guard era) | 13 | 61.5% | 0.427 | +44.2% | co-fill pays regardless | COLLECTING (n<40) |
 | G3 FILLED_VS_FIRED (realized) | 75 | 17.3% | 0.417 | −75.8% | realized fills 06-11..07-06 | CONFIRMED winner's curse |
 | MIN_LOCKOUT maker | 197/197 | 100% | margin≥1.0 | — | evidence gate PASSED; flag re-cut 07-13 on equity rail | READY-ON-RAIL-CLEAR |
-| S3 disp_ratio ≥1.10×5d | — | — | — | — | pooled 0.71–0.86 all full days Jul 4–10; source rows END 07-11 (n=15 degenerate) — settled-data feed degraded, matches calib_monitor alert | CONDITION NOT MET |
-| UPDOWN-SNIPER live tape (go-live 07-13 10:46Z → 07-14 22:03Z) | 25 tracked fires (+1 untracked 39sh @10:49Z) | booked 76% | 0.97 | TRUE −$5.48 (booked −$11.63 INVALID) | **21/25 fills were force-sold at the bid by the engine's window-end orphan sweep** (main.py) — booked labels wrong in BOTH directions (phantom redemption wins; 3 "full losses" actually stop-lossed at 0.95/0.95/0.73). Fixed 22:04Z: sweep now skips sniper-held tokens. | TAPE VOID pre-22:04Z; gate n≥100 restarts on clean hold-to-redemption samples |
-| UPDOWN-SNIPER clip/reserve | — | — | — | — | CLIP $5→$2, RESERVE $2→$20 deployed 22:04Z (gate-collection mode; path stops at wallet <$22) | COLLECTING |
-| UPDOWN shadow offline gate | regrade from 07-13 snaps | — | — | — | settle-bug fixed 22:05Z 07-13; regrade review 07-15 | REGRADE IN PROGRESS |
+| S3 disp_ratio ≥1.10×5d | rows→07-14 | — | — | — | **feed RESTORED 07-15** (hard-coded DATES list ended 07-10 — script bug, not a dead upstream; now rolls last 18 day-dirs). Pooled 07-11..07-14: 0.718 / 0.816 / 0.675 / 0.942 — all <1.10 | CONDITION NOT MET |
+| UPDOWN-SNIPER live post-fix tape (07-14 22:04Z →) | 9 fills / 9 settles | 100% | 0.955 | +$2.08 on ~$42.4 (+4.9%/$) | hold-to-redemption clean; state reconciles (open={}); 3 FAILED fires = missed crosses, $0 effect | COLLECTING (n<40) |
+| UPDOWN shadow offline regrade (TRUE labels ≥07-13 22:05Z) | 32 | 96.9% | 0.964 | +0.59%/$ | Wilson CI [84.3, 99.4] vs breakeven WR ≈96.4 — **CI does not clear breakeven** | COLLECTING (~41 true-labeled incl. live; gate n≥100) |
+| UPDOWN-SNIPER effective clip | — | — | — | — | **CLOB 5-share buy min ⇒ true fire cost $4.50–4.95, not $2** — every post-fix fill was exactly 5.0 sh. Rails re-based on est_cost=max(CLIP,5·ask) + DAILY_STOP 6→4.5 (commit 7e569bb46, 11:34Z) | RAILS CORRECTED |
 
 Notes:
-- **Orphan-sweep interference (found + fixed this run)**: the sniper runs as a separate
-  process on the shared wallet; its holds never enter `risk.open_positions`, so
-  `_window_end_balance_sweep` treated every sniper fill as an orphan and force-sold at
-  the bid in the final 120s (12 ORPHAN_SELLs on 07-14 alone; slippage to 0.88 and
-  0.939). Every pre-22:04Z live sniper sample measured "sniper + accidental stop-loss",
-  not the registered hold-to-redemption policy. Wallet-truth per-fill join:
-  `logs/evolve/daily_report_2026-07-14.md`.
-- Cash trajectory fully reconciled: $39.40 (go-live) − $2.89 (untracked 10:49Z fill,
-  39.25sh @0.99 sold @0.92) − $2.59 (tracked fills true) ≈ $34.04 now. No unexplained
-  leak.
-- Redeemer is wallet-wide (data-api `redeemable`), so post-fix sniper winners still
-  convert to cash within ~5 min; losers are worthless dust (the 100 "redeemable"
-  curPrice=0 stale positions in the log are resolved losers — noise).
-- Sniper order-failure mode observed 21:09Z/21:39Z: 2 consecutive FIREs with
-  OrderStatus.FAILED, 0 shares (ask taken before our cross landed) — missed fills,
-  no capital effect; monitor frequency.
+- The 07-14 "CLIP $2" ledger entry never reduced per-fire exposure — order_manager
+  snaps BUY size up to the exchange 5-share minimum. Runway math must use ~$4.9/fire:
+  one full-clip loss ≈ 14% of equity, hence the day now halts on realized ≤ −$4.5.
+- Reserve gate now stops fires at wallet < $20 + est_cost (~$24.9 at ask 0.98); before
+  the fix it could take the wallet to ~$17.1.
+- Sniper economics at avg ask 0.955: win +$0.235/fire vs loss −$4.78/fire → breakeven
+  WR ≈ 95.3%. The regraded shadow WR point estimate (96.9%) is above, the CI is not.
+  This stays a gate-collection path, not a compounding engine, until n≥100.
+- band dark day 9; audit.log: "no WEATHER trades in last 1d" ×6 days — expected, not
+  an anomaly, while flags are dark and ruin_floor blocks entries.
