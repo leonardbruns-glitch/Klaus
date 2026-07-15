@@ -14,7 +14,7 @@ ab7d1768c EVOLVE 2026-07-13 evening: MIN_LOCKOUT_LIVE revert (pre-registered con
 52416be67 UPDOWN settle-bug fix + SIG_FLOOR: winner only on exact 1/0 outcomePrices (84/196 labels were wrong; true win booked as -5.33 loss, wallet redeemed +5.50), never book without true resolution; sigma floor 0.5bp/sqrt(s) kills the sigma-junk certainty mode (true-label tape 07-13: v1 8 fires 7W1L -$4.02 vs floored 6/6W +$0.83). TRUE day-1: 4W/1L -$4.29 (booked -9.79 was phantom)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        5G  95% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        6G  95% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Wed 2026-07-15 02:40:11 UTC
