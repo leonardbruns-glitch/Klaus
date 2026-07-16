@@ -104,3 +104,38 @@ Honest framing, both directions:
   an unattributed OUTFLOW would be a bug hunt before anything else.
 - 15m cadence is under-evidenced (n=5) and supplied today's breaching loss —
   gate it separately at re-enable.
+
+---
+
+# EVENING SLOT ADDENDUM — 21:53 UTC run
+
+## Health
+- All three services active (`klaus`, `klaus_updown_sniper`, `klaus_updown_shadow`); no watchdog restarts since 07-14T22:03; no CRASHLOOP flag. Morning slot ended rc=0 → no backlog.
+- The day changed shape after the morning cut: **owner waivers (interactive, 14:59/15:06/15:14Z) re-enabled the CANDIDATE and activated Kelly sizing at FRAC 0.50, CLIP_CAP $100, RESERVE $5, serial-fire rule, MAX_LOSSES_DAY 1.** UPDOWN_KELLY=1 in the unit env verified; code constants match the ledger. Sizing is now Tier-3 owner-only — this loop's role is the kill-watch.
+
+## Equity & PnL
+- **Equity $28.16** (CLOB free USDC; 0 open anywhere; sniper open={}). Reconciles to 1¢ against the last fire's Kelly-clip back-chain; ~10¢ (<0.4%) residual vs the morning $26.55 over the whole day. No unattributed inflow this slot.
+- Day realized: **−$5.73** (v1 tape −$7.43 pre-cut + candidate +$1.70). Sniper post-07-14-fix total: −$6.44 (v1 −$8.14 CLOSED + candidate +$1.70). Engine trades.jsonl 7d flow: $0 (weather dark).
+
+## Sniper gate (the number the loop turns on)
+- **Candidate slice (p≥0.995, 5m, TRUE labels): n=44, WR 100%, +$10.46; CI-lo 0.9197 vs slice breakeven 0.9557 — COLLECTING.** Zero-loss CI clear lands at n≈84. Pooled: n=117 WR 96.6% [91.5, 98.7] vs BE 96.3.
+- **Candidate live tape: 5W/0L +$1.70**, clips $13.7–14.2, 1 FOK miss ($0), fill rate 5/6. Serial-fire rule observed working.
+- **Kill-watch verdict: CLEAN** — 0/3 candidate losses; slice point 1.000 > BE; PF gate not yet applicable (<20). No UPDOWN_STOP re-touch.
+- Honest framing: at Kelly 0.50 one loss costs ~$14 (≈25 wins) and ends the day. The 44/44 slice is real but its CI floor (0.92) still sits below breakeven (0.956) — the edge is *unconfirmed at this size*; the owner chose the risk knowingly (declared ceiling, ruin math in ledger 15:06/15:14Z). Fire cadence ~1/h → live n=100 ETA ~4d; the shadow slice clears (or breaks) first.
+
+## Actions taken
+- None live (0 loop changes this slot; day already had the 11:33 cut + 3 owner escalations). Bookkeeping: SIG_FLOOR review closed **KEEP** (fires every day since deploy; zero repeat sigma-junk losses; floor is load-bearing at $14 clips). Gate ledger, experiments.jsonl, state_log refreshed.
+
+## Actions rejected
+- Any sizing/param touch on the sniper — Tier-3 owner-only post-waiver, and nothing in the data argues for tightening beyond the standing rails today (kill-watch clean).
+- Band/weather re-enable — disp_ratio 5d NOT met (0.816/0.675/0.942/1.097/2.406-partial). The 2.406 is today's partial row (n=17); if the 07-17 full-day row holds ≥1.10 it still needs 5 sustained days.
+- Per-asset cell grading — tape spans only 2 days tomorrow; due at the 07-17 slot as planned.
+
+## Experiments
+- `updown_sniper_candidate_live` NEW (COLLECTING, kill-watch terms in entry) · `updown_shadow_offline_gate` COLLECTING (review 07-18) · `updown_multiasset_15m` day-2 complete, grade 07-17 · v1 live tape CLOSED (STOPPED-BY-RAIL, never pooled).
+
+## Standing risks
+1. **Kelly 0.50 on an unconfirmed edge** — growth turns negative below true WR ~0.965; posterior on 44/0 leaves ~10–15% mass there. Bounded by MAX_LOSSES_DAY=1 (worst day ≈ −50%) and the ≥3-loss kill. This is the top watch item every slot.
+2. Day-stop under Kelly scales to max(4.5, 1.2×last_clip) = $16.55 — one full-clip loss both halts the day (MAX_LOSSES_DAY) and nearly fills the stop; consistent, but verify the first real loss settles the day cleanly.
+3. 15m cell (n=6, WR 0.833, −$3.71) stays excluded — do not let it back in with the candidate.
+4. Weather disp_ratio partial-day spike (2.406, n=17) — check the settled full row tomorrow.
