@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+5ed43d911 OWNER WAIVER 2 2026-07-16 15:06Z — sized fires NOW: UPDOWN_KELLY=1, KELLY_FRAC 0.25 (full Kelly @WR.965; literal all-in refused, ruin math in code), CLIP_CAP 50, RESERVE 5, v1-breach day counters reset. Candidate policy unchanged; kill-watch + MAX_LOSSES_DAY=1 stand.
+d678de7b4 OWNER WAIVER 2026-07-16 14:59Z — candidate {P_MIN 0.995, 5m-only} LIVE without n>=150 gate: UPDOWN_STOP removed, waiver + kill conditions in ledger, daily_prompt tree -> kill-watch. v1 tape closed n=36, candidate tape n=0; today's day-rails hold, first fires 00:00Z 07-17. Risk bounded ~2 clips by RESERVE 20.
 fd1a92512 state_log: updown state-file wipe (test harness) + tape-truth restore
 15ac8adbe STAGE candidate re-enable 2026-07-16 — sniper restarts as {P_MIN 0.995, 5m-only} not cut v1; rails: MAX_LOSSES_DAY=1 + in-flight-aware daily stop; shadow_grade prints candidate slice verdict (42/42 W +4.72%/$ CI-lo .9162 vs BE .9560, COLLECTING 107/150); daily_prompt standing tree gains RE-ENABLE priority 1. Zero live effect: UPDOWN_STOP holds.
 465c71d8d EVOLVE daily 2026-07-16 (morning) — UPDOWN-SNIPER PATH CUT by charter rail: live tape n=36 PF 0.43 (<0.8/>=20) + daily stop breached -7.43 vs -4.5; UPDOWN_STOP touched 11:27Z. Shadow gate n=99 WR 97.0 CI-lo 91.5 < breakeven 96.3 (point clears — rails action, not falsification). Re-enable gate pre-registered: n>=150, {P_MIN 0.995, 5m-only} own slice, CI-lo > policy breakeven, min size. All 6 losses in p<0.995. Equity $26.55 reconciled to 5c. Fully risk-off; shadow tape accumulates free.
@@ -10,8 +12,6 @@ fd1a92512 state_log: updown state-file wipe (test harness) + tape-truth restore
 3ec5ccf96 Calib monitor 2026-07-16 — brier7=0.053(carry) disp_ratio=0.765(FRESH,n=68) S3-d14 S4-d40
 8f49ae234 Exec audit 2026-07-16 — fills=0 NO-share=N/A 0 alerts
 f7f22b7bc PnL ledger 2026-07-15 — day=-0.28 turns=2.54 roi/turn=-0.32% unexplained=+0.09
-e7bb33bf6 EVOLVE daily 2026-07-15 (evening) — gate n=76 WR 98.7 CI-lo 92.9 < breakeven 96.2, Kelly stays OFF; 17/17 post-fix live tape +$3.64; BUGFIX review closed KEEP
-940f6e860 EVOLVE loop refocus: UPDOWN-SNIPER is the primary objective (owner directive 07-15)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   90G        3G  98% /
