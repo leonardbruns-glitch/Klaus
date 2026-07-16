@@ -3,15 +3,15 @@
     "n": 934,
     "n_label": "resolved (VPS all-time CI base; window-relative n=788 Jul05 22:25Z)",
     "n_fires": 6283,
-    "n_fires_shadow_added_since_wind_down": 107,
+    "n_fires_shadow_added_since_wind_down": 123,
     "n_prev": 934,
     "status": "AMBIGUOUS",
     "roi": 4.0,
     "ci95": [-10.9, 21.1],
     "wr": 0.153,
     "resolved": 934,
-    "ts": "2026-07-15T09:15:00Z",
-    "note": "No change. Band dark day 9 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen — 0 new resolutions possible while band dark. Shadow fires: +20 new since prior run (Jul-14: 10 fires, Jul-15 partial 9h: 10 fires) = 107 total since wind-down. CRITICAL: ROI +4.0% is UPPER BOUND per winner's curse analysis (state_log Jul-11 22:15Z, G3 n=75 filled WR 17.3% vs sim 92.9% on NO d+1 0.60-0.85). No band re-enable may cite this ROI. CI straddles 0 -> AMBIGUOUS; winner's curse blocker makes this gate structurally inert until capital + WC resolved."
+    "ts": "2026-07-16T09:13:40Z",
+    "note": "No change. Band dark day 10 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen — 0 new resolutions possible while band dark. Shadow fires: +16 new since prior run (Jul-15 post-09:15Z: 5, Jul-16 partial 9h: 11) = 123 total since wind-down. Rate 13.0/day (9.46d window). CRITICAL: ROI +4.0% is UPPER BOUND per winner's curse analysis (state_log Jul-11 22:15Z). CI straddles 0 -> AMBIGUOUS; winner's curse blocker makes this gate structurally inert until capital + WC resolved."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
@@ -56,11 +56,11 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Post-guard n=9, 0 new (frozen). COUNTERFACTUAL CI=[+12.6,+85.5] at n=32 QUALIFIED: state_log Jul-11 22:15Z confirms CF ROI inherits simulation bias (winner's curse). Co-filled pair (Sigma <= 0.92, pays 1.0 on completion) is the exception — adverse selection in naked leg only. Exec Auditor should cross-tab co-fill rate. Do not re-enable on CF ROI alone. ETA n=100: ~8.3d from re-enable."
+        "note": "Post-guard n=9, 0 new (frozen). COUNTERFACTUAL CI=[+12.6,+85.5] at n=32 QUALIFIED: state_log Jul-11 22:15Z confirms CF ROI inherits simulation bias (winner's curse). Co-filled pair (Sigma <= 0.92, pays 1.0 on completion) is exception — adverse selection in naked leg only. Exec Auditor should cross-tab co-fill rate. Do not re-enable on CF ROI alone. ETA n=100: ~8.3d from re-enable."
       }
     },
-    "ts": "2026-07-15T09:15:00Z",
-    "note": "No new live fires since Jul-06 wind-down. CF CI-clear qualified by winner's curse. No structural decision taken. Band dark day 9."
+    "ts": "2026-07-16T09:13:40Z",
+    "note": "No new live fires since Jul-06 wind-down. CF CI-clear qualified by winner's curse. No structural decision taken. Band dark day 10."
   },
   "FILLED_VS_FIRED": {
     "n": 75,
@@ -76,8 +76,14 @@
     "ci95_method": "Wilson WR CI [10.4%, 27.4%] translated to ROI at avg_px=0.417; CI entirely negative",
     "resolved": 75,
     "resolved_scope": "WEATHER_MAKER fills 2026-06-11..2026-07-06 all-time VPS join (winners_curse_crosstab_0711.py)",
-    "ts": "2026-07-15T09:15:00Z",
-    "note": "No change. maker_fills_recent.log (Jul-12..Jul-15, full log) contains ZERO MAKER-FILL or STRUCT-BAND-Q entries — all fills are UNTRACKED sprint/ladder/orphan-sell/sniper events. n=75 frozen. WATCH_ITEM status maintained. Exec Auditor cross-tab of co-fill rate under Jul-05 clip-guard is the outstanding mandatory action before any band re-enable discussion."
+    "new_fills_since_prior": {
+      "maker_fills": 6,
+      "taker_fills": 22,
+      "maker_fill_types": "UNTRACKED only — orphan band positions BUY@0.02-0.09 + sniper TAKER BUY@0.96-0.99",
+      "struct_band_q_fills": 0
+    },
+    "ts": "2026-07-16T09:13:40Z",
+    "note": "No change. maker_fills_recent.log Jul-12..Jul-16 09:05Z: 6 new MAKER fills (orphan band BUY@0.02-0.09, not STRUCT-BAND-Q) + 22 TAKER fills (sniper 0.96-0.99). ZERO MAKER-FILL or STRUCT-BAND-Q entries. n=75 frozen. WATCH_ITEM maintained. Exec Auditor co-fill cross-tab under Jul-05 clip-guard = outstanding mandatory action."
   },
   "BASKET_EXIT": {
     "n": null,
@@ -97,8 +103,9 @@
     "ci95": [-9.0, 2.0],
     "wr": null,
     "resolved": 125,
-    "ts": "2026-07-15T09:15:00Z",
-    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). THERMO_MAKER_LIVE=False since Jun-23 18:40. Shadow thermo_maker.jsonl accumulates candidates only (no fills/resolutions). Action complete. CI_upper=+2.0% just above 0 but REJECTED is pre-registered decision — no reconsideration without explicit human directive."
+    "shadow_candidates_rolling_file": 13122,
+    "ts": "2026-07-16T09:13:40Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). THERMO_MAKER_LIVE=False since Jun-23 18:40. Shadow thermo_maker.jsonl rolling: 13,122 candidate records. No resolutions possible. No reconsideration without explicit human directive."
   },
   "M1_BETA_LOCKOUT": {
     "n": 31,
@@ -108,61 +115,63 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-07-15T09:15:00Z",
-    "note": "No change to gate. REJECTED (EVOLVE Jul-04 21:53Z). METAR_LOCKOUT_TEMP_FLOOR=0.5C. MIN_LOCKOUT_LIVE reverted to False on 2026-07-13T22:08Z (pre-registered condition fired: equity < 50% 30d-HW). 0 orders posted during 2d live window (engine ruin_floor $89.16 mechanically blocked all entries). Gate evidence unchanged (197/197 margin>=1.0). Gate status REJECTED: standing decision from EVOLVE."
+    "shadow_candidates_rolling_file": 16844,
+    "ts": "2026-07-16T09:13:40Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). MIN_LOCKOUT_LIVE=False since 2026-07-13T22:08Z. metar_min_lockout.jsonl: 16,844 candidates (Jul-15: 2,122; Jul-16: 14,722). Zero live orders posted. Gate evidence unchanged. Status: REJECTED (standing EVOLVE decision)."
   },
   "SUM_POSTED_0.70_0.85": {
     "n": 382,
     "n_label": "resolved (VPS join 07-09 22:20Z; first-fire dedup YES legs sum_posted in [0.70,0.85])",
-    "n_shadow_fires_all_time": 3159,
-    "n_shadow_fires_added_since_wind_down": 72,
+    "n_shadow_fires_all_time": 3175,
+    "n_shadow_fires_added_since_wind_down": 85,
     "n_prev_resolved": 382,
-    "n_prev_shadow_fires": 3149,
+    "n_prev_shadow_fires": 3159,
     "status": "AMBIGUOUS",
     "roi": 11.5,
     "ci95": [-11.4, 38.9],
     "wr": null,
     "resolved": 382,
-    "ts": "2026-07-15T09:15:00Z",
-    "note": "No change to resolved count. AMBIGUOUS (n=382, ROI=+11.5%, CI=[-11.4,+38.9]). 0 new resolved records since Jul-06 22:08Z (band dark). New G7 shadow fires: +10 (Jul-14: 4 fires, Jul-15 partial: 6 fires). CRITICAL: ROI +11.5% is UPPER BOUND per winner's curse analysis (state_log Jul-11 22:15Z). CI already straddles 0; even at true ROI the CI would need n~1,528 to push CI_lower>0 — moot while band dark. Jul-15 partial fires observed: Beijing d+1 0.74, Wuhan d+2 0.836, Seoul d+2 0.716, Shanghai d+2 0.811, Chongqing d+2 0.770, Chengdu d+2 0.845."
+    "ts": "2026-07-16T09:13:40Z",
+    "note": "No change to resolved count. AMBIGUOUS (n=382, ROI=+11.5%, CI=[-11.4,+38.9]). 0 new resolved records since Jul-06 22:08Z (band dark). New G7 shadow fires in [0.70,0.85]: +13 (Jul-15 post-09:15Z: 4; Jul-16 partial: 9) = 85 total since wind-down. Rate ~9.0/day (9.46d avg). CRITICAL: ROI +11.5% is UPPER BOUND per winner's curse analysis. CI straddles 0; gate inert while band dark. Jul-16 in-range fires: Seoul d+1 0.80, Taipei d+1 0.84, Seoul d+2 0.84, Wuhan d+2 0.84, Shanghai d+2 0.84, Munich d+2 0.73."
   },
   "_run_meta": {
-    "run_ts": "2026-07-15T09:15:00Z",
-    "snapshot_ts": "2026-07-15T09:01:39Z",
-    "snapshot_age_min": 14,
-    "snapshot_commit": "93133b9d5",
-    "bankroll_capital": 36.541423,
-    "bankroll_at_prior_run": 34.6929,
-    "bankroll_change_24h": 1.85,
-    "bankroll_change_pct_24h": 5.3,
-    "daily_start_capital": 34.132883,
-    "intraday_draw": 2.41,
+    "run_ts": "2026-07-16T09:13:40Z",
+    "snapshot_ts": "2026-07-16T09:05:16Z",
+    "snapshot_age_min": 8,
+    "bankroll_capital": 31.074253,
+    "bankroll_at_prior_run": 36.541423,
+    "bankroll_change_24h": -5.47,
+    "bankroll_change_pct_24h": -15.0,
+    "daily_start_capital": 33.856483,
+    "intraday_draw_jul16": -2.79,
+    "daily_stop_sniper": -4.50,
     "ruin_floor_engine": 89.16,
+    "bankroll_pct_of_ruin_floor": 34.9,
     "bankroll_below_ruin_floor": true,
     "open_positions": 0,
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
-    "band_dark_days": 9,
-    "shadow_fires_24h": 20,
-    "shadow_fires_g7_24h": 10,
+    "band_dark_days": 10,
+    "shadow_fires_24h": 16,
+    "shadow_fires_g7_24h": 13,
     "newly_ready": [],
     "newly_rejected": [],
     "newly_watch_item": [],
     "newly_ambiguous": [],
     "state_transitions": [],
     "structural_blockers": [
-      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 9. Zero band resolutions flowing.",
-      "Capital $36.54 below engine ruin_floor $89.16 (40.9%) — all band paths mechanically blocked",
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 10. Zero band resolutions flowing.",
+      "Capital $31.07 below engine ruin_floor $89.16 (34.9%) — all band paths mechanically blocked",
       "Pre-registered BAND_LIVE re-enable condition unmet: post-guard pair n>=40 (n=9, frozen)",
       "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND — no band re-enable may cite G1 or G7 sim CI as evidence",
       "G2a BAND_NO: live n=51 WR=39.2% effectively REJECTED; shadow CI AMBIGUOUS but irrelevant",
       "VPS band_resolution_join.py: cannot refresh (network-blocked sandbox) — all resolution n counts frozen at Jul-06 state"
     ],
     "alerts": [
-      "[CAPITAL RECOVERY] Bankroll $36.54, up +$1.85 (+5.3%) from prior run $34.69. Source: UPDOWN-SNIPER (CLIP_USD cut to $2 per EVOLVE Jul-14). Still 40.9% of engine ruin_floor $89.16.",
-      "[G3 WATCH_ITEM HOLDS] n=75 filled, ROI=-75.8% vs sim+7.6% = -83.4pp gap. 0 new band fills in maker_fills_recent.log. Exec Auditor co-fill cross-tab mandatory.",
-      "[ALL UNTRACKED FILLS] Jul-12..Jul-15 fill tape: 100% UNTRACKED (sniper/sprint/orphan). Zero MAKER-FILL or STRUCT-BAND-Q entries. G3 frozen.",
-      "[SNIPER ACTIVITY] Jul-15 fills visible (BUY@0.90-0.98 clips $5, pre-snapshot): positive PnL contribution but non-canonical gate. Exec Auditor scope."
+      "[CAPITAL DRAW] Bankroll $31.07, down -$5.47 (-15.0%) from prior run $36.54. Source: UPDOWN-SNIPER. 2 losses (Jul-15 22:56Z -$4.63; Jul-16 05:03Z -$4.22). Intraday Jul-16: -$2.79 (daily stop -$4.50, within limit as of 07:31Z). Capital at 34.9% of engine ruin floor.",
+      "[G3 WATCH_ITEM HOLDS] n=75 filled, ROI=-75.8% vs sim+7.6% = -83.4pp gap. 0 new band fills. 6 new MAKER fills are band-orphan positions (BUY@0.02-0.09), NOT STRUCT-BAND-Q. Exec Auditor co-fill cross-tab mandatory.",
+      "[ALL FILLS UNTRACKED] Jul-12..Jul-16 fill tape: 100% UNTRACKED (sniper TAKER + band-maker orphan MAKER). Zero MAKER-FILL or STRUCT-BAND-Q entries. G3 frozen.",
+      "[SHADOW FIRES] +16 total fires, +13 G7 in-range since prior run. Counterfactual only — no resolution truth."
     ],
     "proposed_actions": []
   }
