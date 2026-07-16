@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+f8829cd90 EVOLVE evening 2026-07-16 21:53Z — kill-watch CLEAN (candidate live 5W/0L +$1.70, slice 44/44 CI-lo .9197 vs BE .9557 COLLECTING), 0 live changes; SIG_FLOOR review KEEP; gate ledger + experiments + report refreshed
 2c31d0769 OWNER ESCALATION 3 2026-07-16 15:14Z — KELLY_FRAC 0.50 (declared ceiling: full Kelly @WR.976, 2/3 Kelly @point est .988), CLIP_CAP 100, serial-fire rule under Kelly. Worst day -50% via 1-loss halt; 100%/fire stays refused.
 5ed43d911 OWNER WAIVER 2 2026-07-16 15:06Z — sized fires NOW: UPDOWN_KELLY=1, KELLY_FRAC 0.25 (full Kelly @WR.965; literal all-in refused, ruin math in code), CLIP_CAP 50, RESERVE 5, v1-breach day counters reset. Candidate policy unchanged; kill-watch + MAX_LOSSES_DAY=1 stand.
 d678de7b4 OWNER WAIVER 2026-07-16 14:59Z — candidate {P_MIN 0.995, 5m-only} LIVE without n>=150 gate: UPDOWN_STOP removed, waiver + kill conditions in ledger, daily_prompt tree -> kill-watch. v1 tape closed n=36, candidate tape n=0; today's day-rails hold, first fires 00:00Z 07-17. Risk bounded ~2 clips by RESERVE 20.
@@ -11,7 +12,6 @@ fd1a92512 state_log: updown state-file wipe (test harness) + tape-truth restore
 3f12b1939 Research audit 2026-07-16T1040Z — daily stop BREACHED −$7.31 vs −$4.50 limit | best action: investigate stop-loss counter reset bug on VPS
 0315d6793 Gate-keeper 2026-07-16 — ready=0 rejected=0 collecting=2 ambiguous=3 watch=1
 3ec5ccf96 Calib monitor 2026-07-16 — brier7=0.053(carry) disp_ratio=0.765(FRESH,n=68) S3-d14 S4-d40
-8f49ae234 Exec audit 2026-07-16 — fills=0 NO-share=N/A 0 alerts
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   91G        2G  99% /
