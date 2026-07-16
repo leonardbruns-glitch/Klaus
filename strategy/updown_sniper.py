@@ -55,10 +55,11 @@ CLIP_USD = 2.0               # 5.0 -> 2.0 2026-07-14: gate-collection mode — e
                              # minimum fire is 5 shares = $4.50-4.95 at ask 0.90-0.99;
                              # $2 is unreachable. est_cost in signal_loop carries the
                              # real number into the depth + reserve gates.
-RESERVE_USD = 20.0           # 2.0 -> 20.0 2026-07-14: owner floor waiver (07-13,
-                             # equity $39.40) has no lower bound — this stops fires at
-                             # wallet <$22 so one path cannot burn to ruin; $20 matches
-                             # the owner's sprint-ladder hard cash reserve
+RESERVE_USD = 5.0            # 20.0 -> 5.0 2026-07-16 OWNER WAIVER ("go full size in
+                             # every fire"): at $26.55 equity the $20 reserve capped
+                             # any clip at $6.55, nullifying sized fires. $5 kept as
+                             # gas/dust floor only. Ruin brake is now geometric:
+                             # KELLY_FRAC of wallet per fire + MAX_LOSSES_DAY=1.
 MAX_OPEN_COST = 15.0
 MAX_FIRES_DAY = 60
 DAILY_STOP_LOSS = 4.5        # 6.0 -> 4.5 2026-07-15: true clip is $4.50-4.95 (5-share
@@ -71,12 +72,18 @@ MAX_LOSSES_DAY = 1           # 2026-07-16: the 07-15 intent above never held —
                              # $26.55 equity: any loss ends the day, evolve slot reviews.
 MAX_CONSEC_LOSS = 3
 KELLY_LIVE = os.environ.get("UPDOWN_KELLY", "0") == "1"
-KELLY_FRAC = 0.10            # per-fire fraction of free USDC — the compounding sizer.
-CLIP_CAP_USD = 25.0          # ACTIVATION GATE (pre-registered 2026-07-15): flip
-                             # UPDOWN_KELLY=1 only when shadow_grade n>=100 AND Wilson
-                             # CI lower bound > per-fire breakeven. 0.10 ~= 0.2x Kelly
-                             # at the point-estimate edge; cap $25/fire pending review
-                             # at bankroll >$250. Until then clip stays CLIP_USD.
+KELLY_FRAC = 0.25            # 0.10 -> 0.25 + flag ON by OWNER WAIVER 2026-07-16
+                             # ("go full size in every fire", activation gate waived
+                             # like the n>=150 gate; ledger 15:0xZ). 0.25 = full Kelly
+                             # at true WR ~0.965, half-Kelly at ~0.98 (payoff b~0.047;
+                             # f* = p - (1-p)/b). LITERAL 100%/fire REFUSED: one loss
+                             # = $0 terminal; at WR 0.99 P(ruin within ~400 fires/mo)
+                             # ~= 98% — the account cannot reach month-end. 25%/fire
+                             # compounds +~1.2%/win, worst day -25% (MAX_LOSSES_DAY=1),
+                             # never mathematically dead.
+CLIP_CAP_USD = 50.0          # 25 -> 50 with the waiver; certainty-cell touch depth
+                             # med $791, 92% of snaps >=$25 (07-15) — review at
+                             # bankroll >$200 before raising again.
 
 def log(rec):
     rec["ts"] = round(time.time(), 3)
