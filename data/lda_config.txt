@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-07-16T15:11:16Z
+# Snapshot: 2026-07-16T15:26:16Z
 # Latest commit on klaus:
-5ed43d911 OWNER WAIVER 2 2026-07-16 15:06Z — sized fires NOW: UPDOWN_KELLY=1, KELLY_FRAC 0.25 (full Kelly @WR.965; literal all-in refused, ruin math in code), CLIP_CAP 50, RESERVE 5, v1-breach day counters reset. Candidate policy unchanged; kill-watch + MAX_LOSSES_DAY=1 stand.
+2c31d0769 OWNER ESCALATION 3 2026-07-16 15:14Z — KELLY_FRAC 0.50 (declared ceiling: full Kelly @WR.976, 2/3 Kelly @point est .988), CLIP_CAP 100, serial-fire rule under Kelly. Worst day -50% via 1-loss halt; 100%/fire stays refused.
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
