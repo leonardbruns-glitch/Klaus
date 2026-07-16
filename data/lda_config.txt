@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-07-16T14:40:38Z
+# Snapshot: 2026-07-16T14:56:06Z
 # Latest commit on klaus:
-465c71d8d EVOLVE daily 2026-07-16 (morning) — UPDOWN-SNIPER PATH CUT by charter rail: live tape n=36 PF 0.43 (<0.8/>=20) + daily stop breached -7.43 vs -4.5; UPDOWN_STOP touched 11:27Z. Shadow gate n=99 WR 97.0 CI-lo 91.5 < breakeven 96.3 (point clears — rails action, not falsification). Re-enable gate pre-registered: n>=150, {P_MIN 0.995, 5m-only} own slice, CI-lo > policy breakeven, min size. All 6 losses in p<0.995. Equity $26.55 reconciled to 5c. Fully risk-off; shadow tape accumulates free.
+fd1a92512 state_log: updown state-file wipe (test harness) + tape-truth restore
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
