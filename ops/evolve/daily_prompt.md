@@ -67,17 +67,15 @@ STEP 2 — MEASURE (ground truth; only works on this box — gamma 403s cloud IP
   rows below. Commit it — this is how cloud analysts see VPS-only results.
 
 STEP 3 — DECIDE. Standing decision tree, in priority order:
-1. SNIPER RE-ENABLE (pre-registered 2026-07-16 ledger 11:33Z; candidate policy
-   already staged in code — P_MIN 0.995, STEPS=(300,) 5m-only, MAX_LOSSES_DAY 1):
-   shadow_grade prints the gate line directly. If total graded n≥150 AND the
-   CANDIDATE slice's Wilson CI-lo > its own avg-ask breakeven (grader verdict
-   PASS) → `rm logs/UPDOWN_STOP`, restart klaus_updown_sniper, verify live:true
-   + first fire is 5m/p≥0.995, register in `ledger.jsonl` with kill condition:
-   re-touch UPDOWN_STOP same day on 2 live losses in a day, or slice CI-lo back
-   below breakeven on regrade, or realized PF<0.8 over first 20 resolved
-   (charter rail). Restart is MINIMUM SIZE: CLIP unchanged, UPDOWN_KELLY stays
-   off. A live loss while COLLECTING is impossible (path is stopped) — do not
-   re-enable early on point estimates.
+1. SNIPER CANDIDATE KILL-WATCH (candidate re-enabled 2026-07-16 14:59Z by OWNER
+   WAIVER of the n≥150 gate — ledger entry has full terms; policy live: P_MIN
+   0.995, 5m-only, min size, MAX_LOSSES_DAY 1). The v1 tape (PF 0.43, n=36,
+   closed 11:27Z) is DEAD — never pool it into candidate rails. Each run: grade
+   the candidate live tape (fills since 07-16 14:59Z) + pooled slice via
+   shadow_grade. Re-touch `logs/UPDOWN_STOP` on ANY of: (a) ≥3 candidate live
+   losses before 100 candidate live fills; (b) pooled candidate slice point WR <
+   its avg-ask breakeven on regrade; (c) charter rail PF<0.8 over ≥20 resolved
+   on the NEW tape only. UPDOWN_KELLY stays off (its own gate, item 2).
 2. KELLY ACTIVATION (pre-registered 2026-07-15, commit 27f70c6ce; only while the
    path is LIVE — moot under UPDOWN_STOP): if shadow_grade n≥100 AND Wilson CI
    lower bound > per-fire breakeven → add `Environment=UPDOWN_KELLY=1` to
