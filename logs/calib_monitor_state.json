@@ -1,25 +1,45 @@
 {
-  "date": "2026-07-15",
-  "run_utc": "2026-07-15T12:00:00Z",
+  "date": "2026-07-16",
+  "run_utc": "2026-07-16T08:30:00Z",
   "data_access": "DEGRADED",
-  "data_access_note": "git fetch timeout (network proxy blocks git protocol, same as 2026-07-14); data accessed via GitHub raw API (WebFetch). Pricer eval s50 read for 2026-07-14 and 2026-07-13. Isotonic configs read directly (confirmed). ECE7/rho7 remain uncomputable.",
+  "data_access_note": "git fetch timeout (network proxy blocks git protocol); data via GitHub MCP API. pricer_eval_s50 files too large for MCP (~1.6MB each); brier7/ECE7/rho7 uncomputable. band_struct_lite (5 days) and isotonic configs accessed successfully.",
   "brier7": 0.053,
-  "brier7_source": "carry-forward-2026-07-14",
-  "brier7_note": "POST_PEAK Brier from 2026-07-13 s50: ~0.015 (artificially low — near-certain rows). 7d rolling carry from prior chain is better estimate at 0.053.",
+  "brier7_source": "carry-forward-multi-session",
+  "brier7_note": "Stale carry-forward; not refreshed in multiple sessions. Not a reliable signal.",
   "ece7": null,
   "ece7_source": "uncomputable",
   "rho7": null,
   "rho7_source": "uncomputable",
-  "disp_ratio7": "<=0.80",
-  "disp_ratio7_source": "carry-forward-2026-07-14",
-  "disp_ratio7_note": "Cannot recompute — band dark, no live fills, no resolved implied vs realized pairs. Today model shadow quotes show implied std 1.20-1.27C vs true sigma 1.3C — consistent with sub-1.10 ratio persisting.",
-  "disp_inversion_days": 13,
+  "disp_ratio7": 0.765,
+  "disp_ratio7_source": "DIRECT_MEASUREMENT — band_struct_lite fire rows, n=68 across 2026-07-11..2026-07-15",
+  "disp_ratio7_note": "First direct measurement (not carry-forward). Price-weighted implied sigma from market ask distribution / true_sigma=1.3C. 65/68 obs inverted (implied < true). 68/68 below 1.10 alert threshold. EU ratio=0.769, Asia ratio=0.765. d+1 worst at 0.734.",
+  "disp_ratio7_n": 68,
+  "disp_ratio7_grade": "trend (n=68, threshold 100 for decision-grade)",
+  "disp_inversion_days": 14,
   "disp_ratio_threshold": 1.10,
   "disp_ratio_alert": true,
+  "disp_ratio_by_dout": {
+    "d0": 0.802,
+    "d1": 0.734,
+    "d2": 0.859
+  },
+  "disp_ratio_by_region": {
+    "EU": 0.769,
+    "Asia": 0.765
+  },
+  "disp_ratio_daily_trend": {
+    "2026-07-11": 0.814,
+    "2026-07-12": 0.736,
+    "2026-07-13": 0.795,
+    "2026-07-14": 0.709,
+    "2026-07-15": 0.817
+  },
   "isotonic_staleness": {
     "alert": true,
     "deployed_refit_utc": "2026-06-06T22:27:08Z",
+    "deployed_days_since_refit": 40,
     "candidate_refit_utc": "2026-06-09T09:30:36Z",
+    "candidate_days_since_refit": 37,
     "deployed_n_live": 0,
     "candidate_n_live": 1037,
     "candidate_live_calendar_days": 2,
@@ -27,33 +47,37 @@
     "max_abs_diff_at_p_raw": 1.0,
     "deployed_val_at_1": 0.6316,
     "candidate_val_at_1": 0.3739,
-    "direction": "candidate LOWERS p_cal for p_raw>=0.95; raises floor for p_raw=0 (+0.0175)",
-    "structural_change": "candidate removes POST_PEAK certainty spike; plateau flat at 0.3739 for p_raw>=0.30",
-    "days_since_candidate_written": 36,
-    "source": "CONFIRMED via direct file read (not carry-forward)"
+    "deployed_near_identity_maxdev": 0.568,
+    "candidate_near_identity_maxdev": 0.626,
+    "material_diffs_gt_05": 1,
+    "direction": "candidate LOWERS p_cal for p_raw>=0.30 (plateau 0.3801->0.3739); removes certainty spike at p_raw=1.0 (0.6316->0.3739); adds floor at p_raw=0 (+0.0175)",
+    "structural_change": "candidate removes POST_PEAK certainty spike; plateau flat 0.3739 for all p_raw>=0.30 including p_raw=1.0",
+    "oos_validation": "null for both deployed and candidate",
+    "source": "CONFIRMED via direct file read"
   },
-  "band_dark_days_est": 9,
+  "band_dark_days_est": 10,
   "system_alive": true,
-  "system_alive_note": "snapshot at 08:00:55Z; systemd active since 02:40:11Z; zero open positions",
+  "system_alive_note": "snapshot 2026-07-16T08:04:40Z; systemd active since 2026-07-15 02:40:11Z; zero open positions; disk 96% full (5GB remaining)",
   "alerts": [
-    "S3-d13: disp_ratio7 <=0.80 < 1.10 — INVERTED DISPERSION EDGE — 13th consecutive day — PRE-REGISTERED FIRES (carry-forward confirmed, no recovery signal)",
-    "S4-CONFIRMED: isotonic candidate max_dev=0.2577 at p_raw=1.0 — removes certainty spike — candidate lowers max p_cal 0.6316->0.3739 — 36 days without deployment review — PRE-REGISTERED FIRES (independently confirmed today)"
+    "S3-d14: disp_ratio7=0.765 < 1.10 — INVERTED DISPERSION EDGE — 14th consecutive day — DIRECT MEASUREMENT (n=68 band_struct_lite fire rows, trend-grade) — no recovery signal — EU=0.769 Asia=0.765 d+1=0.734",
+    "S4: isotonic candidate max_dev=0.2577 at p_raw=1.0 — removes certainty spike 0.6316->0.3739 — 40d deployed without OOS validation — 37d since candidate refit — candidate has no OOS brier either — PRE-REGISTERED FIRES"
   ],
   "prior": {
-    "date": "2026-07-14",
+    "date": "2026-07-15",
     "brier7": 0.053,
     "disp_ratio7": "<=0.80",
-    "disp_inversion_days": 12,
-    "alerts_count": 3,
+    "disp_inversion_days": 13,
+    "alerts_count": 2,
     "data_access": "DEGRADED"
   },
   "transitions": {
-    "S3": "persisting (d12 -> d13); no recovery signal; band dark day 9+",
-    "S4": "UPGRADED carry -> CONFIRMED via direct file read",
-    "brier7": "stable 0.053 carry",
-    "ece7": "null -> null (structural)",
-    "rho7": "null -> null (structural)",
-    "band": "dark (9+ days, fills=0, BAND_LIVE=disabled)",
-    "disk": "95% full (5GB remaining on 97GB)"
+    "S3": "persisting (d13 -> d14); disp_ratio upgraded from carry-forward to DIRECT MEASUREMENT (0.765); no recovery signal",
+    "S4": "persisting; deployed now 40 days old (was 36d); candidate 37 days old (was 37d same — refit 2026-06-09)",
+    "brier7": "carry 0.053 -> carry 0.053 (stale, unrefreshed)",
+    "ece7": "null -> null (structural block)",
+    "rho7": "null -> null (structural block)",
+    "disp_ratio7": "<=0.80 (carry-forward) -> 0.765 (DIRECT MEASUREMENT, n=68) — key upgrade",
+    "band": "dark 9+ days -> dark 10+ days",
+    "disk": "96% full (5GB remaining on 97GB partition)"
   }
 }
