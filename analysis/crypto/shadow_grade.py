@@ -149,6 +149,26 @@ def main():
             sw = sum(1 for r in sub if r[6])
             sp = sum(r[7] for r in sub)
             print(f"  step {step}s: n={len(sub)} WR {sw / len(sub):.3f} pnl ${sp:+.2f}")
+    # RE-ENABLE CANDIDATE slice (pre-registered 2026-07-16 ledger 11:33Z):
+    # {p_model >= 0.995, 5m-only}; gate = total graded n>=150 AND this slice's
+    # Wilson CI-lo > its own avg-ask breakeven (ask + taker fee)
+    cand = [r for s, f in first_fire.items()
+            if f["step"] == 300 and f["p_model"] >= 0.995
+            for r in rows if r[0] == s]
+    if cand:
+        cn, cw = len(cand), sum(1 for r in cand if r[6])
+        cwr = cw / cn
+        den = 1 + 1.96 ** 2 / cn
+        ctr = (cwr + 1.96 ** 2 / (2 * cn)) / den
+        hw = 1.96 * math.sqrt(cwr * (1 - cwr) / cn + 1.96 ** 2 / (4 * cn * cn)) / den
+        cask = sum(r[2] for r in cand) / cn
+        cbe = cask + 0.07 * cask * (1 - cask)
+        clo = ctr - hw
+        print(f"CANDIDATE p>=0.995 5m-only: n={cn} WR {cwr:.4f} "
+              f"CI-lo {clo:.4f} vs slice breakeven {cbe:.4f} "
+              f"pnl ${sum(r[7] for r in cand):+.2f} -> "
+              f"{'PASS' if (n >= 150 and clo > cbe) else 'COLLECTING'} "
+              f"(total graded {n}/150)")
     if "--rows" in sys.argv:
         for r in rows:
             print(r)

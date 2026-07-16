@@ -67,20 +67,34 @@ STEP 2 — MEASURE (ground truth; only works on this box — gamma 403s cloud IP
   rows below. Commit it — this is how cloud analysts see VPS-only results.
 
 STEP 3 — DECIDE. Standing decision tree, in priority order:
-1. KELLY ACTIVATION (pre-registered 2026-07-15, commit 27f70c6ce): if shadow_grade
-   n≥100 AND Wilson CI lower bound > per-fire breakeven → add
-   `Environment=UPDOWN_KELLY=1` to `/etc/systemd/system/klaus_updown_sniper.service`
-   (+ `systemctl daemon-reload`), restart, verify the first sized fire, register in
-   `ledger.jsonl` with revert_condition (CI-lo falls back below breakeven on any
-   later regrade, or a 3-loss day → flag off same day).
-2. GATE KILL: n≥100 with CI-lo AND point estimate below breakeven → touch
+1. SNIPER RE-ENABLE (pre-registered 2026-07-16 ledger 11:33Z; candidate policy
+   already staged in code — P_MIN 0.995, STEPS=(300,) 5m-only, MAX_LOSSES_DAY 1):
+   shadow_grade prints the gate line directly. If total graded n≥150 AND the
+   CANDIDATE slice's Wilson CI-lo > its own avg-ask breakeven (grader verdict
+   PASS) → `rm logs/UPDOWN_STOP`, restart klaus_updown_sniper, verify live:true
+   + first fire is 5m/p≥0.995, register in `ledger.jsonl` with kill condition:
+   re-touch UPDOWN_STOP same day on 2 live losses in a day, or slice CI-lo back
+   below breakeven on regrade, or realized PF<0.8 over first 20 resolved
+   (charter rail). Restart is MINIMUM SIZE: CLIP unchanged, UPDOWN_KELLY stays
+   off. A live loss while COLLECTING is impossible (path is stopped) — do not
+   re-enable early on point estimates.
+2. KELLY ACTIVATION (pre-registered 2026-07-15, commit 27f70c6ce; only while the
+   path is LIVE — moot under UPDOWN_STOP): if shadow_grade n≥100 AND Wilson CI
+   lower bound > per-fire breakeven → add `Environment=UPDOWN_KELLY=1` to
+   `/etc/systemd/system/klaus_updown_sniper.service` (+ `systemctl daemon-reload`),
+   restart, verify the first sized fire, register in `ledger.jsonl` with
+   revert_condition (CI-lo falls back below breakeven on any later regrade, or a
+   3-loss day → flag off same day). After the 07-16 cut, read the CI against the
+   CANDIDATE slice, not the retired v1 pool.
+3. GATE KILL: n≥100 with CI-lo AND point estimate below breakeven → touch
    `logs/UPDOWN_STOP`, log the kill, report it first. CI straddling breakeven at
-   n≥100 → keep collecting at current size; re-decide at n≥150.
-3. NEW CELL PROMOTION: an eth/sol/xrp cell whose own shadow gate clears n≥100 →
+   n≥100 → keep collecting at current size; re-decide at n≥150. Post-07-16 this
+   applies per-slice: kill the CANDIDATE only on the candidate slice's numbers.
+4. NEW CELL PROMOTION: an eth/sol/xrp cell whose own shadow gate clears n≥100 →
    charter enabling gate (minimum size, written kill condition, ledger entry).
    Sniper code is BTC-only today — promotion includes the (small) multi-asset
    execution change, gated and reviewed like any live change.
-4. Ledger reviews due + candidates from your own STEP 2 measurements.
+5. Ledger reviews due + candidates from your own STEP 2 measurements.
 Weather analyst reports (`logs/*_report.md`) are advisory maintenance input only —
 they do not set priorities anymore. Rank survivors by expected dollar impact. The
 2-live-changes cap is per CALENDAR DAY shared across both daily runs — count

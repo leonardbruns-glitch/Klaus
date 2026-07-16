@@ -28,10 +28,18 @@ STOP_FILE = "/root/Klaus/logs/UPDOWN_STOP"
 T_MAX = {900: 120, 300: 60}  # 5m 30->60s 2026-07-15: gate-sweep added slice 18/18 true-label;
                              # SIG_FLOOR forces >=6.5bp for p>=0.99 at t_left>30s, so no
                              # low-certainty cell opens (the p<0.99 & >30s combo cell lost)
+STEPS = (300,)               # CANDIDATE POLICY staged 2026-07-16 while UPDOWN_STOP holds
+                             # (pre-registered re-enable, ledger 11:33Z): 5m-only — the
+                             # 15m cell is 4/5 with today's stop-breaching loss; all 6
+                             # tape losses sit at p_model<0.995. Zero live effect until
+                             # the stop file is removed by the n>=150 gate read.
 T_MIN = 5.0
 ASK_MIN = 0.90
 ASK_MAX = {900: 0.97, 300: 0.99}
-P_MIN = 0.99
+P_MIN = 0.995                # 0.99 -> 0.995 with STEPS above: candidate slice on true
+                             # labels 42/42 W +4.72%/$ (07-16 grade); excluded slice
+                             # holds all 3 losses, net -1.55%/$. Restart = candidate,
+                             # never the cut v1 policy.
 MOVE_FLOOR = 0.0004          # 6->4 bps 2026-07-15: gate-sweep added slice 20/20 true-label;
                              # basis guard keeps 4x margin over observed <1bp Chainlink/
                              # Binance basis; certainty still gated by P_MIN + SIG_FLOOR
@@ -56,6 +64,11 @@ MAX_FIRES_DAY = 60
 DAILY_STOP_LOSS = 4.5        # 6.0 -> 4.5 2026-07-15: true clip is $4.50-4.95 (5-share
                              # CLOB min), so one full-clip loss must end the day —
                              # $4.9 = 14% of $34.9 equity, the engine daily-loss rail
+MAX_LOSSES_DAY = 1           # 2026-07-16: the 07-15 intent above never held — 13 wins
+                             # of +$0.10-0.50 cushion realized to -2.68, so loss #2
+                             # landed -7.43, past the -4.5 stop (stop-on-settled can
+                             # only halt AFTER a breach). One full-clip loss = 18% of
+                             # $26.55 equity: any loss ends the day, evolve slot reviews.
 MAX_CONSEC_LOSS = 3
 KELLY_LIVE = os.environ.get("UPDOWN_KELLY", "0") == "1"
 KELLY_FRAC = 0.10            # per-fire fraction of free USDC — the compounding sizer.
@@ -91,7 +104,8 @@ class Sniper:
     def day_roll(self):
         d = time.strftime("%Y%m%d", time.gmtime())
         if self.st["day"] != d:
-            self.st.update({"day": d, "fires": 0, "consec_loss": 0, "realized": 0.0})
+            self.st.update({"day": d, "fires": 0, "consec_loss": 0,
+                            "losses": 0, "realized": 0.0})
             save_state(self.st)
 
     def rails_ok(self):
@@ -100,20 +114,26 @@ class Sniper:
             return "stop_file"
         if self.st["fires"] >= MAX_FIRES_DAY:
             return "fires_cap"
+        open_cost = sum(p["cost"] for p in self.st["open"].values()
+                        if not p.get("dry"))
         day_stop = DAILY_STOP_LOSS if not KELLY_LIVE else \
             max(DAILY_STOP_LOSS, 1.2 * self.st.get("last_clip", 0.0))
-        if self.st["realized"] <= -day_stop:
+        # count in-flight cost as potential loss: never add risk that could
+        # settle past the stop (2026-07-16; stop-on-settled alone lags fires)
+        if self.st["realized"] - open_cost <= -day_stop:
             return "daily_stop"
+        if self.st.get("losses", 0) >= MAX_LOSSES_DAY:
+            return "losses_day"
         if self.st["consec_loss"] >= MAX_CONSEC_LOSS:
             return "consec_loss"
-        if sum(p["cost"] for p in self.st["open"].values()) >= MAX_OPEN_COST:
+        if open_cost >= MAX_OPEN_COST:
             return "open_cap"
         return None
 
     async def discover(self, sess):
         while True:
             now = int(time.time())
-            for step in (300, 900):
+            for step in STEPS:
                 for off in (0, step):
                     w = now - now % step + off
                     slug = f"btc-updown-{'5m' if step==300 else '15m'}-{w}"
@@ -257,6 +277,8 @@ class Sniper:
                     if not pos.get("dry"):
                         self.st["realized"] = round(self.st["realized"] + pnl, 2)
                         self.st["consec_loss"] = 0 if won else self.st["consec_loss"] + 1
+                        if not won:
+                            self.st["losses"] = self.st.get("losses", 0) + 1
                     log({"event": "SETTLE", "slug": slug, "winner": winner,
                          "side": pos["side"], "won": won, "pnl": round(pnl, 2),
                          "dry": bool(pos.get("dry")),
