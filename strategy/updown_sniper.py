@@ -72,18 +72,22 @@ MAX_LOSSES_DAY = 1           # 2026-07-16: the 07-15 intent above never held —
                              # $26.55 equity: any loss ends the day, evolve slot reviews.
 MAX_CONSEC_LOSS = 3
 KELLY_LIVE = os.environ.get("UPDOWN_KELLY", "0") == "1"
-KELLY_FRAC = 0.25            # 0.10 -> 0.25 + flag ON by OWNER WAIVER 2026-07-16
-                             # ("go full size in every fire", activation gate waived
-                             # like the n>=150 gate; ledger 15:0xZ). 0.25 = full Kelly
-                             # at true WR ~0.965, half-Kelly at ~0.98 (payoff b~0.047;
-                             # f* = p - (1-p)/b). LITERAL 100%/fire REFUSED: one loss
-                             # = $0 terminal; at WR 0.99 P(ruin within ~400 fires/mo)
-                             # ~= 98% — the account cannot reach month-end. 25%/fire
-                             # compounds +~1.2%/win, worst day -25% (MAX_LOSSES_DAY=1),
-                             # never mathematically dead.
-CLIP_CAP_USD = 50.0          # 25 -> 50 with the waiver; certainty-cell touch depth
-                             # med $791, 92% of snaps >=$25 (07-15) — review at
-                             # bankroll >$200 before raising again.
+KELLY_FRAC = 0.50            # 0.25 -> 0.50 OWNER ESCALATION 3 2026-07-16 ("be more
+                             # aggressive"). At payoff b~0.047 (f* = p - (1-p)/b):
+                             # 0.50 = FULL Kelly at true WR 0.976, ~2/3 Kelly at the
+                             # 42/42-slice point estimate 0.988; growth turns NEGATIVE
+                             # below WR ~0.965 (posterior odds ~10-15% on n=42/0).
+                             # This is the CEILING on current evidence: >=0.6 is full
+                             # Kelly at the raw point estimate of 42 samples =
+                             # over-betting under estimation risk; LITERAL 100%/fire
+                             # stays REFUSED (one loss = $0 terminal, P(ruin)~98%/mo
+                             # even at WR 0.99). Next raise requires more evidence
+                             # (clean n growth), more cells, or more capital — not
+                             # more nerve. Tier-3 owner-only.
+CLIP_CAP_USD = 100.0         # 50 -> 100 with escalation 3; binds at bankroll $200.
+                             # Certainty-cell touch depth med $791, 92% of snaps
+                             # >=$25 (07-15) — re-measure depth before raising past
+                             # $100; a clip that eats the book fills at worse asks.
 
 def log(rec):
     rec["ts"] = round(time.time(), 3)
@@ -129,6 +133,11 @@ class Sniper:
         # settle past the stop (2026-07-16; stop-on-settled alone lags fires)
         if self.st["realized"] - open_cost <= -day_stop:
             return "daily_stop"
+        # sized fires are serial: at KELLY_FRAC 0.5 two concurrent fires = an
+        # accidental all-in (75%+ of wallet in flight) — the exact structure
+        # the 100%/fire refusal exists to prevent
+        if KELLY_LIVE and open_cost > 0:
+            return "serial"
         if self.st.get("losses", 0) >= MAX_LOSSES_DAY:
             return "losses_day"
         if self.st["consec_loss"] >= MAX_CONSEC_LOSS:
