@@ -1,176 +1,163 @@
-# Klaus Calibration & Dispersion Monitor — 2026-07-16
+# Calibration & Dispersion Monitor — 2026-07-17
 
-**Run UTC:** 2026-07-16T~08:30Z (automated)  
-**Snapshot:** 2026-07-16T08:04:40Z — `active` (passes abort check, <6h old)  
-**Data access:** DEGRADED (git protocol blocked; GitHub MCP API used throughout; pricer_eval_s50 too large for MCP, brier7/ECE7/rho7 uncomputable)  
-**Bankroll:** $31.07 | **Open positions:** 0 | **Band:** DARK (BAND_LIVE=False, 10+ days)
-
----
-
-## 1. SETTLED LANE — Brier / ECE / Rank-Rho (7-day rolling)
-
-**Status: UNCOMPUTABLE — carry-forward**
-
-`stwa_pricer_eval_s50.jsonl` files are 1.4–1.7 MB each and exceed MCP inline limits. No resolution outcome data is accessible via the band_struct_lite path (obs_receipt.jsonl contains raw METAR readings, not market resolution flags; window_resolution.jsonl covers updown BTC/ETH/SOL only). This constraint has persisted for multiple consecutive sessions.
-
-| Metric | Value | Source |
-|---|---|---|
-| brier7 | **0.053** | carry-forward from 2026-07-14 chain |
-| ECE7 | null | uncomputable |
-| rank-rho7 | null | uncomputable |
-
-Reference: 2024-fit isotonic baseline Brier = 0.114. Carried 0.053 is below reference, but this number is stale and not trustworthy — it is a chain-carried estimate from a period when OOS data was briefly accessible and has not been refreshed in multiple sessions.
-
-**No pre-registered alerts triggered in this lane** (n<40 resolved rows accessible; no decision-grade numbers available to fire thresholds).
+**Run:** 2026-07-17T08:21Z | **Snapshot:** 2026-07-17T08:09Z (12 min old — OK)  
+**System:** `active` | Bankroll: $31.76 | Open positions: 0 | Band: DARK (day 11)  
+**Data access:** DIRECT (curl to raw.githubusercontent.com) — pricer_s50 downloaded successfully  
+**Prior state:** 2026-07-16 — brier7=0.053(carry), disp_ratio=0.765(n=68,trend-grade), 2 alerts
 
 ---
 
-## 2. PROXY LANE — p_cal vs Market Mid (early warning, unsettled)
+## SECTION 1 — SETTLED LANE (confirmed resolution labels)
 
-**Status: PARTIAL — structural observation only**
+> **CAVEAT (pre-registered limitation):** No ground-truth resolution labels are accessible in this environment. Outcomes below are INFERRED from POST_PEAK price convergence (highest final p_cal per city-market is treated as winner). This creates partial circularity. Metrics are proxy-grade, not alert-grade on their own. Alert thresholds suppressed for this section unless the proxy is clearly directional.
 
-From the band_struct_lite fire rows (n=15 for 2026-07-15 snapshot), the market's ask price for the **mode bucket** (offset=0) averages **0.255** (range 0.185–0.385). The deployed isotonic maps all p_raw ≥ 0.30 to p_cal = 0.3801. The divergence p_cal − market_mid ≈ **+0.12** for mode-bucket quotes.
+**Method:** 4 resolved dates (2026-07-12..2026-07-15); last-snapshot per (city, bucket) in pricer_s50 (1-in-50 sample); winner = bucket with highest POST_PEAK p_cal; Brier and ECE computed across all city-bucket pairs.
 
-Interpretation: the model is persistently pricing YES ~12 percentage points above where the market actually trades the mode. This directional overconfidence on the mode bucket has not closed in 5+ days of shadow quotes. This is consistent with the flat isotonic plateau: the model treats "most-likely outcome" as having a 38% YES probability, but the market prices it at ~26%.
-
-No baseline computed (first measurement in this proxy lane format); cannot assess spike vs 7-day baseline.
-
----
-
-## 3. DISPERSION GAUGE — Edge Health (most important) 🔴 ALERT FIRING
-
-### Methodology
-For each resolved-market snapshot, implied dispersion width is computed as the price-weighted standard deviation of bucket midpoints using the `ask` price distribution from `band_struct_lite` fire rows. True sigma = **1.3°C** (validated 2026-06, isothermal baseline).
-
-**Dispersion ratio = implied_sigma / true_sigma**. Alert threshold: ratio < 1.10.
-
-### Results — 5-day shadow measurement (2026-07-11 through 2026-07-15)
-
-**n = 68 fire-row observations across 5 snapshot dates.**  
-*n is below 100-grade threshold; trend-grade (40–99). No decision-grade conclusion, but directional finding is unambiguous.*
-
-| Date | Median ratio | Fire rows | Note |
+| Metric | Value | Threshold | Status |
 |---|---|---|---|
-| 2026-07-11 | 0.814 | 18 | |
-| 2026-07-12 | 0.736 | 14 | daily low |
-| 2026-07-13 | 0.795 | 11 | |
-| 2026-07-14 | 0.709 | 10 | daily low |
-| 2026-07-15 | 0.817 | 15 | |
-| **5-day median** | **0.765** | 68 | **ALL below 1.10** |
+| Brier7 (proxy) | **0.0200** | >0.15 = alert | OK — but proxy is too optimistic (see note) |
+| ECE7 (proxy) | **0.0448** | >0.05 = alert | Below threshold — but n is sparse in key bins |
+| Rank rho7 (proxy) | **0.8343** | <0.15 = alert | OK — circular, not independent |
 
-- **65 / 68 observations** have implied_sigma < true_sigma (edge is inverted, not merely compressed)
-- **68 / 68 observations** are below the 1.10 alert threshold
-- Minimum ratio observed: **0.611** (London d+2, 2026-07-12)
-- Maximum ratio observed: **1.062** (single outlier only)
+**Structural finding — isotonic plateau collapse:** The deployed isotonic maps ALL p_raw in [0.30, 0.95] → p_cal = 0.3801 (a flat plateau covering 65% of the probability range). This means the model has zero discriminative power between a 30% and 90% raw-probability prediction. In the ECE bins: the [0.3–0.4) bin has pred=0.375, obs=0.650 (n=20 sampled rows) — the model is severely underconfident for these "plateau" rows. The winner p_cal=0.380 pattern in worst-performing cities (Buenos Aires, Karachi, Manila) confirms this: the model knew these were winners but could only assign 38% because the isotonic maps them all to the plateau. This is the dominant calibration pathology and deserves a direct fix.
 
-### By Days-Out
+**Per-date Brier (proxy):**
+- 2026-07-12: Brier=0.022, n=321 rows, 37 cities
+- 2026-07-13: Brier=0.020, n=307 rows, 35 cities  
+- 2026-07-14: Brier=0.020, n=327 rows, 37 cities
+- 2026-07-15: Brier=0.019, n=337 rows, 38 cities
 
-| Days-out | n | Implied sigma med | Ratio |
-|---|---|---|---|
-| d+0 | 3 | 1.042°C | 0.802 |
-| d+1 | 23 | 0.954°C | 0.734 |
-| d+2 | 42 | 1.116°C | 0.859 |
-
-Near-term (d+1) is more compressed than d+2. d+0 sample too small (n=3).
-
-### By Region
-
-| Region | n | Ratio |
-|---|---|---|
-| EU (London, Munich) | 10 | 0.769 |
-| Asia (Beijing, Shanghai, Seoul, Taipei, Chengdu, Wuhan, Chongqing) | 58 | 0.765 |
-
-No regional divergence. Both regions equally inverted.
-
-### Trend
-
-First-half mean (Jul 11–12): 0.775 | Second-half mean (Jul 13–15): 0.774  
-**Trend: flat / oscillating. No recovery signal whatsoever.**
-
-### Interpretation
-
-The band's load-bearing quantity — **market-implied dispersion exceeds true dispersion** — is not just compressed, it is **inverted**. The market is pricing temperature buckets with LESS spread than the actual temperature distribution warrants. A position-weighted YES band cannot extract premium from a market that is under-dispersed relative to truth. The edge the band was built on (validated 2026-06: true sigma ~1.3°C < implied) has flipped.
-
-This is the **14th consecutive day** of inversion (S3 alert, now day 14).
-
-**🔴 PRE-REGISTERED ALERT S3 FIRES — 14th consecutive day — ratio = 0.765 << 1.10 — no recovery signal — this is a FRESH DIRECT MEASUREMENT (not carry-forward)**
+No alert fires (proxy Brier well below 0.15). ECE below 0.05. No settled-lane alerts.
 
 ---
 
-## 4. ISOTONIC CALIBRATION STALENESS 🔴 ALERT FIRING
+## SECTION 2 — PROXY LANE (early warning, p_cal vs mid divergence)
 
-### Deployed (`config/stwa_isotonic.json`, refit 2026-06-06 — **40 days ago**)
+**Market mid not available in pricer_s50 schema** (schema: city, lo, hi, p_mc, p_gev, p_pa, p_ps, p_cal, running_max, t_close, phase, ts — no book prices). Direct |p_cal − mid| computation is not possible.
 
-| p_raw range | p_cal | Shape |
+**Alternative proxy — p_cal stability check:** Median p_cal and distribution shape are stable across the 5-day window. No anomalous spikes in %nonzero or %high-confidence rows. The distribution is uniformly sparse (median p_cal ≈ 0 across all dates, as expected for per-bucket rows in 9-20 bucket markets).
+
+| Date | n rows | %non-zero | %high-conf (>0.50) |
+|---|---|---|---|
+| 2026-07-12 | 7,486 | 33.7% | 2.6% |
+| 2026-07-13 | 6,454 | 35.1% | 2.0% |
+| 2026-07-14 | 7,202 | 36.2% | 2.3% |
+| 2026-07-15 | 7,501 | 34.0% | 2.6% |
+| 2026-07-16 | 7,455 | 33.3% | 3.0% |
+
+Distribution stable. No divergence spike detected. Early-warning note: slight increase in %high-conf on 07-16 (3.0% vs 2.0–2.6% prior days) — one day, not a trend, watch.
+
+---
+
+## SECTION 3 — DISPERSION GAUGE ⚠️ ALERT ACTIVE
+
+> **This is the most important section.** The band edge rests on market-implied dispersion exceeding true dispersion (true sigma ~1.3°C). This gauge monitors whether that edge holds.
+
+**Method:** band_struct_lite `md_shadow` records where `reason=converged` (fire rows). For each: `sigma_implied = 1°C / (2√2 × erfinv(mode_ask))`. Ratio = sigma_implied / 1.3°C.
+
+**7-day result (2026-07-12..2026-07-16, n=110):**
+
+| Metric | Value | Threshold | Status |
+|---|---|---|---|
+| **7d median disp_ratio** | **0.704** | <1.10 = ALERT | 🚨 ALERT |
+| % rows below 1.10 | 100.0% | — | All inverted |
+| % rows below 1.00 | 99.1% | — | Near-total inversion |
+| n fire rows | 110 | 100 = decision-grade | **DECISION-GRADE** |
+
+**This is the first session with n≥100 (decision-grade).** Prior sessions were trend-grade (n=68).
+
+**The edge is inverted. Market-implied sigma < true sigma 1.3°C on virtually every observed market.** The band harvests the spread between implied and true dispersion; with implied < true, the band is buying into mis-priced narrow confidence — paying for frequency the market hasn't inflated.
+
+**Trend (daily medians):**
+| Date | n fire | Median ratio |
 |---|---|---|
-| 0.00 | 0.0000 | — |
-| 0.05–0.10 | 0.07–0.13 | rising |
-| 0.15–0.25 | 0.18–0.36 | rising |
-| **0.30–0.90** | **0.3801** | **FLAT PLATEAU** |
-| 0.95 | 0.3822 | plateau |
-| **1.00** | **0.6316** | **SPIKE** |
+| 2026-07-12 | 21 | 0.765 |
+| 2026-07-13 | 25 | 0.686 |
+| 2026-07-14 | 25 | 0.714 |
+| 2026-07-15 | 21 | 0.652 |
+| 2026-07-16 | 18 | 0.704 |
+| **7d median** | **110** | **0.704** |
 
-The deployed model has a near-identity relation below p_raw=0.30, then a hard ceiling at ~38%, then a single-point spike at p_raw=1.0 (certainty spike to 63%). `near_identity_maxdev` = 0.568 — extreme deviation from the identity map.
+Trend: no recovery signal. Values oscillate in 0.65–0.77 range, all far below 1.10 threshold. Prior session carried 0.765 (n=68, trend-grade); fresh 5-day measurement 0.704 (n=110, decision-grade) — **worsening**.
 
-### Candidate (`config/stwa_isotonic_candidate.json`, refit 2026-06-09 — **37 days ago**)
+**By region:**
+| Region | n | Median ratio |
+|---|---|---|
+| EU | 22 | 0.628 |
+| Asia | 65 | 0.714 |
+| Other (Americas etc.) | 23 | 0.733 |
 
-n_live = 1,037 rows over 2 calendar days. All `brier_live_oos_*` = null (no OOS validation).
+EU is the weakest region. Asia is the most active (65 of 110 fire rows).
 
-The candidate **removes the certainty spike entirely**: p_raw=1.0 → p_cal=0.3739 (same as the plateau). The plateau itself is slightly lower (0.3739 vs 0.3801 deployed). A low-end floor is added (p_raw=0 → p_cal=0.0175 vs deployed 0.0).
+**By days-out:**
+| days_out | n | Median ratio |
+|---|---|---|
+| d+0 | 82 | 0.744 |
+| d+1 | 18 | 0.635 |
+| d+2 | 10 | 0.594 |
 
-**Max absolute diff: 0.2577 at p_raw=1.0 (deployed 0.6316 → candidate 0.3739).**  
-Direction: candidate LOWERS p_cal for any market scoring p_raw ≥ 0.30 (−0.0062 across plateau, −0.2577 at p_raw=1.0).
+d+1 and d+2 markets are even more inverted. The band's multi-day positions face the largest inversion in the forward curve.
 
-### Staleness Assessment
+**Mode-ask distribution across all fire rows:**
+min=0.275, p10=0.350, median=0.415, p90=0.535, max=0.725
+
+Mode_ask=0.415 → sigma_implied ≈ 0.88°C (vs true 1.3°C → ratio 0.677). Mode_ask=0.725 → sigma_implied ≈ 0.44°C (ratio 0.34 — severely inverted).
+
+**Inversion day count: 15 consecutive days** (prior state had 14, +1 today). No recovery signal.
+
+**ALERT S3-d15: disp_ratio7=0.704 < 1.10 — INVERTED DISPERSION EDGE — 15th consecutive day — DECISION-GRADE (n=110) — no recovery signal — EU=0.628 Asia=0.714 d+1=0.635 d+2=0.594 — trend WORSENING vs prior (0.765→0.704)**
+
+---
+
+## SECTION 4 — ISOTONIC STALENESS ⚠️ ALERT ACTIVE
 
 | | Deployed | Candidate |
 |---|---|---|
-| Refit date | 2026-06-06 | 2026-06-09 |
-| Days since refit | **40** | **37** |
-| n_live rows | 0 | 1,037 |
-| n_hist | 76,617 | 76,617 |
-| OOS validation | null | null |
-| near_identity_maxdev | 0.568 | 0.626 |
+| Fit date | 2026-06-06 | 2026-06-09 |
+| Days since refit | **41d** | 38d |
+| n_live | 0 | 1,037 |
+| live_calendar_days | 0 | 2 |
+| OOS brier | null | null |
 
-Neither version has OOS Brier validation. The candidate adds 1,037 live rows but is itself 37 days old — not recently refit. The `near_identity_maxdev=0.626` for the candidate (worse than deployed 0.568) reflects the candidate's even flatter shape.
+**Material difference >0.05:** 1 (at p_raw=1.0 only)  
+**Max |diff|:** 0.2577 at p_raw=1.0 (deployed=0.6316, candidate=0.3739)
 
-**The material structural difference (0.2577) and absence of any deployment decision in 37 days: pre-registered S4 alert fires.**
+**Direction:** Candidate REMOVES the certainty spike at p_raw=1.0 (0.6316→0.3739) and adds a small floor at p_raw=0 (+0.0175). Plateau shift: −0.0062 (0.3801→0.3739, minimal).
 
-**🔴 PRE-REGISTERED ALERT S4 FIRES — candidate max_dev=0.2577 at p_raw=1.0 — removes certainty spike 0.6316→0.3739 — 37 days without deployment review — candidate itself 37 days stale with no OOS validation**
+**Structural observation:** BOTH deployed and candidate maintain a flat plateau mapping all p_raw∈[0.30, 0.95] → p_cal≈0.38. This means neither curve resolves the dominant calibration pathology (loss of discrimination across 65% of the probability range). The candidate's main change is removing the spike at p_raw=1.0, not fixing the plateau. This is a meaningful but narrow change.
 
----
+**OOS validation status:** Neither deployed nor candidate has OOS brier validation (brier_live_oos_raw/cal both null). Deploying the candidate would substitute one unvalidated curve for another. The plateau collapse needs a full re-fit with more live data, not just a curve swap.
 
-## 5. STATE — Transitions vs Prior (2026-07-15)
-
-| Metric | Prior (2026-07-15) | Today (2026-07-16) | Change |
-|---|---|---|---|
-| brier7 | 0.053 (carry) | 0.053 (carry) | no change |
-| ECE7 | null | null | no change |
-| rho7 | null | null | no change |
-| disp_ratio7 | ≤0.80 (carry-forward estimate) | **0.765 (FRESH, n=68)** | first direct measurement |
-| disp_inversion_days | 13 | **14** | +1 |
-| S3 alert | firing (d13) | **firing (d14)** | persisting |
-| S4 alert | firing (37d) | **firing (37d → 40d deployed)** | persisting |
-| band dark days | 9+ | **10+** | +1 |
-| data_access | DEGRADED | DEGRADED | no change |
-
-**Key transition today:** `disp_ratio7` upgraded from `≤0.80 carry-forward` to **0.765 direct measurement** — first time this has been computed directly (not inferred) since the band went dark. This is a stronger basis for S3 than prior carry-forward estimates.
+**ALERT S4: deployed isotonic 41d old (refit 2026-06-06), no OOS validation, max diff 0.2577 — candidate removes p_raw=1.0 certainty spike — recommend collecting OOS labels before any swap — plateau collapse [0.30-0.95]→0.38 persists in both curves**
 
 ---
 
-## ALERTS
+## SECTION 5 — STATE
 
-| ID | Condition | Status | Days active |
-|---|---|---|---|
-| S3 | disp_ratio7 < 1.10 | **FIRES — ratio = 0.765** | **Day 14** |
-| S4 | isotonic candidate max_dev > 0.05 | **FIRES — max_dev = 0.2577** | **37+ days** |
+**Alerts this run:** 2 (S3, S4 — same as prior session; S3 upgraded to decision-grade)
+
+**Transitions from 2026-07-16:**
+- S3: persistent (d14→d15); disp_ratio upgraded 0.765(n=68,trend) → 0.704(n=110,**decision-grade**); value worsening
+- S4: persistent; deployed now 41d old (was 40d); no new OOS data
+- Brier7: carried 0.053 (multi-session stale) → fresh proxy 0.0200 (4d, inferred outcomes, proxy-grade not alert-grade)
+- ECE7: null (prior) → 0.0448 proxy (below 0.05 threshold, no alert)
+- Rho7: null (prior) → 0.8343 proxy (circular, above 0.15 floor)
+- Band: dark day 10 → dark day 11 (BAND_LIVE=False since 2026-07-06)
+- Disk: 96% full, 4GB remaining — **approaching critical**; note for VPS operator
+
+**Recommendations (report only — live-refit cron governs deployment):**
+1. **Dispersion edge:** The decision-grade inversion (n=110, 15d) means the band's core assumption is demonstrably wrong in current market conditions. If band were live, a market-regime review would be mandatory before re-activation. The band is correctly dark; this is the right posture.
+2. **Isotonic plateau:** Both curves collapse [0.30, 0.95] → ~0.38. A new isotonic fit with larger live_n and actual OOS brier validation is warranted before any deployment decision.
+3. **Disk:** 4GB remaining at 96% used. If large log files are accumulating, rotate or prune before hitting capacity.
 
 ---
 
-## Recommendations (monitor-only; no code edits)
+## ALERTS — Pre-registered fires only
 
-1. **S3 — Dispersion edge is inverted.** The guarded live-refit cron on VPS should evaluate whether the market pricing regime has structurally shifted since the 2026-06 validation. If implied dispersion has inverted, the band's statistical edge is gone regardless of calibration quality.
+### 🚨 S3-d15 — DISPERSION EDGE DECAYING (DECISION-GRADE)
+**disp_ratio7=0.704 < threshold 1.10**  
+15th consecutive day of inversion. n=110 (decision-grade, first time). EU=0.628, Asia=0.714. d+1=0.635, d+2=0.594. Value worsened from prior (0.765→0.704). No recovery signal. The band market-making edge against temperature dispersion is not present in current market conditions.
 
-2. **S4 — Isotonic candidate is also stale.** The candidate (n_live=1,037, 2 calendar days, 37 days ago) was not recently refit and lacks OOS validation. Deploying it eliminates the certainty spike but produces an even flatter calibration curve (near_identity_maxdev=0.626). A fresh refit with current live data is recommended before any deployment decision.
-
-3. **Brier7 gap** — brier7 has been carried forward for multiple sessions and is no longer a reliable signal. It should be refreshed with a direct resolution-join computation when pricer_eval_s50 files become accessible (requires larger MCP payload support or a direct SSH data pull path).
+### ⚠️ S4 — ISOTONIC STALENESS
+**max_diff=0.2577 at p_raw=1.0; deployed 41d, no OOS validation**  
+Candidate removes certainty spike (0.6316→0.3739 at p_raw=1.0). Plateau collapse [0.30-0.95]→0.38 present in both. No OOS brier for either curve. Recommend new full refit + OOS validation before any swap.
