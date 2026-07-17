@@ -2,8 +2,8 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-07-17T11:11:23Z |
-| klaus HEAD | f8829cd90 |
+| snapshot_ts (UTC) | 2026-07-17T11:26:24Z |
+| klaus HEAD | 73700d508 |
 | trades.jsonl rows | 8221 |
 | live rows | 8221 |
 | bankroll capital | $31.757363 |
