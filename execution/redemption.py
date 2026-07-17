@@ -150,6 +150,29 @@ class Redeemer:
             and p.get("asset") not in self._redeemed
         ]
 
+        # UPDOWN-SNIPER holds updown tokens to redemption by design (separate
+        # process, shared wallet) — its opens never reach risk.open_positions,
+        # so the 0.99 CLOB-sell shortcut poaches its winners in the gap between
+        # resolution and auto-redeem (07-17 08:01Z: 16.5 sh sold $16.32 vs
+        # $16.50 redeemable). Same guard as main._window_end_balance_sweep;
+        # fail-open: unreadable state file → empty set.
+        sniper_held: set = set()
+        try:
+            with open("logs/updown_sniper_state.json") as snf:
+                snst = json.load(snf)
+            sniper_held = {
+                str(v.get("token"))
+                for v in (snst.get("open") or {}).values()
+                if v.get("token")
+            }
+        except Exception:
+            pass
+        if sniper_held:
+            n_skip = sum(1 for p in winning if str(p.get("asset")) in sniper_held)
+            if n_skip:
+                logger.info("REDEEM skipping %d sniper-held token(s)", n_skip)
+            winning = [p for p in winning if str(p.get("asset")) not in sniper_held]
+
         if not winning:
             logger.debug("REDEEM no redeemable positions found")
             return
