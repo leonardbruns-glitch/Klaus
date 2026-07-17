@@ -2,6 +2,8 @@
 active
 
 ## Last 10 commits on klaus:
+8180ea59f EVOLVE evening 2026-07-17 22:20Z — kill-watch CLEAN day 2 (candidate 18/18W +$9.02 wallet-true, slice 51/51 CI-lo .930 vs BE .957 COLLECTING); redemption-poach fix deployed (8616a0975); first per-asset grade: eth/sol/xrp ~0-1 fires/day at v1 gates; pooled unfiltered gate now -EV (n=143 WR .958 < BE .963) validating the cut
+8616a0975 Redemption CLOB-sell guard: skip UPDOWN-SNIPER-held tokens (shared-wallet poach, sibling of 07-14 sweep fix)
 73700d508 Research audit 2026-07-17T1030Z — capital $31.76/$89.16 ruin_floor; sole revenue sniper n≈13 COLLECTING | best action: eth/sol/xrp per-asset grade (standing item)
 34608a4d8 Gate-keeper 2026-07-17 — ready=0 rejected=0 collecting=3
 cfc68e06f Calib monitor 2026-07-17 — brier7=0.020(proxy) disp_ratio=0.704 2 alerts (S3-d15 DECISION-GRADE n=110, S4)
@@ -10,14 +12,12 @@ f8829cd90 EVOLVE evening 2026-07-16 21:53Z — kill-watch CLEAN (candidate live 
 2c31d0769 OWNER ESCALATION 3 2026-07-16 15:14Z — KELLY_FRAC 0.50 (declared ceiling: full Kelly @WR.976, 2/3 Kelly @point est .988), CLIP_CAP 100, serial-fire rule under Kelly. Worst day -50% via 1-loss halt; 100%/fire stays refused.
 5ed43d911 OWNER WAIVER 2 2026-07-16 15:06Z — sized fires NOW: UPDOWN_KELLY=1, KELLY_FRAC 0.25 (full Kelly @WR.965; literal all-in refused, ruin math in code), CLIP_CAP 50, RESERVE 5, v1-breach day counters reset. Candidate policy unchanged; kill-watch + MAX_LOSSES_DAY=1 stand.
 d678de7b4 OWNER WAIVER 2026-07-16 14:59Z — candidate {P_MIN 0.995, 5m-only} LIVE without n>=150 gate: UPDOWN_STOP removed, waiver + kill conditions in ledger, daily_prompt tree -> kill-watch. v1 tape closed n=36, candidate tape n=0; today's day-rails hold, first fires 00:00Z 07-17. Risk bounded ~2 clips by RESERVE 20.
-fd1a92512 state_log: updown state-file wipe (test harness) + tape-truth restore
-15ac8adbe STAGE candidate re-enable 2026-07-16 — sniper restarts as {P_MIN 0.995, 5m-only} not cut v1; rails: MAX_LOSSES_DAY=1 + in-flight-aware daily stop; shadow_grade prints candidate slice verdict (42/42 W +4.72%/$ CI-lo .9162 vs BE .9560, COLLECTING 107/150); daily_prompt standing tree gains RE-ENABLE priority 1. Zero live effect: UPDOWN_STOP holds.
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   92G        1G 100% /
 
 ## Bot uptime:
-ActiveEnterTimestamp=Wed 2026-07-15 02:40:11 UTC
+ActiveEnterTimestamp=Fri 2026-07-17 22:05:07 UTC
 
 ## Open positions (count):
 0
