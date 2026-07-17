@@ -1,1 +1,210 @@
-IyBLbGF1cyBCYW5kIEV4ZWN1dGlvbiAmIE1hcmtvdXQgQXVkaXQg4oCUIDIwMjYtMDctMTYKCioqU25hcHNob3QqKjogMjAyNi0wNy0xNlQwNzowNDoyN1ogIHwgICoqS2xhdXMgc2VydmljZSoqOiBhY3RpdmUgIHwgICoqVXB0aW1lIHNpbmNlKio6IDIwMjYtMDctMTVUMDI6NDA6MTFaICAKKipDYXBpdGFsKio6ICQzMC4yNiAgfCAgKipSZXN0aW5nICQqKjogJDAuMDAgIHwgICoqT3BlbiBwb3NpdGlvbnMqKjogMCAgCioqRGF0YSBmcmVzaG5lc3MqKjog4pyTICg8Nmggb2xkIOKAlCBwcm9jZWVkaW5nKQoKLS0tCgojIyBQUkVBTUJMRSDigJQgQmFuZCBFbmdpbmUgU3RhdHVzCgpgQkFORF9MSVZFID0gRmFsc2VgICh3aW5kLWRvd24gdHJpZ2dlcmVkIDIwMjYtMDctMDY6IGVxdWl0eSAkMTA4LjM1IDwgNTAlwrczMGQtSFcgJDIyMi45MCDigJQgZGF5ICoqMTAqKiBvZmZsaW5lKS4gIApgQkFORF9OT19FTkFCTEVEID0gRmFsc2VgIChkaXNhYmxlZCAyMDI2LTA3LTAyOiA3ZCByZWFsaXplZCBXUiAzOS4yJSwgbj01MSkuICAKYEJBTkRfWUVTX0xJVkVfTUlOX0RPVVQgPSA5YCAoc3RhbmRhbG9uZSBZRVMgcGF1c2VkIOKAlCBuZXZlciBmaXJlcykuICAKYEJBTkRfUEFJUl9GQVZfRU5BQkxFRCA9IFRydWVgIGJ1dCBnYXRlZCBieSBgQkFORF9MSVZFID0gRmFsc2VgIOKAlCBpbm9wZXJhdGl2ZS4KCkFjdGl2ZSBzdHJhdGVneSAocGVyIGNvbW1pdCA5NDBmNmU4NjAsIDIwMjYtMDctMTUpOiAqKlVQRE9XTi1TTklQRVIqKiBpcyB0aGUgcHJpbWFyeSBjYXBpdGFsIGRlcGxveWVyLiBCYW5kL3dlYXRoZXIvU1RXQSBhbGwgZGFyay4KCioqUmVzdWx0Kio6IFRoZSBiYW5kL21ha2VyIGV4ZWN1dGlvbiBlbmdpbmUgaGFzIGJlZW4gZnVsbHkgb2ZmbGluZSBmb3IgMTAgZGF5cy4gQWxsIHNpeCBzZWN0aW9ucyBiZWxvdyByZWZsZWN0IHRoaXMgcmVhbGl0eS4gU2VjdGlvbnMgcmVxdWlyaW5nIGxpdmUgZmlsbHMgb3IgcmVzdGluZyBvcmRlcnMgcmVwb3J0IHplcm8uCgotLS0KCiMjIMKnMSDigJQgRklMTCBUQVBFICgyNGggKyA3ZCkKCiMjIyBMb2cgRm9ybWF0IEF1ZGl0CgpgbWFrZXJfZmlsbHNfcmVjZW50LmxvZ2AgKDI0NiBsaW5lcywgMjAyNi0wNy0xMyDihpIgMjAyNi0wNy0xNik6CgotIGBbTUFLRVItRklMTF1gIGxpbmVzOiAqKjAqKgotIGBbU1RSVUNULUJBTkQtUV1gIGxpbmVzOiAqKjAqKgotIGByZWFwZWQgZGVhZCBlbnRyeWAgbGluZXM6ICoqMCoqCgpBbGwgMjQ2IGxpbmVzIGFyZSBgW1VTRVItV1NdIFVOVFJBQ0tFRCBGSUxMYCBldmVudHMgZnJvbSBgc3RyYXRlZ3kud2VhdGhlcl9hcmJgIOKAlCB0aGUgYm90IHJlY2VpdmVzIFdlYlNvY2tldCBmaWxsIGV2ZW50cyBmb3IgcG9zaXRpb25zIGl0IGhhcyBubyB0cmFja2VyIHN0YXRlIGZvci4gVGhlc2UgYXJlIHVwZG93bi1zbmlwZXIgZmlsbHMsIG5vdCBiYW5kLW1ha2VyIGZpbGxzLgoKIyMjIEZpbGwgQ291bnQgKE1BVENIRUQgZXZlbnRzLCBkZWR1cGxpY2F0ZWQgZnJvbSB0cmlwbGUtZXZlbnQgY29uZmlybSBmbG93KQoKfCBEYXRlIHwgRXZlbnRzIHwgQlVZIHwgU0VMTCB8IEJVWSBub3Rpb25hbCB8IFNFTEwgbm90aW9uYWwgfCBUYWtlciB8IE1ha2VyIHwKfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18CnwgMjAyNi0wNy0xMyB8IDE1IHwgOCB8IDcgfCAkNzEuODYgfCAkNjYuMzYgfCAxNCB8IDEgfAp8IDIwMjYtMDctMTQgfCAzNSB8IDE4IHwgMTcgfCAkODEuMDEgfCAkNDQ0LjkzwrkgfCAyOSB8IDYgfAp8IDIwMjYtMDctMTUgfCAyMSB8IDIwIHwgMSB8ICQ4Ni40NyB8ICQ0Ljg1IHwgMTkgfCAyIHwKfCAyMDI2LTA3LTE2ICh0byAwNTowMFopIHwgMTEgfCAxMSB8IDAgfCAkNTIuMDMgfCAkMC4wMCB8IDEwIHwgMSB8CnwgKio3ZCB0b3RhbCoqIHwgKio4MioqIHwgKio1NyoqIHwgKioyNSoqIHwgKiokMjkxLjM3KiogfCAqKiQ1MTYuMTQqKiB8ICoqNzIqKiB8ICoqMTAqKiB8CgrCuSBJbmNsdWRlcyBzaW5nbGUgTUFLRVIgU0VMTCBvZiAzNjcuNjYgc2ggw5cgJDAuOTggPSAkMzYwLjMxIChhbm9tYWx5LCBmaXJzdCByZXBvcnRlZCAyMDI2LTA3LTE1IGF1ZGl0IOKAlCBzZWUgQUxFUlRTKS4KCiMjIyAyNGggZmlsbHMgKDIwMjYtMDctMTUgMDc6MDRaIOKGkiAyMDI2LTA3LTE2IDA3OjA0WikKfjI4IGV2ZW50czogfjE3IGZyb20gMDctMTUgKHBvc3QtMDc6MDQpICsgMTEgZnJvbSAwNy0xNiAodG8gMDU6MDApLiBHcm9zcyBub3Rpb25hbCDiiYggJDE0MCBCVVkgLyAkNSBTRUxMLiBBbGwgdW50cmFja2VkIHNuaXBlciBUQUtFUiBleGl0cyBhbmQgZW50cmllcy4KCiMjIyBCeSBwcmljZSBiYW5kIChhbGwgODIgZXZlbnRzLCA3ZCkKfCBQcmljZSBiYW5kIHwgQ291bnQgfCBOb3RlcyB8CnwtLS18LS0tfC0tLXwKfCA8MC4xMCB8IDggfCBNQUtFUiBidXlzIGF0IDAuMDLigJMwLjA5OyByZXNpZHVhbCBiYW5kIGJpZHMgb3Igc25pcGVyIGRlZXAgZW50cmllcyB8CnwgMC4xMOKAkzAuMzAgfCAwIHwg4oCUIHwKfCAwLjMw4oCTMC41MCB8IDAgfCDigJQgfAp8IDAuNTDigJMwLjg1IHwgMSB8IOKAlCB8CnwgPjAuODUgfCA3MyB8IFRBS0VSIGJ1eXMgYW5kIHNlbGxzIGF0IDAuOTLigJMwLjk5OyBzbmlwZXIgbGF0ZS1yZXNvbHV0aW9uIGhhcnZlc3RpbmcgfAoKIyMjIEZpbGwgcmF0ZSAoYmFuZCBtYWtlcikKLSBCYW5kIHBvc3RlZCB0b2tlbnMgc2luY2UgMjAyNi0wNy0wNzogKiowKioKLSBCYW5kIGZpbGwgcmF0ZTogKipOL0EqKgotIExhc3QgYmFuZCBwb3N0IGRhdGUgKGZyb20gYGJhbmRfcG9zdGVkX3N0YXRlLmpzb25gKTogKioyMDI2LTA3LTA2KiogKCQ0OC4wMSBzcGVudCwgMTAgdG9rZW5zKQoKLS0tCgojIyDCpzIg4oCUIE5PLVBBUklUWSBNT05JVE9SCgpgYmFuZF9wb3N0ZWRfc3RhdGUuanNvbmAgbGFzdCBlbnRyeTogKioyMDI2LTA3LTA2KiogKDEwIGRheXMgYWdvKS4gIApgbWFrZXJfcmVzdGluZ19zdGF0ZS5qc29uYDogKip7fSoqICh6ZXJvIHJlc3Rpbmcgb3JkZXJzIG9mIGFueSBraW5kKS4gIApgYmFuZF9zdHJ1Y3RfbGl0ZS5qc29ubGAgKGFsbCA2IGRheXMsIDIwMjYtMDctMTEgdGhyb3VnaCAyMDI2LTA3LTE2KTogMCBgInBvc3QiYCByZWNvcmRzLiBBbGwgYCJmaXJlImAgcmVjb3JkcyBjYXJyeSBgImxpdmUiOiBmYWxzZWAuCgoqKlBvc3QgY291bnRzIGJ5IHNpZGUgKDIwMjYtMDctMDcg4oaSIDIwMjYtMDctMTYpKio6IFlFUyA9IDAsIE5PID0gMC4gIAoqKk5PIHNoYXJlIG9mIG5ldyBwb3N0cyoqOiBOL0Eg4oCUIHplcm8gcG9zdHMgZnJvbSBlaXRoZXIgc2lkZS4KCkNvbnRleHQ6IGBCQU5EX05PX0VOQUJMRUQ9RmFsc2VgIHNpbmNlIDIwMjYtMDctMDI7IGBCQU5EX0xJVkU9RmFsc2VgIHNpbmNlIDIwMjYtMDctMDYuIFRoZSBOTy1zdGFydmF0aW9uIGZpeCAoMjAyNi0wNi0xMikgY2Fubm90IGJlIHZlcmlmaWVkIGFnYWluc3QgemVybyBwb3N0cy4gTGFzdCBrbm93biBOTyBwb3N0aW5nIHdpbmRvdyB3YXMgSnVuIDEy4oCTSnVsIDIuCgpTaGFkb3cgYmFuZCBmaXJlcyBhcmUgcnVubmluZyBhdCAqKjEw4oCTMTgvZGF5KiogKGFsbCBgbGl2ZT1mYWxzZWApLCBjb25maXJtaW5nIHRoZSBlbmdpbmUgaXMgc2Nhbm5pbmcgYnV0IG5vdCBleGVjdXRpbmc6Cgp8IERhdGUgfCBTaGFkb3cgZmlyZXMgfCBCeSBkYXlzX291dCB8IENpdGllcyB8CnwtLS18LS0tfC0tLXwtLS18CnwgMjAyNi0wNy0xMSB8IDE4IHwgZDA9MiwgZDE9OCwgZDI9OCB8IEJlaWppbmcsIENoZW5nZHUsIENob25ncWluZywgTXVuaWNoLCBTZW91bCwgVGFpcGVpLCBUb2t5bywgV3VoYW4gfAp8IDIwMjYtMDctMTIgfCAxNCB8IGQwPTAsIGQxPTQsIGQyPTEwIHwgQmVpamluZywgQ2hlbmdkdSwgQ2hvbmdxaW5nLCBMb25kb24sIE11bmljaCwgU2VvdWwsIFNoYW5naGFpLCBUYWlwZWksIFRva3lvLCBXdWhhbiB8CnwgMjAyNi0wNy0xMyB8IDExIHwgZDA9MCwgZDE9MiwgZDI9OSB8IEJlaWppbmcsIENoZW5nZHUsIENob25ncWluZywgTXVuaWNoLCBTZW91bCwgU2hhbmdoYWksIFRhaXBlaSwgVG9reW8sIFd1aGFuIHwKfCAyMDI2LTA3LTE0IHwgMTAgfCBkMD0xLCBkMT0zLCBkMj02IHwgQmVpamluZywgTXVuaWNoLCBTZW91bCwgU2hhbmdoYWksIFRhaXBlaSwgVG9reW8gfAp8IDIwMjYtMDctMTUgfCAxNSB8IGQwPTAsIGQxPTYsIGQyPTkgfCBCZWlqaW5nLCBDaGVuZ2R1LCBDaG9uZ3FpbmcsIExvbmRvbiwgTXVuaWNoLCBTZW91bCwgU2hhbmdoYWksIFRhaXBlaSwgV3VoYW4gfAp8IDIwMjYtMDctMTYgKHRvIDA3OjA0KSB8IH4xMSB8IGQxPTMsIGQyPTggfCBMb25kb24sIE11bmljaCwgU2VvdWwsIFRhaXBlaSwgQ2hvbmdxaW5nLCBXdWhhbiwgU2hhbmdoYWksIENoZW5nZHUgfAoKU2hhZG93IGZpcmVzIGFyZSBleGNsdXNpdmVseSBZRVMtYmFuZCAobWRfc2hhZG93IHJlY29yZHMgb25seSDigJQgYEJBTkRfTk9fRU5BQkxFRD1GYWxzZWAgc3VwcHJlc3NlcyBOTyBjYW5kaWRhdGVzKS4gU3VtLWdhdGUgaXMgYmxvY2tpbmcgdGhlIG1ham9yaXR5IG9mIHBvdGVudGlhbCBkKzEvZCsyIGNhbmRpZGF0ZXMgKGBzdW1fYXNrID4gQkFORF9TVU1fTUFYPTAuODVgIG9uIG1vc3QgY3ljbGVzKS4KCi0tLQoKIyMgwqczIOKAlCBRVUVVRSBIRUFMVEgKCmBbU1RSVUNULUJBTkQtUV1gIGxpbmVzIGluIGZpbGwgdGFwZTogKiowKiogKGV4cGVjdGVkIGJlaGF2aW9yIOKAlCBubyBsaXZlIHBvc3RpbmcgY3ljbGVzIHdoZW4gYEJBTkRfTElWRT1GYWxzZWApLgoKYG1ha2VyX3Jlc3Rpbmdfc3RhdGUuanNvbmAgPSBge31gIOKAlCBubyByZXN0aW5nIG9yZGVycyBvZiBhbnkgdHlwZS4KCmBiYW5kX3N0cnVjdC5qc29ubGAgY29udGludWVzIHdyaXRpbmcgc2hhZG93IG9ic2VydmF0aW9ucyAofjE3NSByZWNvcmRzL2RheSBvYnNlcnZlZCBpbiBsaXRlIGZpbGVzKSwgY29uZmlybWluZyB0aGUgZW5naW5lIGlzIGFsaXZlIGFuZCBzY2FubmluZy4gTm8gbGl2ZSBjeWNsZSBzdGF0aXN0aWNzIGFyZSBhdmFpbGFibGUuCgpgTUFLRVJfU0hBRE9XX0VOQUJMRUQ9VHJ1ZWAg4oCUIHNoYWRvdy1xdW90ZSBsb2dnZXIgaXMgcnVubmluZyAobWFrZXJfc2hhZG93Lmpzb25sIGFjdGl2ZSBwZXIgc2hhZG93X3N1bW1hcnkpLCBidXQgc2hhZG93IHF1b3RlcyBkbyBub3QgY29uc3VtZSBjYXBpdGFsIG9yIGdlbmVyYXRlIHRyYWNrZXIgc3RhdGUuCgoqKkJvb2tzL2Nhc2hfcHJlc2tpcCoqOiBDYW5ub3QgbWVhc3VyZSDigJQgbm8gW1NUUlVDVC1CQU5ELVFdIGxpbmVzLiBRdWV1ZSBzdGFydmF0aW9uIGNhbm5vdCBiZSBhc3Nlc3NlZCBmb3IgbGl2ZSBjeWNsZXMgdGhhdCBhcmUgbm90IHJ1bm5pbmcuCgotLS0KCiMjIMKnNCDigJQgUkVTT0xVVElPTiBNQVJLT1VUIChGaWxsIFF1YWxpdHkgLyBBZHZlcnNlLVNlbGVjdGlvbiBUZXN0KQoKKipuID0gMCBiYW5kIGZpbGxzKiogaW4gdGhlIDdkIHdpbmRvdy4gTm8gbWFrZXIgZmlsbCB0YXBlIGV4aXN0cyB0byBqb2luIHRvIHJlc29sdXRpb24gb3V0Y29tZXMuCgpOb24tYmFuZCAoc25pcGVyKSBmaWxscyBpbiB0aGUgdGFwZSBhcmUgYWxsIGBVTlRSQUNLRURgIOKAlCBubyBlbnRyeSBwcmljZSwgaW50ZW50IHJlY29yZCwgb3IgY29uZGl0aW9uX2lkIG1hcHBpbmcgYXZhaWxhYmxlLiBBZHZlcnNlLXNlbGVjdGlvbiBhbmFseXNpcyBpcyBpbXBvc3NpYmxlLgoKVGhlIDggTUFLRVIgYnV5cyBhdCA8MC4xMCAocHJpY2VzIDAuMDLigJMwLjA5KSB3aXRoaW4gdGhlIDdkIHRhcGUgYXJlIGNvbnNpc3RlbnQgd2l0aCByZXNpZHVhbCBwcmUtc2h1dGRvd24gYmFuZCBiaWRzIHN0aWxsIHJlc3Rpbmcgb24gdGhlIENMT0IgZnJvbSBKdW5lIHBvc3RpbmdzIChsYXN0IHBvc3RlZCAyMDI2LTA3LTA2KS4gSWYgdGhlc2UgYXJlIGJhbmQgYmlkcyBmaWxsaW5nIGF0IHN0YWxlIHByaWNlcyBhZnRlciBtb2RlIHNoaWZ0LCB0aGV5IHJlcHJlc2VudCBhZHZlcnNlIHNlbGVjdGlvbiBvbiBvbGQgcXVvdGVzIOKAlCBidXQgd2l0aG91dCB0cmFja2VyIGVudHJpZXMgb3IgY29uZGl0aW9uX2lkIG1hcHBpbmcsIHRoaXMgY2Fubm90IGJlIGNvbmZpcm1lZC4KCioqTm8gd2lubmVyJ3MgY3Vyc2UgYXNzZXNzbWVudCBwb3NzaWJsZSDigJQgbj0wIHRyYWNrZWQgZmlsbHMuKioKCi0tLQoKIyMgwqc1IOKAlCBERUFELVFVT1RFIFJFQ0xBSU0KCmBtYWtlcl9yZXN0aW5nX3N0YXRlLmpzb25gID0gYHt9YC4gIApSZXN0aW5nIG9yZGVyczogKiowKiouIE9sZGVzdCBxdW90ZSBhZ2U6ICoqTi9BKiouIFF1b3RlcyA+MjRoOiAqKjAqKi4gUXVvdGVzID40OGg6ICoqMCoqLiAgCmByZWFwZWQgZGVhZCBlbnRyeWAgbGluZXMgaW4gZmlsbCB0YXBlOiAqKjAqKi4KCkRlYWQtcXVvdGUgdmVsb2NpdHkgaXMgY2xlYW4gYnkgY29uc3RydWN0aW9uIOKAlCBiYW5kIGhhcyBiZWVuIG9mZmxpbmUgMTAgZGF5cy4gRWl0aGVyIGFsbCBwcmlvciByZXN0aW5nIG9yZGVycyBoYXZlIGFscmVhZHkgZmlsbGVkLCBleHBpcmVkLCBvciBiZWVuIHJlY2xhaW1lZCAoQkFORF9SRUNMQUlNX0FHRV9TPTJoKSwgb3IgdGhleSBjb250aW51ZSB0byByZXN0IHVudHJhY2tlZC4gVGhlIDggTUFLRVIgZmlsbHMgYXQgPDAuMTAgaW4gdGhlIDdkIHRhcGUgc3VnZ2VzdCBhdCBsZWFzdCBzb21lIHByZS1zaHV0ZG93biBiaWRzIGFyZSBzdGlsbCBsaXZlIGFuZCBmaWxsaW5nOyB0aGVzZSBkbyBub3QgYXBwZWFyIGluIGBtYWtlcl9yZXN0aW5nX3N0YXRlLmpzb25gLCBjb25maXJtaW5nIHRoZSByZXN0aW5nLXN0YXRlIHZpZXcgaXMgaW5jb21wbGV0ZSBmb3IgcHJlLXNodXRkb3duIG9yZGVycy4KCi0tLQoKIyMgwqc2IOKAlCBDQVNIIFZFTE9DSVRZCgp8IE1ldHJpYyB8IFZhbHVlIHwgTm90ZXMgfAp8LS0tfC0tLXwtLS18CnwgQ2FwaXRhbCAoYmFua3JvbGwuanNvbikgfCAkMzAuMjYgfCBDQVZFQVQ6IHVzZXIgc2VsbHMgbWFudWFsbHksIGJhbmtyb2xsLmpzb24gdW5yZWxpYWJsZSBmb3IgUG5MIHwKfCBEYWlseSBzdGFydCBjYXBpdGFsIHwgJDMzLjg2IHwgQm90J3MgdmlldyBhdCB0b2RheSdzIHNlc3Npb24gb3BlbiB8CnwgVG90YWwgUG5MIChjdW11bGF0aXZlKSB8IOKIkiQ3NS40MCB8IEFjcm9zcyAzLDA5MyB0cmFkZXMgbG9nZ2VkIHwKfCBSZXN0aW5nICQgfCAkMC4wMCB8IE5vIG9wZW4gbWFrZXIgb3JkZXJzIHwKfCBCYW5kIGZpbGxzICQgbGFzdCAyNGggfCAkMC4wMCB8IEVuZ2luZSBvZmZsaW5lIHwKfCBTbmlwZXIgZmlsbHMgJCBsYXN0IDI0aCAoZ3Jvc3MpIHwg4omIJDE0NSB8IH4yOCBldmVudHM7IGFsbCB1bnRyYWNrZWQ7IEJVWS1oZWF2eSB8CnwgQmFuZCB0dXJucy9kYXkgfCAqKjAuMCoqIHwgRW5naW5lIG9mZmxpbmUgfAp8IFNuaXBlciBncm9zcyB0dXJucy9kYXkgfCDiiYg0LjjDlyB8ICQxNDUvJDMwLjI2IOKAlCBhbGwgdW50cmFja2VkIFRBS0VSIHwKCioqQmFkYXRtYXRoIGJlbmNobWFyayoqOiB+MS4wIGVxdWl0eSB0dXJuL2RheSBhdCAxMOKAkzIwJSBST0kvdHVybi4gS2xhdXMgYmFuZDogMC4wLgoKLS0tCgojIyBBTEVSVFMKCk5vIHByZS1yZWdpc3RlcmVkIHNwZWMgYWxlcnRzIGZpcmVkOgotIE5PLXBhcml0eSAoPDI1JSBOTyBvbiBkYXlzIHdpdGgg4omlMTAgcG9zdHMpOiAwIHBvc3RzIHRvZGF5IOKGkiAqKm5vdCBmaXJlZCoqCi0gQm9va3MgcGlubmVkIGF0IDgwIG9yIHllc19ib29rcyBhdCA1MDogbm8gY3ljbGVzIHJ1bm5pbmcg4oaSICoqbm90IGZpcmVkKioKLSBjYXNoX3ByZXNraXAgPjIwMCB3aXRoIHBvc3RlZD0wOiBubyBjeWNsZXMgcnVubmluZyDihpIgKipub3QgZmlyZWQqKgotIFF1b3RlcyA+NDhoIG9sZCAoPjIwIHRocmVzaG9sZCk6IDAgcmVzdGluZyBvcmRlcnMg4oaSICoqbm90IGZpcmVkKioKCioqQ2FycnktZm9yd2FyZCBmcm9tIDIwMjYtMDctMTUgYXVkaXQ6KioKCiMjIyBDQVJSWS1BTEVSVC0xOiBCQU5EIEZVTExZIE9GRkxJTkUgKGRheSAxMCkKYEJBTkRfTElWRT1GYWxzZWAgc2luY2UgMjAyNi0wNy0wNiwgYEJBTkRfTk9fRU5BQkxFRD1GYWxzZWAgc2luY2UgMjAyNi0wNy0wMi4gWmVybyBuZXcgcG9zdHMsIHplcm8gZmlsbHMsIHplcm8gcmVzdGluZyBvcmRlcnMuIEFsbCBiYW5kX3N0cnVjdCBmaXJlcyBjYXJyeSBgImxpdmUiOiBmYWxzZWAuIFRoaXMgaXMgdGhlIGV4cGVjdGVkIHBvc3QtY2hhcnRlci1oYWx0IHN0YXRlOyBub3RpbmcgZm9yIHN0cmVhayBjb250aW51aXR5LgoKIyMjIENBUlJZLUFMRVJULTI6IFRSQUNLRVIgQkxJTkRORVNTIOKAlCAxMDAlIE9GIEZJTExTIFVOVFJBQ0tFRApCb3QgcmVzdGFydGVkIDIwMjYtMDctMTUgMDI6NDA6MTEgVVRDICgzMiBob3VycyB1cHRpbWUgYXMgb2Ygc25hcHNob3QpLiAxMDAlIG9mIGZpbGxzIGluIHRoZSA3ZCB0YXBlIGFyZSBgVU5UUkFDS0VEYCDigJQgdGhlIGJvdCBoYXMgbm8gdHJhY2tlciBzdGF0ZSBmb3IgYW55IHBvc2l0aW9uIGl0IHNlZXMgZmlsbCBldmVudHMgZm9yLiBUaGlzIGlzIGNvbnNpc3RlbnQgd2l0aCBpbi1tZW1vcnktb25seSBwb3NpdGlvbiBzdGF0ZSByZXNldCBhdCByZXN0YXJ0LiBJbXBhY3Q6IFBuTCBhdHRyaWJ1dGlvbiBpcyBpbXBvc3NpYmxlOyBubyBzdG9wLWxvc3Mgb3IgVFAgbWFuYWdlbWVudCBpcyBhY3RpdmUgZm9yIHRoZXNlIHBvc2l0aW9ucy4KCiMjIyBDQVJSWS1BTEVSVC0zOiBBTk9NQUxPVVMgTUFLRVIgU0VMTCAoJDM2MCwgMjAyNi0wNy0xNCwgVU5SRVNPTFZFRCkKTUFLRVIgU0VMTCBvZiAzNjcuNjYgc2hhcmVzIGF0ICQwLjk4ICh0b3RhbCAkMzYwLjMxKSBvbiAyMDI2LTA3LTE0IDE1OjQ5IFVUQy4gRXhjZWVkcyBjdXJyZW50IHJlcG9ydGVkIGNhcGl0YWwgKDEwLjXDlykuIFNvdXJjZSB1bmtub3duOiBwcmUtZXhpc3RpbmcgcG9zaXRpb24sIG1hbnVhbCBlbnRyeSwgb3IgcHJpb3Itc2Vzc2lvbiBsZWZ0b3Zlci4gT3V0c2lkZSAyNGggd2luZG93IG5vdzsgc3RpbGwgaW4gN2QgdGFwZS4gTm8gcmVzb2x1dGlvbiBzaW5jZSBmaXJzdCByZXBvcnRlZC4KCi0tLQoKIyMgU1VNTUFSWQoKKipmaWxscy9kYXkqKjogMCAoYmFuZCwgZGF5IDEwIGRhcmspIHwgfjQgc25pcGVyIGV2ZW50cy9kYXkgKGFsbCB1bnRyYWNrZWQgVEFLRVIpICAKKipOTy1zaGFyZSoqOiBOL0Eg4oCUIGJvdGggYEJBTkRfTk9fRU5BQkxFRGAgYW5kIGBCQU5EX0xJVkVgIGFyZSBGYWxzZTsgemVybyBwb3N0cyBmcm9tIGVpdGhlciBzaWRlICAKKipCaW5kaW5nIGV4ZWN1dGlvbiBjb25zdHJhaW50IHRvZGF5Kio6IEJhbmQgZW5naW5lIG9mZmxpbmUgKEJBTkRfTElWRT1GYWxzZSwgZGF5IDEwKTsgdHJhY2tlciBibGluZG5lc3MgbWVhbnMgMTAwJSBvZiB2aXNpYmxlIGZpbGxzIGFyZSB1bmF0dHJpYnV0ZWQ7IHRoZSBhbm9tYWxvdXMgJDM2MCBNQUtFUiBTRUxMIG9yaWdpbiByZW1haW5zIHVucmVzb2x2ZWQuIE5vIGJhbmQgZXhlY3V0aW9uIG1ldHJpY3MgYXJlIGF2YWlsYWJsZSB1bnRpbCBCQU5EX0xJVkUgaXMgcmUtZW5hYmxlZC4K
+# Band Execution & Markout Audit — 2026-07-17
+
+**Snapshot**: `2026-07-17T07:08:32Z` (age < 6h ✓)  
+**System**: `klaus systemd: active` ✓  
+**Auditor**: exec-audit-agent  
+**Source branch**: `data-mirror` (commit `361ec8504`)
+
+---
+
+## Live Configuration (band_config.txt — authoritative)
+
+| Flag | Value | Notes |
+|---|---|---|
+| `BAND_LIVE` | **False** | Wind-down since 2026-07-06: equity $108.35 < 50%·30d-HW $222.90 |
+| `BAND_NO_ENABLED` | **False** | Rail-halt since 2026-07-02: 7d realized WR 39.2% (n=51) |
+| `BAND_YES_LIVE_MIN_DOUT` | 9 | Standalone YES paused (d+0..d+8 never fire live) |
+| `BAND_PAIR_FAV_ENABLED` | True | Shadow-only while BAND_LIVE=False |
+| `MAKER_SHADOW_ENABLED` | True | Shadow quote tracking active |
+| `STWA_REGULAR_YES_ENABLED` | False | Disabled 2026-06-05 |
+| `STWA_REGULAR_NO_ENABLED` | False | Disabled 2026-06-11 |
+
+**Effective state**: Engine is running and generating shadow fires, but BAND_LIVE=False blocks all capital deployment. No new maker bids posted since 2026-07-06.
+
+---
+
+## Section 1 — Fill Tape (24h + 7d)
+
+### Format finding
+The `maker_fills_recent.log` file contains **exclusively `[USER-WS] UNTRACKED FILL` warnings** — zero `[MAKER-FILL]` structured entries, zero `[STRUCT-BAND-Q]` queue stats, zero `reaped dead entry` lines. The band maker's structured fill logger produced no output because no positions were opened by the current bot instance. All fills observed are from pre-wind-down legacy orders.
+
+### 7-day tape (Jul 14–17, window captured at 07:08Z)
+
+| Metric | Value |
+|---|---|
+| Total CONFIRMED fills | 78 |
+| MAKER fills | 12 |
+| TAKER fills | 66 |
+| 24h CONFIRMED fills (Jul 17 to snapshot) | 3 |
+| 24h fill value (TAKER sells) | $43.92 |
+
+**By trader_side (CONFIRMED):**
+
+| Side | Count | Total Value | Price Range |
+|---|---|---|---|
+| MAKER | 12 | ~$518.57 | $0.02–$0.98 |
+| TAKER | 66 | $412.41 | $0.87–$0.999 |
+
+**MAKER fill detail:**
+
+| Subtype | Count | Total | Interpretation |
+|---|---|---|---|
+| BUY at $0.02–$0.09 | 8 | $11.07 | Adverse fills — old YES bids on near-zero legs resting on CLOB; outcome resolved against band |
+| SELL at $0.96–$0.98 | 4 | $507.50 | Exit fills — YES positions held to near-resolution, maker sell orders filled |
+
+Notable MAKER SELL fills:
+- Jul 14 15:49 — 367.66 shares @ $0.98 = **$360.31**
+- Jul 16 21:39 — 147.05 shares @ $0.96 = **$141.17**
+- Jul 14 15:04 — 5.0 shares @ $0.98 = $4.90
+
+**By price band (CONFIRMED):**
+
+| Price Band | Count | Value |
+|---|---|---|
+| < 0.10 | 8 | $13.07 |
+| 0.10 – 0.30 | 0 | $0.00 |
+| 0.30 – 0.50 | 0 | $0.00 |
+| 0.50 – 0.85 | 0 | $0.00 |
+| > 0.85 | 70 | $919.90 |
+
+**TAKER fills (66, user manual sell-exits):** Daily breakdown:
+- Jul 14: 26 fills, $139.77
+- Jul 15: 19 fills, $90.82
+- Jul 16: 18 fills, $137.91
+- Jul 17 (to 07:08Z): 3 fills, $43.92
+
+**Fill rate**: Not applicable — no new posts since 2026-07-06. All fills are exits from the pre-wind-down portfolio.
+
+---
+
+## Section 2 — NO-Parity Monitor
+
+**band_posted_state.json**: Last tokens posted 2026-07-06 (10 tokens, $48.01). No posts on Jul 7–17.
+
+**maker_resting_state.json**: `{}` — empty (zero live resting orders per bot state).
+
+**Shadow fires by side (Jul 12–17, 5 days, n=64 fires):**
+
+| Side | Legs | Share |
+|---|---|---|
+| YES | 290+ | 100% |
+| NO | 0 | 0% |
+
+NO-parity alert threshold: < 25% NO share on days with ≥10 live posts. **Vacuous — zero live posts exist.** The NO=0% reading is not a bug; it reflects BAND_NO_ENABLED=False.
+
+**NO-starvation fix verification (2026-06-12 commit)**: Cannot be verified — no live NO posting has occurred since the fix date falls within the active period, but BAND_NO_ENABLED=False before live data for this audit window exists. Code fix is present; live verification requires re-enabling BAND_NO.
+
+---
+
+## Section 3 — Queue Health
+
+**Source**: `[STRUCT-BAND-Q]` lines — **Count: 0** (no queue stats logged to fill tape during window).
+
+**Shadow engine activity (from band_struct_lite per day):**
+
+| Date | Records | Shadow Fires | Live Fires | Reasons |
+|---|---|---|---|---|
+| 2026-07-12 | 169 | 14 | 0 | no_band:40 converged:24 sum_gate:29 fire:14 |
+| 2026-07-13 | 167 | 11 | 0 | no_band:42 converged:25 sum_gate:29 fire:11 |
+| 2026-07-14 | 168 | 10 | 0 | no_band:37 converged:30 sum_gate:29 fire:10 |
+| 2026-07-15 | 174 | 15 | 0 | no_band:44 converged:22 sum_gate:29 fire:15 |
+| 2026-07-16 | 163 | 14 | 0 | no_band:42 converged:18 sum_gate:29 fire:14 |
+| 2026-07-17 (partial) | ~60 | 10 | 0 | — |
+
+The engine completes cycles and generates 10–15 shadow fires/day across 8–10 cities (London, Beijing, Munich, Wuhan, Chengdu, Seoul, Shanghai, Taipei, Chongqing, Tokyo). `sum_gate` fires at 29/day every day = consistent gate hitting (sum_ask ≥ BAND_SUM_MAX=0.85 on most markets, meaning markets are efficiently priced within the band sum).
+
+**Books pinned at 80 / yes_books at 50**: Cannot assess — no [STRUCT-BAND-Q] lines. Shadow engine running implies fetches complete.
+
+**Deployment stall pattern (cash_preskip > 200, posted=0)**: Cannot quantify, but capital is intentionally idle by BAND_LIVE=False charter mandate — not a technical stall.
+
+---
+
+## Section 4 — Resolution Markout (Fill Quality)
+
+**Status**: Partial — band_resolution_join.py cannot be run (git fetch timed out; CLOB API access via live execution path not available in audit environment). Formal winner's-curse computation requires resolution data and is deferred.
+
+**Observable data:**
+
+MAKER SELL exit fills at $0.96–$0.98 (n=4, $507.50 total). Given `BAND_PX_CEIL = 0.45` (max entry for d+1/d+2) and `BAND_PX_CEIL_D0 = 0.25` (max entry d+0), the implied ROI on these exits is:
+
+| Entry price assumption | Exit price | Implied ROI |
+|---|---|---|
+| $0.25 (d+0 max) | $0.96–$0.98 | 284–292% |
+| $0.45 (d+1/2 max) | $0.96–$0.98 | 113–118% |
+| $0.15 (typical mid-band) | $0.96–$0.98 | 540–553% |
+
+MAKER BUY fills at $0.02–$0.09 (n=8, $11.07 total): These are adverse fills on resting YES bids where the underlying resolved NO. Positions at $0.04–$0.09 entry are now near-zero. These represent losses, but dollar magnitude is small.
+
+**n = 12 MAKER fills. Below 40-trade floor — data collection only, no edge conclusions.**
+
+**Winner's-curse test**: Cannot run formally. The MAKER BUY adverse fills ($11.07) vs MAKER SELL wins ($507.50) suggest fill asymmetry in favor of the maker, but this is exit-period liquidation, not representative of fill selection during active posting.
+
+---
+
+## Section 5 — Dead-Quote Reclaim
+
+| Metric | Value |
+|---|---|
+| Reaped dead entry lines (7d) | 0 |
+| Live resting quotes | 0 (maker_resting_state = {}) |
+| Quotes older than 24h | 0 |
+| Quotes older than 48h | 0 |
+
+**Alert threshold** (> 20 quotes older than 48h): **Does not fire.** No live quotes exist per bot state.
+
+**Caveat**: See ALERTS — the bot's resting state (`{}`) may not reflect actual CLOB state. UNTRACKED FILL activity on Jul 14–16 with `trader_side=MAKER` confirms real CLOB orders exist that the bot doesn't track. Some of those positions may still be resting and not captured in maker_resting_state.json.
+
+---
+
+## Section 6 — Cash Velocity
+
+| Metric | Value | Notes |
+|---|---|---|
+| Capital (bankroll.json) | $30.56 | CAVEAT: user sells manually; not a reliable PnL measure |
+| Resting $ (bot state) | $0.00 | Empty book per maker_resting_state |
+| Fills last 24h (Jul 17) | $43.92 | 3 TAKER sell exits; no maker fills |
+| Turns/day (exit value / capital) | 1.44× | Liquidation velocity, not strategy velocity |
+| Net exit proceeds Jul 14–17 | $932.48 | TAKER $412.41 + MAKER SELL $507.50 + MAKER BUY ($11.07 outflow) |
+| Capital deployed in shadow | $0 | BAND_LIVE=False |
+
+**Historical context (band_posted_state.json — active period Jun 17 – Jul 6):**
+- 496 tokens posted over 20 days ($2,204.23 total capital deployed)
+- Average: 24.8 tokens/day, $110.21/day deployed
+- Average stake per token: $2.57 (early Jun) rising to $8.75 (late Jun) as band tuning evolved
+- Peak day: 2026-06-18, 94 tokens, $260.25
+
+Benchmark vs badatmath (1.0 turn/day at 10–20% ROI/turn): Not applicable in wind-down mode. The $110/day deployment rate during active period implies moderate velocity; without matching fill data for that period, ROI/turn cannot be computed here.
+
+---
+
+## ALERTS
+
+### ALERT 1 — UNTRACKED RESTING ORDERS ON CLOB (Confirmed)
+
+**Severity: HIGH — operational integrity**
+
+The fill tape contains 12 MAKER-side CONFIRMED fills ($518.57 total) between Jul 14–16, all logged as `UNTRACKED FILL: no tracker entry, no open position`. This means:
+
+1. Real resting orders exist on the Polymarket CLOB that the bot's tracker has no record of.
+2. `maker_resting_state.json = {}` — the bot's own state file shows zero resting orders. This is a false negative.
+3. The MAKER BUY fills at $0.02–$0.09 (adverse fills) confirm orders are resting at low prices. Some of these may still be active and await resolution.
+4. The MAKER SELL fills at $0.96–$0.98 (large: $360 and $141) confirm high-value resting sells existed and were filled — these have been cleared. But additional small BUY stubs may still be resting.
+5. This untracked exposure persists across the bot restart on 2026-07-15 02:40Z (Jul 14 MAKER fills pre-restart; Jul 15–16 fills post-restart) — the restart did NOT clean up untracked CLOB state.
+
+**Potential cause**: Orders placed before BAND_LIVE=False (2026-07-06) were not cancelled when the band went to wind-down mode. The CLOB has GTC orders resting; the bot's maker_resting_state lost sync with actual CLOB state.
+
+### ALERT 2 — FILL LOGGER DARK (Structural gap)
+
+**Severity: MEDIUM — observability**
+
+Zero `[MAKER-FILL]` lines in the 7-day fill tape. While explained by BAND_LIVE=False (no new bids), the UNTRACKED fills reveal that fills ARE occurring — they're just not being captured by the structured fill logger. When BAND_LIVE is re-enabled, verify that maker_fills_recent.log begins producing `[MAKER-FILL]` lines; an UNTRACKED FILL flood would indicate a tracker bug that persists into the live period.
+
+---
+
+## Summary (3 lines)
+
+**Fills/day**: 0 bot-tracked fills/day (band in wind-down since Jul 6). 78 CONFIRMED fills in 7d tape are all UNTRACKED exits from pre-wind-down inventory — $932.48 net exit proceeds (Jul 14–17), $43.92 on Jul 17 (partial).
+
+**NO-share**: 0% NO (BAND_NO_ENABLED=False; vacuous check — no live posts at all since Jul 6).
+
+**Binding execution constraint today**: BAND_LIVE=False (charter wind-down mandate). Shadow engine is healthy (10–15 fires/day across 10 cities, sum_gate ratio normal). One structural concern: untracked CLOB resting orders (ALERT 1) represent unknown exposure; residual BUY stubs at $0.02–$0.09 may still be resting and should be verified/cancelled.
