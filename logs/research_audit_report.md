@@ -1,92 +1,96 @@
-# Research Audit — 2026-07-17T10:30Z
+# Klaus Research Audit — 2026-07-18T1011Z
 
-**Specialist reports consumed:**
-- exec_audit_report.md — 2026-07-17T07:08:32Z ✓
-- calib_monitor_report.md — 2026-07-17T08:21Z ✓
-- gatekeeper_report.md — 2026-07-17T09:15Z ✓
-- pnl_ledger_report.md — 2026-07-15T23:37Z ✓ (prior day, within 36h window; Jul 16 evening covered by state_log 22:08Z)
+**Generated:** 2026-07-18T10:11Z (automated)
+**Reports consumed:**
+- exec_audit_report.md — 2026-07-18T07:09Z ✓
+- calib_monitor_report.md — 2026-07-18T08:11Z ✓
+- gatekeeper_report.md — 2026-07-18T09:11Z ✓
+- pnl_ledger_report.md — 2026-07-17T23:37Z ✓ (<36h)
 
-**SNAPSHOT:** 2026-07-17T10:11:16Z — age ~20 min, FRESH  
-**System:** `klaus systemd: active` ✓ PROCEEDING  
-**Bankroll:** $31.757 | Daily start: $28.157 | Today P&L: +$3.600 (+12.8%) | Total cumulative PnL: −$75.40
-
----
-
-## 1. Primary Bottleneck: Capital Below Ruin Floor
-
-**Bottleneck: Capital recovery** — $31.76 vs ruin_floor $89.16 (35.6% of threshold)
-
-All band engine paths are mechanically blocked. BAND_LIVE=False (day 11), NEG_RISK_ARB entry-blocked, zero live weather positions. The updown sniper running the candidate policy {P_MIN≥0.995, 5m-only, KELLY_FRAC=0.50} is the **sole active revenue stream**. Per gatekeeper_report: "Capital $31.757 below engine ruin_floor $89.16 (35.6%) — all band re-enable paths mechanically blocked."
-
-Context: capital peaked at a 30d-HWM of $222.90 (band_config.txt BAND_LIVE comment); the charter kill-switch triggered at 50% of HWM ($111.45). From $31.76, clearing ruin_floor ($89.16) requires +181% — approximately 40 uninterrupted winning sniper fires at current Kelly sizing (~$15.88/clip, +4.72%/win per shadow slice).
-
-Today's trajectory is positive: bankroll.json daily_start=$28.157 → $31.757 = +$3.60 (2 confirmed capital-correction pairs at base of trades.jsonl, both wins). However, sniper appears idle from ~02:24Z to 10:11Z (~8hr gap, no new capital-correction entries, maker_fills_recent.log ends 02:24Z). This is consistent with state_log 22:08Z "candidate ~4× more selective than v1" but warrants monitoring.
-
-**Critical caveat:** Candidate live n ≈ 9-13 (5 confirmed post-waiver per state_log 22:08Z + 2 confirmed today — direct count impeded by TRACKER_RESTART_BUG, pnl_ledger). Shadow candidate slice n=44 (gatekeeper). Both are well below the n=100 decision threshold. The current positive run is consistent with a WR=0.988 process on a small sample; it does not confirm edge. Do not expand stake, lower P_MIN, or re-enable band on this alone.
-
-Turns/day and ROI/turn are secondary bottlenecks only once capital recovers past $89.16. The binding variable right now is **fire frequency on a single asset (BTC)** at ~1/hr, throttled by P_MIN selectivity.
+**Snapshot:** 2026-07-18T10:11:35Z (age < 6h ✓) | **System:** active ✓
+**Capital:** $37.57 | **Band:** DARK day 12 | **Sniper kill-watch:** 18/18W clean (day 2)
+**Sole live revenue engine:** UPDOWN sniper (candidate P_MIN≥0.995, Kelly 0.50)
 
 ---
 
-## 2. Existing System Optimization
+## 1. Primary Compounding Bottleneck
 
-### a) Disk — CRITICAL (operational threat, highest urgency)
-- system_status.txt: 97% used, 4GB remaining
-- calib_monitor_report: "96% full, 4GB approaching critical"
-- shadow_summary.json shows hot/2026-07-07 and hot/2026-07-08 directories present and stale; binance_trade alone is ~370MB/day × 2 stale days ≈ 740MB; metar_lockout, ob_delta, market_timeline each ~600MB–1.4GB per stale day directory — estimated 5–10GB freeable from 07-07/07-08 alone
-- These files are analysis-dead for the current strategy (sniper uses none of them)
-- **Expected delta:** prevent service halt; confidence HIGH; effort LOW
-- If disk fills while sniper is firing mid-session, the service may crash and an open position would be unmonitored
+**Fill rate / market cadence — 21.7% FOK miss rate (5 of ~23 attempted fires on Jul-17) and ~1 qualifying market/hr.**
 
-### b) Orphan MAKER orders on CLOB (exec_audit ALERT 1 HIGH)
-- exec_audit: 12 MAKER fills UNTRACKED through Jul 15 02:40Z restart; maker_resting_state={}
-- Evidence of post-restart persistence: Jul 16 fills BUY@$0.09×86.608sh ($7.79), BUY@$0.06×30.5sh ($1.83)
-- Stale resting BUY stubs at $0.02–$0.09 are weather-band orphans being hit by informed takers; we bear the loss if the market resolves YES
-- **Expected delta:** recover idle capital + eliminate adversely-selected maker exposure; confidence HIGH; effort LOW
+Compounding equation breakdown (from pnl_ledger Jul-17):
+- ROI/turn: 3.62% (sniper-only 3.77%)
+- Turns/day: 6.37× ($202.8 fills / $31.83 avg equity)
+- Equity deployed: $37.57, scaling correctly via Kelly ($13.7→$18.1 clip by end of day)
 
-### c) eth/sol/xrp per-asset shadow grade — standing item (TODAY)
-- state_log 22:08Z: "eth/sol/xrp day-2 tapes complete (12,002 snaps each); first per-asset grade 07-17"
-- This is a queued standing item, not a new proposal
-- If positive (point WR ≥ BE ~96.3% at p≥0.995 filter), fire cadence expands to ~3-4×/hr
-- **Expected delta:** 3-4× turns/day → proportional acceleration of capital recovery to $89.16; confidence MEDIUM (no grade yet); effort LOW
+Multiplier levers in descending binding order today:
 
-### d) Fill logger dark (exec_audit ALERT 2 MEDIUM + pnl_ledger TRACKER_RESTART_BUG)
-- Zero [SNIPER-FILL] structured log lines; all sniper fills arrive as CAPITAL_CORRECTION rows
-- pnl_ledger: "14 of 20 fills invisible to analytics"
-- Without structured fill logging: intra-session monitoring is blind, candidate live n count is estimated not counted, per-trade diagnostics unavailable
-- **Expected delta:** enable real-time edge monitoring and accurate gate progress; confidence HIGH; effort MEDIUM
+| Lever | Current state | Marginal value | Binding? |
+|---|---|---|---|
+| Fill rate | 78.3% (5 FOK misses) | +$0.58/recovered miss at $16 clip | **YES — primary** |
+| Market cadence | ~1 qualifying/hr | +3.62% × Kelly clip per added turn | **YES — co-primary** |
+| ROI/turn | 3.62% | stable, P_MIN constraint correct | No |
+| Equity deployed | $37.57 | Kelly already deployed; growing | No |
+| Capital | $37.57 | growing from sniper, not the ceiling | No |
+
+**Quantified drag:** 5 misses/day × 3.62% ROI/turn × ~$16 avg clip = ~$2.90/day in foregone compounding — roughly half of yesterday's +$7.34 gain. At 26%/day compound rate (unsustainable but illustrative), each missed turn represents ~$0.58 → $1.16 in second-order compounding loss within 24h.
+
+**Source:** pnl_ledger — "Binding constraint: fill rate (78.3%, 5 FOK misses at $0 cost) and market cadence (~1 fire/hr in observed window). Not capital, not edge." exec_audit confirms 14-23 sniper fills/day (Jul 15-17) at consistent entry/exit spreads, no adversarial degradation.
 
 ---
 
-## 3. Gate Pipeline
+## 2. Existing-System Optimization
 
-**0 READY. 0 newly READY or REJECTED since last run. All band gates frozen by structural blockers.**
+What the four reports collectively imply:
 
-Structural blockers (gatekeeper_report, all unchanged):
-1. BAND_LIVE=False (mechanical — requires capital > ruin_floor AND owner action)
-2. Capital $31.76 < ruin_floor $89.16
-3. Winner's curse CONFIRMED (G3 WATCH_ITEM: filled WR=17.3%, ROI=−75.8% vs sim +7.6%; gap −83.4pp — simulation ROI values are upper bounds only)
-4. disp_ratio7=0.704 (15 consecutive days below 1.10 threshold; n=110 decision-grade)
+### a. FOK Miss Root-Cause Diagnosis [HIGH impact, LOW effort]
+- **What:** 5 FOK misses on Jul-17. All at zero cash cost but full compounding drag. FOK at p=0.87-0.99 should fill near-instantly unless (i) price moved past limit by order submission, or (ii) order routing has >1s latency, or (iii) P_MIN was met at signal time but not at submit time.
+- **Expected delta:** +2-3 recovered turns/day if latency is the cause → +$1.16-$1.74/day at current capital → +3-5%/day compound improvement.
+- **Confidence:** medium (cause unknown until instrumented).
+- **Effort:** 1 dev session to add `ts_signal`, `ts_order_submit` fields to sniper log; 24h to accumulate.
 
-**Shadow accumulation by gate (band gates frozen at AMBIGUOUS):**
-| Gate | Status | Shadow n | +/day | ETA |
-|------|--------|----------|-------|-----|
-| G1 BAND_YES | AMBIGUOUS | 136 | +13 | FROZEN |
-| G7 SUM_0.70_0.85 | AMBIGUOUS | 92 | +9 | FROZEN |
-| G2b PAIR_FAV_YES | COLLECTING | 9 | ~0 | FROZEN |
-| G2c PAIR_FAV_NO | COLLECTING | 9 | ~0 | FROZEN |
-| G5 THERMO_MAKER | REJECTED | — | — | N/A |
-| G6 M1_BETA | REJECTED | — | — | N/A |
+### b. Anomalous MAKER SELL Fill Classification [GATE UNBLOCKING, LOW effort]
+- **What:** 2 unclassified MAKER SELL@0.92-0.96 on record (Jul-16 21:39Z token 1399483673820402; Jul-18 00:54Z token 2664940529472113 paired with BUY@0.08×44.9sh token 7094108612094851). G3 n=75 frozen pending classification. WC gap confirmed (sim ROI +7.6% vs filled -75.8%, CI entirely negative).
+- **Expected delta:** unblocks G3 progression and either confirms band-system WC (closing the re-enable argument) or reveals benign pair-strategy explanation. Highest VOI of any non-code action available.
+- **Confidence:** high the classification matters; outcome unknown until done.
+- **Effort:** 30min Polymarket UI token lookup (gatekeeper flags this overdue twice).
 
-**Candidate sniper gate (pre-registered; not in formal ledger):**
-- Shadow slice (p≥0.995, 5m-only): n=44, WR=1.000, CI-lo=0.9197 vs BE=0.9557 — COLLECTING
-- Needs n≈84 for CI-lo to clear zero-loss criterion; n≥150 total shadow for formal gate (waived by owner once at waiver 14:59Z Jul 16; re-engage formal gate)
-- At ~13 shadow/day + live fires: n=100 shadow in ~4d BTC-only pace, ~1-2d if eth/sol/xrp expand scope
-- Live tape n≈9-13 estimated; cannot count cleanly until TRACKER_RESTART_BUG fixed
+### c. STWA Shadow Maker Orphan Position Tracking [DATA INTEGRITY, ZERO cost]
+- **What:** $8.06 in BUY@0.02-0.06 shadow-maker fills open and untracked (pnl_ledger Section 1): tokens 4095117562509625 ($3.50), 1055101008834022 ($3.00), 1046907088381323 ($1.56). Logged as "UNTRACKED FILL" in WS. `open_positions=0` in position system — these are invisible to risk management.
+- **Risk:** if they resolve YES (unlikely at 2-6¢ implied) = large unbooked upside. If NO = silent loss absorbed from capital already deployed. Position system underreports risk while these are open.
+- **Expected delta:** data integrity — correctly accounting for ~18% of current capital ($8.06/$37.57) in untracked exposure. Also sets baseline for whether shadow-maker orphan orders are positive or negative EV.
+- **Confidence:** high this needs attention; outcome depends on resolution (d+1 = today, d+2 = Jul-19).
+- **Effort:** track by checking resolution of the 3 token markets in next 24-48h.
 
-**What would accelerate accumulation WITHOUT degrading expectancy:**
-- Run eth/sol/xrp per-asset grade today → if positive, breadth expansion multiplies shadow fires per day without changing the P_MIN filter (breadth, not threshold relaxation)
-- Do NOT lower P_MIN to accumulate faster — the loss-structure evidence (all v1 losses in p<0.995, zero candidate losses) is the load-bearing justification for the policy; degrading the filter also degrades the evidence base
+### d. Disk Space Monitoring [RISK MITIGATION]
+- **What:** System disk at 98% full (90G/97G, 3GB free per today's snapshot). Yesterday's pnl_ledger reported 92G/1GB — improvement suggests cleanup occurred overnight (2G freed). Still critical: shadow logs growing ~0.1MB/session each, 18+ active shadow loggers.
+- **Risk profile:** reduced vs yesterday but not resolved. If log writes fail silently, all four scheduled report pipelines become stale without alert.
+- **Expected delta:** prevents log corruption. No compounding upside, but prevents compounding destruction.
+- **Effort:** 15-30min SSH prune of shadow logs >7d (only 5-day retention required per SNAPSHOT.md spec).
+
+---
+
+## 3. Gate Pipeline Review
+
+From gatekeeper_report 2026-07-18T09:11Z:
+
+**No gates hit READY or REJECTED this cycle. No status changes.**
+
+| Gate | Status | Live n | Shadow n | CI | Nearest path |
+|---|---|---|---|---|---|
+| G1 BAND_YES | AMBIGUOUS | 934 | +154 shadow | [-10.9,+21.1] | Blocked (WC confirmed; shadow CI uncountable) |
+| G2b PAIR_FAV_YES | COLLECTING | 9 | — | — | ~8.3d from re-enable; blocked by capital floor |
+| G2c PAIR_FAV_NO | COLLECTING | 9 | — | — | same |
+| G3 FILLED_VS_FIRED | WATCH_ITEM | 75 (frozen) | — | [-75.0,-34.2] | Unfreeze requires classifying 2 anomalous SELLs |
+| G4 BASKET_EXIT | VOID | — | — | — | Permanent |
+| G5 THERMO_MAKER | REJECTED | 125 | — | [-9.0,+2.0] | — |
+| G6 M1_BETA_LOCKOUT | REJECTED | 31 | — | [-20.6,+24.4] | — |
+| G7 SUM_POSTED [0.70,0.85] | AMBIGUOUS | 382 | +100 shadow | [-11.4,+38.9] | Blocked (WC confirmed; shadow CI = upper bound only) |
+
+**Structural dead-end on band gates:** G2b/G2c require n=40 live fires, which requires BAND_LIVE=True, which requires capital ≥ ruin floor ($89.16). At $37.57 (42.1% of floor), band re-enable is mechanically blocked regardless of gate status. Recovery path: sniper compounds to $89.16. At Jul-17's +26%/day rate (exceptional): ~4 trading days. At conservative +5%/day: ~35 days.
+
+**Winner's curse blocker (hard rule):** G1 and G7 shadow CI cannot be cited as supporting band re-enable. G3 WC gap confirmed (n=75, CI entirely negative). Any band re-enable case must first resolve the WC gap — i.e., explain why filled ROI was -75.8% vs simulated +7.6%.
+
+**Acceleration without degrading expectancy:** No valid breadth/depth lever exists while BAND_LIVE=False. The one unblocking action available: classify G3 anomalous MAKER SELL fills (30min, zero risk) to unfreeze G3 n from 75 and clarify whether the WC blocker is structural or a classification artifact.
 
 ---
 
@@ -94,111 +98,103 @@ Structural blockers (gatekeeper_report, all unchanged):
 
 The three load-bearing assumptions of the band system today:
 
-### Assumption 1: Dispersion premium persists (weather market YES maker edge)
-**Status: VIOLATED — do not re-enable band on this assumption**
-- disp_ratio7=0.704 (calib_monitor S3-d15 DECISION-GRADE); threshold=1.10; n=110 (first decision-grade sample)
-- 15th consecutive day below threshold; trend worsening (0.765 → 0.704 over measured period)
-- Sub-segment breakdown: EU=0.628, Asia=0.714, d+1=0.635, d+2=0.594 — all below 1.0
-- calib_monitor states explicitly: "Band market-making edge against temperature dispersion is NOT present in current market conditions"
-- Today's partial disp_ratio reading (n=17, ratio=2.406 from state_log 22:08Z) is small-sample noise; 7d n=110 figure is authoritative and the decision-grade signal
-- Additional structural problem: isotonic calibration plateau collapse — ALL p_raw∈[0.30, 0.95] → p_cal=0.3801 flat (calib_monitor S4); zero discriminative power across 65% of the probability range. Refit required before any band re-enable regardless of dispersion recovery.
+### A. Dispersion premium persists (market-implied sigma > true sigma ~1.3°C)
+- **7d evidence:** S3-d16 ALERT — disp_ratio7 ≈0.70, 16 consecutive days below 1.10 threshold (calib_monitor). All 6 prior monitoring days: ratio 0.652–0.765, 0 rows above 1.10.
+- **NEW on 07-17 (first recovery signal):** 2 of 23 fire rows exceeded 1.10 for the first time: Wuhan d0 ratio=1.183 (mode_ask 0.255), Chengdu d0 ratio=1.136 (mode_ask 0.265). Asia d0 daily median improved to 0.841 from trailing ~0.744.
+- **d+1 posture:** fully sum-gated every day (all BAND_CITY_ALLOW cities Σask≥0.85 = exec_audit confirms zero d+1 viable shadow fires). d+1 edge does not exist in current market regime.
+- **d+2 posture:** 5-9 shadow fires/day, ratio ≈0.57 — still deeply inverted.
+- **Verdict: THREATENED.** Assumption fails system-wide. Recovery signal is real but localized (2 cities, d0 only, mode_ask≤0.265 tier). 3-5 sessions of sustained multi-city improvement required before posture revision. Band correctly dark.
 
-### Assumption 2: Fills are not adversely selected (maker quotes fill at fair value)
-**Status: VIOLATED — winner's curse confirmed**
-- G3 WATCH_ITEM (gatekeeper): filled WR=17.3%, ROI=−75.8% vs sim +7.6%; gap −83.4pp
-- maker_fills_recent.log corroborates: MAKER BUY fills at $0.02–$0.09 on near-zero weather tokens — being taker-hit by informed flow against stale resting quotes
-- UNTRACKED orphan orders mean the adverse selection cannot be fully characterized
-- This assumption fails independently of dispersion recovery — even if disp_ratio crossed 1.10, the maker quote structure would still face the same informed-taker adverseness unless G3 WATCH_ITEM gap closes first
+### B. Fills are not adversely selected vs simulated fires
+- **Evidence:** G3 WATCH_ITEM confirmed — sim ROI +7.6% vs actual filled ROI -75.8% (n=75), gap -83.4pp, CI entirely negative [-75.0, -34.2]. Winner's curse fully confirmed at decision-grade n.
+- **New data point (Jul-18 gatekeeper):** 2nd anomalous MAKER SELL@0.92-0.96 on record, pattern: SELL-high + BUY-low on likely complementary legs. Still unclassified.
+- **Verdict: BREACHED** for band maker. The fills we receive are systematically the adversely-selected tail of available fire opportunities. This cannot be fixed by parameter tuning — it is a structural property of maker quoting in competitive markets. Note: this assumption is irrelevant to UPDOWN sniper (different mechanism, taker-initiated fills near resolution events, no adverse selection evidence).
 
-### Assumption 3: Recycle velocity scales with held positions
-**Status: VACUOUS — untestable**
-- RECYCLE099/RECLAIM logic alive but idle; zero band positions to recycle
-- Historical performance is pre-winner's-curse awareness regime
-- Do not cite historical recycle returns as evidence for re-enable case; treat as unvalidated on current dispersion/capital regime
+### C. Recycle velocity scales (band capital cycles fast enough to compound meaningfully)
+- **Evidence:** vacuous — BAND_LIVE=False since Jul-6 (day 12). Zero live cycles. Shadow engine shows 14-19 fire candidates/day (exec_audit), which represents the potential pool, but no actual recycle cadence to measure.
+- **Verdict: UNTESTABLE.** The shadow engine's d+2 cadence (5-9 fires/day at $3 BAND_BASE_STAKE = ~$15-27/day notional if live) would represent meaningful velocity at current capital — but the WC gap means any recycle would be -EV until that gap is resolved.
+
+**Summary table:**
+
+| Assumption | Verdict | Key number |
+|---|---|---|
+| Dispersion premium persists | THREATENED | disp_ratio7≈0.70; 2/23 rows recovered Jul-17 |
+| Fills not adversely selected | BREACHED | filled ROI -75.8% vs sim +7.6%, CI [-75,-34] |
+| Recycle velocity scales | UNTESTABLE | BAND_LIVE=False day 12; shadow=14-19 candidates/day |
 
 ---
 
-## 5. Market Intelligence — Platform Mechanics (17 mod 3 = 2)
+## 5. Market Intelligence — Competitor Posture (day 18 mod 3 = 0)
 
-**Fee structure interaction with candidate policy:**
-Candidate fires at p≥0.995 → observed TAKER fill prices 0.96-0.99 in maker_fills_recent.log (post-waiver Jul 16 15:49-18:36Z: fills at 0.98, size 14; Jul 17 02:24Z BUY@0.98, size 14.5). At prices >0.95, Polymarket taker fees approach 0% (fee schedule: ~3.15% at 0.50 odds, ~0% at extremes — band_config.txt comment, CLOB research 2026-03-30). The candidate policy's core fee advantage is operating in the near-zero-cost zone; this aligns with the edge being real (margin after fees still positive at sub-1% taker cost).
+**Badatmath delta (gatekeeper watch):** Net=+0 in 24h. Configuration stable, no new city additions observed. Badatmath's band system remains LIVE (no wind-down observable from shadow tracking). Their capital estimated well above our $89.16 ruin floor — their BAND_LIVE gate is not triggered. Their PAIR_FAV fills at YES $0.45-0.70 / NO paired continue.
 
-**Maker orphan economics (weather band legacy):**
-MAKER fills at $0.02–$0.09 have near-zero maker rebate at these extreme prices; full loss if market resolves YES. The Jul 16 SELL@$0.96 × 147.05sh ($141.17) and Jul 14 SELL@$0.98 × 367.66sh ($360.31) are weather-band YES position exits — exec_audit reports $932.48 cumulative net exit proceeds Jul 14-17, indicating large legacy positions fully or mostly settled this week. This is residual wind-down, not active strategy.
+**Competitive niche analysis (from exec_audit fill tape):**
+- Sniper pattern: TAKER BUY@0.87-0.99 → TAKER SELL@0.99-0.999 within 1-3 min (confirmed pairs on Jul-16 and Jul-17). This is the high-confidence near-resolution arbitrage pattern.
+- No evidence of front-running on sniper fills: entry/exit spreads are consistent, no sign of adversarial participants degrading fill quality in the sniper domain.
+- CLAUDE.md baseline: "73% of arb profits go to sub-100ms bots." However, near-resolution binary certainty markets (P≥0.995) are structurally different from price-discovery arb: the speed advantage is less relevant when the outcome is ~certain. Our competitive moat is selectivity (P_MIN 0.995 filter), not speed.
 
-**Maker rebates:** Cumulative $3.559 (pnl_ledger). Verify pUSD receipt on Polymarket account (pnl_ledger pending item since Jul 15).
+**Shadow-maker counterpart observation:** The BUY@0.02-0.06 shadow-maker fills (3 events Jul-17) show other participants selling cheap YES into our resting maker bids. These could be: (a) bots liquidating stale long YES positions before resolution, (b) bots delta-hedging paired NO positions, or (c) adverse selection from informed sellers. Experiment 3 below will disambiguate.
 
-**Platform/fee changes since last known state:** None detected in mirror data. shadow_summary.json hot/ directories through 07-09; no fee-schedule or maker-rebate announcement entries visible. Delta vs state_log knowledge: zero. Fee structure unchanged (8 categories, updown BTC/ETH/SOL rates ~1.56% at 50% unchanged per 2026-03-30 research).
+**Leaderboard wallet teardown:** data-api access unavailable in sandbox (git fetch timeout, network proxy blocks git protocol). Unable to pull specific wallet analytics beyond what's observable in maker fill tape. No additional intelligence available this cycle on top-wallet behavior.
 
 ---
 
 ## 6. Three Experiments
 
-### Experiment A: eth/sol/xrp per-asset shadow grade (STANDING ITEM — TODAY)
-**Hypothesis:** ETH, SOL, XRP updown markets exhibit the same structural edge as BTC at the candidate policy filter (WR ≥ BE ~96.3% at p≥0.995, 5m-only)  
-**Data:** 12,002 snaps per asset already recorded (state_log 22:08Z Jul 16); run shadow_grade with candidate policy filter per asset  
-**Time:** ~1 hour  
-**Cost:** Zero — shadow already recording  
-**Success metric:** Per-asset point WR ≥ BE (~96.3%) with n≥20 at filter; CI-lo direction positive  
-**Decision if YES:** Add asset(s) to candidate policy → ~3-4× fire cadence → n=100 shadow in ~1-2d → candidate gate accelerates; cite gatekeeper (candidate n=44, needs n≈84)  
-**Decision if NO:** Confirm BTC-only policy; do not dilute P_MIN gate with unvalidated assets; note each asset may have different BE (different avg fill prices)
+### Experiment 1 — FOK Miss Latency Instrumentation [HIGH VoI]
+- **Hypothesis:** ≥60% of FOK misses on the sniper occur because >1.5s elapsed between signal generation (P_MIN threshold met) and CLOB order receipt, during which time the market moved past the fill window.
+- **Data:** Add `ts_signal_fire`, `ts_order_submitted`, `ts_clob_response` timestamps to sniper log for each fired attempt (both fills and misses). Run for 24-48h.
+- **Time:** 1 dev session to instrument; 24h accumulation.
+- **Cost:** $0 capital. Zero risk (logging only).
+- **Success metric:** If median signal→submit latency >1.5s on misses AND <0.5s on fills → latency is the cause.
+- **Decision if YES:** Optimize submit path (async order pre-staging, reduce round-trips between signal and CLOB POST). Expected recovery: 3-5 turns/day (+$1.74-$2.90/day at current capital).
+- **Decision if NO:** Latency not the cause → investigate whether P_MIN=0.995 is met at signal time but price reverts before order arrives (would indicate a different threshold timing fix, or that misses are structurally unavoidable at this selectivity level).
 
-### Experiment B: Orphan CLOB order audit and cancel
-**Hypothesis:** Stale MAKER BUY orders from the weather band era (pre-Jul-06) still rest on CLOB at $0.02–$0.09; cancelling them recovers capital and eliminates adverse fill exposure  
-**Data:** exec_audit ALERT 1 HIGH — 12 MAKER fills UNTRACKED through Jul 15 restart; maker_resting_state={}; Jul 16 BUY@$0.09×86.6sh and BUY@$0.06×30.5sh filled post-restart (evidence stubs persisted through service restart)  
-**Time:** Immediate (<1hr)  
-**Cost:** Zero (cancel orders = free)  
-**Success metric:** CLOB query returns zero open orders at price <$0.10; any recovered capital registers in wallet  
-**Decision if YES (orphans found):** Cancel all; add startup order-audit to pre-flight checklist; close exec_audit ALERT 1  
-**Decision if NO (clean):** Close ALERT 1; document that UNTRACKED fills reflect settled positions not resting stubs
+### Experiment 2 — Wuhan/Chengdu d0 Asia Dispersion Edge Persistence [MEDIUM VoI]
+- **Hypothesis:** The Jul-17 first-recovery signal (Wuhan d0 ratio=1.183, Chengdu d0 ratio=1.136 at mode_ask≤0.265) represents a persistent localized edge in these two cities' same-day markets at tight odds, not a one-day anomaly.
+- **Data:** Monitor band_struct_lite for Wuhan and Chengdu d0 only (already running via shadow engine). Requires zero additional instrumentation.
+- **Time:** 5 days passive collection.
+- **Cost:** $0 capital.
+- **Success metric:** ≥4 of next 5 monitoring sessions show ratio>1.10 for Wuhan OR Chengdu d0, with mode_ask≤0.265 fires available ≥2 sessions.
+- **Decision if YES:** Flag for targeted 2-city d0 re-enable pilot at minimum stake ($3 BAND_BASE_STAKE, max 2 legs/day) once and only once: (i) capital exceeds ruin floor ($89.16), (ii) G3 WC gap resolved, (iii) isotonic refit completed. Decision if NO: Jul-17 was a one-day fluctuation; maintain full dark posture.
+- **Note:** This experiment costs nothing and the data is already flowing. It is purely an observation-and-classification task.
 
-### Experiment C: TRACKER_RESTART_BUG dry-run reproduction and fix
-**Hypothesis:** The bug causing sniper fills to log as CAPITAL_CORRECTION rather than structured [SNIPER-FILL] rows can be reproduced in dry-run and fixed in ≤4h; after fix, candidate live n becomes a reliable counter  
-**Data:** pnl_ledger: "TRACKER_RESTART_BUG: 14 of 20 fills invisible to analytics"; currently candidate n is estimated from capital-correction pairs (imprecise)  
-**Time:** 2–4hr  
-**Cost:** Low (code change, zero capital risk)  
-**Success metric:** Dry-run test fire produces structured [SNIPER-FILL] line; live tape n becomes auditable  
-**Decision if YES:** Deploy fix; candidate n counter becomes trustworthy for gate progression tracking  
-**Decision if NO (deeper issue):** Document capital-correction arithmetic as the n-estimation workaround; defer fix; flag as gap in the gate progression evidence chain
+### Experiment 3 — STWA Shadow Maker Orphan Fill Outcome Tracking [LOW effort, HIGH data quality]
+- **Hypothesis:** The 3 BUY@0.02-0.06 shadow-maker fills ($8.06 deployed Jul-17) resolve YES at a rate >5%, making them positive-EV entries (a 6¢ YES paying $1 = 1567% return; need >6% hit rate to break even vs taker fees).
+- **Data:** When tokens 4095117562509625 ($3.50, p=0.06), 1055101008834022 ($3.00, p=0.02), 1046907088381323 ($1.56, p=0.02) resolve (d+1 = today, d+2 = Jul-19), check winner outcome vs filled YES side.
+- **Time:** 1-3 days (d+1 resolves today).
+- **Cost:** $0 (already deployed).
+- **Success metric:** ≥2 of 3 resolve YES → track shadow-maker orphan ROI going forward as a separate line item.
+- **Decision if YES:** Shadow-maker is producing cheap positive-EV YES fills via resting bids — authorize it to continue and begin tracking ROI separately from sniper. Decision if NO: 0 of 3 YES → sellers are informed (selling cheap YES into our bid because they know NO is near-certain) = classic adverse selection. Recommend adding cancellation guard to remove orphan-pattern resting orders before they accumulate.
 
 ---
 
 ## 7. Single Best Action
 
-**Run the eth/sol/xrp per-asset shadow grade — TODAY (standing item from state_log 22:08Z Jul 16)**
+**Classify the 2 anomalous MAKER SELL fills (G3 overdue item).**
 
-*Cited reports: gatekeeper_report (candidate slice n=44, needs n≈84–100, ~4d ETA at BTC-only pace); pnl_ledger (turns/day=2.54× is the compounding ceiling on single-asset); state_log (grade queued: "first per-asset grade 07-17")*
-
-**Rationale:** The compounding equation is `ROI/turn × turns/day × equity_deployed`. ROI/turn is positive on available evidence (+2.4%/fire estimated live, +4.72% shadow slice). Equity_deployed cannot grow until capital clears $89.16 (ruin_floor). The binding lever on capital recovery speed is **turns/day** — currently ~1/hr on BTC alone (state_log 22:08Z). If eth/sol/xrp grade positive at p≥0.995, fire cadence expands to 3-4×/hr. At 0.50 Kelly ≈ $15.88/clip, this raises daily compounding throughput from ~$0.60/hr to ~$2.40/hr. Capital recovery from $31.76 to $89.16 (~40 clean wins at current pace) compresses from ~4-5d clean-run to ~1-2d clean-run.
-
-**This is already queued — it requires no new decision, only execution of the standing item.**
-
-**Concrete first step:** `python3 shadow_grade.py --asset eth --policy p995_5m`, then repeat for sol and xrp. If any asset point WR ≥ BE with n≥20 at filter, stage as candidate expansion under the pre-registered gate.
-
-**Operational prerequisite (blocking):** Disk cleanup must happen first. At 97% capacity with shadow loggers writing continuously and hot/2026-07-07 and hot/2026-07-08 directories present (estimated 5-10GB freeable), the service risks crashing before the grade can even run. Clean stale shadow directories, especially binance_trade (~370MB/day × 2 stale days = ~740MB minimum) and market_timeline (~1.36GB/stale day).
+- **Action:** Look up token IDs `1399483673820402` (Jul-16 21:39Z SELL@0.96×147.05sh) and `2664940529472113` (Jul-18 00:54Z SELL@0.92×9.32sh, paired with BUY@0.08×44.9sh token `7094108612094851`) on Polymarket. Identify the market name, resolution date, and winner. Determine if the SELL was before or after resolution.
+- **Why this:** No gate hit READY or REJECTED this cycle (gatekeeper confirmed). Per protocol, classifying the standing overdue item is the default candidate. The gatekeeper flagged this as overdue on both Jul-17 and Jul-18 runs. G3 is frozen at n=75 — the WC gap (-83.4pp, CI entirely negative) is the standing blocker for any band re-enable argument at any future capital level. Classification takes 30min and has binary high-value outcomes: (a) SELL was benign pair-arbitrage → unfreezes G3 n, allows the WC analysis to progress with full data, (b) SELL was premature exit of winning position or system bug → critical finding requiring immediate investigation and potential guard implementation.
+- **Concrete first step:** Open Polymarket market for token `1399483673820402`. Check if the market resolved YES or NO. If YES and the SELL@0.96 happened before resolution → this was a profitable early exit (benign). If NO → the SELL was selling a winning NO position or hedging a YES position that lost (different interpretation). Repeat for Jul-18 pair.
+- **Source:** gatekeeper_report 2026-07-18T09:11Z, G3 section: "EXEC AUDITOR REQUIRED — Classify 2 anomalous MAKER SELL fills before next G3 update (overdue since Jul-17)."
+- **Compounding impact / effort:** (high gate clarity × high P(success at 30min lookup)) / (trivial effort) = highest unblocked ratio in today's action set.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**[IMMEDIATE — operational]**
-1. Disk cleanup: remove hot/2026-07-07 and hot/2026-07-08 shadow directories (especially binance_trade, market_timeline, ob_delta — estimated 5-10GB total). Target <80% disk utilization. Risk: zero (analysis-dead files for current strategy).
+*The following require human decision. Research agent does not implement.*
 
-**[TODAY — standing item]**
-2. eth/sol/xrp per-asset shadow grade. Pre-registered standing item from state_log Jul 16 22:08Z. Run shadow_grade per asset with candidate policy filter (p≥0.995, 5m-only). If positive, expand sniper to multi-asset breadth. Do NOT lower P_MIN to force positive grade.
+| # | Action | Urgency | Effort | Compounding impact |
+|---|---|---|---|---|
+| PA-1 | Classify 2 anomalous MAKER SELL fills (tokens 1399483673820402, 2664940529472113) | HIGH (overdue) | 30min | Unblocks G3; closes/opens band re-enable path |
+| PA-2 | Track resolution of 3 shadow-maker orphan fills (d+1 today, d+2 Jul-19) | HIGH (time-sensitive) | 15min | Determines if shadow-maker is +EV or adversely selected; $8.06 exposed |
+| PA-3 | Instrument FOK miss timestamps (ts_signal, ts_submit) | MEDIUM | 1 dev session | +$1.74-$2.90/day if latency confirmed as cause |
+| PA-4 | Prune shadow logs >7d to free disk headroom | MEDIUM | 30min SSH | Prevents silent log corruption; 3GB free currently |
+| PA-5 | Isotonic full refit with OOS validation (S4 alert, deployed 42d) | LOW (band dark) | ~1 data session | Prerequisite for any future BAND_LIVE re-enable; no immediate compounding impact while band dark |
 
-**[IMMEDIATE — capital safety]**
-3. CLOB orphan order audit: query open orders; cancel any at price <$0.10 with no current strategy justification. Close exec_audit ALERT 1. Recover idle capital, eliminate adverse MAKER exposure.
-
-**[MEDIUM — analytics / gate tracking]**
-4. Fix TRACKER_RESTART_BUG: sniper fills must produce structured [SNIPER-FILL] lines so candidate live n is accurately counted and per-trade diagnostics work.
-
-**[WATCH — band re-enable conditions]**
-5. disp_ratio7 day 15 inversion (0.704, n=110 DECISION-GRADE): band re-enable requires (a) disp_ratio ≥ 1.10 on n≥100 AND (b) capital ≥ $89.16 AND (c) isotonic refit (current model 41d old, plateau collapse). Today's partial disp_ratio reading (n=17, 2.406) is noise — do not act on it. Monitor 07-17 end-of-day figure.
-
-**[PENDING — gatekeeper standing item]**
-6. Classify MAKER SELL@0.96 token 1399483673820402 (Jul-16T21:39Z, 147.05sh). G3 co-fill cross-tab under Jul-05 clip-guard. Outstanding since Jul 11.
+*PA-1 and PA-2 are time-sensitive: PA-2 tokens begin resolving today (d+1). PA-1 is overdue since Jul-17.*
 
 ---
 
-*Primary bottleneck: capital below ruin_floor ($31.76/$89.16) | Sole live revenue: sniper candidate n≈9-13 live, n=44 shadow | Best action: eth/sol/xrp per-asset grade (standing item)*
+*Research agent: research-agent@klaus | Snapshot: 2026-07-18T10:11:35Z | Capital: $37.57 | Sniper: 18/18W kill-watch clean day 2 | Band: dark day 12 | Primary bottleneck: FOK fill rate 78.3% (5 misses/day ≈ $2.90 foregone compounding)*
