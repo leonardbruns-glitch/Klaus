@@ -1,48 +1,63 @@
 {
-  "date": "2026-07-17",
-  "run_utc": "2026-07-17T08:21:44Z",
-  "data_access": "DIRECT_CURL",
-  "data_access_note": "git fetch timeout (network proxy blocks git protocol); pricer_s50 and band_lite downloaded successfully via curl to raw.githubusercontent.com. Full pipeline ran.",
-  "brier7": 0.02,
-  "brier7_source": "fresh-proxy-4d-inferred-outcomes",
-  "brier7_note": "Inferred outcomes from POST_PEAK price convergence. Not alert-grade (circular proxy). 4 resolved dates (2026-07-12..2026-07-15). Prior carry-forward (0.053) was multi-session stale; this is fresher but methodologically weaker.",
+  "date": "2026-07-18",
+  "run_utc": "2026-07-18T08:11:40Z",
+  "data_access": "GITHUB_MCP",
+  "data_access_note": "git fetch timeout (network proxy blocks git protocol); all data fetched via GitHub MCP API. Full pipeline ran.",
+  "brier7": 0.022,
+  "brier7_source": "fresh-proxy-5d-inferred-outcomes",
+  "brier7_note": "5-date proxy window (07-12..07-16). 07-16 proxy Brier=0.030 (inflated: s50 file includes d1/d2 PRE_PEAK evaluations; true completed-day estimate ~0.020). Proxy methodologically weaker than ground truth. No alert (far below 0.15 threshold).",
   "ece7": 0.0448,
-  "ece7_source": "fresh-proxy-4d-10bin-equal-width",
-  "ece7_note": "Inferred outcomes. Key bin [0.3-0.4): pred=0.375 obs=0.650 (n=20) — isotonic plateau underconfidence. No alert fires (ECE=0.0448 < 0.05).",
+  "ece7_source": "carry-forward-from-2026-07-17",
+  "ece7_note": "Carried from prior session (proxy, 4-date). Below 0.05 threshold. No alert.",
   "rho7": 0.8343,
-  "rho7_source": "fresh-proxy-4d-spearman-inferred-outcomes",
-  "rho7_note": "Circular proxy via price convergence. n=1292 city-bucket pairs. Above 0.15 floor.",
-  "disp_ratio7": 0.704,
-  "disp_ratio7_source": "DIRECT_MEASUREMENT — band_struct_lite converged rows, n=110 across 2026-07-12..2026-07-16",
-  "disp_ratio7_note": "sigma_implied = 1deg / (2*sqrt(2)*erfinv(mode_ask)), ratio = sigma_implied / 1.3. 100% below alert threshold. 99.1% inverted (<1.0). DECISION-GRADE (first session n>=100).",
-  "disp_ratio7_n": 110,
-  "disp_ratio7_grade": "decision-grade (n=110, threshold 100)",
-  "disp_inversion_days": 15,
+  "rho7_source": "carry-forward-from-2026-07-17",
+  "rho7_note": "Carried from prior session. Circular proxy via price convergence. Above 0.15 floor.",
+  "disp_ratio7": 0.70,
+  "disp_ratio7_source": "estimated — individual rows for 07-12..07-16 not stored; 07-17 n=23 fresh; combined n=133",
+  "disp_ratio7_note": "7d median estimated at 0.70 (+-0.02). Prior n=110 median=0.704; 23 new rows (daily median 0.652) split ~12 below / 11 above prior median, placing combined 67th-percentile row near 0.704. Value essentially unchanged from yesterday. Alert fires regardless of exact value in this range.",
+  "disp_ratio7_n": 133,
+  "disp_ratio7_grade": "decision-grade (n=133, threshold 100)",
+  "disp_inversion_days": 16,
   "disp_ratio_threshold": 1.10,
   "disp_ratio_alert": true,
   "disp_ratio_by_dout": {
-    "d0": 0.744,
+    "d0": 0.76,
     "d1": 0.635,
-    "d2": 0.594
+    "d2": 0.57
   },
+  "disp_ratio_by_dout_note": "All estimated from daily sub-data; d0 improved from prior 0.744 due to 07-17 d0 daily median 0.841",
   "disp_ratio_by_region": {
     "EU": 0.628,
-    "Asia": 0.714,
-    "Other": 0.733
+    "Asia": 0.73,
+    "Other": 0.70
   },
+  "disp_ratio_by_region_note": "All estimated; Asia improved from 0.714 due to 07-17 Asia daily median 0.776 (15 rows)",
   "disp_ratio_daily_trend": {
     "2026-07-12": 0.765,
     "2026-07-13": 0.686,
     "2026-07-14": 0.714,
     "2026-07-15": 0.652,
-    "2026-07-16": 0.704
+    "2026-07-16": 0.704,
+    "2026-07-17": 0.6516
+  },
+  "disp_ratio_pct_below_110": 98.5,
+  "disp_ratio_pct_below_100": 96.2,
+  "disp_new_signal": {
+    "date": "2026-07-17",
+    "rows_above_1_10": 2,
+    "first_occurrence_in_monitoring_window": true,
+    "details": [
+      {"city": "Wuhan", "days_out": 0, "mode_ask": 0.255, "ratio": 1.183},
+      {"city": "Chengdu", "days_out": 0, "mode_ask": 0.265, "ratio": 1.136}
+    ],
+    "note": "First rows above 1.10 threshold. Localized Asia d0, very tight mode_ask <=0.265. 3-5 days sustained improvement required to revise alert posture."
   },
   "isotonic_staleness": {
     "alert": true,
     "deployed_refit_utc": "2026-06-06T22:27:08Z",
-    "deployed_days_since_refit": 41,
+    "deployed_days_since_refit": 42,
     "candidate_refit_utc": "2026-06-09T09:30:36Z",
-    "candidate_days_since_refit": 38,
+    "candidate_days_since_refit": 39,
     "deployed_n_live": 0,
     "candidate_n_live": 1037,
     "candidate_live_calendar_days": 2,
@@ -50,40 +65,40 @@
     "max_abs_diff_at_p_raw": 1.0,
     "deployed_val_at_1": 0.6316,
     "candidate_val_at_1": 0.3739,
-    "deployed_near_identity_maxdev": 0.568,
-    "candidate_near_identity_maxdev": 0.626,
     "material_diffs_gt_05": 1,
-    "direction": "candidate LOWERS p_cal for p_raw=1.0 (removes certainty spike 0.6316->0.3739); plateau shift minimal (-0.0062, 0.3801->0.3739 for p_raw 0.30-0.95); adds floor at p_raw=0 (+0.0175)",
-    "structural_change": "candidate removes POST_PEAK certainty spike; both curves maintain flat plateau [0.30-0.95]->0.38 (65% of probability range collapses to one value)",
-    "oos_validation": "null for both deployed and candidate",
-    "plateau_collapse_note": "Key pathology: p_raw 0.30-0.95 all map to p_cal=0.38 (deployed) or 0.37 (candidate). ECE shows [0.3-0.4) bucket: pred=0.375 but obs=0.650 — model severely underconfident for winner buckets at plateau. Fixing the plateau requires new isotonic refit with larger live_n.",
-    "source": "CONFIRMED via direct file read"
+    "content_changed_vs_prior": false,
+    "direction": "candidate LOWERS p_cal for p_raw=1.0 (removes certainty spike 0.6316->0.3739); plateau shift minimal (-0.0062); adds floor at p_raw=0 (+0.0175)",
+    "plateau_collapse_note": "Both curves map p_raw [0.30-0.95] -> ~0.38; p90(non-zero p_cal)=0.3801 across all observed pricer days confirms binding daily",
+    "oos_validation": "null for both deployed and candidate — unchanged"
   },
-  "band_dark_days_est": 11,
+  "band_dark_days": 12,
+  "bankroll": 37.57,
   "system_alive": true,
-  "system_alive_note": "snapshot 2026-07-17T08:09:09Z; systemd active since 2026-07-15 02:40:11Z; zero open positions; disk 96% full (4GB remaining — approaching critical)",
+  "system_alive_note": "snapshot 2026-07-18T08:09:46Z (2 min old); systemd active; zero open positions; disk 97% full (4GB remaining)",
   "alerts": [
-    "S3-d15: disp_ratio7=0.704 < 1.10 — INVERTED DISPERSION EDGE — 15th consecutive day — DECISION-GRADE (n=110, first time) — worsening vs prior (0.765->0.704) — no recovery signal — EU=0.628 Asia=0.714 d+1=0.635 d+2=0.594",
-    "S4: isotonic deployed 41d without OOS validation; max_dev=0.2577 at p_raw=1.0; candidate removes certainty spike 0.6316->0.3739; plateau collapse [0.30-0.95]->0.38 persists in both curves; new full refit + OOS validation recommended"
+    "S3-d16: disp_ratio7=~0.70 < 1.10 — INVERTED DISPERSION EDGE — 16th consecutive day — DECISION-GRADE (n=133) — FIRST RECOVERY SIGNAL: 2/23 rows on 07-17 exceed 1.10 (Wuhan d0 ratio=1.183, Chengdu d0 ratio=1.136) — Asia d0 daily median 0.841 — d+1=~0.635 d+2=~0.57 remain deeply inverted",
+    "S4: isotonic deployed 42d without OOS validation; max_dev=0.2577 at p_raw=1.0; candidate removes certainty spike only; plateau collapse [0.30-0.95]->0.38 persists in both curves; new full refit + OOS validation recommended"
   ],
   "prior": {
-    "date": "2026-07-16",
-    "brier7": 0.053,
-    "disp_ratio7": 0.765,
-    "disp_ratio7_n": 68,
-    "disp_inversion_days": 14,
+    "date": "2026-07-17",
+    "brier7": 0.020,
+    "disp_ratio7": 0.704,
+    "disp_ratio7_n": 110,
+    "disp_inversion_days": 15,
     "alerts_count": 2,
-    "data_access": "DEGRADED"
+    "data_access": "DIRECT_CURL"
   },
   "transitions": {
-    "S3": "persisting (d14->d15); disp_ratio7 WORSENED 0.765->0.704; grade upgraded: trend(n=68) -> DECISION-GRADE(n=110); no recovery signal",
-    "S4": "persisting; deployed now 41d old (was 40d); no new OOS data; plateau collapse finding added",
-    "brier7": "carry 0.053 (stale multi-session) -> proxy 0.0200 (fresh 4d, inferred outcomes — methodologically weaker than ground truth but fresher)",
-    "ece7": "null -> 0.0448 proxy (below threshold, no alert; key pathology: [0.3-0.4) bin miscalibrated due to isotonic plateau)",
-    "rho7": "null -> 0.8343 proxy (circular, above floor)",
-    "disp_ratio7": "0.765(carry/n=68) -> 0.704(fresh/n=110) — significant upgrade in grade AND value worsening",
-    "data_access": "DEGRADED -> DIRECT_CURL (key improvement: pricer_s50 now downloadable via curl; Brier carry-forward deadlock broken)",
-    "band": "dark 10 days -> dark 11 days",
-    "disk": "96% full (4GB remaining) — monitor for capacity"
-  }
+    "S3": "persisting (d15->d16); disp_ratio ~0.70 (flat vs 0.704); grade stable DECISION-GRADE (n=110->133); NEW: first 2 rows above 1.10 threshold (Wuhan/Chengdu d0, mode_ask<=0.265); Asia d0 daily median 0.841 (vs prior trailing 0.744)",
+    "S4": "persisting; deployed 42d (was 41d); content unchanged; OOS validation null",
+    "brier7": "0.020(4d proxy) -> 0.022(5d proxy, added 07-16 estimate 0.030 inflated by PRE_PEAK; true d0-completed estimate ~0.020)",
+    "ece7": "0.0448 (carry — no update this session)",
+    "rho7": "0.8343 (carry — no update this session)",
+    "band": "dark day 11 -> dark day 12 (BAND_LIVE=False since 2026-07-06)",
+    "bankroll": "$31.76 -> $37.57 (+$5.81 sniper, consistent with EVOLVE audit)",
+    "disk": "97% full, 4GB remaining — unchanged critical flag"
+  },
+  "data_quality_flags": [
+    "07-17 band_struct_lite: 1 row city='munich' (lowercase), days_out=None — EU misclassification, excluded from days_out breakdown, ratio=0.3876. Recommend title-case normalization at ingestion."
+  ]
 }
