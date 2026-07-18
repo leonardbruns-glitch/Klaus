@@ -177,12 +177,35 @@ class Sniper:
         except Exception:
             return (None, None)
 
+    async def _reconcile_fill(self, slug, token, px_ceil):
+        # limit_buy returns on the first CLOB match report; a marketable limit
+        # that part-fills, rests a few seconds and then completes leaves the
+        # late shares unrecorded (07-18 00:54Z: booked 9.32sh/$8.57 of a true
+        # 19.25sh/$17.71 fill — SETTLE pnl and the day-stop's open-cost view
+        # both understate on such fires). One balance re-check tops the
+        # position up; extra shares priced at the order's ceiling so a loss
+        # is never under-counted.
+        await asyncio.sleep(12)
+        pos = self.st["open"].get(slug)
+        if not pos or pos.get("dry"):
+            return
+        bal = await asyncio.to_thread(self.om.fetch_token_balance, token)
+        if bal is None or bal <= pos["shares"] + 0.01:
+            return
+        extra = bal - pos["shares"]
+        pos["shares"] = bal
+        pos["cost"] = round(pos["cost"] + extra * px_ceil, 2)
+        log({"event": "FILL_TOPUP", "slug": slug,
+             "extra_shares": round(extra, 2), "px_ceil": px_ceil,
+             "shares": bal, "cost": pos["cost"]})
+        save_state(self.st)
+
     async def fire(self, win, side_idx, side, ask, p_model, t_left, clip=CLIP_USD):
         from execution.order_manager import Direction
         token = win["tokens"][side_idx]
+        px_ceil = round(min(ask + 0.005, ASK_MAX[win["step"]]), 3)
         res = await self.om.limit_buy(token, ask, clip, Direction.BUY_YES,
-                                      price_ceiling=round(min(ask + 0.005,
-                                                              ASK_MAX[win["step"]]), 3))
+                                      price_ceiling=px_ceil)
         status = str(getattr(res, "status", "")) if res else "None"
         filled = res is not None and "FILLED" in status
         shares = float(getattr(res, "total_size", 0.0) or 0.0)
@@ -197,6 +220,7 @@ class Sniper:
             self.st["open"][win["slug"]] = {"side": side, "token": token,
                                             "shares": shares, "cost": round(cost, 2)}
             save_state(self.st)
+            asyncio.create_task(self._reconcile_fill(win["slug"], token, px_ceil))
 
     async def signal_loop(self, sess):
         while True:
