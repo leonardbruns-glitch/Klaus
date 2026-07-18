@@ -111,6 +111,7 @@ class Sniper:
         self.done = set()
         self.st = load_state()
         self.om = None
+        self.last_disc_ok = time.time()
 
     def day_roll(self):
         d = time.strftime("%Y%m%d", time.gmtime())
@@ -156,6 +157,8 @@ class Sniper:
                     if slug in self.windows or slug in self.done:
                         continue
                     evs = await gj(sess, f"{GAMMA}/events?slug={slug}")
+                    if evs is not None:
+                        self.last_disc_ok = time.time()
                     for ev in evs or []:
                         for m in ev.get("markets") or []:
                             try:
@@ -331,6 +334,19 @@ class Sniper:
                 self.done.pop()
             await asyncio.sleep(10)
 
+    async def wedge_watch(self):
+        # gj() swallows every error into None and all pre-rail signal gates are
+        # silent continues — a wedged HTTP session yields an alive-looking
+        # process that never evaluates (07-18: 8h dark after the 11:30 restart,
+        # zero non-websocket syscalls). Discovery succeeding is the one beat
+        # that must always be present; exit and let systemd relaunch.
+        while True:
+            await asyncio.sleep(60)
+            if time.time() - self.last_disc_ok > 300:
+                log({"event": "wedge_exit",
+                     "last_disc_ok": round(self.last_disc_ok, 1)})
+                os._exit(1)
+
     async def main(self):
         if LIVE:
             from execution.order_manager import OrderManager
@@ -344,7 +360,8 @@ class Sniper:
                                          timeout=aiohttp.ClientTimeout(total=15)) as sess:
             log({"event": "start", "live": LIVE, "pid": os.getpid()})
             await asyncio.gather(self.spot.run(), self.discover(sess),
-                                 self.signal_loop(sess), self.resolve_loop(sess))
+                                 self.signal_loop(sess), self.resolve_loop(sess),
+                                 self.wedge_watch())
 
 if __name__ == "__main__":
     asyncio.run(Sniper().main())
