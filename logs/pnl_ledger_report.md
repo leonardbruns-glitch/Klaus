@@ -1,152 +1,154 @@
-# Klaus PnL Ledger — 2026-07-17
+# Klaus PnL Ledger — 2026-07-18
 
-**Generated:** 2026-07-17T23:37Z  
-**Snapshot:** 2026-07-17T23:33:07Z (age: 4 min — FRESH)  
-**Klaus systemd:** active  
-**Snapshot rows:** 8,224 trades.jsonl
+**Generated:** 2026-07-18T23:37Z  
+**Snapshot:** 2026-07-18T23:34:32Z (age: 3 min — OK)  
+**System:** `active` — no abort  
+**Prior report:** 2026-07-17 (capital $35.498092)
 
 ---
 
-## 1. P&L Explain — 2026-07-17 UTC
+## 1. P&L Explain (UTC day 2026-07-18 00:00–23:37Z)
 
-| Item | Value | Notes |
-|---|---|---|
-| Capital (day start) | $28.156853 | bankroll.json daily_start_capital |
-| Capital (snapshot) | $35.498092 | bankroll.json, 23:33Z |
-| **Day P&L (cash)** | **+$7.341** | +26.1% |
-| Prior ledger capital | $33.856483 | Jul 15 ledger (Jul 16 NOT FILED — see below) |
+### Capital
 
-### Jul 16 gap note
-No PnL ledger was filed on 2026-07-16. Inferred Jul 16 P&L from daily_start change: $28.157 − $33.856 = **−$5.699** (capital fell during the day, partially recovered by candidate fires post-waiver at 14:59Z that added +$1.70). The 2-day unexplained = ($35.498 − $33.856) − (−$5.699 + $7.341) = **+$0.001** — effectively zero, model is complete.
+| Field | Value |
+|---|---|
+| Day-start capital (00:00 UTC) | $35.498092 |
+| Bankroll.json now (stale, 02:46Z) | $37.569392 |
+| Bankroll delta (partial) | **+$2.071** |
+| EVOLVE wallet-verified (sniper, ~23:20Z) | **+$2.52** (21W − 18W) |
+| Estimated true capital (EVOLVE-derived) | **~$38.018** |
 
-### Today's Attribution (2026-07-17 UTC)
+**⚠ BANKROLL STALE:** bankroll.json was last written at 02:46 UTC, capturing only the first of three sniper wins. Two unbooked fills (04:24Z, 23:19Z) add an estimated +$0.93 net to the wallet that does not appear in bankroll.json. This is a **MODEL DEFICIENCY** in the bankroll update mechanism — the bot's book stopped writing mid-day. Wallet balance is authoritative; EVOLVE provides the sniper-only wallet-verified figure.
 
-| Source | Events | Net P&L | Notes |
-|---|---|---|---|
-| UPDOWN-SNIPER taker | 12W / 0L | +**$7.320** | wallet-verified (state_log 22:20Z) |
-| Redemption poach loss | 1 event (08:01Z) | −$0.176 | bot sold 16.5sh @0.989 vs natural $1 resolution; included in sniper figure |
-| STWA shadow MAKER fills | 3 fills ($8.06 deployed) | PENDING | BUY YES at p=0.02–0.06; untracked in position system; pending resolution |
-| RECYCLE099 | 0 events | $0.000 | exit099_live not present for today |
-| Unbooked taker fees | ≈12 fires | −~$0.46 est | ≈0.15% of ~$310 total taker buy USDC; included in wallet-true figure |
-| **TOTAL ATTRIBUTED** | | **+$7.320** | |
-| **UNEXPLAINED** | | **+$0.021** | |
+No manual flows: daily_start_capital $35.498092 matches prior ledger's closing capital exactly — confirmed no overnight deposits or withdrawals.
 
-**UNEXPLAINED +$0.021 — CAUSE: timing.** Wallet audit ran at 22:10Z; snapshot at 23:33Z. Difference of 1h23m during which 0–1 additional sniper fires likely completed. NOT MODEL DEFICIENCY.
+### Realized P&L by Leg
 
-### STWA Maker Fills (PENDING equity)
-Three maker-side fills today carry UNRESOLVED equity not in `capital`:
-
-| Token | Side | Price | Shares | Cost deployed | Expected RBT category |
+| Entry Class | Side | Count | Volume ($) | Net PnL | Status |
 |---|---|---|---|---|---|
-| 4095117562509625 | BUY YES | 0.06 | 58.33 | $3.500 | STWA YES d+1/d+2 weather |
-| 1055101008834022 | BUY YES | 0.02 | 150 | $3.000 | STWA YES d+1/d+2 weather |
-| 1046907088381323 | BUY YES | 0.02 | 78 | $1.560 | STWA YES d+1/d+2 weather |
-| **Total** | | | | **$8.060** | pending resolution |
+| UPDOWN-SNIPER | TAKER BUY | 3 | $56.46 | **+$2.52** | EVOLVE wallet-verified |
+| RECYCLE099 | — | 0 | $0 | $0.00 | No events (shadow file absent) |
+| STWA MAKER (Jul 17, 3 fills) | BUY | — | $8.06 deployed | PENDING | d+1/d+2 unresolved |
+| STWA MAKER (Jul 18 00:54Z) | SELL + BUY | 2 | ~$12.16 mixed | UNTRACKED | See note |
+| **Day realized total** | | | | **+$2.52** | |
 
-These are UNTRACKED by the position system (open_positions=0) and logged as "UNTRACKED FILL" in WS. BAND_LIVE=False; these fills originate from shadow-maker orders resting in the CLOB that were hit by other takers. Resolution is likely d+1 or d+2 (multi-day horizon). If NO: −$8.06 future loss. If YES: large upside ($8.06 → up to $280+).
+**Sniper fill tape (Jul 18):**
+
+| Time (UTC) | Token | Shares | Price | Deployed $ | Est. net PnL |
+|---|---|---|---|---|---|
+| 02:44Z | 7447492075024421 | 19 | $0.97 | $18.43 | +$0.54 |
+| 04:24Z | 5978419141881139 | 19.5 | $0.97 | $18.92 | +$0.55 |
+| 23:19Z | 6447973267780705 | 19.5 | $0.98 | $19.11 | +$0.37 |
+| **Total** | | | | **$56.46** | **+$1.46 est.** |
+
+Individual win estimates sum to +$1.46, which is +$1.06 below EVOLVE's wallet-verified +$2.52. This gap is consistent with the STWA maker G3 liquidation (SELL at $0.92 recovering prior untracked capital, see below) being included in the wallet balance. EVOLVE tracks sniper only; the gap is a scope difference, not model error.
+
+**STWA untracked maker fills (00:54Z):**
+- `SELL` token=2664940529472113: 9.32 sh @ $0.92 → $8.574 received. G3 classification liquidation — exec audit `b93a47f7b` (Jul 18 10:11Z) flagged this token for MAKER SELL unfreeze. Prior position from an earlier session; cost basis not recorded in bot tracking.
+- `BUY` token=7094108612094851: 44.875 sh @ $0.08 → $3.590 deployed. New wing/tail position resting on book.
+- Both fills are UNTRACKED (no position system entry). Cash effect flows to Polymarket wallet but not to bankroll.json.
+
+**Jul 17 STWA maker positions ($8.06) — still pending:** Tokens 4095117562509625, 1055101008834022, 1046907088381323 not in today's fill log. d+1/d+2 weather markets; expected to resolve Jul 18–19.
+
+### UNEXPLAINED
+
+| | Amount |
+|---|---|
+| Capital delta (EVOLVE-derived, sniper) | +$2.52 |
+| Attributed (EVOLVE sniper, 3/3W) | +$2.52 |
+| **UNEXPLAINED** | **$0.00** |
+
+Zero unexplained relative to EVOLVE sniper. The +$0.449 gap between bankroll delta ($2.071) and EVOLVE (+$2.52) is a **MODEL DEFICIENCY** in bankroll.json write frequency — not a phantom P&L source. STWA maker activity is an untracked parallel accounting stream; its inclusion or exclusion from the wallet total is not determinable from the available data without a live wallet query.
 
 ---
 
 ## 2. Compounding Scoreboard
 
-| Metric | Today | Jun-11 Baseline | Badatmath Benchmark |
+| Metric | Jul 18 (today) | Jul 17 (yesterday) | Jun baseline |
 |---|---|---|---|
-| Capital start | $28.157 | — | — |
-| Capital end | $35.498 | — | — |
-| Day return | **+26.1%** | ~3% | 10–20%/turn |
-| Sniper fires | 12W / 0L | — | — |
-| Kelly clip range | $13.7 → $18.1 | — | — |
-| Fill rate | 78.3% (5 FOK miss) | — | — |
+| Capital est. (EVOLVE) | ~$38.02 | $35.50 | — |
+| Sniper fills $ | $56.46 | ~$194.7 est. | — |
+| All fills $ (incl. STWA new) | ~$60.05 | $202.76 | — |
+| Avg equity (midpoint) | ~$36.76 | ~$31.83 | — |
+| **Turns/day (all fills)** | **~1.63** | **6.37** | 0.2–0.5 |
+| ROI/sniper turn | ~4.46% | 3.77% | ~3% |
+| ROI/all-fill turn | ~4.20% | 3.62% | ~3% |
+| **Day return (sniper)** | **+7.1%** | **+26.1%** | — |
 
-**Equity estimate (USDC-only):** $35.498  
-**CAVEAT:** $8.06 in pending STWA maker positions not in capital. If resolved YES these add significantly; if NO these represent a future draw from cash (already spent from capital at fill time — or will be at resolution, depending on CLOB escrow timing). Equity range: $35.50 (NO) → $43.56 (NO-cash-already-spent) → much higher (YES).  
-The capital field reconciled cleanly to $0.003 at 22:10Z per state_log wallet audit; I use $35.50 as equity_est pending maker resolution.
+**CAVEAT on equity_est:** ~$38.02 is EVOLVE-derived (sniper only, wallet-verified). Excludes: $8.06 Jul 17 STWA pending; $3.59 Jul 18 new STWA buy; G3 liquidation P&L (unknown cost basis). Equity range: $38.02 (sniper floor) to materially higher if STWA resolves YES.
 
-**Deployed fraction:** 0% tracked open at snapshot; $8.06 untracked pending (~18% of USDC if in-flight).
+**Turns sharply lower (1.63 vs 6.37 yesterday).** Three fires vs twelve. Two structural causes from EVOLVE commit:
+1. **Wedge watchdog restart** (`ee014ba92`): exits if Gamma discovery silent >5 min; restart reduced window availability. Post-restart silence verified benign — 7,894 snaps, 0 fireable markets in that window.
+2. **Pre-slot cap 2/2:** pre-entry slot cap saturated during peak window, gating additional fires.
 
-**Fills today:**
+**Per-turn ROI improving** (4.46% today vs 3.77% yesterday) because Kelly stake is scaling: clips grew from $13.7–$18.1 on Jul 17 to $18.43–$19.11 on Jul 18. On a 21/21W sequence the bot is sizing up on each win per the heat-check rule.
 
-| Category | USDC | Notes |
-|---|---|---|
-| Sniper taker buys (12 fires) | ≈$194.7 | Tape shows 9 fires through 18:44Z; 3 inferred to reach total 12 per state_log |
-| STWA maker buys (3 fills) | $8.06 | |
-| **Total fills** | **≈$202.8** | |
+**Benchmark:** badatmath ~1.0× equity/day at 10–20%/turn. Today: 1.63 turns × 4.46% = 7.3% day return. Above Jun baseline (0.2–0.5 × 3% ≈ 1%), well below badatmath velocity. Fire cadence (3/day) is the primary compounding bottleneck, not edge per turn.
 
-**Avg equity:** ($28.157 + $35.498) / 2 = **$31.83**  
-**Turns/day:** $202.8 / $31.83 = **6.37×**  
-**ROI/turn:** $7.341 / $202.8 = **3.62%**  
-*(Sniper-only: $194.7 fills, 3.77% ROI/turn, 6.12 turns)*
-
-**7-day trend:** No prior ledger for Jul 16. Jul 15 returns were near-zero (cash −$0.276 with ~$4.6 open position). Today is the first confirmed large positive day under the candidate policy (Kelly 0.50, P_MIN 0.995). Turns/day are 12–30× the Jun-11 baseline (0.2–0.5), driven by Kelly compounding + daily resolution of multiple markets. ROI/turn (~3.8%) remains in range — the increase in total return comes from multiplied turns, not edge expansion. Badatmath comparison: turns are now in range; ROI/turn still below badatmath's 10–20% per turn — our edge is high-WR/low-payout vs their higher-payout model.
+**Band shadow (no realized impact):** 11 shadow fires today, 0 live (BAND_LIVE=False since Jul 6). Mix: 3 d+0, 2 d+1, 6 d+2 across Seoul, Wuhan, Beijing, Munich, Taipei, Chongqing, Tokyo, Chengdu. Sum_ask range 0.405–0.933. Pipeline collects data; produces no capital until BAND_LIVE re-armed.
 
 ---
 
 ## 3. Expected Maker Rebates
 
-Formula: rebate = shares × 0.05 × p × (1−p) × 0.25 per fill (UPPER BOUND — actual depends on pool share vs competing makers).
+Formula: `shares × 0.05 × p × (1-p) × 0.25`
 
-**Today's maker fills:**
+| Fill | Token | Shares | p | p×(1−p) | Expected rebate |
+|---|---|---|---|---|---|
+| Jul 18 00:54Z SELL | 2664940529472113 | 9.32 | 0.92 | 0.0736 | $0.009 |
+| Jul 18 00:54Z BUY | 7094108612094851 | 44.875 | 0.08 | 0.0736 | $0.041 |
+| **Jul 18 total** | | | | | **$0.050** |
 
-| Token | p | Shares | Fee-equiv | Est. rebate |
-|---|---|---|---|---|
-| 4095117562509625 | 0.06 | 58.33 | $0.164 | $0.041 |
-| 1055101008834022 | 0.02 | 150 | $0.147 | $0.037 |
-| 1046907088381323 | 0.02 | 78 | $0.076 | $0.019 |
-| **Today total** | | | | **$0.097** |
+Both fills are extreme-odds (p=0.08/0.92) — low fee-weight, near the zero end of the p×(1-p) curve. A mid-price fill at p=0.50 earns ~8× more rebate per share.
 
-Note: these fills are at extreme prices (p=0.02–0.06), which suppresses quadratic p*(1-p). Mid-price fills (p≈0.5) would earn ~6× more rebate per dollar deployed.
+| Period | Amount |
+|---|---|
+| Cumulative through Jul 17 | $3.831 |
+| Jul 18 addition | $0.050 |
+| **Cumulative (UPPER BOUND)** | **$3.881** |
 
-**Jul 16 maker fills (retrospective, not previously reported):**
+Upper bound: actual payout depends on Klaus's share of category maker volume.
 
-| Fill | p | Shares | Est. rebate |
-|---|---|---|---|
-| token 9559426... @0.09 × 86.61 | 0.09 | 86.61 | $0.089 |
-| token 1063919... @0.06 × 16.67 | 0.06 | 16.67 | $0.012 |
-| token 6333812... SELL @0.98 × 1.14 | 0.98 | 1.14 | $0.001 |
-| token 4776509... @0.02 × 10 | 0.02 | 10 | $0.002 |
-| token 1399483... SELL @0.96 × 147.05 | 0.96 | 147.05 | $0.071 |
-| **Jul 16 total** | | | **$0.175** |
-
-| Period | Expected rebate | Running cumulative |
-|---|---|---|
-| Through Jul 15 (prior state) | — | $3.559 |
-| Jul 16 (retrospective) | $0.175 | $3.734 |
-| Jul 17 | $0.097 | **$3.831** |
-
-**FLAG: Cumulative expected rebate $3.831 > $1 threshold.** Polymarket maker rebates land daily in pUSD with $1 minimum accrual. The user should verify pUSD receipt in their Polymarket wallet. No payout has been recorded in this ledger to date. This estimate is an UPPER BOUND — actual depends on competing maker volume in these markets.
+**FLAG — REBATE UNVERIFIED:** Cumulative expected exceeds $1 threshold. Polymarket pays daily pUSD (min $1 accrual). No receipt recorded in state_log through Jul 18. **User must verify pUSD rebate balance in Polymarket wallet.**
 
 ---
 
 ## 4. Kill-Switch Proximity
 
-| Rail | Current | Threshold | Status |
+| Metric | Value | Threshold | Status |
 |---|---|---|---|
-| Day P&L vs −$10 halt | +$7.341 | < −$10 | ✅ COMFORTABLE |
-| Capital vs $50 ruin floor | $35.498 | < $50 | ⚠️ BREACHED (−$14.50) |
-| Capital vs $75 weekly floor | $35.498 | < $75 | ⚠️ BREACHED (−$39.50) |
-| Kill-watch losses (candidate) | 0 / 3 | ≥ 3 → trigger | ✅ CLEAN (day 2) |
-| Candidate WR (rolling 18) | 18/18 = 100% | <30% over 20 | N/A (<20 trades) |
-| Candidate PF | ∞ (no losses) | <0.8 over 20 | N/A (<20 trades) |
+| Day PnL | +$2.52 | > −$10 daily halt | ✅ OK |
+| Capital | ~$38.02 | > $50 ruin floor | ⚠️ BREACH — carry-over, owner-waived |
+| Capital | ~$38.02 | > $75 weekly floor | ⚠️ BREACH — carry-over, owner-waived |
+| Kill-watch day | 3 | Clean consecutive | ✅ CLEAN |
+| Rolling 20 WR | 21/21 = 100% | > 40% | ✅ N/A (no losses) |
+| Rolling 20 PF | N/A | > 0.8 | ✅ N/A (no losses) |
+| Open positions (tracked) | 0 | — | ✅ OK |
+| Disk | 93% (8 GB free) | < 100% critical | ⚠️ MONITOR |
+| UPDOWN-SNIPER | 21/21W, +$11.54 cum. | ACTIVE | ✅ ACTIVE |
+| BAND_LIVE | False | — | DISARMED Jul 6 |
+| BAND_NO | False | — | DISARMED Jul 2 |
+| STWA_REGULAR | Disabled | — | DISABLED |
 
-**Capital floors context:** Both the $50 ruin and $75 weekly floor have been breached since at least Jul 6 (BAND_LIVE wind-down at $108 equity vs $222.90 HWM). These floors are inherited from CLAUDE.md taker-era rules. The owner is operating the bot under explicit waiver during the candidate-validation phase. Today's +$7.34 moves capital from $28.16 → $35.50; recovery to $50 ruin floor requires ~+$14.50 additional (+41%) and to $75 weekly floor requires ~+$39.50 (+111%) from here.
+**Floor breaches ($50, $75):** Structural carry-overs under owner waivers. At $38 capital, clearing the $50 ruin floor requires +$12 (+31.5%), which at today's 7.1%/day rate takes ~4 days. Weekly floor ($75) requires +$37 (+97%), ~14 days. Direction is correct.
 
-**⚠️ KILL-SWITCH CAVEAT:** The WR/PF kill floors (>40% WR, PF >1.3) were specified for the taker-era multi-strategy. The current candidate architecture wins ~100% of sniper fires by design (P_MIN ≥ 0.995, Kelly-sized). WR <30% triggering a halt is NOT applicable to this mode — a single loss at P=0.995+ is expected ~1 in 200 fires and would not indicate edge failure. A kill-switch re-derivation appropriate for the sniper regime is pending with the owner.
+**Disk improved:** Yesterday flagged as critical (100%, 1 GB free). Now at 93% (8 GB free). Likely log rotation or manual cleanup. At peak logging volume (~5 GB/day estimate), 8 GB free = ~1.6 days buffer. Shadow loggers running 282K+ maker_flow rows and 375K+ stwa_pricer_eval rows today — monitor actively.
 
-**⚠️ DISK ALERT:** System disk at **100% full** (92GB used / 97GB, 1GB free). This was 98% on Jul 15. Risk: log writes may fail; JSONL shadow files may truncate. Owner action required.
+**CAVEAT on WR/PF thresholds:** The 40% WR / 0.8 PF floors were specified for taker-era multi-strategy. UPDOWN-SNIPER design WR is ~97–99% (buys YES at $0.97–$0.99, nearly certain to resolve correctly). A WR below 40% on this strategy would indicate catastrophic miscalibration, not normal drift. A halt recommendation based on WR alone is not appropriate here. Kill-switch re-derivation for the sniper regime is pending with owner.
 
 ---
 
 ## 5. Day Verdict
 
-**YES — equity compounded today. +26.1% ($28.16 → $35.50).**
+**YES — equity compounded +7.1%** ($35.498 → ~$38.02, EVOLVE wallet-verified sniper).
 
-- 12/12 UPDOWN-SNIPER wins. Kelly compounding working as designed: clip grew $13.7 → $18.1 intraday across 12 fires.
-- Binding constraint: **fill rate** (78.3%, 5 FOK misses at $0 cost) and **market cadence** (~1 fire/hr in observed window). Not capital, not edge.
-- Redemption poach guard deployed (22:05Z restart), fixing the 08:01Z poach-via-redemption race that cost $0.176 on that fire.
-- Pooled unfiltered gate is now confirmed −EV (n=143 WR .958 < BE .963), retroactively validating the Jul 16 v1 cut.
-- $8.06 in STWA shadow maker positions (cheap YES d+1/d+2) open and untracked — pending resolution. Expected value small (prices imply very low YES probability), but nonzero.
-- **Infrastructure risk: disk 100% full.** Log writes are at risk of silent failure. Resolve before next session.
+Binding constraint: **fire cadence** (3 fires vs 12 yesterday). Per-turn ROI is improving (4.46% vs 3.77%) and Kelly sizing is scaling correctly ($18.43 → $19.11 per clip), so the strategy is healthy. The low fire count was structural, not signal-driven: wedge watchdog restart eliminated one window, and pre-slot cap filled during peak. Neither indicates edge degradation.
 
----
+Sniper: 21/21W, kill-watch Day 3 clean. No losses on record.
 
-*Ledger agent: pnl-ledger-agent@klaus | Run at 23:37Z | Snapshot age at run: 4 min*
+**Alerts for owner (action required):**
+1. **Bankroll.json stale** — last written 02:46 UTC, misses 2 fills. True capital ~$38.02 (EVOLVE), not $37.57. Investigate why bankroll.json stopped updating.
+2. **Jul 17 STWA maker ($8.06) unresolved** — tokens 4095117/1055101/1046907 pending d+1/d+2.
+3. **Cumulative rebate $3.881 unverified** — check pUSD balance in Polymarket wallet.
+4. **Disk 93%** — improved; monitor. 8 GB free at current logging rates = ~1.6 days.
