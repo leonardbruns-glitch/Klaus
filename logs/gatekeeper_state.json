@@ -1,1 +1,177 @@
-ewogICJCQU5EX1lFUyI6IHsKICAgICJuIjogOTM0LAogICAgIm5fbGFiZWwiOiAicmVzb2x2ZWQgKFZQUyBhbGwtdGltZSBDSSBiYXNlOyB3aW5kb3ctcmVsYXRpdmUgbj03ODggSnVsMDUgMjI6MjVaKSIsCiAgICAibl9maXJlcyI6IDYyOTYsCiAgICAibl9maXJlc19zaGFkb3dfYWRkZWRfc2luY2Vfd2luZF9kb3duIjogMTM2LAogICAgIm5fcHJldiI6IDkzNCwKICAgICJzdGF0dXMiOiAiQU1CSUdVT1VTIiwKICAgICJyb2kiOiA0LjAsCiAgICAiY2k5NSI6IFstMTAuOSwgMjEuMV0sCiAgICAid3IiOiAwLjE1MywKICAgICJyZXNvbHZlZCI6IDkzNCwKICAgICJ0cyI6ICIyMDI2LTA3LTE3VDA5OjE1OjAwWiIsCiAgICAibm90ZSI6ICJObyBjaGFuZ2UuIEJhbmQgZGFyayBkYXkgMTEgKEJBTkRfTElWRT1GYWxzZSBzaW5jZSBKdWwtMDYgMjI6MDhaKS4gbj05MzQgZnJvemVuIOKAlCAwIG5ldyByZXNvbHV0aW9ucyBwb3NzaWJsZSB3aGlsZSBiYW5kIGRhcmsuIFNoYWRvdyBmaXJlcyBzaW5jZSB3aW5kLWRvd246ICsxMyBuZXcgKEp1bC0xNiBwb3N0LTA5OjEzWjogMzsgSnVsLTE3IHVwIHRvIDA5OjEwWjogMTApID0gMTM2IHRvdGFsLiBSYXRlIH4xMy9kYXkuIENSSVRJQ0FMOiBST0kgKzQuMCUgaXMgVVBQRVIgQk9VTkQgcGVyIHdpbm5lcidzIGN1cnNlIGFuYWx5c2lzIChzdGF0ZV9sb2cgSnVsLTExIDIyOjE1WikuIENJIHN0cmFkZGxlcyAwIC0+IEFNQklHVU9VUzsgd2lubmVyJ3MgY3Vyc2UgYmxvY2tlciBtYWtlcyB0aGlzIGdhdGUgc3RydWN0dXJhbGx5IGluZXJ0IHVudGlsIGNhcGl0YWwgKyBXQyByZXNvbHZlZC4iCiAgfSwKICAiQkFORF9OT19QQUlSX0ZBViI6IHsKICAgICJuIjogOSwKICAgICJuX2xhYmVsIjogInBvc3QtZ3VhcmQgcGFpciBsZWdzIChyZXN0YXJ0IDIwMjYtMDctMDVUMjI6MjA6MDBaOyBmcm96ZW4gYXQgQkFORF9MSVZFPUZhbHNlIDA3LTA2IDIyOjA4WikiLAogICAgIm5fcHJldiI6IDksCiAgICAic3RhdHVzIjogIkFNQklHVU9VUyIsCiAgICAicm9pIjogbnVsbCwKICAgICJjaTk1IjogW251bGwsIG51bGxdLAogICAgIndyIjogbnVsbCwKICAgICJyZXNvbHZlZCI6IDExNSwKICAgICJyZXNvbHZlZF9icmVha2Rvd24iOiB7CiAgICAgICJiYW5kX25vX2QxIjogewogICAgICAgICJuIjogMTE1LAogICAgICAgICJuX3ByZXYiOiAxMTUsCiAgICAgICAgIndyIjogMC42ODcsCiAgICAgICAgImF2Z19xdW90ZSI6IDAuNjc4LAogICAgICAgICJyb2kiOiAxLjMsCiAgICAgICAgImNpOTUiOiBbLTExLjksIDEyLjddLAogICAgICAgICJzdGF0dXMiOiAiQU1CSUdVT1VTIiwKICAgICAgICAibm90ZSI6ICJCQU5EX05PX0VOQUJMRUQ9RmFsc2Ugc2luY2UgSnVsLTAyLiBObyBuZXcgZmlyZXMuIFNoYWRvdyBDSSBBTUJJR1VPVVMgKHN0cmFkZGxlcyAwKS4gTGl2ZSBuPTUxIFdSPTM5LjIlID0gZWZmZWN0aXZlbHkgUkVKRUNURUQuIERvIE5PVCByZS1lbmFibGUgb24gc2hhZG93IENJIGFsb25lLiIKICAgICAgfSwKICAgICAgInBhaXJfZmF2X3llcyI6IHsKICAgICAgICAibiI6IDksCiAgICAgICAgIm5fcHJldiI6IDksCiAgICAgICAgIm5fcmVzdGFydF90cyI6ICIyMDI2LTA3LTA1VDIyOjIwOjAwWiIsCiAgICAgICAgIndyIjogbnVsbCwKICAgICAgICAicm9pIjogbnVsbCwKICAgICAgICAiY2k5NSI6IFtudWxsLCBudWxsXSwKICAgICAgICAic3RhdHVzIjogIkNPTExFQ1RJTkciLAogICAgICAgICJub3RlIjogIkZyb3plbiBhdCBCQU5EX0xJVkU9RmFsc2Ugc2luY2UgSnVsLTA2IDIyOjA4Wi4gMCBuZXcgcG9zdC1ndWFyZCBmaXJlcy4gUmF0ZSB+MTEvZGF5IHdoZW4gbGl2ZS4gRVRBIG49NDA6IH4yLjhkIGZyb20gcmUtZW5hYmxlLiBFVEEgbj0xMDA6IH44LjNkIGZyb20gcmUtZW5hYmxlLiIKICAgICAgfSwKICAgICAgInBhaXJfZmF2X25vIjogewogICAgICAgICJuIjogOSwKICAgICAgICAibl9wcmV2IjogOSwKICAgICAgICAibl9yZXN0YXJ0X3RzIjogIjIwMjYtMDctMDVUMjI6MjA6MDBaIiwKICAgICAgICAibl9jb3VudGVyZmFjdHVhbF9hbGxfc2hhZG93IjogMzIsCiAgICAgICAgInJvaV9jb3VudGVyZmFjdHVhbF9wZXJfbGVnIjogNTIuOSwKICAgICAgICAiY2k5NV9jb3VudGVyZmFjdHVhbCI6IFsxMi42LCA4NS41XSwKICAgICAgICAibl9jb21iaW5lZF9wYWlycyI6IDMwLAogICAgICAgICJyb2lfY29tYmluZWRfcGVyX3BhaXIiOiAxMy4wLAogICAgICAgICJ3ciI6IG51bGwsCiAgICAgICAgInJvaSI6IG51bGwsCiAgICAgICAgImNpOTUiOiBbbnVsbCwgbnVsbF0sCiAgICAgICAgInN0YXR1cyI6ICJDT0xMRUNUSU5HIiwKICAgICAgICAibm90ZSI6ICJQb3N0LWd1YXJkIG49OSwgMCBuZXcgKGZyb3plbikuIENPVU5URVJGQUNUVUFMIENJPVsrMTIuNiwrODUuNV0gYXQgbj0zMiBRVUFMSUZJRUQ6IHN0YXRlX2xvZyBKdWwtMTEgMjI6MTVaIGNvbmZpcm1zIENGIFJPSSBpbmhlcml0cyBzaW11bGF0aW9uIGJpYXMgKHdpbm5lcidzIGN1cnNlKS4gQ28tZmlsbGVkIHBhaXIgKFNpZ21hPD0wLjkyKSBpcyBleGNlcHRpb24uIEV4ZWMgQXVkaXRvciBjcm9zcy10YWIgb3V0c3RhbmRpbmcuIERvIG5vdCByZS1lbmFibGUgb24gQ0YgUk9JIGFsb25lLiBFVEEgbj0xMDA6IH44LjNkIGZyb20gcmUtZW5hYmxlLiIKICAgICAgfQogICAgfSwKICAgICJ0cyI6ICIyMDI2LTA3LTE3VDA5OjE1OjAwWiIsCiAgICAibm90ZSI6ICJObyBuZXcgbGl2ZSBmaXJlcyBzaW5jZSBKdWwtMDYgd2luZC1kb3duLiBBbGwgZnJvemVuLiBCYW5kIGRhcmsgZGF5IDExLiIKICB9LAogICJGSUxMRURfVlNfRklSRUQiOiB7CiAgICAibiI6IDc1LAogICAgIm5fcHJldiI6IDc1LAogICAgIm5fYWRkZWRfc2luY2VfcHJpb3IiOiAwLAogICAgInN0YXR1cyI6ICJXQVRDSF9JVEVNIiwKICAgICJyb2kiOiAtNzUuOCwKICAgICJyb2lfc2ltIjogNy42LAogICAgImdhcF9wcCI6IC04My40LAogICAgIndyX2ZpbGxlZCI6IDAuMTczLAogICAgImF2Z19lbnRyeV9weCI6IDAuNDE3LAogICAgImNpOTUiOiBbLTc1LjAsIC0zNC4yXSwKICAgICJjaTk1X21ldGhvZCI6ICJXaWxzb24gV1IgQ0kgWzEwLjQlLCAyNy40JV0gdHJhbnNsYXRlZCB0byBST0kgYXQgYXZnX3B4PTAuNDE3OyBDSSBlbnRpcmVseSBuZWdhdGl2ZSIsCiAgICAicmVzb2x2ZWQiOiA3NSwKICAgICJyZXNvbHZlZF9zY29wZSI6ICJXRUFUSEVSX01BS0VSIGZpbGxzIDIwMjYtMDYtMTEuLjIwMjYtMDctMDYgYWxsLXRpbWUgVlBTIGpvaW4gKHdpbm5lcnNfY3Vyc2VfY3Jvc3N0YWJfMDcxMS5weSkiLAogICAgIm5ld19maWxsc19zaW5jZV9wcmlvciI6IHsKICAgICAgIm1ha2VyX2ZpbGxzIjogMSwKICAgICAgInRha2VyX2ZpbGxzIjogMTMsCiAgICAgICJtYWtlcl9maWxsX3R5cGVzIjogIjEgTUFLRVIgU0VMTEAwLjk2IHRva2VuPTEzOTk0ODM2NzM4MjA0MDIgc2l6ZT0xNDcuMDUgKEp1bC0xNlQyMTozOVopIOKAlCBVTkNMQVNTSUZJRUQgKG5vdCBCVVlAMC4wMi0wLjA5IG9ycGhhbiBwYXR0ZXJuKTsgMTMgVEFLRVIgc25pcGVyIGZpbGxzOyAwIFNUUlVDVC1CQU5ELVEiLAogICAgICAic3RydWN0X2JhbmRfcV9maWxscyI6IDAsCiAgICAgICJmbGFnIjogIk1BS0VSIFNFTExAMC45NiBzaXplPTE0Ny4wNSBpcyBhbm9tYWxvdXMgdnMgcHJpb3Igb3JwaGFuIHBhdHRlcm4gKEJVWUAwLjAyLTAuMDkpLiBFeGVjIEF1ZGl0b3IgbXVzdCBjbGFzc2lmeSB0b2tlbiAxMzk5NDgzNjczODIwNDAyIOKAlCBwb3RlbnRpYWxseSBHMy1lbGlnaWJsZSBpZiBTVFJVQ1QtQkFORC1RL01BS0VSLUZJTEwuIG4gY29uc2VydmF0aXZlbHkgaGVsZCBhdCA3NSBwZW5kaW5nIGNsYXNzaWZpY2F0aW9uLiIKICAgIH0sCiAgICAidHMiOiAiMjAyNi0wNy0xN1QwOToxNTowMFoiLAogICAgIm5vdGUiOiAibj03NSBmcm96ZW4gKGNvbnNlcnZhdGl2ZWx5KS4gMSBuZXcgTUFLRVIgZmlsbCB1bmNsYXNzaWZpZWQgKFNFTExAMC45NiwgMTQ3LjA1IOKAlCBhbm9tYWxvdXMgcGF0dGVybikuIDEzIG5ldyBUQUtFUiBmaWxscyAoc25pcGVyLCBub3QgRzMtZWxpZ2libGUpLiBFeGVjIEF1ZGl0b3IgY28tZmlsbCBjcm9zcy10YWIgdW5kZXIgSnVsLTA1IGNsaXAtZ3VhcmQgb3V0c3RhbmRpbmcuIgogIH0sCiAgIkJBU0tFVF9FWElUIjogewogICAgIm4iOiBudWxsLAogICAgInN0YXR1cyI6ICJWT0lEIiwKICAgICJyb2kiOiBudWxsLAogICAgImNpOTUiOiBbbnVsbCwgbnVsbF0sCiAgICAid3IiOiBudWxsLAogICAgInJlc29sdmVkIjogbnVsbCwKICAgICJ0cyI6ICIyMDI2LTA2LTIyVDA3OjM1OjAwWiIsCiAgICAibm90ZSI6ICJHQVRFIFBFUk1BTkVOVExZIFJFVElSRUQgKHN0YXRlX2xvZyBKdW4tMjJUMDc6MzUpLiA0IGZhdGFsIGZsYXdzLiBEbyBub3QgcmV2aXNpdC4iCiAgfSwKICAiVEhFUk1PX01BS0VSX05PIjogewogICAgIm4iOiAxMjUsCiAgICAibl9wcmV2IjogMTI1LAogICAgInN0YXR1cyI6ICJSRUpFQ1RFRCIsCiAgICAicm9pIjogMC4wLAogICAgImNpOTUiOiBbLTkuMCwgMi4wXSwKICAgICJ3ciI6IG51bGwsCiAgICAicmVzb2x2ZWQiOiAxMjUsCiAgICAic2hhZG93X2NhbmRpZGF0ZXNfcm9sbGluZ19maWxlX2FwcHJveCI6ICIxMzEyMisiLAogICAgInRzIjogIjIwMjYtMDctMTdUMDk6MTU6MDBaIiwKICAgICJub3RlIjogIk5vIGNoYW5nZS4gUkVKRUNURUQgKEVWT0xWRSBKdWwtMDQgMjE6NTNaKS4gVEhFUk1PX01BS0VSX0xJVkU9RmFsc2Ugc2luY2UgSnVuLTIzIDE4OjQwLiBTaGFkb3cgcm9sbGluZyBmaWxlIGNvbnRpbnVlcyBncm93aW5nICh3YXMgMTMsMTIyKS4gTm8gcmVzb2x1dGlvbnMgcG9zc2libGUuIE5vIHJlY29uc2lkZXJhdGlvbiB3aXRob3V0IGV4cGxpY2l0IGh1bWFuIGRpcmVjdGl2ZS4iCiAgfSwKICAiTTFfQkVUQV9MT0NLT1VUIjogewogICAgIm4iOiAzMSwKICAgICJuX3ByZXYiOiAzMSwKICAgICJzdGF0dXMiOiAiUkVKRUNURUQiLAogICAgInJvaSI6IC0wLjYsCiAgICAiY2k5NSI6IFstMjAuNiwgMjQuNF0sCiAgICAid3IiOiAwLjc0MiwKICAgICJyZXNvbHZlZCI6IDMxLAogICAgInNoYWRvd19jYW5kaWRhdGVzX3JvbGxpbmdfZmlsZV9hcHByb3giOiAiMTY4NDQrIiwKICAgICJ0cyI6ICIyMDI2LTA3LTE3VDA5OjE1OjAwWiIsCiAgICAibm90ZSI6ICJObyBjaGFuZ2UuIFJFSkVDVEVEIChFVk9MVkUgSnVsLTA0IDIxOjUzWikuIE1JTl9MT0NLT1VUX0xJVkU9RmFsc2Ugc2luY2UgMjAyNi0wNy0xM1QyMjowOFouIFNoYWRvdyBjYW5kaWRhdGVzIHJvbGxpbmcgZmlsZSBjb250aW51ZXMgZ3Jvd2luZyAod2FzIDE2LDg0NCkuIFplcm8gbGl2ZSBvcmRlcnMgcG9zdGVkLiBHYXRlIGV2aWRlbmNlIHVuY2hhbmdlZC4iCiAgfSwKICAiU1VNX1BPU1RFRF8wLjcwXzAuODUiOiB7CiAgICAibiI6IDM4MiwKICAgICJuX2xhYmVsIjogInJlc29sdmVkIChWUFMgam9pbiAwNy0wOSAyMjoyMFo7IGZpcnN0LWZpcmUgZGVkdXAgWUVTIGxlZ3Mgc3VtX3Bvc3RlZCBpbiBbMC43MCwwLjg1XSkiLAogICAgIm5fc2hhZG93X2ZpcmVzX2FsbF90aW1lIjogMzE4OCwKICAgICJuX3NoYWRvd19maXJlc19hZGRlZF9zaW5jZV93aW5kX2Rvd24iOiA5MiwKICAgICJuX3ByZXZfcmVzb2x2ZWQiOiAzODIsCiAgICAibl9wcmV2X3NoYWRvd19maXJlcyI6IDMxNzUsCiAgICAic3RhdHVzIjogIkFNQklHVU9VUyIsCiAgICAicm9pIjogMTEuNSwKICAgICJjaTk1IjogWy0xMS40LCAzOC45XSwKICAgICJ3ciI6IG51bGwsCiAgICAicmVzb2x2ZWQiOiAzODIsCiAgICAidHMiOiAiMjAyNi0wNy0xN1QwOToxNTowMFoiLAogICAgIm5vdGUiOiAiTm8gY2hhbmdlIHRvIHJlc29sdmVkIGNvdW50LiBBTUJJR1VPVVMgKG49MzgyLCBST0k9KzExLjUlLCBDST1bLTExLjQsKzM4LjldKS4gMCBuZXcgcmVzb2x2ZWQgcmVjb3JkcyAoYmFuZCBkYXJrKS4gTmV3IEc3IGluLXJhbmdlIHNoYWRvdyBmaXJlczogKzcgKEp1bC0xNiBwb3N0LTA5OjEzWjogMjsgSnVsLTE3IHVwIHRvIDA5OjEwWjogNSkgPSA5MiB0b3RhbCBzaW5jZSB3aW5kLWRvd24uIFJhdGUgfjkvZGF5LiBDUklUSUNBTDogUk9JICsxMS41JSBpcyBVUFBFUiBCT1VORCBwZXIgd2lubmVyJ3MgY3Vyc2UgYW5hbHlzaXMuIENJIHN0cmFkZGxlcyAwOyBnYXRlIGluZXJ0IHdoaWxlIGJhbmQgZGFyay4gSnVsLTE3IGluLXJhbmdlIGZpcmVzOiBDaGVuZ2R1IGQrMSAwLjg0LCBDaG9uZ3FpbmcgZCsyIDAuNzg1LCBXdWhhbiBkKzIgMC44MDUsIFRva3lvIGQrMiAwLjgyNSwgTXVuaWNoIGQrMiAwLjc3NS4iCiAgfSwKICAiX3J1bl9tZXRhIjogewogICAgInJ1bl90cyI6ICIyMDI2LTA3LTE3VDA5OjE1OjAwWiIsCiAgICAic25hcHNob3RfdHMiOiAiMjAyNi0wNy0xN1QwOToxMDoxNloiLAogICAgInNuYXBzaG90X2FnZV9taW4iOiA1LAogICAgImJhbmtyb2xsX2NhcGl0YWwiOiAzMS43NTczNjMsCiAgICAiYmFua3JvbGxfYXRfcHJpb3JfcnVuIjogMzEuMDc0MjUzLAogICAgImJhbmtyb2xsX2NoYW5nZV9zaW5jZV9wcmlvciI6IDAuNjgzLAogICAgImJhbmtyb2xsX2RhaWx5X3N0YXJ0X2p1bDE3IjogMjguMTU2ODUzLAogICAgImJhbmtyb2xsX2ludHJhZGF5X2p1bDE3IjogMy42MCwKICAgICJkYWlseV9zdG9wX3NuaXBlciI6IC00LjUwLAogICAgInJ1aW5fZmxvb3JfZW5naW5lIjogODkuMTYsCiAgICAiYmFua3JvbGxfcGN0X29mX3J1aW5fZmxvb3IiOiAzNS42LAogICAgImJhbmtyb2xsX2JlbG93X3J1aW5fZmxvb3IiOiB0cnVlLAogICAgIm9wZW5fcG9zaXRpb25zIjogMCwKICAgICJ3aW5kX2Rvd25fYWN0aXZlIjogdHJ1ZSwKICAgICJ3aW5kX2Rvd25fc2luY2UiOiAiMjAyNi0wNy0wNlQyMjowODowMFoiLAogICAgImJhbmRfZGFya19kYXlzIjogMTEsCiAgICAic2hhZG93X2ZpcmVzX2cxXzI0aCI6IDEzLAogICAgInNoYWRvd19maXJlc19nN18yNGgiOiA3LAogICAgIm5ld2x5X3JlYWR5IjogW10sCiAgICAibmV3bHlfcmVqZWN0ZWQiOiBbXSwKICAgICJuZXdseV93YXRjaF9pdGVtIjogW10sCiAgICAibmV3bHlfYW1iaWd1b3VzIjogW10sCiAgICAic3RhdGVfdHJhbnNpdGlvbnMiOiBbXSwKICAgICJzdHJ1Y3R1cmFsX2Jsb2NrZXJzIjogWwogICAgICAiV0lORC1ET1dOIGFjdGl2ZTogQkFORF9MSVZFPUZhbHNlIHNpbmNlIEp1bC0wNiAyMjowOFog4oCUIGRheSAxMS4gWmVybyBiYW5kIHJlc29sdXRpb25zIGZsb3dpbmcuIiwKICAgICAgIkNhcGl0YWwgJDMxLjc1NyBiZWxvdyBlbmdpbmUgcnVpbl9mbG9vciAkODkuMTYgKDM1LjYlKSDigJQgYWxsIGJhbmQgcGF0aHMgbWVjaGFuaWNhbGx5IGJsb2NrZWQiLAogICAgICAiUHJlLXJlZ2lzdGVyZWQgQkFORF9MSVZFIHJlLWVuYWJsZSBjb25kaXRpb24gdW5tZXQ6IHBvc3QtZ3VhcmQgcGFpciBuPj00MCAobj05LCBmcm96ZW4pIiwKICAgICAgIldpbm5lcidzIGN1cnNlIENPTkZJUk1FRCAoRzMgV0FUQ0hfSVRFTSwgbj03NSk6IHNpbSBST0kgaXMgVVBQRVIgQk9VTkQg4oCUIG5vIGJhbmQgcmUtZW5hYmxlIG1heSBjaXRlIEcxIG9yIEc3IHNpbSBDSSBhcyBldmlkZW5jZSIsCiAgICAgICJHMmEgQkFORF9OTzogbGl2ZSBuPTUxIFdSPTM5LjIlIGVmZmVjdGl2ZWx5IFJFSkVDVEVEOyBzaGFkb3cgQ0kgQU1CSUdVT1VTIGJ1dCBpcnJlbGV2YW50IiwKICAgICAgIlZQUyBiYW5kX3Jlc29sdXRpb25fam9pbi5weTogY2Fubm90IHJlZnJlc2ggKG5ldHdvcmstYmxvY2tlZCBzYW5kYm94KSDigJQgYWxsIHJlc29sdXRpb24gbiBjb3VudHMgZnJvemVuIGF0IEp1bC0wNiBzdGF0ZSIKICAgIF0sCiAgICAiYWxlcnRzIjogWwogICAgICAiW0czIFVOQ0xBU1NJRklFRCBGSUxMXSAyMDI2LTA3LTE2VDIxOjM5WiBNQUtFUiBTRUxMQDAuOTYgc2l6ZT0xNDcuMDUgdG9rZW49MTM5OTQ4MzY3MzgyMDQwMi4gRG9lcyBub3QgbWF0Y2ggcHJpb3Igb3JwaGFuIHBhdHRlcm4gKEJVWUAwLjAyLTAuMDkpLiBFeGVjIEF1ZGl0b3I6IGNsYXNzaWZ5IGJlZm9yZSBuZXh0IHJ1bi4iLAogICAgICAiW0NBUElUQUwgQkVMT1cgUlVJTiBGTE9PUl0gJDMxLjc1NyA9IDM1LjYlIG9mIGVuZ2luZSBydWluIGZsb29yICQ4OS4xNi4gU25pcGVyIHRyYWRpbmcgY29udGludWVzIHdpdGhpbiBkYWlseSBzdG9wIGxpbWl0cy4iLAogICAgICAiW0lOVFJBREFZIFJFQ09WRVJZIEp1bC0xN10gKyQzLjYwIGZyb20gZGFpbHkgc3RhcnQgJDI4LjE1Ny4gRGFpbHkgc3RvcCBub3QgYnJlYWNoZWQgYXMgb2YgMDk6MTBaLiIsCiAgICAgICJbU0hBRE9XIEZJUkVTIEFDQ1VNVUxBVElOR10gRzE6ICsxMyBuZXcgKHRvdGFsIDEzNiBzaW5jZSB3aW5kLWRvd24pLiBHNzogKzcgbmV3ICh0b3RhbCA5MiBzaW5jZSB3aW5kLWRvd24pLiBDb3VudGVyZmFjdHVhbCBvbmx5IOKAlCBubyByZXNvbHV0aW9uIHRydXRoIHdoaWxlIGJhbmQgZGFyay4iCiAgICBdLAogICAgInByb3Bvc2VkX2FjdGlvbnMiOiBbXQogIH0KfQo=
+{
+  "BAND_YES": {
+    "n": 934,
+    "n_label": "resolved (VPS all-time CI base; window-relative n=788 Jul05 22:25Z)",
+    "n_fires": 6296,
+    "n_fires_shadow_added_since_wind_down": 154,
+    "n_prev": 934,
+    "status": "AMBIGUOUS",
+    "roi": 4.0,
+    "ci95": [-10.9, 21.1],
+    "wr": 0.153,
+    "resolved": 934,
+    "ts": "2026-07-18T09:11:00Z",
+    "note": "No change. Band dark day 12 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen — 0 new resolutions possible while band dark. Shadow fires since wind-down: +18 new (Jul-17 post-09:15Z: 9; Jul-18 up to 09:11Z: 9) = 154 total. Rate ~18/day. CRITICAL: ROI +4.0% is UPPER BOUND per winner's curse analysis (state_log Jul-11 22:15Z). CI straddles 0 -> AMBIGUOUS; winner's curse blocker makes this gate structurally inert until capital + WC resolved."
+  },
+  "BAND_NO_PAIR_FAV": {
+    "n": 9,
+    "n_label": "post-guard pair legs (restart 2026-07-05T22:20:00Z; frozen at BAND_LIVE=False 07-06 22:08Z)",
+    "n_prev": 9,
+    "status": "AMBIGUOUS",
+    "roi": null,
+    "ci95": [null, null],
+    "wr": null,
+    "resolved": 115,
+    "resolved_breakdown": {
+      "band_no_d1": {
+        "n": 115,
+        "n_prev": 115,
+        "wr": 0.687,
+        "avg_quote": 0.678,
+        "roi": 1.3,
+        "ci95": [-11.9, 12.7],
+        "status": "AMBIGUOUS",
+        "note": "BAND_NO_ENABLED=False since Jul-02. No new fires. Shadow CI AMBIGUOUS (straddles 0). Live n=51 WR=39.2% = effectively REJECTED. Do NOT re-enable on shadow CI alone."
+      },
+      "pair_fav_yes": {
+        "n": 9,
+        "n_prev": 9,
+        "n_restart_ts": "2026-07-05T22:20:00Z",
+        "wr": null,
+        "roi": null,
+        "ci95": [null, null],
+        "status": "COLLECTING",
+        "note": "Frozen at BAND_LIVE=False since Jul-06 22:08Z. 0 new post-guard fires. Rate ~11/day when live. ETA n=40: ~2.8d from re-enable. ETA n=100: ~8.3d from re-enable."
+      },
+      "pair_fav_no": {
+        "n": 9,
+        "n_prev": 9,
+        "n_restart_ts": "2026-07-05T22:20:00Z",
+        "n_counterfactual_all_shadow": 32,
+        "roi_counterfactual_per_leg": 52.9,
+        "ci95_counterfactual": [12.6, 85.5],
+        "n_combined_pairs": 30,
+        "roi_combined_per_pair": 13.0,
+        "wr": null,
+        "roi": null,
+        "ci95": [null, null],
+        "status": "COLLECTING",
+        "note": "Post-guard n=9, 0 new (frozen). COUNTERFACTUAL CI=[+12.6,+85.5] at n=32 QUALIFIED: state_log Jul-11 22:15Z confirms CF ROI inherits simulation bias (winner's curse). Co-filled pair (Sigma<=0.92) is exception. Exec Auditor cross-tab outstanding. Do not re-enable on CF ROI alone. ETA n=100: ~8.3d from re-enable."
+      }
+    },
+    "ts": "2026-07-18T09:11:00Z",
+    "note": "No new live fires since Jul-06 wind-down. All frozen. Band dark day 12."
+  },
+  "FILLED_VS_FIRED": {
+    "n": 75,
+    "n_prev": 75,
+    "n_added_since_prior": 0,
+    "status": "WATCH_ITEM",
+    "roi": -75.8,
+    "roi_sim": 7.6,
+    "gap_pp": -83.4,
+    "wr_filled": 0.173,
+    "avg_entry_px": 0.417,
+    "ci95": [-75.0, -34.2],
+    "ci95_method": "Wilson WR CI [10.4%, 27.4%] translated to ROI at avg_px=0.417; CI entirely negative",
+    "resolved": 75,
+    "resolved_scope": "WEATHER_MAKER fills 2026-06-11..2026-07-06 all-time VPS join (winners_curse_crosstab_0711.py)",
+    "new_fills_since_prior": {
+      "maker_fills": 4,
+      "taker_fills": 7,
+      "maker_fill_types": "3 MAKER orphan-pattern BUY@0.02-0.06 (Jul-17T13:34Z: BUY@0.06x33.33+25 token=4095117562509625; Jul-17T18:34Z: BUY@0.02x150 token=1055101008834022; Jul-17T18:44Z: BUY@0.02x78 token=1046907088381323); 1 ANOMALOUS pair Jul-18T00:54Z: MAKER SELL@0.92 size=9.32 token=2664940529472113 + MAKER BUY@0.08 size=44.875 token=7094108612094851 — SECOND anomalous SELL on record after Jul-16T21:39Z SELL@0.96 size=147.05; 7 TAKER sniper fills (not G3-eligible)",
+      "struct_band_q_fills": 0,
+      "flag": "SECOND ANOMALOUS MAKER SELL: Jul-18T00:54Z SELL@0.92 size=9.32 token=2664940529472113 + companion BUY@0.08 size=44.875 token=7094108612094851. Pattern now 2x anomalous SELL@0.92-0.96 + multiple orphan BUY@0.02-0.09. Exec Auditor classification doubly overdue. n conservatively held at 75 until both Jul-16 and Jul-18 anomalous SELLs are classified."
+    },
+    "ts": "2026-07-18T09:11:00Z",
+    "note": "n=75 frozen (conservatively). 3 orphan-pattern MAKER BUY@0.02-0.06 (consistent with prior pattern). 1 new ANOMALOUS MAKER SELL@0.92 pair (Jul-18 00:54Z) = 2nd anomalous SELL on record. 7 TAKER fills (sniper). Exec Auditor cross-tab overdue."
+  },
+  "BASKET_EXIT": {
+    "n": null,
+    "status": "VOID",
+    "roi": null,
+    "ci95": [null, null],
+    "wr": null,
+    "resolved": null,
+    "ts": "2026-06-22T07:35:00Z",
+    "note": "GATE PERMANENTLY RETIRED (state_log Jun-22T07:35). 4 fatal flaws. Do not revisit."
+  },
+  "THERMO_MAKER_NO": {
+    "n": 125,
+    "n_prev": 125,
+    "status": "REJECTED",
+    "roi": 0.0,
+    "ci95": [-9.0, 2.0],
+    "wr": null,
+    "resolved": 125,
+    "shadow_file_bytes": 3699026,
+    "ts": "2026-07-18T09:11:00Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). THERMO_MAKER_LIVE=False since Jun-23 18:40. Shadow rolling file: 3.7MB at snapshot. No resolutions possible. No reconsideration without explicit human directive."
+  },
+  "M1_BETA_LOCKOUT": {
+    "n": 31,
+    "n_prev": 31,
+    "status": "REJECTED",
+    "roi": -0.6,
+    "ci95": [-20.6, 24.4],
+    "wr": 0.742,
+    "resolved": 31,
+    "shadow_file_bytes": 8102573,
+    "ts": "2026-07-18T09:11:00Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z). MIN_LOCKOUT_LIVE=False since 2026-07-13T22:08Z. Shadow candidates rolling file: 8.1MB at snapshot. Zero live orders posted. Gate evidence unchanged."
+  },
+  "SUM_POSTED_0.70_0.85": {
+    "n": 382,
+    "n_label": "resolved (VPS join 07-09 22:20Z; first-fire dedup YES legs sum_posted in [0.70,0.85])",
+    "n_shadow_fires_all_time": 3196,
+    "n_shadow_fires_added_since_wind_down": 100,
+    "n_prev_resolved": 382,
+    "n_prev_shadow_fires": 3188,
+    "status": "AMBIGUOUS",
+    "roi": 11.5,
+    "ci95": [-11.4, 38.9],
+    "wr": null,
+    "resolved": 382,
+    "ts": "2026-07-18T09:11:00Z",
+    "note": "No change to resolved count. AMBIGUOUS (n=382, ROI=+11.5%, CI=[-11.4,+38.9]). 0 new resolved records (band dark). New G7 in-range shadow fires: +8 (Jul-17 post-09:15Z: 6 [Taipei d+1 0.843, Chongqing d+1 0.844, Wuhan d+1 0.758, Chengdu d+2 0.763, Wuhan d+1 0.786, Chengdu d+1 0.784]; Jul-18 up to 09:11Z: 2 [Taipei d+2 0.725, Munich d+2 0.840]) = 100 total since wind-down. Rate ~8/day. CRITICAL: ROI +11.5% is UPPER BOUND per winner's curse analysis. CI straddles 0; gate inert while band dark."
+  },
+  "_run_meta": {
+    "run_ts": "2026-07-18T09:11:00Z",
+    "snapshot_ts": "2026-07-18T08:55:38Z",
+    "snapshot_age_min": 16,
+    "bankroll_capital": 37.569392,
+    "bankroll_at_prior_run": 31.757363,
+    "bankroll_change_since_prior": 5.812,
+    "bankroll_daily_start_jul18": 35.498092,
+    "bankroll_intraday_jul18": 2.07,
+    "ruin_floor_engine": 89.16,
+    "bankroll_pct_of_ruin_floor": 42.1,
+    "bankroll_below_ruin_floor": true,
+    "open_positions": 0,
+    "wind_down_active": true,
+    "wind_down_since": "2026-07-06T22:08:00Z",
+    "band_dark_days": 12,
+    "shadow_fires_g1_24h": 18,
+    "shadow_fires_g7_24h": 8,
+    "newly_ready": [],
+    "newly_rejected": [],
+    "newly_watch_item": [],
+    "newly_ambiguous": [],
+    "state_transitions": [],
+    "structural_blockers": [
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 12. Zero band resolutions flowing.",
+      "Capital $37.569 below engine ruin_floor $89.16 (42.1%) — all band paths mechanically blocked",
+      "Pre-registered BAND_LIVE re-enable condition unmet: post-guard pair n>=40 (n=9, frozen)",
+      "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND — no band re-enable may cite G1 or G7 sim CI as evidence",
+      "G2a BAND_NO: live n=51 WR=39.2% effectively REJECTED; shadow CI AMBIGUOUS but irrelevant",
+      "VPS band_resolution_join.py: cannot refresh (network-blocked sandbox) — all resolution n counts frozen at Jul-06 state"
+    ],
+    "alerts": [
+      "[G3 2ND ANOMALOUS MAKER SELL] 2026-07-18T00:54Z MAKER SELL@0.92 size=9.32 token=2664940529472113 + companion MAKER BUY@0.08 size=44.875 token=7094108612094851. Pattern: SELL@high + BUY@low pair. Exec Auditor must classify BOTH anomalous SELLs (Jul-16 SELL@0.96 + Jul-18 SELL@0.92) before next run.",
+      "[CAPITAL RECOVERING] $37.569 = 42.1% of engine ruin floor $89.16 (up from 35.6%). Sniper 18/18W +$9.02 wallet-true (Jul-17 22:20Z EVOLVE). Kill-watch CLEAN day 2.",
+      "[INTRADAY Jul-18] +$2.07 from daily start $35.498 as of 09:11Z. Daily stop not breached.",
+      "[SHADOW ACCUMULATING] G1: +18 new (total 154 since wind-down). G7: +8 new (total 100 since wind-down). Counterfactual only — no resolution truth while band dark."
+    ],
+    "proposed_actions": []
+  }
+}
