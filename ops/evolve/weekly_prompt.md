@@ -61,8 +61,12 @@ JOB 4 — LOOP SELF-EVOLUTION (you maintain the machine).
   advisory-only. If the mirror push script lacks sniper extracts
   (`updown_sniper.jsonl` tail, gate ledger), add them — measurement-only change.
 - Fix prompt-level loop defects YOURSELF: you may edit `daily_prompt.md`,
-  `weekly_prompt.md`, `repair_prompt.md` (keep the read-CHARTER-first instruction;
-  wiring-test after edits: `ops/evolve/run_agent.sh test`).
+  `weekly_prompt.md`, `repair_prompt.md` (keep the read-CHARTER-first instruction).
+  Validation after edits: `ops/evolve/run_agent.sh test` DEADLOCKS from inside an
+  agent run (you hold its shared flock — found 2026-07-19); run the static
+  equivalents of the launcher gates instead: `grep -q "CHARTER.md"` on every
+  edited prompt + the INVARIANTS sha256 pin check from run_agent.sh. Reserve the
+  full test for interactive sessions.
 - Charter-level defects: proposed amendment (exact diff + evidence + expected
   effect + falsifier) to `ops/evolve/AMENDMENTS.md`; apply second readings ≥7 days
   old per the charter's amendment protocol.

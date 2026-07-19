@@ -112,7 +112,13 @@ number never cleared its CI.
   this week. Until then their reports stay advisory-only.
 - **Prompt maintenance (done):** `daily_prompt.md` STEP 2/3 rewritten — the old
   standing tree read the condemned first-fire slice and would have false-passed
-  Kelly/re-enable within ~3 zero-loss days. Wiring test run after the edit.
+  Kelly/re-enable within ~3 zero-loss days. Validation: `run_agent.sh test`
+  turned out to DEADLOCK when invoked from inside an agent run (it waits on the
+  shared flock the running agent holds — a loop defect found and fixed this run:
+  `weekly_prompt.md` now prescribes the static launcher-gate checks instead).
+  Static gates verified passing: CHARTER.md reference intact in both edited
+  prompts + INVARIANTS sha256 pin matches — these are the exact conditions
+  `run_agent.sh` enforces before launching the daily.
 - **Amendment:** FIRST READING filed (ledger pre-registration for interactive
   deploys — 07-08 and 07-16 both bypassed the ledger; second reading due
   2026-07-26). No second readings were pending.
