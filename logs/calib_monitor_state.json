@@ -1,63 +1,57 @@
 {
-  "date": "2026-07-18",
-  "run_utc": "2026-07-18T08:11:40Z",
+  "date": "2026-07-19",
+  "run_utc": "2026-07-19T08:16:12Z",
   "data_access": "GITHUB_MCP",
-  "data_access_note": "git fetch timeout (network proxy blocks git protocol); all data fetched via GitHub MCP API. Full pipeline ran.",
-  "brier7": 0.022,
-  "brier7_source": "fresh-proxy-5d-inferred-outcomes",
-  "brier7_note": "5-date proxy window (07-12..07-16). 07-16 proxy Brier=0.030 (inflated: s50 file includes d1/d2 PRE_PEAK evaluations; true completed-day estimate ~0.020). Proxy methodologically weaker than ground truth. No alert (far below 0.15 threshold).",
-  "ece7": 0.0448,
-  "ece7_source": "carry-forward-from-2026-07-17",
-  "ece7_note": "Carried from prior session (proxy, 4-date). Below 0.05 threshold. No alert.",
-  "rho7": 0.8343,
-  "rho7_source": "carry-forward-from-2026-07-17",
-  "rho7_note": "Carried from prior session. Circular proxy via price convergence. Above 0.15 floor.",
-  "disp_ratio7": 0.70,
-  "disp_ratio7_source": "estimated — individual rows for 07-12..07-16 not stored; 07-17 n=23 fresh; combined n=133",
-  "disp_ratio7_note": "7d median estimated at 0.70 (+-0.02). Prior n=110 median=0.704; 23 new rows (daily median 0.652) split ~12 below / 11 above prior median, placing combined 67th-percentile row near 0.704. Value essentially unchanged from yesterday. Alert fires regardless of exact value in this range.",
-  "disp_ratio7_n": 133,
-  "disp_ratio7_grade": "decision-grade (n=133, threshold 100)",
-  "disp_inversion_days": 16,
+  "data_access_note": "git fetch timeout (network proxy blocks git protocol); all data fetched via GitHub MCP API + raw download URLs. Full pipeline ran.",
+  "brier7": 0.0477,
+  "brier7_source": "fresh-5d-all-rows (07-14..07-18, n=30029)",
+  "brier7_note": "All-rows method: PRE_PEAK + AT_PEAK + POST_PEAK rows. POST_PEAK rows have information advantage (running_max known). Method change from prior session (proxy single-snapshot). Both well below 0.15 threshold. No alert.",
+  "ece7": 0.0228,
+  "ece7_source": "fresh-5d-all-rows",
+  "ece7_note": "10 equal-width bins. Bin 40-70% outcome=1.0 (mode/near-mode buckets as expected). Plateau collapses predictions to Bin 30-40% (p_cal~0.38). Below 0.05 threshold. No alert.",
+  "rho7": 0.4753,
+  "rho7_source": "fresh-5d-all-rows",
+  "rho7_note": "Spearman rank-rho p_cal vs outcome. Caution: plateau creates tied ranks at p_cal~0.38 (n=3339 rows). Discrimination weaker than rho suggests in plateau range. Above 0.15 floor. No alert.",
+  "disp_ratio7": 0.742,
+  "disp_ratio7_source": "7d median of daily medians (07-12..07-13 from prior estimates; 07-14..07-18 fresh)",
+  "disp_ratio7_n": 79,
+  "disp_ratio7_n_note": "~79 estimated: 56 fresh individual rows (07-14..07-18) + ~23 prior estimates for 07-12..07-13",
+  "disp_ratio7_grade": "trend-to-decision (n~79; individual daily n=5-19 small; per-day trend only)",
+  "disp_inversion_days": 17,
   "disp_ratio_threshold": 1.10,
   "disp_ratio_alert": true,
   "disp_ratio_by_dout": {
+    "note": "Fresh dedup methodology mixes d+0/d+1 observations; not cleanly separable. Carrying prior estimates.",
     "d0": 0.76,
     "d1": 0.635,
-    "d2": 0.57
+    "d2": 0.57,
+    "source": "carry-forward from 2026-07-17 session"
   },
-  "disp_ratio_by_dout_note": "All estimated from daily sub-data; d0 improved from prior 0.744 due to 07-17 d0 daily median 0.841",
   "disp_ratio_by_region": {
-    "EU": 0.628,
-    "Asia": 0.73,
-    "Other": 0.70
+    "EU": 0.812,
+    "Asia": 0.558,
+    "Other": 0.726
   },
-  "disp_ratio_by_region_note": "All estimated; Asia improved from 0.714 due to 07-17 Asia daily median 0.776 (15 rows)",
+  "disp_ratio_by_region_note": "Fresh 5d computation. EU improved vs prior (0.628→0.812). Asia DETERIORATED (0.730→0.558). Asia now worst region.",
   "disp_ratio_daily_trend": {
     "2026-07-12": 0.765,
     "2026-07-13": 0.686,
-    "2026-07-14": 0.714,
-    "2026-07-15": 0.652,
-    "2026-07-16": 0.704,
-    "2026-07-17": 0.6516
+    "2026-07-14": 0.796,
+    "2026-07-15": 0.742,
+    "2026-07-16": 0.680,
+    "2026-07-17": 0.804,
+    "2026-07-18": 0.541
   },
-  "disp_ratio_pct_below_110": 98.5,
-  "disp_ratio_pct_below_100": 96.2,
-  "disp_new_signal": {
-    "date": "2026-07-17",
-    "rows_above_1_10": 2,
-    "first_occurrence_in_monitoring_window": true,
-    "details": [
-      {"city": "Wuhan", "days_out": 0, "mode_ask": 0.255, "ratio": 1.183},
-      {"city": "Chengdu", "days_out": 0, "mode_ask": 0.265, "ratio": 1.136}
-    ],
-    "note": "First rows above 1.10 threshold. Localized Asia d0, very tight mode_ask <=0.265. 3-5 days sustained improvement required to revise alert posture."
-  },
+  "disp_ratio_07_18_note": "0.541 = new low in 7d monitoring window. Key outliers: London EU ratio=0.200 (mode 25°C, actual 21°C, 4° miss), LA Other ratio=0.241. Recovery signals from 07-17 (Wuhan 1.183, Chengdu 1.136) did NOT persist.",
+  "disp_ratio_pct_below_110": 87.5,
+  "disp_ratio_pct_below_100": 83.9,
+  "disp_ratio_trend": "WORSENING — first-3d avg 0.749 vs last-3d avg 0.675",
   "isotonic_staleness": {
     "alert": true,
     "deployed_refit_utc": "2026-06-06T22:27:08Z",
-    "deployed_days_since_refit": 42,
+    "deployed_days_since_refit": 43,
     "candidate_refit_utc": "2026-06-09T09:30:36Z",
-    "candidate_days_since_refit": 39,
+    "candidate_days_since_refit": 40,
     "deployed_n_live": 0,
     "candidate_n_live": 1037,
     "candidate_live_calendar_days": 2,
@@ -67,38 +61,37 @@
     "candidate_val_at_1": 0.3739,
     "material_diffs_gt_05": 1,
     "content_changed_vs_prior": false,
-    "direction": "candidate LOWERS p_cal for p_raw=1.0 (removes certainty spike 0.6316->0.3739); plateau shift minimal (-0.0062); adds floor at p_raw=0 (+0.0175)",
-    "plateau_collapse_note": "Both curves map p_raw [0.30-0.95] -> ~0.38; p90(non-zero p_cal)=0.3801 across all observed pricer days confirms binding daily",
+    "direction": "candidate LOWERS p_cal for p_raw=1.0 (removes certainty spike 0.6316→0.3739); adds floor at p_raw=0 (+0.0175); plateau shift minimal (-0.006)",
+    "plateau_collapse_note": "Both curves map p_raw [0.30-0.95] → p_cal ~0.38. Root cause of low implied_std and dispersion ratio inversion. Fresh refit with Jul data needed.",
     "oos_validation": "null for both deployed and candidate — unchanged"
   },
-  "band_dark_days": 12,
-  "bankroll": 37.57,
+  "band_dark_days": 13,
+  "band_shadow_fires_07_18": 11,
+  "band_shadow_avg_sum_ask": 0.681,
+  "bankroll": 21.495442,
+  "bankroll_note": "Dropped from $37.57 (prior AM) to $21.50 (07-19 08:09 UTC) — $16.07 intraday/overnight decline. Outside scope of calib monitor; flagged for attention.",
   "system_alive": true,
-  "system_alive_note": "snapshot 2026-07-18T08:09:46Z (2 min old); systemd active; zero open positions; disk 97% full (4GB remaining)",
   "alerts": [
-    "S3-d16: disp_ratio7=~0.70 < 1.10 — INVERTED DISPERSION EDGE — 16th consecutive day — DECISION-GRADE (n=133) — FIRST RECOVERY SIGNAL: 2/23 rows on 07-17 exceed 1.10 (Wuhan d0 ratio=1.183, Chengdu d0 ratio=1.136) — Asia d0 daily median 0.841 — d+1=~0.635 d+2=~0.57 remain deeply inverted",
-    "S4: isotonic deployed 42d without OOS validation; max_dev=0.2577 at p_raw=1.0; candidate removes certainty spike only; plateau collapse [0.30-0.95]->0.38 persists in both curves; new full refit + OOS validation recommended"
+    "S3-d17: disp_ratio7=0.742 < 1.10 — INVERTED DISPERSION EDGE — 17th consecutive day — WORSENING TREND (3d trailing 0.675 < 7d leading 0.749) — 07-18 daily median 0.541 (new low in window) — Asia region 0.558 (deteriorating) — recovery signals from 07-17 (Wuhan/Chengdu d0) did NOT persist — London 07-18 ratio=0.200 (4° mode miss) signals systematic prediction error",
+    "S4: isotonic deployed 43d without OOS validation; candidate 40d (last live: 2 cal-days of Jun data); plateau collapse [0.30-0.95]→0.38 in BOTH curves; no new candidate detected; full refit + OOS validation urgently recommended"
   ],
   "prior": {
-    "date": "2026-07-17",
-    "brier7": 0.020,
-    "disp_ratio7": 0.704,
-    "disp_ratio7_n": 110,
-    "disp_inversion_days": 15,
+    "date": "2026-07-18",
+    "brier7": 0.022,
+    "disp_ratio7": 0.70,
+    "disp_ratio7_n": 133,
+    "disp_inversion_days": 16,
     "alerts_count": 2,
-    "data_access": "DIRECT_CURL"
+    "data_access": "GITHUB_MCP"
   },
   "transitions": {
-    "S3": "persisting (d15->d16); disp_ratio ~0.70 (flat vs 0.704); grade stable DECISION-GRADE (n=110->133); NEW: first 2 rows above 1.10 threshold (Wuhan/Chengdu d0, mode_ask<=0.265); Asia d0 daily median 0.841 (vs prior trailing 0.744)",
-    "S4": "persisting; deployed 42d (was 41d); content unchanged; OOS validation null",
-    "brier7": "0.020(4d proxy) -> 0.022(5d proxy, added 07-16 estimate 0.030 inflated by PRE_PEAK; true d0-completed estimate ~0.020)",
-    "ece7": "0.0448 (carry — no update this session)",
-    "rho7": "0.8343 (carry — no update this session)",
-    "band": "dark day 11 -> dark day 12 (BAND_LIVE=False since 2026-07-06)",
-    "bankroll": "$31.76 -> $37.57 (+$5.81 sniper, consistent with EVOLVE audit)",
-    "disk": "97% full, 4GB remaining — unchanged critical flag"
-  },
-  "data_quality_flags": [
-    "07-17 band_struct_lite: 1 row city='munich' (lowercase), days_out=None — EU misclassification, excluded from days_out breakdown, ratio=0.3876. Recommend title-case normalization at ingestion."
-  ]
+    "S3": "persisting (d16→d17); 07-18 daily median=0.541 (new low); recovery signals from 07-17 NOT confirmed in 07-18; Asia DETERIORATED (0.730→0.558); EU improved (0.628→0.812); worsening trend",
+    "S4": "persisting; deployed now 43d (was 42d); candidate 40d (was 39d); content unchanged; no new refit candidate",
+    "brier7": "0.022 (proxy 5d) → 0.0477 (fresh all-rows 5d) — methodology change, not calibration regression",
+    "ece7": "0.0448 (carry) → 0.0228 (fresh) — improvement on direct computation",
+    "rho7": "0.8343 (carry circular-proxy) → 0.4753 (fresh spearman) — fresh computation; plateau ties suppress true discrimination",
+    "band": "dark day 12 → dark day 13 (BAND_LIVE=False since 2026-07-06); BAND_NO_ENABLED=False since 2026-07-02",
+    "bankroll": "$37.57 → $21.50 (−$16.07); unexpected; outside calib scope",
+    "disk": "97% / 4GB → 93% / 7GB (improved)"
+  }
 }
