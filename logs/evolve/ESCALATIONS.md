@@ -113,3 +113,29 @@ accumulating in parallel; policy re-fit from shadow data due within 36h.
   stays this low.
 - **Rails acted on false data today (resolved):** the −$6 day-stop tripped on phantom
   realized −9.79; truth was −4.29. Fixed at source (settle booking). INVARIANTS #4.
+
+## 2026-07-19 14:25 UTC — EVOLVE weekly (kernel-adjacent records)
+1. **Kernel-floor re-entry condition (decided within charter, recorded here):**
+   equity $21.50 < $40 kernel floor with ALL live paths now halted (sniper cut by
+   its own PF rail 11:26Z; weather dark; ladder disarmed; engine ruin_floor blocks
+   NEG_RISK/RECYCLE entries). The 07-16 owner waiver chain authorized the
+   CANDIDATE arm; that arm ended when the rail cut it. Ruling: any future live
+   arm below the $40 floor requires a NEW owner waiver — gate pass alone
+   (updown_crossing_reenable_gate) writes to PENDING_HUMAN.md and stops. The loop
+   cannot waive the kernel floor for itself, ever.
+2. **Daily 11:23Z slot is structurally dead — needs an interactive session to move
+   the timer (kernel-protected unit):** 5 of 7 morning slots this week died on
+   "session limit resets 12pm (UTC)" (07-13/14/17/18/19); last week's weekly
+   (07-12, both attempts) died the same way. The 11:23 slot shares a limit window
+   with the 4 cloud analyst routines (07:09–10:13Z commits daily). Today's failure
+   had real cost: the morning daily created UPDOWN_STOP + the shadow_grade
+   CROSSING edit, then died before logging/committing — 3h of unregistered
+   risk-state. Proposed fix for an interactive session: move the first OnCalendar
+   in klaus_evolve_daily.timer from 11:23 to ~12:10 UTC (past the reset). The loop
+   may not edit systemd units (INVARIANTS preamble).
+3. **First-loss postmortem is in the ledger, not here:** the −$22.09 loss was the
+   declared worst case of owner-waived 50%-Kelly sizing (worst day −50% via
+   MAX_LOSSES_DAY=1) operating as designed. No rail failed; MAX_LOSSES_DAY halted
+   the day at loss #1, the PF rail cut the path at the 11:23 slot. What DID fail
+   silently was the gate population (first-fire slice blind to crossing fires) —
+   fixed and re-registered this run.

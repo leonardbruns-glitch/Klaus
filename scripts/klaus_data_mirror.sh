@@ -46,6 +46,14 @@ cp -f "$KLAUS/logs/trades.jsonl"   data/trades.jsonl
 cp -f "$KLAUS/logs/bankroll.json"  data/bankroll.json
 [ -f "$KLAUS/state_log.md" ] && cp -f "$KLAUS/state_log.md" data/state_log.md
 
+# ── UPDOWN-SNIPER extracts (2026-07-19 weekly: sniper = primary live path;
+# cloud analysts get the tape, state, stop-file and gate ledger) ─────────────
+for f in updown_sniper.jsonl updown_sniper_state.json UPDOWN_STOP; do
+    [ -f "$KLAUS/logs/$f" ] && cp -f "$KLAUS/logs/$f" "data/$f" || true
+done
+[ -f "$KLAUS/logs/evolve/gate_ledger_latest.md" ] && \
+    cp -f "$KLAUS/logs/evolve/gate_ledger_latest.md" data/gate_ledger_latest.md || true
+
 # Optional: latest research artifacts if present (regenerated outside this script)
 for f in paths.parquet entries.parquet; do
     [ -f "/tmp/research/$f" ] && cp -f "/tmp/research/$f" "data/$f" || true
@@ -265,6 +273,10 @@ Single-commit rolling snapshot — do NOT merge or rebase from this branch.
 
 - \`data/trades.jsonl\`       — live trade log (canonical analytics source)
 - \`data/bankroll.json\`      — current capital + cumulative pnl
+- \`data/updown_sniper.jsonl\` — UPDOWN-SNIPER primary tape (FIRE/SETTLE/skips)
+- \`data/updown_sniper_state.json\` — sniper day-state (fires, losses, realized, opens)
+- \`data/UPDOWN_STOP\`        — kill file (present = path CUT; absent from mirror = live)
+- \`data/gate_ledger_latest.md\` — sniper gate status (the number the loop turns on)
 - \`data/lda_status.txt\`     — week-1 status (live EV/fire, CI, decision rule)
 - \`data/lda_config.txt\`     — current LDA strategy parameters (from source)
 - \`data/state_log.md\`       — append-only user-decision log

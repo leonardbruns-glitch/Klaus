@@ -21,6 +21,15 @@ MOVE_FLOOR = 0.0004  # mirror live 2026-07-15
 SIG_FLOOR = 0.00005
 EDGE_MIN = 0.010
 CLIP_USD = 5.0
+# CROSSING slice (added 2026-07-19 after the PF-rail cut): the live candidate fires
+# the moment p_model CROSSES 0.995 inside the final window, but first_fire records a
+# window at its FIRST p>=0.99 snap — so windows whose first snap is 0.99<=p<0.995 and
+# later drift over 0.995 are fired live yet EXCLUDED from the p>=0.995 first-fire
+# slice. The 07-19 -$22.09 loss (first snap p=0.9902, live fire p=0.9953 at t_left
+# 17.3s) was invisible to the slice at WR 1.0000. Re-enable gate reads CROSSING rows.
+CROSS_P_MIN = 0.995
+CUT_TS = 1784460372.0  # 2026-07-19T11:26:12Z UPDOWN_STOP (PF rail); kernel re-entry
+                       # gate counts post-halt shadow only
 GAMMA = "https://gamma-api.polymarket.com"
 CACHE = "/root/Klaus/logs/shadow/updown_sniper/regrade_cache.json"
 
@@ -45,7 +54,7 @@ def refetch_winner(slug):
 def main():
     refetch = "--refetch" in sys.argv
     files = sorted(glob.glob("/root/Klaus/logs/shadow/updown_sniper/snap_*.jsonl"))
-    truth, void_slugs, first_fire = {}, set(), {}
+    truth, void_slugs, first_fire, cross_fire = {}, set(), {}, {}
     for fn in files:
         for line in open(fn):
             try:
@@ -64,7 +73,7 @@ def main():
                 # shadow (eth/sol/xrp 15m, recording since 2026-07-15) grades separately
                 if not slug.startswith("btc-"):
                     continue
-                if slug in first_fire:
+                if slug in first_fire and (slug in cross_fire or d.get("step") != 300):
                     continue
                 step = d.get("step")
                 if step not in T_MAX:
@@ -89,8 +98,13 @@ def main():
                     continue
                 if ask_sz * ask < CLIP_USD:
                     continue
-                first_fire[slug] = {"side": side, "ask": ask, "p_model": p_model,
-                                    "t_left": t_left, "step": step, "ts": d["ts"]}
+                if slug not in first_fire:
+                    first_fire[slug] = {"side": side, "ask": ask, "p_model": p_model,
+                                        "t_left": t_left, "step": step, "ts": d["ts"]}
+                if (slug not in cross_fire and step == 300
+                        and p_model >= CROSS_P_MIN):
+                    cross_fire[slug] = {"side": side, "ask": ask, "p_model": p_model,
+                                        "t_left": t_left, "step": step, "ts": d["ts"]}
 
     if refetch:
         try:
@@ -169,6 +183,34 @@ def main():
               f"pnl ${sum(r[7] for r in cand):+.2f} -> "
               f"{'PASS' if (n >= 150 and clo > cbe) else 'COLLECTING'} "
               f"(total graded {n}/150)")
+    # CROSSING slice = the slice the live candidate ACTUALLY trades (fire at first
+    # snap with p>=0.995 passing all gates). Post-cut rows are the kernel re-entry
+    # gate: n>=100 with Wilson CI-lo > slice breakeven, post-halt shadow only.
+    for label, xf in (("all-history", cross_fire),
+                      ("post-cut", {s: f for s, f in cross_fire.items()
+                                    if f["ts"] >= CUT_TS})):
+        xg = [(s, f, truth[s]) for s, f in xf.items() if truth.get(s) is not None]
+        if not xg:
+            print(f"CROSSING p>=0.995 5m ({label}): n=0")
+            continue
+        xn = len(xg)
+        xw = sum(1 for s, f, w in xg if w == f["side"])
+        xwr = xw / xn
+        den = 1 + 1.96 ** 2 / xn
+        xlo = ((xwr + 1.96 ** 2 / (2 * xn))
+               - 1.96 * math.sqrt(xwr * (1 - xwr) / xn
+                                  + 1.96 ** 2 / (4 * xn * xn))) / den
+        xask = sum(f["ask"] for s, f, w in xg) / xn
+        xbe = xask + 0.07 * xask * (1 - xask)
+        xpnl = 0.0
+        for s, f, w in xg:
+            sh = CLIP_USD / f["ask"]
+            fee = 0.07 * f["ask"] * (1 - f["ask"]) * sh
+            xpnl += sh * (1 - f["ask"]) - fee if w == f["side"] else -(CLIP_USD + fee)
+        verdict = ("PASS" if (label == "post-cut" and xn >= 100 and xlo > xbe)
+                   else "COLLECTING")
+        print(f"CROSSING p>=0.995 5m ({label}): n={xn} WR {xwr:.4f} "
+              f"CI-lo {xlo:.4f} vs breakeven {xbe:.4f} pnl ${xpnl:+.2f} -> {verdict}")
     if "--rows" in sys.argv:
         for r in rows:
             print(r)

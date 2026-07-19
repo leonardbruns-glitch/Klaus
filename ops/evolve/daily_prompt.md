@@ -47,7 +47,9 @@ restart+verify the affected services per charter.
 STEP 2 — MEASURE (ground truth; only works on this box — gamma 403s cloud IPs).
 - Sniper gate: `PYTHONPATH=/root/Klaus python3 analysis/crypto/shadow_grade.py
   --refetch` — n, WR, Wilson CI vs the per-fire breakeven. This ledger is BTC-only
-  by construction; never let non-BTC snaps into it.
+  by construction; never let non-BTC snaps into it. The operative row is
+  "CROSSING p>=0.995 5m (post-cut)" (see STEP 3 item 1 for why the first-fire
+  candidate slice is void).
 - Live tape: settles from `logs/updown_sniper.jsonl` since the 07-14 22:04Z
   orphan-sweep fix (ALL earlier live tape is VOID — it measured accidental
   stop-losses, not hold-to-redemption). Reconcile realized PnL against wallet cash;
@@ -67,27 +69,27 @@ STEP 2 — MEASURE (ground truth; only works on this box — gamma 403s cloud IP
   rows below. Commit it — this is how cloud analysts see VPS-only results.
 
 STEP 3 — DECIDE. Standing decision tree, in priority order:
-1. SNIPER CANDIDATE KILL-WATCH (candidate re-enabled 2026-07-16 14:59Z by OWNER
-   WAIVER of the n≥150 gate — ledger entry has full terms; policy live: P_MIN
-   0.995, 5m-only, min size, MAX_LOSSES_DAY 1). The v1 tape (PF 0.43, n=36,
-   closed 11:27Z) is DEAD — never pool it into candidate rails. Each run: grade
-   the candidate live tape (fills since 07-16 14:59Z) + pooled slice via
-   shadow_grade. Re-touch `logs/UPDOWN_STOP` on ANY of: (a) ≥3 candidate live
-   losses before 100 candidate live fills; (b) pooled candidate slice point WR <
-   its avg-ask breakeven on regrade; (c) charter rail PF<0.8 over ≥20 resolved
-   on the NEW tape only. UPDOWN_KELLY stays off (its own gate, item 2).
-2. KELLY ACTIVATION (pre-registered 2026-07-15, commit 27f70c6ce; only while the
-   path is LIVE — moot under UPDOWN_STOP): if shadow_grade n≥100 AND Wilson CI
-   lower bound > per-fire breakeven → add `Environment=UPDOWN_KELLY=1` to
-   `/etc/systemd/system/klaus_updown_sniper.service` (+ `systemctl daemon-reload`),
-   restart, verify the first sized fire, register in `ledger.jsonl` with
-   revert_condition (CI-lo falls back below breakeven on any later regrade, or a
-   3-loss day → flag off same day). After the 07-16 cut, read the CI against the
-   CANDIDATE slice, not the retired v1 pool.
-3. GATE KILL: n≥100 with CI-lo AND point estimate below breakeven → touch
-   `logs/UPDOWN_STOP`, log the kill, report it first. CI straddling breakeven at
-   n≥100 → keep collecting at current size; re-decide at n≥150. Post-07-16 this
-   applies per-slice: kill the CANDIDATE only on the candidate slice's numbers.
+1. SNIPER IS CUT (2026-07-19 11:26Z, `logs/UPDOWN_STOP`, charter PF rail: candidate
+   tape PF 0.79 over 27 settles; one −$22.09 Kelly-clip loss erased all candidate
+   wins). Verify the stop file still exists every run; the sniper + shadow services
+   stay active for settle-tracking and tape accrual. GATE-POPULATION BUG (07-19,
+   `shadow_grade.py` CROSSING slice): the live bot fires when p_model CROSSES 0.995
+   inside the window, but the old "candidate slice" graded windows by their FIRST
+   p≥0.99 snap — the 07-19 loss (first snap 0.9902, fired at 0.9953) was invisible
+   to that slice at WR 1.0000. The first-fire candidate slice is a BIASED population:
+   never cite it for any decision. The operative gate is the CROSSING slice.
+2. RE-ENABLE WATCH (pre-registered 2026-07-19, experiment
+   updown_crossing_reenable_gate): each run, `shadow_grade.py --refetch` and read
+   "CROSSING p>=0.995 5m (post-cut)". Re-enable requires ALL of: (a) post-cut n≥100;
+   (b) Wilson CI-lo > that slice's avg-ask breakeven; (c) OWNER floor re-waiver —
+   equity is below the $40 kernel floor and the 07-16 waiver chain ended with the
+   rail cut, so live re-arm is owner-only regardless of gate state (ESCALATIONS
+   2026-07-19); (d) restart at minimum size ($5 clip, MAX_LOSSES_DAY 1, Kelly OFF).
+   If (a)+(b) pass, write the case to `logs/evolve/PENDING_HUMAN.md` and stop there.
+   GATE KILL: post-cut n≥100 with point WR < breakeven → mark the experiment KILLED,
+   BTC-5m certainty class closed, add to the graveyard.
+3. KELLY: OFF and stays off (owner-waived era ended with the cut; any future
+   activation rides on a NEW live tape passing its own pre-registered gate).
 4. NEW CELL PROMOTION: an eth/sol/xrp cell whose own shadow gate clears n≥100 →
    charter enabling gate (minimum size, written kill condition, ledger entry).
    Sniper code is BTC-only today — promotion includes the (small) multi-asset
