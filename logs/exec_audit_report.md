@@ -1,9 +1,9 @@
 # Klaus Band Execution & Markout Audit
-**Date:** 2026-07-18  
-**Snapshot:** 2026-07-18T07:09:05Z (age < 6h ✓)  
+**Date:** 2026-07-19  
+**Snapshot:** 2026-07-19T07:09:12Z (age < 6h ✓)  
 **System:** `klaus systemd: active` ✓  
-**Capital:** $37.57 (bankroll.json)  
-**Trades total (all-time):** 8,225
+**Capital:** $43.27 (bankroll.json; daily start $37.57 → +$5.70 day-to-date from sniper)  
+**Trades total (all-time):** 8,227
 
 ---
 
@@ -16,7 +16,7 @@
 **MAKER_SHADOW_ENABLED = True** (shadow quoting active; not live)  
 **BAND_SHADOW = True** (band shadow evaluation active; not live)
 
-The band maker strategy has been fully wound down since 2026-07-06. All sections below report against the band-maker tracking framework. The active live strategy is the UPDOWN sniper (`strategy.weather_arb`); its fills appear in the log as `[USER-WS] UNTRACKED FILL` warnings outside the band tracker's scope and are noted separately.
+The band maker strategy has been fully wound down since 2026-07-06. Shadow loggers are healthy: `band_struct` 2,151 rows by 07:09, `maker_shadow` 27,544 rows, `thermo_maker` 5,564 rows — all consistent with normal shadow-mode rates. Active live strategy is UPDOWN sniper only; its fills appear in the log as `[USER-WS] UNTRACKED FILL` warnings outside the band tracker's scope and are noted where relevant.
 
 ---
 
@@ -26,31 +26,46 @@ The band maker strategy has been fully wound down since 2026-07-06. All sections
 
 | Window | Fills (n) | $ filled | By side | By price band |
 |---|---|---|---|---|
-| 24h (Jul 17 07:09 → Jul 18 07:09) | **0** | $0.00 | — | — |
-| 7d (Jul 11 → Jul 18 07:09) | **0** | $0.00 | — | — |
+| 24h (Jul 18 07:09 → Jul 19 07:09) | **0** | $0.00 | — | — |
+| 7d (Jul 12 → Jul 19 07:09) | **0** | $0.00 | — | — |
 
-No `[MAKER-FILL]` lines appear in `maker_fills_recent.log`. The log's 7d window (starting Jul 15) contains zero band-maker registrations. This is structurally expected: `band_posted_state.json` shows last posting activity on **2026-07-06** (spent=$48.01); no band tokens have been posted since.
+No `[MAKER-FILL]` lines appear in `maker_fills_recent.log`. Structurally expected: `band_posted_state.json` last posting activity 2026-07-06 ($48.01 spent); no band tokens posted since. Fill rate: undefined (denominator = 0 posts).
 
-Fill rate: undefined (posted tokens since Jul 6 = 0; denominator = 0).
+### UNTRACKED fills visible in maker_fills_recent.log (out of band-maker scope)
 
-### UPDOWN sniper fills (UNTRACKED — out of band-maker scope)
+Counted as MATCHED-status events only (each fill generates MATCHED → MINED → CONFIRMED; counted once). The 7d log window covers Jul 16–19 only (earlier dates not present).
 
-All fill events in the log are `[USER-WS] UNTRACKED FILL` from `strategy.weather_arb`. Counted as unique CONFIRMED status events:
+| Day | Fills (n) | MAKER | TAKER | MAKER price range | TAKER price range |
+|---|---|---|---|---|---|
+| Jul 16 | 12 | 4 | 8 | 0.02–0.98 (3 BUY, 1 SELL) | 0.95–0.999 (7 BUY, 1 SELL) |
+| Jul 17 | 14 | 5 | 9 | 0.02–0.06 (5 BUY; 2 split) | 0.89–0.99 (8 BUY, 1 SELL) |
+| Jul 18 | 5 | 2 | 3 | 0.08 BUY, 0.92 SELL | 0.97–0.98 BUY |
+| Jul 19 (to 07:09) | 4 | 1 | 3 | 0.02 BUY | 0.88–0.98 BUY |
+| **7d total** | **35** | **12** | **23** | | |
+| **24h total** | **5** | **1** | **4** | 0.02 BUY | 0.88–0.98 BUY |
 
-| Day | Fills (n) | Trader-side: TAKER | Trader-side: MAKER | Notes |
-|---|---|---|---|---|
-| Jul 15 | 17 | 15 | 2 | TAKER BUY @ 0.87–0.98; MAKER BUY @ 0.02 |
-| Jul 16 | 23 | 18 | 5 | TAKER BUY/SELL @ 0.95–0.999; MAKER BUY @ 0.02–0.09; MAKER SELL @ 0.96–0.98 |
-| Jul 17 | 14 | 10 | 4 | TAKER BUY @ 0.89–0.98; MAKER BUY @ 0.02–0.06 |
-| Jul 18 (partial, to 07:09) | 4 | 2 | 2 | TAKER BUY @ 0.97; MAKER BUY @ 0.08, SELL @ 0.92 |
-| **7d total** | **58** | **45** | **13** | |
-| **24h total** | **15** | **12** | **3** | |
+**Price band breakdown (7d, all UNTRACKED):**
+- <0.10: 10 fills (9 MAKER BUY at 0.02/0.06/0.08; 1 TAKER BUY at 0.02 — note: there's no TAKER in this range, all low-price buys are MAKER)
+- 0.85–1.00: 25 fills (all TAKER near-resolution buys at 0.88–0.999 + MAKER SELLs at 0.92/0.96/0.98)
+- 0.10–0.85: 0 fills
 
-Price band distribution (sniper, 7d): all 45 TAKER fills at >0.85 (YES near resolution); all 13 MAKER fills at <0.10 (low-price entries / NO legs). Zero fills in 0.10–0.85 band.
+This bimodal pattern (extreme-low MAKER entries + near-resolution TAKER buys) is consistent with: legacy band resting orders at extreme YES prices still on CLOB (pre-wind-down, orphaned) + sniper strategy buying near resolution.
 
-Entry/exit pattern observed: TAKER BUY at 0.87–0.99 followed by TAKER SELL at 0.99–0.999 within 1–3 minutes on the same token (confirmed pairs on Jul 16 token 6582394037728816: BUY@0.98→SELL@0.999 in 2 min; Jul 17 token 1127887226699687: BUY@0.94→SELL@0.99 in 2 min).
+**Notable MAKER events (untracked, likely orphaned legacy CLOB orders):**
 
-Time-to-fill on band maker: cannot compute (0 posts since Jul 6, no `band_struct` post timestamps to join).
+| Date | Token | Side | Price | Shares | Est. $ |
+|---|---|---|---|---|---|
+| Jul 16 21:39 | 1399483673820402 | SELL | 0.96 | 147.05 | **$141.17 proceeds** |
+| Jul 17 13:34 | 4095117562509625 | BUY | 0.06 | 58.33 (split) | $3.50 cost |
+| Jul 17 18:34 | 1055101008834022 | BUY | 0.02 | 150.00 | $3.00 cost |
+| Jul 17 18:44 | 1046907088381323 | BUY | 0.02 | 78.00 | $1.56 cost |
+| Jul 18 00:54 | 7094108612094851 | BUY | 0.08 | 44.88 | $3.59 cost |
+| Jul 18 00:54 | 2664940529472113 | SELL | 0.92 | 9.32 | $8.57 proceeds |
+| Jul 19 02:14 | 5717613767097074 | BUY | 0.02 | 146.33 | $2.93 cost |
+
+The $141.17 SELL proceeds on Jul 16 (token 1399483673820402) is by far the largest single event. Research audit commit `b68f21d43` (Jul 18 10:11Z) already flagged both 1399483673820402 and 2664940529472113 as "G3 unfreeze" candidates needing classification. Total 7d untracked MAKER proceeds: ~$150.86; total 7d untracked MAKER cost: ~$15.78 — net positive from exits, but all without entry tracking context.
+
+Time-to-fill on band maker: not computable (0 posts since Jul 6; no `band_struct` post-ts to join against).
 
 ---
 
@@ -58,18 +73,16 @@ Time-to-fill on band maker: cannot compute (0 posts since Jul 6, no `band_struct
 
 **Status: Vacuous — BAND_NO_ENABLED=False, zero posts in audit window.**
 
-| Date | New posts (YES) | New posts (NO) | NO share | >=10 posts? |
+| Date | New posts YES | New posts NO | NO share | ≥10 posts? |
 |---|---|---|---|---|
-| 2026-07-15 | 0 | 0 | — | No |
 | 2026-07-16 | 0 | 0 | — | No |
 | 2026-07-17 | 0 | 0 | — | No |
-| 2026-07-18 (partial) | 0 | 0 | — | No |
+| 2026-07-18 | 0 | 0 | — | No |
+| 2026-07-19 (to 07:09) | 0 | 0 | — | No |
 
-`band_struct_lite.jsonl` for Jul 15–18 shows **zero NO records** across all dates. All band activity is shadow-only (`live: false`). YES capture shadow records exist (51–64/day) but are shadow-mode evaluations that do not result in live orders.
+`band_posted_state.json`: last date key is 2026-07-06. Resting book (`maker_resting_state.json = {}`): 0 YES, 0 NO.
 
-Resting book by side (`maker_resting_state.json = {}`): 0 YES orders, 0 NO orders.
-
-NO-starvation bug fix (2026-06-12 commit `fix(BAND): NO-starvation`): holds vacuously. No posts of any side to stave.
+NO-starvation fix (commit `fix(BAND): NO-starvation` 2026-06-12): holds vacuously — no posts of either side since wind-down.
 
 **Alert: NO share < 25% with ≥10 posts → NOT FIRED** (0 posts on all days).
 
@@ -77,26 +90,26 @@ NO-starvation bug fix (2026-06-12 commit `fix(BAND): NO-starvation`): holds vacu
 
 ## Section 3 — Queue Health
 
-**Status: Vacuous — zero [STRUCT-BAND-Q] lines in log, resting book empty.**
+**Status: Vacuous — zero [STRUCT-BAND-Q] lines; resting book empty.**
 
-No `[STRUCT-BAND-Q]` lines appear in `maker_fills_recent.log`. The band posting engine has not fired a live cycle since BAND_LIVE was set False on Jul 6.
+No `[STRUCT-BAND-Q]` lines in `maker_fills_recent.log`. Band posting engine has not run a live cycle since Jul 6.
 
-`maker_resting_state.json = {}` — 0 resting orders.
+### Shadow engine activity (band_struct, shadow mode)
 
-### Shadow engine activity (what would fire if BAND_LIVE=True)
+Shadow data from `shadow_summary.json` (row counts for today vs prior days):
 
-Derived from `band_struct_lite.jsonl` (shadow evaluation, `live=false`):
+| Date | band_struct rows | maker_shadow rows | thermo_maker rows | maker_flow rows |
+|---|---|---|---|---|
+| Jul 14 | 7,591 | 88,176 | 44,432 | 128,480 |
+| Jul 15 | 7,733 | 107,855 | 42,243 | 269,769 |
+| Jul 16 | 7,595 | 104,621 | 38,377 | 288,025 |
+| Jul 17 | 7,629 | 99,693 | 33,569 | 287,318 |
+| Jul 18 | 7,586 | 87,175 | 24,956 | 284,464 |
+| Jul 19 (07h in) | 2,151 | 27,544 | 5,564 | 39,501 |
 
-| Date | Shadow fires | Sum-gate | Converged | No-band | YES cap. shadows |
-|---|---|---|---|---|---|
-| 2026-07-15 | 15 (d0=0, d1=6, d2=9) | 29 | 22 | 44 | 64 |
-| 2026-07-16 | 14 (d0=1, d1=5, d2=8) | 29 | 18 | 42 | 60 |
-| 2026-07-17 | 19 (d0=4, d1=6, d2=9) | 29 | 23 | 39 | 51 |
-| 2026-07-18 (to 07:09) | ~9 (d0=3, d1=0, d2=6) | ~10 | ~4 | ~6 | many |
+Jul 19 totals at 7/24 of day = 29% of day elapsed. Expected full-day rates: `band_struct` ~7,400, `maker_shadow` ~94K, `thermo_maker` ~19K (thermo rate appears depressed today vs prior days — 5,564/(7/24)×24≈19K vs 24K–44K range; monitor). All shadow loggers are running; no evidence of fetch starvation or deployment stall.
 
-**Structural observation:** d+1 is **entirely sum-gated every day** (all 10 BAND_CITY_ALLOW cities hit `sum_ask ≥ BAND_SUM_MAX=0.85`; d+1 market consensus is highly efficient, leaving no positive-EV band gap). d+2 is the primary viable horizon (5–9 cities fire daily in shadow). d+0 is dominated by `converged` (mode has resolved visually) and `no_band` (too few interior valid legs).
-
-**Alerts: NOT FIRED** — books pinned at 80 and cash_preskip > 200 are untestable (no `[STRUCT-BAND-Q]` data).
+**Alerts: NOT FIRED** — `[STRUCT-BAND-Q]` data unavailable (BAND_LIVE=False); fetch starvation and cash_preskip alerts untestable.
 
 ---
 
@@ -104,13 +117,13 @@ Derived from `band_struct_lite.jsonl` (shadow evaluation, `live=false`):
 
 **Status: Cannot compute — 0 band [MAKER-FILL] fills to join against resolutions.**
 
-`maker_fills_recent.log` contains zero `[MAKER-FILL]` entries. There are no filled band legs whose outcome can be compared to the all-fires simulated ROI. `band_resolution_join.py` would receive an empty fill input.
+n = 0. Below 40-fill threshold for any conclusions per ground rules.
 
-n = 0 (below 40-fill threshold; no conclusions possible per audit ground rules).
+`band_resolution_join.py` would receive an empty fill input; not run.
 
 Winner's curse assessment: **deferred — insufficient data.**
 
-Last band-maker fills on record: prior to Jul 6 (not in the 7d log window). Earlier fill quality data from `band_posted_state.json` shows the last significant posting day was Jun 22–Jun 25 at the $114–$235 scale; those resolutions would require the older logs to assess markout.
+The 12 untracked MAKER fills in the 7d window have no entry-context in the tracker (no condition_id, no entry_ts, no entry_price recorded). The large exits (1399483673820402 SELL@0.96, 2664940529472113 SELL@0.92) suggest these are resolving profitably, but without entry cost the actual ROI is unknown. Entry classification flagged by research audit for those two tokens.
 
 ---
 
@@ -120,17 +133,19 @@ Last band-maker fills on record: prior to Jul 6 (not in the 7d log window). Earl
 
 | Metric | Value |
 |---|---|
-| Resting orders (maker_resting_state.json) | **0** |
+| Resting orders (`maker_resting_state.json`) | **0** |
 | Quotes > 24h old | 0 |
 | Quotes > 48h old | 0 |
 | "reaped dead entry" lines in log (7d) | 0 |
 | $ freed by reclaim | $0 |
 
-`maker_resting_state.json = {}`. No orders were placed after Jul 6 to accumulate stale age.
+`maker_resting_state.json = {}`. No orders placed after Jul 6; no age to accumulate.
 
-`BAND_RECLAIM_AGE_S = 2h` (config), `BAND_PAIR_RECLAIM_AGE_S = 8h` — both thresholds are armed but have no resting quotes to evaluate.
+`BAND_RECLAIM_AGE_S = 2h`, `BAND_PAIR_RECLAIM_AGE_S = 8h` — armed but have no resting quotes to evaluate.
 
-**Alert: >20 quotes older than 48h → NOT FIRED** (0 resting).
+**Observed: 12 untracked MAKER fills in 7d suggest legacy CLOB orders (placed pre-Jul 6 wind-down) are still resting on the CLOB and occasionally matching.** These orders are invisible to the current tracker (not in `maker_resting_state`); the bot restarted 2026-07-17 22:05 UTC and did not re-register them. This is not a dead-quote reclaim alert per spec (pre-registered alert is for *tracked* quotes >48h), but it is a data integrity observation: fills are accruing with no entry context. The most recent untracked MAKER fill is 02:14 UTC Jul 19 (5717613767097074 BUY@0.02, 146.33 shares). Total orphaned MAKER fills since Jul 16: 12 events, ~$15.78 in costs, ~$150.86 in proceeds — net positive but unaccountable.
+
+**Alert: >20 quotes older than 48h → NOT FIRED** (0 tracked resting orders).
 
 ---
 
@@ -138,14 +153,16 @@ Last band-maker fills on record: prior to Jul 6 (not in the 7d log window). Earl
 
 | Metric | Value | Benchmark |
 |---|---|---|
-| Capital (bankroll.json) | $37.57 | — |
+| Capital (bankroll.json) | **$43.27** | — |
+| Daily start capital | $37.57 | — |
 | Resting $ (band maker) | $0.00 | — |
 | Band fills $ last 24h | $0.00 | — |
 | Band turns/day | **0.0** | ~1.0 (badatmath) |
+| UPDOWN sniper turns/day (rough) | ~6+ | — |
 
-Capital note: $37.57 is the tracker value; manual sells are not reflected here. Total PnL per tracker: -$75.40.
+Capital note (CAVEAT): bankroll.json reflects bot's internal tracker; user manual sells not reflected. Total PnL per tracker: -$75.40 cumulative.
 
-UPDOWN sniper (out of scope, for context): 15 fill events in 24h; notional deployed ~$149 (TAKER BUY entries at 0.89–0.98 × 14.75–19.5 shares); proceeds from exits ~$25 (2 TAKER SELL events at 0.99). Not attributable to band-maker execution.
+UPDOWN sniper (out of scope, context only): 5 fill events in 24h — 4 TAKER BUY at 0.88–0.98 (entry, ~$82 notional deployed), 0 TAKER SELL exits visible in 24h window; 1 MAKER BUY at 0.02 (orphaned legacy). PnL ledger Jul 17 reported +$7.34 day at 6.37 turns (not from band; 100% from sniper).
 
 ---
 
@@ -155,20 +172,20 @@ UPDOWN sniper (out of scope, for context): 15 fill events in 24h; notional deplo
 
 | Alert condition | Threshold | Observed | Fired? |
 |---|---|---|---|
-| NO share < 25% with ≥10 posts | Any day ≥10 posts | 0 posts | No |
-| books used pinned at 80 | Most cycles | No [STRUCT-BAND-Q] data | No |
-| yes_books pinned at 50 | Most cycles | No [STRUCT-BAND-Q] data | No |
-| cash_preskip > 200, posted=0 all day | Sustained | No [STRUCT-BAND-Q] data | No |
-| Quotes > 48h old (>20) | >20 | 0 resting | No |
+| NO share < 25% with ≥10 posts | Any day ≥10 posts | 0 posts (vacuous) | **No** |
+| books used pinned at 80 | Most cycles | No [STRUCT-BAND-Q] data | **No** |
+| yes_books pinned at 50 | Most cycles | No [STRUCT-BAND-Q] data | **No** |
+| cash_preskip > 200, posted=0 all day | Sustained | No [STRUCT-BAND-Q] data | **No** |
+| Quotes > 48h old (>20) | >20 | 0 tracked resting orders | **No** |
 
-All alert conditions are either non-triggering or untestable (the [STRUCT-BAND-Q] alerts require live band posting cycles which have not occurred since Jul 6).
+All alert conditions are non-triggering or untestable (STRUCT-BAND-Q requires live band posting cycles which have not occurred since Jul 6). The untracked MAKER fills (orphaned legacy CLOB orders) are not covered by a pre-registered alert condition and are reported as an observation only.
 
 ---
 
 ## Summary (3 lines)
 
-**Fills/day:** 0 band [MAKER-FILL] fills (band wound down since Jul 6); 14–17 UPDOWN sniper fills/day visible in log (UNTRACKED, out of scope for this audit).
+**Fills/day:** 0 registered [MAKER-FILL] band fills (day 13 of wind-down); 5 UNTRACKED fills in 24h window (1 MAKER orphan at 0.02 + 4 sniper TAKER at 0.88–0.98); 35 UNTRACKED in visible 7d window with 12 orphaned MAKER events (~$150.86 proceeds, $15.78 costs — untracked, no entry context).
 
-**NO-share:** 0% (vacuous) — BAND_NO_ENABLED=False since Jul 2, BAND_LIVE=False since Jul 6; no posts of either side in the audit window.
+**NO-share:** 0% vacuous — BAND_NO_ENABLED=False since Jul 2, BAND_LIVE=False since Jul 6; zero posts of either side in audit window.
 
-**Binding execution constraint:** `BAND_LIVE=False` is the single gate blocking all band activity. Shadow engine shows d+2 viable (5–9 cities/day pass gates), d+1 sum-gated every day (Σask ≥ 0.85, no re-entry without market regime change), d+0 mostly converged. Zero capital deployed via band maker; zero markout data accumulating.
+**Binding execution constraint:** `BAND_LIVE=False` is the sole gate. Shadow engine healthy (band_struct, maker_shadow, thermo_maker all running at expected rates). d+1 is fully sum-gated every day (Σask ≥ 0.85); d+2 viable in shadow. All capital velocity currently comes from UPDOWN sniper exclusively; band maker contributes $0 fills and $0 turns.
