@@ -19,11 +19,17 @@ GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
 BINANCE_WS = "wss://stream.binance.com:9443/ws/{sym}@trade"
 SAMPLE_WINDOW = {300: 300, 900: 240}      # sample when t_left <= this
-# asset -> (binance symbol, cadences to record). Non-BTC record 15m only:
-# 5m volume is ~nil there (probe 2026-07-15: eth-5m $20/day, sol/xrp-5m ~0),
-# and BTC-only keeps the live sniper's gate ledger clean (it trades btc-*).
-ASSETS = {"btc": ("btcusdt", (300, 900)), "eth": ("ethusdt", (900,)),
-          "sol": ("solusdt", (900,)), "xrp": ("xrpusdt", (900,))}
+ALT_5M_WINDOW = 120                       # non-BTC 5m: decision zone only — the
+                                          # crossing-gate sim fires at t_left 5-60s;
+                                          # disk is at 95% so no full-window paths
+# asset -> (binance symbol, cadences to record). Non-BTC 5m enabled 2026-07-19:
+# the 2026-07-15 "~nil volume" probe is stale — re-probe 19:00Z shows live quoted
+# books on all five 5m ladders (liq $2.3-12k, eth vol $187 mid-window). Purpose:
+# multiply n-collection for updown_crossing_reenable_gate (btc-only ~18 sim
+# fires/day is a 2-3 week wait to n>=100 post-cut).
+ASSETS = {"btc": ("btcusdt", (300, 900)), "eth": ("ethusdt", (300, 900)),
+          "sol": ("solusdt", (300, 900)), "xrp": ("xrpusdt", (300, 900)),
+          "doge": ("dogeusdt", (300, 900))}
 CADENCE_FAR, CADENCE_NEAR = 2.0, 1.0      # s; near = t_left <= 60
 
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -180,7 +186,10 @@ class Runner:
                 in_win = win["w"] <= now < win["end"]
                 if in_win and win["open_px"] is None:
                     win["open_px"] = self.spots[win.get("asset", "btc")].at(win["w"])
-                if in_win and 0 < t_left <= SAMPLE_WINDOW[win["step"]]:
+                sw = SAMPLE_WINDOW[win["step"]]
+                if win["step"] == 300 and win.get("asset", "btc") != "btc":
+                    sw = ALT_5M_WINDOW
+                if in_win and 0 < t_left <= sw:
                     active.append((win, t_left))
             for win, t_left in active:
                 sp = self.spots[win.get("asset", "btc")]
