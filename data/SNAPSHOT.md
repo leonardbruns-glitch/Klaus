@@ -2,7 +2,7 @@
 
 | field | value |
 |---|---|
-| snapshot_ts (UTC) | 2026-07-19T13:44:05Z |
+| snapshot_ts (UTC) | 2026-07-19T13:52:30Z |
 | klaus HEAD | f426d357f |
 | trades.jsonl rows | 8228 |
 | live rows | 8228 |
@@ -17,6 +17,10 @@ Single-commit rolling snapshot — do NOT merge or rebase from this branch.
 
 - `data/trades.jsonl`       — live trade log (canonical analytics source)
 - `data/bankroll.json`      — current capital + cumulative pnl
+- `data/updown_sniper.jsonl` — UPDOWN-SNIPER primary tape (FIRE/SETTLE/skips)
+- `data/updown_sniper_state.json` — sniper day-state (fires, losses, realized, opens)
+- `data/UPDOWN_STOP`        — kill file (present = path CUT; absent from mirror = live)
+- `data/gate_ledger_latest.md` — sniper gate status (the number the loop turns on)
 - `data/lda_status.txt`     — week-1 status (live EV/fire, CI, decision rule)
 - `data/lda_config.txt`     — current LDA strategy parameters (from source)
 - `data/state_log.md`       — append-only user-decision log
