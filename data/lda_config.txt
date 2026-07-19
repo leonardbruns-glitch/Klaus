@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-07-19T13:52:30Z
+# Snapshot: 2026-07-19T14:07:39Z
 # Latest commit on klaus:
-f426d357f Research audit 2026-07-19T1013Z — capital collapse −$16.07 (−42.8%) intraday, sniper first loss | best action: verify Kelly sizing reads live $21.495 capital (not stale $37.57 daily_start) before next fire
+d328c0870 EVOLVE weekly 2026-07-19 follow-up — run_agent.sh test deadlocks from inside an agent run (shared flock): weekly_prompt now prescribes static launcher-gate checks (CHARTER grep + kernel sha pin, both verified passing); report wording corrected to what was actually validated
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
