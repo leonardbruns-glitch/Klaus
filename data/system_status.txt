@@ -2,19 +2,19 @@
 active
 
 ## Last 10 commits on klaus:
+f426d357f Research audit 2026-07-19T1013Z — capital collapse −$16.07 (−42.8%) intraday, sniper first loss | best action: verify Kelly sizing reads live $21.495 capital (not stale $37.57 daily_start) before next fire
+759adac7e Gate-keeper 2026-07-19 — ready=0 rejected=0 collecting=3
+1cc70ce4c Calib monitor 2026-07-19 — brier7=0.048 disp_ratio=0.742 2 alerts (S3-d17 WORSENING 07-18-low=0.541 Asia-det, S4)
+364a33d1c Exec audit 2026-07-19 — fills=0 NO-share=0%(vacuous) band-wound-down 0 alerts
+3e3bc8163 PnL ledger 2026-07-18 — day=+$2.52 turns=1.63 roi/turn=4.20% unexplained=$0.00
 99eeb6156 EVOLVE evening 2026-07-18 — kill-watch CLEAN day 3, 0 live changes (cap 2/2 pre-slot); candidate 21/21W live +$11.54, slice n=55 WR 1.000 CI-lo 0.9347 vs BE 0.9583 COLLECTING; v1 pool n=156 re-confirmed -EV; wedge watchdog ee014ba92 retro-registered; post-wedge silence verified benign (shadow 7894 snaps / 0 fireable)
 ee014ba92 Sniper wedge watchdog: exit if Gamma discovery silent >5min (systemd relaunches)
 5b06af1c8 Sniper split-fill reconcile: top up shares/cost from CLOB balance 12s after fill
 b68f21d43 Research audit 2026-07-18T1011Z — fill rate 78.3% (5 FOK misses/day, $2.90 drag) | best action: classify MAKER SELL tokens 1399483673820402 + 2664940529472113 (G3 unfreeze)
 2af92060f Gate-keeper 2026-07-18 — ready=0 rejected=0 collecting=3
-b93a47f7b Calib monitor 2026-07-18 — brier7=0.022(proxy) disp_ratio≈0.70 2 alerts (S3-d16 FIRST-ROWS>1.10 Wuhan/Chengdu d0, S4)
-47a709399 Exec audit 2026-07-18 — fills=0 NO-share=0%(vacuous) band-wound-down 0 alerts
-4dceb4c27 PnL ledger 2026-07-17 — day=+$7.34 turns=6.37 roi/turn=3.62% unexplained=+$0.02
-8180ea59f EVOLVE evening 2026-07-17 22:20Z — kill-watch CLEAN day 2 (candidate 18/18W +$9.02 wallet-true, slice 51/51 CI-lo .930 vs BE .957 COLLECTING); redemption-poach fix deployed (8616a0975); first per-asset grade: eth/sol/xrp ~0-1 fires/day at v1 gates; pooled unfiltered gate now -EV (n=143 WR .958 < BE .963) validating the cut
-8616a0975 Redemption CLOB-sell guard: skip UPDOWN-SNIPER-held tokens (shared-wallet poach, sibling of 07-14 sweep fix)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   86G        7G  94% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   87G        7G  94% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-07-17 22:05:07 UTC
