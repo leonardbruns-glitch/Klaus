@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+7ca2eb0d3 Shadow multi-asset 5m + margin-strata grade — crossing population regraded on Gamma truth
 d328c0870 EVOLVE weekly 2026-07-19 follow-up — run_agent.sh test deadlocks from inside an agent run (shared flock): weekly_prompt now prescribes static launcher-gate checks (CHARTER grep + kernel sha pin, both verified passing); report wording corrected to what was actually validated
 467dbded4 EVOLVE weekly 2026-07-19 — losing week −82% ($120→$21.50), first candidate loss −$22.09 @50%-Kelly, PF-rail cut 11:26Z verified+registered | GATE-POPULATION BUG: first-fire slice (n=59 WR 1.000) blind to crossing fires — CROSSING slice is the gate now (all-hist n=119 WR 0.975 CI-lo 0.929 vs BE 0.963, post-cut n=0); experiment updown_crossing_reenable_gate registered (n>=100 post-cut, kill on point<BE, owner floor re-waiver required, never auto-arm); daily_prompt re-pointed; mirror ships sniper extracts; amendment first reading (interactive ledger discipline)
 f426d357f Research audit 2026-07-19T1013Z — capital collapse −$16.07 (−42.8%) intraday, sniper first loss | best action: verify Kelly sizing reads live $21.495 capital (not stale $37.57 daily_start) before next fire
@@ -11,7 +12,6 @@ f426d357f Research audit 2026-07-19T1013Z — capital collapse −$16.07 (−42.
 3e3bc8163 PnL ledger 2026-07-18 — day=+$2.52 turns=1.63 roi/turn=4.20% unexplained=$0.00
 99eeb6156 EVOLVE evening 2026-07-18 — kill-watch CLEAN day 3, 0 live changes (cap 2/2 pre-slot); candidate 21/21W live +$11.54, slice n=55 WR 1.000 CI-lo 0.9347 vs BE 0.9583 COLLECTING; v1 pool n=156 re-confirmed -EV; wedge watchdog ee014ba92 retro-registered; post-wedge silence verified benign (shadow 7894 snaps / 0 fireable)
 ee014ba92 Sniper wedge watchdog: exit if Gamma discovery silent >5min (systemd relaunches)
-5b06af1c8 Sniper split-fill reconcile: top up shares/cost from CLOB balance 12s after fill
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   88G        5G  95% /
