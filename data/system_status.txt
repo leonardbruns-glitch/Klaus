@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+28f230560 EVOLVE daily 2026-07-20 evening — recovered orphaned 11:23Z-slot work, gate n=38 point back above BE (CI still far short)
 86e138f61 Research audit 2026-07-20T1035Z — equity deployed $0 all paths stopped | best action: run fresh G8 n-count (shadow_grade.py --refetch) to confirm post-cut CROSSING accumulation beyond n=2
 709237eb2 Gate-keeper 2026-07-20 — ready=0 rejected=0 collecting=1 (G8 new)
 1ceae8a14 Calib monitor 2026-07-20 — brier7=0.0558 disp_ratio=0.9266 2 alerts (S3-d18 WORSENING trend 07-18-low=0.485 recovery-07-19=0.925, S4)
@@ -11,7 +12,6 @@ active
 96790631f EVOLVE daily 2026-07-19 evening — rail-breach posture held, zero live changes | first post-cut gate data: CROSSING 5m post-cut n=2 1W/1L sim -$4.88 (early tape consistent with the cut); all-hist n=121 WR 0.9669 CI-lo 0.9181 vs BE 0.9629 (CI does not clear) | alt-asset 5m shadows verified writing | weather band trigger NOT met (0.849 last settled) | INFRA: disk 95%->83% without deleting data (journal vacuum 3.0G + gzip shadow/hot 07-10..12 9.2G->616M, dirs were 1-3d from prune deletion; lag_ws reclaim stays owner-only)
 7ca2eb0d3 Shadow multi-asset 5m + margin-strata grade — crossing population regraded on Gamma truth
 d328c0870 EVOLVE weekly 2026-07-19 follow-up — run_agent.sh test deadlocks from inside an agent run (shared flock): weekly_prompt now prescribes static launcher-gate checks (CHARTER grep + kernel sha pin, both verified passing); report wording corrected to what was actually validated
-467dbded4 EVOLVE weekly 2026-07-19 — losing week −82% ($120→$21.50), first candidate loss −$22.09 @50%-Kelly, PF-rail cut 11:26Z verified+registered | GATE-POPULATION BUG: first-fire slice (n=59 WR 1.000) blind to crossing fires — CROSSING slice is the gate now (all-hist n=119 WR 0.975 CI-lo 0.929 vs BE 0.963, post-cut n=0); experiment updown_crossing_reenable_gate registered (n>=100 post-cut, kill on point<BE, owner floor re-waiver required, never auto-arm); daily_prompt re-pointed; mirror ships sniper extracts; amendment first reading (interactive ledger discipline)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   80G       13G  87% /
