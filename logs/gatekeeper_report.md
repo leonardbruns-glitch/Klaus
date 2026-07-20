@@ -1,95 +1,135 @@
-# Gate-Keeper Report — 2026-07-19T09:19Z
+# Gate-Keeper Report — 2026-07-20
 
-**Snapshot**: 2026-07-19T09:10:39Z (9 min old — OK)  
-**Klaus systemd**: active  
-**Band**: dark day 13 (BAND_LIVE=False since 2026-07-06T22:08Z)  
-**Prior run**: 2026-07-18T09:11Z  
-**Capital**: $21.495 ← was $37.569 Jul-19 daily-start = **−$16.07 (−42.8%) INTRADAY ⚠**
+**Run at**: 2026-07-20T09:09Z  
+**Snapshot**: data-mirror 2026-07-20T09:09:08Z (snapshot age: fresh, <1h)  
+**System**: `klaus systemd: active`  
+**Capital**: $21.495 (ruin_floor $89.16 — capital is 24.1% of ruin_floor; ALL band paths mechanically blocked)  
+**System posture**: FULLY RISK-OFF — UPDOWN_STOP present (cut 07-19 11:26Z), BAND_LIVE=False (day 14), weather dark, NEG_RISK/RECYCLE ruin-floor-blocked, ladder disarmed.  
+**Prior run**: 2026-07-19T09:19Z
 
 ---
 
-## Gate Ledger
+## GATE LEDGER
 
-| Gate | n (resolved) | +24h n | WR | ROI % | CI95 | Status | ETA to threshold |
+| Gate | n | +24h | WR | ROI | CI95 | Status | ETA to threshold |
 |---|---|---|---|---|---|---|---|
-| G1 BAND_YES | 934 | +0 res / +9 shadow | 0.153 | +4.0 † | [−10.9, +21.1] | AMBIGUOUS | ∞ (frozen; WC blocker) |
-| G2a BAND_NO | 115 | +0 | 0.687 | +1.3 | [−11.9, +12.7] | AMBIGUOUS ‡ | ∞ (frozen; live n=51 WR=39.2% eff. REJECTED) |
-| G2b PAIR_FAV_YES | 9 | +0 | — | — | — | COLLECTING | ~8d from band re-enable |
-| G2c PAIR_FAV_NO | 9 | +0 | — | — | — | COLLECTING | ~8d from band re-enable |
-| G3 FILLED_vs_FIRED | 75 | +0 | 0.173 | −75.8 | [−75.0, −34.2] | WATCH_ITEM | n/a |
-| G4 BASKET_EXIT | VOID | — | — | — | — | VOID | Permanently retired (Jun-22) |
-| G5 THERMO_MAKER_NO | 125 | +0 | — | 0.0 | [−9.0, +2.0] | REJECTED | Inert (EVOLVE Jul-04) |
-| G6 M1_BETA_LOCKOUT | 31 | +0 | 0.742 | −0.6 | [−20.6, +24.4] | REJECTED | Inert (EVOLVE Jul-04) |
-| G7 SUM_POSTED [0.70,0.85] | 382 | +0 res / +7 shadow | — | +11.5 † | [−11.4, +38.9] | AMBIGUOUS | ∞ (frozen; WC blocker) |
+| G1 BAND_YES (YES legs, per-slice) | 934 resolved | 0 | 15.3% | **+4.0%\*** | [−10.9, +21.1] | **AMBIGUOUS** | Indefinite (band dark, no resolutions) |
+| G2a BAND_NO d+1 | 115 resolved | 0 | 68.7% | +1.3% | [−11.9, +12.7] | **AMBIGUOUS†** | Indefinite (BAND_NO_ENABLED=False) |
+| G2b PAIR_FAV_YES | 9 post-guard | 0 | — | — | — | **COLLECTING** | ~8d from band re-enable |
+| G2c PAIR_FAV_NO | 9 post-guard | 0 | — | — | — | **COLLECTING** | ~8d from band re-enable |
+| G3 FILLED vs FIRED (winner's curse) | 75 filled | 0 | 17.3% filled | −75.8% filled vs +7.6% sim | [−75.0, −34.2] | **WATCH_ITEM** | No new fills (all paths stopped) |
+| G4 BASKET_EXIT | VOID | — | — | — | — | **VOID** | — (permanently retired 06-22) |
+| G5 THERMO_MAKER_NO | 125 resolved | 0 | — | 0.0% | [−9.0, +2.0] | **REJECTED** | — (human decision 07-04; no reconsideration without directive) |
+| G6 M1_BETA_LOCKOUT | 31 resolved | 0 | 74.2% | −0.6% | [−20.6, +24.4] | **REJECTED** | — (human decision 07-04) |
+| G7 SUM_POSTED [0.70,0.85] | 382 resolved | 0 | — | **+11.5%\*** | [−11.4, +38.9] | **AMBIGUOUS** | Indefinite (band dark, no resolutions) |
+| **G8 CROSSING post-cut (NEW)** | **2 post-cut** | **+2 (NEW GATE)** | **50.0%** | **−$4.88 sim** | **[0.03, 0.97]** | **COLLECTING** | **~5–22d to n=100\*\*** |
 
-† ROI is **UPPER BOUND** (winner's curse confirmed via G3 n=75; simulation CI must not be cited as re-enable evidence).  
-‡ G2a shadow CI straddles 0 (AMBIGUOUS) but live n=51 WR=39.2% is effectively REJECTED. Do not re-enable BAND_NO on shadow CI alone.
-
----
-
-## State Transitions vs Prior Run (2026-07-18T09:11Z)
-
-**None.** All gate statuses identical to prior run.
-
-Structural blockers unchanged:
-- BAND_LIVE=False (day 13). Zero new resolutions flowing.
-- Capital $21.495 = 24.1% of band-engine ruin floor $89.16 — all band paths mechanically blocked.
-- Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is upper bound; G1 and G7 AMBIGUOUS CI must not trigger re-enable.
-- G2b/G2c PAIR_FAV: n=9 each, frozen. Pre-condition n≥40 still unmet.
-- G2a BAND_NO: BAND_NO_ENABLED=False since Jul-02; live WR 39.2% effectively REJECTED.
-- G5/G6: REJECTED; no live orders; no reconsideration without explicit human directive.
+\* ROI is UPPER BOUND — winner's curse confirmed (G3 filled WR=17.3% vs sim WR; DO NOT cite G1/G7 sim CI as re-enable evidence)  
+† Live n=51 WR=39.2% is effectively REJECTED; shadow CI AMBIGUOUS but irrelevant — do not re-enable on shadow CI alone  
+\*\* Rate uncertain at n=2: BTC-only ~0.19 events/h in first 10h post-cut; multi-asset (5x) shadow active since 19:05Z Jul-19, speedup 3–5× expected but unconfirmed. Low end ~5d, high end ~22d to n=100.
 
 ---
 
-## Shadow Accumulation (counterfactual only — no resolution truth while band dark)
+## STATE TRANSITIONS vs PRIOR RUN (2026-07-19T09:19Z)
 
-| Logger | Jul-18 09:11Z | +24h | Jul-19 09:10Z | Rate/day |
-|---|---|---|---|---|
-| G1 shadow fires (since wind-down Jul-06) | 154 | **+9** | **163** | ~13 |
-| G7 shadow fires (since wind-down Jul-06) | 100 | **+7** | **107** | ~8.6 |
-| thermo_maker.jsonl (bytes, hot) | 3,699,026 | +360,524 | 4,059,550 | — |
-| metar_lockout.jsonl (bytes, hot) | 8,102,573 | +374,454 | 8,477,027 | — |
+### NEW GATE REGISTERED
+**G8 UPDOWN_CROSSING** — `updown_crossing_reenable_gate` registered by EVOLVE-WEEKLY 2026-07-19 14:30Z (after the prior gatekeeper run at 09:19Z). This gate did not appear in the prior `gatekeeper_state.json`. First tracking in this run.
 
-**G1 +9 shadow fires (Jul-19 00:03–07:45Z)**:  
-Beijing d+1 (sum=0.679) · Wuhan d+1 (0.662) · Tokyo d+2 (0.790) · Taipei d+2 (0.790) · Wuhan d+2 (0.795) · Chongqing d+2 (0.805) · Beijing d+2 (0.825) · Munich d+2 (0.765) · London d+1 (0.815)
+Pre-registered pass conditions (ALL required):
+1. Post-cut CROSSING (p_model≥0.995, 5m any asset) n≥100
+2. CI-lo > BE=0.9629
+3. Owner floor re-waiver (equity $21.50 < $40 kernel floor — waiver chain ended with cut; ESCALATIONS #1)
+4. Min-size restart
 
-**G7 +7 fires in [0.70,0.85]**:  
-Tokyo 0.790 · Taipei 0.790 · Wuhan d+2 0.795 · Chongqing 0.805 · Beijing d+2 0.825 · Munich 0.765 · London d+1 0.815  
-(Beijing d+1 0.679 and Wuhan d+1 0.662 below 0.70 floor — not G7-eligible)
+Kill rule (armed immediately): if WR_post_cut falls below BE=0.9629 on sufficient n at the next EVOLVE review, recommend staying CUT.
 
----
+Evidence as of gate_ledger 22:05Z Jul-19 (most recent authoritative grade from `shadow_grade.py --refetch`):
+- POST-CUT n=2: 1W/1L, WR=50.0%, sim ROI=−$4.88
+- All-history CROSSING n=121: WR=0.9669, CI-lo=0.9181 vs BE=0.9629 (point barely clears, CI-lo does NOT)
+- n=121 is reference only — pre-cut rows cannot count for re-entry
+- The first post-cut loss (Jul-19, Down@0.93 resolved Up, lost by 0.2bp) is real data, not noise
 
-## G3 New Fills Since Prior Run
+**No flag change. Gate added to state as COLLECTING.**
 
-7 new entries in maker_fills_recent.log since Jul-18 09:11Z. **0 are STRUCT_BAND_Q fills** — G3 n stays at 75.
+### UNCHANGED GATES (no status transitions)
+All G1–G7 gates: 0 new resolutions in the past 24h. System fully stopped — no mechanism to add resolution truth to any gate. All statuses frozen.
 
-| Time (UTC) | Type | Price | Size | Classification |
-|---|---|---|---|---|
-| Jul-18 23:19 | TAKER BUY | 0.98 | 19.5 | UPDOWN-SNIPER |
-| Jul-19 00:24 | TAKER BUY | 0.88 | 21.3 | UPDOWN-SNIPER |
-| Jul-19 02:14 | MAKER BUY | 0.02 | 146.33 | Orphan-pattern (4th on record) |
-| Jul-19 02:44 | TAKER BUY | 0.91 | 22.75 | UPDOWN-SNIPER |
-| Jul-19 03:24 | TAKER BUY | 0.98 | 22.0 | UPDOWN-SNIPER |
-| Jul-19 07:59 | TAKER BUY | 0.94 | 23.5 | UPDOWN-SNIPER |
-
-G3 n conservatively held at 75 until Exec Auditor classifies the Jul-16 SELL@0.96 and Jul-18 SELL@0.92 anomalous SELL pairs. Fourth orphan-pattern MAKER BUY@0.02 (Jul-19 02:14Z, token 5717613…) joins the pattern — also awaiting classification.
+Shadow file size updates (informational, no gate impact):
+- `data/shadow/thermo_maker.jsonl`: 4.487MB (+427KB since prior; REJECTED G5, rolling accumulation, no resolutions)
+- `data/shadow/metar_min_lockout.jsonl`: 8.912MB (+432KB since prior; REJECTED G6, rolling accumulation)
+- G1 shadow fires since wind-down: ~176 estimated (+13 at rate 13/day; counterfactual only, no resolution truth)
+- G7 shadow fires since wind-down: ~116 estimated (+9 at rate 8.6/day; counterfactual only)
 
 ---
 
-## ⚠ Capital Alert (outside pre-registered gate scope — human awareness only)
+## DETAILED GATE NOTES
 
-Capital collapsed $37.569 → $21.495 intraday Jul-19 (**−$16.07, −42.8%**). 0 open positions at snapshot — all trades settled. Cause: 5 TAKER UPDOWN-SNIPER BUYs at 0.88–0.98 (Jul-18 23:19Z through Jul-19 07:59Z) with at least 1–2 NO resolutions implied. Kill-watch was CLEAN day 3 (21/21W +$11.54) at the Jul-18 22:08Z state_log entry. Post-midnight kill-watch state **unknown** — no Jul-19 EVOLVE commit visible at snapshot time. Human review required to verify halt rule status.
+### G1: BAND_YES (days_out 0/1/2 × offset 0/1/2 × price band)
+Threshold n=100/side. **Already exceeded** (n=934) but CI straddles 0 → AMBIGUOUS.
+- Winner's curse CONFIRMED (G3, n=75 filled, WR=17.3% vs sim WR). CI from simulation is an UPPER BOUND. Do not use G1 sim CI as re-enable evidence.
+- Resolution n frozen at 934 since Jul-06 22:08Z (band dark day 14).
+- Today's band_struct_lite (00:01–09:01Z Jul-20, 132 records): 0 fire records, 20 sum_gate rejections, 118 md_shadow records. Consistent with BAND_LIVE=False.
+- Capital $21.50 < ruin_floor $89.16 — band re-enable mechanically blocked regardless of CI.
+- Re-enable pre-condition: post-guard PAIR_FAV n≥40 (n=9, frozen) also not met.
+
+### G2a: BAND_NO d+1
+Threshold n=100. n=115 (exceeded). CI straddles 0 → AMBIGUOUS.
+- **Live n=51 WR=39.2% is the operative number** — effectively REJECTED by real fills.
+- BAND_NO_ENABLED=False since Jul-02 (7d realized n=51 WR 39.2% rail). No new fires possible.
+- Shadow CI AMBIGUOUS is irrelevant — live result dominates.
+
+### G2b/G2c: PAIR_FAV YES/NO
+- n=9 post-guard (frozen since Jul-06). Rate ~11/day when live.
+- PAIR_FAV_ENABLED=True in config but BAND_LIVE=False blocks execution.
+- PAIR_FAV_NO counterfactual CI [+12.6,+85.5] at n_CF=32: BIASED by winner's curse (state_log Jul-11 22:15Z). Do not re-enable on CF ROI alone.
+
+### G3: FILLED vs FIRED (winner's curse watch)
+Threshold n=40 (met; 75 filled resolutions). Status WATCH_ITEM.
+- Gap confirmed: filled WR=17.3%, sim WR≈76%. Gap=−83.4pp. CI for filled: [−75.0, −34.2] (entirely negative).
+- This is why G1/G7 sim ROI must be treated as upper bounds.
+- No new fills since prior (UPDOWN_STOP + band dark + sniper stopped).
+- **Exec Auditor backlog unresolved**: Jul-16 SELL@0.96 (token=1399483673820402) + Jul-18 SELL@0.92 (token=2664940529472113) + Jul-18 companion BUY@0.08 (token=7094108612094851) + 4th orphan MAKER BUY@0.02 Jul-19 02:14Z (token=5717613767097074) — n conservatively held at 75 until classified.
+
+### G5: THERMO_MAKER_NO
+Threshold: first 20 resolved (pre-registered Jul-11 22:40). n=125 (threshold met). 
+REJECTED by EVOLVE Jul-04 21:53Z (human decision). ROI=0.0%, CI=[−9.0,+2.0]. Shadow rolling but no resolutions possible (THERMO_MAKER_LIVE=False since Jun-23).
+No reconsideration without explicit human directive.
+
+### G6: M1_BETA_LOCKOUT
+Threshold n=100 with WR≥95% AND +EV. n=31, WR=74.2%, ROI=−0.6%.
+REJECTED by EVOLVE Jul-04 21:53Z (human decision). MIN_LOCKOUT_LIVE=False since Jul-13.
+Revert-to-0.5C-floors recommendation stands (state_log 2026-06-09).
+
+### G7: SUM_POSTED [0.70, 0.85]
+Threshold n=100 (met; n=382). CI straddles 0 → AMBIGUOUS.
+- ROI=+11.5% is UPPER BOUND (winner's curse blocker — G3 confirmed).
+- Band dark = no new resolutions. Shadow accumulating counterfactually (~116 est total).
+- Gate inert while band dark.
+
+### G8: UPDOWN_CROSSING post-cut (NEW THIS RUN)
+See STATE TRANSITIONS above.
+- n=2, CI meaningless (WR could be anywhere in [0.03, 0.97] at n=2).
+- First loss in the first 2 events is directionally concerning — consistent with the cut being right.
+- All-history n=121 reference: CI-lo=0.9181 vs BE=0.9629 → history-population does NOT clear CI.
+- **Multi-asset shadow (5 assets: BTC/ETH/SOL/XRP/DOGE, 5m) active since 19:05Z Jul-19.** First per-asset 5m grade expected ~Jul-21 when snaps span ≥2 days. This should accelerate n-collection 3–5×.
+- **No morning EVOLVE slot committed yet today** (as of snapshot 09:09Z Jul-20) — the gate_ledger and crossing count are as of 22:05Z Jul-19. Actual n may be slightly higher; next EVOLVE daily will update.
+- Kill rule: armed. If point WR < BE=0.9629 at n≥20, recommend staying CUT at next EVOLVE review.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**No gates newly READY or REJECTED. No flag or parameter changes proposed.**
+**No gates newly READY or REJECTED in this run.**
 
-Human review requested on two outstanding items:
+All gates remain frozen in their prior status. The single new development is the addition of G8 (UPDOWN_CROSSING post-cut) to the ledger as COLLECTING. No flags to flip.
 
-1. **⚠ Capital collapse −$16.07 (Jul-19 intraday)**: Confirm sniper kill-watch status; verify whether any halt rule was triggered. PnL ledger commit for Jul-19 not yet posted at snapshot time.
-2. **G3 Exec Auditor backlog**: Jul-16 SELL@0.96 + Jul-18 SELL@0.92 anomalous SELLs + 4th orphan MAKER BUY@0.02 unclassified. G3 n stuck at 75 until resolved.
+**Standing blockers for any gate to move off COLLECTING/AMBIGUOUS:**
+1. G1/G7/G2b/G2c: Require BAND_LIVE re-enable AND capital above ruin_floor ($89.16) AND owner re-waiver. None are close.
+2. G8: Requires n≥100 post-cut CROSSING events + CI-lo > BE + owner floor re-waiver. Currently n=2, ETA 5–22d.
+3. All gates: Winner's curse (G3) is a hard blocker on any sim-CI-based re-enable argument for band paths.
+
+**G3 Exec Auditor backlog** (not a gate change, but informational escalation): 4 unclassified fills remain from Jul-16/Jul-18/Jul-19. This needs owner resolution to unfreeze G3 n. Not a gatekeeper action.
 
 ---
-*ready=0 rejected=0 collecting=3 ambiguous=3 watch_item=1 void=1 (G5/G6 rejected inert)*
+
+*Sources: data-mirror SHA c58852e (2026-07-20T09:09:08Z) · gate_ledger_latest.md 22:05Z Jul-19 · gatekeeper_state.json prior run 09:19Z Jul-19 · updown_sniper.jsonl 596 records · band_struct_lite.jsonl 2026-07-20 132 records · maker_fills_recent.log last fill 07:59Z Jul-19 · state_log.md EVOLVE-WEEKLY 14:30Z Jul-19*
