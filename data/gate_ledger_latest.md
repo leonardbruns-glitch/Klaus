@@ -1,9 +1,10 @@
-# Gate Ledger — refreshed 2026-07-19 22:05 UTC (EVOLVE daily, evening slot)
+# Gate Ledger — refreshed 2026-07-20 11:30 UTC (EVOLVE daily, morning slot)
 
-Source: `analysis/crypto/shadow_grade.py --refetch` 21:58Z +
-`analysis/crypto/updown_asset_grade.py` + live tape (`logs/updown_sniper.jsonl`)
-+ wallet reconcile ($21.4954 CLOB-actual, unchanged since the 11:26Z cut, 0 opens,
-0 fires/settles since — only `stop_file` skips on the tape).
+Source: `analysis/crypto/shadow_grade.py --refetch` 11:28Z +
+`analysis/crypto/updown_asset_grade.py` 11:30Z + live tape
+(`logs/updown_sniper.jsonl`) + wallet reconcile ($21.495442 CLOB-actual,
+unchanged since the 07-19 11:26Z cut, 0 opens, 0 fires/settles since — only
+`stop_file` skips on the tape).
 **Context: UPDOWN-SNIPER CUT 2026-07-19 11:26Z (`logs/UPDOWN_STOP`, charter PF
 rail: candidate tape PF 0.79 over 27 settles). System fully risk-off: sniper
 stopped, weather dark, engine ruin_floor $89.16 blocks NEG_RISK/RECYCLE entries,
@@ -14,37 +15,40 @@ owner-only. Burn rate zero; shadow accrues free.**
 
 | Slice | n | WR | ROI | CI / note | Verdict |
 |---|---|---|---|---|---|
-| **CROSSING p≥0.995 5m, POST-CUT — THE re-enable gate** | **2** | **50.0%** | **−$4.88 sim** | first two post-cut events split 1W/1L; CI-lo 0.0945 vs BE 0.9580 (meaningless at n=2, but the first loss is data, not noise); needs n≥100 AND CI-lo > BE AND owner floor re-waiver | **COLLECTING — early tape consistent with the cut being right** |
-| CROSSING p≥0.995 5m, all-history (baseline) | 121 | 96.7% | +$2.85 sim | CI-lo 0.9181 vs BE 0.9629 — point barely clears, CI-lo does NOT; WR fell 0.9748→0.9669 since the weekly (2 new events, 1 loss) | reference only (pre-cut rows never count for re-entry) |
-| 19:05Z regrade cross-check (updown_margin_strata, Gamma truth, 7d) | 129 | 96.9% | +0.6%/$ | CI-lo 0.923 — no cell clears CI; mv≥8bp stratum (n=64 W=63, +2.1%/$, CI-lo 0.917) pre-registered for the gate review, trend-flag only | corroborates: no CI-cleared edge exists yet |
-| ~~First-fire "candidate slice"~~ | 61 | 98.4% | +$8.55 | **CONDEMNED — biased population** (fires trigger on CROSSING 0.995; this slice grades at FIRST p≥0.99 snap; the 07-19 loss was invisible to it) | **VOID — never cite** |
+| **CROSSING p≥0.995 5m, POST-CUT — THE re-enable gate** | **25** | **96.0%** (24W/1L) | **−$1.02 sim** | CI-lo 0.8046 vs BE 0.9673 — **point WR is BELOW breakeven**; accrual 2→25 in 13.5h (~40/day, n≥100 ETA ~07-22); needs n≥100 AND CI-lo > BE AND owner floor re-waiver; kill rule: n≥100 with point < BE → class closed | **COLLECTING — trending toward the KILL branch, not the pass branch** |
+| CROSSING p≥0.995 5m, all-history (baseline) | 144 | 97.2% | +$6.70 sim | CI-lo 0.9308 vs BE 0.9637 — point clears, CI-lo does NOT (unchanged verdict since the weekly) | reference only (pre-cut rows never count for re-entry) |
+| ~~First-fire "candidate slice"~~ | 74 | 98.6% | +$10.22 | CI-lo 0.9273 vs BE 0.9606 — **CONDEMNED, biased population** (fires trigger on CROSSING 0.995; this slice grades at FIRST p≥0.99 snap; the 07-19 loss was invisible to it) | **VOID — never cite** |
+| Unfiltered pool (TRUE labels) | 204 | 96.1% | −0.40%/$ | CI [0.925,0.980] vs BE 0.963; 15m n=15 WR 86.7% −$7.29 is the bleed; 5m step n=189 WR 96.8% +$3.21 | v1 pool REJECTED (unchanged) |
 | CANDIDATE live tape (07-16 14:59Z → cut) | 27 settles | 96.3% (26W/1L) | −$4.64, PF 0.79 | one crossing-fire loss at Kelly clip $22.09 (50.6% of wallet) erased all 26 wins; kill-watch (c) → cut | **CLOSED — do not pool** |
-| v1 pool (unfiltered, TRUE labels) | 171 | 95.3% | −1.08%/$ | CI [0.910,0.976] vs BE 0.962; 15m n=11 WR 81.8% −$8.12 is the bleed | v1 **REJECTED** |
 | KELLY | — | — | — | owner-waived era ended with the cut | **OFF** |
 
-## Capacity cells — per-asset
+## Capacity cells — per-asset (`updown_asset_grade.py` 11:30Z)
 
-15m-snap cells (v1 gates, `updown_asset_grade.py` 21:59Z): btc n=69 WR 0.957
-CI[0.880,0.985] −$3.07; eth n=3 3W; xrp n=5 5W; sol/doge 0 graded — all
-COLLECTING, months from n≥100 at current capacity.
-**NEW since 19:05Z: eth/sol/xrp/doge 5m shadow snaps live** (verified writing —
-each ~360 snaps in the recent tail alongside btc; t_left≤120s zone). Expected
-n-collection speedup ~3–5× for `updown_crossing_reenable_gate` breadth once
-these accrue; first per-asset 5m grade when snaps span ≥2 days (~07-21).
+| Asset | graded | WR | BE | pnl | p≥.995 sub-slice | Verdict |
+|---|---|---|---|---|---|---|
+| btc | 86 | 96.5% CI[0.902,0.988] | 0.965 | +$0.01 | n=50 WR 96.0% CI-lo 0.865 BE 0.964 −$1.23 | COLLECTING |
+| eth | 10 | 10/10 W | 0.973 | +$1.40 | n=4 4W | COLLECTING |
+| xrp | 6 | 6/6 W | 0.972 | +$0.86 | n=1 1W | COLLECTING |
+| sol | 1 | 1/1 W | 0.906 | +$0.52 | — | COLLECTING |
+| doge | 1 | 1/1 W | 0.963 | +$0.19 | — | COLLECTING |
+
+Alt-asset 5m shadow recorders (enabled 07-19 19:05Z) verified writing today:
+~11,000 5m snaps each (eth/sol/xrp/doge) + btc 23,129 by 11:26Z. No cell is
+near its own n≥100 gate; promotion is not a live question.
 
 ## Weather rows (maintenance)
 
-- Band re-enable trigger (settled disp_ratio ≥1.10 × 5d): **NOT met** — last 5
-  settled days (07-14..07-18): 0.942 / 1.097 / 1.003 / 0.967 / 0.849. Band dark.
-- NEG_RISK_ARB / RECYCLE099: alive ([WA] cycles at 21:56Z), 0 fills — engine
-  ruin_floor $89.16 blocks new entries mechanically.
+- Band re-enable trigger (settled disp_ratio ≥1.10 × 5d sustained): **NOT met**
+  — last 5 settled days (07-15..07-19): 1.097 / 1.003 / 0.967 / 0.849 / 1.106.
+  Only 07-19 grazes the line; not sustained. Band dark.
+- NEG_RISK_ARB / RECYCLE099: alive ([WA] cycles at 11:25Z today), 0 fills —
+  engine ruin_floor $89.16 blocks new entries mechanically.
 - Lockout family: all off; evidence base unchanged.
 
-## Infra note (this slot)
+## Health (this slot)
 
-Disk was 95% (4.8G free) with ~3–4G/day intraday shadow accrual before the 04:00
-prune cron. Reclaimed without deleting any data: journal vacuum (3.0G freed) +
-gzip of the 3 oldest shadow/hot day dirs (07-10/11/12 — already scheduled for
-prune deletion within 1–3 days; compression preserves them instead). Structural
-fix (lag_ws_events.jsonl 8.1G live-append, market_ticks.jsonl 2.5G) remains an
-owner call — escalated 07-19 19:05Z entry stands.
+All three services active; liveness watchdog zero restarts since 07-14; wedge
+watchdog untripped. Disk 85% / 15G free (stable vs 83% after yesterday's
+reclaim; lag_ws_events.jsonl 8.1G structural fix remains owner-only per the
+standing escalation). Redemption sniper-held guard review closed KEEP (see
+ledger 2026-07-20).
