@@ -1,1 +1,162 @@
-IyBLbGF1cyBQbkwgTGVkZ2VyIOKAlCAyMDI2LTA3LTE5CgoqKkdlbmVyYXRlZDoqKiAyMDI2LTA3LTE5VDIzOjM3WiAgCioqU25hcHNob3Q6KiogMjAyNi0wNy0xOVQyMzozMDoxMFogKDcgbWluIOKAlCBGUkVTSCkgIAoqKlN5c3RlbToqKiBgIyMga2xhdXMgc3lzdGVtZDogYWN0aXZlYCAgCioqU25hcHNob3QgSEVBRDoqKiA5Njc5MDYzMWYgIAoKLS0tCgojIyBTZWN0aW9uIDEg4oCUIFAmTCBFeHBsYWluICgyMDI2LTA3LTE5IFVUQykKCiMjIyBDYXBpdGFsIEFuY2hvcnMKCnwgU291cmNlIHwgVmFsdWUgfCBOb3RlcyB8CnwtLS18LS0tfC0tLXwKfCBiYW5rcm9sbCBkYWlseV9zdGFydCAobWlkbmlnaHQpIHwgJDM3LjU2OTM5MiB8IFN5c3RlbS1hdXRob3JpdGF0aXZlOyBzYW1lIGFzIHllc3RlcmRheSAwMjo0Nlogc2F2ZSDigJQgTU9ERUwgREVGSUNJRU5DWSBpbiB3cml0ZSBjYWRlbmNlIChKdWwtMTggZmlsbHMgMDQ6MjRaICsgMjM6MTlaIG5vdCBjYXB0dXJlZCBiZWZvcmUgbWlkbmlnaHQpIHwKfCBQcmlvciBsZWRnZXIgY2FwaXRhbF9lc3QgKEVWT0xWRSkgfCAkMzguMDE4IHwgV2FsbGV0LXZlcmlmaWVkIEp1bC0xOCBlbmQ7ICQwLjQ0OSBhYm92ZSBkYWlseV9zdGFydCBkdWUgdG8gd3JpdGUgY2FkZW5jZSBnYXAgfAp8IFNuYXBzaG90IGNhcGl0YWwgKDIzOjMwWikgfCAkMjEuNDk1NDQyIHwgYmFua3JvbGwuanNvbiBzYXZlZF90cyDiiYggMDg6MDJaOyBTVEFUSUMgZm9yIDE1LjVoIChjb25zaXN0ZW50IHdpdGggc25pcGVyIENVVCAxMToyNlosIG5vIHN1YnNlcXVlbnQgZmlsbHMpIHwKfCBEYXkgUG5MIChzeXN0ZW0gZGFpbHlfc3RhcnQpIHwgKiotJDE2LjA3NCoqIHwgJDIxLjQ5NSDiiJIgJDM3LjU2OSB8CnwgRGF5IFBuTCAoRVZPTFZFLWFkanVzdGVkKSB8ICoqLSQxNi41MjMqKiB8ICQyMS40OTUg4oiSICQzOC4wMTggfAoKIyMjIEZpbGwgQXR0cmlidXRpb24gKGFsbCBsZWdzLCBieSB0c19vcGVuKQoKfCBUaW1lIFVUQyB8IEVudHJ5IENsYXNzIHwgU2lkZS9UeXBlIHwgU2hhcmVzIHwgUHJpY2UgcCB8IENvc3QgfCBOZXQgUG5MIHwgT3V0Y29tZSB8CnwtLS18LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfAp8IDAwOjI0WiB8IFVQRE9XTl9TTklQRVIgfCBCVVkgVEFLRVIgfCAyMS4zMCB8IDAuODggfCAkMTguNzQ0IHwgKiorJDIuNTU2KiogfCBXSU4gfAp8IDAyOjE0WiB8IFNUV0FfTUFLRVIgfCBCVVkgTUFLRVIgfCAxNDYuMzMgfCAwLjAyIHwgJDIuOTI2IHwgKiokMCByZWFsaXplZCoqIHwgT1BFTiDigJQgcGVuZGluZyByZXNvbHV0aW9uIHwKfCAwMjo0NFogfCBVUERPV05fU05JUEVSIHwgQlVZIFRBS0VSIHwgMjIuNzUgfCAwLjkxIHwgJDIwLjcwMyB8ICoqKyQyLjA0OCoqIHwgV0lOIHwKfCAwMzoyNFogfCBVUERPV05fU05JUEVSIHwgQlVZIFRBS0VSIHwgMjIuMDAgfCAwLjk4IHwgJDIxLjU2MCB8ICoqKyQwLjQ0MCoqIHwgV0lOIHwKfCAwNzo1OVogfCBVUERPV05fU05JUEVSIHwgQlVZIFRBS0VSIHwgMjMuNTAgfCAwLjk0IHwgJDIyLjA5MCB8ICoqLSQyMi4wOTAqKiB8ICoqRklSU1QgRVZFUiBMT1NTIOKAlCBQRi1yYWlsIGN1dCAxMToyNloqKiB8CgoqV2luL2xvc3MgYXR0cmlidXRpb24gZm9yIHNuaXBlcjogRVZPTFZFIGNvbW1pdCA0NjdkYmRlZDQgc3RhdGVzICJmaXJzdCBjYW5kaWRhdGUgbG9zcyDiiJIkMjIuMDkgQDUwJS1LZWxseSIgYXQgMDc6NTlaIOKGkiBhbGwgdGhyZWUgcHJpb3IgZmlyZXMgd2VyZSB3aW5zLiogIAoqS2VsbHkgc2l6aW5nIGNvbmZpcm1lZDogZWFjaCBzdGFrZSDiiYggNTAlIG9mIHJ1bm5pbmcgY2FwaXRhbCBhdCB0aW1lIG9mIGZpcmUuKgoKIyMjIFAmTCBSb2xsLVVwCgp8IExpbmUgfCBBbW91bnQgfAp8LS0tfC0tLXwKfCBVUERPV05fU05JUEVSICgzVyk6ICskMi41NTYgKyAkMi4wNDggKyAkMC40NDAgfCAqKiskNS4wNDQqKiB8CnwgVVBET1dOX1NOSVBFUiAoMUwpOiAyMy41c2hAMC45NCB8ICoqLSQyMi4wOTAqKiB8CnwgU1RXQV9NQUtFUiAodG9kYXkncyBmaWxsLCB1bnJlc29sdmVkKSB8ICoqJDAqKiB8CnwgUkVDWUNMRTA5OSAoZXhpdDA5OV9saXZlLmpzb25sKSB8ICoqJDAg4oCUIGZpbGUgYWJzZW50KiogfAp8ICoqU25pcGVyIHN1YnRvdGFsKiogfCAqKi0kMTcuMDQ2KiogfAp8ICoqUkVDWUNMRTA5OSoqIHwgKiokMCoqIHwKfCAqKlN1bSBhdHRyaWJ1dGVkIChyZWFsaXplZCkqKiB8ICoqLSQxNy4wNDYqKiB8CnwgKipVbmV4cGxhaW5lZCAodnMgRVZPTFZFIHN0YXJ0ICQzOC4wMTgpKiogfCAqKiskMC41MjMqKiB8CnwgKipVbmV4cGxhaW5lZCAodnMgYmFua3JvbGwgZGFpbHlfc3RhcnQgJDM3LjU2OSkqKiB8ICoqKyQwLjk3MioqIHwKCiMjIyBVbmV4cGxhaW5lZCAkMC41MuKAkyQwLjk3IOKAlCBJbnZlc3RpZ2F0aW9uCgpBbW91bnQgaXMgYmVsb3cgdGhlICQ1IG1hdGVyaWFsaXR5IHRocmVzaG9sZC4gT25lLWxldmVsIGludmVzdGlnYXRpb246CgotICoqTW9zdCBsaWtlbHkgY2F1c2UgKGEpOioqIEJhbmtyb2xsIGRhaWx5X3N0YXJ0IHVuZGVyY291bnQgJDAuNDQ5IOKAlCBzYW1lIEp1bC0xOCB3cml0ZS1jYWRlbmNlIE1PREVMIERFRklDSUVOQ1kgZmxhZ2dlZCBpbiBwcmlvciBsZWRnZXIuIFVzaW5nIEVWT0xWRSBzdGFydCByZWR1Y2VzIHVuZXhwbGFpbmVkIHRvICQwLjUyLgotICoqTW9zdCBsaWtlbHkgY2F1c2UgKGIpOioqIFJlbWFpbmluZyB+JDAuNTIgaXMgY29uc2lzdGVudCB3aXRoIGEgc21hbGwgSnVsLTE3IFNUV0EgZCsyIHBheW91dCB0aGF0IGxhbmRlZCBpbiB0aGUgd2FsbGV0IHRvZGF5IGFuZCBpcyBpbnZpc2libGUgdG8gdGhpcyByZXBvcnQncyBmaWxsIHRhcGUgKG1ha2VyX2ZpbGxzX3JlY2VudC5sb2cgb25seSBzaG93cyBNQVRDSEVEL01JTkVEL0NPTkZJUk1FRCBmaWxsIGV2ZW50cywgbm90IHNldHRsZW1lbnQgcGF5b3V0cykuIFRva2VucyA0MDk1MTE3NTYyNTA5NjI1ICg1OC4zM3NoQDAuMDYpLCAxMDU1MTAxMDA4ODM0MDIyICgxNTBzaEAwLjAyKSwgMTA0NjkwNzA4ODM4MTMyMyAoNzhzaEAwLjAyKSB3ZXJlIHBlbmRpbmcgZnJvbSBKdWwgMTcgYXMgZCsxL2QrMiB3ZWF0aGVyIG1hcmtldHMuIEEgJDAuNTIgcGFydGlhbCBwYXlvdXQgd291bGQgcmVxdWlyZSB+OCBzaGFyZXMgcmVzb2x2aW5nIFlFUyBhdCAkMS4wMCBmcm9tIHRoZSAwLjA2LXByaWNlZCB0b2tlbiDigJQgcGxhdXNpYmxlLgotICoqTm90IGF0dHJpYnV0ZWQgdG8gbW9kZWwgZGVmaWNpZW5jeSBpbiB0aGUgYXR0cmlidXRpb24gZW5naW5lLioqIFdyaXRlLWNhZGVuY2UgdHJhY2tpbmcgZGVmaWNpZW5jeSBwZXJzaXN0cyBmcm9tIEp1bCAxOC4gQWN0aW9uOiB2ZXJpZnkgYmFua3JvbGwuanNvbiB1cGRhdGUgbG9vcCBvbiBWUFMuCgpQcmV2aW91c2x5IHBlbmRpbmcgU1RXQSBmcm9tIEp1bCAxNyAoJDguMDYgZGVwbG95ZWQpIGFuZCBKdWwgMTggKCQzLjU5IGRlcGxveWVkKSBzaG93IG5vIGxhcmdlLXBheW91dCBzaWduYWxzIGluIGNhcGl0YWwuIFRoZXkgYXJlIGVpdGhlciAoYSkgc3RpbGwgb3BlbiAoZCsyIHdlYXRoZXIgbm90IGV4cGlyZWQgYnkgMjM6MzBaKSwgb3IgKGIpIGEgc21hbGwgcG9ydGlvbiByZXNvbHZlZC4gTm8gZXZpZGVuY2Ugb2Ygd2lwZW91dCBlaXRoZXIgKGNhcGl0YWwgd291bGQgYmUgbG93ZXIgYnkgJDExLjY1IGlmIGFsbCBsb3N0IGFuZCBub3RoaW5nIG9mZnNldHRpbmcpLgoKLS0tCgojIyBTZWN0aW9uIDIg4oCUIENvbXBvdW5kaW5nIFNjb3JlYm9hcmQKCiMjIyBGaWxscyBhbmQgVHVybnMKCnwgTWV0cmljIHwgMjAyNi0wNy0xOSB8IDIwMjYtMDctMTggKHByaW9yKSB8IDA2LTExIGJhc2VsaW5lIHwKfC0tLXwtLS18LS0tfC0tLXwKfCBGaWxscyBVU0QgfCAkODYuMDIgfCAkNjAuMDUgfCAkMTDigJM0MCB8CnwgRGF5IFBuTCB8IC0kMTYuMDcgfCArJDIuNTIgfCDigJQgfAp8IFN0YXJ0IGNhcGl0YWwgfCAkMzcuNTcgKHN5c3RlbSkgLyAkMzguMDIgKEVWT0xWRSkgfCAkMzUuNTAgfCB+JDEwIHwKfCBFbmQgY2FwaXRhbCB8ICQyMS41MCB8ICQzOC4wMiB8IOKAlCB8CnwgQXZnIGVxdWl0eSAobWlkcG9pbnQpIHwgJDI5LjUzIHwgJDM2Ljc2IHwg4oCUIHwKfCBUdXJucy9kYXkgfCAqKjIuOTEqKiB8IDEuNjMgfCAwLjLigJMwLjUgfAp8IFJPSS90dXJuIHwgKiotMTguNjklKiogfCArNC4yMCUgfCB+KzMlIHwKCkJyZWFrZG93bjogJDgzLjEwIHNuaXBlciB0YWtlciBmaWxscyArICQyLjkzIFNUV0EgbWFrZXIgPSAkODYuMDIgdG90YWwuIFNuaXBlciBmaXJlcyBhdCBLZWxseS1zY2FsZWQgc3Rha2VzICgkMTguNzQg4oaSICQyMi4wOSkgcHVzaGVkIHR1cm5zIHNpZ25pZmljYW50bHkgYWJvdmUgcHJpb3IgZGF5cy4gVGhpcyBpcyB0aGUgZG93bnNpZGUgb2YgS2VsbHkgc2NhbGluZzogaGlnaGVyIHR1cm5zIG11bHRpcGxpZWQgYnkgdGhlIG5lZ2F0aXZlIFJPSSBvZiB0aGUgbG9zcyBkYXkuCgojIyMgRXF1aXR5IEVzdGltYXRlCgp8IENvbXBvbmVudCB8IFZhbHVlIHwgQ29uZmlkZW5jZSB8CnwtLS18LS0tfC0tLXwKfCBXYWxsZXQgY2FwaXRhbCAoYmFua3JvbGwuanNvbikgfCAkMjEuNDk1IHwgQXV0aG9yaXRhdGl2ZSBhcyBvZiAwODowMlogfAp8IFNUV0Egb3BlbiBKdWwtMTcgKGF0IGNvc3QpIHwgJDguMDYwIHwgVW5rbm93biBmYWlyIHZhbHVlIOKAlCB3YWl0aW5nIGQrMiByZXNvbHV0aW9uIHwKfCBTVFdBIG9wZW4gSnVsLTE4IChhdCBjb3N0KSB8ICQzLjU5MCB8IFVua25vd24gZmFpciB2YWx1ZSB8CnwgU1RXQSBvcGVuIEp1bC0xOSAoYXQgY29zdCkgfCAkMi45MjYgfCBVbmtub3duIGZhaXIgdmFsdWUgfAp8ICoqZXF1aXR5X2VzdCoqIHwgKiokMzYuMDcqKiB8IExPVyBDT05GSURFTkNFIHwKCioqQ0FWRUFUOioqIEFsbCBvcGVuIFNUV0EgcG9zaXRpb25zIGFyZSBhdCBleHRyZW1lIGVudHJ5IHByaWNlcyAoMC4wMuKAkzAuMDYpLiBSZXNvbHV0aW9uIGFzIE5PID0gJDE0LjU4IGZ1bGwgd3JpdGUtZG93bjsgcmVzb2x1dGlvbiBhcyBZRVMgPSBodW5kcmVkcyBvZiBkb2xsYXJzIHBheW91dCAodW5saWtlbHkgYXQgdGhlc2UgcHJpY2VzKS4gRmFpciB2YWx1ZSDiiYggbWFya2V0IGNvc3QgYmFzaXMgdW5kZXIgZWZmaWNpZW50LW1hcmtldCBhc3N1bXB0aW9uLiBFcXVpdHlfZXN0IGVycm9yIGJhcjogKiokMjEuNTAgKHdyaXRlLWRvd24gc2NlbmFyaW8pIHRvICQzNi4wNyAoY29zdC1iYXNpcyBzY2VuYXJpbykuKiogRG8gTk9UIHVzZSAkMzYuMDcgZm9yIHNpemluZyBkZWNpc2lvbnMuCgoqKnZzLiBiYWRhdG1hdGggYmVuY2htYXJrOioqIFRoZWlyIH4xLjB4IGVxdWl0eS9kYXkgYXQgMTDigJMyMCUvdHVybi4gVG9kYXkgd2UgY3ljbGVkIDIuOTF4IGVxdWl0eSBhdCAtMTguNjklL3R1cm4uIEhpZ2hlciBjYWRlbmNlIGlzIHRoZSByaWdodCBkaXJlY3Rpb247IHNpZ24gb2YgUk9JL3R1cm4gaXMgbm90LiBUaGUgS2VsbHkgc2NhbGUtdXAgdGhhdCBkcm92ZSB0aGUgaGlnaGVyIGNhZGVuY2UgYWxzbyBwcm9kdWNlZCB0aGUgbWF4aW11bSBkcmF3ZG93biBleHBvc3VyZSBvbiB0aGUgbG9zaW5nIHRyYWRlLgoKLS0tCgojIyBTZWN0aW9uIDMg4oCUIEV4cGVjdGVkIE1ha2VyIFJlYmF0ZXMKCiMjIyBUb2RheSdzIE1ha2VyIEZpbGxzCgp8IFRpbWUgfCBUb2tlbiB8IFNoYXJlcyB8IFByaWNlIHAgfCBww5coMS1wKSB8IEVzdC4gcmViYXRlIHwKfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfAp8IDAyOjE0WiBKdWwtMTkgfCA1NzE3NjEzNzY3MDk3MDc0IHwgMTQ2LjMzIHwgMC4wMiB8IDAuMDE5NiB8ICoqJDAuMDM2KiogfAoKRm9ybXVsYTogc2hhcmVzIMOXIGZlZVJhdGUoMC4wNSkgw5cgcCDDlyAoMeKIknApIMOXIHJlYmF0ZV9zaGFyZSgwLjI1KSA9IDE0Ni4zMyDDlyAwLjA1IMOXIDAuMDIgw5cgMC45OCDDlyAwLjI1ID0gJDAuMDM2ICAKTm90ZTogcD0wLjAyIGlzIG5lYXItZXh0cmVtZTsgcXVhZHJhdGljIHRlcm0gcMOXKDEtcCkgPSAwLjAxOTYgdnMuIDAuMjUgYXQgcD0wLjUuIFRoaXMgZmlsbCBlYXJucyB+OCUgb2Ygd2hhdCBhIG1pZC1wcmljZSBmaWxsIG9mIHRoZSBzYW1lIHNpemUgd291bGQgZWFybi4KCiMjIyBDdW11bGF0aXZlIEV4cGVjdGVkIFJlYmF0ZQoKfCBQZXJpb2QgfCBFeHBlY3RlZCByZWJhdGUgKFVQUEVSIEJPVU5EKSB8CnwtLS18LS0tfAp8IFRocm91Z2ggSnVsLTE4IChwcmlvciBzdGF0ZSkgfCAkMy44ODEgfAp8IEp1bC0xOSAodG9kYXkpIHwgKyQwLjAzNiB8CnwgKipDdW11bGF0aXZlIHRocm91Z2ggSnVsLTE5KiogfCAqKiQzLjkxNyoqIHwKCioq4pqgIFVTRVIgQUNUSU9OIFJFUVVJUkVEOioqIEN1bXVsYXRpdmUgZXhwZWN0ZWQgcmViYXRlICQzLjkxNyBleGNlZWRzIHRoZSAkMSBtaW5pbXVtIHBVU0QgYWNjcnVhbCB0aHJlc2hvbGQuIFBheW91dHMgbGFuZCBkYWlseSBpbiBwVVNEIGluIHRoZSBQb2x5bWFya2V0IHdhbGxldC4gSWYgbm8gcFVTRCByZWJhdGUgaGFzIGJlZW4gcmVjZWl2ZWQgeWV0LCB2ZXJpZnkgd2FsbGV0IGJhbGFuY2UgTk9XLiBJZiByZWJhdGVzIGFyZSBsYW5kaW5nLCBub3RlIHRoZSBhY3R1YWwgYW1vdW50IGFuZCByZXBvcnQgdG8gcmVjb25jaWxlIGFnYWluc3QgdGhpcyB1cHBlci1ib3VuZCBlc3RpbWF0ZS4gQWN0dWFsIHBheW91dCBkZXBlbmRzIG9uIHlvdXIgc2hhcmUgb2YgdGhlIGNvbXBldGluZyBtYWtlciBwb29sIOKAlCB0aGUgJDMuOTE3IGlzIGEgY2VpbGluZywgbm90IGEgZ3VhcmFudGVlLgoKLS0tCgojIyBTZWN0aW9uIDQg4oCUIEtpbGwtU3dpdGNoIFByb3hpbWl0eQoKIyMjIFF1YW50aXRhdGl2ZSBSYWlscwoKfCBTaWduYWwgfCBUaHJlc2hvbGQgfCBWYWx1ZSB8IFN0YXR1cyB8CnwtLS18LS0tfC0tLXwtLS18CnwgRGF5IFBuTCB2cyBoYWx0IHwg4omlIC0kMTAgfCAqKi0kMTYuMDcqKiB8IOKdjCBCUkVBQ0hFRCDigJQgc25pcGVyIENVVCBieSBQRi1yYWlsIDExOjI2WiAocHJlY2VkZXMgRU9EIGhhbHQpIHwKfCBDYXBpdGFsIHZzIHJ1aW4gZmxvb3IgfCDiiaUgJDUwIHwgKiokMjEuNTAqKiB8IOKdjCBCUkVBQ0hFRCDigJQgb3duZXItd2FpdmVkIGNhcnJ5LW92ZXIgKHByZS1leGlzdGluZykgfAp8IENhcGl0YWwgdnMgd2Vla2x5IGZsb29yIHwg4omlICQ3NSB8ICoqJDIxLjUwKiogfCDinYwgQlJFQUNIRUQg4oCUIG93bmVyLXdhaXZlZCBjYXJyeS1vdmVyIChwcmUtZXhpc3RpbmcpIHwKfCBXZWVrIFBuTCB8ID4gLTIwJS9tb250aCBlcXVpdiB8ICoqLTgyJSB3ZWVrKiogKCQxMjDihpIkMjEuNTApIHwg4p2MIFNFVkVSRSDigJQgcGVyIEVWT0xWRSB3ZWVrbHkgNDY3ZGJkZWQ0IHwKfCBSb2xsaW5nIDIwIFdSIHwgPiA0MCUgfCBhbGwtaGlzdCA5Ni43JSwgQ0ktbG8gOTEuOCUgfCDimqAgQ0ktbG8gOTEuOCUgdnMgQkUgOTYuMyUg4oCUIGdhdGUgZG9lcyBOT1QgY2xlYXIgcG9zdC1jdXQgfAp8IFJvbGxpbmcgMjAgUEYgfCA+IDAuOCB8IE4vQSAob25seSAxIGxvc3MgZXZlcikgfCBDYW5ub3QgY29tcHV0ZSB8CgojIyMgUGF0aCBTdGF0ZXMKCnwgUGF0aCB8IFN0YXRlIHwgTm90ZXMgfAp8LS0tfC0tLXwtLS18CnwgVVBET1dOIHNuaXBlciB8ICoqQ1VUKiogfCBQRi1yYWlsIGZpcmVkIDExOjI2Wjsgb3duZXItcmVnaXN0ZXJlZCBwZXIgRVZPTFZFIDQ2N2RiZGVkNDsgbj0yIHBvc3QtY3V0IGZpcmVzICgxVy8xTCBzaW0gLSQ0Ljg4KSB8CnwgUG9zdC1jdXQgcmVlbmFibGUgZ2F0ZSB8IG7iiaUxMDAsIENJLWxvID4gQkUgfCBuPTIgb2YgMTAwIG5lZWRlZCDigJQgNDkgZGF5cyBhdCBjdXJyZW50IDItZmlyZS9kYXkgY2FkZW5jZSB0byBhc3Nlc3MgfAp8IEJBTkRfTElWRSB8IERpc2FybWVkIEp1bC02IHwgRXF1aXR5IDwgNTAlIG9mIDMwZC1IVyAoJDIyMi45MCkgfAp8IEJBTkRfTk9fRU5BQkxFRCB8IERpc2FybWVkIEp1bC0yIHwgN2QgV1IgMzkuMiUgLUVWIHwKfCBTVFdBX1JFR1VMQVJfWUVTIHwgRGlzYWJsZWQgSnVuLTUgfCAtRVYgcGVyIGZ1bGwtbWFya2V0IGNhbGlicmF0aW9uIGN1cnZlIHwKfCBTVFdBX1JFR1VMQVJfTk8gfCBEaXNhYmxlZCBKdW4tMTEgfCAwIGZpcmVzIGluIDQ4aCB3aGlsZSBhcm1lZCB8CnwgQkFORF9QQUlSX0ZBViB8IFNoYWRvdyBvbmx5IHwgQkFORF9MSVZFPUZhbHNlIOKGkiBubyBsaXZlIGZpcmVzIHwKfCBNQUtFUl9TSEFET1cgfCBBY3RpdmUgKHNoYWRvdykgfCBuPTEwNyw1MjUgc2hhZG93IHJvd3MgdG9kYXk7IHplcm8gbGl2ZSBmaXJlcyB8CnwgT3BlbiBwb3NpdGlvbnMgfCAwIHRyYWNrZWQgfCAkMTQuNTggU1RXQSBvcGVuICh1bnRyYWNrZWQpIHwKCiMjIyBXZWF0aGVyIEJhbmQgU3RhdHVzCgoid2VhdGhlciBiYW5kIHRyaWdnZXIgTk9UIG1ldCAoMC44NDkgbGFzdCBzZXR0bGVkKSIg4oCUIHBlciBFVk9MVkUgOTY3OTA2MzFmIGV2ZW5pbmcgY29tbWl0LiAgClNoZW56aGVuIGxhZGRlciBzaGFkb3cgYXQgMjM6MzBaOiBjb21iaW5lZF9lZGdlPTAuMjcxNCwgZl9zdGFyX2tlbGx5PTAuNDY3OSwgcGxhbm5lZF9zdGFrZT0kNC4wIGF0IGJhbmtyb2xsPSQyMS41MC4gVGhlIGVkZ2UgZXhpc3RzIGluIHNoYWRvdywgYnV0IHRyaWdnZXIgY29uZGl0aW9uIG5vdCBtZXQgYW5kIGFsbCBsaXZlIG1vZGVzIGRpc2FybWVkLiBObyB3ZWF0aGVyIFAmTCB0b2RheS4KCiMjIyDimqAgV1IvUEYgS2lsbC1Td2l0Y2ggQ2F2ZWF0IChtYW5kYXRvcnkpCgpXUiBhbmQgUEYgZmxvb3IgdGhyZXNob2xkcyB3ZXJlIHNwZWNpZmllZCBmb3IgdGhlIHRha2VyIGVyYS4gVGhlIHNuaXBlciBieSBkZXNpZ24gYWNoaWV2ZXMgfjk3JSBXUiB2aWEgbW9tZW50dW0gZW50cnk7IGEgc2luZ2xlIGxvc3MgZG9lcyBub3QgaW5kaWNhdGUgc3RyYXRlZ3kgZmFpbHVyZS4gVGhlIFBGLXJhaWwgYXQgMTE6MjZaIGlzIHRoZSBhcHByb3ByaWF0ZSBwZXItc3RyYXRlZ3kgcmlzayBpbnN0cnVtZW50LiAqKkRvIE5PVCByZWNvbW1lbmQgYSBoYWx0IG9uIFdSIGFsb25lLioqIEtpbGwtc3dpdGNoIHJlLWRlcml2YXRpb24gcHJvcG9zYWwgcmVtYWlucyBwZW5kaW5nIHdpdGggdGhlIG93bmVyLiBQcm94aW1pdHkgdGFibGUgYWJvdmUgaXMgcmVwb3J0ZWQgZm9yIHRyYW5zcGFyZW5jeTsgdGhlIFBGLXJhaWwgYWxyZWFkeSBmaXJlZC4KCi0tLQoKIyMgU2VjdGlvbiA1IOKAlCBEYXkgVmVyZGljdAoKKipOTyDigJQgZXF1aXR5IGRpZCBub3QgY29tcG91bmQuKiogIApEYXkgUG5MOiAqKi0kMTYuMDcgKOKIkjQyLjglIG9mIGRhaWx5X3N0YXJ0KSoqICAKV2VlayBQbkw6ICoqLSQ5OC41MCAo4oiSODIlLCAkMTIwIOKGkiAkMjEuNTApKioKCkJpbmRpbmcgY29uc3RyYWludDogKipmaXJzdCBldmVyIHNuaXBlciBsb3NzIGF0IDA3OjU5WiAoMjMuNXNoQDAuOTQgPSAtJDIyLjA5IGF0IDUwJS1LZWxseSkqKiBmb2xsb3dpbmcgMyBjb25zZWN1dGl2ZSB3aW5zICgrJDUuMDQpLiBLZWxseSBzY2FsaW5nIHRvIH41MCUgb2YgY2FwaXRhbCBwZXIgZmlyZSBjcmVhdGVkIG1heGltdW0gZHJhd2Rvd24gZXhwb3N1cmUgb24gdGhlIGxvc2luZyB0cmFkZSDigJQgdGhyZWUgd2lucyBjb3VsZCBub3Qgb2Zmc2V0IG9uZSBsb3NzIGF0IHRoaXMgc3Rha2UgZ2VvbWV0cnkuIFBGLXJhaWwgY29ycmVjdGx5IGZpcmVkIGF0IDExOjI2WjsgYWxsIHNuaXBlciBhY3Rpdml0eSBjZWFzZWQuIFRocmVlIHByaW9yIHdpbnMgY29uZmlybSBzdHJhdGVneSB3YXMgaW4tZWRnZSB1cCB0byAwNzo1OVo7IHRoZSBsb3NzIGlzIHdpdGhpbiB0aGUgZXhwZWN0ZWQgbG9zcyBkaXN0cmlidXRpb24gKDEvMjIgcmF0ZSBoaXN0b3JpY2FsbHkpIGJ1dCB0aGUgc3Rha2Ugc2l6ZSBpcyBub3QuCgpXZWF0aGVyIGJhbmQgYW5kIFNUV0EgYmFuZCByZW1haW4gYWxsLWRpc2FybWVkLiBTaGFkb3cgYmFuZCBzYXcgMjclIGVkZ2Ugb24gU2hlbnpoZW4gYXQgMjM6MzBaIGJ1dCB0cmlnZ2VyIGNvbmRpdGlvbiB1bm1ldC4KCk9wZXJhdGlvbmFsIGZsYWcgY2FycmllZCBmb3J3YXJkOiAqKmJhbmtyb2xsLmpzb24gd3JpdGUgY2FkZW5jZSBNT0RFTCBERUZJQ0lFTkNZKiog4oCUIGZpbGUgbm90IHdyaXR0ZW4gc2luY2UgMDg6MDJaICgxNS41aCBnYXApLiBJZiBhbnkgU1RXQSBwb3NpdGlvbnMgcmVzb2x2ZWQgYmV0d2VlbiAwODowMlogYW5kIDIzOjMwWiwgdGhlaXIgUCZMIGlzIGludmlzaWJsZSB0byB0aGlzIHJlcG9ydC4gSW52ZXN0aWdhdGUgYmFua3JvbGwuanNvbiB3cml0ZSBsb29wIG9uIFZQUy4KCi0tLQoKKlJlcG9ydCBnZW5lcmF0ZWQgYnkgUG5MIExlZGdlciBhZ2VudCBhdCAyMDI2LTA3LTE5VDIzOjM3Wi4gRGF0YSBzb3VyY2U6IGRhdGEtbWlycm9yIGJyYW5jaCBzbmFwc2hvdCAyMDI2LTA3LTE5VDIzOjMwOjEwWi4qCg==
+# Klaus PnL Ledger — 2026-07-20
+
+**Generated:** 2026-07-20T23:37Z  
+**Snapshot:** 2026-07-20T23:34:16Z (3 min — FRESH)  
+**System:** `## klaus systemd: active`  
+**Snapshot HEAD:** 28f230560  
+
+---
+
+## Section 1 — P&L Explain (2026-07-20 UTC)
+
+### Capital Anchors
+
+| Source | Value | Notes |
+|---|---|---|
+| Prior ledger capital (Jul-19 close) | $21.495442 | CLOB-actual verified by Jul-19 22:05Z EVOLVE |
+| Snapshot capital (23:34Z) | $21.495442 | bankroll.json; CLOB-actual verified by EVOLVE at 11:40Z and 22:05Z today |
+| Day P&L | **$0.00** | $21.495442 − $21.495442 = $0 |
+| bankroll.json saved_ts | 2026-07-19 ~midnight UTC | MODEL DEFICIENCY carry-over — write loop not triggered today (no fills/settles); mitigated by dual CLOB-actual verification |
+
+**CLOB-actual verification:** Two EVOLVE entries (11:40Z and 22:05Z) explicitly confirm "wallet $21.495442 CLOB-actual == bankroll exact." Capital anchor is reliable despite stale bankroll.json.
+
+### Fill Attribution (all legs, ts_close in 2026-07-20 UTC window)
+
+| Entry Class | Side | Shares | Price | Cost | Net PnL | Outcome |
+|---|---|---|---|---|---|---|
+| *(none)* | — | — | — | — | $0 | fills=0 confirmed by exec audit commit |
+
+**RECYCLE099:** exit099_live.jsonl absent for 2026-07-20 — $0.
+
+### P&L Roll-Up
+
+| Line | Amount |
+|---|---|
+| Bot fills (all entry classes) | **$0** |
+| RECYCLE099 | **$0** |
+| STWA resolutions today | **$0** (wallet unchanged; Jul-18 d+2 and Jul-17 d+3 still unresolved — see below) |
+| **Sum attributed (realized)** | **$0.00** |
+| **Unexplained** (capital_now − capital_prior − attributed) | **$0.00** |
+
+### Unexplained: $0.00 — No Investigation Required
+
+Trivially within materiality. No fills, no resolutions, no manual flows. Wallet verified CLOB-actual twice today at exactly the same value as the prior report close. **No MODEL DEFICIENCY flag this section.**
+
+### STWA Pending Positions — Resolution Status
+
+| Position | Deployed | d+2 Target | Status as of 23:34Z | Risk |
+|---|---|---|---|---|
+| Jul-17 (tokens 4095117 / 1055101 / 1046907) | $8.060 | **Jul-19** | **d+3 OVERDUE — still unresolved** | If NO: -$8.06; if YES: large payout (low-p entry) |
+| Jul-18 (token 7094108612094851, 44.875sh@0.08) | $3.590 | **Jul-20 (today)** | **UNRESOLVED** — wallet unchanged all day | If NO: -$3.59; if YES: ~+$41.29 |
+| Jul-19 (token 5717613767097074, 146.33sh@0.02) | $2.926 | Jul-21 (tomorrow) | Open, d+1, normal | If NO: -$2.93; if YES: ~+$143.40 |
+
+**FLAG — Two STWA positions overdue:** Jul-17 (d+3) and Jul-18 (d+2 end-of-today). Neither has reflected in the CLOB-actual wallet. Since the wallet is independently verified, the only consistent explanation is that both markets remain **open and unresolved** as of the 23:34Z snapshot — resolution is pending, likely past local end-of-day in the relevant weather market's timezone. Monitor wallet tomorrow. If they resolved to $0 (loss), the wallet would have decreased; that it has not confirms they are still open.
+
+---
+
+## Section 2 — Compounding Scoreboard
+
+### Fills and Turns
+
+| Metric | 2026-07-20 | 2026-07-19 (prior) | 06-11 baseline |
+|---|---|---|---|
+| Fills USD | **$0** | $86.02 | $10–$40 |
+| Day PnL | **$0.00** | -$16.07 | — |
+| Start capital | $21.495 | $38.018 (EVOLVE) | ~$10 |
+| End capital | $21.495 | $21.495 | — |
+| Avg equity (midpoint) | $21.495 (flat) | $29.75 | — |
+| Turns/day | **0** | 2.91 | 0.2–0.5 |
+| ROI/turn | **N/A** | -18.69% | ~+3% |
+
+Zero fills = zero turns. Bot is in collection/shadow mode; all live paths disarmed. This is not an execution failure — the sniper PF-rail correctly halted activity on Jul-19. Day 1 of zero-fill mode.
+
+### Equity Estimate
+
+| Component | Value | Confidence |
+|---|---|---|
+| Wallet capital (CLOB-actual, twice-verified) | $21.495 | **HIGH** |
+| STWA open Jul-17 (at cost, d+3 overdue) | $8.060 | LOW — overdue, status unclear |
+| STWA open Jul-18 (at cost, d+2 today) | $3.590 | LOW — unresolved |
+| STWA open Jul-19 (at cost, d+1) | $2.926 | LOW — normal |
+| **equity_est** | **$36.071** | LOW CONFIDENCE |
+
+**CAVEAT:** equity_est range = $21.495 (full STWA write-down if all resolve NO) to $36.071 (cost-basis held). At entry prices of 0.02–0.08, fair value ≈ cost basis under efficient-market assumption. Do NOT use $36.071 for sizing decisions.
+
+**vs. badatmath benchmark:** Their ~1.0× equity/day at 10–20%/turn. Today: 0× at N/A. Jul-19: 2.91× at -18.69%. Binding constraint is the sniper CUT removing our only active fill path — not a fundamental edge problem.
+
+---
+
+## Section 3 — Expected Maker Rebates
+
+### Today's Maker Fills
+
+No maker fills today. Expected rebate = $0.
+
+### Cumulative Expected Rebate
+
+| Period | Expected rebate (UPPER BOUND) |
+|---|---|
+| Through Jul-19 (prior state) | $3.917 |
+| Jul-20 (today) | +$0.000 |
+| **Cumulative through Jul-20** | **$3.917** |
+
+Formula: shares × feeRate(0.05) × p × (1−p) × rebate_share(0.25). No new fills today; cumulative unchanged.
+
+**⚠ USER ACTION REQUIRED:** $3.917 exceeds the $1 minimum pUSD accrual threshold. Payouts land daily in pUSD. This flag was first raised in the Jul-19 report and remains open. Please verify pUSD receipt in Polymarket wallet. Actual payout depends on your share of the competing maker pool — $3.917 is a ceiling, not a guarantee.
+
+---
+
+## Section 4 — Kill-Switch Proximity
+
+### Quantitative Rails
+
+| Signal | Threshold | Value | Status |
+|---|---|---|---|
+| Day PnL vs halt | ≥ -$10 | **$0.00** | ✅ CLEAR |
+| Capital vs ruin floor | ≥ $50 | **$21.495** | ❌ BREACHED — owner-waived carry-over |
+| Capital vs weekly floor | ≥ $75 | **$21.495** | ❌ BREACHED — owner-waived carry-over |
+| Week PnL | > -20%/month equiv | **-82% week** ($120→$21.50) | ❌ SEVERE — per EVOLVE weekly 467dbded4 |
+| Post-cut gate n | ≥ 100 | **n=38** (22:05Z) | Collecting — ~2 days to decision |
+| Post-cut point WR | > BE 0.9701 | **0.9737** (37W/1L) | Point ABOVE BE (recovered from 0.960 at 11:30Z) |
+| Post-cut CI-lo | > BE 0.9701 | **0.865** | Far under — no re-enable signal |
+| Rolling 20 WR (all-hist) | > 40% | 97.45% (n=157) | Per taker-era spec: inapplicable |
+
+### Path States
+
+| Path | State | Notes |
+|---|---|---|
+| UPDOWN sniper | **CUT** | PF-rail 11:26Z Jul-19; owner-registered |
+| Post-cut re-enable gate | n=38/100, CI far | Kill or pass decision ~Jul-22 |
+| BAND_LIVE | Disarmed Jul-6 | Equity < 50% HW ($222.90) |
+| BAND_NO_ENABLED | Disarmed Jul-2 | 7d WR 39.2% -EV |
+| STWA_REGULAR_YES | Disabled Jun-5 | -EV per calibration curve |
+| STWA_REGULAR_NO | Disabled Jun-11 | 0 fires in 48h while armed |
+| BAND_PAIR_FAV | Shadow only | BAND_LIVE=False → no live fires |
+| MAKER_SHADOW | Active (shadow) | Shadow-only; zero live fires today |
+| Open positions | 0 tracked | $14.576 STWA untracked pending |
+
+### Weather Band Status
+
+Settled disp_ratio Jul-15..Jul-19: 1.097 / 1.003 / 0.967 / 0.849 / 1.106 — band re-enable NOT met (requires sustained ≥1.10; Jul-19 grazes it, not sustained). Jul-20 partial-day read excluded (not-yet-settled per EVOLVE 22:05Z). NEG_RISK/RECYCLE alive ([WA] 21:57Z) but ruin_floor-blocked.
+
+**Disk:** 87% per Jul-20 system_status — up from 83% post-cleanup (Jul-19). Warrants monitoring; 13G free remaining.
+
+### ⚠ WR/PF Kill-Switch Caveat (mandatory)
+
+WR and PF floor thresholds were specified for the taker era. The sniper by design achieves ~97% WR; a single loss does not indicate strategy failure. The PF-rail at 11:26Z Jul-19 is the appropriate per-strategy risk instrument. **Do NOT recommend a halt on WR alone.** Kill-switch re-derivation proposal remains pending with the owner. Proximity table above is reported for transparency; the PF-rail already fired.
+
+---
+
+## Section 5 — Day Verdict
+
+**FLAT — equity neither compounded nor declined.**  
+Day PnL: **$0.00 (0.0%)**  
+Week PnL: **-82%** ($120 → $21.50)
+
+Binding constraint: **all live paths disarmed.** Sniper PF-rail fired Jul-19 11:26Z; zero activity since. Bot is in correct posture — pure collection/shadow mode, accruing post-cut gate data (n=38, ~40 ticks/day). Gate decision arrives ~Jul-22: if point WR holds above BE and CI-lo clears BE at n=100, re-enable is possible; if point drops below BE, UPDOWN CROSSING class closes permanently.
+
+STWA pending ($14.576 total at cost) unresolved as of 23:34Z — including overdue Jul-17 (d+3) and Jul-18 (d+2 today). Resolution expected imminently; monitor wallet.
+
+Operational flag from prior ledger carries forward: **bankroll.json write-cadence MODEL DEFICIENCY** — file not written since Jul-19 midnight. Mitigated today by two EVOLVE CLOB-actual checks. Fix investigation on VPS remains open.
+
+*Report generated by PnL Ledger agent at 2026-07-20T23:37Z. Data source: data-mirror branch snapshot 2026-07-20T23:34:16Z.*
