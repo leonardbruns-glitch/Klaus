@@ -1,101 +1,93 @@
 {
-  "generated_at": "2026-07-20T06:00:35Z",
+  "generated_at": "2026-07-21T06:00:36Z",
   "target_dates": [
-    "2026-07-21",
     "2026-07-22",
-    "2026-07-23"
+    "2026-07-23",
+    "2026-07-24"
   ],
   "cities": {
     "nyc": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 26.97,
-        "sigma": 1.95,
-        "spread": 2.7,
-        "n_models": 3,
-        "bias_corr": 0.97
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 30.33,
-        "sigma": 1.95,
-        "spread": 2.3,
+        "mu": 30.0,
+        "sigma": 1.96,
+        "spread": 0.8,
         "n_models": 3,
-        "bias_corr": 0.97
+        "bias_corr": 0.99
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 26.23,
-        "sigma": 1.95,
-        "spread": 3.1,
+        "mu": 27.7,
+        "sigma": 1.96,
+        "spread": 1.2,
         "n_models": 3,
-        "bias_corr": 0.97
+        "bias_corr": 0.99
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 28.47,
+        "sigma": 1.96,
+        "spread": 1.2,
+        "n_models": 3,
+        "bias_corr": 0.99
       }
     },
     "chicago": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.03,
-        "sigma": 1.01,
-        "spread": 1.7,
-        "n_models": 3,
-        "bias_corr": 0.15
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 27.33,
+        "mu": 25.53,
         "sigma": 1.01,
-        "spread": 2.5,
+        "spread": 1.9,
         "n_models": 3,
-        "bias_corr": 0.15
+        "bias_corr": 0.16
       },
       "2026-07-23": {
-        "regime": "normal",
-        "mu": 27.33,
+        "regime": "volatile",
+        "mu": 25.57,
         "sigma": 1.01,
-        "spread": 1.0,
+        "spread": 4.0,
         "n_models": 3,
-        "bias_corr": 0.15
+        "bias_corr": 0.16
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 26.1,
+        "sigma": 1.01,
+        "spread": 2.3,
+        "n_models": 3,
+        "bias_corr": 0.16
       }
     },
     "los-angeles": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.1,
-        "sigma": 0.57,
-        "spread": 3.6,
-        "n_models": 3,
-        "bias_corr": 0.26
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 27.93,
-        "sigma": 0.57,
-        "spread": 2.8,
+        "mu": 28.27,
+        "sigma": 0.56,
+        "spread": 3.6,
         "n_models": 3,
         "bias_corr": 0.26
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 30.5,
-        "sigma": 0.57,
-        "spread": 7.3,
+        "mu": 30.87,
+        "sigma": 0.56,
+        "spread": 8.7,
+        "n_models": 3,
+        "bias_corr": 0.26
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 32.1,
+        "sigma": 0.56,
+        "spread": 5.8,
         "n_models": 3,
         "bias_corr": 0.26
       }
     },
     "miami": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 32.77,
-        "sigma": 0.83,
-        "spread": 1.1,
-        "n_models": 3,
-        "bias_corr": -0.19
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 33.07,
+        "mu": 32.1,
         "sigma": 0.83,
         "spread": 1.5,
         "n_models": 3,
@@ -103,7 +95,15 @@
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 32.5,
+        "mu": 32.7,
+        "sigma": 0.83,
+        "spread": 1.8,
+        "n_models": 3,
+        "bias_corr": -0.19
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 33.07,
         "sigma": 0.83,
         "spread": 2.2,
         "n_models": 3,
@@ -111,1223 +111,1223 @@
       }
     },
     "san-francisco": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 25.93,
-        "sigma": 1.99,
-        "spread": 9.5,
-        "n_models": 3,
-        "bias_corr": 1.58
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 26.1,
-        "sigma": 1.99,
-        "spread": 4.6,
+        "mu": 26.93,
+        "sigma": 1.97,
+        "spread": 4.0,
         "n_models": 3,
         "bias_corr": 1.58
       },
       "2026-07-23": {
+        "regime": "normal",
+        "mu": 21.87,
+        "sigma": 1.97,
+        "spread": 2.7,
+        "n_models": 3,
+        "bias_corr": 1.58
+      },
+      "2026-07-24": {
         "regime": "volatile",
-        "mu": 22.8,
-        "sigma": 1.99,
-        "spread": 4.1,
+        "mu": 20.73,
+        "sigma": 1.97,
+        "spread": 5.3,
         "n_models": 3,
         "bias_corr": 1.58
       }
     },
     "tokyo": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 33.9,
-        "sigma": 1.33,
-        "spread": 6.7,
-        "n_models": 6,
-        "bias_corr": 0.18
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 33.48,
-        "sigma": 1.33,
-        "spread": 4.7,
+        "mu": 33.67,
+        "sigma": 1.32,
+        "spread": 5.0,
         "n_models": 6,
         "bias_corr": 0.18
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 34.4,
-        "sigma": 1.33,
-        "spread": 6.7,
+        "mu": 34.6,
+        "sigma": 1.32,
+        "spread": 8.7,
+        "n_models": 6,
+        "bias_corr": 0.18
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 31.86,
+        "sigma": 1.32,
+        "spread": 3.3,
         "n_models": 5,
         "bias_corr": 0.18
       }
     },
     "london": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 25.27,
-        "sigma": 0.89,
-        "spread": 2.9,
-        "n_models": 6,
-        "bias_corr": 0.31
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 26.48,
+        "mu": 26.6,
         "sigma": 0.89,
-        "spread": 3.4,
+        "spread": 3.0,
         "n_models": 6,
-        "bias_corr": 0.31
+        "bias_corr": 0.35
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 25.9,
+        "mu": 25.67,
         "sigma": 0.89,
-        "spread": 3.8,
+        "spread": 1.6,
         "n_models": 6,
-        "bias_corr": 0.31
+        "bias_corr": 0.35
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 28.07,
+        "sigma": 0.89,
+        "spread": 3.2,
+        "n_models": 6,
+        "bias_corr": 0.35
       }
     },
     "dallas": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 41.5,
-        "sigma": 0.66,
-        "spread": 0.7,
-        "n_models": 3,
-        "bias_corr": 0.47
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 42.1,
+        "mu": 41.3,
         "sigma": 0.66,
-        "spread": 1.8,
+        "spread": 2.9,
         "n_models": 3,
-        "bias_corr": 0.47
+        "bias_corr": 0.43
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 39.93,
+        "mu": 39.1,
         "sigma": 0.66,
-        "spread": 2.3,
+        "spread": 2.1,
         "n_models": 3,
-        "bias_corr": 0.47
+        "bias_corr": 0.43
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 40.13,
+        "sigma": 0.66,
+        "spread": 6.0,
+        "n_models": 3,
+        "bias_corr": 0.43
       }
     },
     "houston": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 36.23,
-        "sigma": 0.87,
-        "spread": 2.5,
-        "n_models": 3,
-        "bias_corr": -0.24
-      },
       "2026-07-22": {
-        "regime": "normal",
-        "mu": 39.3,
-        "sigma": 0.87,
-        "spread": 2.9,
+        "regime": "volatile",
+        "mu": 38.83,
+        "sigma": 0.89,
+        "spread": 4.2,
         "n_models": 3,
-        "bias_corr": -0.24
+        "bias_corr": -0.23
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 38.13,
-        "sigma": 0.87,
+        "mu": 37.33,
+        "sigma": 0.89,
+        "spread": 2.0,
+        "n_models": 3,
+        "bias_corr": -0.23
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 35.67,
+        "sigma": 0.89,
         "spread": 1.3,
         "n_models": 3,
-        "bias_corr": -0.24
+        "bias_corr": -0.23
       }
     },
     "seattle": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 30.73,
-        "sigma": 1.81,
-        "spread": 6.4,
-        "n_models": 3,
-        "bias_corr": 0.15
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 33.2,
-        "sigma": 1.81,
-        "spread": 7.5,
+        "mu": 32.9,
+        "sigma": 1.89,
+        "spread": 4.1,
         "n_models": 3,
-        "bias_corr": 0.15
+        "bias_corr": 0.18
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 32.87,
-        "sigma": 1.81,
-        "spread": 7.7,
+        "mu": 32.57,
+        "sigma": 1.89,
+        "spread": 4.4,
         "n_models": 3,
-        "bias_corr": 0.15
+        "bias_corr": 0.18
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 27.73,
+        "sigma": 1.89,
+        "spread": 3.9,
+        "n_models": 3,
+        "bias_corr": 0.18
       }
     },
     "denver": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 35.53,
-        "sigma": 0.94,
-        "spread": 0.4,
-        "n_models": 3,
-        "bias_corr": -0.23
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 33.57,
-        "sigma": 0.94,
-        "spread": 5.7,
+        "mu": 32.77,
+        "sigma": 0.93,
+        "spread": 4.2,
         "n_models": 3,
-        "bias_corr": -0.23
+        "bias_corr": -0.25
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 30.6,
-        "sigma": 0.94,
-        "spread": 5.7,
+        "mu": 29.1,
+        "sigma": 0.93,
+        "spread": 6.0,
         "n_models": 3,
-        "bias_corr": -0.23
+        "bias_corr": -0.25
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 33.43,
+        "sigma": 0.93,
+        "spread": 5.3,
+        "n_models": 3,
+        "bias_corr": -0.25
       }
     },
     "atlanta": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 32.77,
-        "sigma": 0.69,
-        "spread": 2.3,
-        "n_models": 3,
-        "bias_corr": -0.31
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 33.83,
-        "sigma": 0.69,
-        "spread": 2.2,
+        "mu": 32.6,
+        "sigma": 0.7,
+        "spread": 1.2,
         "n_models": 3,
         "bias_corr": -0.31
       },
       "2026-07-23": {
-        "regime": "volatile",
-        "mu": 31.97,
-        "sigma": 0.69,
-        "spread": 4.8,
+        "regime": "normal",
+        "mu": 30.5,
+        "sigma": 0.7,
+        "spread": 1.8,
+        "n_models": 3,
+        "bias_corr": -0.31
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 28.03,
+        "sigma": 0.7,
+        "spread": 0.1,
         "n_models": 3,
         "bias_corr": -0.31
       }
     },
     "paris": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 25.88,
-        "sigma": 1.18,
-        "spread": 3.3,
-        "n_models": 6,
-        "bias_corr": 0.56
-      },
       "2026-07-22": {
         "regime": "normal",
         "mu": 26.55,
         "sigma": 1.18,
-        "spread": 3.6,
+        "spread": 3.7,
         "n_models": 6,
-        "bias_corr": 0.56
+        "bias_corr": 0.58
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 26.47,
+        "mu": 26.0,
         "sigma": 1.18,
-        "spread": 1.7,
+        "spread": 2.0,
         "n_models": 6,
-        "bias_corr": 0.56
+        "bias_corr": 0.58
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 27.62,
+        "sigma": 1.18,
+        "spread": 3.0,
+        "n_models": 6,
+        "bias_corr": 0.58
       }
     },
     "madrid": {
-      "2026-07-21": {
-        "regime": "heatwave",
-        "mu": 37.43,
-        "sigma": 0.56,
-        "spread": 3.2,
-        "n_models": 6,
-        "bias_corr": -1.22
-      },
       "2026-07-22": {
         "regime": "heatwave",
-        "mu": 39.58,
-        "sigma": 0.56,
-        "spread": 1.8,
+        "mu": 39.92,
+        "sigma": 0.55,
+        "spread": 2.2,
         "n_models": 6,
-        "bias_corr": -1.22
+        "bias_corr": -1.21
       },
       "2026-07-23": {
         "regime": "heatwave",
-        "mu": 38.88,
-        "sigma": 0.56,
-        "spread": 3.2,
+        "mu": 38.83,
+        "sigma": 0.55,
+        "spread": 2.4,
         "n_models": 6,
-        "bias_corr": -1.22
+        "bias_corr": -1.21
+      },
+      "2026-07-24": {
+        "regime": "heatwave",
+        "mu": 35.83,
+        "sigma": 0.55,
+        "spread": 2.7,
+        "n_models": 6,
+        "bias_corr": -1.21
       }
     },
     "amsterdam": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 21.33,
-        "sigma": 1.16,
-        "spread": 1.6,
-        "n_models": 6,
-        "bias_corr": 0.74
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 19.45,
+        "mu": 19.8,
         "sigma": 1.16,
-        "spread": 0.9,
+        "spread": 1.2,
         "n_models": 6,
-        "bias_corr": 0.74
+        "bias_corr": 0.77
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 20.07,
+        "mu": 19.9,
         "sigma": 1.16,
-        "spread": 2.3,
+        "spread": 1.8,
         "n_models": 6,
-        "bias_corr": 0.74
+        "bias_corr": 0.77
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 22.83,
+        "sigma": 1.16,
+        "spread": 3.0,
+        "n_models": 6,
+        "bias_corr": 0.77
       }
     },
     "beijing": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.83,
-        "sigma": 1.87,
-        "spread": 2.3,
-        "n_models": 3,
-        "bias_corr": 1.55
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 29.63,
-        "sigma": 1.87,
-        "spread": 7.3,
+        "mu": 29.07,
+        "sigma": 1.85,
+        "spread": 5.2,
         "n_models": 3,
-        "bias_corr": 1.55
+        "bias_corr": 1.53
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 28.73,
-        "sigma": 1.87,
-        "spread": 2.3,
+        "mu": 28.2,
+        "sigma": 1.85,
+        "spread": 1.7,
         "n_models": 3,
-        "bias_corr": 1.55
+        "bias_corr": 1.53
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 28.87,
+        "sigma": 1.85,
+        "spread": 3.2,
+        "n_models": 3,
+        "bias_corr": 1.53
       }
     },
     "shanghai": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 31.7,
-        "sigma": 1.12,
-        "spread": 0.9,
-        "n_models": 3,
-        "bias_corr": -1.55
-      },
       "2026-07-22": {
-        "regime": "volatile",
-        "mu": 31.67,
+        "regime": "normal",
+        "mu": 31.73,
         "sigma": 1.12,
-        "spread": 4.1,
+        "spread": 3.6,
         "n_models": 3,
-        "bias_corr": -1.55
+        "bias_corr": -1.57
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 33.3,
+        "mu": 33.47,
         "sigma": 1.12,
-        "spread": 1.1,
+        "spread": 1.5,
         "n_models": 3,
-        "bias_corr": -1.55
+        "bias_corr": -1.57
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 33.47,
+        "sigma": 1.12,
+        "spread": 2.5,
+        "n_models": 3,
+        "bias_corr": -1.57
       }
     },
     "singapore": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.4,
-        "sigma": 0.92,
-        "spread": 0.5,
-        "n_models": 3,
-        "bias_corr": -0.62
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 30.1,
-        "sigma": 0.92,
-        "spread": 1.3,
+        "mu": 29.83,
+        "sigma": 0.91,
+        "spread": 1.4,
         "n_models": 3,
-        "bias_corr": -0.62
+        "bias_corr": -0.63
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 30.13,
-        "sigma": 0.92,
-        "spread": 1.0,
+        "mu": 30.27,
+        "sigma": 0.91,
+        "spread": 0.6,
         "n_models": 3,
-        "bias_corr": -0.62
+        "bias_corr": -0.63
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 30.4,
+        "sigma": 0.91,
+        "spread": 0.8,
+        "n_models": 3,
+        "bias_corr": -0.63
       }
     },
     "jakarta": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 32.73,
-        "sigma": 0.99,
-        "spread": 0.2,
-        "n_models": 3,
-        "bias_corr": -0.85
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 32.3,
+        "mu": 32.37,
         "sigma": 0.99,
-        "spread": 0.9,
+        "spread": 0.6,
         "n_models": 3,
         "bias_corr": -0.85
       },
       "2026-07-23": {
         "regime": "normal",
+        "mu": 32.33,
+        "sigma": 0.99,
+        "spread": 1.0,
+        "n_models": 3,
+        "bias_corr": -0.85
+      },
+      "2026-07-24": {
+        "regime": "normal",
         "mu": 32.17,
         "sigma": 0.99,
-        "spread": 0.5,
+        "spread": 1.7,
         "n_models": 3,
         "bias_corr": -0.85
       }
     },
     "toronto": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 27.17,
-        "sigma": 1.06,
-        "spread": 3.2,
-        "n_models": 3,
-        "bias_corr": 0.27
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 22.87,
-        "sigma": 1.06,
-        "spread": 0.8,
+        "mu": 21.53,
+        "sigma": 1.07,
+        "spread": 2.5,
         "n_models": 3,
-        "bias_corr": 0.27
+        "bias_corr": 0.28
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 25.3,
-        "sigma": 1.06,
-        "spread": 1.8,
+        "mu": 25.4,
+        "sigma": 1.07,
+        "spread": 1.5,
         "n_models": 3,
-        "bias_corr": 0.27
+        "bias_corr": 0.28
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 26.27,
+        "sigma": 1.07,
+        "spread": 1.6,
+        "n_models": 3,
+        "bias_corr": 0.28
       }
     },
     "mexico-city": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 27.03,
-        "sigma": 1.47,
-        "spread": 1.5,
-        "n_models": 3,
-        "bias_corr": 1.27
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 26.97,
-        "sigma": 1.47,
-        "spread": 3.0,
+        "mu": 27.27,
+        "sigma": 1.48,
+        "spread": 3.3,
         "n_models": 3,
-        "bias_corr": 1.27
+        "bias_corr": 1.26
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 27.5,
-        "sigma": 1.47,
-        "spread": 1.0,
+        "mu": 27.63,
+        "sigma": 1.48,
+        "spread": 2.8,
         "n_models": 3,
-        "bias_corr": 1.27
+        "bias_corr": 1.26
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 27.17,
+        "sigma": 1.48,
+        "spread": 3.4,
+        "n_models": 3,
+        "bias_corr": 1.26
       }
     },
     "buenos-aires": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 13.63,
-        "sigma": 1.56,
-        "spread": 0.5,
-        "n_models": 3,
-        "bias_corr": -0.83
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 13.23,
-        "sigma": 1.56,
-        "spread": 1.6,
+        "mu": 12.8,
+        "sigma": 1.57,
+        "spread": 2.0,
         "n_models": 3,
-        "bias_corr": -0.83
+        "bias_corr": -0.82
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 13.3,
-        "sigma": 1.56,
-        "spread": 1.2,
+        "mu": 13.2,
+        "sigma": 1.57,
+        "spread": 3.0,
         "n_models": 3,
-        "bias_corr": -0.83
+        "bias_corr": -0.82
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 14.8,
+        "sigma": 1.57,
+        "spread": 2.7,
+        "n_models": 3,
+        "bias_corr": -0.82
       }
     },
     "sao-paulo": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 27.1,
-        "sigma": 2.01,
-        "spread": 0.9,
-        "n_models": 3,
-        "bias_corr": 0.09
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 28.43,
+        "mu": 27.9,
         "sigma": 2.01,
-        "spread": 0.8,
+        "spread": 0.5,
         "n_models": 3,
-        "bias_corr": 0.09
+        "bias_corr": 0.07
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 21.37,
+        "mu": 22.0,
         "sigma": 2.01,
-        "spread": 2.2,
+        "spread": 0.7,
         "n_models": 3,
-        "bias_corr": 0.09
+        "bias_corr": 0.07
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 19.17,
+        "sigma": 2.01,
+        "spread": 3.0,
+        "n_models": 3,
+        "bias_corr": 0.07
       }
     },
     "munich": {
-      "2026-07-21": {
+      "2026-07-22": {
+        "regime": "heatwave",
+        "mu": 23.3,
+        "sigma": 0.8,
+        "spread": 3.0,
+        "n_models": 6,
+        "bias_corr": -2.16
+      },
+      "2026-07-23": {
         "regime": "heatwave",
         "mu": 21.97,
         "sigma": 0.8,
-        "spread": 2.2,
+        "spread": 2.3,
         "n_models": 6,
-        "bias_corr": -2.14
+        "bias_corr": -2.16
       },
-      "2026-07-22": {
+      "2026-07-24": {
         "regime": "heatwave",
-        "mu": 23.27,
+        "mu": 22.67,
         "sigma": 0.8,
         "spread": 2.4,
         "n_models": 6,
-        "bias_corr": -2.14
-      },
-      "2026-07-23": {
-        "regime": "heatwave",
-        "mu": 21.5,
-        "sigma": 0.8,
-        "spread": 2.7,
-        "n_models": 6,
-        "bias_corr": -2.14
+        "bias_corr": -2.16
       }
     },
     "warsaw": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 17.88,
-        "sigma": 1.04,
-        "spread": 4.9,
-        "n_models": 6,
-        "bias_corr": 0.48
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 21.75,
-        "sigma": 1.04,
-        "spread": 1.9,
+        "mu": 21.68,
+        "sigma": 1.03,
+        "spread": 2.2,
         "n_models": 6,
         "bias_corr": 0.48
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 19.02,
-        "sigma": 1.04,
-        "spread": 3.1,
+        "mu": 19.13,
+        "sigma": 1.03,
+        "spread": 1.7,
+        "n_models": 6,
+        "bias_corr": 0.48
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 20.43,
+        "sigma": 1.03,
+        "spread": 2.5,
         "n_models": 6,
         "bias_corr": 0.48
       }
     },
     "milan": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.08,
-        "sigma": 1.61,
-        "spread": 3.9,
-        "n_models": 6,
-        "bias_corr": 0.6
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 29.35,
-        "sigma": 1.61,
-        "spread": 1.7,
+        "mu": 29.57,
+        "sigma": 1.6,
+        "spread": 1.5,
         "n_models": 6,
-        "bias_corr": 0.6
+        "bias_corr": 0.68
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 31.48,
-        "sigma": 1.61,
-        "spread": 3.1,
+        "mu": 31.38,
+        "sigma": 1.6,
+        "spread": 3.3,
         "n_models": 6,
-        "bias_corr": 0.6
+        "bias_corr": 0.68
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 30.75,
+        "sigma": 1.6,
+        "spread": 4.0,
+        "n_models": 6,
+        "bias_corr": 0.68
       }
     },
     "helsinki": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 14.48,
-        "sigma": 1.31,
-        "spread": 3.2,
-        "n_models": 6,
-        "bias_corr": -0.35
-      },
       "2026-07-22": {
-        "regime": "normal",
-        "mu": 16.72,
-        "sigma": 1.31,
-        "spread": 2.4,
+        "regime": "volatile",
+        "mu": 15.83,
+        "sigma": 1.34,
+        "spread": 4.9,
         "n_models": 6,
-        "bias_corr": -0.35
+        "bias_corr": -0.32
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 19.22,
-        "sigma": 1.31,
-        "spread": 4.7,
+        "mu": 18.75,
+        "sigma": 1.34,
+        "spread": 4.1,
         "n_models": 6,
-        "bias_corr": -0.35
+        "bias_corr": -0.32
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 19.78,
+        "sigma": 1.34,
+        "spread": 2.7,
+        "n_models": 6,
+        "bias_corr": -0.32
       }
     },
     "austin": {
-      "2026-07-21": {
+      "2026-07-22": {
         "regime": "normal",
-        "mu": 37.27,
+        "mu": 40.13,
         "sigma": 0.65,
         "spread": 1.8,
         "n_models": 3,
         "bias_corr": 0.02
       },
-      "2026-07-22": {
+      "2026-07-23": {
         "regime": "normal",
-        "mu": 40.07,
+        "mu": 38.9,
         "sigma": 0.65,
-        "spread": 2.4,
+        "spread": 2.0,
         "n_models": 3,
         "bias_corr": 0.02
       },
-      "2026-07-23": {
+      "2026-07-24": {
         "regime": "normal",
-        "mu": 39.6,
+        "mu": 37.77,
         "sigma": 0.65,
-        "spread": 1.5,
+        "spread": 1.8,
         "n_models": 3,
         "bias_corr": 0.02
       }
     },
     "taipei": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 34.13,
-        "sigma": 1.18,
-        "spread": 3.2,
-        "n_models": 3,
-        "bias_corr": -0.88
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 33.53,
-        "sigma": 1.18,
-        "spread": 3.4,
+        "mu": 33.97,
+        "sigma": 1.17,
+        "spread": 2.8,
         "n_models": 3,
-        "bias_corr": -0.88
+        "bias_corr": -0.86
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 33.43,
-        "sigma": 1.18,
-        "spread": 2.8,
+        "mu": 33.27,
+        "sigma": 1.17,
+        "spread": 2.9,
         "n_models": 3,
-        "bias_corr": -0.88
+        "bias_corr": -0.86
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 34.33,
+        "sigma": 1.17,
+        "spread": 3.9,
+        "n_models": 3,
+        "bias_corr": -0.86
       }
     },
     "cape-town": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 16.53,
-        "sigma": 1.69,
-        "spread": 0.8,
-        "n_models": 3,
-        "bias_corr": 0.71
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 15.97,
+        "mu": 15.73,
         "sigma": 1.69,
-        "spread": 0.5,
+        "spread": 2.2,
         "n_models": 3,
-        "bias_corr": 0.71
+        "bias_corr": 0.73
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 14.1,
+        "mu": 13.53,
         "sigma": 1.69,
-        "spread": 2.7,
+        "spread": 2.2,
         "n_models": 3,
-        "bias_corr": 0.71
+        "bias_corr": 0.73
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 17.17,
+        "sigma": 1.69,
+        "spread": 1.7,
+        "n_models": 3,
+        "bias_corr": 0.73
       }
     },
     "qingdao": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 31.1,
-        "sigma": 1.04,
-        "spread": 1.6,
-        "n_models": 3,
-        "bias_corr": 0.3
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 29.3,
+        "mu": 28.87,
         "sigma": 1.04,
-        "spread": 3.5,
+        "spread": 3.6,
         "n_models": 3,
-        "bias_corr": 0.3
+        "bias_corr": 0.34
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 29.5,
+        "mu": 29.53,
         "sigma": 1.04,
-        "spread": 1.9,
+        "spread": 0.6,
         "n_models": 3,
-        "bias_corr": 0.3
+        "bias_corr": 0.34
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 29.83,
+        "sigma": 1.04,
+        "spread": 1.4,
+        "n_models": 3,
+        "bias_corr": 0.34
       }
     },
     "tel-aviv": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 31.27,
-        "sigma": 1.37,
-        "spread": 5.1,
-        "n_models": 3,
-        "bias_corr": 0.4
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 31.67,
-        "sigma": 1.37,
-        "spread": 5.9,
+        "mu": 31.83,
+        "sigma": 1.38,
+        "spread": 5.8,
         "n_models": 3,
         "bias_corr": 0.4
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 32.1,
-        "sigma": 1.37,
-        "spread": 6.1,
+        "mu": 32.3,
+        "sigma": 1.38,
+        "spread": 6.2,
+        "n_models": 3,
+        "bias_corr": 0.4
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 31.57,
+        "sigma": 1.38,
+        "spread": 5.7,
         "n_models": 3,
         "bias_corr": 0.4
       }
     },
     "istanbul": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 27.97,
-        "sigma": 1.16,
-        "spread": 8.6,
-        "n_models": 6,
-        "bias_corr": 1.33
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 28.97,
-        "sigma": 1.16,
-        "spread": 10.5,
+        "mu": 29.55,
+        "sigma": 1.15,
+        "spread": 11.8,
         "n_models": 6,
-        "bias_corr": 1.33
+        "bias_corr": 1.34
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 24.87,
-        "sigma": 1.16,
-        "spread": 3.3,
+        "mu": 24.15,
+        "sigma": 1.15,
+        "spread": 2.4,
         "n_models": 6,
-        "bias_corr": 1.33
+        "bias_corr": 1.34
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 25.1,
+        "sigma": 1.15,
+        "spread": 3.5,
+        "n_models": 6,
+        "bias_corr": 1.34
       }
     },
     "moscow": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 23.75,
-        "sigma": 1.22,
-        "spread": 3.8,
-        "n_models": 6,
-        "bias_corr": -0.74
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 23.9,
+        "mu": 23.88,
         "sigma": 1.22,
-        "spread": 1.8,
+        "spread": 1.2,
         "n_models": 6,
         "bias_corr": -0.74
       },
       "2026-07-23": {
-        "regime": "volatile",
-        "mu": 21.78,
+        "regime": "normal",
+        "mu": 21.6,
         "sigma": 1.22,
-        "spread": 4.2,
+        "spread": 3.7,
+        "n_models": 6,
+        "bias_corr": -0.74
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 22.45,
+        "sigma": 1.22,
+        "spread": 4.3,
         "n_models": 6,
         "bias_corr": -0.74
       }
     },
     "shenzhen": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.47,
-        "sigma": 1.28,
-        "spread": 2.6,
-        "n_models": 3,
-        "bias_corr": 1.49
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 31.07,
-        "sigma": 1.28,
-        "spread": 2.1,
+        "mu": 31.13,
+        "sigma": 1.29,
+        "spread": 2.4,
         "n_models": 3,
-        "bias_corr": 1.49
+        "bias_corr": 1.48
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 31.77,
-        "sigma": 1.28,
-        "spread": 2.3,
+        "mu": 31.7,
+        "sigma": 1.29,
+        "spread": 2.4,
         "n_models": 3,
-        "bias_corr": 1.49
+        "bias_corr": 1.48
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 32.13,
+        "sigma": 1.29,
+        "spread": 3.0,
+        "n_models": 3,
+        "bias_corr": 1.48
       }
     },
     "guangzhou": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.27,
-        "sigma": 1.35,
-        "spread": 2.0,
-        "n_models": 3,
-        "bias_corr": -1.07
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 31.17,
-        "sigma": 1.35,
-        "spread": 1.8,
+        "mu": 31.73,
+        "sigma": 1.37,
+        "spread": 0.9,
         "n_models": 3,
-        "bias_corr": -1.07
+        "bias_corr": -1.06
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 32.47,
-        "sigma": 1.35,
-        "spread": 1.6,
+        "mu": 33.07,
+        "sigma": 1.37,
+        "spread": 1.5,
         "n_models": 3,
-        "bias_corr": -1.07
+        "bias_corr": -1.06
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 33.9,
+        "sigma": 1.37,
+        "spread": 0.7,
+        "n_models": 3,
+        "bias_corr": -1.06
       }
     },
     "ankara": {
-      "2026-07-21": {
-        "regime": "heatwave",
-        "mu": 33.23,
-        "sigma": 0.56,
-        "spread": 1.9,
-        "n_models": 6,
-        "bias_corr": -1.53
-      },
       "2026-07-22": {
         "regime": "heatwave",
-        "mu": 32.48,
-        "sigma": 0.56,
+        "mu": 31.58,
+        "sigma": 0.55,
         "spread": 2.0,
         "n_models": 6,
         "bias_corr": -1.53
       },
       "2026-07-23": {
         "regime": "heatwave",
-        "mu": 30.15,
-        "sigma": 0.56,
-        "spread": 2.4,
+        "mu": 29.65,
+        "sigma": 0.55,
+        "spread": 3.1,
+        "n_models": 6,
+        "bias_corr": -1.53
+      },
+      "2026-07-24": {
+        "regime": "heatwave",
+        "mu": 28.32,
+        "sigma": 0.55,
+        "spread": 3.8,
         "n_models": 6,
         "bias_corr": -1.53
       }
     },
     "busan": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.8,
-        "sigma": 0.95,
-        "spread": 2.1,
-        "n_models": 3,
-        "bias_corr": 0.19
-      },
       "2026-07-22": {
-        "regime": "normal",
-        "mu": 31.9,
-        "sigma": 0.95,
-        "spread": 3.0,
+        "regime": "volatile",
+        "mu": 32.23,
+        "sigma": 0.96,
+        "spread": 4.1,
         "n_models": 3,
-        "bias_corr": 0.19
+        "bias_corr": 0.23
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 32.37,
-        "sigma": 0.95,
-        "spread": 3.8,
+        "mu": 32.53,
+        "sigma": 0.96,
+        "spread": 3.9,
         "n_models": 3,
-        "bias_corr": 0.19
+        "bias_corr": 0.23
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 33.37,
+        "sigma": 0.96,
+        "spread": 3.7,
+        "n_models": 3,
+        "bias_corr": 0.23
       }
     },
     "chengdu": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 37.3,
-        "sigma": 1.38,
-        "spread": 7.0,
-        "n_models": 3,
-        "bias_corr": -2.05
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 37.67,
-        "sigma": 1.38,
-        "spread": 6.7,
+        "mu": 38.1,
+        "sigma": 1.4,
+        "spread": 6.9,
         "n_models": 3,
-        "bias_corr": -2.05
+        "bias_corr": -2.07
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 37.5,
-        "sigma": 1.38,
-        "spread": 6.3,
+        "mu": 37.7,
+        "sigma": 1.4,
+        "spread": 6.2,
         "n_models": 3,
-        "bias_corr": -2.05
+        "bias_corr": -2.07
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 36.8,
+        "sigma": 1.4,
+        "spread": 5.3,
+        "n_models": 3,
+        "bias_corr": -2.07
       }
     },
     "chongqing": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 36.8,
-        "sigma": 1.38,
-        "spread": 4.6,
-        "n_models": 3,
-        "bias_corr": -2.67
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 37.07,
-        "sigma": 1.38,
-        "spread": 4.9,
+        "mu": 37.37,
+        "sigma": 1.37,
+        "spread": 4.3,
         "n_models": 3,
-        "bias_corr": -2.67
+        "bias_corr": -2.68
       },
       "2026-07-23": {
         "regime": "volatile",
-        "mu": 37.23,
-        "sigma": 1.38,
-        "spread": 4.5,
+        "mu": 37.37,
+        "sigma": 1.37,
+        "spread": 4.6,
         "n_models": 3,
-        "bias_corr": -2.67
+        "bias_corr": -2.68
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 37.03,
+        "sigma": 1.37,
+        "spread": 3.6,
+        "n_models": 3,
+        "bias_corr": -2.68
       }
     },
     "jeddah": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 43.4,
-        "sigma": 1.3,
-        "spread": 5.4,
-        "n_models": 3,
-        "bias_corr": -0.04
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 38.0,
+        "mu": 37.93,
         "sigma": 1.3,
         "spread": 2.7,
         "n_models": 3,
-        "bias_corr": -0.04
+        "bias_corr": -0.06
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 39.7,
+        "mu": 39.23,
         "sigma": 1.3,
-        "spread": 2.5,
+        "spread": 3.1,
         "n_models": 3,
-        "bias_corr": -0.04
+        "bias_corr": -0.06
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 40.53,
+        "sigma": 1.3,
+        "spread": 3.5,
+        "n_models": 3,
+        "bias_corr": -0.06
       }
     },
     "jinan": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 34.77,
-        "sigma": 1.85,
-        "spread": 3.7,
-        "n_models": 3,
-        "bias_corr": 0.0
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 35.0,
-        "sigma": 1.1,
-        "spread": 2.2,
+        "mu": 33.9,
+        "sigma": 1.05,
+        "spread": 2.1,
         "n_models": 3,
         "bias_corr": 0.0
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 34.8,
-        "sigma": 1.95,
-        "spread": 3.9,
+        "mu": 32.47,
+        "sigma": 1.3,
+        "spread": 2.6,
+        "n_models": 3,
+        "bias_corr": 0.0
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 32.67,
+        "sigma": 2.7,
+        "spread": 5.4,
         "n_models": 3,
         "bias_corr": 0.0
       }
     },
     "karachi": {
-      "2026-07-21": {
-        "regime": "heatwave",
-        "mu": 32.43,
-        "sigma": 0.84,
-        "spread": 0.7,
-        "n_models": 3,
-        "bias_corr": -1.73
-      },
       "2026-07-22": {
         "regime": "heatwave",
-        "mu": 33.03,
-        "sigma": 0.84,
-        "spread": 2.0,
+        "mu": 33.3,
+        "sigma": 0.83,
+        "spread": 1.8,
         "n_models": 3,
-        "bias_corr": -1.73
+        "bias_corr": -1.72
       },
       "2026-07-23": {
         "regime": "heatwave",
-        "mu": 33.77,
-        "sigma": 0.84,
-        "spread": 2.1,
+        "mu": 34.17,
+        "sigma": 0.83,
+        "spread": 3.8,
         "n_models": 3,
-        "bias_corr": -1.73
+        "bias_corr": -1.72
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 34.33,
+        "sigma": 0.83,
+        "spread": 4.9,
+        "n_models": 3,
+        "bias_corr": -1.72
       }
     },
     "kuala-lumpur": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 30.57,
-        "sigma": 1.11,
-        "spread": 2.4,
-        "n_models": 3,
-        "bias_corr": -1.68
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 30.33,
-        "sigma": 1.11,
-        "spread": 0.8,
+        "mu": 29.43,
+        "sigma": 1.12,
+        "spread": 0.7,
         "n_models": 3,
         "bias_corr": -1.68
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 30.67,
-        "sigma": 1.11,
-        "spread": 0.4,
+        "mu": 30.9,
+        "sigma": 1.12,
+        "spread": 0.9,
+        "n_models": 3,
+        "bias_corr": -1.68
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 31.27,
+        "sigma": 1.12,
+        "spread": 1.1,
         "n_models": 3,
         "bias_corr": -1.68
       }
     },
     "lucknow": {
-      "2026-07-21": {
-        "regime": "volatile",
-        "mu": 30.43,
-        "sigma": 1.14,
-        "spread": 5.7,
-        "n_models": 3,
-        "bias_corr": 3.66
-      },
       "2026-07-22": {
         "regime": "volatile",
-        "mu": 31.13,
-        "sigma": 1.14,
-        "spread": 4.8,
+        "mu": 32.03,
+        "sigma": 1.16,
+        "spread": 4.3,
         "n_models": 3,
-        "bias_corr": 3.66
+        "bias_corr": 3.7
       },
       "2026-07-23": {
         "regime": "cold_front",
-        "mu": 31.23,
-        "sigma": 1.14,
-        "spread": 2.2,
+        "mu": 32.27,
+        "sigma": 1.16,
+        "spread": 2.9,
         "n_models": 3,
-        "bias_corr": 3.66
+        "bias_corr": 3.7
+      },
+      "2026-07-24": {
+        "regime": "cold_front",
+        "mu": 32.4,
+        "sigma": 1.16,
+        "spread": 3.4,
+        "n_models": 3,
+        "bias_corr": 3.7
       }
     },
     "manila": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 31.93,
-        "sigma": 1.36,
-        "spread": 3.4,
-        "n_models": 3,
-        "bias_corr": -1.51
-      },
       "2026-07-22": {
         "regime": "normal",
         "mu": 32.53,
         "sigma": 1.36,
-        "spread": 3.6,
+        "spread": 2.9,
         "n_models": 3,
-        "bias_corr": -1.51
+        "bias_corr": -1.5
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 31.63,
+        "mu": 32.3,
         "sigma": 1.36,
-        "spread": 1.7,
+        "spread": 3.7,
         "n_models": 3,
-        "bias_corr": -1.51
+        "bias_corr": -1.5
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 30.23,
+        "sigma": 1.36,
+        "spread": 0.8,
+        "n_models": 3,
+        "bias_corr": -1.5
       }
     },
     "panama-city": {
-      "2026-07-21": {
+      "2026-07-22": {
         "regime": "normal",
-        "mu": 29.47,
+        "mu": 29.23,
         "sigma": 0.95,
         "spread": 1.9,
         "n_models": 3,
         "bias_corr": 0.0
       },
-      "2026-07-22": {
+      "2026-07-23": {
         "regime": "normal",
-        "mu": 29.17,
-        "sigma": 1.55,
-        "spread": 3.1,
+        "mu": 28.17,
+        "sigma": 1.5,
+        "spread": 3.0,
         "n_models": 3,
         "bias_corr": 0.0
       },
-      "2026-07-23": {
+      "2026-07-24": {
         "regime": "normal",
-        "mu": 27.77,
-        "sigma": 1.45,
-        "spread": 2.9,
+        "mu": 29.67,
+        "sigma": 0.85,
+        "spread": 1.7,
         "n_models": 3,
         "bias_corr": 0.0
       }
     },
     "seoul": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 24.87,
-        "sigma": 1.1,
-        "spread": 2.2,
-        "n_models": 3,
-        "bias_corr": 0.0
-      },
       "2026-07-22": {
-        "regime": "normal",
-        "mu": 25.37,
-        "sigma": 0.9,
-        "spread": 1.8,
+        "regime": "volatile",
+        "mu": 26.33,
+        "sigma": 2.15,
+        "spread": 4.3,
         "n_models": 3,
         "bias_corr": 0.0
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 24.93,
-        "sigma": 0.8,
-        "spread": 1.6,
+        "mu": 24.97,
+        "sigma": 1.05,
+        "spread": 2.1,
+        "n_models": 3,
+        "bias_corr": 0.0
+      },
+      "2026-07-24": {
+        "regime": "volatile",
+        "mu": 26.77,
+        "sigma": 2.3,
+        "spread": 4.6,
         "n_models": 3,
         "bias_corr": 0.0
       }
     },
     "wellington": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 11.77,
-        "sigma": 0.83,
-        "spread": 0.9,
-        "n_models": 3,
-        "bias_corr": -0.37
-      },
       "2026-07-22": {
         "regime": "normal",
-        "mu": 13.1,
-        "sigma": 0.83,
-        "spread": 1.0,
+        "mu": 12.97,
+        "sigma": 0.85,
+        "spread": 0.9,
         "n_models": 3,
-        "bias_corr": -0.37
+        "bias_corr": -0.39
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 13.17,
-        "sigma": 0.83,
-        "spread": 0.5,
+        "mu": 13.13,
+        "sigma": 0.85,
+        "spread": 0.3,
         "n_models": 3,
-        "bias_corr": -0.37
+        "bias_corr": -0.39
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 13.1,
+        "sigma": 0.85,
+        "spread": 1.2,
+        "n_models": 3,
+        "bias_corr": -0.39
       }
     },
     "wuhan": {
-      "2026-07-21": {
-        "regime": "heatwave",
-        "mu": 31.43,
-        "sigma": 0.55,
-        "spread": 3.2,
-        "n_models": 3,
-        "bias_corr": -1.21
-      },
       "2026-07-22": {
-        "regime": "heatwave",
-        "mu": 28.5,
-        "sigma": 0.55,
-        "spread": 1.6,
+        "regime": "normal",
+        "mu": 28.97,
+        "sigma": 0.64,
+        "spread": 0.8,
         "n_models": 3,
-        "bias_corr": -1.21
+        "bias_corr": -1.23
       },
       "2026-07-23": {
-        "regime": "heatwave",
-        "mu": 32.13,
-        "sigma": 0.55,
-        "spread": 1.2,
+        "regime": "normal",
+        "mu": 32.47,
+        "sigma": 0.64,
+        "spread": 2.3,
         "n_models": 3,
-        "bias_corr": -1.21
+        "bias_corr": -1.23
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 33.97,
+        "sigma": 0.64,
+        "spread": 2.4,
+        "n_models": 3,
+        "bias_corr": -1.23
       }
     },
     "zhengzhou": {
-      "2026-07-21": {
-        "regime": "normal",
-        "mu": 35.57,
-        "sigma": 1.65,
-        "spread": 3.3,
-        "n_models": 3,
-        "bias_corr": 0.0
-      },
       "2026-07-22": {
-        "regime": "volatile",
-        "mu": 34.9,
-        "sigma": 2.0,
-        "spread": 4.0,
+        "regime": "normal",
+        "mu": 34.83,
+        "sigma": 1.25,
+        "spread": 2.5,
         "n_models": 3,
         "bias_corr": 0.0
       },
       "2026-07-23": {
         "regime": "normal",
-        "mu": 33.97,
-        "sigma": 1.35,
-        "spread": 2.7,
+        "mu": 35.17,
+        "sigma": 1.85,
+        "spread": 3.7,
+        "n_models": 3,
+        "bias_corr": 0.0
+      },
+      "2026-07-24": {
+        "regime": "normal",
+        "mu": 35.7,
+        "sigma": 1.7,
+        "spread": 3.4,
         "n_models": 3,
         "bias_corr": 0.0
       }
