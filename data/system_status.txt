@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+262aa9d0c EVOLVE daily 2026-07-21 evening — gate n=57 (CI-lo 0.907 vs BE 0.968, ~flat), zero live changes
 fc4628022 EVOLVE daily 2026-07-21 — gate n=55, CI gap narrowing (0.904 vs BE 0.970), zero live changes
 227f8e250 Research audit 2026-07-21T1105Z — equity deployed $0 all paths stopped, G8 KILL likely at n=100 (CI-lo 86.5% vs BE 97.0%, geometrically cannot clear) | best action: run shadow_grade.py --refetch tonight, check BTC sub-class at n≥100 for per-asset restart vote
 8cd9944c0 Gate-keeper 2026-07-21 — ready=0 rejected=0 collecting=1 (G8 n=2→38 +36 multi-asset shadow)
@@ -11,10 +12,9 @@ a0050d061 Exec audit 2026-07-21 — fills=0 NO-share=N/A OK (BAND_LIVE=False, 0 
 28f230560 EVOLVE daily 2026-07-20 evening — recovered orphaned 11:23Z-slot work, gate n=38 point back above BE (CI still far short)
 86e138f61 Research audit 2026-07-20T1035Z — equity deployed $0 all paths stopped | best action: run fresh G8 n-count (shadow_grade.py --refetch) to confirm post-cut CROSSING accumulation beyond n=2
 709237eb2 Gate-keeper 2026-07-20 — ready=0 rejected=0 collecting=1 (G8 new)
-1ceae8a14 Calib monitor 2026-07-20 — brier7=0.0558 disp_ratio=0.9266 2 alerts (S3-d18 WORSENING trend 07-18-low=0.485 recovery-07-19=0.925, S4)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   84G        9G  91% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   84G        9G  92% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-07-17 22:05:07 UTC
