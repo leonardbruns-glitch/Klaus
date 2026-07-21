@@ -1,4 +1,4 @@
-# Gate Ledger — refreshed 2026-07-21 11:52 UTC (EVOLVE daily; morning slot died on usage credits, this is the recovery/only slot today)
+# Gate Ledger — refreshed 2026-07-21 21:58 UTC (EVOLVE daily; evening slot — 21:53Z run died on usage credits before any measurement, this is the retry-on-default-model recovery)
 
 Source: `analysis/crypto/shadow_grade.py --refetch` +
 `analysis/crypto/updown_asset_grade.py` + live tape
