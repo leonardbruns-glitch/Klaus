@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+857558596 EVOLVE evening 2026-07-22 — gate n=72 70W/2L loss-free since morning (point +0.006 over BE, CI-lo 0.904; pass-branch unreachable before n≈400-3000, KILL branch the realistic resolution), zero live changes; xrp cell first loss (17W/1L −$1.50); overdue redemption-exclusion review closed KEEP
 eefa9d923 EVOLVE daily 2026-07-22 — gate n=65 63W/2L (2nd post-cut loss, point +0.003 over BE, CI-lo 0.895 far short), zero live changes; 2 reviews closed KEEP; disk reclaim round 2 (94%->83%)
 f6fcee10c Research audit 2026-07-22T1045Z — equity deployed $0 all paths stopped, disk 7GB/2.3d to crash | best action: VPS disk cleanup today (SSH required)
 fcc315f96 Gate-keeper 2026-07-22 — ready=0 rejected=0 collecting=1 (G8 n=57→~59; MATH ALERT: gate cannot pass at n=100 with 1 loss, needs n≥200; rate 26/day→4/day; network blocked this run)
@@ -11,10 +12,9 @@ b8a396013 PnL ledger 2026-07-21 — day=$0.00 turns=0 roi/turn=N/A unexplained=$
 262aa9d0c EVOLVE daily 2026-07-21 evening — gate n=57 (CI-lo 0.907 vs BE 0.968, ~flat), zero live changes
 fc4628022 EVOLVE daily 2026-07-21 — gate n=55, CI gap narrowing (0.904 vs BE 0.970), zero live changes
 227f8e250 Research audit 2026-07-21T1105Z — equity deployed $0 all paths stopped, G8 KILL likely at n=100 (CI-lo 86.5% vs BE 97.0%, geometrically cannot clear) | best action: run shadow_grade.py --refetch tonight, check BTC sub-class at n≥100 for per-asset restart vote
-8cd9944c0 Gate-keeper 2026-07-21 — ready=0 rejected=0 collecting=1 (G8 n=2→38 +36 multi-asset shadow)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   78G       15G  85% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   79G       15G  85% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-07-17 22:05:07 UTC
