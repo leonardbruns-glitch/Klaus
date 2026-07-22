@@ -76,3 +76,62 @@ mechanically blocked from entries by ruin_floor $89.16.
    is untouchable without owner; compression buys ~5-6 days per round.
 3. Equity $21.50: one path from here — a CI-clearing measurement, then an owner
    floor/capital decision. Nothing the loop can legally arm today.
+
+---
+
+# Evening slot addendum — 2026-07-22 22:10 UTC
+
+## Health & equity
+All three services active; no watchdog restarts; no crashloop; `UPDOWN_STOP`
+present. Wallet $21.495442 CLOB-actual, unchanged — 0 fires, 0 settles, burn
+rate zero. Disk 85% / 15G free (~2.5G/day accrual; next reclaim ~07-26).
+No backlog: the 11:23Z slot ended rc=0.
+
+## Sniper gate (the number the loop turns on)
+**CROSSING p≥0.995 5m post-cut: n=72 (70W/2L), WR 0.9722, CI-lo 0.9043 vs
+breakeven 0.9665, sim +$1.84 — COLLECTING.** No new loss since the morning
+(65→72 all wins); point margin recovered slightly to +0.0057. Accrual ~16/day;
+n≥100 ETA ~07-24.
+
+**Pass-branch math (computed this slot, worth stating plainly):** at the
+current WR 0.972 the Wilson CI-lo cannot clear breakeven 0.9665 before
+n≈3000+; even a loss-free run lifting WR to ~0.98 needs n≈400+. The
+pre-registered pass branch (CI-lo > BE at n≥100) is mathematically out of
+reach at n=100 with ≥1 loss. The gate will realistically resolve via the KILL
+branch (2+ more losses by n=100 ⇒ point < BE) or grind on as COLLECTING. This
+is not a reason to change the gate — it is pre-registered and re-arm is
+owner-only anyway (equity $21.50 < $40 kernel floor). But nobody should read
+"COLLECTING" as "almost ready."
+
+## Per-asset cells
+XRP took its **first loss**: 18 graded, 17W/1L, WR 0.944 < BE 0.961, pnl
+−$1.50 (p≥.995 sub-slice 5W/1L, −$3.34). One loss at ~0.96 asks erases ~5
+wins — the same asymmetry that produced the BTC candidate-tape PF 0.79 cut,
+now visible in a second asset. BTC p≥.995 sub-slice remains point-negative
+(n=73, WR 0.959 < BE 0.961, −$1.16). eth 29/29W, doge 14/14W, sol 11/11W —
+all far from n≥100.
+
+## Weather (maintenance)
+Band trigger NOT met (07-18..07-22 settled disp_ratio: 0.849 / 1.106 / 1.256 /
+0.787 / 1.105-partial — 2 of 5 clear). NEG_RISK_ARB / RECYCLE099 / lockout
+shadows all cycling normally, 0 fills (ruin_floor blocks entries). Synoptic
+NMS feed 403ing — no live impact while weather is dark; noted for weather-era
+maintenance.
+
+## Actions
+- **Live changes: 0/2 today.** Rail-breach posture (equity < kernel floor,
+  path cut) — measurement and bookkeeping only, per charter.
+- REVIEW-CLOSE (bookkeeping): `execution/redemption.py _redeem_pending`
+  sniper-held exclusion, due 07-20, missed by the 07-20/21 slots and caught by
+  this slot's reconciliation sweep → **KEEP** (zero redemption activity since
+  the cut; both revert conditions untripped; guard fail-open and inert with an
+  empty open-dict).
+- Experiments updated: `updown_crossing_reenable_gate` (n=72 reading +
+  pass-branch math), `updown_multiasset_15m` (XRP first loss).
+
+## Standing risks (unchanged in kind, sharpened in detail)
+1. Gate: KILL branch is the realistic resolution; let the pre-registered rule
+   decide at n≥100 (~07-24).
+2. Disk: compression buys ~5-6 days/round; structural fix owner-only.
+3. Equity $21.50: nothing the loop can legally arm; owner decision required
+   for any re-entry regardless of gate outcome.
