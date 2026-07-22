@@ -1,193 +1,131 @@
-# Klaus Band Execution & Markout Audit
-**Date:** 2026-07-21
-**Snapshot:** 2026-07-21T07:06:53Z (age < 6h ✓)
-**System:** `service status: active` (uptime since 2026-07-17 22:05 UTC) ✓
-**Capital:** $21.495 (bankroll.json — CAVEAT: includes manual sells; do not read as bot-only P&L)
-**Open positions:** 0 | **Resting orders:** 0
+# Exec Audit Report — 2026-07-22
+
+**Snapshot**: 2026-07-22T07:01:00Z (age < 6h ✓)  
+**System**: `klaus systemd: active` ✓  
+**BAND_LIVE**: False (wind-down 2026-07-06: equity $108.35 < 50%·30d-HW $222.90)  
+**BAND_NO_ENABLED**: False (rail-halt 2026-07-02: 7d WR 39.2%, n=51)  
+**BAND_PAIR_FAV_ENABLED**: True (shadow-only; BAND_LIVE=False blocks live execution)  
+**Open positions**: 0  
+**Capital**: $21.495 (bankroll.json — manual sells not reflected in PnL; total_pnl=-$75.40)  
 
 ---
 
-## CONTEXT: Band Maker Status
+## 1. Fill Tape (24h + 7d)
 
-**BAND_LIVE = False** (wound down 2026-07-06; equity below 50%-HW charter trigger)
-**BAND_NO_ENABLED = False** (rail-halt 2026-07-02; 7d realized WR flagged)
-**BAND_YES_LIVE_MIN_DOUT = 9** (standalone YES paused; 9=never fires at current d+2 horizon)
-**BAND_PAIR_FAV_ENABLED = True** (parameter set, gated by BAND_LIVE=False)
-**MAKER_SHADOW_ENABLED = True** (shadow quoting active; no execution)
-**BAND_SHADOW = True** (band shadow evaluation active; no execution)
+**[MAKER-FILL] lines in tape**: 0  
+**[STRUCT-BAND-Q] lines in tape**: 0  
+**Fills 24h**: 0  
+**Fills 7d**: 0  
+**$ filled 24h**: $0  
+**$ filled 7d**: $0  
+**Fill rate**: N/A — no posts since 2026-07-06 (BAND_LIVE=False)
 
-The band maker strategy has been fully wound down since 2026-07-06. Shadow engine is running
-and healthy — band_struct_lite for 2026-07-21 shows `"live": false` fire records firing
-normally through 07:07Z. Active live strategy is UPDOWN sniper only. Capital unchanged from
-Jul 20 daily_start ($21.495) — no sniper trades on Jul 20.
+**By side**: N/A (zero fills)  
+**By price band**: N/A (zero fills)  
+**By city**: N/A (zero fills)  
+**Median time-to-fill**: N/A (no first-post timestamps to join against)  
 
----
+**UNTRACKED FILL note** (not maker activity):  
+`Jul 19 07:59:43–07:59:53` — 3 websocket state events (MATCHED/MINED/CONFIRMED) for a single user manual TAKER BUY: token `9728083448649713…`, size=23.5 shares, price=0.94. Bot logged as UNTRACKED because no open tracker entry exists. This is a manual trade at $0.94 (near-certainty bucket), likely a user-initiated position outside the maker loop. $22.09 in proceeds logged to the WS feed but not attributed to any strategy.
 
-## Section 1 — Fill Tape (24h + 7d)
-
-### Band [MAKER-FILL] fills
-
-| Window | Fills (n) | $ filled | By side | By price band |
-|---|---|---|---|---|
-| 24h (Jul 20 07:07 → Jul 21 07:07) | **0** | $0.00 | — | — |
-| 7d (Jul 14 → Jul 21 07:07) | **0** | $0.00 | — | — |
-
-Zero `[MAKER-FILL]` lines in `maker_fills_recent.log`. Structurally expected: last band
-post date in `band_posted_state.json` is 2026-07-06. Fill rate: undefined (0 posts since
-wind-down). Time-to-fill: not computable.
-
-### Untracked fills (out of band-maker scope — UPDOWN sniper / legacy resting orders)
-
-Log covers Jul 18–19 UTC. Jul 17 entries have rotated off the 7d window.
-
-| Day | Fills (n) | MAKER | TAKER | Notable |
-|---|---|---|---|---|
-| Jul 18 | ~5 | ~2 | ~3 | MAKER BUY@0.08; TAKER at 0.97–0.98 |
-| Jul 19 | **6** | **1** | **5** | MAKER BUY@0.02 (146.33 sh); TAKER at 0.88–0.98 |
-| Jul 20–21 (24h) | **0** | 0 | 0 | No new fills logged |
-| **7d total** | **~11** | **~3** | **~8** | |
-
-All untracked — no tracker entry, no open position in bot scope. Price band breakdown (7d):
-<0.10: ~3 MAKER fills; 0.10–0.85: 0; >0.85: ~8 TAKER fills. Bimodal pattern consistent with
-orphaned legacy CLOB resting orders at extreme-low YES prices + UPDOWN sniper near-resolution
-buys. The MAKER@0.02, 146.33 sh fill (Jul 19) = ~$2.93 capital risk, UNTRACKED — no
-resolution PnL measurable.
+**Last live posting date**: 2026-07-06 ($48.01 spent, 10 tokens posted per band_posted_state.json).
 
 ---
 
-## Section 2 — NO-Parity Monitor
+## 2. NO-Parity Monitor
 
-**Status: Vacuous — BAND_NO_ENABLED=False, zero live posts in all audit days.**
+**Live posts in 7d window**: 0 (BAND_LIVE=False throughout)  
+**Resting book by side**: YES=0, NO=0 (maker_resting_state.json = `{}`)  
 
-| Date | New YES posts (live) | New NO posts (live) | NO share | ≥10 posts? | Alert? |
-|---|---|---|---|---|---|
-| 2026-07-18 | 0 | 0 | — | No | — |
-| 2026-07-19 | 0 | 0 | — | No | — |
-| 2026-07-20 | 0 | 0 | — | No | — |
-| 2026-07-21 (to 07:07) | 0 | 0 | — | No | — |
+**Shadow fire breakdown (band_struct_lite, last 2 days)**:
 
-### Shadow side distribution (band_struct_lite, confirming code-level NO-starvation fix)
-
-| Date | Shadow yes_capture_shadow (YES) | Shadow NO side | NO shadow share |
+| Date | Fires (live=false) | YES shadow legs | NO shadow legs |
 |---|---|---|---|
-| 2026-07-18 | 56 | 0 | 0% |
-| 2026-07-19 | 57 | 0 | 0% |
-| 2026-07-20 | ~56 | 0 | 0% |
-| 2026-07-21 (partial) | varies | 0 | 0% |
+| 2026-07-21 | 10 | 60 yes_capture_shadow | 0 |
+| 2026-07-22 | ~8 (to 07:01 UTC) | 60+ yes_capture_shadow | 0 |
 
-`band_posted_state.json` last key: 2026-07-06. `maker_resting_state.json`: `{}` (0 YES, 0 NO).
-Shadow YES-capture records uniformly `side: "YES"` — consistent with BAND_NO_ENABLED=False
-suppressing NO-side quoting at the band engine level. NO-starvation fix (2026-06-12 commit
-`fix(BAND): NO-starvation`) holds vacuously; cannot verify live behavior until band re-arms
-and NO is reenabled.
+**NO share of shadow fires**: 0% on both days (BAND_NO_ENABLED=False by policy since 2026-07-02).
 
-**Alert — NO share < 25% on any day with ≥10 live posts: NOT FIRED** (0 live posts all days).
+**Alert: NO posts < 25%** — DOES NOT FIRE. No live posting exists; shadow-only NO=0% is expected policy, not a starvation bug. The 2026-06-12 NO-starvation fix is irrelevant during a BAND_NO_ENABLED=False period — the fix addressed the armed-but-not-firing condition; the current state is deliberately unarmed.
+
+**NO-starvation fix status**: Cannot verify for Jul period because BAND_NO_ENABLED was killed 2026-07-02, 10 days before any re-arm would matter. Fix holds for the Jun 12–Jul 02 window where it was active (no regression observed in that window's last committed audits).
 
 ---
 
-## Section 3 — Queue Health
+## 3. Queue Health
 
-**Status: Vacuous — zero [STRUCT-BAND-Q] lines; BAND_LIVE=False suppresses live cycles.**
+**[STRUCT-BAND-Q] lines**: 0 — no live posting cycles have run since BAND_LIVE=False.  
+**Shadow engine cadence**: Active. band_struct_lite entries appear every ~300s (BAND_MD_TTL=300). Multi-day shadow scan running normally across 10 cities, d+0/d+1/d+2.
 
-No `[STRUCT-BAND-Q]` lines in `maker_fills_recent.log`. No cycle metrics (cash_preskip,
-books_used, yes_books, posted/cycle) to report.
+**Per-day queue stats (cash_preskip, books_used, yes_books, posted/cycle)**: UNAVAILABLE — [STRUCT-BAND-Q] is only written on live posting cycles. Zero cycles = zero rows.
 
-### Shadow engine activity (band_struct_lite 2026-07-21, 00:00–07:07Z)
+**Alert: books pinned at 80 or yes_books pinned at 50**: CANNOT ASSESS — no queue data.
+**Alert: cash_preskip > 200 sustained while posted=0 (deployment stall)**: CANNOT ASSESS — no queue data.
 
-| Pass time (approx) | Scope | Fires (live=false) | Sum-gate blocks | Notes |
-|---|---|---|---|---|
-| ~04:45Z | d+0 spot: 10 cities | 0 (all no_band/converged) | — | London d+0 mode_ask 0.365–0.40 |
-| ~04:46Z | d+1 (Jul 22): all 10 cities | 0 | 10 sum_gate | sum_ask 0.87–1.02; too-high sum |
-| ~04:47Z | d+2 (Jul 23): all 10 cities | 8 | 2 sum_gate | London/Seoul sum_ask=0.57 (3 legs); Munich 0.82 (5); Tokyo 0.80 (5); Shanghai 0.77 (5); Taipei 0.67 (4); Beijing 0.78 (5); Wuhan 0.66 (5). Chongqing/Chengdu sum_gate (1.01–1.13) |
-| ~05:23Z | d+1 rechecks + KL/Manila d+0 | 0 | — | Kuala Lumpur/Manila: no_band (0 valid markets) |
-| ~06:57Z | d+1 Beijing rescan | 1 | — | Beijing d+1: sum_ask=0.84 (5 legs, live=false) |
-| **Total** | | **9 fires** | | All live=false |
-
-Shadow fires are structurally sound (n_legs=3–5, sum_ask=0.57–0.84, bell-shaped stake
-weights: $3.0 mode / $1.35 off±1 / $1.0 off±2). Two new cities (KL, Manila) appeared in
-d+0 feed — both no_band, consistent with thin market coverage on near-resolution day. Engine
-is alive and would post if re-armed.
-
-**Alert — books pinned at 80 or yes_books pinned at 50 most cycles: NOT FIRED** (no queue data).
-**Alert — cash_preskip > 200 sustained with posted=0 all day: NOT FIRED** (no queue data).
+**Shadow engine health check** (proxy for book-fetch health):
+- d+0: mostly `converged` or `no_band` (summer mid-day, markets saturated or thin)
+- d+1: `sum_gate` on all cities today (sum_ask > BAND_SUM_MAX=0.85, books too expensive to enter)
+- d+2: 8 `fire` records (live=false), sum_ask range 0.57–0.845 — within target range
+- Scanning is reaching books and returning valid quotes. No fetch-starvation signal.
 
 ---
 
-## Section 4 — Resolution Markout (Fill Quality / Winner's Curse)
+## 4. Resolution Markout (Fill Quality)
 
-**Status: Cannot compute — 0 band [MAKER-FILL] fills available.**
+**Filled legs in 7d window**: 0  
+**n for analysis**: 0 (below threshold for any conclusion)  
 
-n = 0. Below the 40-fill threshold for any conclusions.
+No markout computation possible. Historical fills pre-2026-07-06 are outside the 7d window and not in the current maker_fills_recent.log tape.
 
-`band_resolution_join.py` not run — empty fill input.
-
-### Shadow markout preview (hypothetical, non-causal)
-
-Today's shadow fires would quote YES at bid prices of 0.177–0.252 on the mode leg across
-d+2 markets (Jul 23 resolution). Reference market ask prices: 0.19–0.25 (YES side, from
-`would_quote` field). Spread at mode: 0.57–0.84 (YES sum). These are not fills; no
-winner's-curse test can be applied.
-
-Winner's curse assessment: **deferred indefinitely until band re-arms and fills accumulate.**
+**Winner's curse assessment**: SKIP — n=0, no data.
 
 ---
 
-## Section 5 — Dead-Quote Reclaim
+## 5. Dead-Quote Reclaim
 
-| Metric | Value |
-|---|---|
-| `maker_resting_state.json` entries | **0** |
-| Quotes > 24h old | 0 |
-| Quotes > 48h old | 0 |
-| "reaped dead entry" lines (7d log) | 0 |
-| $ freed by reclaim | $0.00 |
+**'reaped dead entry' lines in tape**: 0  
+**$ freed by reclaim**: $0  
+**Resting quotes total**: 0 (maker_resting_state.json = `{}`)  
+**Oldest quote age**: N/A  
+**Quotes > 24h old**: 0  
+**Quotes > 48h old**: 0  
 
-Resting book is empty; nothing to reclaim. `BAND_RECLAIM_AGE_S` and `BAND_PAIR_RECLAIM_AGE_S`
-are configured but have no quotes to evaluate.
+**Alert: > 20 quotes older than 48h**: DOES NOT FIRE — 0 resting quotes.
 
-**Alert — >20 quotes older than 48h: NOT FIRED** (0 resting quotes).
+Velocity note: BAND_RECLAIM_AGE_S=2h and BAND_PAIR_RECLAIM_AGE_S=8h would trigger reclaim on any aged orders, but the book is empty; reclaim has nothing to act on.
 
 ---
 
-## Section 6 — Cash Velocity
+## 6. Cash Velocity
 
 | Metric | Value |
 |---|---|
 | Capital (bankroll.json) | $21.495 |
-| Daily start capital (today) | $21.495 (no change from Jul 20) |
-| Resting $ (Σ q_price × unmatched size) | $0.00 |
-| Band fills $ last 24h | $0.00 |
-| Turns/day (band) | 0.00 |
-| Benchmark (badatmath ~1.0 turn/day) | — |
+| Resting $ (q_price × (size−matched)) | $0.00 |
+| Fills $ last 24h | $0.00 |
+| Turns/day (fills$/capital) | 0.00 |
+| Benchmark (badatmath) | ~1.0 turn/day |
 
-Capital flat Jul 20→21: UPDOWN sniper did not trade on Jul 20. Total cumulative PnL since
-inception (bankroll.json `total_pnl`): −$75.40 across 3,093 total trades. Do not read
-$21.495 as band-driven; band has generated $0 fills since Jul 6.
+**Cash fully idle.** $21.50 sitting uninvested. Zero equity is deployed in resting quotes or open fills. No carry on any position.
 
-System-status note: disk at 89% (82 GB of 97 GB used) per system_status.txt — not a trading
-blocker but worth monitoring if shadow JSONL accumulation continues at current rate.
+BAND_PHASE2_CAPITAL threshold ($600) is 28× current capital — phase 2/3 mechanics are irrelevant in the current regime.
 
 ---
 
 ## ALERTS
 
-*Pre-registered alerts that actually fired: **none**.*
+No pre-registered alert conditions fired.
 
-| Alert condition | Status |
-|---|---|
-| NO share of new posts < 25% on any day with ≥10 live posts | NOT FIRED (0 live posts) |
-| Books pinned at 80 / yes_books pinned at 50 most cycles | NOT FIRED (no queue data) |
-| cash_preskip > 200 sustained, posted=0 all day | NOT FIRED (no queue data) |
-| >20 quotes older than 48h | NOT FIRED (0 resting quotes) |
-| Winner's curse: filled ROI << all-fires ROI at n≥40 | NOT FIRED (n=0 fills) |
+All alert gates require either live posting (NO-parity, queue health, dead-quote) or live fills (markout, fill tape). BAND_LIVE=False blanks all gates.
+
+**No-fire is valid output** — reporting zero, not padding.
 
 ---
 
-## Summary
+## 3-Line Summary
 
-**Fills/day: 0** — band wound down 2026-07-06; zero registered fills in the 7d tape.
-**NO-share: N/A** — 0 posts since 2026-07-02; parity fix holds vacuously, unverifiable.
-**Binding execution constraint: BAND_LIVE=False** (equity-floor charter trigger); shadow engine
-is healthy with 9 fires today across d+2 Jul 23 (8 cities) + d+1 Beijing, but no capital
-deployment until charter conditions are met. UPDOWN sniper is the sole active strategy — no
-sniper trades logged on Jul 20; capital flat at $21.495.
+**Fills/day**: 0 — BAND_LIVE=False since 2026-07-06; zero maker activity in the 7d window; last live fill pre-dates tape.
+
+**NO-share**: N/A — no live posts; shadow fires confirm 0% NO by policy (BAND_NO_ENABLED=False; intentional kill, not starvation bug).
+
+**Binding execution constraint**: BAND_LIVE kill. Capital $21.50, far below the $222.90 30d-HW that triggered the Jul 06 wind-down. Gate unblocks when G8 validates (currently n=57, CI-lo vs BE gap not cleared) or user manually re-arms; until then, all bands shadow-only and cash is fully idle.
