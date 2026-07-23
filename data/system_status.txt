@@ -2,19 +2,19 @@
 active
 
 ## Last 10 commits on klaus:
+965a278b4 Research audit 2026-07-23T1030Z — all paths halted day 17, G8 n=72 KILL trajectory (CI-lo 90.4% vs BE 97.0%, min-pass n≈245) | best action: SSH verify CLOB wallet today (STWA wildcard $143 unconfirmed)
+0e8428a94 Gate-keeper 2026-07-23 — ready=0 rejected=0 collecting=1 (G8 n=57→72 +15; 2ND LOSS 70W/2L CI-lo=90.4%; rate 4→15/day; math warning: min-pass n≈245 not 200; n=100 ~Jul-25 AMBIGUOUS certain)
+d16e054f8 Calib monitor 2026-07-23 — brier7=0.055 disp_ratio=0.817 2 alerts (S3 day21 0/6-above-1.10 ratio-declining; S4 cron-missed-07-22 frozen-n_live-3733)
+d50376f09 Exec audit 2026-07-23 — fills=0 NO-share=N/A OK (BAND_LIVE=False, 0 alerts)
+c0d149b36 PnL ledger 2026-07-22 — day=$0.00 turns=0 roi/turn=N/A unexplained=$0.00
 857558596 EVOLVE evening 2026-07-22 — gate n=72 70W/2L loss-free since morning (point +0.006 over BE, CI-lo 0.904; pass-branch unreachable before n≈400-3000, KILL branch the realistic resolution), zero live changes; xrp cell first loss (17W/1L −$1.50); overdue redemption-exclusion review closed KEEP
 eefa9d923 EVOLVE daily 2026-07-22 — gate n=65 63W/2L (2nd post-cut loss, point +0.003 over BE, CI-lo 0.895 far short), zero live changes; 2 reviews closed KEEP; disk reclaim round 2 (94%->83%)
 f6fcee10c Research audit 2026-07-22T1045Z — equity deployed $0 all paths stopped, disk 7GB/2.3d to crash | best action: VPS disk cleanup today (SSH required)
 fcc315f96 Gate-keeper 2026-07-22 — ready=0 rejected=0 collecting=1 (G8 n=57→~59; MATH ALERT: gate cannot pass at n=100 with 1 loss, needs n≥200; rate 26/day→4/day; network blocked this run)
 e07158ec0 Calib monitor 2026-07-22 — brier7=0.054 disp_ratio=0.854 2 alerts (S3 day20 inverted edge 07-21=0.783 07-22-early=0.452; S4 candidate re-refit 07-21 n=3733 tail-no-shrinkage)
-af160454e Exec audit 2026-07-22 — fills=0 NO-share=N/A OK (BAND_LIVE=False, 0 alerts)
-b8a396013 PnL ledger 2026-07-21 — day=$0.00 turns=0 roi/turn=N/A unexplained=$0.00
-262aa9d0c EVOLVE daily 2026-07-21 evening — gate n=57 (CI-lo 0.907 vs BE 0.968, ~flat), zero live changes
-fc4628022 EVOLVE daily 2026-07-21 — gate n=55, CI gap narrowing (0.904 vs BE 0.970), zero live changes
-227f8e250 Research audit 2026-07-21T1105Z — equity deployed $0 all paths stopped, G8 KILL likely at n=100 (CI-lo 86.5% vs BE 97.0%, geometrically cannot clear) | best action: run shadow_grade.py --refetch tonight, check BTC sub-class at n≥100 for per-asset restart vote
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   81G       13G  87% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   66G       28G  71% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-07-17 22:05:07 UTC
