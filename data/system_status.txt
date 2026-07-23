@@ -2,6 +2,7 @@
 active
 
 ## Last 10 commits on klaus:
+20c13cdf8 EVOLVE daily 2026-07-23 evening — gate KILL-LOCKED holds: n=88 84W/4L point 0.9545 < BE 0.9649 (+3 settles all W, no state change); accrual slowed ~7/day, kill formalizes ~07-25 at n>=100; zero live changes (0/2, 19th consecutive); cells: btc n=134 REJECTED, eth 38/38 sole clean; weather trigger 2of5 NOT met; equity $21.4954 CLOB-exact unchanged, 7d realized -$6.34 all pre-cut
 c08412e7d EVOLVE daily 2026-07-23 — gate KILL-LOCKED: n=85 81W/4L point 0.9529 < BE 0.9644 (2 overnight losses, best-case 0.9600 at n=100 cannot clear; kill formalizes ~07-24), zero live changes; per-asset class-wide slide (btc n=132 REJECTED, doge/sol first losses, eth sole 35/35); $143 STWA wildcard falsified on-chain (408 positions all $0, equity=$21.50 exact); disk reclaim r3 87%->71%
 965a278b4 Research audit 2026-07-23T1030Z — all paths halted day 17, G8 n=72 KILL trajectory (CI-lo 90.4% vs BE 97.0%, min-pass n≈245) | best action: SSH verify CLOB wallet today (STWA wildcard $143 unconfirmed)
 0e8428a94 Gate-keeper 2026-07-23 — ready=0 rejected=0 collecting=1 (G8 n=57→72 +15; 2ND LOSS 70W/2L CI-lo=90.4%; rate 4→15/day; math warning: min-pass n≈245 not 200; n=100 ~Jul-25 AMBIGUOUS certain)
@@ -11,7 +12,6 @@ c0d149b36 PnL ledger 2026-07-22 — day=$0.00 turns=0 roi/turn=N/A unexplained=$
 857558596 EVOLVE evening 2026-07-22 — gate n=72 70W/2L loss-free since morning (point +0.006 over BE, CI-lo 0.904; pass-branch unreachable before n≈400-3000, KILL branch the realistic resolution), zero live changes; xrp cell first loss (17W/1L −$1.50); overdue redemption-exclusion review closed KEEP
 eefa9d923 EVOLVE daily 2026-07-22 — gate n=65 63W/2L (2nd post-cut loss, point +0.003 over BE, CI-lo 0.895 far short), zero live changes; 2 reviews closed KEEP; disk reclaim round 2 (94%->83%)
 f6fcee10c Research audit 2026-07-22T1045Z — equity deployed $0 all paths stopped, disk 7GB/2.3d to crash | best action: VPS disk cleanup today (SSH required)
-fcc315f96 Gate-keeper 2026-07-22 — ready=0 rejected=0 collecting=1 (G8 n=57→~59; MATH ALERT: gate cannot pass at n=100 with 1 loss, needs n≥200; rate 26/day→4/day; network blocked this run)
 
 ## Disk (GB):
 /dev/mapper/ubuntu--vg-ubuntu--lv       97G   67G       26G  73% /
