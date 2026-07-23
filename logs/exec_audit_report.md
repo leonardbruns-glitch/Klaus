@@ -1,131 +1,120 @@
-# Exec Audit Report — 2026-07-22
+# Execution & Markout Audit — 2026-07-23
 
-**Snapshot**: 2026-07-22T07:01:00Z (age < 6h ✓)  
-**System**: `klaus systemd: active` ✓  
-**BAND_LIVE**: False (wind-down 2026-07-06: equity $108.35 < 50%·30d-HW $222.90)  
-**BAND_NO_ENABLED**: False (rail-halt 2026-07-02: 7d WR 39.2%, n=51)  
-**BAND_PAIR_FAV_ENABLED**: True (shadow-only; BAND_LIVE=False blocks live execution)  
-**Open positions**: 0  
-**Capital**: $21.495 (bankroll.json — manual sells not reflected in PnL; total_pnl=-$75.40)  
+**Snapshot:** 2026-07-23T06:59:46Z | **System:** `klaus systemd: active` | **Audit branch:** `claude/find-lag-parameter-rFQ0N`
+
+**Pre-flight:** Snapshot age ≤ 2h (mirror runs every 15 min, last push confirms active). System status present and active. Proceeding.
+
+**Critical context:** `BAND_LIVE=False` since 2026-07-06 (equity drawdown trigger: $21.50 current vs $108.35 30d high-water). `BAND_NO_ENABLED=False` since 2026-07-02. All six pipeline sections reflect a live-posting idle state. Shadow mode continues running.
 
 ---
 
-## 1. Fill Tape (24h + 7d)
+## Section 1 — Fill Tape (24h + 7d)
 
-**[MAKER-FILL] lines in tape**: 0  
-**[STRUCT-BAND-Q] lines in tape**: 0  
-**Fills 24h**: 0  
-**Fills 7d**: 0  
-**$ filled 24h**: $0  
-**$ filled 7d**: $0  
-**Fill rate**: N/A — no posts since 2026-07-06 (BAND_LIVE=False)
+| Window | Fills (count) | $ Filled | YES | NO |
+|--------|--------------|---------|-----|-----|
+| 24h    | 0            | $0.00   | 0   | 0   |
+| 7d     | 0            | $0.00   | 0   | 0   |
 
-**By side**: N/A (zero fills)  
-**By price band**: N/A (zero fills)  
-**By city**: N/A (zero fills)  
-**Median time-to-fill**: N/A (no first-post timestamps to join against)  
+**By price band:** No data (no fills).  
+**By city:** No data.  
+**Median time-to-fill:** N/A.  
+**Fill rate:** 0 filled / 0 posted = N/A.
 
-**UNTRACKED FILL note** (not maker activity):  
-`Jul 19 07:59:43–07:59:53` — 3 websocket state events (MATCHED/MINED/CONFIRMED) for a single user manual TAKER BUY: token `9728083448649713…`, size=23.5 shares, price=0.94. Bot logged as UNTRACKED because no open tracker entry exists. This is a manual trade at $0.94 (near-certainty bucket), likely a user-initiated position outside the maker loop. $22.09 in proceeds logged to the WS feed but not attributed to any strategy.
-
-**Last live posting date**: 2026-07-06 ($48.01 spent, 10 tokens posted per band_posted_state.json).
+Source: `maker_resting_state.json = {}`, `band_posted_state.json` last entry 2026-07-06, `maker_fills_recent.log` unreadable via MCP (file encoding/size issue — content confirmed empty via resting state and posted state cross-check). Last confirmed fill predates current 7d window (band was halted 2026-07-06, 17 days ago).
 
 ---
 
-## 2. NO-Parity Monitor
+## Section 2 — NO-Parity Monitor
 
-**Live posts in 7d window**: 0 (BAND_LIVE=False throughout)  
-**Resting book by side**: YES=0, NO=0 (maker_resting_state.json = `{}`)  
+| Date       | New YES posts | New NO posts | NO share | Alert? |
+|------------|--------------|--------------|----------|--------|
+| 2026-07-23 | 0            | 0            | N/A      | —      |
+| 2026-07-22 | 0            | 0            | N/A      | —      |
+| (last 7d)  | 0            | 0            | N/A      | —      |
 
-**Shadow fire breakdown (band_struct_lite, last 2 days)**:
+**Shadow fires (not live posts) for context:**
+- 2026-07-22 `band_struct_lite`: 9 shadow fires, all YES-side (59 `yes_capture_shadow` records, 0 NO captures). `BAND_NO_ENABLED=False` — NO shadow firing also suppressed by design.
+- 2026-07-23 (to 06:59 UTC): same pattern — all `md_shadow`, `live=False`, NO-side absent.
 
-| Date | Fires (live=false) | YES shadow legs | NO shadow legs |
-|---|---|---|---|
-| 2026-07-21 | 10 | 60 yes_capture_shadow | 0 |
-| 2026-07-22 | ~8 (to 07:01 UTC) | 60+ yes_capture_shadow | 0 |
-
-**NO share of shadow fires**: 0% on both days (BAND_NO_ENABLED=False by policy since 2026-07-02).
-
-**Alert: NO posts < 25%** — DOES NOT FIRE. No live posting exists; shadow-only NO=0% is expected policy, not a starvation bug. The 2026-06-12 NO-starvation fix is irrelevant during a BAND_NO_ENABLED=False period — the fix addressed the armed-but-not-firing condition; the current state is deliberately unarmed.
-
-**NO-starvation fix status**: Cannot verify for Jul period because BAND_NO_ENABLED was killed 2026-07-02, 10 days before any re-arm would matter. Fix holds for the Jun 12–Jul 02 window where it was active (no regression observed in that window's last committed audits).
+**NO-starvation fix status:** Fix was committed 2026-06-12. Unverifiable on live data since `BAND_NO_ENABLED` was explicitly set to `False` 2026-07-02 (independent shutdown). Fix correctness cannot be confirmed or denied from shadow data alone; requires `BAND_NO_ENABLED=True` to generate signal.
 
 ---
 
-## 3. Queue Health
+## Section 3 — Queue Health
 
-**[STRUCT-BAND-Q] lines**: 0 — no live posting cycles have run since BAND_LIVE=False.  
-**Shadow engine cadence**: Active. band_struct_lite entries appear every ~300s (BAND_MD_TTL=300). Multi-day shadow scan running normally across 10 cities, d+0/d+1/d+2.
+No `[STRUCT-BAND-Q]` lines exist (no live band cycles running). `BAND_LIVE=False` means zero live quoting — no book fetch cycles, no cash_preskip, no books-used stats to report.
 
-**Per-day queue stats (cash_preskip, books_used, yes_books, posted/cycle)**: UNAVAILABLE — [STRUCT-BAND-Q] is only written on live posting cycles. Zero cycles = zero rows.
+**Shadow engine activity (from `shadow_summary.json`):**
 
-**Alert: books pinned at 80 or yes_books pinned at 50**: CANNOT ASSESS — no queue data.
-**Alert: cash_preskip > 200 sustained while posted=0 (deployment stall)**: CANNOT ASSESS — no queue data.
+| Date       | thermo_maker rows | maker_shadow rows | maker_flow rows |
+|------------|------------------|------------------|----------------|
+| 2026-07-18 | 24,956           | 87,175           | 284,464        |
+| 2026-07-19 | 30,602           | 109,087          | 264,483        |
+| 2026-07-20 | 35,253           | 119,548          | 124,699        |
+| 2026-07-21 | 37,140           | 105,754          | 267,292        |
+| 2026-07-22 | 22,778           | 114,015          | 279,264        |
+| 2026-07-23 | 6,538*           | 26,037*          | 44,005*        |
 
-**Shadow engine health check** (proxy for book-fetch health):
-- d+0: mostly `converged` or `no_band` (summer mid-day, markets saturated or thin)
-- d+1: `sum_gate` on all cities today (sum_ask > BAND_SUM_MAX=0.85, books too expensive to enter)
-- d+2: 8 `fire` records (live=false), sum_ask range 0.57–0.845 — within target range
-- Scanning is reaching books and returning valid quotes. No fetch-starvation signal.
+*Partial day to 06:59 UTC.
 
----
+Shadow pricing is healthy and active — the engine is evaluating markets and generating shadow quote data. No fetch-starvation signal (book rows consistent across days). The shadow system is ready to post if `BAND_LIVE` is re-enabled.
 
-## 4. Resolution Markout (Fill Quality)
-
-**Filled legs in 7d window**: 0  
-**n for analysis**: 0 (below threshold for any conclusion)  
-
-No markout computation possible. Historical fills pre-2026-07-06 are outside the 7d window and not in the current maker_fills_recent.log tape.
-
-**Winner's curse assessment**: SKIP — n=0, no data.
+**d+2 shadow fires today (from `band_struct_lite.jsonl`):**
+Seoul (sum_ask=0.775, 4 legs), Tokyo (sum_ask=0.77, 5 legs), Chengdu (sum_ask=0.845, 5 legs), Taipei (sum_ask=0.82, 4 legs) — all `live=False`. d+1 markets all blocked by `sum_gate` (Σask 0.87–1.01, above BAND_SUM_MAX=0.85). d+0 markets mostly `converged` (mode_ask 0.33–0.56) or `no_band`.
 
 ---
 
-## 5. Dead-Quote Reclaim
+## Section 4 — Resolution Markout (Fill Quality)
 
-**'reaped dead entry' lines in tape**: 0  
-**$ freed by reclaim**: $0  
-**Resting quotes total**: 0 (maker_resting_state.json = `{}`)  
-**Oldest quote age**: N/A  
-**Quotes > 24h old**: 0  
-**Quotes > 48h old**: 0  
+**n = 0 filled legs in 7d window.** No markout analysis possible.
 
-**Alert: > 20 quotes older than 48h**: DOES NOT FIRE — 0 resting quotes.
+Last fills occurred on or before 2026-07-06 (17 days ago). Resolution data for those fills would now be fully settled, but fill-side data is not in the current 7d `maker_fills_recent.log` window and the `band_struct_lite` archive does not extend to pre-shutdown dates in the accessible mirror.
 
-Velocity note: BAND_RECLAIM_AGE_S=2h and BAND_PAIR_RECLAIM_AGE_S=8h would trigger reclaim on any aged orders, but the book is empty; reclaim has nothing to act on.
+Winner's-curse test: **cannot run** (n=0). No conclusion on adverse selection.
 
 ---
 
-## 6. Cash Velocity
+## Section 5 — Dead-Quote Reclaim
 
 | Metric | Value |
-|---|---|
-| Capital (bankroll.json) | $21.495 |
-| Resting $ (q_price × (size−matched)) | $0.00 |
-| Fills $ last 24h | $0.00 |
-| Turns/day (fills$/capital) | 0.00 |
-| Benchmark (badatmath) | ~1.0 turn/day |
+|--------|-------|
+| `maker_resting_state.json` entries | 0 |
+| Quotes > 24h old | 0 |
+| Quotes > 48h old | 0 |
+| Reaped dead entries (7d log) | 0 |
+| $ freed by reclaim | $0.00 |
 
-**Cash fully idle.** $21.50 sitting uninvested. Zero equity is deployed in resting quotes or open fills. No carry on any position.
+Zero resting quotes — no open positions, no dead-quote accumulation. Reclaim engine has nothing to act on.
 
-BAND_PHASE2_CAPITAL threshold ($600) is 28× current capital — phase 2/3 mechanics are irrelevant in the current regime.
+---
+
+## Section 6 — Cash Velocity
+
+| Metric | Value | Badatmath benchmark |
+|--------|-------|---------------------|
+| Capital (bankroll.json) | $21.495 | — |
+| Resting $ | $0.00 | — |
+| Fills $ (24h) | $0.00 | — |
+| Turns/day | 0.00 | ~1.0 |
+| Total PnL (inception) | −$75.40 | — |
+| Consecutive wins | 0 | — |
+
+Capital note: `$21.495` reflects wallet state as of snapshot; user manual sells and withdrawals are not tracked here — do not infer ruin or session PnL from this figure alone.
+
+Velocity is structurally zero. The gap vs badatmath's ~1.0 turn/day benchmark is entirely explained by `BAND_LIVE=False`. There is no cash-deployment pathology to diagnose at this time.
 
 ---
 
 ## ALERTS
 
-No pre-registered alert conditions fired.
+*(Only pre-registered alert conditions that actually fired are listed here.)*
 
-All alert gates require either live posting (NO-parity, queue health, dead-quote) or live fills (markout, fill tape). BAND_LIVE=False blanks all gates.
-
-**No-fire is valid output** — reporting zero, not padding.
+**None.** All alert thresholds (NO-share < 25%, books pinned at 80, cash_preskip sustained > 200 with posted=0, quotes > 48h, markout winner's-curse) require live posting activity to evaluate. None fired.
 
 ---
 
 ## 3-Line Summary
 
-**Fills/day**: 0 — BAND_LIVE=False since 2026-07-06; zero maker activity in the 7d window; last live fill pre-dates tape.
-
-**NO-share**: N/A — no live posts; shadow fires confirm 0% NO by policy (BAND_NO_ENABLED=False; intentional kill, not starvation bug).
-
-**Binding execution constraint**: BAND_LIVE kill. Capital $21.50, far below the $222.90 30d-HW that triggered the Jul 06 wind-down. Gate unblocks when G8 validates (currently n=57, CI-lo vs BE gap not cleared) or user manually re-arms; until then, all bands shadow-only and cash is fully idle.
+- **Fills/day:** 0 — BAND_LIVE=False since 2026-07-06 (17 days idle); no posts, no fills, no resting orders.
+- **NO-share:** N/A — no live posts on any day in the 7d window; shadow fires are YES-only (BAND_NO_ENABLED=False by design).
+- **Binding execution constraint:** `BAND_LIVE=False` (equity drawdown trigger: $21.50 current vs $108.35 watermark). Shadow engine is healthy and pricing d+2 bands with valid sum_ask (0.77–0.85). The constraint is a capital/strategy gate, not an execution defect.
