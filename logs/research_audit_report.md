@@ -1,271 +1,255 @@
-# Klaus Research Audit — 2026-07-22
+# Klaus Research Audit — 2026-07-23T1030Z
 
-**Run UTC**: 2026-07-22T10:45Z  
-**Snapshot**: 2026-07-22T10:18:46Z (age: ~27 min) ✓ VALID  
-**System**: `klaus systemd: active` ✓  
-**Capital**: $21.495442 (bankroll.json, last_utc_day=20656, saved 10:00Z)  
-**Band dark**: day 16 (BAND_LIVE=False since 2026-07-06)  
-**UPDOWN_STOP**: active (since 2026-07-19T11:26Z, day 3)  
-**LDA**: STOP (rolling-20 worst = -$36.39 < -$30 threshold)  
-**Open positions**: 0 tracked (3 untracked STWA positions pending — see §2)  
-**Total PnL**: -$75.397 (cumulative, bankroll.json)  
-**Specialist reports read**: exec_audit 07:07Z ✓ | calib_monitor 08:10Z ✓ | gatekeeper 09:07Z ✓ | pnl_ledger 23:37Z Jul-21 ✓  
+**Analyst**: Research Agent (claude-sonnet-4-6)  
+**Data sources**: specialist reports from claude/find-lag-parameter-rFQ0N (all fresh: ≤24h); data-mirror snapshot 2026-07-23T10:16:06Z (age ~14 min — FRESH); system_status confirmed `active` in all three specialist reports.  
+**Abort check**: Snapshot 14 min old — PASS. system_status `active` — PASS. Proceeding.
 
 ---
 
-## 1. PRIMARY BOTTLENECK FOR COMPOUNDING
+## Specialist Report Dates (freshness audit)
 
-**Equity deployed: $0.00 of $21.50 available.**
+| Report | Timestamp | Age at run | Status |
+|---|---|---|---|
+| exec_audit_report.md | 2026-07-23T07:16Z | 3h | FRESH |
+| calib_monitor_report.md | 2026-07-23T08:20Z | 1.7h | FRESH |
+| gatekeeper_report.md | 2026-07-23T09:00Z | 1.0h | FRESH |
+| pnl_ledger_report.md | 2026-07-22T23:37Z | 11h | FRESH (within 36h) |
 
-The compounding formula (ROI/turn × turns/day × equity deployed) has its rightmost factor zeroed by policy. Nothing downstream matters. Per exec_audit §6: turns/day=0.0, resting $=0, fills_7d=$0. Per gatekeeper FLAG-4: all four active revenue paths (UPDOWN sniper, BAND, LDA, THERMO/M1) are simultaneously halted. Per pnl_ledger §2: deployed fraction via STWA untracked positions = 40.4% ($14.58 cost/$36.07 equity estimate) — but these positions are overdue for resolution (Jul-20 horizon) and unconfirmed; the bot is blind to them.
-
-The bind is bilateral:
-1. **Charter kernel floor** ($40): Capital at $21.50 is 46.2% below the minimum re-arm threshold. Owner approval required for any path re-enable even if a gate passes.
-2. **All gate paths blocked**: G8 (the only collecting re-enable gate) cannot pass at n=100 (see §3). BAND_LIVE trigger requires 2/5 days disp_ratio ≥ 1.10 — not seen in 20 consecutive days (see §4). LDA net -$36.39 vs -$30 floor.
-
-No amount of parameter-tuning or gate-accelerating changes this: **zero compounding is occurring and will continue until the capital floor and at least one gate are resolved.** The correct output for today is operational triage, not strategy expansion.
+All four reports present and current. No stale-data fallback needed.
 
 ---
 
-## 2. EXISTING-SYSTEM OPTIMIZATION
+## Current System State (summary)
 
-With BAND_LIVE=False and capital below all charter floors, the standard optimization levers (cap adjustments, queue thresholds, stake sizing) are inert. Three structural items emerge from the four reports:
+| Field | Value |
+|---|---|
+| Bankroll | $21.495 (unchanged 5+ days; stale bankroll.json; CLOB unverified) |
+| BAND_LIVE | False — day 17 (since 2026-07-06; capital $21.50 < ruin floor $89.16) |
+| UPDOWN_STOP | Active (since 2026-07-19T11:26Z; PF 0.79 over 27 settles) |
+| LDA | STOP (rolling-20 net −$36.39 < −$30 rail) |
+| THERMO / M1 | REJECTED |
+| All live fills (7d) | 0 |
+| All turns/day | 0 |
+| Disk | 85% at 23:26Z; ~250 MB/h growth rate; ~8–9 days to 94% critical |
+| Equity vs kernel floor | $21.50 < $40 — all path re-arms blocked without owner authorization |
 
-### 2a. DISK — SAME-WEEK SERVICE THREAT [URGENT]
+---
 
-| Metric | Value | Source |
+## Section 1 — Primary Bottleneck
+
+**ZERO EQUITY DEPLOYED — all five trading paths halted simultaneously (day 17).**
+
+Compounding formula: `ROI/turn × turns/day × equity_deployed = N/A × 0 × $21.50 = $0.00/day`.
+
+The binding constraint is not a rate, a calibration, or a fill problem — it is the complete absence of any executable path. Rank assessment:
+
+| Bottleneck | Rank | Status |
 |---|---|---|
-| Disk free (10:18Z Jul-22) | **7 GB** | system_status.txt |
-| Disk free (23:37Z Jul-21) | 8.4 GB | pnl_ledger §4 |
-| Delta | -1.4 GB in 10.7h | computed |
-| Burn rate (observed) | **3.1 GB/day** | computed (vs prior 1.94 GB/day estimate) |
-| Time to crash at current rate | **~2.3 days (~Jul-24 16:00 UTC)** | extrapolation |
+| Equity deployed | **1 — PRIMARY** | $0/day for 17 days; all paths disarmed |
+| Turns/day | 2 | Structural zero downstream of equity deployed |
+| ROI/turn | 3 | Irrelevant at turns=0 |
+| Fills / NO-parity | 4 | Zero activity; shadow healthy but dark |
+| Calibration / dispersion | 5 | Monitored; S3 worsening (real edge concern) |
+| Data / reliability | 6 | Network blocked 3 consecutive runs; non-fatal for now |
 
-The pnl_ledger estimated +2%/day. Observed rate (+1.4 GB/10.7h) is **~60% faster** than that estimate. Primary consumers identified by pnl_ledger: shadow snap files (snap_20260721.jsonl = 75 MB, snap_20260720 = 78 MB) and rolling shadow logger jsonl files. The shadow engine is active and writing continuously (exec_audit §3: band_struct_lite entries every ~300s).
+Justification from specialist reports:
+- **Exec audit**: "Velocity is structurally zero. The gap vs badatmath's ~1.0 turn/day benchmark is entirely explained by `BAND_LIVE=False`." (Section 6)
+- **Gatekeeper FLAG-4**: "Klaus is running (systemd: active) but has no executable trading path. Capital $21.495 = 7.2% of original capital. Bot has no self-recovery path without explicit human restart decision on at least one path."
+- **PnL ledger**: "Day 3 of consecutive zero-fill days [now day 4]. All live trading paths disarmed. Capital $21.495 is $18.51 below the $40 kernel floor that gates any re-arm."
 
-**If disk fills, Klaus crashes, G8 accumulation stops, and the null trading period extends indefinitely.** This is the only thing that can make the current situation actively worse without any trading exposure.
-
-*Expected delta*: Deleting shadow files >7d and snap files >2d should free 5–15 GB, extending safe runway by 1.5–5 weeks. **Confidence: high. Effort: trivial (two shell commands).**
-
-### 2b. STWA POSITION RESOLUTION — CAPITAL UNCERTAINTY [HIGH VALUE]
-
-Three STWA positions entered Jul-17/18/19 are past their resolution horizons (all d+1 to d+3 = Jul-20) but show as "unresolved" in the Jul-21 23:37Z ledger. Bankroll.json shows $21.495 unchanged through today's 10:18Z snapshot — but because these positions are **untracked** by the bot, both gains and losses bypass bankroll.json.
-
-| Position | Entry | Horizon | Cost | Upside if YES |
-|---|---|---|---|---|
-| Jul-17 d+3 | Jul-17 | Jul-20 | $8.060 | small (high price) |
-| Jul-18 d+2 | Jul-18 | Jul-20 | $3.590 | small (high price) |
-| Jul-19 d+1 | Jul-18 02:14Z | Jul-20 | $2.926 (146.33 sh @ $0.02) | **+$143.40** |
-
-If the Jul-19 $0.02 sniper filled YES: true wallet balance ≈ **$165+**, crossing the $40 kernel floor, the $50 ruin floor, and the $89.16 ruin floor referenced by the gatekeeper. All charter blocks on re-arming dissolve. This is a one-API-call verification with asymmetric information value.
-
-Historical context: UPDOWN_STOP was triggered at PF=0.79 over 27 settles, implying sniper win rate substantially below the ~97% breakeven — so probability of YES on the $0.02 position is low. But not zero, and the cost of not checking is operating on a wrong capital baseline.
-
-*Expected delta*: Resolves capital uncertainty. If YES: transforms the governance picture. If NO: confirms $21.495 baseline and rules out the upside scenario. **Confidence in verification: 100%. Effort: one CLOB API call.**
-
-### 2c. ISOTONIC S4 — CANDIDATE REVIEW PENDING [MODERATE, HUMAN REVIEW]
-
-Deployed isotonic: 46 days stale (refit 2026-06-06). Candidate: freshly refit 2026-07-21 (n_live=3,733, 8-day OOS). Calib_monitor S4 alert:
-- Material diff at p_raw=1.0: candidate p_cal=1.000 vs deployed 0.6316 (+0.3684) — removes all tail shrinkage
-- Near-threshold diff at p_raw=0.95: +0.0483 (just under 0.05 threshold)
-- OOS: brier_cal (0.0603) slightly worse than brier_raw (0.0595) — isotonic adding marginal negative value on 8d OOS
-
-Promotion is not recommended without human review of tail behavior. The +0.3684 shift at p_raw=1.0 removes all Bayesian shrinkage for the highest-confidence buckets. On a dataset where the isotonic plateau already dominates (p_raw 0.30–0.85 → p_cal≈0.374), the tail behavior change is the only material difference. OOS evidence slightly disfavors the candidate.
-
-*Expected delta*: Correct deployment improves ECE at extremes. Incorrect deployment (premature tail de-shrinkage) adds overconfidence. **Confidence: requires human judgment. Effort: low.**
+The system is not optimizable in its current state. It is suspended, waiting for a binary human decision.
 
 ---
 
-## 3. GATE PIPELINE
+## Section 2 — Existing-System Optimization
 
-| Gate | n | WR | ROI | CI95 | Status | Note |
-|---|---|---|---|---|---|---|
-| G1 BAND_YES | 934 | 15.3% | +4.0% | [-10.9, +21.1] | AMBIGUOUS | Frozen, band dark |
-| G2a band_no_d1 | 115 | 68.7% | +1.3% | [-11.9, +12.7] | AMBIGUOUS | BAND_NO disabled |
-| G2b pair_fav_YES | 9 | N/A | N/A | — | COLLECTING | Frozen, band dark |
-| G2c pair_fav_NO | 9 | N/A | N/A | — | COLLECTING | Frozen, band dark |
-| G3 FILLED_VS_FIRED | 75 | 17.3% | -75.8% | [-75.0, -34.2] | WATCH_ITEM ⚠ | CI entirely negative |
-| G4 BASKET_EXIT | VOID | — | — | — | RETIRED | — |
-| G5 THERMO_MAKER | 125 | N/A | 0.0% | [-9.0, +2.0] | **REJECTED** | — |
-| G6 M1_BETA_LOCKOUT | 31 | 74.2% | -0.6% | [-20.6, +24.4] | **REJECTED** | — |
-| G7 SUM_POSTED [0.70,0.85] | 382 | N/A | +11.5% | [-11.4, +38.9] | AMBIGUOUS | Frozen, band dark |
-| **G8 UPDOWN_CROSSING** | **~57** | **98.2%** | **+0.61%** | **[90.7%, 99.5%]** | **COLLECTING** | **See FLAG-1** |
+With zero live fills, standard execution optimizations (queue rank, NO-parity, fill rate) have nothing to act on. Items relevant to the idle state:
 
-**G8 is the sole gate with any re-enable path. It cannot pass at n=100.**
+### 2a. G8 Shadow Rate Acceleration (ALREADY OCCURRING)
+- Prior rate: ~4/day (Jul-21); current: ~15/day (Jul-22→Jul-23)
+- n=72 → ETA n=100 ~Jul-25. At 15/day, the AMBIGUOUS checkpoint arrives in 2 days.
+- **Expected delta**: earlier KILL decision (or human checkpoint) → sooner capital reallocation
+- **Confidence**: High (rate measurable; n=100 math deterministic — CI-lo ≈ 93.0%, far below BE=97.0%)
+- **Effort**: None required — multi-asset shadow is already running. Do not restrict to BTC-only.
 
-From gatekeeper FLAG-1: with 1 loss in the record (56W/1L), Wilson CI-lo at n=100 = 94.6% < BE=97.01%. Scenario table:
+### 2b. Disk Management (ACTIVE CONCERN)
+- 85% at 23:26Z 07-22, climbing at ~250 MB/h
+- Next critical threshold (94%) in ~8–9 days
+- **Expected delta**: G8 KILL decision would terminate updown shadow accumulation (~40MB/day from shadow), extend disk runway by weeks
+- **Confidence**: High (known growth rate, known drivers)
+- **Effort**: Low — KILL decision itself stops accumulation; for faster relief: SSH gzip + prune old hot directories
+- Source: pnl_ledger Section 4 operational flags + exec audit Section 3
 
-| n | W/L | CI-lo | vs BE=97.01% | Verdict |
-|---|---|---|---|---|
-| 100 | 99W/1L | 94.6% | −2.4pp | **FAIL** |
-| 100 | 100W/0L | 96.3% | −0.7pp | **FAIL** |
-| 200 | 199W/1L | ~97.2% | +0.2pp | PASS |
+### 2c. Isotonic Candidate — Do Not Promote Yet (S4 ALERT)
+- Deployed: 47 days stale. Candidate: 07-21 refit, cron missed 07-22, n_live=3,733 frozen.
+- New concern from calib monitor: candidate raises p_raw=0.15 by +0.023 in the exact zone (p_cal [0.2–0.3)) where today's ECE overconfidence is worst (|diff|=0.195, up from 0.036 yesterday).
+- **Expected delta**: premature promotion risks worsening calibration where it is already failing
+- **Confidence**: High (ECE deterioration is one-day spike; not yet confirmed trend, but risk is non-trivial)
+- **Effort**: Medium — requires human review of tail and pre-plateau behavior; hold until cron health verified and ECE trend stabilizes
 
-Minimum n for pass with 1 existing loss: **~200**. At current forward rate (~4/day, post-catchup): ETA n=200 ≈ **Aug 26** (35 days).
-
-**Human decision required by ~Jul-25** (before n reaches 100 in ~10 days at 4/day):
-- **Option A — KILL**: Label G8 CLOSED. Frees cognitive overhead; signals sniper strategy needs redesign if/when capital recovers.
-- **Option B — EXTEND to n=200**: Set Aug 26 as the formal pass/kill decision date. Requires capital to remain above service floor (disk cleanup is a prerequisite).
-- **Option C — AMBIGUOUS-EXTEND at n=100**: Fall-through; gate classifies ambiguous; defers the decision without a clear horizon.
-
-Accelerating G8 accumulation is not possible (UPDOWN_STOP active; the sniper fires 5-min updown markets which are currently halted).
-
-G2b/G2c (pair_fav) are collecting but blocked by BAND_LIVE=False. Their n=9 each is immaterial; no breadth change unblocks them without a band re-arm. Not a viable near-term gate.
+### 2d. G3 Winner's Curse — Blocks Band ROI Claims
+- Confirmed at n=75 (CI entirely negative: [−75.0%, −34.2%]). G1 and G7 simulated ROI are upper bounds only; cannot be cited as positive evidence.
+- **Expected delta**: N/A to compounding (band is dark); relevant as a gating condition on any future BAND re-enable decision
+- **Confidence**: High (CI entirely negative at trend-grade n=75)
+- **Effort**: None — gatekeeper tracks this; no action until n≥100
 
 ---
 
-## 4. ASSUMPTION ATTACK
+## Section 3 — Gate Pipeline Review
 
-### A. Dispersion premium persists → SEVERELY THREATENED (day 20)
+| Gate | n | Status | Next threshold | ETA | Accelerant |
+|---|---|---|---|---|---|
+| G8 UPDOWN_CROSSING | 72 | COLLECTING | n=100 (AMBIGUOUS) | ~Jul-25 | Multi-asset shadow already active; no further accelerant |
+| G8 realistic pass | 72 | COLLECTING | n≈245–300 (best case) | Aug-3–7 | Requires zero further losses AND extended accumulation |
+| G1 BAND_YES | 934 | AMBIGUOUS | n/a (G3 blocks re-cite) | — | Needs capital floor + dispersion recovery |
+| G5 THERMO | 125 | REJECTED | — | — | No reconsideration without human directive |
+| G6 M1_BETA | 31 | REJECTED | — | — | No reconsideration without human directive |
 
-The band's entire edge rests on the market overestimating temperature dispersion vs Chainlink-resolved outcomes. Per calib_monitor §3:
+**G8 — the only active gate:**
+- n=100 checkpoint arrives ~Jul-25 (2 days). At n=100 with 2 losses (98W/2L), Wilson CI-lo ≈ 93.0% vs BE=97.0% → AMBIGUOUS is the **certain** outcome, not READY.
+- Math reality (gatekeeper FLAG-1): min-pass requires n≈245 (best case, zero further losses). Stochastic loss rate 2/72=2.8% implies ~4.8 additional losses expected by n=245 — each extends the minimum further. EVOLVE twice forecasts KILL as the realistic resolution.
+- **What would accelerate USEFUL accumulation**: nothing. The rate (15/day) is already improved. The bottleneck is the statistical reality that 2 losses at n=72 require a very long streak to overcome. No breadth adjustment changes this math.
+- **What the human should prepare**: KILL vs. EXTEND decision before n=100 arrives Jul-25. The three options from gatekeeper FLAG-1:
+  1. KILL now — terminate shadow, free disk, begin next design
+  2. Wait to n=100 → explicitly confirm AMBIGUOUS → then KILL
+  3. Extend to n=300 — 15 more days at current rate, KILL still most likely outcome
 
-| Window | disp_ratio7 | n eligible | Inversion? |
-|---|---|---|---|
-| 07-16 | 1.196 | ~8 | No (above 1.10) |
-| 07-17 | 0.927 | ~8 | Yes |
-| 07-18 | 0.485 | ~8 | Yes |
-| 07-19 | 0.925 | ~8 | Yes |
-| 07-20 | 0.779 | 18 | Yes |
-| 07-21 | **0.783** | **27** | **Yes** |
-| **7d median** | **0.854** | **~77** | **Yes (day 20)** |
-
-Only 1 of 6 settled days exceeds 1.10. US/Other is the worst sub-region (07-21 median 0.584). Asia is near-neutral (0.970). EU re-entered eligibility after 07-20 full mode-hit saturation (6 cities, median 0.854). The 07-22 early Asian read (0.452, 4 cities only) is the worst early-morning signal in the window — not yet settled, but alarming if sustained.
-
-**This alert is not noise**. The dispersion ratio has been below 1.10 for 20 consecutive days. If BAND_LIVE were armed, the current market regime would generate systematic losses on the YES band. Band dark status is inadvertently correct capital protection.
-
-**Counter**: 07-16 shows the edge can return; n=77 city-days is only trend-grade (<100 for decision). But the direction is consistently wrong for 19 of 20 days.
-
-### B. Fills are not adversely selected → UNCERTAIN / WATCH_ITEM CONFIRMED
-
-G3 (n=75, gatekeeper): Filled WR = 17.3% vs simulation WR = 7.6%. Fills DO arrive on better-than-average markets (positive WR selection). But ROI = -75.8% with CI entirely below zero.
-
-This combination — positive WR selection, catastrophically negative ROI — is consistent with **winner's curse on fill price**: we buy at higher ask prices than the simulation because the book moves against us between signal and fill. We're correctly identifying good markets but overpaying to get into them.
-
-Corroborating evidence from calib_monitor §1: ECE overconfidence in [0.3–0.4) bin (mean_p=0.370 vs mean_o=0.284, n=67 rows, 18.2% of sample). This is the isotonic plateau bin — the exact price range where most band fills occur. The model systematically overestimates resolution probability in the mode-adjacent range. Combined with positive WR selection: we're buying overpriced probability with a positive tilt, which generates small gains on WR but structural losses on price.
-
-G3 CI entirely negative is a structural finding at n=75 (trend-grade, not decision-grade). At n=100 this becomes a decision-grade disqualifier for any band re-enable that relies on G3 improvement.
-
-### C. Recycle velocity scales → N/A
-
-Zero open positions. RECYCLE099 had zero exit099_live records (exec_audit). Cannot assess. This assumption requires live positions to evaluate; not applicable in current state.
+No other gate is closer to READY. Promoting G5 or G6 from REJECTED requires a human directive not data.
 
 ---
 
-## 5. MARKET INTELLIGENCE — MARKET CENSUS (22 mod 3 = 1)
+## Section 4 — Assumption Attack
 
-*Direct Gamma API blocked by network proxy; census based on shadow engine output from exec_audit and gatekeeper.*
+### Assumption 1: Dispersion premium persists (band edge thesis)
+**Status: NOT SUPPORTED by current data. Threatened.**
 
-**Depth by horizon (band_struct_lite, Jul-22 as of 07:01 UTC)**:
+- disp_ratio7 = 0.817, declining for 3 consecutive sessions (0.88 → 0.854 → 0.817)
+- 0/6 settled days above the 1.10 threshold in the current 7d window (07-17..07-22)
+- Day 21 of the inverted dispersion (S3 alert FIRING)
+- At n≈98, one session from decision-grade n=100
+- Regional breakdown (07-22): EU median=0.851, US/Other median=0.462 (severely inverted), Asia median=1.215 (only region above 1.0 on 07-22)
 
-| Horizon | Status | Sum_ask range | Shadow fires |
-|---|---|---|---|
-| d+0 | `converged` / `no_band` | N/A | 0 (saturated/thin) |
-| d+1 | `sum_gate` **all cities** | > 0.85 | 0 (priced out) |
-| d+2 | `fire` (live=false) | 0.57–0.845 | 8 fires |
+**What the calib monitor shows**: "The band's core premise — that markets overestimate temperature dispersion relative to what Chainlink resolves — is not supported by any settled day in the current 7d window." (Section 3, S3 alert)
 
-**d+2 fires on Jul-22** (gatekeeper G7 note, 5 in [0.70, 0.85]):
-- Seoul d+1: sum_ask 0.845 (gate cell)
-- London d+2: 0.750
-- Shanghai d+2: 0.715
-- Tokyo d+2: 0.825
-- Chengdu d+2: 0.845
+Band is dark (BAND_LIVE=False), so no capital is at risk from this thesis failure. But it conditions any re-enable decision: the edge that powered the band strategy is not currently observable in settled data. Any re-enable absent a dispersion recovery would be betting on a thesis unsupported by the last 21 days of data.
 
-**Delta vs state_log knowledge**: d+1 showing `sum_gate` on all cities is new vs the Jun/early-Jul pattern where d+1 had viable entries. Two candidate explanations: (1) summer market regime (higher implied temperature dispersion at 1-day horizon, efficient pricing); (2) structural shift in market maker behavior post-Jun-30 fee reform. Sample too small to distinguish. The BAND_MD_HORIZON=2 (d+0/d+1/d+2) design was built when d+1 was viable; if d+1 is now consistently gated, the effective horizon collapses to d+2 only, reducing turn frequency by ~33%.
+**Asia carve-out signal**: Asia is the only sub-region showing disp_ratio>1.0 in recent data (Beijing 1.937, Chongqing 1.505, Chengdu 1.488 on 07-22). This is a directional signal only — n insufficient for a decision.
 
-**BAND_CITY_ALLOW active**: 10 cities in shadow as of this report (chengdu, london, beijing, munich, wuhan + at least 5 others from config). No new cities observed vs 51-city allow-list. d+2 book depth appears healthy (sum_ask 0.57–0.845 = within BAND_SUM_MAX=0.85 range for most).
+### Assumption 2: Fills are not adversely selected
+**Status: CONTRADICTED by G3 at n=75 (trend-grade, CI entirely negative).**
 
-**Competitor posture** (badatmath_watch): Delta unavailable — shadow_summary.json too large for direct read, network blocks git fetch. Prior state_log baseline (Jun-22): badatmath geometry = YES bell (mode-centered, 37.4% of YES$ at off0) + NO shoulder (83.8% of NO$ off-mode). His 60/40 YES/NO split, 38.4% co-fill cells. No confirmed delta since Jun-22.
+- G3 confirmed: filled WR=17.3% vs sim WR=7.6%; CI=[−75.0%, −34.2%] entirely negative
+- No new fills since Jul-6 (17 days idle), so no new data to update this finding
+- **What exec audit shows**: "Winner's-curse test: **cannot run** (n=0). No conclusion on adverse selection." But G3's prior finding stands at n=75 — the CI is too negative to be noise.
 
----
+This finding does not affect current operations (all paths dark), but it means any future BAND re-enable must first explain G3 or restructure the quoting logic to avoid the adverse selection pathway.
 
-## 6. EXPERIMENTS
+### Assumption 3: Recycle velocity scales (RECYCLE099)
+**Status: UNTESTABLE at zero live activity.**
 
-### Experiment 1: STWA position wallet reconciliation
-**Hypothesis**: At least one of the 3 overdue STWA positions has resolved YES, raising true wallet balance above the $40 charter kernel floor.  
-**Data**: Single CLOB API call (`py_clob_client.get_balance()` or `GET /positions?user=<addr>`) against the Polymarket wallet. Check USDC balance directly vs bankroll.json $21.495.  
-**Time**: 30 minutes including diagnosis.  
-**Cost**: $0.  
-**Success metric**: Confirmed resolution direction for all 3 positions + reconciled wallet balance to ±$0.10.  
-**Decision if any YES**: Update capital baseline; if wallet > $40, owner can authorize re-arm of any gate that passes (G8 extension becomes meaningful). If Jul-19 YES: +$143.40, true capital ~$165 — clears all charter floors.  
-**Decision if all NO**: Confirms true capital = $21.495. Rules out upside scenario. Owner focuses on the single path forward: G8 kill/extend decision with $21.50 as the operating baseline.  
-**Note**: The existing "untracked" posture means this information gap persists indefinitely without explicit verification. Even a NO confirmation has value (removes the uncertainty from capital planning).
-
-### Experiment 2: G8 exact CI threshold for extension
-**Hypothesis**: With 1 loss in the record, the minimum n for CI-lo ≥ BE=97.01% is n≈200 (pre-confirmed by gatekeeper FLAG-1 via 199W/1L = CI-lo≈97.2%), and the rate of 4/day gives ETA Aug 26.  
-**Data**: Wilson CI formula; current record 56W/1L; gatekeeper FLAG-1 pre-confirmation.  
-**Time**: 15 minutes (Python one-liner).  
-**Cost**: $0.  
-**Success metric**: Confirm exact n* (minimum n where Wilson CI-lo ≥ 97.01% given 1L), and whether the math holds for 2L and 3L scenarios (kill triggers).  
-**Decision if n*≈200**: Propose extending threshold to n=200; Aug 26 horizon; requires disk cleanup to survive that long.  
-**Decision if n*>250**: Opportunity cost too high; recommend kill now, save 35 days of shadow accumulation overhead.  
-**Kill trigger**: 2L in record → re-run CI analysis; point WR approaches BE; likely kill regardless of n*.  
-
-### Experiment 3: Regional dispersion decomposition (7-day settled)
-**Hypothesis**: Asia cities (Beijing, Tokyo, Seoul, Shanghai, Chengdu, etc.) maintain disp_ratio > 1.10 on ≥3 of 7 settled days while US/Other drives the systemic inversion; a city-filtered band has a valid dispersion edge.  
-**Data**: shadow/YYYY-MM-DD/band_struct_lite_shadow.jsonl for Jul-16..Jul-21 (6 settled days). Calib_monitor §3 already provides Jul-21 per-city table (27 cities); extend backward. Compute per-city 7d median disp_ratio.  
-**Time**: 2–3 hours (data join across 6 daily shadow files + aggregation).  
-**Cost**: $0 (data exists in data-mirror).  
-**Success metric**: ≥3 Asia cities with 7d median disp_ratio > 1.10 AND US/Other median < 0.85; Mann-Whitney separation p < 0.10.  
-**Decision if yes**: Propose narrowing BAND_CITY_ALLOW to Asia-only subset for human consideration when capital recovers; provides the evidentiary basis that the band edge exists in a geographic sub-slice.  
-**Decision if no**: Confirms uniform inversion; band thesis structurally invalid across all geographies; strengthens the case for not re-arming the band even if capital recovers. Redirects effort toward sniper redesign or different market type.
+- exit099_live.jsonl absent for 07-22 (no live convergence sells)
+- Shadow engine shows consistent band_struct pricing (d+2: Seoul 0.775, Tokyo 0.770, Chengdu 0.845, Taipei 0.820), which is the feedstock for RECYCLE099
+- No live fills → no live recycling → cannot validate scaling
+- This assumption can only be tested when BAND_LIVE=True and sum_gate conditions are met
 
 ---
 
-## 7. SINGLE BEST ACTION
+## Section 5 — Market Intelligence (day 23 mod 3 = 2 → Platform Mechanics)
 
-**Disk cleanup (VPS SSH — today, before Jul-24).**
+**Primary constraint**: This scheduled agent runs without VPS SSH access and without external browser access. Polymarket docs/announcements cannot be independently fetched this session (network blocked for git fetch; web access through proxy required but not tested for external sites).
 
-**Why this wins on (compounding impact × P(success)) / effort**:
-- *Compounding impact*: Preserves the only productive activity in the system — G8 shadow accumulation at ~4 ticks/day. Without Klaus running, accumulation stops entirely. A disk-full crash at 7 GB free (burning 3.1 GB/day) would occur around **Jul-24 16:00 UTC**, erasing any path to a G8 decision by the Aug 26 ETA. It would also prevent the STWA resolution audit, the G8 threshold computation, and any future re-arm. The disk is the only thing that can make the current null state actively worse.
-- *P(success)*: Near 100%. File deletion is deterministic. No strategy risk, no market dependency.
-- *Effort*: Two shell commands (SSH to VPS).
-- *Cited evidence*: exec_audit §3 (shadow engine writing every 300s), system_status.txt (94%, 7 GB free at 10:18Z), pnl_ledger §4 (disk alert confirmed, original +2%/day now observing +3.1 GB/day).
+**Inferred from shadow data (exec audit Section 3)**:
+- Shadow engine pricing d+2 bands at sum_ask=0.77–0.845, consistent with the BAND_SUM_MAX=0.85 gate config; no sign of market structure change in pricing
+- thermo_maker.jsonl generating 22K–37K rows/day (healthy product volume)
+- maker_flow rows 124K–284K/day — suggesting consistent order-book activity in weather markets
+- d+1 markets showing sum_gate block (Σask 0.87–1.01, above cap): either normal volatility or possible spread widening
 
-**First concrete step** (human executes on VPS):
-```bash
-# identify large consumers
-du -sh /path/to/data/shadow/* | sort -hr | head -20
-# delete shadow snap files older than 2 days
-find /path/to/data/shadow -name 'snap_*.jsonl' -mtime +2 -delete
-# delete shadow daily dirs older than 7 days  
-find /path/to/data/shadow -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +
-# confirm recovery
-df -h
-```
-Target: reclaim ≥5 GB; confirm ≥12 GB free after cleanup for 4-week safe runway at 3.1 GB/day.
+**Delta vs state_log knowledge**: Cannot compute without external access to docs.polymarket.com. Flag for VPS session.
 
-All compounding-path decisions (G8 kill/extend, STWA audit, isotonic promotion) are downstream of Klaus staying alive. Disk cleanup is the prerequisite.
+**One structural note from gatekeeper**: Seoul d+1 from Jul-22 (= Jul-23 market) resolves **today**. This is a resolution event that could update G1/G7 n-counts if band_resolution_join.py is run via SSH today. The network block is preventing this.
+
+---
+
+## Section 6 — Three Experiments
+
+### Experiment A: STWA Resolution Verification
+**Hypothesis**: The Jul-19 YES leg (146.33 shares @ $0.02 = $2.926 at cost) has resolved YES and ~$143+ is currently in the Polymarket USDC wallet, undetected by bankroll.json (which was written midnight 07-22 and hasn't updated).
+
+**Data**: SSH to VPS → check CLOB wallet USDC balance via py_clob_client or direct RPC → compare to bankroll.json $21.495.
+
+**Time**: 15 minutes. **Cost**: $0.
+
+**Success metric**: CLOB wallet shows balance ≥ $140 (expected if Jul-19 YES leg paid out at $1.00/share for 146.33sh = $146.33 net of the $2.93 cost already booked).
+
+**Decision if YES (balance ~$165)**: Capital clears kernel floor ($40), weekly floor ($75), and ruin floor ($50). Reassess all path re-arms. G8 KILL becomes a non-crisis event. Band re-enable with Asia-restricted config becomes discussable pending dispersion recovery.
+
+**Decision if NO (balance ~$21.50)**: Positions went to zero. Confirm $21.50 as true capital. Formal wind-down plan for G8 KILL at n≈100 (Jul-25). Begin next-strategy design phase.
+
+---
+
+### Experiment B: G8 KILL Confirmation at n=100
+**Hypothesis**: When G8 reaches n=100 (~Jul-25, 2 days), CI-lo will be ~93.0% (Wilson 95%), far below BE=97.0%, definitively confirming KILL via the gate formula.
+
+**Data**: Run `shadow_grade.py --refetch` via SSH when n crosses 100 (check via EVOLVE commit or SSH direct).
+
+**Time**: 1h VPS session. **Cost**: $0.
+
+**Success metric**: n=100 confirmed; Wilson CI-lo computed. Decision point: CI-lo < BE → KILL gate; CI-lo ≥ BE → (extremely unlikely per math) extend.
+
+**Decision if CI-lo < BE** (near-certain): Execute KILL procedure — disable updown shadow accumulation (stop ~40 MB/day disk growth), close gatekeeper_state.json for G8, open design-phase planning for next strategy. Free up disk, compute. Human confirms.
+
+**Decision if CI-lo ≥ BE** (extremely unlikely, requires all remaining observations to be wins): Extend gate to n=200; recompute minimum pass threshold.
+
+---
+
+### Experiment C: Asia Sub-Region Dispersion Isolation
+**Hypothesis**: Asia cities have maintained disp_ratio > 1.10 as a sub-region in the last 7 settled days (07-17..07-22), even while the global 7d median sits at 0.817.
+
+**Data**: Extract per-city ratios from existing s50 data and calib_monitor_state.json per-day city-level ratio table. Analysis code exists in `analysis/weather/` — no new code needed. Run via SSH or in this agent session using existing data.
+
+**Time**: 2h. **Cost**: $0.
+
+**Success metric**: Asia sub-region 7d median disp_ratio ≥ 1.10 with n ≥ 15 city-days. (07-22 data alone shows Asia median 1.215, but we need the 7d window to confirm persistence.)
+
+**Decision if YES (Asia disp_ratio7 ≥ 1.10)**: Pre-register an Asia-restricted BAND configuration as a candidate for review when capital floors are cleared. Quantify the expected edge degradation from excluding EU and US/Other cities (reduces market count but preserves dispersion premium).
+
+**Decision if NO (Asia disp_ratio7 < 1.10 in 7d window)**: Global inversion is uniform. No regional carve-out salvages the band thesis. Dispersion edge must be waited for across all regions.
+
+---
+
+## Section 7 — Single Best Action
+
+**SSH to VPS today and verify the CLOB wallet USDC balance.**
+
+This action has the highest (compounding impact × P(success)) / effort ratio of any option available:
+- P(success): material — STWA Jul-19 YES leg (146.33sh) is overdue-unresolved per pnl_ledger Section 5; the market either resolved YES (→ +$143) or NO/expired (→ $0). The ledger has been flagging this as a wildcard for multiple sessions. This uncertainty should have been resolved within 24–48h of the Jul-19 market resolution date; the answer is already in the wallet.
+- Compounding impact: transformative if YES (capital $21.50 → ~$165; all kernel/ruin/weekly floors cleared; path re-arm becomes possible); closure if NO (confirm $21.50, begin wind-down).
+- Effort: one SSH session, 15 minutes.
+
+**Concrete first step**: `ssh {vps} "python3 -c 'from py_clob_client.client import ClobClient; c=ClobClient(...); print(c.get_balance())'"` or equivalent wallet check command.
+
+**Specialist report citations**:
+- pnl_ledger_report.md Section 5: "STWA wildcard: Jul-19 YES leg (146.33sh) could deliver ~+$143 to wallet without any bot action. This event, if it occurs, will appear as a large unexplained capital jump — attribute to STWA FIRST."
+- gatekeeper_report.md FLAG-4: "Klaus is running but has no executable trading path. Capital $21.495 = 7.2% of original. Bot has no self-recovery path without explicit human restart decision."
+- exec_audit_report.md Section 6: "Capital: $21.495 ... Capital note: `$21.495` reflects wallet state as of snapshot; user manual sells and withdrawals are not tracked here — do not infer ruin or session PnL from this figure alone."
+
+The PnL ledger explicitly notes this is not confirmed from CLOB. Until the wallet is directly inspected, the equity range is [$21.50, $167+]. The CLOB check resolves this.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-All items below require owner approval or action. No code or flag changes implemented by this report.
+1. **SSH CLOB wallet check today** (Experiment A): Verify Jul-19 STWA YES leg resolution. Determines whether capital is $21.50 or ~$165+. Informs all downstream decisions. Priority: URGENT (overdue 4+ days).
 
-**[URGENT — today]** Disk cleanup: SSH to VPS; delete shadow snap files >2d and daily shadow dirs >7d; target ≥12 GB free. Prevents service crash by Jul-24.
+2. **G8 threshold decision before Jul-25**: Confirm whether to KILL now, wait to n=100, or extend to n=300. The gatekeeper math (FLAG-1) is clear: n=200 is now insufficient (198W/2L CI-lo=96.4% < BE=97.0%); n=245 is the best-case minimum. With stochastic losses, KILL is the realistic resolution. Human should not arrive at n=100 (~Jul-25) without a decision framework in place.
 
-**[HIGH — this week]** STWA resolution audit: Run `py_clob_client.get_balance()` or check Polymarket wallet directly to reconcile $21.495 bookkeeping vs true USDC balance. If Jul-19 position (146.33 sh @ $0.02) resolved YES: true capital ~$165, all charter floors cleared.
+3. **Hold isotonic candidate** (S4 follow-up): Do not promote to deployed until (a) cron health on VPS is verified, (b) the ECE [0.2–0.3) worsening trend (|diff| 0.036→0.195 in one day) is checked over 3 sessions, and (c) tail behavior at p_raw=1.0 and pre-plateau zone p_raw=0.15 is reviewed with human sign-off.
 
-**[HIGH — by Jul-25]** G8 gate decision: With n≈57 (56W/1L) and a mathematical impossibility of passing at n=100, owner must decide:
-- KILL G8 now (close out the shadow experiment)
-- EXTEND to n=200 (Aug 26 horizon, ~35 more days at 4/day rate)
-If 2 more losses appear at any point, kill is the dominant option regardless of n.
+4. **Disk monitoring**: At 85% and ~250 MB/h, next crisis (~94%) is 8–9 days away. G8 KILL will reduce shadow accumulation. If KILL is delayed, schedule a disk-prune SSH session by Jul-28.
 
-**[MEDIUM — within 1 week]** Isotonic S4 review: Human review of candidate (n_live=3,733, refit 2026-07-21) tail behavior (p_raw=1.0 → p_cal=1.000, removes all shrinkage) before promoting. OOS brier_cal slightly worse than raw — not disqualifying but warrants scrutiny on tail buckets.
-
-**[LOW — data collection only]** Experiment 3 (regional dispersion decomposition): Run calib analysis across 7d shadow files by city/region. No live capital at risk; pure information.
+5. **Resolve G3 before any band re-enable**: Winner's curse is confirmed at n=75 (CI entirely negative). Any BAND re-enable design must explicitly address the adverse-selection pathway, not just cite G1/G7 simulation ROI.
 
 ---
 
-## ANTI-SYCOPHANCY CHECKS
-
-- The last 10 commit messages show zero fills, zero trades, $0 PnL for 2+ consecutive days. The strategy is not working — it is stopped.
-- disp_ratio7=0.854 < 1.10 for 20 consecutive days. The dispersion edge does not exist in current market conditions. This is not a calibration artifact; it is 5 of 6 inverted.
-- G3 winner's curse (ROI CI entirely negative at n=75) is a structural finding, not noise. No band re-enable may cite G1/G7 ambiguous-positive CI as overriding evidence.
-- Capital at $21.495 ($21.495/$300 = 7.2% of original) is deep into ruin territory. No language in this report implies a recovery path exists without explicit owner intervention and capital injection or a rare favorable STWA resolution.
-- G8 cannot pass at n=100. Stating this is not pessimism — it is Wilson CI arithmetic.
-
----
-
-*Sources: exec_audit_report.md (07:07Z), calib_monitor_report.md (08:10Z), gatekeeper_report.md (09:07Z), pnl_ledger_report.md (23:37Z Jul-21). Raw mirror: data-mirror branch SHA f267ecfa, snapshot 10:18:46Z. All analysis is this session — no prior state carried forward except where specialist reports explicitly carry it.*
+*Report-only. No code, config, or gate changes made this session.*  
+*All claims backed by: exec_audit_report.md (07:16Z), calib_monitor_report.md (08:20Z), gatekeeper_report.md (09:00Z), pnl_ledger_report.md (23:37Z 07-22), data-mirror snapshot (10:16:06Z 07-23).*
