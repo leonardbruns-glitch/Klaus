@@ -92,3 +92,48 @@ Rail-breach day (equity < $40 floor) — cutting/measurement only, per prompt.
    report + gate ledger; if its next report still cites the wildcard, its
    state file needs a manual purge (VPS-side fix, trivial, flagged not done —
    the state file belongs to the cloud routine's write path).
+
+---
+
+# EVENING ADDENDUM — 21:53 UTC slot
+
+**Health:** all three services active; watchdog zero restarts since 07-14; no
+CRASHLOOP flag; no backlog (morning slot ended rc=0); `git pull` already up to
+date (no code, no restart). Disk 73% / 26G free — round-3 reclaim holding.
+
+**Equity:** $21.495442 CLOB-actual, == bankroll.json exact, 0 opens, 0
+fires/settles since the 07-19 cut (tape = stop_file skips only). Still below
+the $40 kernel floor → measure-only slot, re-arm remains owner-only. 7d
+realized: sniper tape −$6.34 over 22 settles (21W/1L — candidate-era wins plus
+the 07-19 −$22.09 fatal loss now dominate the window); weather $0.
+
+**Gate (the operative number, shadow_grade --refetch 21:56Z):** CROSSING
+p≥0.995 5m post-cut **n=88 (84W/4L), WR 0.9545, CI-lo 0.8889 vs BE 0.9649,
+sim −$5.52** — +3 settles since morning, all wins, no state change: point WR
+still below breakeven, KILL-LOCK math unchanged (best-case 96/100 = 0.9600 <
+BE at n=100). **Accrual slowed to ~7/day (was 13–16), so n≥100 slips to
+~07-25**; the pre-registered kill executes at whichever slot first reads
+n≥100 with point < BE. Not killed early — gates run as written, $0 at risk
+meanwhile. All-history n=207 WR 0.9662 CI-lo 0.9319 vs BE 0.9638 (point
+clears, CI does not — unchanged).
+
+**Cells (updown_asset_grade 21:56Z):** btc n=134 REJECTED (WR 0.963 = BE,
+−$0.65); doge 19W/1L −$1.06; sol 16W/1L −$2.36; xrp 21W/2L −$5.67; eth 38/38
++$6.32 sole loss-free cell (CI-lo 0.908 vs BE 0.968, far from clearing). No
+promotion candidate.
+
+**Weather:** band trigger NOT met (07-18..07-22 settled: 0.849/1.106/1.256/
+0.787/0.876, 2 of 5; 07-23 partial 1.091 n=20 excluded as unsettled).
+NEG_RISK/RECYCLE alive ([WA] 21:54Z), ruin_floor-blocked, 0 fills.
+
+**Actions taken:** measurement + bookkeeping only — gate ledger refreshed,
+experiments.jsonl evening readings appended, state_log appended. **Live
+changes: ZERO (0/2 across both slots; 19th consecutive zero-live-change
+slot).** No ledger reviews due (all closed through 07-22; next: crossing-gate
+review 07-24, disk-reclaim r3 07-26, multiasset 07-26).
+
+**Standing risks:** unchanged from the morning report, with one update — the
+kill now likely formalizes 07-24 evening or 07-25 rather than 07-24 morning
+(accrual slowdown). The consequence stands: when it lands, the loop has no
+candidate live path, and with equity at $21.50 the only route back to live
+trading is an owner decision.

@@ -1,38 +1,14 @@
 {
- "generated_utc": "2026-07-23T11:30:24Z",
+ "generated_utc": "2026-07-23T21:55:13Z",
  "method": "full pricer_eval, last PRE_PEAK ladder, p_cal-normalized std vs |resolved-mode|, resolved=final running_max",
  "days": {
-  "2026-07-18": {
-   "n": 36,
-   "impl_mean": 0.829,
-   "real_mean": 0.975,
-   "pooled_ratio": 0.849,
-   "median_city_ratio": 0.786,
-   "n_real_pos": 20
-  },
-  "2026-07-19": {
-   "n": 37,
-   "impl_mean": 0.847,
-   "real_mean": 0.766,
-   "pooled_ratio": 1.106,
-   "median_city_ratio": 0.711,
-   "n_real_pos": 19
-  },
-  "2026-07-20": {
-   "n": 39,
-   "impl_mean": 0.823,
-   "real_mean": 0.655,
-   "pooled_ratio": 1.256,
-   "median_city_ratio": 0.816,
-   "n_real_pos": 21
-  },
   "2026-07-21": {
-   "n": 40,
+   "n": 39,
    "impl_mean": 0.81,
-   "real_mean": 1.029,
+   "real_mean": 1.03,
    "pooled_ratio": 0.787,
-   "median_city_ratio": 0.693,
-   "n_real_pos": 24
+   "median_city_ratio": 0.691,
+   "n_real_pos": 23
   },
   "2026-07-22": {
    "n": 43,
@@ -41,1026 +17,17 @@
    "pooled_ratio": 0.876,
    "median_city_ratio": 0.657,
    "n_real_pos": 18
+  },
+  "2026-07-23": {
+   "n": 20,
+   "impl_mean": 0.872,
+   "real_mean": 0.8,
+   "pooled_ratio": 1.091,
+   "median_city_ratio": 0.721,
+   "n_real_pos": 11
   }
  },
  "rows": [
-  {
-   "city": "lucknow",
-   "date": "2026-07-18",
-   "t_close": 1784401200,
-   "impl": 0.4621,
-   "real": 4.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "guangzhou",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 1.2546,
-   "real": 4.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "taipei",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 0.979,
-   "real": 1.0,
-   "run_max": 36.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wellington",
-   "date": "2026-07-18",
-   "t_close": 1784376000,
-   "impl": 0.107,
-   "real": 0.0,
-   "run_max": 15.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "manila",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 0.9816,
-   "real": 3.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "qingdao",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 1.0948,
-   "real": 0.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "karachi",
-   "date": "2026-07-18",
-   "t_close": 1784401200,
-   "impl": 0.8964,
-   "real": 0.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chongqing",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 0.4899,
-   "real": 0.0,
-   "run_max": 34.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "shanghai",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 0.4538,
-   "real": 0.0,
-   "run_max": 37.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wuhan",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 1.1506,
-   "real": 1.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "beijing",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 0.8712,
-   "real": 0.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "kuala-lumpur",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 0.5817,
-   "real": 0.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chengdu",
-   "date": "2026-07-18",
-   "t_close": 1784390400,
-   "impl": 1.3566,
-   "real": 2.0,
-   "run_max": 34.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "tel-aviv",
-   "date": "2026-07-18",
-   "t_close": 1784408400,
-   "impl": 0.9578,
-   "real": 0.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chicago",
-   "date": "2026-07-18",
-   "t_close": 1784440800,
-   "impl": 0.8306,
-   "real": 2.2222,
-   "run_max": 32.8,
-   "n_buckets": 11
-  },
-  {
-   "city": "helsinki",
-   "date": "2026-07-18",
-   "t_close": 1784412000,
-   "impl": 1.0716,
-   "real": 0.0,
-   "run_max": 26.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "istanbul",
-   "date": "2026-07-18",
-   "t_close": 1784408400,
-   "impl": 0.5064,
-   "real": 0.0,
-   "run_max": 28.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "jeddah",
-   "date": "2026-07-18",
-   "t_close": 1784408400,
-   "impl": 0.9657,
-   "real": 1.0,
-   "run_max": 39.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "moscow",
-   "date": "2026-07-18",
-   "t_close": 1784408400,
-   "impl": 1.099,
-   "real": 1.0,
-   "run_max": 24.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "warsaw",
-   "date": "2026-07-18",
-   "t_close": 1784415600,
-   "impl": 0.6375,
-   "real": 0.0,
-   "run_max": 26.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "houston",
-   "date": "2026-07-18",
-   "t_close": 1784440800,
-   "impl": 0.9047,
-   "real": 1.1111,
-   "run_max": 33.9,
-   "n_buckets": 11
-  },
-  {
-   "city": "ankara",
-   "date": "2026-07-18",
-   "t_close": 1784408400,
-   "impl": 1.2265,
-   "real": 1.0,
-   "run_max": 29.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "milan",
-   "date": "2026-07-18",
-   "t_close": 1784415600,
-   "impl": 0.9458,
-   "real": 0.0,
-   "run_max": 34.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "munich",
-   "date": "2026-07-18",
-   "t_close": 1784415600,
-   "impl": 0.8841,
-   "real": 1.0,
-   "run_max": 26.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "miami",
-   "date": "2026-07-18",
-   "t_close": 1784437200,
-   "impl": 0.9965,
-   "real": 3.3333,
-   "run_max": 28.3,
-   "n_buckets": 11
-  },
-  {
-   "city": "london",
-   "date": "2026-07-18",
-   "t_close": 1784419200,
-   "impl": 0.8217,
-   "real": 3.0,
-   "run_max": 21.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "madrid",
-   "date": "2026-07-18",
-   "t_close": 1784415600,
-   "impl": 0.9383,
-   "real": 1.0,
-   "run_max": 36.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "paris",
-   "date": "2026-07-18",
-   "t_close": 1784415600,
-   "impl": 0.7017,
-   "real": 0.0,
-   "run_max": 29.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "atlanta",
-   "date": "2026-07-18",
-   "t_close": 1784437200,
-   "impl": 0.6092,
-   "real": 1.1111,
-   "run_max": 33.9,
-   "n_buckets": 11
-  },
-  {
-   "city": "sao-paulo",
-   "date": "2026-07-18",
-   "t_close": 1784430000,
-   "impl": 0.8545,
-   "real": 0.0,
-   "run_max": 24.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "mexico-city",
-   "date": "2026-07-18",
-   "t_close": 1784440800,
-   "impl": 1.1134,
-   "real": 1.0,
-   "run_max": 25.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "denver",
-   "date": "2026-07-18",
-   "t_close": 1784444400,
-   "impl": 0.8729,
-   "real": 1.1111,
-   "run_max": 34.4,
-   "n_buckets": 11
-  },
-  {
-   "city": "los-angeles",
-   "date": "2026-07-18",
-   "t_close": 1784448000,
-   "impl": 0.6903,
-   "real": 1.1111,
-   "run_max": 25.6,
-   "n_buckets": 11
-  },
-  {
-   "city": "austin",
-   "date": "2026-07-18",
-   "t_close": 1784440800,
-   "impl": 0.4698,
-   "real": 0.0,
-   "run_max": 34.4,
-   "n_buckets": 11
-  },
-  {
-   "city": "san-francisco",
-   "date": "2026-07-18",
-   "t_close": 1784448000,
-   "impl": 0.6518,
-   "real": 0.0,
-   "run_max": 21.7,
-   "n_buckets": 11
-  },
-  {
-   "city": "seattle",
-   "date": "2026-07-18",
-   "t_close": 1784448000,
-   "impl": 0.3972,
-   "real": 1.1111,
-   "run_max": 23.3,
-   "n_buckets": 11
-  },
-  {
-   "city": "cape-town",
-   "date": "2026-07-19",
-   "t_close": 1784498400,
-   "impl": 1.2358,
-   "real": 3.0,
-   "run_max": 14.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "shenzhen",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 0.9043,
-   "real": 0.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wellington",
-   "date": "2026-07-19",
-   "t_close": 1784462400,
-   "impl": 0.8077,
-   "real": 1.0,
-   "run_max": 13.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "guangzhou",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.2509,
-   "real": 3.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "taipei",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.0523,
-   "real": 0.0,
-   "run_max": 36.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "manila",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.0647,
-   "real": 2.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "qingdao",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 0.9912,
-   "real": 1.0,
-   "run_max": 29.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "shanghai",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.0378,
-   "real": 1.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wuhan",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.0693,
-   "real": 2.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "beijing",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.1028,
-   "real": 1.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "kuala-lumpur",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 0.4907,
-   "real": 1.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chengdu",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 0.9582,
-   "real": 0.0,
-   "run_max": 37.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chongqing",
-   "date": "2026-07-19",
-   "t_close": 1784476800,
-   "impl": 1.2836,
-   "real": 2.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "tel-aviv",
-   "date": "2026-07-19",
-   "t_close": 1784494800,
-   "impl": 1.0407,
-   "real": 2.0,
-   "run_max": 34.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "istanbul",
-   "date": "2026-07-19",
-   "t_close": 1784494800,
-   "impl": 0.5486,
-   "real": 0.0,
-   "run_max": 28.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "jeddah",
-   "date": "2026-07-19",
-   "t_close": 1784494800,
-   "impl": 0.638,
-   "real": 0.0,
-   "run_max": 38.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "moscow",
-   "date": "2026-07-19",
-   "t_close": 1784494800,
-   "impl": 0.8264,
-   "real": 1.0,
-   "run_max": 27.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "munich",
-   "date": "2026-07-19",
-   "t_close": 1784502000,
-   "impl": 0.936,
-   "real": 0.0,
-   "run_max": 23.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "warsaw",
-   "date": "2026-07-19",
-   "t_close": 1784502000,
-   "impl": 0.9198,
-   "real": 0.0,
-   "run_max": 27.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "amsterdam",
-   "date": "2026-07-19",
-   "t_close": 1784502000,
-   "impl": 0.524,
-   "real": 0.0,
-   "run_max": 20.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "ankara",
-   "date": "2026-07-19",
-   "t_close": 1784494800,
-   "impl": 1.3328,
-   "real": 1.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "mexico-city",
-   "date": "2026-07-19",
-   "t_close": 1784527200,
-   "impl": 1.1209,
-   "real": 1.0,
-   "run_max": 25.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "milan",
-   "date": "2026-07-19",
-   "t_close": 1784502000,
-   "impl": 0.778,
-   "real": 0.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "london",
-   "date": "2026-07-19",
-   "t_close": 1784505600,
-   "impl": 0.8279,
-   "real": 1.0,
-   "run_max": 21.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "miami",
-   "date": "2026-07-19",
-   "t_close": 1784523600,
-   "impl": 0.7992,
-   "real": 0.0,
-   "run_max": 32.8,
-   "n_buckets": 11
-  },
-  {
-   "city": "atlanta",
-   "date": "2026-07-19",
-   "t_close": 1784523600,
-   "impl": 0.7899,
-   "real": 1.1111,
-   "run_max": 32.8,
-   "n_buckets": 11
-  },
-  {
-   "city": "madrid",
-   "date": "2026-07-19",
-   "t_close": 1784502000,
-   "impl": 0.8053,
-   "real": 0.0,
-   "run_max": 36.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "paris",
-   "date": "2026-07-19",
-   "t_close": 1784502000,
-   "impl": 0.8521,
-   "real": 0.0,
-   "run_max": 24.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "sao-paulo",
-   "date": "2026-07-19",
-   "t_close": 1784516400,
-   "impl": 0.7513,
-   "real": 0.0,
-   "run_max": 26.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "shenzhen",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 0.9243,
-   "real": 2.0,
-   "run_max": 30.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chicago",
-   "date": "2026-07-19",
-   "t_close": 1784527200,
-   "impl": 0.5712,
-   "real": 0.0,
-   "run_max": 26.1,
-   "n_buckets": 11
-  },
-  {
-   "city": "toronto",
-   "date": "2026-07-19",
-   "t_close": 1784523600,
-   "impl": 0.6482,
-   "real": 2.0,
-   "run_max": 25.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "denver",
-   "date": "2026-07-19",
-   "t_close": 1784530800,
-   "impl": 0.8707,
-   "real": 1.1111,
-   "run_max": 36.5,
-   "n_buckets": 11
-  },
-  {
-   "city": "los-angeles",
-   "date": "2026-07-19",
-   "t_close": 1784534400,
-   "impl": 0.6682,
-   "real": 0.0,
-   "run_max": 25.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "austin",
-   "date": "2026-07-19",
-   "t_close": 1784527200,
-   "impl": 0.5712,
-   "real": 0.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "dallas",
-   "date": "2026-07-19",
-   "t_close": 1784527200,
-   "impl": 0.4499,
-   "real": 0.0,
-   "run_max": 36.7,
-   "n_buckets": 11
-  },
-  {
-   "city": "houston",
-   "date": "2026-07-19",
-   "t_close": 1784527200,
-   "impl": 0.8047,
-   "real": 0.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "seattle",
-   "date": "2026-07-19",
-   "t_close": 1784534400,
-   "impl": 0.0099,
-   "real": 1.1111,
-   "run_max": 25.6,
-   "n_buckets": 11
-  },
-  {
-   "city": "qingdao",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 1.0933,
-   "real": 1.0,
-   "run_max": 29.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "guangzhou",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 1.064,
-   "real": 2.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wellington",
-   "date": "2026-07-20",
-   "t_close": 1784548800,
-   "impl": 0.5494,
-   "real": 0.0,
-   "run_max": 12.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "taipei",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 1.0664,
-   "real": 1.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "manila",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 1.0808,
-   "real": 1.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "tokyo",
-   "date": "2026-07-20",
-   "t_close": 1784559600,
-   "impl": 0.1372,
-   "real": 0.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "shanghai",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 0.8811,
-   "real": 0.0,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "singapore",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 0.4515,
-   "real": 0.0,
-   "run_max": 32.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wuhan",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 0.7112,
-   "real": 1.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "beijing",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 0.081,
-   "real": 0.0,
-   "run_max": 30.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "kuala-lumpur",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 0.4963,
-   "real": 0.0,
-   "run_max": 29.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chengdu",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 1.4058,
-   "real": 1.0,
-   "run_max": 38.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chongqing",
-   "date": "2026-07-20",
-   "t_close": 1784563200,
-   "impl": 1.2509,
-   "real": 0.0,
-   "run_max": 38.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "tel-aviv",
-   "date": "2026-07-20",
-   "t_close": 1784581200,
-   "impl": 1.0242,
-   "real": 1.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "helsinki",
-   "date": "2026-07-20",
-   "t_close": 1784584800,
-   "impl": 1.0334,
-   "real": 0.0,
-   "run_max": 21.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "istanbul",
-   "date": "2026-07-20",
-   "t_close": 1784581200,
-   "impl": 0.5986,
-   "real": 0.0,
-   "run_max": 28.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "jeddah",
-   "date": "2026-07-20",
-   "t_close": 1784581200,
-   "impl": 0.5,
-   "real": 1.0,
-   "run_max": 40.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "moscow",
-   "date": "2026-07-20",
-   "t_close": 1784581200,
-   "impl": 0.9163,
-   "real": 0.0,
-   "run_max": 26.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "chicago",
-   "date": "2026-07-20",
-   "t_close": 1784613600,
-   "impl": 0.8515,
-   "real": 1.1111,
-   "run_max": 27.8,
-   "n_buckets": 11
-  },
-  {
-   "city": "cape-town",
-   "date": "2026-07-20",
-   "t_close": 1784584800,
-   "impl": 1.0051,
-   "real": 0.0,
-   "run_max": 16.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "warsaw",
-   "date": "2026-07-20",
-   "t_close": 1784588400,
-   "impl": 0.8877,
-   "real": 1.0,
-   "run_max": 20.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "los-angeles",
-   "date": "2026-07-20",
-   "t_close": 1784620800,
-   "impl": 0.8265,
-   "real": 0.0,
-   "run_max": 27.2,
-   "n_buckets": 11
-  },
-  {
-   "city": "miami",
-   "date": "2026-07-20",
-   "t_close": 1784610000,
-   "impl": 0.9965,
-   "real": 1.1111,
-   "run_max": 33.9,
-   "n_buckets": 11
-  },
-  {
-   "city": "amsterdam",
-   "date": "2026-07-20",
-   "t_close": 1784588400,
-   "impl": 0.688,
-   "real": 0.0,
-   "run_max": 20.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "ankara",
-   "date": "2026-07-20",
-   "t_close": 1784581200,
-   "impl": 1.3124,
-   "real": 2.0,
-   "run_max": 33.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "milan",
-   "date": "2026-07-20",
-   "t_close": 1784588400,
-   "impl": 0.9456,
-   "real": 1.0,
-   "run_max": 31.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "munich",
-   "date": "2026-07-20",
-   "t_close": 1784588400,
-   "impl": 0.902,
-   "real": 1.0,
-   "run_max": 23.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "london",
-   "date": "2026-07-20",
-   "t_close": 1784592000,
-   "impl": 0.7575,
-   "real": 1.0,
-   "run_max": 25.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "madrid",
-   "date": "2026-07-20",
-   "t_close": 1784588400,
-   "impl": 0.88,
-   "real": 1.0,
-   "run_max": 36.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "paris",
-   "date": "2026-07-20",
-   "t_close": 1784588400,
-   "impl": 0.74,
-   "real": 0.0,
-   "run_max": 24.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "atlanta",
-   "date": "2026-07-20",
-   "t_close": 1784610000,
-   "impl": 0.8386,
-   "real": 1.1111,
-   "run_max": 33.9,
-   "n_buckets": 11
-  },
-  {
-   "city": "sao-paulo",
-   "date": "2026-07-20",
-   "t_close": 1784602800,
-   "impl": 0.6787,
-   "real": 0.0,
-   "run_max": 27.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "toronto",
-   "date": "2026-07-20",
-   "t_close": 1784610000,
-   "impl": 0.9513,
-   "real": 2.0,
-   "run_max": 24.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "mexico-city",
-   "date": "2026-07-20",
-   "t_close": 1784613600,
-   "impl": 1.1064,
-   "real": 0.0,
-   "run_max": 27.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "denver",
-   "date": "2026-07-20",
-   "t_close": 1784617200,
-   "impl": 0.8261,
-   "real": 1.1111,
-   "run_max": 37.9,
-   "n_buckets": 11
-  },
-  {
-   "city": "austin",
-   "date": "2026-07-20",
-   "t_close": 1784613600,
-   "impl": 0.5452,
-   "real": 0.0,
-   "run_max": 36.1,
-   "n_buckets": 11
-  },
-  {
-   "city": "dallas",
-   "date": "2026-07-20",
-   "t_close": 1784613600,
-   "impl": 0.1814,
-   "real": 0.0,
-   "run_max": 38.9,
-   "n_buckets": 11
-  },
-  {
-   "city": "houston",
-   "date": "2026-07-20",
-   "t_close": 1784613600,
-   "impl": 0.9066,
-   "real": 1.1111,
-   "run_max": 35.0,
-   "n_buckets": 11
-  },
-  {
-   "city": "wellington",
-   "date": "2026-07-21",
-   "t_close": 1784635200,
-   "impl": 0.786,
-   "real": 1.0,
-   "run_max": 12.0,
-   "n_buckets": 11
-  },
   {
    "city": "taipei",
    "date": "2026-07-21",
@@ -1797,6 +764,186 @@
    "impl": 0.567,
    "real": 0.0,
    "run_max": 32.2,
+   "n_buckets": 11
+  },
+  {
+   "city": "taipei",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.1213,
+   "real": 1.0,
+   "run_max": 34.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "guangzhou",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.2537,
+   "real": 1.0,
+   "run_max": 36.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "wellington",
+   "date": "2026-07-23",
+   "t_close": 1784808000,
+   "impl": 0.1754,
+   "real": 0.0,
+   "run_max": 14.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "busan",
+   "date": "2026-07-23",
+   "t_close": 1784818800,
+   "impl": 0.7126,
+   "real": 1.0,
+   "run_max": 34.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "shenzhen",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 0.8944,
+   "real": 0.0,
+   "run_max": 32.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "manila",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.1581,
+   "real": 3.0,
+   "run_max": 32.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "qingdao",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 0.0,
+   "real": 0.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "tokyo",
+   "date": "2026-07-23",
+   "t_close": 1784818800,
+   "impl": 0.4739,
+   "real": 0.0,
+   "run_max": 35.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "shanghai",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.2107,
+   "real": 2.0,
+   "run_max": 35.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "singapore",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 0.7211,
+   "real": 1.0,
+   "run_max": 30.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "wuhan",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.1262,
+   "real": 0.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "beijing",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.1544,
+   "real": 0.0,
+   "run_max": 28.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "kuala-lumpur",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 0.8072,
+   "real": 1.0,
+   "run_max": 32.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "istanbul",
+   "date": "2026-07-23",
+   "t_close": 1784840400,
+   "impl": 0.8453,
+   "real": 1.0,
+   "run_max": 24.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "chengdu",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.4055,
+   "real": 2.0,
+   "run_max": 37.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "chongqing",
+   "date": "2026-07-23",
+   "t_close": 1784822400,
+   "impl": 1.295,
+   "real": 0.0,
+   "run_max": 40.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "tel-aviv",
+   "date": "2026-07-23",
+   "t_close": 1784840400,
+   "impl": 1.0539,
+   "real": 2.0,
+   "run_max": 33.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "jeddah",
+   "date": "2026-07-23",
+   "t_close": 1784840400,
+   "impl": 0.0,
+   "real": 0.0,
+   "run_max": 40.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "moscow",
+   "date": "2026-07-23",
+   "t_close": 1784840400,
+   "impl": 1.0488,
+   "real": 1.0,
+   "run_max": 22.0,
+   "n_buckets": 11
+  },
+  {
+   "city": "ankara",
+   "date": "2026-07-23",
+   "t_close": 1784840400,
+   "impl": 0.9916,
+   "real": 0.0,
+   "run_max": 30.0,
    "n_buckets": 11
   }
  ]
