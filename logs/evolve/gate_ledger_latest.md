@@ -1,66 +1,81 @@
-# Gate Ledger — refreshed 2026-07-22 22:10 UTC (EVOLVE daily, evening slot)
+# Gate Ledger — refreshed 2026-07-23 11:45 UTC (EVOLVE daily, morning slot)
 
 Source: `analysis/crypto/shadow_grade.py --refetch` +
 `analysis/crypto/updown_asset_grade.py` + live tape
-(`logs/updown_sniper.jsonl`) + wallet reconcile ($21.495442 CLOB-actual,
-unchanged since the 07-19 11:26Z cut, 0 opens, 0 fires/settles since — only
-`stop_file` skips on the tape; SETTLE count still 88).
+(`logs/updown_sniper.jsonl`) + wallet reconcile ($21.4954 CLOB-actual, bot.log
+11:26Z this slot; 0 opens, 0 fires/settles since the cut — only `stop_file`
+skips on the tape; SETTLE count still 88).
 **Context: UPDOWN-SNIPER CUT 2026-07-19 11:26Z (`logs/UPDOWN_STOP`, charter PF
-rail: candidate tape PF 0.79 over 27 settles). System fully risk-off: sniper
-stopped, weather dark, engine ruin_floor $89.16 blocks NEG_RISK/RECYCLE entries,
-ladder disarmed. Equity $21.50 < $40 kernel floor — any live re-arm is
-owner-only. Burn rate zero; shadow accrues free.**
+rail). System fully risk-off: sniper stopped, weather dark, engine ruin_floor
+$89.16 blocks NEG_RISK/RECYCLE entries, ladder disarmed. Equity $21.50 < $40
+kernel floor — any live re-arm is owner-only. Burn rate zero; shadow accrues
+free.**
+
+## EQUITY CONFIRMED ON-CHAIN (2026-07-23, this slot) — wildcard CLOSED
+
+Full data-api audit of the wallet
+(0x21fBa7a743155A9cBE0e04b2C815bC954459842c): **408 positions held, total
+currentValue $0.0000** — pure residue of losing tokens (winners were
+sold/redeemed in-era). **True equity = $21.4954 cash, exactly. No pending
+upside.** The pnl_ledger's "STWA Jul-19 YES leg 146.33sh ⇒ +$143 wildcard" is
+**PHANTOM**: no position of that size exists on-chain, the wallet's LAST
+activity of any kind (trade/redeem/merge) was 2026-07-19T07:59:46Z (the fatal
+$22.18 sniper fire itself), and the ledger-state token id
+(`5717613767097074`, 16 digits) is truncated garbage — real CTF token ids are
+~77 digits. Same verdict for the Jul-17 ($8.06) and Jul-18 ($3.59) "overdue
+STWA opens": no on-chain fills exist on those days. The pnl_ledger equity
+band [$21.50–$167] collapses to the point $21.50. Cloud analysts: stop citing
+the wildcard; attribute any future capital jump to actual on-chain activity.
 
 ## Sniper gates (lead rows)
 
 | Slice | n | WR | ROI | CI / note | Verdict |
 |---|---|---|---|---|---|
-| **CROSSING p≥0.995 5m, POST-CUT — THE re-enable gate** | **72** | **97.2%** (70W/2L) | **+$1.84 sim** | CI-lo 0.9043 vs BE 0.9665 — no new loss since the morning slot (was 63W/2L n=65); point +0.0057 over BE; accrual 65→72 in ~10.5h (~16/day); n≥100 ETA ~07-24 | **COLLECTING — PASS-BRANCH MATH (new): at WR 0.972 the Wilson CI-lo cannot clear BE before n≈3000+; even loss-free to WR≈0.98 needs n≈400+. Realistic outcomes: KILL branch at n≥100 (2+ more losses ⇒ point<BE) or indefinite grind. Re-arm is owner-only regardless (equity < $40 floor)** |
-| CROSSING p≥0.995 5m, all-history (baseline) | 191 | 97.4% | +$9.56 sim | CI-lo 0.9402 vs BE 0.9643 — point clears, CI-lo does NOT (gap ~0.024) | reference only (pre-cut rows never count for re-entry) |
-| CANDIDATE p≥0.995 5m-only (pre-cut pool) | 97 | 97.9% | +$9.55 | CI-lo 0.9279 vs BE 0.9605 — biased-population caveat unchanged | **VOID for decisions — never cite** |
-| Unfiltered pool (TRUE labels, all steps) | 286 | 96.9% | +0.34%/$ | step 300s n=257 WR 97.3% +$9.27; step 900s n=29 WR 93.1% −$4.45 is the bleed | v1 pool reference only |
-| CANDIDATE live tape (07-16 14:59Z → cut) | 27 settles | 96.3% (26W/1L) | −$4.64, PF 0.79 | one crossing-fire loss at Kelly clip $22.09 (50.6% of wallet) erased all 26 wins; kill-watch (c) → cut | **CLOSED — do not pool** |
+| **CROSSING p≥0.995 5m, POST-CUT — THE re-enable gate** | **85** | **95.29%** (81W/4L) | **−$5.85 sim** | CI-lo 0.8852 vs BE 0.9644 — **TWO new losses overnight** (was 70W/2L n=72 at 07-22 22:10Z; +13 settles, 2 losses). Point WR is now BELOW breakeven and slice sim-PnL is NEGATIVE for the first time. | **COLLECTING — KILL-LOCKED: with 4 losses at n=85, best-case point WR at n=100 = 96/100 = 0.9600 < BE 0.9644. The pre-registered GATE KILL (post-cut n≥100 ∧ point WR < BE) is now unavoidable unless the next 15 fills' avg ask ≈0.935 (implausible at p≥0.995; slice avg has held ~0.964). At 13–16 settles/day, n≥100 lands ~07-24 morning — that slot executes the kill: experiment KILLED, BTC-5m certainty class closed, graveyard entry.** |
+| CROSSING p≥0.995 5m, all-history (baseline) | 204 | 96.57% | +$1.87 sim | CI-lo 0.9309 vs BE 0.9636 — point barely clears, CI-lo does not | reference only (pre-cut rows never count for re-entry) |
+| CANDIDATE p≥0.995 5m-only (pre-cut pool) | 104 | 96.15% | +$0.48 | CI-lo 0.9053 vs BE 0.9598 — biased population | **VOID for decisions — never cite** |
+| Unfiltered pool (TRUE labels, all steps) | 304 | 96.4% | −$1.13 (−0.07%/$) | step 300s n=273 WR 96.7% +$2.87; step 900s n=31 WR 93.5% −$4.01 remains the bleed | v1 pool reference only |
+| CANDIDATE live tape (07-16 14:59Z → cut) | 27 settles | 96.3% (26W/1L) | −$4.64, PF 0.79 | unchanged | **CLOSED — do not pool** |
 | KELLY | — | — | — | owner-waived era ended with the cut | **OFF** |
 
-## Capacity cells — per-asset (`updown_asset_grade.py`)
+## Capacity cells — per-asset (`updown_asset_grade.py`, 2026-07-23)
 
 | Asset | graded | WR | BE | pnl | p≥.995 sub-slice | Verdict |
 |---|---|---|---|---|---|---|
-| btc | 123 | 96.7% CI[0.919,0.987] | 0.963 | +$2.61 | n=73 WR 95.9% CI-lo 0.886 BE 0.961 **−$1.16 (point BELOW BE)** | COLLECTING — p≥.995 sub-slice still point-negative |
-| eth | 29 | 29/29 W | 0.966 | +$5.22 | n=10 10W | COLLECTING |
-| xrp | 18 | **17W/1L — FIRST LOSS** WR 94.4% < BE 96.1% | 0.961 | **−$1.50** | n=6 5W/1L WR 0.833 −$3.34 | COLLECTING — one loss at these asks erased ~5 wins; certainty-taker asymmetry now visible in a second asset |
-| doge | 14 | 14/14 W | 0.956 | +$3.28 | n=9 9W | COLLECTING |
-| sol | 11 | 11/11 W | 0.966 | +$2.00 | n=3 3W | COLLECTING |
+| btc | 132 | 96.2% CI[0.914,0.984] | 0.963 | −$0.84 | n=80 WR 95.0% CI-lo 0.878 BE 0.960 **−$4.90** | **REJECTED** — first cell past n≥100: point WR below BE, CI-lo nowhere near |
+| doge | 17 | **16W/1L — FIRST LOSS** 94.1% < BE 0.959 | 0.959 | **−$1.49** | n=9 9W +$2.45 | COLLECTING |
+| eth | 35 | 35/35 W CI[0.901,1.000] | 0.967 | +$6.04 | n=11 11W +$2.03 | COLLECTING — **only loss-free cell left** |
+| sol | 17 | **16W/1L — FIRST LOSS** 94.1% < BE 0.965 | 0.965 | **−$2.36** | n=5 5W | COLLECTING |
+| xrp | 22 | 20W/2L 90.9% < BE 0.960 | 0.960 | **−$5.76** | n=9 7W/2L WR 0.778 **−$7.74** | COLLECTING — worst cell |
 
-BTC unfiltered graded n=123 WR 96.7% vs BE 96.3% — past n≥100 in count but the
-CI-lo (0.919) is far below BE and the operative p≥0.995 slice is point-NEGATIVE
-(−$1.16 on n=73). XRP flipped from 14/14W to net-negative on a single loss —
-the same one-loss-erases-the-slice asymmetry that killed the BTC candidate
-tape. No alt-asset cell is within reach of n≥100. Promotion is not a live
-question.
+**Cross-cell read (honest):** the one-loss-erases-25-wins asymmetry landed in
+EVERY cell overnight — doge and sol took their first losses, xrp its second,
+btc (the only n≥100 cell) crossed into REJECTED, and the operative post-cut
+gate went point-negative. 4 of 5 assets are now net-negative sim. This is not
+a BTC-specific failure: the certainty-taker class (buy ~0.96 avg ask on
+p≥0.995 model certainty) is failing uniformly wherever n grows. eth's 35/35
+is the pattern every other cell showed before its first losses arrived
+(btc was 26W/1L at cut; xrp was 14/14W on 07-21). Promotion is not a live
+question; the live question is whether ANY cell survives its own n≥100.
 
 ## Weather rows (maintenance)
 
-- Band re-enable trigger (settled disp_ratio ≥1.10 × 5d sustained): **NOT met**
-  — last 5 settled days (07-18..07-22): 0.849 / 1.106 / 1.256 / 0.787 / 1.105
-  (07-22 partial, n=21). Only 2 of 5 clear 1.10; 07-21 at 0.787 anchors a reset
-  streak.
-- NEG_RISK_ARB / RECYCLE099: alive ([WA] cycles running 21:55Z this slot,
-  MIN_LOCKOUT shadow logging 35 candidates / 0 live posts), 0 fills — engine
-  ruin_floor $89.16 blocks new entries mechanically.
-- Lockout family: all off; evidence base unchanged.
-- NMS note: Synoptic feed returning HTTP 403 (WARNING in bot.log); weather is
-  dark so no live impact — feed-key check is a weather-era task.
+- Band re-enable trigger (settled disp_ratio ≥1.10 × 5d sustained): **NOT
+  met** — pooled ratio last 5 settled days (07-18..07-22): 0.849 / 1.106 /
+  1.256 / 0.787 / **0.876** (07-22 finalized at n=43, DOWN from yesterday's
+  partial 1.105 at n=21). 2 of 5 clear 1.10; streak reset by 07-21 and 07-22.
+- NEG_RISK_ARB / RECYCLE099: alive ([WA] cycles running this slot), 0 fills —
+  engine ruin_floor $89.16 blocks new entries mechanically (intended).
+- Residual weather positions: ZERO real — on-chain audit above confirms all
+  408 held tokens are worthless residue.
+- NMS note: Synoptic feed HTTP 403 persists (bot.log 11:26Z); weather dark,
+  no live impact.
 
 ## Health (this slot)
 
-All three services active; liveness watchdog zero restarts since 07-14; wedge
-watchdog untripped. `git pull`: already up to date (no code, no restart). Disk
-85% / 15G free (83% this morning, ~2.5G/day accrual → next reclaim round due
-~07-26; structural fix for lag_ws_events.jsonl 8.3G + market_ticks.jsonl 2.5G
-live-appends remains owner-only per the 07-19 escalation). Reviews closed this
-slot: execution/redemption.py `_redeem_pending` sniper-held exclusion (due
-07-20, missed by the 07-20/21 slots, caught by reconciliation — KEEP, both
-revert conditions untripped, guard inert while the path is cut). 7d realized:
-sniper tape −$14.86 over settles in window (all pre-cut); weather $0; wallet
-static.
+All three services active; liveness watchdog zero restarts since 07-14; no
+backlog (07-22 evening ended rc=0). `git pull`: 5 cloud-analyst log commits,
+no code, no restart. Disk 87% / 13G free at slot start (~4G/day accrual);
+reclaim round 3 this slot: gzip -1 of shadow/hot 07-16..07-20 (16.3G
+plaintext, ~15:1 expected → ~15G freed). 7d realized: $0 (no fills, no
+settles, wallet static at $21.4954 since 07-19).
