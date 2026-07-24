@@ -1,158 +1,137 @@
-# Klaus Gate-Keeper Report — 2026-07-23T09:00Z
+# Gate-Keeper Report — 2026-07-24
 
-**Run basis:** data-mirror snapshot 2026-07-23T09:00:25Z (age: ~0 min) | Prior state: 2026-07-22T09:02Z
-**System status:** `klaus systemd: active` | Open positions: 0 | Bankroll: $21.495 | Band dark: day 17 | UPDOWN_STOP: active since Jul-19 11:26Z
-**Network status:** ⚠ git fetch timed out again — `shadow_grade.py --refetch` and `band_resolution_join.py` could NOT run this session. G8 n sourced from EVOLVE commits (Jul-22 daily + evening). G1/G7 resolution n frozen. Shadow fires from band_struct_lite parsed via GitHub MCP fallback.
+**Generated:** 2026-07-24T09:12Z
+**SNAPSHOT:** 2026-07-24T09:00:04Z (12 min old — PASS)
+**System:** `active` (PASS)
+**Prior run:** 2026-07-23T09:00:00Z
 
 ---
 
-## GATE LEDGER
+## Context
+
+Zero active trading paths. UPDOWN_STOP (since 2026-07-19T11:26Z) + BAND_LIVE=False (since 2026-07-06T22:08Z) + LDA_STOP (rolling-20 worst −$36.39 < −$30 threshold). Equity $21.4954 cash (CLOB-exact, on-chain confirmed morning Jul-23) = 24.1% of ruin_floor $89.16. All band/STWA/ladder paths mechanically blocked. Burn rate zero; shadow accrues free.
+
+**Network blocked — 4th consecutive run.** shadow_grade.py, band_resolution_join.py, maker_fills_recent.log unrunnable from this container. G8 data sourced from `data/gate_ledger_latest.md` refreshed by EVOLVE at 2026-07-23T22:05Z (authoritative shadow_grade.py run on VPS). G1/G7 n frozen (no resolution flow while band dark).
+
+---
+
+## Gate Ledger
 
 | Gate | n | +24h | WR | ROI | CI95 | Status | ETA to threshold |
 |---|---|---|---|---|---|---|---|
-| **G1** BAND_YES (all slices) | 934 | 0 | 15.3% | +4.0%† | [-10.9, +21.1] | AMBIGUOUS | Indet. — band dark, cap $21.50 |
-| **G2a** band_no_d1 (shadow) | 115 | 0 | 68.7% | +1.3% | [-11.9, +12.7] | AMBIGUOUS | N/A (BAND_NO=False) |
-| **G2b** pair_fav_YES | 9 | 0 | N/A | N/A | [—, —] | COLLECTING | Indet. — band dark |
-| **G2c** pair_fav_NO | 9 | 0 | N/A | N/A | [—, —] | COLLECTING | Indet. — band dark |
-| **G3** FILLED_VS_FIRED | 75 | 0 | 17.3% | -75.8% | [-75.0, -34.2] | WATCH_ITEM ⚠ | N/A |
-| **G4** BASKET_EXIT | VOID | — | — | — | — | **PERMANENTLY RETIRED** | — |
-| **G5** THERMO_MAKER_NO | 125 | 0 | N/A | 0.0% | [-9.0, +2.0] | **REJECTED** | — |
-| **G6** M1_BETA_LOCKOUT | 31 | 0 | 74.2% | -0.6% | [-20.6, +24.4] | **REJECTED** | — |
-| **G7** SUM_POSTED [0.70,0.85] | 382 | 0 | N/A | +11.5%† | [-11.4, +38.9] | AMBIGUOUS | Indet. — band dark, n frozen |
-| **G8** UPDOWN_CROSSING (post-cut) | 72* | +15 | 97.2% | sim only | [90.4%, 99.2%] | COLLECTING | n=100: ~Jul-25‡ / n=245: ~Aug-3‡ |
+| G1 BAND_YES | 934 | 0 | 15.3% | +4.0% ↑ | [−10.9, +21.1%] | AMBIGUOUS | N/A — band dark, no accrual |
+| G2a BAND_NO d+1 shadow | 115 | 0 | 68.7% | +1.3% ↑ | [−11.9, +12.7%] | AMBIGUOUS | N/A — band dark, no accrual |
+| G2b PAIR_FAV_YES (live) | 9 | 0 | — | — | — | COLLECTING | N/A — frozen (band dark) |
+| G2c PAIR_FAV_NO (live) | 9 | 0 | — | — | — | COLLECTING | N/A — frozen (band dark) |
+| G3 FILLED_VS_FIRED | 75 | 0 | 17.3% filled | −75.8% | [−75.0, −34.2%] | WATCH_ITEM | N/A — no new fills possible |
+| G4 BASKET_EXIT | — | — | — | — | — | **VOID** | — (permanently retired) |
+| G5 THERMO_MAKER_NO | 125 | 0 | — | 0.0% net fees | [−9.0, +2.0%] | **REJECTED** | — |
+| G6 M1_BETA_LOCKOUT | 31 | 0 | 74.2% | −0.6% | [−20.6, +24.4%] | **REJECTED** | — |
+| G7 SUM_POSTED [0.70,0.85] | 382 | 0 | — | +11.5% ↑ | [−11.4, +38.9%] | AMBIGUOUS | N/A — band dark, no accrual |
+| **G8 UPDOWN_CROSSING p≥0.995 5m** | **88** | **+16** | **95.45% (84W/4L)** | **−$5.52 sim** | **[88.9%, 98.2%]** | **COLLECTING ⚠ KILL-LOCKED** | **~Jul-25 (7/day)** |
 
-*G8: n=72 confirmed by EVOLVE commits (Jul-22 daily n=65, Jul-22 evening n=72). `shadow_grade.py --refetch` blocked; using EVOLVE journal as source.
-†ROI for G1 and G7 are UPPER BOUND (G3 winner's curse, n=75, CI entirely negative). No band re-enable may cite these as positive evidence.
-‡ETA uses ~15/day rate (Jul-22 24h window); rate is uncertain — see FLAG-2 for range.
+↑ = **UPPER BOUND.** G3 winner's curse confirmed (n=75 filled: WR 17.3%, ROI −75.8%; vs sim ROI +7.6%; gap −83.4 pp; CI entirely negative). No G1 or G7 re-enable argument may cite sim ROI as evidence.
 
 ---
 
-## STATE TRANSITIONS vs PRIOR (2026-07-22T09:02Z)
+## State Transitions vs Prior Run
 
-### G8: n=57→72 (+15), SECOND LOSS OCCURRED — status COLLECTING (unchanged)
-
-**This is the only substantive change this run.**
-
-| Metric | Prior (Jul-22) | Current (Jul-23) | Delta |
+| Gate | Prior status | Current status | Change |
 |---|---|---|---|
-| n_post_cut | 57 | 72 | +15 |
-| W/L | 56W/1L | 70W/2L | +14W / +1L |
-| WR | 98.25% | 97.22% | −1.03 pp |
-| CI-lo (Wilson 95%) | 90.7% | **90.4%** | −0.3 pp |
-| CI-hi | 99.5% | 99.2% | −0.3 pp |
-| Gap to BE=97.01% | CI-lo 6.3 pp below | CI-lo **6.6 pp below** | widened |
-| Rate est. | ~4/day (12h window) | **~15/day** (24h window) | revised up |
+| G1 BAND_YES | AMBIGUOUS | AMBIGUOUS | No change — band dark day 18 |
+| G2 BAND_NO / PAIR_FAV | AMBIGUOUS / COLLECTING | AMBIGUOUS / COLLECTING | No change — frozen |
+| G3 FILLED_VS_FIRED | WATCH_ITEM | WATCH_ITEM | No change |
+| G4 BASKET_EXIT | VOID | VOID | — |
+| G5 THERMO_MAKER_NO | REJECTED | REJECTED | No change |
+| G6 M1_BETA_LOCKOUT | REJECTED | REJECTED | No change |
+| G7 SUM_POSTED | AMBIGUOUS | AMBIGUOUS | No change — band dark |
+| **G8 UPDOWN_CROSSING** | COLLECTING n=72, 70W/2L | COLLECTING n=88, 84W/4L | **+16 events. KILL-LOCKED: kill unavoidable at n≥100.** |
 
-**2nd loss locks in:** The second post-cut loss occurred during Jul-22 (confirmed at n=65, 63W/2L in EVOLVE daily). By EVOLVE evening (n=72, 70W/2L) no further losses. WR 97.22% is 0.21 pp above BE=97.01%, but Wilson CI-lo at 90.4% is 6.6 pp below BE. Status: COLLECTING, no change to formal classification, but math warning materially updated (see FLAG-1).
-
-**XRP cell first loss:** EVOLVE evening (Jul-22) notes "xrp cell first loss (17W/1L −$1.50)". Per-asset breakdown needs refresh via shadow_grade.py when network is accessible. Prior state per-asset rows are stale.
+**Only meaningful change this run: G8 advanced from n=72 → n=88 (+16 confirmed events, 24h window). Gate remains COLLECTING (n<100). Kill-locked mathematics established by gate_ledger_latest.md (Jul-23 22:05Z, shadow_grade.py authoritative).**
 
 ---
 
-### All other gates: no change
+## G8 Deep-Dive: UPDOWN_CROSSING Kill Math
 
-- G1: n=934, AMBIGUOUS. Shadow fires continue: today (Jul-23 through 09:00 UTC) 4 fires on d+2 markets (Seoul 0.775, Tokyo 0.770, Chengdu 0.845, Taipei 0.820). Yesterday (Jul-22): 9 fires, 5 in G7 gate (confirmed by band_struct_lite parse). Resolution n frozen (join blocked).
-- G2a: n=115, BAND_NO_ENABLED=False. Shadow fires ongoing, unresolvable.
-- G2b/G2c: n=9 each, frozen, band dark.
-- G3: n=75, WATCH_ITEM. No new fills. 4 Exec Auditor backlog items (Jul-16 SELL@0.96, Jul-18 SELL@0.92, Jul-18 BUY@0.08, Jul-19 orphan BUY@0.02) still unclassified; n held at 75.
-- G4: VOID, no change.
-- G5: n=125, REJECTED. Shadow file growing inertly.
-- G6: n=31, REJECTED. metar_min_lockout.jsonl growing inertly.
-- G7: n=382, AMBIGUOUS. Today: 4 shadow fires all in [0.70,0.85] gate (Seoul/Tokyo/Chengdu/Taipei d+2 Jul-25). Resolution n frozen. Pending: Seoul d+1 from Jul-22 = Jul-23 market resolves TODAY — eligible for next join.
+Source: `data/gate_ledger_latest.md` — refreshed 2026-07-23T22:05Z by EVOLVE evening slot using shadow_grade.py --refetch on VPS.
+
+| Metric | Value | Note |
+|---|---|---|
+| n (post-cut, confirmed) | 88 | As of Jul-23 22:05Z; SETTLE count confirmed by gate_ledger |
+| Wins / Losses | 84W / 4L | Per shadow_grade.py |
+| Point WR | 95.45% | 84/88 |
+| Breakeven WR | 96.49% | EVOLVE-reported (Jul-23 22:05Z); varies slightly by asset mix |
+| Wilson CI-lo (95%) | 88.9% | z=1.96, Wilson; gap vs BE = −7.6 pp (worsened from −6.6 pp prior run) |
+| Wilson CI-hi (95%) | 98.2% | |
+| Best-case at n=100 | 96/100 = 96.0% | Assumes 0 further losses — unrealistic |
+| Best-case WR vs BE | 96.0% < 96.49% | **KILL unavoidable by point rule** |
+| Accrual rate (last 10.5h) | ~7/day | Slowed from 13–16/day earlier; 85→88 in ~10.5h |
+| ETA to n=100 | ~Jul-25 | +12 events @ 7/day from Jul-23 22:05Z |
+
+**Pre-registered kill rule:** "if point_WR_post_cut < BE at n≥100, recommend class CLOSED." This condition is now mathematically guaranteed: even the best conceivable path (zero further losses) yields WR=96.0% which is below BE=96.49%. The kill executes when n≥100 lands (~Jul-25 at current rate). No human review needed to await n=100; the math is closed today.
+
+**Per-asset grades (updown_asset_grade.py, Jul-23 21:56Z — ALL-HISTORY, not post-cut isolation):**
+
+| Asset | graded n (all) | WR | BE | pnl | Verdict |
+|---|---|---|---|---|---|
+| btc | 134 | 96.3% CI [91.6%, 98.4%] | 96.3% | −$0.65 | **REJECTED** — point at BE, CI-lo far below |
+| doge | 20 | 95.0% (19W/1L) | 96.1% | −$1.06 | COLLECTING |
+| eth | 38 | 100% (38/38) CI [90.8%, 100%] | 96.8% | +$6.32 | COLLECTING — **sole loss-free cell** |
+| sol | 17 | 94.1% (16W/1L) | 96.5% | −$2.36 | COLLECTING |
+| xrp | 23 | 91.3% (21W/2L) | 96.1% | −$5.67 | COLLECTING — worst cell |
+
+**Cross-cell read:** 4 of 5 assets net-negative sim. BTC (only n≥100 cell) REJECTED. ETH's 38/38 matches the pattern every other cell showed before losses arrived — it is not a re-enable signal, just early phase. The certainty-taker class (buy ~0.96 avg ask at p≥0.995 certainty) is failing uniformly wherever n grows.
+
+---
+
+## Gate Notes (unchanged from prior)
+
+**G1 BAND_YES:** Band dark day 18 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. ROI +4.0% is UPPER BOUND per G3 winner's curse (confirmed adversarial selection at n=75 filled). CI straddles 0 → AMBIGUOUS. Gate inert until BAND_LIVE re-enable AND equity > ruin_floor ($89.16). Currently $21.50 = 24.1% of floor — both conditions unmet.
+
+**G2a BAND_NO d+1:** Shadow CI AMBIGUOUS (CI straddles 0). Live n=51 WR=39.2% = effectively REJECTED. Do NOT re-enable on shadow CI alone.
+
+**G2b/c PAIR_FAV:** n=9, frozen at BAND_LIVE=False Jul-06. Counterfactual CI on pair_fav_no ([12.6, 85.5]) is biased (winner's curse, state_log Jul-11 22:15Z). Do not cite CF ROI.
+
+**G3 FILLED_VS_FIRED:** Winner's curse CONFIRMED (filled WR 17.3% vs sim WR 7.6%). Hard blocker: no G1 or G7 re-enable may cite sim CI as evidence of positive EV. 4 Exec Auditor items outstanding (Jul-16 SELL@0.96, Jul-18 SELL@0.92, Jul-18 BUY@0.08, Jul-19 orphan BUY@0.02). Blocked on network for 4th consecutive run.
+
+**G5 THERMO_MAKER_NO:** REJECTED (EVOLVE Jul-04 21:53Z). CI straddles 0 but ROI=0.0% net of fees = −EV after costs. No reconsideration without explicit human directive.
+
+**G6 M1_BETA_LOCKOUT:** REJECTED (EVOLVE Jul-04 21:53Z, human decision). MIN_LOCKOUT_LIVE=False. Revert-to-0.5C-floors recommendation stands (state_log 2026-06-09). Shadow file (metar_lockout.jsonl) growing inertly. No reconsideration without explicit human directive.
+
+**G7 SUM_POSTED [0.70,0.85]:** n=382, ROI +11.5% (UPPER BOUND — winner's curse). CI straddles 0 → AMBIGUOUS. Band dark, inert. Shadow fires accumulating (est. 143+ since wind-down) but unresolvable without band live.
+
+---
+
+## Structural Blockers
+
+1. UPDOWN_STOP active (Jul-19 11:26Z): sniper CUT (PF 0.79 over 27 settles < 0.8 charter rail).
+2. BAND_LIVE=False (Jul-06 22:08Z): wind-down, day 18. Zero band paths available.
+3. LDA_STOP active: rolling-20 worst −$36.39 < −$30 threshold.
+4. Equity $21.50 < ruin_floor $89.16 (24.1%): all band/NEG_RISK/RECYCLE paths mechanically blocked.
+5. G3 winner's curse confirmed: sim ROI is an upper bound. No re-enable argument may cite G1/G7 sim CI.
+6. G5 THERMO, G6 M1: both REJECTED; no reconsideration without explicit human directive.
+7. G8 UPDOWN_CROSSING: KILL-LOCKED at n=88. Kill mathematically certain at n≥100 (~Jul-25). No re-enable path visible.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**No gate newly hit READY or REJECTED this run. Zero flag/param changes proposed.**
+**No gates newly READY or REJECTED this run (n=88 < threshold 100).**
 
-The human decision needed on G8 threshold (FLAG-1) is not a gatekeeper action — it is a standing open question from prior run, now made more urgent by the 2nd loss arrival.
+### Pending mandatory action — G8 kill formalizes at n=100 (~Jul-25)
 
----
+When G8 post-cut n reaches 100, the pre-registered kill rule triggers: point WR < BE (guaranteed by math at n=100 even under best-case zero-loss assumption). **Human must review at that point and decide:**
 
-## FLAGS FOR HUMAN AWARENESS
+- **CLOSE UPDOWN_CROSSING class:** remove `logs/UPDOWN_STOP`, mark gate REJECTED, no re-enable without new pre-registration and a fresh candidate pool (the post-cut tape is permanently poisoned by the 4 losses). This is the expected outcome per math.
+- OR: override with explicit directive and new evidence. There is currently no such evidence.
 
----
+**This report cannot make the formal REJECTED call** — the rule says n≥100. The gate-keeper will make the formal call at next run after n crosses 100.
 
-### FLAG-1 🚨 G8 MATH UPDATE: 2ND LOSS RAISES MINIMUM PASS THRESHOLD TO n≈245
+### Pending advisory
 
-**Prior warning (1 loss):** "Minimum n=200 to clear Wilson CI (199W/1L → CI-lo=97.2%)."
-**Current math (2 losses):** n=200 is no longer sufficient.
-
-Wilson CI-lo analysis for n=200 with 2 losses: 198W/2L → p=0.990 → CI-lo=**96.4%** < BE=97.0% → **FAIL**.
-
-| Scenario | WR | Wilson CI-lo | vs BE=97.01% | Verdict |
-|---|---|---|---|---|
-| n=100, 0 more losses (98W/2L) | 98.0% | 93.0% | FAIL −4.0 pp | — |
-| n=200, 0 more losses (198W/2L) | 99.0% | 96.4% | **FAIL −0.6 pp** | — |
-| n=245, 0 more losses (243W/2L) | 99.2% | 97.1% | PASS +0.1 pp | min threshold |
-| n=300, 0 more losses (298W/2L) | 99.3% | 97.6% | PASS +0.6 pp | comfortable |
-
-n=245 is the **best-case minimum** (zero further losses). Observed loss rate 2/72 = 2.8%. Expected additional losses from n=72 to n=245 = ~4.8. Each additional loss extends the minimum n further. The EVOLVE's "pass-branch unreachable before n≈400-3000" accounts for this stochastic reality.
-
-**Updated human decision options:**
-1. **EXTEND threshold to n=300** — practical minimum accounting for likely future losses; ~15 days at current rate.
-2. **KILL now** — EVOLVE has twice flagged KILL as the realistic outcome. No capital at risk (UPDOWN_STOP active). Terminates ~2 weeks of shadow accumulation.
-3. **Wait to n=100 (~Jul-25) then decide** — Gate will be AMBIGUOUS at n=100 regardless (CI-lo≈93.0% far below BE). Human can reassess with n=100 data.
-
-The prior recommendation of extending threshold to n=200 is now mathematically invalid. **Human confirmation of the new target (n=300 or KILL) is needed before n=100 arrives (~Jul-25).**
+- **G3 fills backlog:** 4 Exec Auditor items (Jul-16 to Jul-19) remain unclassified. Once network access restores, the Exec Auditor should close these before any re-enable review.
+- **Network blocked 4th consecutive run:** shadow_grade.py and band_resolution_join.py cannot be run from this container. If this is a persistent environment issue, VPS access is required to refresh G1/G7 join and G8 per-asset cells.
 
 ---
 
-### FLAG-2 ⚡ G8 RATE UNCERTAINTY: RANGE 4–15/day
-
-Measured rate windows:
-- Jul-21 09:07Z → Jul-21 evening: +2 in ~12h = **~4/day**
-- Jul-21 evening → Jul-22 evening: +15 in ~24h = **~15/day**
-- Implied Jul-22 evening → Jul-23 09:00Z: +6-8 in ~11h ≈ **13-17/day**
-
-Jul-22 appears to have been an active session. The Jul-21 slow window may be a local minimum. Until shadow_grade.py runs and returns a clean count, the true rate is bracketed at [4, 15]/day. ETAs:
-
-| Target n | At 15/day | At 4/day |
-|---|---|---|
-| n=100 (+28 events) | ~Jul-25 | ~Jul-29 |
-| n=245 (+173 events) | ~Aug-3 | ~Sep-14 |
-| n=300 (+228 events) | ~Aug-7 | ~Oct-4 |
-
-At 15/day, n=100 arrives within 2 days — AMBIGUOUS is already the certain outcome at n=100 (math above). The human decision on threshold extension or KILL is urgent regardless of which rate is correct.
-
----
-
-### FLAG-3 🔌 NETWORK BLOCKED — THIRD CONSECUTIVE RUN
-
-git fetch has timed out for the third consecutive gatekeeper run. Consequences:
-- G8: shadow_grade.py not runnable; n count relies on EVOLVE commit journal (reliable but manual).
-- G1/G7: band_resolution_join.py blocked. Jul-22 d+1 fires (Seoul Jul-23) resolve **today** — these will be missed until network recovers.
-- G3: maker_fills_recent.log not fetchable; G3 fill join stale at n=75.
-- Accumulating shadow-vs-resolved divergence in G1/G7: shadow fires accumulate daily, resolved n frozen at 934/382.
-
-This is a recurring structural issue, not a one-time transient. Either the VPS network connectivity for this agent (scheduled on-web session) is consistently degraded, or the git server is rate-limiting agent fetch attempts. Recommend: VPS SSH session to run joins directly.
-
----
-
-### FLAG-4 💀 ZERO ACTIVE TRADING PATHS — DAY 17
-
-All revenue paths halted simultaneously:
-- **UPDOWN/Sniper:** STOP since Jul-19 (PF 0.79 over 27 settles; UPDOWN_STOP file present)
-- **BAND:** dark since Jul-06, day 17 (capital $21.50 < ruin floor $89.16)
-- **LDA:** STATUS=STOP (worst rolling-20 = −$36.39 below −$30 threshold)
-- **THERMO/M1:** REJECTED
-
-Klaus is running (systemd: active, uptime since Jul-17) but has no executable trading path. Capital $21.495 = 7.2% of original capital. Bot has no self-recovery path without explicit human restart decision on at least one path.
-
----
-
-## STRUCTURAL BLOCKERS (unchanged)
-
-1. `UPDOWN_STOP` active since 2026-07-19T11:26Z — PF 0.79 over 27 settles
-2. `BAND_LIVE=False` since 2026-07-06T22:08Z — day 17; capital $21.50 < ruin floor $89.16
-3. **G3 winner's curse CONFIRMED** (n=75, filled WR 17.3% vs sim 7.6%; CI entirely negative) — no band/sniper re-enable may cite G1/G7 sim-CI as positive evidence
-4. G5 THERMO and G6 M1: REJECTED — no reconsideration without explicit human directive
-5. LDA STOP active
-6. G8: 2nd loss locks minimum pass threshold at n≈245 (best case) to n≈300-400 (realistic); n=200 recommendation now invalid
-
----
-
-*Gatekeeper agent run complete. Report-only. No code or flag changes made.*
-*Prior state SHA: fcc315f96 (gatekeeper commit Jul-22) | Data snapshot: 239c2daeb9 (data-mirror Jul-23 09:00Z)*
-*G8 source: EVOLVE journal commits Jul-22 daily (n=65 63W/2L) and Jul-22 evening (n=72 70W/2L); shadow_grade.py not run this session.*
+*Gate-keeper is REPORT-ONLY. No strategy code or flags modified.*

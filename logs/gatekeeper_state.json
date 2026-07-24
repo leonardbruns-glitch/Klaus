@@ -12,8 +12,8 @@
     "ci95": [-10.9, 21.1],
     "wr": 0.153,
     "resolved": 934,
-    "ts": "2026-07-23T09:00:00Z",
-    "note": "No change. Band dark day 17 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. band_resolution_join.py blocked by network this run (3rd consecutive). Shadow fires today (through 09:00 UTC): 4 on d+2 Jul-25 markets. Yesterday (Jul-22): 9 fires. Seoul d+1 from Jul-22 = Jul-23 market resolves today — eligible for next join. Shadow est +13/day, ~215 total since wind-down. ROI +4.0% is UPPER BOUND (G3 winner's curse). CI straddles 0 → AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital above ruin_floor $89.16 (currently $21.50)."
+    "ts": "2026-07-24T09:12:00Z",
+    "note": "No change. Band dark day 18 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. band_resolution_join.py blocked by network (4th consecutive). ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap −83.4 pp). CI straddles 0 → AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $21.50)."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
@@ -63,8 +63,8 @@
         "note": "Post-guard n=9, frozen. Counterfactual CI qualified as biased (winner's curse, state_log Jul-11 22:15Z). Do not re-enable on CF ROI. ETA n=100: indeterminate (band dark)."
       }
     },
-    "ts": "2026-07-23T09:00:00Z",
-    "note": "No new live fires. All legs frozen. Band dark day 17."
+    "ts": "2026-07-24T09:12:00Z",
+    "note": "No new live fires. All legs frozen. Band dark day 18."
   },
   "FILLED_VS_FIRED": {
     "n": 75,
@@ -83,9 +83,9 @@
     "new_fills_since_prior": {
       "maker_fills": 0,
       "taker_fills": 0,
-      "notes": "No new eligible fills. UPDOWN_STOP + band dark = no new fills possible. maker_fills_recent.log blocked by network (3rd consecutive run). Exec Auditor backlog 4 items still outstanding (Jul-16 SELL@0.96, Jul-18 SELL@0.92, Jul-18 BUY@0.08, Jul-19 orphan BUY@0.02 — unclassified); n conservatively held at 75."
+      "notes": "No new eligible fills. UPDOWN_STOP + band dark = no new fills possible. maker_fills_recent.log blocked by network (4th consecutive run). Exec Auditor backlog 4 items still outstanding (Jul-16 SELL@0.96, Jul-18 SELL@0.92, Jul-18 BUY@0.08, Jul-19 orphan BUY@0.02 — unclassified). n conservatively held at 75."
     },
-    "ts": "2026-07-23T09:00:00Z",
+    "ts": "2026-07-24T09:12:00Z",
     "note": "Unchanged. Winner's curse CONFIRMED (filled WR 17.3% vs sim 7.6%). CI entirely negative. Hard blocker on G1/G7 sim-CI re-enable arguments."
   },
   "BASKET_EXIT": {
@@ -107,7 +107,7 @@
     "ci95": [-9.0, 2.0],
     "wr": null,
     "resolved": 125,
-    "ts": "2026-07-23T09:00:00Z",
+    "ts": "2026-07-24T09:12:00Z",
     "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z; CI straddles 0 but ROI=0% net of fees is -EV). THERMO_MAKER_LIVE=False since Jun-23 18:40. Shadow file growing (inert). No reconsideration without explicit human directive."
   },
   "M1_BETA_LOCKOUT": {
@@ -119,17 +119,17 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-07-23T09:00:00Z",
-    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z — human decision). MIN_LOCKOUT_LIVE=False since 2026-07-13T22:08Z. Revert-to-0.5C-floors recommendation stands (state_log 2026-06-09). Shadow file (metar_min_lockout.jsonl) growing inertly."
+    "ts": "2026-07-24T09:12:00Z",
+    "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z — human decision). MIN_LOCKOUT_LIVE=False. Revert-to-0.5C-floors recommendation stands (state_log 2026-06-09). Shadow file (metar_lockout.jsonl) growing inertly. No reconsideration without explicit human directive."
   },
   "SUM_POSTED_0.70_0.85": {
     "n": 382,
     "n_label": "resolved (VPS join 07-09 22:20Z; first-fire dedup YES legs sum_posted in [0.70,0.85])",
-    "n_shadow_fires_today": 4,
-    "n_shadow_fires_today_in_gate": 4,
+    "n_shadow_fires_today_est": 4,
+    "n_shadow_fires_today_in_gate_est": 4,
     "n_shadow_fires_yesterday": 9,
     "n_shadow_fires_yesterday_in_gate": 5,
-    "n_shadow_fires_since_wind_down_est": 143,
+    "n_shadow_fires_since_wind_down_est": 147,
     "n_prev_resolved": 382,
     "n_added_since_prior": 0,
     "status": "AMBIGUOUS",
@@ -137,65 +137,65 @@
     "ci95": [-11.4, 38.9],
     "wr": null,
     "resolved": 382,
-    "ts": "2026-07-23T09:00:00Z",
-    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4,+38.9]). band_resolution_join.py blocked by network (3rd consecutive). Today (Jul-23 through 09:00 UTC, band_struct_lite): 4 fires all in [0.70,0.85] gate: Seoul d+2 (0.775), Tokyo d+2 (0.770), Chengdu d+2 (0.845), Taipei d+2 (0.820). Yesterday (Jul-22, confirmed parse): 9 fires, 5 in gate: Seoul d+1 (0.845), London d+2 (0.750), Shanghai d+2 (0.715), Chengdu d+2 (0.845), Tokyo d+2 (0.825). All on unresolved markets. Seoul d+1 from Jul-22 = Jul-23 market resolves today — eligible for next join when network recovers. ROI is UPPER BOUND per G3 winner's curse. Gate inert while band dark."
+    "ts": "2026-07-24T09:12:00Z",
+    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4,+38.9]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network (4th consecutive). Yesterday (Jul-23 through 22:05Z, band_struct_lite): 4 shadow fires. Gate inert while band dark. Shadow est ~147 total since wind-down."
   },
   "UPDOWN_CROSSING": {
-    "n_post_cut": 72,
-    "n_post_cut_prev": 57,
-    "n_added_since_prior": 15,
-    "n_note": "n=72 from EVOLVE Jul-22 evening commit '70W/2L loss-free since morning' (n=65 at EVOLVE daily, n=72 at evening). shadow_grade.py --refetch blocked by network Jul-23. Second loss occurred during Jul-22 session (confirmed at n=65 '63W/2L 2nd post-cut loss').",
-    "n_post_cut_label": "post-cut shadow CROSSING events (p_model>=0.995, 5m, multi-asset); EVOLVE-confirmed Jul-22 evening; shadow_grade blocked by network Jul-23",
-    "wr_post_cut": 0.97222,
-    "wr_note": "70W/2L at n=72; Wilson CI-lo verified 90.4% matching EVOLVE 'CI-lo 0.904'",
-    "be": 0.9701,
-    "ci95_post_cut": [0.904, 0.992],
-    "ci95_method": "Wilson 95% CI on WR at n=72, k=70; z=1.96; CI-lo=0.952/(1.053)=0.904; CI-hi=1.045/(1.053)=0.992",
+    "n_post_cut": 88,
+    "n_post_cut_prev": 72,
+    "n_added_since_prior": 16,
+    "n_note": "n=88 from gate_ledger_latest.md refreshed by EVOLVE 2026-07-23T22:05Z (authoritative shadow_grade.py on VPS). SETTLE count = 88, confirmed. Snapshot Jul-24 09:00Z shows 0 fires/settles today (updown_sniper_state.json day=20260724). Possible ~3 additional events accrued Jul-23 22:05Z → Jul-24 09:00Z (11h at ~7/day) but unconfirmed without shadow_grade access.",
+    "n_post_cut_label": "post-cut shadow CROSSING events (p_model>=0.995, 5m, multi-asset); shadow_grade.py authoritative via EVOLVE Jul-23 22:05Z",
+    "wr_post_cut": 0.95455,
+    "wr_note": "84W/4L at n=88; gate_ledger confirmed",
+    "be": 0.9649,
+    "be_note": "EVOLVE-reported Jul-23 22:05Z (varies slightly by asset mix; prior GK used 0.9701 which is stale — use 0.9649)",
+    "ci95_post_cut": [0.8889, 0.9822],
+    "ci95_method": "Wilson 95% CI on WR at n=88, k=84; z=1.96; CI-lo=0.8889; CI-hi=0.9822. Computed this run.",
     "status": "COLLECTING",
+    "kill_locked": true,
+    "kill_locked_reason": "Best-case at n=100 (96W/4L) = WR 0.9600 < BE 0.9649. Pre-registered kill rule: point_WR < BE at n>=100 → recommend class CLOSED. Unavoidable on any realistic ask path.",
     "threshold_n": 100,
-    "pass_conditions": [
-      "post_cut_n >= threshold_n AND ci_lo_post_cut > be (0.9701)",
-      "owner_floor_re_waiver (equity $21.50 < $40 kernel floor)",
-      "min_size_restart"
-    ],
-    "kill_rule": "armed — if point_WR_post_cut < BE at n>=100, recommend class CLOSED",
-    "math_warning": "UPDATED. With 2 losses (was 1): minimum n to clear CI is now n≈245 (best case: 243W/2L → CI-lo=97.1%). n=200 FAILS (198W/2L → CI-lo=96.4%). Expected future losses (~4-5 between n=72 and n=245) extend practical threshold to n≈300-400. Prior recommendation of n=200 extension is INVALID. Human decision required: extend to n=300 OR KILL.",
     "threshold_n_math_valid": false,
-    "threshold_n_math_note": "n=100 is not a pass gate with 2 losses: at 98W/2L, CI-lo=93.0% < BE=97.01%. FAIL by 4.0 pp.",
-    "min_n_to_pass_2losses": 245,
-    "rate_estimate_events_per_day_updated": 15.0,
-    "rate_note_updated": "Jul-21 evening n=57 → Jul-22 evening n=72 = +15 in 24h = 15/day. Prior 4/day was from a single 12h window (Jul-21); Jul-22 full-day rate is 15/day. Rate remains uncertain (4-15/day bracket).",
-    "rate_estimate_events_per_day_prior": 4.0,
-    "eta_to_n100_days": 1.9,
-    "eta_to_n100_basis": "28 remaining / 15/day from Jul-22 evening; ~Jul-25 at 15/day, ~Jul-29 at 4/day",
-    "eta_to_n245_days": 11.5,
-    "eta_to_n245_basis": "173 remaining / 15/day from Jul-22 evening; ~Aug-3 at 15/day, ~Sep-14 at 4/day",
+    "threshold_n_math_note": "n=100 will trigger the KILL, not READY/AMBIGUOUS. Best-case 96W/4L: WR=96.0% < BE=96.49%. CI-lo at best case=90.2% << BE.",
+    "min_n_to_clear_be_zero_further_losses": "impossible — 4 losses already; 96W/4L at n=100 still below BE",
+    "min_n_to_clear_be_math": "With 4 losses fixed, need WR = k/(k+4) >= 0.9649 → k >= 4*0.9649/(1-0.9649) = 4*27.49 = 109.97 → k=110, n=114. Minimum n=114 with zero further losses (unrealistic).",
+    "rate_estimate_events_per_day_last_10h": 7.0,
+    "rate_estimate_events_per_day_prior_24h": 16.0,
+    "rate_note": "Jul-23 22:05Z: 85→88 in ~10.5h = ~7/day (slowing). Prior window Jul-22 22:00Z→Jul-23 22:00Z: 72→88 = +16/day. Rate bracket [7, 16]/day.",
+    "eta_to_n100_days_lo": 0.75,
+    "eta_to_n100_days_hi": 1.7,
+    "eta_to_n100_basis": "+12 events remaining; 7/day → ~1.7d from Jul-23 22:05Z ≈ Jul-25; 16/day → 0.75d ≈ Jul-24 evening. Bracket Jul-24 evening – Jul-25.",
     "per_asset_cells": {
       "btc": {
-        "n_graded": 95,
-        "wr": 0.968,
-        "ci_lo": 0.911,
-        "be": 0.966,
-        "n_p995": 56,
-        "wr_p995": 0.964,
-        "ci_lo_p995": 0.879,
-        "pnl_p995_sim": -0.51,
-        "status": "COLLECTING",
-        "note": "From prior run Jul-21. Not refreshed (shadow_grade.py blocked Jul-22 and Jul-23)."
+        "n_graded_all": 134,
+        "wr": 0.963,
+        "ci_lo": 0.916,
+        "ci_hi": 0.984,
+        "be": 0.963,
+        "pnl_sim": -0.65,
+        "n_p995": 81,
+        "wr_p995": 0.951,
+        "ci_lo_p995": 0.880,
+        "pnl_p995_sim": -4.81,
+        "status": "REJECTED",
+        "note": "From gate_ledger Jul-23 21:56Z. BTC is the only n≥100 cell. Point WR at BE, CI-lo far below. n=81 p≥0.995 sub-slice: WR 95.1% CI-lo 88.0% vs BE 96.1%, net −$4.81."
       },
-      "eth": {"n_graded": 12, "wr": 1.0, "n_p995": 4, "status": "COLLECTING", "note": "From prior run Jul-21. Not refreshed."},
-      "xrp": {"n_graded": 8, "wr": 1.0, "n_p995": 2, "status": "COLLECTING", "stale": true, "note": "STALE: EVOLVE Jul-22 evening reports 'xrp cell first loss (17W/1L -$1.50)'. Requires shadow_grade refresh to update n_graded and WR."},
-      "sol": {"n_graded": 4, "wr": 1.0, "n_p995": 1, "status": "COLLECTING", "note": "From prior run Jul-21. Not refreshed."},
-      "doge": {"n_graded": 3, "wr": 1.0, "n_p995": 1, "status": "COLLECTING", "note": "From prior run Jul-21. Not refreshed."}
+      "doge": {"n_graded_all": 20, "wr": 0.950, "n_losses": 1, "pnl_sim": -1.06, "be": 0.961, "status": "COLLECTING", "note": "From gate_ledger Jul-23 21:56Z."},
+      "eth": {"n_graded_all": 38, "wr": 1.000, "n_losses": 0, "pnl_sim": 6.32, "be": 0.968, "ci_lo": 0.908, "status": "COLLECTING", "note": "From gate_ledger Jul-23 21:56Z. Sole loss-free cell. CI-lo 90.8% vs BE 96.8% — early phase, mirrors pattern other cells showed pre-loss."},
+      "sol": {"n_graded_all": 17, "wr": 0.941, "n_losses": 1, "pnl_sim": -2.36, "be": 0.965, "status": "COLLECTING", "note": "From gate_ledger Jul-23 21:56Z."},
+      "xrp": {"n_graded_all": 23, "wr": 0.913, "n_losses": 2, "pnl_sim": -5.67, "be": 0.961, "n_p995": 9, "wr_p995": 0.778, "pnl_p995_sim": -7.74, "status": "COLLECTING", "note": "From gate_ledger Jul-23 21:56Z. Worst cell. p≥0.995 sub-slice 7W/2L = −$7.74 sim."}
     },
     "gate_registered_ts": "2026-07-19T14:30:00Z",
-    "ts": "2026-07-23T09:00:00Z",
-    "note": "COLLECTING — n_post_cut confirmed at 72 (EVOLVE Jul-22 evening). SECOND LOSS occurred during Jul-22 (now 70W/2L). CI-lo 90.4% vs BE 97.0%, gap 6.6 pp. Rate revised to 15/day (Jul-22 24h window). ETA n=100 ~Jul-25. CRITICAL: min threshold with 2 losses is n≈245 (not 200); prior n=200 recommendation INVALID. Human decision on new threshold (n=300) or KILL needed before n=100 arrives."
+    "ts": "2026-07-24T09:12:00Z",
+    "note": "COLLECTING (n=88 < threshold 100). KILL-LOCKED: best-case at n=100 (96W/4L) WR=96.0% < BE=96.49%. Kill formalizes when n≥100 lands (~Jul-25). Math: 4 losses fix minimum n-to-clear at 114 (zero further losses — unrealistic). BTC REJECTED at n=134. 4/5 assets net-negative sim. Per-asset from gate_ledger Jul-23 21:56Z."
   },
   "_run_meta": {
-    "run_ts": "2026-07-23T09:00:00Z",
-    "snapshot_ts": "2026-07-23T09:00:25Z",
-    "snapshot_age_min": 0,
+    "run_ts": "2026-07-24T09:12:00Z",
+    "snapshot_ts": "2026-07-24T09:00:04Z",
+    "snapshot_age_min": 12,
+    "snapshot_age_pass": true,
+    "system_active_pass": true,
     "bankroll_capital": 21.495442,
     "bankroll_pct_of_ruin_floor": 24.1,
     "bankroll_below_ruin_floor": true,
@@ -204,39 +204,35 @@
     "updown_stop_since": "2026-07-19T11:26:00Z",
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
-    "band_dark_days": 17,
+    "band_dark_days": 18,
     "lda_stop": true,
-    "lda_status_note": "STATUS=STOP (rolling-20 worst -$36.39 below -$30 threshold). Zero active trading paths.",
     "network_blocked": true,
-    "network_note": "git fetch timed out (3rd consecutive run). shadow_grade.py, band_resolution_join.py, maker_fills_recent.log all inaccessible. G8 n from EVOLVE journal; G1/G7 n frozen; G3 fill join stale.",
-    "shadow_fires_g1_today": 4,
-    "shadow_fires_g7_today_in_gate": 4,
-    "shadow_fires_g1_yesterday": 9,
-    "shadow_fires_g7_yesterday_in_gate": 5,
+    "network_note": "git fetch timed out (4th consecutive run). shadow_grade.py, band_resolution_join.py, maker_fills_recent.log all inaccessible. G8 n from gate_ledger_latest.md (EVOLVE Jul-23 22:05Z); G1/G7 n frozen.",
     "newly_ready": [],
     "newly_rejected": [],
-    "newly_watch_item": [],
+    "newly_ambiguous": [],
     "newly_collecting": [],
     "state_transitions": [
-      "G8: n confirmed at 72 from EVOLVE Jul-22 evening (was 57 at prior gatekeeper base). +15 in 24h. SECOND LOSS occurred during Jul-22 (63W/2L at EVOLVE daily, 70W/2L at EVOLVE evening). CI-lo=90.4% (vs 90.7% prior). Rate revised from 4/day to 15/day. Math warning updated: min threshold now n≈245 (not n≥200). Prior n=200 recommendation INVALID with 2 losses."
+      "G8: n advanced 72→88 (+16 in 24h, confirmed gate_ledger Jul-23 22:05Z). KILL-LOCKED: best-case at n=100 (96W/4L) WR=96.0% < BE=96.49%. Kill formalizes at n≥100 (~Jul-25). CI-lo worsened from 90.4% (prior) to 88.9% (current) due to 2 additional losses."
     ],
     "structural_blockers": [
-      "UPDOWN_STOP active: sniper CUT 2026-07-19T11:26Z — PF rail (PF 0.79 over 27 settles).",
-      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 17. Zero band resolutions flowing.",
-      "LDA STOP active: rolling-20 worst -$36.39 below -$30 threshold.",
+      "UPDOWN_STOP active: sniper CUT 2026-07-19T11:26Z (PF 0.79 over 27 settles < 0.8 charter rail).",
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 18. Zero band resolutions flowing.",
+      "LDA_STOP active: rolling-20 worst -$36.39 below -$30 threshold.",
       "Capital $21.495 below engine ruin_floor $89.16 (24.1%) — all band paths mechanically blocked.",
-      "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND. No band re-enable may cite G1 or G7 sim CI as evidence.",
+      "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND. No band re-enable may cite G1/G7 sim CI as evidence.",
       "G5 THERMO / G6 M1: both REJECTED; no reconsideration without explicit human directive.",
-      "G8 UPDOWN_CROSSING: 2 losses lock minimum threshold at n≈245 (best case) to n≈300-400 (realistic); prior n=200 recommendation INVALID."
+      "G8 UPDOWN_CROSSING: KILL-LOCKED at n=88. Best-case at n=100 still kills (96.0% < 96.49%)."
     ],
     "alerts": [
-      "G8 SECOND LOSS: 2nd post-cut loss occurred during Jul-22 (confirmed EVOLVE daily 63W/2L, evening 70W/2L). Prior math (1-loss n=200 threshold) INVALID. New minimum n≈245 (zero further losses); realistic n≈300-400 accounting for expected future losses.",
-      "G8 MATH ALERT UPDATED: n=100 will be AMBIGUOUS at best (98W/2L → CI-lo=93.0%, FAIL). n=200 also FAILS (198W/2L → CI-lo=96.4%). Human decision on extend-to-n=300 or KILL needed before n=100 arrives ~Jul-25.",
-      "G8 RATE REVISED: 4/day → 15/day (Jul-22 24h window: +15 in 24h). ETA n=100 moved from Aug-2 to ~Jul-25. Rate uncertainty bracket [4,15]/day.",
-      "XRP CELL FIRST LOSS: EVOLVE Jul-22 evening reports 17W/1L -$1.50. Per-asset breakdown stale. Requires shadow_grade.py refresh.",
-      "NETWORK BLOCKED (3rd consecutive): shadow_grade.py, band_resolution_join.py, maker_fills_recent.log all inaccessible. Seoul d+1 from Jul-22 resolves today but cannot be joined.",
-      "ZERO ACTIVE TRADING PATHS: UPDOWN_STOP + BAND_LIVE=False + LDA_STOP all active simultaneously. Bot running but no executable trade path."
+      "G8 KILL-LOCKED — FORMALIZATION IMMINENT (~JUL-25): At n=88, 4 losses make KILL unavoidable at n≥100. Best-case 96W/4L WR=96.0% < BE=96.49%. The pre-registered kill rule fires when n≥100. Human decision required at that point.",
+      "G8 MINIMUM n-TO-PASS MATH: With 4 losses locked in, minimum n-to-clear-BE is 114 (zero further losses — unrealistic). Practical n-to-pass does not exist given expected future losses.",
+      "G8 BTC CELL REJECTED (n=134): The only n≥100 per-asset cell is REJECTED. Pattern uniform: 4/5 assets net-negative sim; the certainty-taker thesis is failing wherever n grows.",
+      "NETWORK BLOCKED (4th consecutive): shadow_grade.py and band_resolution_join.py unrunnable. G8 data sourced from EVOLVE gate_ledger (Jul-23 22:05Z). G1/G7 join stale.",
+      "ZERO ACTIVE TRADING PATHS: UPDOWN_STOP + BAND_LIVE=False + LDA_STOP all active simultaneously. Burn rate zero."
     ],
-    "proposed_actions": []
+    "proposed_actions": [
+      "PENDING (triggers when G8 n≥100, est Jul-25): KILL UPDOWN_CROSSING class — pre-registered kill rule: point WR < BE at n≥100. Exact action: close the class, do not re-enable without fresh pre-registration and a clean candidate pool. Human confirms; gate-keeper will report REJECTED verdict at n≥100."
+    ]
   }
 }
