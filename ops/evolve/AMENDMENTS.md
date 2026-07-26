@@ -32,3 +32,15 @@ birth; the kill-watch never runs on an undocumented policy.
 **Falsifier (second reading 2026-07-26):** if the week shows retro-registration
 produced duplicate/conflicting entries, or the rule added friction that delayed a
 risk action, mark REJECTED.
+
+## 2026-07-26 — SECOND READING: ledger pre-registration for interactive deploys → APPLIED
+Re-validated against the fresh week: the falsifier did NOT fire (zero duplicate or
+conflicting retro-registrations; zero friction — no risk action was delayed by the
+rule). The week instead produced the strongest evidence yet FOR the amendment: the
+owner's 2026-07-24 10:09Z shutdown (liveness timer + daily timer disabled, klaus
+stopped, then +$67.25 of manual trading) reached the ledger only via this weekly's
+retro-registration, two days later — during which the loop's rails had a stale
+equity figure ($21.50 vs $88.75 true) and no record that its daily actuator was
+gone. Kernel-compatible (adds registration duty, weakens nothing). Diff applied to
+CHARTER.md "Deployment discipline" item 6. Both readings recorded; state_log entry
+2026-07-26.

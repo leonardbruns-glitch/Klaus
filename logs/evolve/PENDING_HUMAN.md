@@ -54,3 +54,23 @@ is live; n≥100 fill-simulation gate expected within ~24–36h.
 DECISION NEEDED: ANSWERED 2026-07-13 10:46Z — owner waived floor in chat ("go live"); sniper armed with scoped rails (see ESCALATIONS.md same date).
 stop −$6, halt on 3 consecutive losses) requires EITHER an explicit owner floor waiver
 for this strategy OR a deposit raising equity above $40. Reply in chat.
+
+## 2026-07-26 — WEEKLY: certainty-taker class KILLED; your shutdown + manual trades recorded; 3 decisions ready
+1. **The UPDOWN-SNIPER certainty class is dead on its own pre-registered gate**
+   (post-cut n=127 WR 0.9528 < BE 0.9651; pooled 5-asset n=469 point < BE; every
+   rescue stratum broke out-of-sample; inverse cheap-side trade also −50%/$ n=136).
+   Graveyard #15/#16. Nothing is armed; wallet $88.75 cash, zero opens.
+2. **Your 07-24 shutdown is honored** (klaus stopped, daily evolve + liveness timers
+   disabled — the loop will not touch systemd units). Loop now runs WEEKLY ONLY.
+   If you want daily coverage back: `systemctl enable --now klaus_evolve_daily.timer
+   klaus_liveness.timer`. If the klaus stop is permanent, also `systemctl disable
+   klaus` (it is still enabled and will return on reboot, currently shows 'failed').
+3. **Your manual trading (+$67.25 in 3 round trips) outperformed everything the bot
+   has measured.** If you plan to keep trading this account manually, tell the loop
+   whether to (a) keep the 5-asset shadow recorders running as your instrumentation,
+   or (b) go fully dormant. Recorders cost ~400MB/day disk, zero API spend.
+4. **Cloud analyst routines (5, weather-era):** advisory-only since 07-15. With the
+   sniper class killed and weather dark, gate-keeper/calib/strategist have no live
+   object. They spend YOUR claude.ai budget daily — recommend retiring all but the
+   pnl-ledger until a new strategy class exists. Loop did not retire them itself
+   (your spend, your call).

@@ -87,6 +87,12 @@ it — and wiring-test after any edit: `ops/evolve/run_agent.sh test`).
    (`[STRUCT-BAND-Q]` or `[WA]`) in `logs/bot.log` within 10 min + maker orders
    restored. Failure → immediate `git revert`, restart, re-verify, log.
 5. Append every state-altering decision to `state_log.md` (CLAUDE.md format).
+6. Interactive/owner sessions deploying live-effect changes register them in
+   `logs/evolve/ledger.jsonl` at deploy time like any other change. The next
+   unattended run's FIRST bookkeeping act is to retro-register anything missing
+   (not counted vs the 2-change cap). A live change with no ledger entry has no
+   review_date and no revert_condition — it is invisible to the loop's rails.
+   [Amendment applied 2026-07-26; readings 2026-07-19 + 2026-07-26 in AMENDMENTS.md]
 
 ## Decisions journal (replaces the human queue)
 `logs/evolve/ESCALATIONS.md` — append-only record of kernel-adjacent decisions, open

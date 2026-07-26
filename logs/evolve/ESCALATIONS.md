@@ -139,3 +139,31 @@ accumulating in parallel; policy re-fit from shadow data due within 36h.
    the day at loss #1, the PF rail cut the path at the 11:23 slot. What DID fail
    silently was the gate population (first-fire slice blind to crossing fires) —
    fixed and re-registered this run.
+
+## 2026-07-26 14:45 UTC — EVOLVE weekly (kernel-adjacent records)
+1. **Owner shutdown of 2026-07-24 10:09Z binds the loop (documented, not contested):**
+   an SSH session from the owner's IP block disabled `klaus_liveness.timer` and
+   `klaus_evolve_daily.timer` and stopped `klaus` (the liveness watchdog restarted
+   klaus at 10:08:46Z mid-shutdown and was then disabled — intent unambiguous).
+   Ruling: the kernel reserves systemd-unit power to interactive sessions, so this
+   weekly does NOT restart klaus or re-enable either timer, despite the charter's
+   "never end a run with klaus inactive" rail — owner action supersedes charter
+   rails. Consequences accepted and recorded: (a) the EVOLVE loop is WEEKLY-ONLY
+   until the owner re-enables the daily timer; (b) NEG_RISK_ARB / RECYCLE099 /
+   weather shadow / disp_ratio band-trigger sensing are all halted with klaus —
+   the band re-enable trigger is now UNMONITORABLE (last settled window 07-18..07-23:
+   2 of 5 ≥1.10, NOT met); (c) no watchdog covers sniper/shadow service death
+   beyond their own in-unit Restart= + in-process wedge self-exit.
+2. **Equity is above the kernel floor again ($88.75 > $40) via OWNER-MANUAL trading**
+   (+$67.25, 3 btc-updown round trips 07-24/25, on-chain-verified). The 07-19 ruling
+   ("any live arm below $40 needs a new owner waiver") is now moot in its floor
+   clause, but nothing changes operationally: the only candidate path (certainty-
+   taker class) was KILLED today on its pre-registered gate, so there is no
+   evidence-passed path to arm at any equity. The loop holds: no live paths, no
+   burn, sensors = sniper shadow recorders only.
+3. **klaus.service left in cosmetic 'failed' state** (exit-code race between the
+   owner's stop and the in-process stall watchdog). Left untouched deliberately:
+   resetting it would erase evidence of the shutdown sequence, and the unit is
+   still `enabled`, so it returns on reboot — flagged to owner in PENDING_HUMAN
+   (decide: `systemctl disable klaus` if the stop is meant to be permanent, or
+   restart it if not).
