@@ -4,7 +4,7 @@
     "n_label": "resolved (VPS all-time CI base; window-relative n=788 Jul05 22:25Z)",
     "n_fires_shadow_since_wind_down_est": 215,
     "n_fires_shadow_today": 0,
-    "n_fires_shadow_yesterday": 4,
+    "n_fires_shadow_yesterday": 0,
     "n_prev": 934,
     "n_added_since_prior": 0,
     "status": "AMBIGUOUS",
@@ -13,7 +13,7 @@
     "wr": 0.153,
     "resolved": 934,
     "ts": "2026-07-25T09:03:00Z",
-    "note": "No change. Band dark day 19 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. band_resolution_join.py blocked by network + system failed (5th consecutive stall). ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap -83.4 pp). CI straddles 0 -> AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $21.50)."
+    "note": "No change. Band dark day 20 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. band_resolution_join.py blocked by network + system failed (6th consecutive stall). ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap -83.4 pp). CI straddles 0 -> AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $21.50)."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
@@ -64,7 +64,7 @@
       }
     },
     "ts": "2026-07-25T09:03:00Z",
-    "note": "No new live fires. All legs frozen. Band dark day 19. System failed — no accrual."
+    "note": "No new live fires. All legs frozen. Band dark day 20. System failed — no accrual."
   },
   "FILLED_VS_FIRED": {
     "n": 75,
@@ -83,7 +83,7 @@
     "new_fills_since_prior": {
       "maker_fills": 0,
       "taker_fills": 0,
-      "notes": "No new eligible fills. UPDOWN_STOP + band dark = no new fills possible. maker_fills_recent.log inaccessible (system failed, 5th consecutive stall). n conservatively held at 75."
+      "notes": "No new eligible fills. UPDOWN_STOP + band dark = no new fills possible. maker_fills_recent.log inaccessible (system failed, 6th consecutive stall). n conservatively held at 75."
     },
     "ts": "2026-07-25T09:03:00Z",
     "note": "Unchanged. Winner's curse CONFIRMED (filled WR 17.3% vs sim 7.6%). CI entirely negative. Hard blocker on G1/G7 sim-CI re-enable arguments."
@@ -127,8 +127,8 @@
     "n_label": "resolved (VPS join 07-09 22:20Z; first-fire dedup YES legs sum_posted in [0.70,0.85])",
     "n_shadow_fires_today_est": 0,
     "n_shadow_fires_today_in_gate_est": 0,
-    "n_shadow_fires_yesterday": 4,
-    "n_shadow_fires_yesterday_in_gate": 4,
+    "n_shadow_fires_yesterday": 0,
+    "n_shadow_fires_yesterday_in_gate": 0,
     "n_shadow_fires_since_wind_down_est": 147,
     "n_prev_resolved": 382,
     "n_added_since_prior": 0,
@@ -138,26 +138,26 @@
     "wr": null,
     "resolved": 382,
     "ts": "2026-07-25T09:03:00Z",
-    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4%,+38.9%]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network + system failed (5th consecutive stall). Gate inert while band dark. Shadow est ~147 total since wind-down."
+    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4%,+38.9%]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network + system failed (6th consecutive stall). Gate inert while band dark. Shadow est ~147 total since wind-down."
   },
   "UPDOWN_CROSSING": {
     "n_post_cut": 88,
-    "n_post_cut_estimated_min": 95,
-    "n_post_cut_estimated_max": 111,
+    "n_post_cut_estimated_min": 105,
+    "n_post_cut_estimated_max": 127,
     "n_post_cut_prev": 88,
     "n_added_since_prior": 0,
-    "n_added_since_prior_note": "n=88 unconfirmed even in prior run (network blocked). Estimated +7-23 additional events since Jul-23 22:05Z (35h at 7-16/day) but shadow_grade.py inaccessible (system failed). Kill threshold n=100 MAY ALREADY BE CROSSED. n held at 88 (last authoritative). Kill fires on VPS shadow_grade.py confirmation.",
+    "n_added_since_prior_note": "n=88 confirmed at auth Jul-23 22:05Z. Estimated +17-39 additional events since then (59h at 7-16/day). Est total 105-127. n=100 LIKELY CROSSED. n held at 88 (last authoritative). Kill fires on VPS shadow_grade.py confirmation after service restart.",
     "n_post_cut_label": "post-cut shadow CROSSING events (p_model>=0.995, 5m, multi-asset); shadow_grade.py authoritative — last run Jul-23 22:05Z (VPS service now FAILED)",
     "wr_post_cut": 0.95455,
-    "wr_note": "84W/4L at n=88; gate_ledger confirmed Jul-23 22:05Z. No new loss confirmations since.",
+    "wr_note": "84W/4L at n=88; gate_ledger confirmed Jul-23 22:05Z. No new loss confirmations since (system failed).",
     "be": 0.9649,
     "be_note": "EVOLVE-reported Jul-23 22:05Z (varies slightly by asset mix; prior GK used 0.9701 which is stale — use 0.9649)",
     "ci95_post_cut": [0.8889, 0.9822],
-    "ci95_method": "Wilson 95% CI on WR at n=88, k=84; z=1.96; CI-lo=0.8889; CI-hi=0.9822.",
+    "ci95_method": "Wilson 95% CI on WR at n=88, k=84; z=1.96; CI-lo=0.8889; CI-hi=0.9822. CI at estimated n=105 (if 100W/5L): [0.8726, 0.9611] — CI-lo still far below BE=0.9649.",
     "status": "COLLECTING",
     "kill_locked": true,
-    "kill_locked_reason": "Best-case at n=100 (96W/4L) = WR 0.9600 < BE 0.9649. Pre-registered kill rule: point_WR < BE at n>=100 -> recommend class CLOSED. Unavoidable on any realistic ask path.",
-    "kill_formalization": "PENDING_CONFIRMATION — estimated n=95-111 (35h since last auth count); threshold n=100 may already be crossed. Confirm via 'python3 analysis/crypto/shadow_grade.py --refetch' on VPS after service restart.",
+    "kill_locked_reason": "Best-case at n=100 (96W/4L) = WR 0.9600 < BE 0.9649. Pre-registered kill rule: point_WR < BE at n>=100 -> recommend class CLOSED. Unavoidable on any realistic loss path. Estimated n=105-127 means threshold LIKELY ALREADY CROSSED.",
+    "kill_formalization": "PENDING_CONFIRMATION — estimated n=105-127 (59h since last auth). n=100 threshold very likely crossed. Confirm via 'python3 analysis/crypto/shadow_grade.py --refetch' on VPS after service restart.",
     "threshold_n": 100,
     "threshold_n_math_valid": false,
     "threshold_n_math_note": "n=100 triggers the KILL. Best-case 96W/4L: WR=96.0% < BE=96.49%. CI-lo at best case ~89.5% << BE.",
@@ -165,8 +165,8 @@
     "min_n_to_clear_be_math": "With 4 losses fixed, need WR = k/(k+4) >= 0.9649 -> k >= 4*0.9649/(1-0.9649) = 4*27.49 = 109.97 -> k=110, n=114. Minimum n=114 with zero further losses (unrealistic).",
     "rate_estimate_events_per_day_last_10h": 7.0,
     "rate_estimate_events_per_day_prior_24h": 16.0,
-    "rate_note": "Jul-23 22:05Z: 85->88 in ~10.5h = ~7/day (slowing). Prior window: 72->88 = +16/day. Rate bracket [7,16]/day.",
-    "eta_to_n100_basis": "From Jul-23 22:05Z: 7/day -> +1.7d -> ~Jul-25 16:00Z; 16/day -> +0.75d -> ~Jul-24 evening. Bracket: Jul-24 eve - Jul-25. Current time Jul-25 09:03Z is within or past this bracket.",
+    "rate_note": "Jul-23 22:05Z: 85->88 in ~10.5h = ~7/day (slowing). Prior window: 72->88 = +16/day. Rate bracket [7,16]/day. Used to compute current est n=105-127.",
+    "eta_to_n100_basis": "n=100 bracket was Jul-24 eve - Jul-25 (from prior run). Current time Jul-26 09:07Z is past both ends of the bracket. n=100 threshold VERY LIKELY CROSSED.",
     "per_asset_cells": {
       "btc": {
         "n_graded_all": 134,
@@ -189,18 +189,19 @@
     },
     "gate_registered_ts": "2026-07-19T14:30:00Z",
     "ts": "2026-07-25T09:03:00Z",
-    "note": "COLLECTING (n=88 confirmed; ~95-111 estimated). KILL-LOCKED: best-case at n=100 (96W/4L) WR=96.0% < BE=96.49%. Kill formalization PENDING shadow_grade.py confirmation on VPS (system currently FAILED). Math: 4 losses fix minimum n-to-clear at 114 (zero further losses — unrealistic). BTC REJECTED at n=134. 4/5 assets net-negative sim."
+    "note": "COLLECTING (n=88 confirmed auth Jul-23 22:05Z; est 105-127 now). KILL-LOCKED: best-case at n=100 (96W/4L) WR=96.0% < BE=96.49%. Kill formalization PENDING shadow_grade.py confirmation on VPS (system FAILED, 6th consecutive stall). n=100 LIKELY ALREADY CROSSED. Math: 4 losses fix minimum n-to-clear at 114 (zero further losses — unrealistic). BTC REJECTED at n=134. 4/5 assets net-negative sim."
   },
   "_run_meta": {
-    "run_ts": "2026-07-25T09:03:00Z",
-    "snapshot_ts": "2026-07-25T09:03:24Z",
+    "run_ts": "2026-07-26T09:07:00Z",
+    "snapshot_ts": "2026-07-26T09:07:33Z",
     "snapshot_age_min": 1,
     "snapshot_age_pass": true,
     "system_active_pass": false,
     "system_status": "failed/unknown",
     "system_last_active_ts": "2026-07-24T10:09:19Z",
     "abort_triggered": true,
-    "abort_reason": "system_status.txt missing 'active' — shows 'failed/unknown'",
+    "abort_reason": "system_status.txt missing 'active' — shows 'failed/unknown' (6th consecutive stall)",
+    "consecutive_stalls": 6,
     "run_type": "STALL",
     "bankroll_capital": 21.495442,
     "bankroll_pct_of_ruin_floor": 24.1,
@@ -210,38 +211,38 @@
     "updown_stop_since": "2026-07-19T11:26:00Z",
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
-    "band_dark_days": 19,
+    "band_dark_days": 20,
     "lda_stop": true,
     "network_blocked": true,
-    "network_note": "git fetch timed out (5th consecutive stall). shadow_grade.py, band_resolution_join.py, maker_fills_recent.log all inaccessible. G8 n held at 88 (auth Jul-23 22:05Z).",
+    "network_note": "git fetch timed out (6th consecutive stall). shadow_grade.py, band_resolution_join.py, maker_fills_recent.log all inaccessible. G8 n held at 88 (auth Jul-23 22:05Z). Estimated n=105-127 at Jul-26 09:07Z.",
     "newly_ready": [],
     "newly_rejected": [],
     "newly_ambiguous": [],
     "newly_collecting": [],
     "state_transitions": [
-      "SYSTEM: active (prior run) -> failed/unknown (this run). Service last active 2026-07-24T10:09:19Z. Human SSH required to diagnose and restart.",
-      "BAND_DARK: day 18 -> day 19. No band resolutions flowing.",
-      "G8: n=88 (held; +~10 estimated unconfirmed in 35h at 7/day). Kill formalization PENDING — n=100 may already be crossed. Status COLLECTING held pending shadow_grade.py confirmation."
+      "SYSTEM: failed/unknown — 6th consecutive stall. Service last active 2026-07-24T10:09:19Z. Human SSH required.",
+      "BAND_DARK: day 19 -> day 20. No band resolutions flowing.",
+      "G8: n=88 auth (held); est n=105-127 (59h at [7,16]/day since auth Jul-23 22:05Z). n=100 LIKELY CROSSED. Kill formalization PENDING shadow_grade.py post-restart."
     ],
     "structural_blockers": [
       "UPDOWN_STOP active: sniper CUT 2026-07-19T11:26Z (PF 0.79 over 27 settles < 0.8 charter rail).",
-      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 19. Zero band resolutions flowing.",
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 20. Zero band resolutions flowing.",
       "LDA_STOP active: rolling-20 worst -$36.39 below -$30 threshold.",
       "Capital $21.495 below engine ruin_floor $89.16 (24.1%) — all band paths mechanically blocked.",
       "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND. No band re-enable may cite G1/G7 sim CI as evidence.",
       "G5 THERMO / G6 M1: both REJECTED; no reconsideration without explicit human directive.",
-      "G8 UPDOWN_CROSSING: KILL-LOCKED at n=88 (est 95-111). Kill formalization PENDING shadow_grade.py on VPS (system FAILED).",
+      "G8 UPDOWN_CROSSING: KILL-LOCKED at n=88 auth (est 105-127). n=100 LIKELY CROSSED. Kill formalization PENDING shadow_grade.py on VPS (system FAILED, 6th stall).",
       "SYSTEM: failed/unknown since after 2026-07-24T10:09:19Z. Shadow accrual, gate_ledger refreshes, and watchdog all paused."
     ],
     "alerts": [
-      "SYSTEM FAILED: systemd=failed/unknown since after 2026-07-24T10:09:19Z. Human SSH required. Burn rate zero so no capital at risk, but shadow accrual and gate ledger frozen.",
-      "G8 KILL FORMALIZATION IMMINENT: n estimated 95-111 (35h since last auth). n=100 may already be crossed. Kill is mathematically certain (min n-to-clear=114, zero losses). Confirm with shadow_grade.py --refetch after VPS restart.",
-      "G8 BTC CELL REJECTED (n=134): only n>=100 per-asset cell is REJECTED. 4/5 assets net-negative sim. No promotion path exists.",
-      "NETWORK BLOCKED (5th consecutive): all VPS-side scripts inaccessible. G8 data from EVOLVE gate_ledger Jul-23 22:05Z."
+      "SYSTEM FAILED: systemd=failed/unknown since after 2026-07-24T10:09:19Z (6th consecutive stall). Human SSH required. Burn rate zero so no capital at risk.",
+      "G8 KILL FORMALIZATION VERY LIKELY THRESHOLD-CROSSED: est n=105-127 at Jul-26 09:07Z (59h since auth n=88 at Jul-23 22:05Z). n=100 bracket was Jul-24 eve to Jul-25 — both past. Kill is mathematically certain (min n-to-clear=114, zero losses). Confirm with shadow_grade.py --refetch after VPS restart.",
+      "G8 BTC CELL REJECTED (n=134): only n>=100 per-asset cell is REJECTED. 4/5 assets net-negative sim. No promotion path.",
+      "NETWORK BLOCKED (6th consecutive): all VPS-side scripts inaccessible. G8 data from EVOLVE gate_ledger Jul-23 22:05Z."
     ],
     "proposed_actions": [
       "URGENT: SSH to VPS, diagnose systemd failure, restart service.",
-      "PENDING (triggers when G8 n>=100 confirmed via shadow_grade.py): KILL UPDOWN_CROSSING class. Exact action: close the class, do not re-enable without fresh pre-registration and a clean candidate pool. Human confirms; gate-keeper will record REJECTED verdict."
+      "PENDING (triggers when G8 n>=100 confirmed via shadow_grade.py): KILL UPDOWN_CROSSING class. Exact action: close the class, do not re-enable without fresh pre-registration and a clean candidate pool. Human confirms; gate-keeper records REJECTED verdict on next run."
     ]
   }
 }
