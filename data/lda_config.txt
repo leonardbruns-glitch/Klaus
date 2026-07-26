@@ -1,7 +1,7 @@
 # Current LDA config (live, from late_direction_arb.py)
-# Snapshot: 2026-07-26T13:40:56Z
+# Snapshot: 2026-07-26T13:55:56Z
 # Latest commit on klaus:
-20c13cdf8 EVOLVE daily 2026-07-23 evening — gate KILL-LOCKED holds: n=88 84W/4L point 0.9545 < BE 0.9649 (+3 settles all W, no state change); accrual slowed ~7/day, kill formalizes ~07-25 at n>=100; zero live changes (0/2, 19th consecutive); cells: btc n=134 REJECTED, eth 38/38 sole clean; weather trigger 2of5 NOT met; equity $21.4954 CLOB-exact unchanged, 7d realized -$6.34 all pre-cut
+18be2a43b EVOLVE weekly 2026-07-26 — certainty-taker class KILLED on pre-registered gate: post-cut CROSSING n=127 WR 0.9528 < BE 0.9651 (pooled 5-asset n=469 0.964 < 0.965); graveyard #15 + inverse divergence-fade #16 (cheap WR 0.074 vs BE 0.126 n=136, falsified at birth); t_left dead-zone REJECTED out-of-sample (8/17 losses outside); owner 07-24 shutdown documented+honored (klaus stopped, daily+liveness timers disabled -> loop WEEKLY-ONLY); equity $88.750373 CLOB-exact = $21.50 + $67.25 owner-manual (on-chain to the cent), bankroll synced; charter amendment item-6 APPLIED (2nd reading); loop realized $0.00 this week, 0 fires, no live path remains
 
 29:ASK_FLOOR    = 0.60
 30:ASK_CEIL     = 0.98   # 0.994→0.98: exit is bid≥0.999 so entries above 0.98 have near-zero margin
