@@ -3,19 +3,19 @@ failed
 unknown
 
 ## Last 10 commits on klaus:
-18be2a43b EVOLVE weekly 2026-07-26 — certainty-taker class KILLED on pre-registered gate: post-cut CROSSING n=127 WR 0.9528 < BE 0.9651 (pooled 5-asset n=469 0.964 < 0.965); graveyard #15 + inverse divergence-fade #16 (cheap WR 0.074 vs BE 0.126 n=136, falsified at birth); t_left dead-zone REJECTED out-of-sample (8/17 losses outside); owner 07-24 shutdown documented+honored (klaus stopped, daily+liveness timers disabled -> loop WEEKLY-ONLY); equity $88.750373 CLOB-exact = $21.50 + $67.25 owner-manual (on-chain to the cent), bankroll synced; charter amendment item-6 APPLIED (2nd reading); loop realized $0.00 this week, 0 fires, no live path remains
-20c13cdf8 EVOLVE daily 2026-07-23 evening — gate KILL-LOCKED holds: n=88 84W/4L point 0.9545 < BE 0.9649 (+3 settles all W, no state change); accrual slowed ~7/day, kill formalizes ~07-25 at n>=100; zero live changes (0/2, 19th consecutive); cells: btc n=134 REJECTED, eth 38/38 sole clean; weather trigger 2of5 NOT met; equity $21.4954 CLOB-exact unchanged, 7d realized -$6.34 all pre-cut
-c08412e7d EVOLVE daily 2026-07-23 — gate KILL-LOCKED: n=85 81W/4L point 0.9529 < BE 0.9644 (2 overnight losses, best-case 0.9600 at n=100 cannot clear; kill formalizes ~07-24), zero live changes; per-asset class-wide slide (btc n=132 REJECTED, doge/sol first losses, eth sole 35/35); $143 STWA wildcard falsified on-chain (408 positions all $0, equity=$21.50 exact); disk reclaim r3 87%->71%
-965a278b4 Research audit 2026-07-23T1030Z — all paths halted day 17, G8 n=72 KILL trajectory (CI-lo 90.4% vs BE 97.0%, min-pass n≈245) | best action: SSH verify CLOB wallet today (STWA wildcard $143 unconfirmed)
-0e8428a94 Gate-keeper 2026-07-23 — ready=0 rejected=0 collecting=1 (G8 n=57→72 +15; 2ND LOSS 70W/2L CI-lo=90.4%; rate 4→15/day; math warning: min-pass n≈245 not 200; n=100 ~Jul-25 AMBIGUOUS certain)
-d16e054f8 Calib monitor 2026-07-23 — brier7=0.055 disp_ratio=0.817 2 alerts (S3 day21 0/6-above-1.10 ratio-declining; S4 cron-missed-07-22 frozen-n_live-3733)
-d50376f09 Exec audit 2026-07-23 — fills=0 NO-share=N/A OK (BAND_LIVE=False, 0 alerts)
-c0d149b36 PnL ledger 2026-07-22 — day=$0.00 turns=0 roi/turn=N/A unexplained=$0.00
-857558596 EVOLVE evening 2026-07-22 — gate n=72 70W/2L loss-free since morning (point +0.006 over BE, CI-lo 0.904; pass-branch unreachable before n≈400-3000, KILL branch the realistic resolution), zero live changes; xrp cell first loss (17W/1L −$1.50); overdue redemption-exclusion review closed KEEP
-eefa9d923 EVOLVE daily 2026-07-22 — gate n=65 63W/2L (2nd post-cut loss, point +0.003 over BE, CI-lo 0.895 far short), zero live changes; 2 reviews closed KEEP; disk reclaim round 2 (94%->83%)
+ddbcecdd1 EVOLVE weekly 2026-07-26 — certainty-taker class KILLED on pre-registered gate: post-cut CROSSING n=127 WR 0.9528 < BE 0.9651 (pooled 5-asset n=469 0.964 < 0.965); graveyard #15 + inverse divergence-fade #16 (cheap WR 0.074 vs BE 0.126 n=136, falsified at birth); t_left dead-zone REJECTED out-of-sample (8/17 losses outside); owner 07-24 shutdown documented+honored (klaus stopped, daily+liveness timers disabled -> loop WEEKLY-ONLY); equity $88.750373 CLOB-exact = $21.50 + $67.25 owner-manual (on-chain to the cent), bankroll synced; charter amendment item-6 APPLIED (2nd reading); loop realized $0.00 this week, 0 fires, no live path remains
+0a0eb9747 Research audit 2026-07-26T1030Z — STALL day 3, service dead; G8 n≈105-127 kill unformalized; disp_ratio=0.781 S3 day 24 | best action: SSH VPS → shadow_grade.py G8 kill
+6f028b2da Gate-keeper 2026-07-26 — ready=0 rejected=0 collecting=1 (STALL x6; G8 n=88 auth est 105-127 KILL-LOCKED n=100 likely crossed; system failed VPS restart required)
+799295d21 Calib monitor 2026-07-26 — brier7=0.055 disp_ratio=0.781 STALL (systemd-failed day3)
+5cb20ad90 Exec audit 2026-07-26 — STALL: fills=N/A NO-share=N/A (systemd failed)
+59cac01bc PnL ledger 2026-07-25 — day=$0.00 turns=0 roi/turn=N/A unexplained=$0.00
+ad4095fb5 Research audit 2026-07-25T1019Z — STALL: system down day 2, G8 kill ~n≥100 unconfirmed | best action: SSH NOW (service 24h failed)
+bfb05a73c Gate-keeper 2026-07-25 — ready=0 rejected=0 collecting=1 (STALL: system failed; G8 n=88 est 95-111 kill-locked, kill formalization PENDING)
+999372409 Calib monitor 2026-07-25 — STALL: systemd failed/unknown; prior brier7=0.0548 disp_ratio=0.781 S3+S4 carried (day 23)
+f9593ad4c Exec audit 2026-07-25 — ABORT: systemd failed unknown (not active)
 
 ## Disk (GB):
-/dev/mapper/ubuntu--vg-ubuntu--lv       97G   70G       24G  75% /
+/dev/mapper/ubuntu--vg-ubuntu--lv       97G   71G       23G  76% /
 
 ## Bot uptime:
 ActiveEnterTimestamp=Fri 2026-07-24 10:09:19 UTC
