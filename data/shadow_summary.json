@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-07-25T23:57:48.198349+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Will Chicago Fire FC win on 2026-07-25?\", \"condition_id\": \"0x488f7567fea53555f85baa004a5e80ea20f81d5bab08389444d4f5f4e179937d\", \"fav_token\": \"808851787997387331217694071168585625806105259173127121897209600",
-      "mtime_utc": "2026-07-25T23:57:50Z",
-      "n_rows": 947384,
-      "size_bytes": 584272542
+      "last_excerpt": "{\"ts\": \"2026-07-26T00:12:57.274171+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Will Kamala Harris win the 2028 Democratic presidential nomination?\", \"condition_id\": \"0x909659c9436228e2be56d5582ba6188166f2f8bf3c596335512c8f2e380d01ec\", \"fav_token\": \"26930844951471612827925270830087046",
+      "mtime_utc": "2026-07-26T00:13:00Z",
+      "n_rows": 947565,
+      "size_bytes": 584384944
     },
     "hot/2026-07-21/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1784592001.2329144, \"record\": \"fill_join\", \"fill_ts\": 1784591940, \"detect_lag_s\": 61.2, \"title\": \"Will the highest temperature in Atlanta be between 90-91\\u00b0F o\", \"event\": \"highest-temperature-in-atlanta-on-july-21-2026\", \"outcome\": \"Yes\", \"price\": 0.36, \"size\": 5, \"usdc\": 1.8, \"cid\": \"0xa",
@@ -798,12 +798,33 @@
       "n_rows": 1474,
       "size_bytes": 6834396
     },
-    "updown_sniper/snap_20260718.jsonl": {
-      "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1784332800\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.95, \"b_px\": 63931.67, \"b_open\": 63930.8, \"move\": 1.360846415177086e-05, \"sigma1s\": 3.386754626544398e-05, \"z\": 0.0232007037767405, \"p_up\": 0.5092549113865417, \"up\": null, \"down\": null, \"ts\": 1784332800.06",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1784418900\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 0.85, \"b_px\": 64834.21, \"b_open\": 64823.99, \"move\": 0.00015765768197861796, \"sigma1s\": 1.7336396686813594e-05, \"z\": 9.844492459418126, \"p_up\": 1.0, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.99, \"bid_sz\": 1",
-      "mtime_utc": "2026-07-18T23:59:59Z",
-      "n_rows": 103288,
-      "size_bytes": 39941916
+    "hot/2026-07-26/badatmath_watch.jsonl": {
+      "first_excerpt": "{\"ts\": 1785024001.2854218, \"record\": \"fill_join\", \"fill_ts\": 1785023877, \"detect_lag_s\": 124.3, \"title\": \"Will the highest temperature in Guangzhou be 30\\u00b0C on July 26\", \"event\": \"highest-temperature-in-guangzhou-on-july-26-2026\", \"outcome\": \"Yes\", \"price\": 0.15, \"size\": 10, \"usdc\": 1.5, \"cid\": ",
+      "last_excerpt": "{\"ts\": 1785024841.5867386, \"record\": \"ladder\", \"event\": \"highest-temperature-in-beijing-on-july-26-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"C or below on July 26?\", \"bids\": [], \"asks\": [[0.001, 14006.51], [0.002, 3215.0], [0.003, 362.41]]}, {\"q\": \"ng be 27\\u00b0C on July 26?\", \"bids\": [], \"asks\": [[",
+      "mtime_utc": "2026-07-26T00:14:02Z",
+      "n_rows": 39,
+      "size_bytes": 35563
+    },
+    "hot/2026-07-26/count_lock.jsonl": {
+      "first_excerpt": "",
+      "last_excerpt": "",
+      "mtime_utc": "2026-07-26T00:00:01Z",
+      "n_rows": 0,
+      "size_bytes": 0
+    },
+    "hot/2026-07-26/maker_flow.jsonl": {
+      "first_excerpt": "{\"poll_ts\": 1785024034.7904348, \"cid\": \"0x2c128d0d2995fd1af6a48281a1dc7982a9b4467c219d1e73ed15f7eb47496b5b\", \"q\": \"Will the highest temperature in Seattle be between 74-75\\u00b0F on July 25?\", \"proxyWallet\": \"0xf27a3520be0776a0f6cc12b7f511c5b848e178d8\", \"side\": \"BUY\", \"asset\": \"109366159391824964872",
+      "last_excerpt": "{\"poll_ts\": 1785024797.6015384, \"cid\": \"0x955ca3b12ca6a5bd86c111322483481c701a549ca161136b4db74462ef8fe097\", \"q\": \"Will the highest temperature in Karachi be 38\\u00b0C or higher on July 27?\", \"proxyWallet\": \"0xd23f8c8aab13cfb2a35da40b67f8471faf9894a1\", \"side\": \"BUY\", \"asset\": \"2564365115072631733998",
+      "mtime_utc": "2026-07-26T00:13:18Z",
+      "n_rows": 1510,
+      "size_bytes": 1607951
+    },
+    "hot/2026-07-26/minmax_coherence.jsonl": {
+      "first_excerpt": "{\"ts\": \"2026-07-26T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-07-26\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on July 26?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.075, \"coverage_best\": {\"t\": 31, \"cost\": 1.107, \"n_legs\": 14, \"units_fillable\": 130.0, \"legs\":",
+      "last_excerpt": " 0.02}, {\"q\": \"e in Miami be 98\\u00b0F or higher on July 26?\", \"ask\": 0.004}, {\"q\": \"re in Miami be 67\\u00b0F or below on July 26?\", \"ask\": 0.004}, {\"q\": \" in Miami be between 68-69\\u00b0F on July 26?\", \"ask\": 0.004}, {\"q\": \" in Miami be between 70-71\\u00b0F on July 26?\", \"ask\": 0.01}, {\"q\": \" in Mi",
+      "mtime_utc": "2026-07-26T00:01:01Z",
+      "n_rows": 19,
+      "size_bytes": 86912
     },
     "updown_sniper/snap_20260719.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1784419200\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.72, \"b_px\": 64834.22, \"b_open\": 64834.22, \"move\": 0.0, \"sigma1s\": 1.7336396719216104e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.47, \"ask_sz\": 282.96, \"bid\": 0.46, \"bid_sz\": 209.9}, \"down\": {\"ask\": 0.54, ",
@@ -849,11 +870,18 @@
     },
     "updown_sniper/snap_20260725.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"xrp-updown-5m-1784937300\", \"asset\": \"xrp\", \"step\": 300, \"t_left\": 0.22, \"b_px\": 1.0919, \"b_open\": 1.0914, \"move\": 0.00045812717610416165, \"sigma1s\": 4.842960229092375e-05, \"z\": 13.37796791817996, \"p_up\": 1.0, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.99, \"bid_sz\": 15262.",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1785023700\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 8.67, \"b_px\": 0.07172, \"b_open\": 0.07174, \"move\": -0.00027878449958174123, \"sigma1s\": 7.782515759985392e-05, \"z\": -1.216287080805325, \"p_up\": 0.1119377905935825, \"up\": {\"ask\": 0.04, \"ask_sz\": 5.2, \"bid\": 0.",
-      "mtime_utc": "2026-07-25T23:59:51Z",
-      "n_rows": 200876,
-      "size_bytes": 81451002
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1785023700\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 1.06, \"b_px\": 0.07173, \"b_open\": 0.07174, \"move\": -0.00013939224979087061, \"sigma1s\": 7.775527864075095e-05, \"z\": -1.7447810019568661, \"p_up\": 0.04051149850263869, \"up\": {\"ask\": 0.09, \"ask_sz\": 25.0, \"bid\":",
+      "mtime_utc": "2026-07-25T23:59:59Z",
+      "n_rows": 200936,
+      "size_bytes": 81475536
+    },
+    "updown_sniper/snap_20260726.jsonl": {
+      "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785024000\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.8, \"b_px\": 64375.0, \"b_open\": 64375.0, \"move\": 0.0, \"sigma1s\": 1.4065195717041218e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.51, \"ask_sz\": 49.09, \"bid\": 0.5, \"bid_sz\": 725.61}, \"down\": {\"ask\": 0.5, \"ask_",
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785024900\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 293.05, \"b_px\": 64434.0, \"b_open\": 64434.0, \"move\": 0.0, \"sigma1s\": 1.7830845591517224e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.48, \"ask_sz\": 208.56, \"bid\": 0.47, \"bid_sz\": 562.25}, \"down\": {\"ask\": 0.53, \"",
+      "mtime_utc": "2026-07-26T00:15:06Z",
+      "n_rows": 2105,
+      "size_bytes": 859611
     }
   },
-  "snapshot_ts": "2026-07-25T23:59:51Z"
+  "snapshot_ts": "2026-07-26T00:15:06Z"
 }
