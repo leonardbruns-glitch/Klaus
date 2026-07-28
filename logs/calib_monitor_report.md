@@ -1,1 +1,1 @@
-## Klaus Calib Monitor — 2026-07-27 — STALL: systemd failed/unknown (bot dead day ~4, last active 2026-07-24T10:09 UTC); pipeline aborted; brier7=0.055 disp_ratio=0.781 CARRIED; 2 alerts persisting (S3 dispersion inversion day ~25, S4 isotonic ~51d stale).
+## Klaus Calib Monitor — 2026-07-28 — STALL: systemd failed/unknown (owner-directed shutdown day 5, last active 2026-07-24T10:09 UTC, ~94h); pipeline aborted; brier7=0.055 disp_ratio=0.781 CARRIED; 2 alerts persisting (S3 dispersion inversion day ~26, S4 isotonic ~52d stale).
