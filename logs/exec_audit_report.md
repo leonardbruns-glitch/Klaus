@@ -1,5 +1,9 @@
-# Exec Audit 2026-07-27 — ABORT: systemd failed/unknown (not active)
+# Exec Audit 2026-07-28 — ABORT: systemd failed/unknown (not active)
 
-**ABORT**: `system_status.txt` shows `failed / unknown` — pre-registered abort condition met (missing `'klaus systemd: active'`). Service has been down since 2026-07-24 (owner-initiated shutdown; daily + liveness timers disabled; loop WEEKLY-ONLY per EVOLVE commit `ddbcecdd1`). This is day 4 of the stall. No fills, no resting-book activity, no queue cycles to report. `BAND_LIVE=False`, `BAND_NO_ENABLED=False`. Capital: $88.75 (bankroll.json). Open positions: 0.
+**Snapshot**: 2026-07-28T07:13:46Z (3 min old — fresh)  
+**Abort trigger**: `system_status.txt` shows `failed / unknown` — pre-registered abort condition met (missing `'klaus systemd: active'`).  
+**Day 5 of stall** (service last active 2026-07-24T10:09 UTC; owner-initiated shutdown; daily + liveness timers disabled; loop WEEKLY-ONLY per EVOLVE commit `ddbcecdd1`).
+
+No fills, no resting-book activity, no queue cycles to report. `BAND_LIVE=False`, `BAND_NO_ENABLED=False`. Capital: $88.75 (bankroll.json). Open positions: 0.
 
 No execution analysis producible on absent execution data.
