@@ -13,7 +13,7 @@
     "wr": 0.153,
     "resolved": 934,
     "ts": "2026-07-25T09:03:00Z",
-    "note": "No change. Band dark day 22 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. band_resolution_join.py blocked by network + system failed (8th consecutive stall). ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap -83.4 pp). CI straddles 0 -> AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $88.75 — still below floor by $0.41)."
+    "note": "No change. Band dark day 23 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. System failed day 5. ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap -83.4 pp). CI straddles 0 -> AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $88.75 — still below floor by $0.41)."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
@@ -64,7 +64,7 @@
       }
     },
     "ts": "2026-07-25T09:03:00Z",
-    "note": "No new live fires. All legs frozen. Band dark day 22. System failed — no accrual."
+    "note": "No new live fires. All legs frozen. Band dark day 23. System failed day 5 — no accrual."
   },
   "FILLED_VS_FIRED": {
     "n": 75,
@@ -138,7 +138,7 @@
     "wr": null,
     "resolved": 382,
     "ts": "2026-07-25T09:03:00Z",
-    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4%,+38.9%]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network + system failed (8th consecutive stall). Gate inert while band dark. Shadow est ~147 total since wind-down."
+    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4%,+38.9%]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network + system failed. Gate inert while band dark. Shadow est ~147 total since wind-down."
   },
   "UPDOWN_CROSSING": {
     "n_post_cut": 127,
@@ -190,17 +190,17 @@
     "note": "REJECTED (confirmed EVOLVE 2026-07-26, commit ddbcecdd1). n=127, WR=0.9528 < BE=0.9651. Pooled 5-asset n=469 WR=0.964 < BE=0.965. Graveyard #15. Class closed. No re-enable without fresh pre-registration + clean candidate pool + CI-lo clearing BE at n>=100."
   },
   "_run_meta": {
-    "run_ts": "2026-07-28T09:00:00Z",
-    "snapshot_ts": "2026-07-28T09:00:03Z",
+    "run_ts": "2026-07-29T09:07:16Z",
+    "snapshot_ts": "2026-07-29T09:07:16Z",
     "snapshot_age_min": 0,
     "snapshot_age_pass": true,
     "system_active_pass": false,
     "system_status": "failed/unknown",
     "system_last_active_ts": "2026-07-24T10:09:19Z",
-    "system_failed_days": 4,
+    "system_failed_days": 5,
     "abort_triggered": true,
-    "abort_reason": "system_status.txt missing 'active' — shows 'failed/unknown' (8th consecutive stall; day 4 since shutdown)",
-    "consecutive_stalls": 8,
+    "abort_reason": "system_status.txt missing 'active' — shows 'failed/unknown' (9th consecutive stall; day 5 since shutdown)",
+    "consecutive_stalls": 9,
     "run_type": "STALL",
     "loop_mode": "WEEKLY-ONLY (daily + liveness timers owner-disabled 2026-07-24 per EVOLVE 2026-07-26)",
     "bankroll_capital": 88.750373,
@@ -215,13 +215,13 @@
     "updown_stop_since": "2026-07-19T11:26:00Z",
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
-    "band_dark_days": 22,
+    "band_dark_days": 23,
     "lda_stop": true,
     "network_blocked": true,
-    "network_note": "git fetch timed out (8th consecutive stall). All gate counts from prior authoritative sources (G8: EVOLVE ddbcecdd1; others: 2026-07-25T09:03Z). Zero new shadow data confirmed via shadow dir listing.",
+    "network_note": "git fetch timed out (9th consecutive stall). All gate counts from prior authoritative sources (G8: EVOLVE ddbcecdd1; others: 2026-07-25T09:03Z). Zero new shadow data in any gate-relevant logger confirmed via shadow dir listing.",
     "shadow_check": {
       "dir_2026-07-27": "badatmath_watch.jsonl only — no band_struct, thermo_maker, metar_lockout, exit099_live, basket_exit_shadow",
-      "dir_2026-07-28": "not present in data-mirror snapshot",
+      "dir_2026-07-28": "badatmath_watch.jsonl only — no gate-relevant files (confirmed via GitHub MCP dir listing)",
       "conclusion": "Zero gate-relevant accumulation since prior run"
     },
     "newly_ready": [],
@@ -230,22 +230,23 @@
     "newly_collecting": [],
     "state_transitions": [
       "No transitions this run. All gates frozen.",
-      "BAND_DARK: day 21 -> day 22 (informational).",
-      "STALL count: 7 -> 8."
+      "BAND_DARK: day 22 -> day 23 (informational).",
+      "SYSTEM_FAILED: day 4 -> day 5 (informational).",
+      "STALL count: 8 -> 9."
     ],
     "structural_blockers": [
       "UPDOWN_STOP active: sniper CUT 2026-07-19T11:26Z (PF 0.79 < 0.8 charter rail).",
-      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 22. Zero band resolutions flowing.",
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 23. Zero band resolutions flowing.",
       "LDA_STOP active: rolling-20 worst -$36.39 below -$30 threshold.",
       "Capital $88.75 below engine ruin_floor $89.16 (by $0.41) — all band paths still mechanically blocked.",
       "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND.",
       "G5 THERMO / G6 M1: both REJECTED; no reconsideration without explicit human directive.",
       "G8 UPDOWN_CROSSING: REJECTED (n=127, graveyard #15). No live updown path. Class closed.",
-      "SYSTEM: failed/unknown since 2026-07-24T10:09:19Z (day 4). Weekly-loop-only mode."
+      "SYSTEM: failed/unknown since 2026-07-24T10:09:19Z (day 5). Weekly-loop-only mode."
     ],
     "alerts": [
-      "NO LIVE PATHS REMAIN: sniper CUT + band dark day 22 + G8 closed + LDA stopped + capital below ruin floor.",
-      "SYSTEM FAILED: day 4. Burn rate zero. Human SSH required if path forward intended.",
+      "NO LIVE PATHS REMAIN: sniper CUT + band dark day 23 + G8 closed + LDA stopped + capital below ruin floor.",
+      "SYSTEM FAILED: day 5. Burn rate zero. Human SSH required if path forward intended.",
       "CAPITAL: $88.75 is $0.41 below ruin_floor $89.16. Mechanically blocks all band paths."
     ],
     "proposed_actions": [
