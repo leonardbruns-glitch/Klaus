@@ -1,189 +1,237 @@
-# Research Audit — 2026-07-29 — STALL (Day 6, Run 10)
+# Research Audit — 2026-07-30T10:29Z
 
-**ABORT CONDITION MET**: `system_status.txt` shows `failed/unknown` — not `active`. Analysis below synthesizes today's four specialist reports (all fresh, all aborting on the same condition). No new analysis fabricated on absent execution data.
+**STALL — DAY 7.** `system_status.txt` shows `failed/unknown`. ABORT condition met (missing `'klaus systemd: active'`). SNAPSHOT fresh (2026-07-30T10:24:17Z, ~5 min old). Data is current; bot is not. Following prior-run precedent (07-25, 07-26 audits) of substantive STALL analysis on fresh data.
 
-**Snapshot**: 2026-07-29T10:23:16Z (fresh, <6h). Bot last active: 2026-07-24T10:09:19Z (~120h dead). Owner-directed shutdown 2026-07-24; daily + liveness timers disabled; loop WEEKLY-ONLY per EVOLVE 2026-07-26 (commit `ddbcecdd1`). Equity: $88.750373 (flat since Jul-6). 9 consecutive zero-fill days. 0 live paths.
+---
 
-Specialist report coverage: exec_audit 07:06Z ✓ | calib_monitor 08:07Z ✓ | gatekeeper 09:07Z ✓ | pnl_ledger 23:30Z prior day ✓ (all fresh, all STALL/ABORT).
+## Data Sources Consumed
+
+| Report | Timestamp | Status |
+|---|---|---|
+| exec_audit_report.md | 2026-07-30T07:07Z | ABORT/STALL |
+| calib_monitor_report.md | 2026-07-30T08:08Z | ABORT/STALL |
+| gatekeeper_report.md | 2026-07-30T09:15Z | ABORT/STALL |
+| pnl_ledger_report.md | 2026-07-29T23:37Z | ABORT/STALL |
+| data-mirror SNAPSHOT | 2026-07-30T10:24Z | FRESH |
+| state_log.md last entry | 2026-07-26T14:57Z | 4d ago |
+
+All four specialist reports fired and aborted today. No specialist computed new execution, calibration, gate, or P&L data — system has been dark since 2026-07-24T10:09Z. All metrics below are carried from last-computed windows or read directly from config/mirror.
+
+---
+
+## System Snapshot
+
+| Field | Value |
+|---|---|
+| Capital | $88.750373 |
+| Band ruin floor | $89.16 (BAND_PHASE2 gate) |
+| Gap to ruin floor | **−$0.41** (mechanically blocks all band paths) |
+| Total PnL lifetime | −$75.40 (n=3,093 trades) |
+| Open positions | 0 |
+| Service alive | NO — `failed/unknown` day 7 |
+| BAND_LIVE | False — day 24 dark (since 2026-07-06T22:08Z) |
+| BAND_NO_ENABLED | False — rail-halt 2026-07-02 (live WR 39.2%) |
+| UPDOWN_STOP | Present — PERMANENT (graveyard #15, EVOLVE 2026-07-26) |
+| LDA_STOP | Active (rolling-20 worst −$36.39 < −$30 threshold) |
+| Loop mode | WEEKLY-ONLY (daily + liveness timers owner-disabled 2026-07-24) |
+| Next EVOLVE weekly | ~2026-08-02 |
 
 ---
 
 ## 1. Primary Bottleneck for Compounding
 
-**System offline (owner-directed) — zero turns/day.** The compounding expression (ROI/turn × turns/day × equity) is identically zero on all three factors. No marginal parameter tuning applies.
+**Bottleneck: Service dead (VPS systemd `failed/unknown`).** Compounding = ROI/turn × turns/day × equity deployed. Turns/day = 0 since 2026-07-24. The multiplier is zero regardless of ROI or equity.
 
-When/if service restarts, the secondary bottleneck is **zero live firing paths** — every monetizable channel is disabled, formally rejected, or mechanically blocked:
+Ranking justification against the full list:
 
-| Path | Status | Reason |
-|---|---|---|
-| BAND_LIVE | False | Day 23 dark (Jul-6); capital $0.41 below ruin_floor $89.16 |
-| BAND_NO_ENABLED | False | WR 39.2% n=51 live; formally disabled Jul-2 |
-| G8 UPDOWN_CROSSING | KILLED | WR 0.9528 < BE 0.9651 n=127; graveyard #15 (EVOLVE Jul-26) |
-| STWA_REGULAR_YES/NO | Both False | Disabled |
-| UPDOWN_STOP | ACTIVE | PF 0.79 < 0.80 charter rail (Jul-19) |
-| LDA | STOPPED | Rolling-20 PnL below threshold |
-| G5 THERMO / G6 M1 LOCKOUT | REJECTED | Human directive required to reconsider |
+1. **Equity deployed / turns/day** — both zero (service dead). This dominates all others.
+2. ROI/turn — cannot be measured; last fill was 2026-07-24 before the shutdown.
+3. Fills / NO-parity / queue health — not producible (exec_audit aborted, 0 fills in 10d).
+4. Calibration / dispersion edge — secondary concern; disp_ratio 0.781 (INVERTED, d28) means even a running system has no band edge. This is the second-order bottleneck once service is restored.
+5. Risk frame — capital $0.41 below ruin floor; mechanically correct but irrelevant while system is stopped.
+6. Data reliability — fresh (SNAPSHOT 5 min old). Not a bottleneck.
 
-BAND_PAIR_FAV_ENABLED=True is the only True live-path flag, but it is inert while BAND_LIVE=False.
-
-**Justification from reports**: gatekeeper_report STALL run 9 lists all structural blockers above. exec_audit_report confirms 0 fills, 0 resting activity. pnl_ledger confirms 9 zero-fill days.
+**Source:** exec_audit (fills=N/A), pnl_ledger (turns=0, roi/turn=N/A, 10 consecutive zero-fill days), system_status.txt (`failed/unknown`).
 
 ---
 
 ## 2. Existing-System Optimization
 
-No code optimization is actionable on a dead system with zero firing paths. From specialist reports:
+The four reports collectively describe a system with $0 deployed, 0 turns/day, and all execution paths disabled. There is no active system to optimize — only preconditions to meet before any optimization is relevant.
 
-| Item | Expected Delta | Confidence | Effort | Blocker |
-|---|---|---|---|---|
-| SSH + diagnose systemd failure | Enables restart decision | N/A — prerequisite | ~1h | VPS access |
-| Capital injection ~$0.50 (to clear ruin_floor $89.16) | Unblocks band path mechanically | Low (BAND_LIVE=False; needs explicit re-enable separately) | Owner decision | Owner action |
-| Verify maker rebates ($3.917 expected) | Recover pUSD from Polymarket wallet | High (mechanism exists) | 10 min | Owner login |
+What the reports collectively imply:
 
-BAND_PAIR_FAV_ENABLED=True: at restart + capital injection, pair-fav would resume quoting. But gate G2b/G2c have only n=9 live fills each, clouded by CF bias (state_log Jul-11). Not re-enableable on data this thin — shadow accumulation required first.
+**a. Capital floor gap ($0.41) is trivial in dollar terms but mechanically blocking.**
+Gatekeeper confirms capital $88.750373 < $89.16 ruin floor. BAND_PHASE2_CAPITAL=600.0 is far beyond current equity — the $89.16 floor is a charter rule, not a code constant. A $0.41 injection (or a charter re-read to clarify what the ruin floor actually protects) is the cheapest unblock. Expected delta if cleared: unlocks the mechanical path but NOT the live band (BAND_LIVE=False requires human decision separately). Confidence: high. Effort: trivial.
 
-**No idle cash to unlock** — no live path exists for cash to enter. Cash "velocity" = $0 by design.
+**b. Dispersion inversion (disp_ratio7=0.781, day 28) makes band re-enable net-negative.**
+Calib monitor (carried 07-24): all 3 regions inverted, 0/6 days above 1.10 in last computed window (07-18..07-23). The band earns by harvesting implied-vs-realized dispersion premium. At ratio < 1.0 the market is underpricing realized dispersion — the band posts YES at prices that are systematically too high. Any BAND_LIVE=True decision in this regime would bleed. Expected delta of re-enabling band in current disp regime: negative. Confidence: high (n~105, decision-grade). Effort: low (just don't re-enable).
+
+**c. Winner's curse on fills (G3 confirmed, n=75) invalidates G1 and G7 ROI figures as actionable.**
+Gatekeeper: G3 filled WR 17.3% vs simulated 7.6%, CI entirely negative [−75.0, −34.2]%. G1 BAND_YES ROI +4.0% and G7 SUM_POSTED ROI +11.5% are upper-bound ceiling estimates, not expected values. The actual expected filled ROI is materially lower (possibly negative). This is a structural blocker on both gates regardless of capital or dispersion recovery. Expected delta of treating G1/G7 as READY: false positive — would re-enable a negative-EV path. Confidence: high (G3 n=75, CI unambiguous). Effort: zero (block stands).
+
+**d. No idle cash, no starved queue, no over-restrictive caps to relax.**
+With BAND_LIVE=False and service down, all caps (BAND_NO_DAILY_CAP=40, BAND_MD_DAILY_BUDGET=9999) are inert. Queue rank weights and reclaim parameters are irrelevant. There is nothing to tune until the system fires again.
 
 ---
 
 ## 3. Gate Pipeline Review
 
-From gatekeeper_report 2026-07-29T09:07:16Z (STALL run 9):
+From gatekeeper_report.md (09:15 UTC today). All counts frozen — system dead, zero accumulation possible.
 
-**No gates READY. No gates newly REJECTED this run. All counters frozen at +0.**
+| Gate | n | Status | To Nearest Transition | Accelerant |
+|---|---|---|---|---|
+| G1 BAND_YES per slice | 934 | AMBIGUOUS | G3 WC must clear first; G3 needs n=25 more (currently n=75, threshold n=100) | None while band dark |
+| G2a BAND_NO_d1 shadow | 115 | AMBIGUOUS | Shadow n≥100 passed; live n=51 WR 39.2% REJECTED — shadow CI cannot override live | Re-enable only if live WR recovers |
+| G2b PAIR_FAV_YES | 9 | COLLECTING | Need ~91 fills; frozen while BAND_LIVE=False | Restart service + enable BAND_LIVE |
+| G2c PAIR_FAV_NO | 9 | COLLECTING | Need ~91 fills; frozen while BAND_LIVE=False | Same |
+| G3 FILLED_vs_FIRED | 75 | WATCH_ITEM | Need 25 fills to hit n=100; but CI entirely negative already | Restart service; don't expect pass |
+| G5 THERMO_MAKER_NO | 125 | REJECTED | Human directive required; ROI net fees −EV | N/A |
+| G6 M1_BETA_LOCKOUT | 31 | REJECTED | Human directive required (EVOLVE Jul-04) | N/A |
+| G7 SUM_POSTED [0.70,0.85] | 382 | AMBIGUOUS | G3 WC ceiling; band dark day 24 | Same as G2b/G2c |
+| G8 UPDOWN_CROSSING | 127 | REJECTED | Graveyard #15; class closed (EVOLVE 2026-07-26) | Permanently dead |
 
-| Gate | n (auth) | Status | Path to READY |
-|---|---|---|---|
-| G1 BAND_YES | 934 sim | AMBIGUOUS | G3 winner's curse blocks sim-CI re-enable; band dark |
-| G2b PAIR_FAV_NO | 9 live | COLLECTING | Band dark; CF bias; ETA indeterminate |
-| G2c PAIR_FAV_YES | 9 live | COLLECTING | Band dark; CF bias; ETA indeterminate |
-| G3 WINNER'S CURSE | 75 filled | WATCH_ITEM | Confirms adversarial selection; hard blocker on G1/G7 |
-| G5 THERMO | 125 | **REJECTED** | Human directive required — no reconsideration |
-| G6 M1 LOCKOUT | 31 | **REJECTED** | Human directive required — no reconsideration |
-| G7 SUM_POSTED | 382 sim | AMBIGUOUS | Band dark; G3 blocks sim-CI |
-| G8 UPDOWN_CROSSING | 127 | **KILLED** (Jul-26) | Graveyard #15. Class closed. |
+**Nearest gate to transition:** G3 FILLED_vs_FIRED at n=75 needs 25 more fills. However, this gate's CI is already entirely negative. Reaching n=100 will formalize the REJECTION, not unlock anything. The nearest gate that could produce a positive transition does not exist in the current portfolio — G2b/G2c PAIR_FAV at n=9 are the only genuinely open gates, but both are frozen by BAND_LIVE=False.
 
-Shadow dirs for 2026-07-27 and 2026-07-28 contain only `badatmath_watch.jsonl` — no band_struct, thermo_maker, metar_lockout, exit099_live, or basket_exit_shadow. All accumulators frozen while system is down.
-
-**To accelerate accumulation without degrading expectancy:** shadow-only restart (BAND_LIVE=False, BAND_NO=False, all live flags untouched) would resume G2b/G2c observation counts and fresh dispersion data without deploying capital or requiring gate promotion.
+**What would accelerate accumulation WITHOUT degrading expectancy:** Restart service in shadow-only mode (BAND_LIVE=False). PAIR_FAV_SHADOW=True and BAND_PAIR_SHADOW=True are both enabled in band_config.txt — shadow quotes continue to log would-fire events even without live capital. This accumulates G2b/G2c data at zero cost. The constraint is the service must be running.
 
 ---
 
 ## 4. Assumption Attack
 
-The band system rests on three load-bearing assumptions. Status from today's reports:
+The three load-bearing assumptions of the band system today:
 
-**A. Dispersion premium persists (market-implied spread > realized spread)**
-- Status: **DECISIVELY THREATENED** (calib_monitor_report, S3 CARRIED, pre-registered)
-- disp_ratio7 = 0.781 vs threshold >1.10 — inverted edge, estimated day 27 consecutive
-- All three regions sub-1.0: EU 0.789, Asia 0.743, US/Other 0.789
-- Last computed window (Jul-18..Jul-23): 0/6 days above threshold
-- Fresh computation unavailable — system dark since Jul-24
-- BAND_LIVE was disabled Jul-6 (day 23 dark); dispersion inversion is independent confirmation the halt was correct
-- **The core band edge premise does not hold in the current regime**
+### A. Dispersion premium persists (implied > realized spread)
 
-**B. Fills are not adversely selected (winner's curse bounded)**
-- Status: **CONFIRMED ADVERSE** (gatekeeper_report G3, n=75, WATCH_ITEM)
-- Filled WR 17.3% vs sim WR 7.6% — gap −83.4 pp
-- Fill rate ~8% (75 filled / 934 sim) confirms adversarial selection at the book
-- Live ROI CI: [−75.0%, −34.2%] — entirely negative
-- G3 blocks all sim-CI arguments for G1 and G7 re-enable
-- **Falsified. Winner's curse is structural at n=75 — not small-sample noise**
+**Status: FALSIFIED at current measurement (day 28 consecutive inversion).**
 
-**C. Recycle velocity scales with capital deployed**
-- Status: **MOOT** (system down, 0 recycles executing since Jul-6)
-- Cannot evaluate at n=0 post-disable
-- When/if restated: assumption (C) depends on (A) — if dispersion inverted, recycled NO at 0.99+ is not harvesting margin, it is closing into an adverse book
+Calib monitor: disp_ratio7 = 0.781, threshold > 1.10. All three regions sub-1.0 (EU 0.789, Asia 0.743, US/Other 0.789). Daily trend 07-18..07-23: 0.485 / 0.925 / 0.779 / 0.783 / 0.851 / 0.762. Zero of six days above threshold. The last state_log reading (07-22 evening) showed the 07-21 value finalized at 0.787 (pulled back from 1.256 partial), and 07-22 evening at 1.105 partial. The ratio is oscillating between 0.7 and 1.1 with no sustained premium. BAND_LIVE=False since 07-06 (day 24) is a correct response to this — the halt predates the n~105 decision-grade estimate but is confirmed by it.
 
-Net: Two of three foundational assumptions are falsified or moot. The band system has no demonstrated edge in the current regime. Prior halt decisions at G2b WR 39.2% and BAND_LIVE=False are confirmed correct by this analysis.
+Threat level: HIGH. This is the foundation of the entire band model. A ratio < 1.0 means the band posts YES at prices that are too expensive for realized outcomes. Without premium recovery, the expected band ROI is structurally negative.
+
+### B. Fills are not adversely selected (winner's curse absent)
+
+**Status: CONFIRMED THREAT — winner's curse structurally present (G3, n=75, decision-grade).**
+
+Gatekeeper: G3 FILLED_vs_FIRED shows filled WR 17.3% vs simulated WR 7.6% — a 10pp gap. The CI on filled ROI is entirely negative [−75.0, −34.2]%. This means: our CLOB quotes get hit preferentially by informed takers when the market is moving against our position. MMs and informed flow see the same (or faster) signal, lift our YES quotes when they expect NO to win, and let our quotes rest when they expect YES to win. This is structural (CLOB market design) and cannot be patched by parameter tuning within the current quote strategy. It blocks G1 and G7 as noted above.
+
+Threat level: HIGH. This assumption was foundational and is now contradicted by n=75 live data. It requires architectural response (e.g., shift to maker-resting quotes with explicit adverse-selection filtering) not parameter tweaks.
+
+### C. Recycle velocity scales with capital and fill rate
+
+**Status: INDETERMINATE — system dark, no measurement possible.**
+
+Band has been dark 24 days (BAND_LIVE=False since 07-06) and service has been dead 7 days. RECYCLE099 (exit099_live) has generated zero events. BAND_RECLAIM_AGE_S=2h means resting quotes age out quickly; if recycle velocity matters, the entire resting book has cleared. Cannot measure scaling behavior. The assumption is neither supported nor threatened by today's data — it is simply untestable.
+
+Threat level: UNKNOWN. If the system restarts and fills resume, this becomes the first thing to measure: does recycle cadence (BAND_RECLAIM_PER_CYCLE=10 fetches/300s) match expected turnover?
 
 ---
 
-## 5. Market Intelligence — [2] Platform Mechanics
+## 5. Market Intelligence — Competitor Posture (day-of-month 30 mod 3 = 0)
 
-*(Day-of-month 29 mod 3 = 2: platform mechanics rotation)*
+**Data gap: maker_fills_recent.log failed to retrieve (MCP schema error). Shadow files unavailable (git network timeout). badatmath_watch delta and leaderboard teardown cannot be produced from available data this run.**
 
-**Unable to access external URLs today** (git fetch and outbound HTTPS both failing in this sandbox environment; proxy/network issue). Reporting only what is knowable from mirror data and band_config.
+What CAN be read from band_config.txt as of 2026-07-30T10:24Z:
 
-**From band_config.txt (known):**
-- Maker rebate: 100% of taker fees redistributed (CLAUDE.md); MAKER_SHADOW_ENABLED=True; mechanism in place
-- Weather market taker fees: not explicitly coded in config (updown ~1.56% at 50%; weather market fee schedule unknown from config alone)
-- BAND_SUM_MAX=0.85 caps YES band to ≥15¢/sh locked; BAND_PAIR_SUM_MAX=0.90 caps pair-fav to ≥10¢/sh
+- `BAND_REALBOOK_YES = True`: we mirror badatmath's real CLOB book (gate G1 passed n=741 fill-joins). This is unchanged since 2026-06-11. No delta.
+- `BAND_YES_LIVE_MIN_DOUT = 9` (`# 2026-07-03 PAUSED standalone YES band`): standalone YES band has been dark since 07-03 independent of BAND_LIVE. We are not competing with badatmath on YES standalone.
+- `PAIR_FAV_ENABLED = True`, `BAND_PAIR_SHADOW = True`: pair-fav YES+NO is the live strategy overlay, but frozen by BAND_LIVE=False. If badatmath continues posting in the pair-fav bucket, he is accumulating fills while we are dark.
+- `BAND_NO_ENABLED = False`: we are absent from the NO market entirely (rail-halted 07-02).
 
-**Concrete payout item (pnl_ledger_report):** $3.917 cumulative expected maker rebates, unverified receipt. No payout has been recorded in any session. This exceeds the $1 min accrual threshold — owner should check Polymarket wallet for pUSD balance. Even a partial rebate return would push equity above ruin_floor $89.16 ($88.75 + $0.42 needed).
-
-**Delta vs state_log knowledge:** No new fee schedule changes noted in any config comment or commit since Jul-26. Jul-26 EVOLVE commit makes no mention of platform mechanics change. Treating as no delta pending external check.
+Net competitive delta: **we are completely absent from all weather markets** for 24+ days. Any edge in our strategy that depends on market presence (queue priority, reclaim, spread capture) has been fully forfeited. Whether badatmath or other bots have filled our absence in the book is unknown without fresh shadow data. This gap should be explicitly noted as a data debt to resolve on next VPS restart.
 
 ---
 
 ## 6. Experiments
 
-Three experiments designed for before or during a service restart: cheap, fast, falsifiable, high value-of-information.
+### Experiment 1: Dispersion Regime Autocorrelation
 
-**Experiment A: Dispersion pulse check (Jul-24..Jul-29 gap)**
-- Hypothesis: disp_ratio may have recovered above 1.0 in the 5-day dark period; we cannot make a correct band restart decision without this measurement
-- Data: SSH to VPS → run `shadow_grade.py` (or equivalent Kalman scoring on any cached forecast vs market-mid data) on the Jul-24..Jul-29 period manually, without restarting the full service
-- Time: 30–60 min
-- Cost: $0 (no trades)
-- Success metric: ratio >1.10 for 3+ consecutive days in the gap → begin band restart sequence; ratio remains <1.0 → extend halt, edge not recovered
-- Decision-if-yes: Re-examine BAND_LIVE re-enable (capital injection + human gate review required)
-- Decision-if-no: No change to halt; next pulse check in 1 week
+**Hypothesis:** disp_ratio oscillates on 5–10 day timescales between inverted (<1.0) and premium (>1.10) regimes; a 3-consecutive-day streak above 1.10 is a reliable leading indicator of a sustained premium window (≥5 days > 1.10) that would justify band re-enable.
 
-**Experiment B: Maker rebate wallet audit**
-- Hypothesis: $3.917 in cumulative expected rebates has been paid into pUSD and is unclaimed; recovering even $0.42 of it puts equity above ruin_floor $89.16
-- Data: Login to polymarket.com wallet; check pUSD balance vs prior withdrawals
-- Time: 10 min
-- Cost: $0
-- Success metric: pUSD balance ≥$1 → withdraw to USDC, push to bankroll.json, document in state_log
-- Decision-if-yes: Execute withdrawal; clears the $0.41 ruin_floor gap; document new equity
-- Decision-if-no: Rebate mechanism not paying out or threshold not met; remove from expected-rebates tracking
+**Data needed:** All historical daily disp_ratio values (available in calib_monitor commit history, ~30+ days).
+**Time:** 2 analyst-hours to extract from commit log and compute autocorrelation.
+**Cost:** Zero.
+**Success metric:** Lag-1 autocorrelation > 0.5 AND conditional probability P(next day > 1.10 | 3d streak > 1.10) > 0.70.
+**Decision-if-yes:** Adopt 3-consecutive-day trigger as the band re-enable criterion (it's already informally in use; this validates it statistically).
+**Decision-if-no:** Single-day disp_ratio is noisy; increase the streak threshold to 5+ days or abandon ratio-based gating in favor of a longer EMA.
 
-**Experiment C: Shadow-only restart (minimum-risk intelligence gathering)**
-- Hypothesis: Restarting the service with all live flags False (BAND_LIVE=False, BAND_NO=False, live taker paths disabled) resumes shadow data accumulation (pair-fav shadow, dispersion metrics, badatmath_watch, gate counters) without deploying any capital
-- Data: SSH → `sudo systemctl start klaus` → confirm shadow dirs writing → run for 24–72h → compute disp_ratio on Jul-29+ data
-- Time: 2h setup; 1–3 days accumulation
-- Cost: $0 (shadow only; no capital deployed)
-- Success metric: Shadow dirs populating band_struct.jsonl, dispersion computable from fresh window; confirms service is healthy
-- Decision-if-yes: disp_ratio and gate accumulators live again; unblocks Experiment A data and G2b/G2c accumulation; review in 72h
-- Decision-if-no: Service crashes again in shadow mode → systemic dependency/config issue; SSH deeper diagnosis required
+**Value-of-information:** HIGH. Band re-enable timing is the highest-leverage decision available once capital/service prerequisites are met. A falsifiable trigger prevents both premature re-enable (during inversion) and indefinite delay (if ratio recovers).
+
+---
+
+### Experiment 2: Winner's Curse Subgroup Analysis (G3)
+
+**Hypothesis:** The G3 winner's curse (filled WR 17.3% vs sim 7.6%, n=75) is concentrated in a subset of market conditions (e.g., final 30 minutes before resolution, high-delta cities, specific BAND_WING=2 shoulder legs) rather than being uniform across all fills.
+
+**Data needed:** The 75 G3 filled trades + band_resolution_join output (both should be on VPS in logs/shadow/). Fields: fill time vs resolution, city, offset from mode, market odds at fill, subsequent resolution outcome.
+**Time:** 3 analyst-hours once VPS access is restored.
+**Cost:** Zero.
+**Success metric:** ≥1 sub-cell where filled WR is within 2pp of simulated WR AND sub-cell contains ≥20 observations.
+**Decision-if-yes:** Filter out winner's-curse-concentrated conditions in PAIR_FAV quote logic; re-evaluate G1/G7 ROI with filtered population.
+**Decision-if-no:** Winner's curse is systemic and uniform → only a maker-resting (never-taker) architecture can eliminate it; taker-fills must be abandoned.
+
+**Value-of-information:** HIGH. G3 currently blocks G1, G7, and all BAND_YES re-enable arguments. If subgroups survive, it reopens two gates. If uniform, it closes the taker model permanently.
+
+---
+
+### Experiment 3: Shadow-Only Restart Validity Check
+
+**Hypothesis:** Restarting the VPS service with BAND_LIVE=False, BAND_NO_ENABLED=False, UPDOWN_STOP present (no live capital deployed) allows the shadow loggers to resume accumulating G2b/G2c/G7 data and the dispersion ratio to resume being monitored, with zero live-capital risk.
+
+**Data needed:** band_config.txt flags (already read — PAIR_FAV_SHADOW=True, BAND_PAIR_SHADOW=True, MAKER_SHADOW_ENABLED=True confirm shadow mode is wired).
+**Time:** 30 minutes to SSH, restart service, verify journalctl shows shadow events and no CLOB order submissions.
+**Cost:** Zero (no capital risk; existing VPS subscription covers the server).
+**Success metric:** After restart, shadow_summary.json updates within 15 minutes, system_status.txt shows `active`, and trades.jsonl count does not increase (confirming no live fires).
+**Decision-if-yes:** Keep service running in shadow-only mode indefinitely; resume gate accumulation.
+**Decision-if-no (shadow fires produce live orders despite BAND_LIVE=False):** Emergency stop, debug config flag propagation. This would be a serious bug.
+
+**Value-of-information:** HIGH. This is the cheapest possible restart path. It unblocks all monitoring and data accumulation without requiring capital injection, dispersion recovery, or BAND_LIVE decision. It turns $0 turns/day into measurable gate accumulation.
 
 ---
 
 ## 7. Single Best Action
 
-**SSH to VPS → restart service in shadow-only mode (Experiment C).**
+**SSH to VPS (45.85.251.173) and restart the service in shadow-only mode.**
 
-**Rationale:** The system cannot make any informed restart decision without fresh dispersion data — the calib_monitor has been carrying the Jul-24 measurement for 6 days and disp_ratio trend cannot be evaluated without fresh computation. Shadow restart costs $0, risks $0, and unblocks the two key intelligence gaps (dispersion measurement, G2b/G2c counter accumulation) that must precede any capital deployment decision. It is the minimal necessary action.
+**Justification:** This is the fourth consecutive audit (07-25, 07-26×2, 07-30) recommending this as the best action. The gatekeeper_report (09:15 today) explicitly lists VPS restart as the first of three mandatory preconditions. The action:
+- Costs nothing (no capital at risk — BAND_LIVE=False already configured)
+- Unblocks ALL monitoring (dispersion ratio, shadow gate accumulation, disp_ratio trend visibility)
+- Allows G2b/G2c PAIR_FAV to accumulate from n=9 toward n=100
+- Resumes the calib_monitor dispersion pipeline (currently dark since 07-24)
+- Does NOT require capital injection ($0.41 ruin-floor gap) or human BAND_LIVE decision
 
-**Supporting evidence from specialist reports:**
-- gatekeeper_report (run 9): "SSH to VPS if/when path forward intended. Burn rate zero — timing not urgent." Day 6 now; not truly urgent but every dark day is a frozen gate counter.
-- calib_monitor_report: disp_ratio 0.781 inverted, no fresh computation possible without service; band restart decision literally impossible to make correctly without fresh measurements
-- exec_audit_report: 0 fills, 0 resting activity; nothing to lose by restarting in shadow mode
+**Concrete first step:** `ssh root@45.85.251.173` → `systemctl start klaus` → `journalctl -u klaus -f --since now` → confirm shadow events appear and no `ORDER_PLACED` lines in output.
 
-**Sequencing (Experiment C + B combined, 2–3h total):**
-1. SSH → `sudo systemctl status klaus` (diagnose failure reason)
-2. Fix failure (likely OOM, crash loop, or timer race from Jul-24 shutdown)
-3. `sudo systemctl start klaus` → verify `active (running)` → confirm shadow dirs writing
-4. While waiting: login to Polymarket wallet → check pUSD rebate balance (Experiment B)
-5. 24h later: read fresh shadow data → compute disp_ratio → post to state_log
-6. Decision point: if disp_ratio >1.10 for 3+ days → begin band re-enable discussion; if still inverted → hold, check again in 1 week
-
-**What this action does NOT do:** It does not re-enable any live path, does not require capital injection, does not promote any gate. It is purely intelligence-gathering.
+**Why not earlier actions first:** Capital injection ($0.41) unblocks nothing without service restart. Band re-enable is net-negative while disp_ratio=0.781. No gate is READY to promote. Killing G8 was already executed (EVOLVE 07-26). The service restart is the only unblock that chains into everything else.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-1. **[HIGH PRIORITY] SSH + shadow restart** (Experiment C above): restart service in fully-shadow mode to resume intelligence gathering. Unblocks fresh dispersion data and gate counter accumulation. Risk: $0. Effort: ~2h.
+1. **SSH to VPS and restart service in shadow-only mode** (BAND_LIVE=False, UPDOWN_STOP in place, no live fires). Verify shadow loggers activate. No capital at risk. [RECOMMENDED — 4th consecutive audit]
 
-2. **[10-MIN QUICK WIN] Maker rebate wallet check** (Experiment B): check Polymarket pUSD wallet for $3.917+ accrued rebates. If present, withdrawal of even $0.42 clears the ruin_floor gap mechanically.
+2. **Band re-enable pre-conditions checklist** — before any BAND_LIVE=True decision, all three must be true simultaneously:
+   - (a) Capital ≥ $89.16 (currently $0.41 short)
+   - (b) disp_ratio7 > 1.10 for ≥3 consecutive days (currently 0.781, 28d inverted)
+   - (c) G3 FILLED_vs_FIRED clears at n≥100 OR winner's curse subgroup analysis identifies safe fill conditions
+   None of (a), (b), (c) are currently met.
 
-3. **[HOLD] No live path re-enable** until: (a) fresh disp_ratio >1.10 for 3+ consecutive days, AND (b) capital ≥ $89.16 ruin_floor. Both conditions unmet. Recommended sequence: Experiment C → pulse check → capital decision.
+3. **Do not re-enable any rejected gate** (G5 THERMO, G6 M1_BETA, G8 UPDOWN) without explicit user directive. All three have pre-registered human-review requirements.
 
-4. **[NO ACTION] G8 graveyard receipt**: confirmed in EVOLVE 2026-07-26 (commit `ddbcecdd1`). No outstanding code action.
-
-5. **[NO ACTION] G5/G6**: both REJECTED by explicit human directive. No reconsideration without owner override.
+4. **Isotonic calibration file**: deployed version 54d stale (2026-06-06); candidate from 2026-07-23 has 2 material tail diffs but OOS brier worse than raw. Human review required before promotion. Do not auto-promote. [FROM calib_monitor S4 CARRIED]
 
 ---
 
-*Run ts: 2026-07-29T~10:35Z | Snapshot ts: 2026-07-29T10:23:16Z (fresh, <1h old at run time) | System: failed/unknown day 6 | Band dark day 23 | STALL run 10 | Specialist reports: exec ✓ 07:06Z | calib ✓ 08:07Z | gate ✓ 09:07Z | pnl ✓ 23:30Z prior*
+## STALL COUNTER
+
+| Metric | Value | Trend |
+|---|---|---|
+| Service dead hours | ~142h | +24h/day |
+| Band dark days | 24 | +1/day |
+| disp_inversion days (est) | 28 | +1/day |
+| Consecutive zero-fill days | 10 | +1/day |
+| Gates READY | 0 | flat |
+| Gates REJECTED | 3 (G5, G6, G8) | flat |
+| Capital gap to ruin floor | −$0.41 | flat |
+
+No action available at loop level. All paths blocked. Human SSH intervention is the only unblock.
