@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-07-30T07:22:06.444569+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Will Ethereum reach $2,000 in July?\", \"condition_id\": \"0x66fbbbdd85018017c1b6de182e27afbefbceb10baea9c5e13a458ea35d853ace\", \"fav_token\": \"1144126537568236335778199155851368362496659042369401779226956359212",
-      "mtime_utc": "2026-07-30T07:22:09Z",
-      "n_rows": 1017123,
-      "size_bytes": 627323229
+      "last_excerpt": "{\"ts\": \"2026-07-30T07:37:15.638596+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will Josh Stein win the 2028 US Presidential Election?\", \"condition_id\": \"0xc53955c1303b0ea1d676f99c52ea3b28961fb41d4f04c8cecd0b96d79c0d3bf5\", \"fav_token\": \"6569005697306166124267534631170336207877463347418",
+      "mtime_utc": "2026-07-30T07:37:18Z",
+      "n_rows": 1017327,
+      "size_bytes": 627448971
     },
     "hot/2026-07-21/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1784592001.2329144, \"record\": \"fill_join\", \"fill_ts\": 1784591940, \"detect_lag_s\": 61.2, \"title\": \"Will the highest temperature in Atlanta be between 90-91\\u00b0F o\", \"event\": \"highest-temperature-in-atlanta-on-july-21-2026\", \"outcome\": \"Yes\", \"price\": 0.36, \"size\": 5, \"usdc\": 1.8, \"cid\": \"0xa",
@@ -912,24 +912,24 @@
     },
     "hot/2026-07-30/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785369601.9740663, \"record\": \"fill_join\", \"fill_ts\": 1785369486, \"detect_lag_s\": 116.0, \"title\": \"Will the highest temperature in Kuala Lumpur be 30\\u00b0C on July\", \"event\": \"highest-temperature-in-kuala-lumpur-on-july-30-2026\", \"outcome\": \"Yes\", \"price\": 0.17, \"size\": 5.1, \"usdc\": 0.867, \"",
-      "last_excerpt": "{\"ts\": 1785396121.5067632, \"record\": \"ladder\", \"event\": \"highest-temperature-in-toronto-on-july-31-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"C or below on July 31?\", \"bids\": [[0.01, 9.46]], \"asks\": [[0.03, 5.05], [0.04, 5.0], [0.05, 20.0]]}, {\"q\": \"to be 27\\u00b0C on July 31?\", \"bids\": [[0.02, 6.0], ",
-      "mtime_utc": "2026-07-30T07:22:02Z",
-      "n_rows": 822,
-      "size_bytes": 703569
+      "last_excerpt": "{\"ts\": 1785396961.1542592, \"record\": \"ladder\", \"event\": \"highest-temperature-in-chengdu-on-august-1-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \" or below on August 1?\", \"bids\": [[0.001, 399.91]], \"asks\": [[0.009, 1222.0], [0.01, 60.0], [0.02, 132.0]]}, {\"q\": \"u be 23\\u00b0C on August 1?\", \"bids\": [[0.0",
+      "mtime_utc": "2026-07-30T07:36:01Z",
+      "n_rows": 838,
+      "size_bytes": 718903
     },
     "hot/2026-07-30/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-07-30T00:00:01.961949+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from July 27 - August 2?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-07-27T00:00:00-04:00\", \"cou",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-07-30T07:20:01.696956+00:00\", \"question\": \"Will there be exactly 8 earthquakes of magnitude 5.5 or higher worldwide from July 27 - August 2?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-07-27T00:00:00-04:00\", \"cou",
-      "mtime_utc": "2026-07-30T07:20:07Z",
-      "n_rows": 289,
-      "size_bytes": 205484
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-07-30T07:35:01.690422+00:00\", \"question\": \"Will there be exactly 8 earthquakes of magnitude 5.5 or higher worldwide from July 27 - August 2?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-07-27T00:00:00-04:00\", \"cou",
+      "mtime_utc": "2026-07-30T07:35:08Z",
+      "n_rows": 301,
+      "size_bytes": 214019
     },
     "hot/2026-07-30/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1785369741.071974, \"cid\": \"0xa1642fba839c271322be72e422b749d2b956ec76863983b02becde6b1f405d9a\", \"q\": \"Will the highest temperature in Atlanta be between 88-89\\u00b0F on July 29?\", \"proxyWallet\": \"0x07400eb312687fa85e3b24d9489778603fd9b7bf\", \"side\": \"BUY\", \"asset\": \"1108583561702547883030",
-      "last_excerpt": "{\"poll_ts\": 1785396087.5971584, \"cid\": \"0x6c34de8aa08283396823aa6f74331f7f2a88a1fbf54e957358a297bcbdccd453\", \"q\": \"Will the highest temperature in Cape Town be 28\\u00b0C on August 1?\", \"proxyWallet\": \"0xec86a2d3f69015b1a9382e4dfa8695e1b48760e4\", \"side\": \"BUY\", \"asset\": \"99289855689297995015639674384",
-      "mtime_utc": "2026-07-30T07:21:28Z",
-      "n_rows": 43166,
-      "size_bytes": 46065317
+      "last_excerpt": "{\"poll_ts\": 1785396984.7239547, \"cid\": \"0xed95a7309fa0286c70d17f3297827d33e3ccd5cdb3518c59c18057ffdef8bd01\", \"q\": \"Will the highest temperature in Kuala Lumpur be 34\\u00b0C on August 1?\", \"proxyWallet\": \"0x6a498c2e5f4063e20277f1d16704974dd04059e0\", \"side\": \"BUY\", \"asset\": \"99268701756396888691762406",
+      "mtime_utc": "2026-07-30T07:36:29Z",
+      "n_rows": 44433,
+      "size_bytes": 47418190
     },
     "hot/2026-07-30/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-07-30T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-07-29\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on July 29?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": null, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": true}",
@@ -989,11 +989,11 @@
     },
     "updown_sniper/snap_20260730.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785369600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.38, \"b_px\": 63983.01, \"b_open\": 63984.29, \"move\": -2.0004910580406765e-05, \"sigma1s\": 3.772313383557742e-05, \"z\": -0.03064897650921291, \"p_up\": 0.4877747414353967, \"up\": {\"ask\": 0.49, \"ask_sz\": 486.73, \"b",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785396000\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 162.59, \"b_px\": 64106.7, \"b_open\": 64138.0, \"move\": -0.0004880102279460896, \"sigma1s\": 3.818925916172031e-05, \"z\": -1.0021668768253094, \"p_up\": 0.15813150124489578, \"up\": null, \"down\": null, \"ts\": 1785396137.",
-      "mtime_utc": "2026-07-30T07:22:17Z",
-      "n_rows": 63170,
-      "size_bytes": 21410940
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785396900\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 145.35, \"b_px\": 63955.64, \"b_open\": 63988.86, \"move\": -0.0005191528650455579, \"sigma1s\": 3.4773641361040984e-05, \"z\": -1.2383207913092635, \"p_up\": 0.1077985687571098, \"up\": null, \"down\": null, \"ts\": 178539705",
+      "mtime_utc": "2026-07-30T07:37:34Z",
+      "n_rows": 65374,
+      "size_bytes": 22083576
     }
   },
-  "snapshot_ts": "2026-07-30T07:22:16Z"
+  "snapshot_ts": "2026-07-30T07:37:33Z"
 }
