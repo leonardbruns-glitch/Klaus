@@ -12,8 +12,8 @@
     "ci95": [-10.9, 21.1],
     "wr": 0.153,
     "resolved": 934,
-    "ts": "2026-07-25T09:03:00Z",
-    "note": "No change. Band dark day 24 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. System failed day 6. ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap -83.4 pp). CI straddles 0 -> AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $88.75 — still below floor by $0.41)."
+    "ts": "2026-07-31T09:15:00Z",
+    "note": "No change. Band dark day 25 (BAND_LIVE=False since Jul-06 22:08Z). n=934 frozen. System failed day 7. ROI +4.0% is UPPER BOUND (G3 winner's curse confirmed, n=75 filled WR 17.3% vs sim 7.6%, gap -83.4 pp). CI straddles 0 -> AMBIGUOUS. Gate inert until BAND_LIVE re-enable + capital > ruin_floor $89.16 (currently $88.75 — still below floor by $0.41)."
   },
   "BAND_NO_PAIR_FAV": {
     "n": 9,
@@ -46,7 +46,7 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Frozen at BAND_LIVE=False since Jul-06 22:08Z. ETA n=100: indeterminate (band dark)."
+        "note": "Frozen at BAND_LIVE=False since Jul-06 22:08Z. ETA n=100: indeterminate (band dark day 25)."
       },
       "pair_fav_no": {
         "n": 9,
@@ -60,11 +60,11 @@
         "roi": null,
         "ci95": [null, null],
         "status": "COLLECTING",
-        "note": "Post-guard n=9, frozen. Counterfactual CI qualified as biased (winner's curse, state_log Jul-11 22:15Z). Do not re-enable on CF ROI. ETA n=100: indeterminate (band dark)."
+        "note": "Post-guard n=9, frozen. Counterfactual CI qualified as biased (winner's curse, state_log Jul-11 22:15Z). Do not re-enable on CF ROI. ETA n=100: indeterminate (band dark day 25)."
       }
     },
-    "ts": "2026-07-25T09:03:00Z",
-    "note": "No new live fires. All legs frozen. Band dark day 24. System failed day 6 — no accrual."
+    "ts": "2026-07-31T09:15:00Z",
+    "note": "No new live fires. All legs frozen. Band dark day 25. System failed day 7 — no accrual."
   },
   "FILLED_VS_FIRED": {
     "n": 75,
@@ -85,7 +85,7 @@
       "taker_fills": 0,
       "notes": "No new eligible fills. UPDOWN_STOP + band dark = no new fills possible. n conservatively held at 75."
     },
-    "ts": "2026-07-25T09:03:00Z",
+    "ts": "2026-07-31T09:15:00Z",
     "note": "Unchanged. Winner's curse CONFIRMED (filled WR 17.3% vs sim 7.6%). CI entirely negative. Hard blocker on G1/G7 sim-CI re-enable arguments."
   },
   "BASKET_EXIT": {
@@ -107,7 +107,7 @@
     "ci95": [-9.0, 2.0],
     "wr": null,
     "resolved": 125,
-    "ts": "2026-07-25T09:03:00Z",
+    "ts": "2026-07-31T09:15:00Z",
     "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z; CI straddles 0 but ROI=0% net of fees is -EV). THERMO_MAKER_LIVE=False since Jun-23 18:40. Candidate-only shadow log. No reconsideration without explicit human directive."
   },
   "M1_BETA_LOCKOUT": {
@@ -119,7 +119,7 @@
     "ci95": [-20.6, 24.4],
     "wr": 0.742,
     "resolved": 31,
-    "ts": "2026-07-25T09:03:00Z",
+    "ts": "2026-07-31T09:15:00Z",
     "note": "No change. REJECTED (EVOLVE Jul-04 21:53Z — human decision). MIN_LOCKOUT_LIVE=False. Revert-to-0.5C-floors recommendation stands (state_log 2026-06-09). n=31 frozen; rejected by human directive. No reconsideration without explicit human directive."
   },
   "SUM_POSTED_0.70_0.85": {
@@ -137,8 +137,8 @@
     "ci95": [-11.4, 38.9],
     "wr": null,
     "resolved": 382,
-    "ts": "2026-07-25T09:03:00Z",
-    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4%,+38.9%]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network + system failed. Gate inert while band dark. Shadow est ~147 total since wind-down."
+    "ts": "2026-07-31T09:15:00Z",
+    "note": "No change. AMBIGUOUS (ROI=+11.5%, CI=[-11.4%,+38.9%]). ROI is UPPER BOUND per G3 winner's curse. band_resolution_join.py blocked by network + system failed. Gate inert while band dark."
   },
   "UPDOWN_CROSSING": {
     "n_post_cut": 127,
@@ -166,47 +166,33 @@
     "min_n_to_clear_be_with_current_losses": 172,
     "min_n_to_clear_be_math": "6 losses fixed; need k/(k+6) >= 0.9651 -> k >= 6*0.9651/(1-0.9651) = 165.9 -> k=166, n=172. Unreachable.",
     "per_asset_cells": {
-      "btc": {
-        "n_graded_all": 134,
-        "wr": 0.963,
-        "ci_lo": 0.916,
-        "ci_hi": 0.984,
-        "be": 0.963,
-        "pnl_sim": -0.65,
-        "n_p995": 81,
-        "wr_p995": 0.951,
-        "ci_lo_p995": 0.880,
-        "pnl_p995_sim": -4.81,
-        "status": "REJECTED",
-        "note": "Only n>=100 per-asset cell. Point WR at BE, CI-lo far below. REJECTED."
-      },
+      "btc": {"n_graded_all": 134, "wr": 0.963, "ci_lo": 0.916, "ci_hi": 0.984, "be": 0.963, "pnl_sim": -0.65, "n_p995": 81, "wr_p995": 0.951, "ci_lo_p995": 0.880, "pnl_p995_sim": -4.81, "status": "REJECTED", "note": "Only n>=100 per-asset cell. Point WR at BE, CI-lo far below. REJECTED."},
       "doge": {"n_graded_all": 20, "wr": 0.950, "n_losses": 1, "pnl_sim": -1.06, "be": 0.961, "status": "COLLECTING"},
       "eth": {"n_graded_all": 38, "wr": 1.000, "n_losses": 0, "pnl_sim": 6.32, "be": 0.968, "ci_lo": 0.908, "status": "COLLECTING"},
       "sol": {"n_graded_all": 17, "wr": 0.941, "n_losses": 1, "pnl_sim": -2.36, "be": 0.965, "status": "COLLECTING"},
       "xrp": {"n_graded_all": 23, "wr": 0.913, "n_losses": 2, "pnl_sim": -5.67, "be": 0.961, "status": "COLLECTING"}
     },
     "gate_registered_ts": "2026-07-19T14:30:00Z",
-    "ts": "2026-07-27T09:20:00Z",
+    "ts": "2026-07-31T09:15:00Z",
     "note": "REJECTED (confirmed EVOLVE 2026-07-26, commit ddbcecdd1). n=127, WR=0.9528 < BE=0.9651. Pooled 5-asset n=469 WR=0.964 < BE=0.965. Graveyard #15. Class closed. No re-enable without fresh pre-registration + clean candidate pool + CI-lo clearing BE at n>=100."
   },
   "_run_meta": {
-    "run_ts": "2026-07-30T09:15:00Z",
-    "snapshot_ts": "2026-07-30T09:09:08Z",
-    "snapshot_age_min": 6,
+    "run_ts": "2026-07-31T09:15:00Z",
+    "snapshot_ts": "2026-07-31T09:02:33Z",
+    "snapshot_age_min": 13,
     "snapshot_age_pass": true,
     "system_active_pass": false,
     "system_status": "failed/unknown",
     "system_last_active_ts": "2026-07-24T10:09:19Z",
-    "system_failed_days": 6,
+    "system_failed_days": 7,
     "abort_triggered": true,
-    "abort_reason": "system_status.txt missing 'active' — shows 'failed/unknown' (10th consecutive stall; day 6 since 2026-07-24T10:09:19Z shutdown)",
-    "consecutive_stalls": 10,
+    "abort_reason": "system_status.txt missing 'active' — shows 'failed/unknown' (11th consecutive stall; day 7 since 2026-07-24T10:09:19Z shutdown)",
+    "consecutive_stalls": 11,
     "run_type": "STALL",
     "loop_mode": "WEEKLY-ONLY (daily + liveness timers owner-disabled 2026-07-24 per EVOLVE 2026-07-26)",
     "bankroll_capital": 88.750373,
     "bankroll_clob": 21.50,
     "bankroll_owner_injection": 67.25,
-    "bankroll_injection_note": "Owner on-chain injection 2026-07-26 per EVOLVE commit ddbcecdd1; on-chain to the cent",
     "bankroll_ruin_floor": 89.16,
     "bankroll_below_ruin_floor": true,
     "bankroll_below_floor_by_usd": -0.41,
@@ -215,33 +201,33 @@
     "updown_stop_since": "2026-07-19T11:26:00Z",
     "wind_down_active": true,
     "wind_down_since": "2026-07-06T22:08:00Z",
-    "band_dark_days": 24,
+    "band_dark_days": 25,
     "lda_stop": true,
     "network_blocked": true,
-    "network_note": "git fetch timed out (10th consecutive stall). All gate counts from prior authoritative sources. Zero new shadow data confirmed for any gate-relevant logger.",
+    "network_note": "git fetch timed out (11th consecutive stall). All gate counts from prior authoritative sources. Zero new shadow data confirmed: no gate-relevant loggers (band_struct, thermo_maker, metar_lockout) have written since 2026-07-24T10:09Z.",
     "newly_ready": [],
     "newly_rejected": [],
     "newly_ambiguous": [],
     "newly_collecting": [],
     "state_transitions": [
       "No transitions this run. All gates frozen.",
-      "BAND_DARK: day 23 -> day 24 (informational).",
-      "SYSTEM_FAILED: day 5 -> day 6 (informational).",
-      "STALL count: 9 -> 10."
+      "BAND_DARK: day 24 -> day 25 (informational).",
+      "SYSTEM_FAILED: day 6 -> day 7 (informational).",
+      "STALL count: 10 -> 11."
     ],
     "structural_blockers": [
       "UPDOWN_STOP active: sniper CUT 2026-07-19T11:26Z (PF 0.79 < 0.8 charter rail).",
-      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 24. Zero band resolutions flowing.",
+      "WIND-DOWN active: BAND_LIVE=False since Jul-06 22:08Z — day 25. Zero band resolutions flowing.",
       "LDA_STOP active: rolling-20 worst -$36.39 below -$30 threshold.",
       "Capital $88.75 below engine ruin_floor $89.16 (by $0.41) — all band paths still mechanically blocked.",
       "Winner's curse CONFIRMED (G3 WATCH_ITEM, n=75): sim ROI is UPPER BOUND.",
       "G5 THERMO / G6 M1: both REJECTED; no reconsideration without explicit human directive.",
       "G8 UPDOWN_CROSSING: REJECTED (n=127, graveyard #15). No live updown path. Class closed.",
-      "SYSTEM: failed/unknown since 2026-07-24T10:09:19Z (day 6). Weekly-loop-only mode."
+      "SYSTEM: failed/unknown since 2026-07-24T10:09:19Z (day 7). Weekly-loop-only mode."
     ],
     "alerts": [
-      "NO LIVE PATHS REMAIN: sniper CUT + band dark day 24 + G8 closed + LDA stopped + capital below ruin floor.",
-      "SYSTEM FAILED: day 6. Burn rate zero. Human SSH required if path forward intended.",
+      "NO LIVE PATHS REMAIN: sniper CUT + band dark day 25 + G8 closed + LDA stopped + capital below ruin floor.",
+      "SYSTEM FAILED: day 7. Burn rate zero. Human SSH required if path forward intended.",
       "CAPITAL: $88.75 is $0.41 below ruin_floor $89.16. Mechanically blocks all band paths."
     ],
     "proposed_actions": [
