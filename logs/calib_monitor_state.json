@@ -1,12 +1,12 @@
 {
-  "date": "2026-07-31",
-  "run_utc": "2026-07-31T08:01Z",
+  "date": "2026-08-01",
+  "run_utc": "2026-08-01T08:07Z",
   "pipeline_status": "ABORTED",
   "abort_reason": "## klaus systemd: failed/unknown — system_status.txt does not contain 'active'",
   "data_access": "GITHUB_MCP_ONLY",
-  "data_access_note": "Abort before pipeline. SNAPSHOT.md (2026-07-31T08:00:46Z, <1 min old). systemd=failed; owner-directed shutdown 2026-07-24, daily+liveness timers disabled, loop weekly-only. Shadow dirs 07-26..07-30 contain only badatmath_watch.jsonl; no pricer files found.",
+  "data_access_note": "Abort before pipeline. SNAPSHOT.md (2026-08-01T08:07:05Z, fresh). systemd=failed; owner-directed shutdown 2026-07-24, daily+liveness timers disabled, loop weekly-only. Shadow dirs 07-27..07-31 contain only badatmath_watch.jsonl; no pricer files. No 08-01 shadow dir.",
   "brier7": 0.0548,
-  "brier7_source": "CARRIED from 07-24 (pipeline aborted 07-25 through 07-31)",
+  "brier7_source": "CARRIED from 07-24 (pipeline aborted 07-25 through 08-01)",
   "ece7": 0.0277,
   "ece7_source": "CARRIED from 07-24",
   "rho7": 0.4260,
@@ -16,8 +16,8 @@
   "disp_ratio7_source": "CARRIED from 07-24 (prior window 07-18..07-23, decision-grade n~105)",
   "disp_ratio_threshold": 1.10,
   "disp_ratio_alert": true,
-  "disp_inversion_days": 29,
-  "disp_inversion_days_note": "estimate; +1 from 07-30, no fresh computation",
+  "disp_inversion_days": 30,
+  "disp_inversion_days_note": "estimate; +1 from 07-31, no fresh computation",
   "disp_pct_below_110": 100.0,
   "disp_ratio_by_region": {
     "EU": 0.789,
@@ -33,15 +33,15 @@
     "2026-07-22": 0.851,
     "2026-07-23": 0.762
   },
-  "disp_ratio_daily_note": "CARRIED from 07-24. 07-24 through 07-31 not computed (pipeline aborted).",
-  "disp_ratio_trend": "DECLINING/FLAT — 0/6 days above 1.10; all 3 regions below 1.0; day 29 consecutive inversion (estimate).",
+  "disp_ratio_daily_note": "CARRIED from 07-24. 07-24 through 08-01 not computed (pipeline aborted).",
+  "disp_ratio_trend": "DECLINING/FLAT — 0/6 days above 1.10; all 3 regions below 1.0; day 30 consecutive inversion (estimate).",
   "isotonic_staleness": {
     "alert": true,
     "alert_source": "CARRIED from 07-24 with day-count increment",
     "deployed_refit_utc": "2026-06-06T22:27:08Z",
     "deployed_days_since_refit_est": 55,
     "candidate_refit_utc": "2026-07-23T09:30:44Z",
-    "candidate_days_since_refit": 8,
+    "candidate_days_since_refit": 9,
     "max_abs_diff": 0.1684,
     "material_diffs_gt_05": 2,
     "material_diffs_detail": "grid 0.95: +0.0552 (0.3822->0.4374); grid 1.0: +0.1684 (0.6316->0.8000) — both diffs push high tail upward",
@@ -51,32 +51,32 @@
   },
   "band_status": {
     "BAND_LIVE": false,
-    "band_dark_days": 25,
-    "note": "BAND_LIVE=False since 2026-07-06. All paths halted. Day 25."
+    "band_dark_days": 26,
+    "note": "BAND_LIVE=False since 2026-07-06. All paths halted. Day 26."
   },
   "bankroll": 88.750373,
-  "bot_dead_hours": 166,
+  "bot_dead_hours": 190,
   "system_alive": false,
   "alerts": [
-    "SYSTEM: ## klaus systemd: failed/unknown — pipeline aborted. Snapshot fresh (2026-07-31T08:00:46Z, <1 min old). Bot last active: 2026-07-24T10:09:19 UTC (~166h dead; owner-directed shutdown, loop weekly-only). Day 8 consecutive abort.",
-    "S3 (CARRIED): disp_ratio7=0.781 < 1.10 — INVERTED DISPERSION EDGE — day 29 consecutive (estimate) — decision-grade n~105 — all 3 regions sub-1.0 — 0/6 days above 1.10 in last computed window.",
+    "SYSTEM: ## klaus systemd: failed/unknown — pipeline aborted. Snapshot fresh (2026-08-01T08:07:05Z). Bot last active: 2026-07-24T10:09:19 UTC (~190h / ~7.9d dead; owner-directed shutdown, loop weekly-only). Day 9 consecutive abort.",
+    "S3 (CARRIED): disp_ratio7=0.781 < 1.10 — INVERTED DISPERSION EDGE — day 30 consecutive (estimate) — decision-grade n~105 — all 3 regions sub-1.0 — 0/6 days above 1.10 in last computed window.",
     "S4 (CARRIED): isotonic deployed ~55d stale (2026-06-06); candidate 2026-07-23 with 2 material tail diffs (grid 0.95: +0.055, grid 1.0: +0.168); OOS brier_cal>=brier_raw; human review required before promotion."
   ],
   "prior": {
-    "date": "2026-07-30",
+    "date": "2026-07-31",
     "brier7": 0.0548,
     "ece7": 0.0277,
     "rho7": 0.4260,
     "disp_ratio7": 0.781,
-    "disp_inversion_days": 28,
+    "disp_inversion_days": 29,
     "alerts_count": 3,
     "system_alive": false,
     "pipeline_status": "ABORTED"
   },
   "transitions": {
-    "SYSTEM": "system_alive false->false (systemd still failed/unknown; last active 2026-07-24T10:09:19 UTC, now ~166h dead, day 8 consecutive abort)",
-    "S3": "persisting day 28->29 (estimate; no fresh computation)",
-    "S4": "persisting; isotonic deployed age ~54d->55d; candidate age 7d->8d; tail diffs unchanged",
-    "band_dark": "day 24 -> day 25 (BAND_LIVE=False since 2026-07-06)"
+    "SYSTEM": "system_alive false->false (systemd still failed/unknown; last active 2026-07-24T10:09:19 UTC, now ~190h dead, day 9 consecutive abort)",
+    "S3": "persisting day 29->30 (estimate; no fresh computation)",
+    "S4": "persisting; isotonic deployed age unchanged at ~55d; candidate age 8d->9d; tail diffs unchanged",
+    "band_dark": "day 25 -> day 26 (BAND_LIVE=False since 2026-07-06)"
   }
 }
