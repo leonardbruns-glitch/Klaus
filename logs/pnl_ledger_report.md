@@ -1,4 +1,4 @@
-# PnL Ledger — 2026-07-31 — **STALL (day 7)**
+# PnL Ledger — 2026-08-01 — **STALL (day 8)**
 
 **ABORT:** `system_status.txt` shows `failed / unknown` — not `active`. Protocol requires stall header only.
 
@@ -8,12 +8,12 @@
 
 | Field | Value |
 |---|---|
-| Snapshot timestamp | 2026-07-31T23:30:46Z |
-| Snapshot age at report | ~7 min — **FRESH** (well within 6h) |
+| Snapshot timestamp | 2026-08-01T23:36:56Z |
+| Snapshot age at report | ~1 min — **FRESH** (well within 6h) |
 | Bot service status | **FAILED / UNKNOWN** (last active: 2026-07-24T10:09:19Z) |
-| Days since last active | **7** |
-| Zero-fill days consecutive | **12** |
-| Trade rows in trades.jsonl | 8,228 (unchanged from prior 6 reports) |
+| Days since last active | **8** |
+| Zero-fill days consecutive | **13** |
+| Trade rows in trades.jsonl | 8,228 (unchanged from prior 7 reports) |
 | Capital (bankroll.json) | **$88.750373** (unchanged since EVOLVE 2026-07-26; CLOB-exact per commit ddbcecdd1) |
 | Open positions | 0 |
 | Resting maker orders | 0 |
@@ -42,7 +42,7 @@ No live path exists. The bot service failing is moot for fills but must be fixed
 | Day P&L vs -$10 halt | $0.00 | -$10 | CLEAR |
 | Capital vs $75 weekly floor | $88.750 | $75 | CLEAR (+$13.75 headroom) |
 | Capital vs $50 ruin floor | $88.750 | $50 | CLEAR (+$38.75 headroom) |
-| Rolling 20-trade WR/PF | N/A (0 fills in 12 days) | WR<30% / PF<0.8 | N/A |
+| Rolling 20-trade WR/PF | N/A (0 fills in 13 days) | WR<30% / PF<0.8 | N/A |
 
 **CAVEAT:** WR/PF kill-switch floors were specified for the taker era. Maker band YES legs win ~22% by design at 4–5x payoff; a WR-only kill on maker performance would be invalid. Re-derivation proposal pending with user.
 
@@ -56,7 +56,7 @@ Cumulative expected rebate: **$3.917 (upper bound)**. No new fills since BAND_LI
 
 ## Day Verdict
 
-**STALL (day 7)** — equity flat at $88.750373. Bot service failed for 7 consecutive days; 12 consecutive zero-fill days. No live path exists. Data-mirror timer is running independently (snapshot fresh). No action possible from this session.
+**STALL (day 8)** — equity flat at $88.750373. Bot service failed for 8 consecutive days; 13 consecutive zero-fill days. No live path exists. Data-mirror timer is running independently (snapshot fresh). No action possible from this session.
 
 **Required action: SSH to VPS → diagnose and restart `systemd` service.**
 
