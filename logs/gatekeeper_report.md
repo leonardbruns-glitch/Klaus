@@ -1,54 +1,79 @@
-# Gate-Keeper Report — 2026-08-01T09:15:00Z
+# Klaus Gate-Keeper Report — 2026-08-02T09:11:35Z
 
-## !! STALL (day 12) — `system_status.txt` shows `failed/unknown`, not `active` — no new accumulation possible !!
+## ⚠ STALL #13 — ABORT TRIGGERED
 
-**Snapshot**: 2026-08-01T09:07:17Z (age ~8 min at run time, within 6h limit).  
-**System**: failed since 2026-07-24T10:09:19Z — **day 8**.  
-**Loop mode**: WEEKLY-ONLY (daily + liveness timers owner-disabled 2026-07-24 per EVOLVE 2026-07-26).  
-**Network**: git fetch timed out (12th consecutive stall). All gate counts carried from prior authoritative sources. Zero new shadow data: no gate-relevant loggers (band_struct, thermo_maker, metar_lockout) have written since 2026-07-24T10:09Z.  
-**Capital**: $88.750373 — **$0.41 below ruin floor $89.16** (all band paths mechanically blocked).  
-**Open positions**: 0.
+**Abort reason:** `system_status.txt` missing `'klaus systemd: active'` — shows `failed/unknown`.
+**System down since:** 2026-07-24T10:09:19Z (day **9** of failure).
+**Loop mode:** WEEKLY-ONLY (daily + liveness timers owner-disabled 2026-07-24, per EVOLVE 2026-07-26).
+**Snapshot age:** 11 min (PASS — threshold 6h).
+**Shadow data:** Zero gate-relevant files (band_struct, thermo_maker, metar_lockout absent since system failure).
+**No state transitions this run.** All gate counts frozen at prior values.
 
 ---
 
 ## Gate Ledger
 
-| Gate | n | +24h | WR | ROI | CI95 | Status | ETA / Notes |
-|---|---|---|---|---|---|---|---|
-| G1 BAND_YES per slice | 934 | +0 | 15.3% | +4.0% | [−10.9, +21.1]% | AMBIGUOUS | Band dark day 26; ROI is upper bound (G3 WC confirmed); capital $0.41 below ruin floor; gate inert |
-| G2a BAND_NO_d1 (shadow) | 115 | +0 | 68.7% | +1.3% | [−11.9, +12.7]% | AMBIGUOUS | BAND_NO_ENABLED=False; live n=51 WR=39.2% effectively REJECTED — shadow CI cannot override live result |
-| G2b PAIR_FAV_YES | 9 | +0 | — | — | [—, —] | COLLECTING | Frozen (band dark day 26); ETA indeterminate |
-| G2c PAIR_FAV_NO | 9 | +0 | — | — | [—, —] | COLLECTING | CF ROI (52.9%) biased by winner's curse (confirmed Jul-11); ETA indeterminate |
-| G3 FILLED_vs_FIRED | 75 | +0 | 17.3% | −75.8% | [−75.0, −34.2]% | WATCH_ITEM | Winner's curse CONFIRMED; CI entirely negative; hard blocker on G1/G7 re-enable arguments |
-| G4 BASKET_EXIT | — | — | — | — | — | **VOID** | PERMANENTLY RETIRED Jun-22 (4 fatal flaws); do not revisit |
-| G5 THERMO_MAKER_NO | 125 | +0 | — | 0.0% | [−9.0, +2.0]% | **REJECTED** | ROI net fees is −EV; THERMO_MAKER_LIVE=False; no reconsideration without human directive |
-| G6 M1_BETA_LOCKOUT | 31 | +0 | 74.2% | −0.6% | [−20.6, +24.4]% | **REJECTED** | Human directive EVOLVE Jul-04; MIN_LOCKOUT_LIVE=False; revert-to-0.5C-floors recommendation stands |
-| G7 SUM_POSTED [0.70,0.85] | 382 | +0 | — | +11.5% | [−11.4, +38.9]% | AMBIGUOUS | Upper bound (G3 WC); band dark day 26; band_resolution_join.py blocked; gate inert |
-| G8 UPDOWN_CROSSING | 127 | +0 | 95.3% | — | WR-CI [90.1, 97.8]% | **REJECTED** | Graveyard #15; WR 95.3% < BE 96.51%; pooled 5-asset n=469 WR 96.4% < BE 96.5%; killed EVOLVE 2026-07-26; class closed |
+| Gate | n | +24h | WR | ROI | CI 95% | Status | ETA |
+|------|---|------|----|-----|--------|--------|-----|
+| G1 BAND_YES (all slices) | 934 | 0 | 15.3% | +4.0% | [−10.9%, +21.1%] | **AMBIGUOUS** | ∞ (band dark day 27) |
+| G2a BAND_NO d+1 (shadow) | 115 | 0 | 68.7% | +1.3% | [−11.9%, +12.7%] | **AMBIGUOUS** | ∞ (NO disabled) |
+| G2b PAIR_FAV YES (live post-guard) | 9 | 0 | — | — | — | **COLLECTING** | ∞ (band dark) |
+| G2c PAIR_FAV NO (live post-guard) | 9 | 0 | — | — | — | **COLLECTING** | ∞ (band dark) |
+| G3 FILLED_VS_FIRED (winner's curse) | 75 | 0 | 17.3% | −75.8% | [−75.0%, −34.2%] | **WATCH_ITEM** | n/a |
+| G4 BASKET_EXIT | — | — | — | — | — | **VOID** | Permanently retired |
+| G5 THERMO_MAKER_NO | 125 | 0 | — | 0.0% | [−9.0%, +2.0%] | **REJECTED** | n/a |
+| G6 M1_BETA_LOCKOUT | 31 | 0 | 74.2% | −0.6% | [−20.6%, +24.4%] | **REJECTED** | n/a |
+| G7 SUM_POSTED [0.70,0.85] | 382 | 0 | — | +11.5% | [−11.4%, +38.9%] | **AMBIGUOUS** | ∞ (band dark day 27) |
+| G8 UPDOWN_CROSSING | 127 | 0 | 95.3% | — | [90.1%, 97.8%] | **REJECTED** | n/a (graveyard #15) |
+
+**Notes on ROI bounds:**
+- G1 ROI +4.0% is an **upper bound** — G3 winner's curse confirmed (filled WR 17.3% vs sim 7.6%, gap −83.4 pp).
+- G7 ROI +11.5% is an **upper bound** for the same reason. Both gates inert while band is dark.
+- G8 WR 95.3% < BE 96.51% at n=127; pooled 5-asset WR 96.4% < BE 96.5% — REJECTED is correct.
 
 ---
 
-## State Transitions vs Prior Run (2026-07-31T09:15:00Z)
+## State Transitions vs Prior Run (2026-08-01T09:15:00Z)
 
-**No transitions.** All gates frozen. Informational increments only:
-- Band dark: day 25 → **day 26**
-- System failed: day 7 → **day 8**
-- Stall count: 11 → **12**
+| Gate | Prior Status | Current Status | Change |
+|------|-------------|----------------|--------|
+| G1 BAND_YES | AMBIGUOUS | AMBIGUOUS | No change |
+| G2a BAND_NO d+1 | AMBIGUOUS | AMBIGUOUS | No change |
+| G2b PAIR_FAV YES | COLLECTING | COLLECTING | No change |
+| G2c PAIR_FAV NO | COLLECTING | COLLECTING | No change |
+| G3 FILLED_VS_FIRED | WATCH_ITEM | WATCH_ITEM | No change |
+| G4 BASKET_EXIT | VOID | VOID | No change |
+| G5 THERMO_MAKER_NO | REJECTED | REJECTED | No change |
+| G6 M1_BETA_LOCKOUT | REJECTED | REJECTED | No change |
+| G7 SUM_POSTED | AMBIGUOUS | AMBIGUOUS | No change |
+| G8 UPDOWN_CROSSING | REJECTED | REJECTED | No change (kill executed EVOLVE 2026-07-26) |
+
+**Informational counters:** STALL count 12 → **13**. Band dark day 26 → **27**. System failed day 8 → **9**.
+
+---
+
+## Structural Blockers (unchanged)
+
+1. **UPDOWN_STOP active** — sniper CUT 2026-07-19T11:26Z (PF 0.79 < 0.80 charter rail). Class closed (G8 REJECTED + graveyard #15).
+2. **WIND-DOWN active** — BAND_LIVE=False since Jul-06 22:08Z. Day **27**. Zero band resolutions flowing. All G1/G2/G7 counts frozen.
+3. **LDA_STOP active** — rolling-20 worst −$36.39 below −$30 threshold. No LDA path.
+4. **Capital $88.75 < ruin_floor $89.16** (below by $0.41) — all band paths mechanically blocked per charter.
+5. **Winner's curse CONFIRMED** (G3, n=75) — sim ROI is upper bound; any sim-based READY verdict is biased.
+6. **G5 THERMO / G6 M1** — both REJECTED; no reconsideration without explicit human directive.
+7. **G8 UPDOWN_CROSSING** — REJECTED; graveyard #15. No live updown path. Class closed.
+8. **SYSTEM FAILED** — day 9. Weekly-loop-only mode. No new data accruing on any gate.
 
 ---
 
 ## PROPOSED ACTIONS (human review)
 
-**No gates newly hit READY or REJECTED this run — no flag/param changes proposed.**
+**No gates newly hit READY or REJECTED this run.** Nothing to flip.
 
-### Standing structural blockers (unchanged):
-1. **UPDOWN_STOP**: Sniper CUT 2026-07-19T11:26Z (PF 0.79 < 0.8 charter rail). G8 UPDOWN_CROSSING REJECTED → graveyard #15 (EVOLVE 2026-07-26). No updown path remains.
-2. **WIND-DOWN**: BAND_LIVE=False since 2026-07-06T22:08Z — day 26. No band resolutions flowing. G2b/G2c/G7 accumulation frozen.
-3. **LDA_STOP**: Rolling-20 worst −$36.39 below −$30 threshold. No LDA fires.
-4. **Capital below ruin floor**: $88.75 < $89.16 (by $0.41) — mechanically blocks all band paths even if BAND_LIVE were re-enabled.
-5. **G3 winner's curse CONFIRMED** (n=75, filled WR 17.3% vs sim 7.6%): G1 ROI +4.0% and G7 ROI +11.5% are ceiling estimates, not true expected values.
-6. **G5 / G6**: REJECTED by prior EVOLVE human decisions; no reconsideration without explicit human directive.
-7. **System failed day 8**: Burn rate zero. SSH to VPS if/when path forward intended. No timing urgency.
+| Item | Action |
+|------|--------|
+| No new transitions | No flag/param changes needed |
+| System continued failure (day 9) | SSH to VPS if path forward intended; burn rate is zero so timing is not urgent |
+| Capital $88.75 (−$0.41 below ruin floor) | Owner to decide: injection to clear ruin floor, or charter amendment to redefine it |
+| G8 kill receipt | Already formalized EVOLVE 2026-07-26 (commit ddbcecdd1, graveyard #15) — no further action |
 
-### Summary:
-No live trading paths remain. Next gate accumulation requires: (a) VPS restart + systemd service re-enable, AND (b) capital injection to clear ruin floor ($89.16), AND (c) explicit human decision on BAND_LIVE re-enable. Gate verdicts cannot change until the system fires again.
+**Bottom line:** System is down, all trading paths are closed, and no gate has moved. Nothing to do until the system is restarted or the human decides on a path forward. The gate ledger is frozen.
