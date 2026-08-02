@@ -1,63 +1,33 @@
-# PnL Ledger — 2026-08-01 — **STALL (day 8)**
+# Klaus PnL Ledger — 2026-08-02
 
-**ABORT:** `system_status.txt` shows `failed / unknown` — not `active`. Protocol requires stall header only.
-
----
-
-## Abort Diagnostics
+**ABORT: `system_status.txt` shows `failed/unknown` — not `active`. Protocol: stall header only.**
 
 | Field | Value |
 |---|---|
-| Snapshot timestamp | 2026-08-01T23:36:56Z |
-| Snapshot age at report | ~1 min — **FRESH** (well within 6h) |
-| Bot service status | **FAILED / UNKNOWN** (last active: 2026-07-24T10:09:19Z) |
-| Days since last active | **8** |
-| Zero-fill days consecutive | **13** |
-| Trade rows in trades.jsonl | 8,228 (unchanged from prior 7 reports) |
-| Capital (bankroll.json) | **$88.750373** (unchanged since EVOLVE 2026-07-26; CLOB-exact per commit ddbcecdd1) |
-| Open positions | 0 |
-| Resting maker orders | 0 |
+| Report UTC | 2026-08-02T23:37Z |
+| Snapshot age | ~10 min (✓ within 6h) |
+| Bot service | **FAILED** — day 9 (last active 2026-07-24T10:09:19 UTC) |
+| Capital | $88.750373 (unchanged for 9 consecutive days) |
+| Zero-fill days | **14 consecutive** (no new trades.jsonl rows since 2026-07-24; row count 8228 static) |
+| Day PnL | $0.00 |
+| Live trading paths | NONE (G8 killed, BAND_LIVE=False, BAND_NO=False, STWA=False, UPDOWN_STOP active) |
+| Unexplained Δcapital | $0.00 (capital identical to prior report $88.750373) |
+| Expected rebate cum | **$3.917 upper bound** (no new fills since BAND_LIVE disabled 2026-07-06) |
 
----
+## Kill-Switch Proximity
 
-## Live Path Status (all disarmed)
+| Check | Status |
+|---|---|
+| Day PnL vs −$10 halt | CLEAR — $0.00 |
+| Capital vs $75 weekly floor | CLEAR — $88.750 > $75 |
+| Capital vs $50 ruin floor | CLEAR — $88.750 > $50 |
+| WR / PF (rolling 20 trades) | N/A — 0 fills; cannot assess |
+| Bot service | **FAILED (day 9)** — binding constraint |
 
-| Path | Status | Disabled since |
-|---|---|---|
-| STWA Regular YES/NO | DISABLED | 2026-06-05 / 2026-06-11 |
-| BAND_LIVE (band taker) | DISARMED | 2026-07-06 (equity < 50% 30d-HW) |
-| BAND_NO | DISABLED | 2026-07-02 (7d WR 39.2%) |
-| G8 certainty-taker | **FORMALLY KILLED** | 2026-07-26 (WR 0.9528 < BE 0.9651, n=127) |
-| UPDOWN_STOP | ACTIVE | — |
-| Loop cadence | WEEKLY-ONLY | 2026-07-24 (owner directive) |
+CAVEAT: WR/PF kill-switch floors were specified for the taker era. The kill-switch re-derivation proposal for the maker band book remains pending with the user.
 
-No live path exists. The bot service failing is moot for fills but must be fixed before any strategy revival.
+## Action Required
 
----
+SSH to VPS is required to diagnose and restart the `klaus` systemd service. All trading paths are disabled or formally killed; no fills are possible while the service is down. The data-mirror timer is running independently and continues to snapshot.
 
-## Capital & Kill-Switch Proximity
-
-| Check | Value | Threshold | Status |
-|---|---|---|---|
-| Day P&L vs -$10 halt | $0.00 | -$10 | CLEAR |
-| Capital vs $75 weekly floor | $88.750 | $75 | CLEAR (+$13.75 headroom) |
-| Capital vs $50 ruin floor | $88.750 | $50 | CLEAR (+$38.75 headroom) |
-| Rolling 20-trade WR/PF | N/A (0 fills in 13 days) | WR<30% / PF<0.8 | N/A |
-
-**CAVEAT:** WR/PF kill-switch floors were specified for the taker era. Maker band YES legs win ~22% by design at 4–5x payoff; a WR-only kill on maker performance would be invalid. Re-derivation proposal pending with user.
-
----
-
-## Expected Maker Rebates (unchanged)
-
-Cumulative expected rebate: **$3.917 (upper bound)**. No new fills since BAND_LIVE disabled 2026-07-06. Rebate pool accrues daily; min $1 accrual before payout. This figure has exceeded $1 for multiple sessions with no payout recorded. **User must verify pUSD receipt in Polymarket wallet.**
-
----
-
-## Day Verdict
-
-**STALL (day 8)** — equity flat at $88.750373. Bot service failed for 8 consecutive days; 13 consecutive zero-fill days. No live path exists. Data-mirror timer is running independently (snapshot fresh). No action possible from this session.
-
-**Required action: SSH to VPS → diagnose and restart `systemd` service.**
-
-Next EVOLVE window: 2026-08-02 (weekly cadence). Service diagnosis should precede that session.
+**Rebate reminder:** Cumulative expected rebate ($3.917 upper bound) exceeds the $1 minimum accrual threshold. User should verify pUSD receipt in Polymarket wallet. No payout has been recorded in any session log.
