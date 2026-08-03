@@ -1,6 +1,6 @@
-# Calib Monitor Report — 2026-08-02
+# Calib Monitor Report — 2026-08-03
 
-**STALL — systemd failed/unknown. Pipeline aborted. Day 10 consecutive abort.**
+**STALL — systemd failed/unknown. Pipeline aborted. Day 11 consecutive abort.**
 
 All metrics carried from last computed run 2026-07-24. No fresh pricer data processed.
 
@@ -9,17 +9,12 @@ All metrics carried from last computed run 2026-07-24. No fresh pricer data proc
 ## 0. ABORT CONDITION
 
 `system_status.txt` contains `failed unknown` — does NOT contain `klaus systemd: active`.
-Bot last active: 2026-07-24T10:09:19 UTC (~214h / ~8.9 days dead as of snapshot 2026-08-02T07:58:46Z).
+Bot last active: 2026-07-24T10:09:19 UTC (~238h / ~9.9 days dead as of snapshot 2026-08-03T08:05:00Z).
 Owner-directed shutdown 2026-07-24; daily+liveness timers disabled; loop weekly-only.
-Snapshot: 2026-08-02T07:58:46Z (fresh, ~30min old — within 6h abort threshold).
+Snapshot: 2026-08-03T08:05:00Z (fresh — within 6h abort threshold).
 
-Shadow directories checked:
-- 2026-07-28: `badatmath_watch.jsonl`, `count_lock.jsonl`, `minmax_coherence.jsonl` only — no pricer files
-- 2026-07-29 through 2026-08-01: no directory or no pricer files
-- 2026-08-02: no directory (system not running)
-
-No `stwa_pricer_eval_s50.jsonl` or `band_struct_lite.jsonl` found for any day since 07-24.
-No pricer data has been generated since the system went down.
+Shadow directories: no `stwa_pricer_eval_s50.jsonl` or `band_struct_lite.jsonl` found for any
+day since 07-24. No pricer data has been generated since the system went down.
 
 ---
 
@@ -39,7 +34,7 @@ No S1 alerts fired.
 ## 2. PROXY LANE (carried — no new pricer rows)
 
 No p_cal vs market-mid divergence data available. System down since 07-24.
-No shadow pricer files for any day from 07-27 through 08-02.
+No shadow pricer files for any day from 07-27 through 08-03.
 No early-warning computation possible.
 
 ---
@@ -47,7 +42,7 @@ No early-warning computation possible.
 ## 3. DISPERSION GAUGE ⚠️ ALERT CARRIED — CRITICAL
 
 **7d median implied/realized width ratio = 0.781** (threshold: >1.10)
-**THE DISPERSION EDGE IS INVERTED. Day 31 consecutive (estimate).**
+**THE DISPERSION EDGE IS INVERTED. Day 32 consecutive (estimate).**
 
 The band harvests the premium that market-implied dispersion exceeds true dispersion.
 At ratio=0.781, the market is pricing LESS spread than actually resolves. The edge is not
@@ -70,10 +65,10 @@ All three regions below 1.0. Daily trend (last computed window 07-18..07-23):
 | 2026-07-22 | 0.851 |
 | 2026-07-23 | 0.762 |
 
-0/6 days above threshold in last computed window. 07-24 through 08-02 not computed (system down).
+0/6 days above threshold in last computed window. 07-24 through 08-03 not computed (system down).
 No trend improvement to report. Alert persists at decision-grade n~105 (from 07-24 compute).
 
-BAND_LIVE=False since 2026-07-06 (day 27 dark). The live halt predates this monitor
+BAND_LIVE=False since 2026-07-06 (day 28 dark). The live halt predates this monitor
 but the dispersion inversion is an independent confirmation the halt was correct.
 The inversion pre-existed the halt and remains unresolved.
 
@@ -83,8 +78,8 @@ The inversion pre-existed the halt and remains unresolved.
 
 | Item | Value |
 |---|---|
-| Deployed refit date | 2026-06-06T22:27:08Z (~57d stale) |
-| Candidate refit date | 2026-07-23T09:30:44Z (~10d old) |
+| Deployed refit date | 2026-06-06T22:27:08Z (~58d stale) |
+| Candidate refit date | 2026-07-23T09:30:44Z (~11d old) |
 | Max absolute diff | 0.1684 |
 | Material diffs >0.05 | 2 |
 | OOS verdict | brier_cal (0.0638) >= brier_raw (0.0637) — no calibration value added |
@@ -112,15 +107,15 @@ Live-refit cron status: unknown (system down since 07-24; cron presumably also d
 
 ## 5. STATE TRANSITION
 
-| Field | 08-01 | 08-02 | Transition |
+| Field | 08-02 | 08-03 | Transition |
 |---|---|---|---|
-| pipeline_status | ABORTED | ABORTED | day 9 → day 10 consecutive abort |
+| pipeline_status | ABORTED | ABORTED | day 10 → day 11 consecutive abort |
 | system_alive | false | false | systemd still failed/unknown |
-| disp_inversion_days | 30 (est) | 31 (est) | +1, no reversal |
-| BAND_LIVE | False | False | day 26 → day 27 dark |
-| isotonic deployed age | ~55d | ~57d | +2d (compounding) |
-| isotonic candidate age | ~9d | ~10d | +1d |
-| bot_dead_hours | ~190h | ~214h | +24h |
+| disp_inversion_days | 31 (est) | 32 (est) | +1, no reversal |
+| BAND_LIVE | False | False | day 27 → day 28 dark |
+| isotonic deployed age | ~57d | ~58d | +1d (compounding) |
+| isotonic candidate age | ~10d | ~11d | +1d |
+| bot_dead_hours | ~214h | ~238h | +24h |
 
 No transitions in alert status. All 3 alerts persist unchanged.
 
@@ -128,8 +123,8 @@ No transitions in alert status. All 3 alerts persist unchanged.
 
 ## ALERTS
 
-**[SYSTEM]** `## klaus systemd: failed/unknown` — pipeline aborted. Snapshot fresh (2026-08-02T07:58:46Z). Bot last active: 2026-07-24T10:09:19 UTC (~214h / ~8.9 days dead). Owner-directed shutdown; daily+liveness timers disabled; loop weekly-only. Day 10 consecutive abort.
+**[SYSTEM]** `## klaus systemd: failed/unknown` — pipeline aborted. Snapshot fresh (2026-08-03T08:05:00Z). Bot last active: 2026-07-24T10:09:19 UTC (~238h / ~9.9 days dead). Owner-directed shutdown; daily+liveness timers disabled; loop weekly-only. Day 11 consecutive abort.
 
-**[S3 CARRIED — PRE-REGISTERED]** `disp_ratio7 = 0.781 < 1.10` — INVERTED DISPERSION EDGE — day 31 consecutive (estimate) — decision-grade n~105 — all 3 regions below 1.0 — 0/6 days above threshold in last computed window (07-18..07-23). Fresh data unavailable; alert persists.
+**[S3 CARRIED — PRE-REGISTERED]** `disp_ratio7 = 0.781 < 1.10` — INVERTED DISPERSION EDGE — day 32 consecutive (estimate) — decision-grade n~105 — all 3 regions below 1.0 — 0/6 days above threshold in last computed window (07-18..07-23). Fresh data unavailable; alert persists.
 
-**[S4 CARRIED — PRE-REGISTERED]** Isotonic deployed ~57d stale (2026-06-06); candidate 2026-07-23 (~10d old) with 2 material tail diffs (grid 0.95: +0.055, grid 1.0: +0.168); OOS brier_cal >= brier_raw; human review required before any promotion.
+**[S4 CARRIED — PRE-REGISTERED]** Isotonic deployed ~58d stale (2026-06-06); candidate 2026-07-23 (~11d old) with 2 material tail diffs (grid 0.95: +0.055, grid 1.0: +0.168); OOS brier_cal >= brier_raw; human review required before any promotion.
