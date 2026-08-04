@@ -1,17 +1,17 @@
 {
-  "date": "2026-08-03",
-  "report_generated_utc": "2026-08-03T23:37Z",
-  "status": "STALL — bot service FAILED (day 10)",
+  "date": "2026-08-04",
+  "report_generated_utc": "2026-08-04T23:37Z",
+  "status": "STALL — bot service FAILED (day 11)",
   "abort_reason": "system_status.txt shows 'failed/unknown' not 'active'; protocol requires stall header only",
-  "snapshot_ts": "2026-08-03T23:32:33Z",
-  "snapshot_age_hours": 0.08,
-  "bot_service_status": "FAILED (last active 2026-07-24T10:09:19Z; day 10 of failure)",
-  "data_mirror_status": "RUNNING (independent timer; snapshot fresh ~5min; 8228 trade rows — unchanged for 10th consecutive day)",
+  "snapshot_ts": "2026-08-04T23:26:01Z",
+  "snapshot_age_hours": 0.18,
+  "bot_service_status": "FAILED (last active 2026-07-24T10:09:19Z; day 11 of failure)",
+  "data_mirror_status": "RUNNING (independent timer; snapshot fresh ~11min; 8228 trade rows — unchanged for 11th consecutive day)",
   "capital": 88.750373,
   "capital_source": "bankroll.json (saved_ts=1785508500; CLOB-exact per EVOLVE ddbcecdd1 2026-07-26; unchanged)",
   "daily_start_capital": 88.750373,
   "capital_prior_report": 88.750373,
-  "capital_prior_report_date": "2026-08-02",
+  "capital_prior_report_date": "2026-08-03",
   "day_pnl": 0.0,
   "day_pnl_note": "$0.00 — bot service failed, 0 fills.",
   "capital_delta_explained": 0.0,
@@ -22,11 +22,11 @@
   "turns": 0.0,
   "roi_per_turn": null,
   "unexplained": 0.0,
-  "unexplained_note": "$0.00 — capital unchanged from yesterday's $88.750373. No delta, nothing to explain.",
+  "unexplained_note": "$0.00 — capital unchanged from yesterday $88.750373. No delta, nothing to explain.",
   "expected_rebate_today": 0.0,
   "expected_rebate_cum": 3.917,
   "expected_rebate_cum_note": "$3.917 UPPER BOUND unchanged (no new fills since BAND_LIVE disabled Jul-6). Exceeds $1 min accrual — user must verify pUSD receipt in Polymarket wallet. No payout recorded in any session.",
-  "zero_fill_days_consecutive": 15,
+  "zero_fill_days_consecutive": 16,
   "kill_switch": {
     "day_pnl_vs_halt_10": "CLEAR — $0.00 vs -$10 threshold",
     "capital_vs_ruin_floor_50": "CLEAR — $88.750 > $50",
@@ -37,7 +37,7 @@
     "stwa_regular": "DISABLED",
     "updown_stop": "ACTIVE",
     "all_live_paths": "NONE (loop WEEKLY-ONLY per owner 07-24 directive)",
-    "bot_service": "FAILED (day 10) — requires SSH diagnosis before any restart"
+    "bot_service": "FAILED (day 11) — requires SSH diagnosis before any restart"
   },
-  "day_verdict": "STALL (day 10) — capital unchanged at $88.750373. Bot service FAILED for 10 consecutive days. 15 consecutive zero-fill days. No live paths. SSH to VPS required."
+  "day_verdict": "STALL (day 11) — capital unchanged at $88.750373. Bot service FAILED for 11 consecutive days. 16 consecutive zero-fill days. No live paths. SSH to VPS required."
 }
