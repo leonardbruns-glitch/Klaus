@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-05T09:16:55.354737+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will Microsoft be the largest company in the world by market cap on December 31?\", \"condition_id\": \"0x6b978bfe3f8b58edd400556fa8d1f582d4b4f60d12286245af249fa8a6446bca\", \"fav_token\": \"19342228451232618900380",
-      "mtime_utc": "2026-08-05T09:16:57Z",
-      "n_rows": 1108707,
-      "size_bytes": 683844751
+      "last_excerpt": "{\"ts\": \"2026-08-05T09:32:13.009414+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"LoL: EDward Gaming vs Top Esports (BO3) - LPL Group Ascend\", \"condition_id\": \"0x827a2e703d5fabb7610f29b75f234c75049d6af5d5268e3450bdd2199e887716\", \"fav_token\": \"16956251991177994426177320439054871099188534",
+      "mtime_utc": "2026-08-05T09:32:15Z",
+      "n_rows": 1108879,
+      "size_bytes": 683951386
     },
     "hot/2026-07-26/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785024001.2854218, \"record\": \"fill_join\", \"fill_ts\": 1785023877, \"detect_lag_s\": 124.3, \"title\": \"Will the highest temperature in Guangzhou be 30\\u00b0C on July 26\", \"event\": \"highest-temperature-in-guangzhou-on-july-26-2026\", \"outcome\": \"Yes\", \"price\": 0.15, \"size\": 10, \"usdc\": 1.5, \"cid\": ",
@@ -303,17 +303,17 @@
     },
     "hot/2026-08-05/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1785888122.5359821, \"cid\": \"0xf31d71af4137ee1ea75f5e4bc233c38f2fe01544ce346dc99f5f18457728f8c8\", \"q\": \"Will the highest temperature in Dallas be between 102-103\\u00b0F on August 4?\", \"proxyWallet\": \"0x73e4587b48ea87ffcab8cd902e62226d644eda2e\", \"side\": \"BUY\", \"asset\": \"6870764633223383721",
-      "last_excerpt": "{\"poll_ts\": 1785921485.3619797, \"cid\": \"0x93049b289dc1bc4d4d74871b6c5879b6be584335215fdf70c66f4ef94e10b30b\", \"q\": \"Will the lowest temperature in Paris be 18\\u00b0C on August 7?\", \"proxyWallet\": \"0x351a241954c1b807930ec3b75a20cb02171ef040\", \"side\": \"BUY\", \"asset\": \"1052413052523021673087814527873912",
-      "mtime_utc": "2026-08-05T09:18:08Z",
-      "n_rows": 45558,
-      "size_bytes": 48848718
+      "last_excerpt": "{\"poll_ts\": 1785922387.1101654, \"cid\": \"0xa8c494776ac3dc22abbdfb9c58efbfe47b5a3d57942785ad3cf2cdb55f6ad9a2\", \"q\": \"Will the lowest temperature in Shanghai be 27\\u00b0C on August 7?\", \"proxyWallet\": \"0xa2dd2b08d5e8f01aac652714fde49619992f1b85\", \"side\": \"BUY\", \"asset\": \"1336269519219239988518141115043",
+      "mtime_utc": "2026-08-05T09:33:08Z",
+      "n_rows": 46724,
+      "size_bytes": 50100103
     },
     "hot/2026-08-05/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-05T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-05\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 5?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.041, \"coverage_best\": {\"t\": 31, \"cost\": 2.048, \"n_legs\": 17, \"units_fillable\": 74.0, \"legs\":",
-      "last_excerpt": "{\"ts\": \"2026-08-05T09:00:01+00:00\", \"city\": \"paris\", \"date\": \"2026-08-07\", \"unit\": \"c\", \"title\": \"Lowest temperature in Paris on August 7?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.628, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
-      "mtime_utc": "2026-08-05T09:00:45Z",
-      "n_rows": 576,
-      "size_bytes": 3062027
+      "last_excerpt": "{\"ts\": \"2026-08-05T09:20:01+00:00\", \"city\": \"paris\", \"date\": \"2026-08-07\", \"unit\": \"c\", \"title\": \"Lowest temperature in Paris on August 7?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.854, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
+      "mtime_utc": "2026-08-05T09:20:51Z",
+      "n_rows": 598,
+      "size_bytes": 3169382
     },
     "updown_sniper/snap_20260729.jsonl": {
       "first_excerpt": "{\"type\": \"res\", \"slug\": \"eth-updown-5m-1785282600\", \"winner\": \"Up\", \"b_open\": 1921.47, \"b_close\": 1921.7, \"ts\": 1785283200.362}",
@@ -366,11 +366,11 @@
     },
     "updown_sniper/snap_20260805.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785888000\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.27, \"b_px\": 64106.55, \"b_open\": 64106.55, \"move\": 0.0, \"sigma1s\": 3.204474928854404e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.52, \"ask_sz\": 441.95, \"bid\": 0.51, \"bid_sz\": 9.0}, \"down\": {\"ask\": 0.49, \"as",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785921600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 297.91, \"b_px\": 64150.91, \"b_open\": 64141.26, \"move\": 0.00015044918044959665, \"sigma1s\": 2.32644892503677e-05, \"z\": 0.3746760858751744, \"p_up\": 0.6460493102418968, \"up\": null, \"down\": null, \"ts\": 1785921602.1",
-      "mtime_utc": "2026-08-05T09:20:02Z",
-      "n_rows": 78852,
-      "size_bytes": 28291056
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785922500\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 297.19, \"b_px\": 64187.62, \"b_open\": 64187.62, \"move\": 0.0, \"sigma1s\": 1.8116602221569115e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": null, \"down\": null, \"ts\": 1785922502.828}",
+      "mtime_utc": "2026-08-05T09:35:02Z",
+      "n_rows": 80998,
+      "size_bytes": 28986553
     }
   },
-  "snapshot_ts": "2026-08-05T09:20:02Z"
+  "snapshot_ts": "2026-08-05T09:35:03Z"
 }
