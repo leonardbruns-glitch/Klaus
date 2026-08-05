@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-04T23:55:49.671112+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will Count Binface win the Clacton by-election?\", \"condition_id\": \"0x513bf1706e9cbf61b7cc56f12803b1b72a522bae3c5157e7b356abdf36e2e72d\", \"fav_token\": \"32297803302993713313108060905404383549758162417221119670",
-      "mtime_utc": "2026-08-04T23:55:52Z",
-      "n_rows": 1102204,
-      "size_bytes": 679823188
+      "last_excerpt": "{\"ts\": \"2026-08-05T00:10:57.936798+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"National Bank Open: Rafael Jodar vs Corentin Moutet\", \"condition_id\": \"0x99599019ce3bd193926cd5f0c786f614283b6c358719c7c4e5581c6421d259d6\", \"fav_token\": \"937706385135358899504920495061891425299918516470168",
+      "mtime_utc": "2026-08-05T00:11:00Z",
+      "n_rows": 1102370,
+      "size_bytes": 679925145
     },
     "hot/2026-07-25/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1784937601.5533488, \"record\": \"fill_join\", \"fill_ts\": 1784937576, \"detect_lag_s\": 25.6, \"title\": \"Will the highest temperature in Chicago be 79\\u00b0F or below on \", \"event\": \"highest-temperature-in-chicago-on-july-25-2026\", \"outcome\": \"Yes\", \"price\": 0.14, \"size\": 8, \"usdc\": 1.16816, \"cid\": ",
@@ -303,10 +303,10 @@
     },
     "hot/2026-08-04/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1785801686.7709584, \"cid\": \"0xb5911777e97da4199e822f42667f3afd8dfb7f9356f4d0fd553861d2368a1be1\", \"q\": \"Ebola pandemic in 2026?\", \"proxyWallet\": \"0x59364b4da00da533a7702d1f2fadce1992bb3798\", \"side\": \"SELL\", \"asset\": \"102466580389841516500341037689766024282749678014633026663802680580839539",
-      "last_excerpt": "{\"poll_ts\": 1785887775.2974122, \"cid\": \"0x0f6cecfeb872037c95e2916bde80e549d27bb6ec1504beb245f1cbd2ff06669d\", \"q\": \"Will the highest temperature in Istanbul be 34\\u00b0C or higher on August 5?\", \"proxyWallet\": \"0xb0c85813a7a4428f1139ff91d3118a92c391fe7f\", \"side\": \"BUY\", \"asset\": \"55899877027524074518",
-      "mtime_utc": "2026-08-04T23:56:15Z",
-      "n_rows": 104753,
-      "size_bytes": 112550684
+      "last_excerpt": "{\"poll_ts\": 1785887982.1827607, \"cid\": \"0xc783a1bc1d6f94c6afd7c4e0baf5d850a2f5e3bdbde2d5c41323fd940724d854\", \"q\": \"Will the highest temperature in Karachi be 33\\u00b0C on August 6?\", \"proxyWallet\": \"0x5695f7337e08fd5d2f223cc56109de76d3e760e9\", \"side\": \"BUY\", \"asset\": \"5999549924151774293349198314181",
+      "mtime_utc": "2026-08-04T23:59:42Z",
+      "n_rows": 105151,
+      "size_bytes": 112975319
     },
     "hot/2026-08-04/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-04T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-04\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 4?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.169, \"coverage_best\": {\"t\": 24, \"cost\": 1.059, \"n_legs\": 13, \"units_fillable\": 18.9, \"legs\":",
@@ -315,12 +315,33 @@
       "n_rows": 1498,
       "size_bytes": 7318806
     },
-    "updown_sniper/snap_20260728.jsonl": {
-      "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785196800\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.03, \"b_px\": 63755.86, \"b_open\": 63755.86, \"move\": 0.0, \"sigma1s\": 4.533549729516683e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.51, \"ask_sz\": 167.7, \"bid\": 0.5, \"bid_sz\": 659.54}, \"down\": {\"ask\": 0.5, \"as",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1785282900\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 0.59, \"b_px\": 0.07089, \"b_open\": 0.07079, \"move\": 0.0014126289023872474, \"sigma1s\": 9.037369833661986e-05, \"z\": 20.295113995117323, \"p_up\": 1.0, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.99, \"bid_sz\": 22",
-      "mtime_utc": "2026-07-28T23:59:59Z",
-      "n_rows": 200187,
-      "size_bytes": 81086822
+    "hot/2026-08-05/badatmath_watch.jsonl": {
+      "first_excerpt": "",
+      "last_excerpt": "",
+      "mtime_utc": "2026-08-05T00:00:01Z",
+      "n_rows": 0,
+      "size_bytes": 0
+    },
+    "hot/2026-08-05/count_lock.jsonl": {
+      "first_excerpt": "",
+      "last_excerpt": "",
+      "mtime_utc": "2026-08-05T00:00:01Z",
+      "n_rows": 0,
+      "size_bytes": 0
+    },
+    "hot/2026-08-05/maker_flow.jsonl": {
+      "first_excerpt": "{\"poll_ts\": 1785888122.5359821, \"cid\": \"0xf31d71af4137ee1ea75f5e4bc233c38f2fe01544ce346dc99f5f18457728f8c8\", \"q\": \"Will the highest temperature in Dallas be between 102-103\\u00b0F on August 4?\", \"proxyWallet\": \"0x73e4587b48ea87ffcab8cd902e62226d644eda2e\", \"side\": \"BUY\", \"asset\": \"6870764633223383721",
+      "last_excerpt": "{\"poll_ts\": 1785888702.3314114, \"cid\": \"0x4ee830cc948b55abbeeede83e81af9995268af68ee7ae182eed7db766529f479\", \"q\": \"Will the highest temperature in Cape Town be 19\\u00b0C on August 6?\", \"proxyWallet\": \"0xad42a6cd7cabd0657fa3e24e2fbc0b642a9ac918\", \"side\": \"SELL\", \"asset\": \"8989790006866957923307161105",
+      "mtime_utc": "2026-08-05T00:11:42Z",
+      "n_rows": 1248,
+      "size_bytes": 1340955
+    },
+    "hot/2026-08-05/minmax_coherence.jsonl": {
+      "first_excerpt": "{\"ts\": \"2026-08-05T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-05\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 5?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.041, \"coverage_best\": {\"t\": 31, \"cost\": 2.048, \"n_legs\": 17, \"units_fillable\": 74.0, \"legs\":",
+      "last_excerpt": ": 0.08}, {\"q\": \"erature in Shanghai be 36\\u00b0C on August 6?\", \"ask\": 0.019}, {\"q\": \" Shanghai be 37\\u00b0C or higher on August 6?\", \"ask\": 0.009}, {\"q\": \"n Shanghai be 22\\u00b0C or below on August 6?\", \"ask\": 0.009}, {\"q\": \"erature in Shanghai be 23\\u00b0C on August 6?\", \"ask\": 0.01}, {\"q\": \"eratu",
+      "mtime_utc": "2026-08-05T00:00:44Z",
+      "n_rows": 18,
+      "size_bytes": 88573
     },
     "updown_sniper/snap_20260729.jsonl": {
       "first_excerpt": "{\"type\": \"res\", \"slug\": \"eth-updown-5m-1785282600\", \"winner\": \"Up\", \"b_open\": 1921.47, \"b_close\": 1921.7, \"ts\": 1785283200.362}",
@@ -366,11 +387,18 @@
     },
     "updown_sniper/snap_20260804.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"xrp-updown-5m-1785801300\", \"asset\": \"xrp\", \"step\": 300, \"t_left\": 0.25, \"b_px\": 1.0758, \"b_open\": 1.0752, \"move\": 0.0005580357142858094, \"sigma1s\": 5.425180439686975e-05, \"z\": 14.546643825123793, \"p_up\": 1.0, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.99, \"bid_sz\": 18406.",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785887700\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 225.31, \"b_px\": 64124.34, \"b_open\": 64132.0, \"move\": -0.00011944115262274568, \"sigma1s\": 2.833307067039482e-05, \"z\": -0.28084817894919517, \"p_up\": 0.3894134243340617, \"up\": {\"ask\": 0.37, \"ask_sz\": 383.1, \"bid",
-      "mtime_utc": "2026-08-04T23:56:14Z",
-      "n_rows": 197485,
-      "size_bytes": 80328730
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1785887700\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 0.53, \"b_px\": 0.07007, \"b_open\": 0.07012, \"move\": -0.0007130633200229664, \"sigma1s\": 7.078525349264711e-05, \"z\": -13.8929702594459, \"p_up\": 0.0, \"up\": {\"ask\": 0.01, \"ask_sz\": 1172.47, \"bid\": null, \"bid_sz\":",
+      "mtime_utc": "2026-08-04T23:59:59Z",
+      "n_rows": 198511,
+      "size_bytes": 80751961
+    },
+    "updown_sniper/snap_20260805.jsonl": {
+      "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785888000\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.27, \"b_px\": 64106.55, \"b_open\": 64106.55, \"move\": 0.0, \"sigma1s\": 3.204474928854404e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.52, \"ask_sz\": 441.95, \"bid\": 0.51, \"bid_sz\": 9.0}, \"down\": {\"ask\": 0.49, \"as",
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785888600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 194.49, \"b_px\": 64034.22, \"b_open\": 64023.77, \"move\": 0.00016322062883844524, \"sigma1s\": 3.970446501942511e-05, \"z\": 0.2947692674628423, \"p_up\": 0.6159149275742702, \"up\": {\"ask\": 0.55, \"ask_sz\": 207.81, \"bid\"",
+      "mtime_utc": "2026-08-05T00:11:45Z",
+      "n_rows": 1154,
+      "size_bytes": 417671
     }
   },
-  "snapshot_ts": "2026-08-04T23:56:16Z"
+  "snapshot_ts": "2026-08-05T00:11:46Z"
 }
