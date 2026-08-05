@@ -1,1 +1,1 @@
-STALL (2026-08-04, day 11) — bot service FAILED/UNKNOWN since 2026-07-24; snapshot fresh (11 min, 23:26Z); 16 consecutive zero-fill days; capital $88.750373 unchanged. Abort protocol: system_status.txt does not contain 'klaus systemd: active'.
+**STALL 2026-08-05T23:37Z — `system_status.txt`: `failed / unknown` (day 12 of failure, last active 2026-07-24T10:09:19Z); 17 consecutive zero-fill days; capital $88.750373 unchanged; data-mirror snapshot fresh (5 min old); abort protocol — no ledger pipeline executed.**
