@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-06T09:53:39.649040+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will Carlos Alcaraz win the 2026 Men's US Open?\", \"condition_id\": \"0xcf4cf0cf9882b50018054826d561f688e319e6e51de956437fa6dbf642696a40\", \"fav_token\": \"90264693241026051023074224632890599337475038764734164585",
-      "mtime_utc": "2026-08-06T09:53:42Z",
-      "n_rows": 1124750,
-      "size_bytes": 693754188
+      "last_excerpt": "{\"ts\": \"2026-08-06T10:08:49.384285+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Warsaw: Justina Mikulskyte vs Gabriela Knutson\", \"condition_id\": \"0xff0fae51f7c8a3fcd4d35bee9415ce5cbf6e1fd3da21c0533d7b396d85a420c6\", \"fav_token\": \"34775726808213097421468477148242197243561895712079815825",
+      "mtime_utc": "2026-08-06T10:08:52Z",
+      "n_rows": 1124942,
+      "size_bytes": 693872779
     },
     "hot/2026-07-27/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785110401.0959585, \"record\": \"fill_join\", \"fill_ts\": 1785110305, \"detect_lag_s\": 96.1, \"title\": \"Will the highest temperature in San Francisco be between 66-\", \"event\": \"highest-temperature-in-san-francisco-on-july-27-2026\", \"outcome\": \"Yes\", \"price\": 0.16, \"size\": 5.01, \"usdc\": 0.8016, \"cid",
@@ -289,10 +289,10 @@
     },
     "hot/2026-08-06/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785987721.8941364, \"record\": \"fill_join\", \"fill_ts\": 1785987623, \"detect_lag_s\": 98.9, \"title\": \"Will the highest temperature in Toronto be 28\\u00b0C on August 7?\", \"event\": \"highest-temperature-in-toronto-on-august-7-2026\", \"outcome\": \"Yes\", \"price\": 0.13, \"size\": 306, \"usdc\": 41.51043, \"ci",
-      "last_excerpt": "{\"ts\": 1786009921.5176618, \"record\": \"fill_join\", \"fill_ts\": 1786009824, \"detect_lag_s\": 97.5, \"title\": \"Will the highest temperature in Tokyo be 33\\u00b0C on August 7?\", \"event\": \"highest-temperature-in-tokyo-on-august-7-2026\", \"outcome\": \"Yes\", \"price\": 0.38, \"size\": 76, \"usdc\": 28.88, \"cid\": \"0x7",
-      "mtime_utc": "2026-08-06T09:52:01Z",
-      "n_rows": 346,
-      "size_bytes": 294049
+      "last_excerpt": "{\"ts\": 1786011121.1595058, \"record\": \"ladder\", \"event\": \"highest-temperature-in-shanghai-on-august-8-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \" or below on August 8?\", \"bids\": [[0.001, 300.0]], \"asks\": [[0.004, 108.0], [0.005, 320.0], [0.006, 330.0]]}, {\"q\": \"i be 28\\u00b0C on August 8?\", \"bids\": [[0",
+      "mtime_utc": "2026-08-06T10:12:01Z",
+      "n_rows": 364,
+      "size_bytes": 310651
     },
     "hot/2026-08-06/count_lock.jsonl": {
       "first_excerpt": "",
@@ -303,17 +303,17 @@
     },
     "hot/2026-08-06/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1785974502.420573, \"cid\": \"0xec27c8acfd3e9b9afa4487ae2ef6eea2153268e14eed74798a697772ab12dfdd\", \"q\": \"Will the lowest temperature in Hong Kong be 26\\u00b0C on August 5?\", \"proxyWallet\": \"0x63b06f9561399353df1b399943cf27b27dab1428\", \"side\": \"SELL\", \"asset\": \"114372982783599317989917257272",
-      "last_excerpt": "{\"poll_ts\": 1786010209.179488, \"cid\": \"0x103c13ce0c89687e6bd9f0a5fea38ced93f053fedba9f2f6384078419cb658a9\", \"q\": \"Will the highest temperature in Helsinki be 18\\u00b0C on August 8?\", \"proxyWallet\": \"0xeb1d1cd1b31070fb34b1d1de20d700f59c9959b0\", \"side\": \"BUY\", \"asset\": \"1051386359716413571834100796314",
-      "mtime_utc": "2026-08-06T09:56:51Z",
-      "n_rows": 52812,
-      "size_bytes": 56640691
+      "last_excerpt": "{\"poll_ts\": 1786011108.5104513, \"cid\": \"0x73cc3071bae38dd7482b87cc04bf98e5ba40c0ccc294428abf563ab07c02a213\", \"q\": \"Will the highest temperature in Madrid be 44\\u00b0C or higher on August 8?\", \"proxyWallet\": \"0xfbd8c9c22ca76b3662d0e53a4f79719fdc684027\", \"side\": \"BUY\", \"asset\": \"7257833877372432121260",
+      "mtime_utc": "2026-08-06T10:11:51Z",
+      "n_rows": 53840,
+      "size_bytes": 57740468
     },
     "hot/2026-08-06/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-06T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-06\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 6?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.017, \"coverage_best\": {\"t\": 31, \"cost\": 2.09, \"n_legs\": 17, \"units_fillable\": 170.7, \"legs\":",
-      "last_excerpt": "ask\": 0.02}, {\"q\": \"erature in Shanghai be 36\\u00b0C on August 8?\", \"ask\": 0.007}, {\"q\": \" Shanghai be 37\\u00b0C or higher on August 8?\", \"ask\": 0.006}, {\"q\": \"n Shanghai be 22\\u00b0C or below on August 8?\", \"ask\": 0.02}, {\"q\": \"erature in Shanghai be 23\\u00b0C on August 8?\", \"ask\": 0.03}, {\"q\": \"er",
-      "mtime_utc": "2026-08-06T09:40:42Z",
-      "n_rows": 617,
-      "size_bytes": 2482856
+      "last_excerpt": "ask\": 0.02}, {\"q\": \"erature in Shanghai be 36\\u00b0C on August 8?\", \"ask\": 0.007}, {\"q\": \" Shanghai be 37\\u00b0C or higher on August 8?\", \"ask\": 0.006}, {\"q\": \"n Shanghai be 22\\u00b0C or below on August 8?\", \"ask\": 0.02}, {\"q\": \"erature in Shanghai be 23\\u00b0C on August 8?\", \"ask\": 0.02}, {\"q\": \"er",
+      "mtime_utc": "2026-08-06T10:00:46Z",
+      "n_rows": 639,
+      "size_bytes": 2561880
     },
     "updown_sniper/snap_20260730.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785369600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.38, \"b_px\": 63983.01, \"b_open\": 63984.29, \"move\": -2.0004910580406765e-05, \"sigma1s\": 3.772313383557742e-05, \"z\": -0.03064897650921291, \"p_up\": 0.4877747414353967, \"up\": {\"ask\": 0.49, \"ask_sz\": 486.73, \"b",
@@ -366,11 +366,11 @@
     },
     "updown_sniper/snap_20260806.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785974400\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.93, \"b_px\": 64665.23, \"b_open\": 64665.24, \"move\": -1.5464258684705356e-07, \"sigma1s\": 3.94965380806362e-05, \"z\": -0.00022608048692192287, \"p_up\": 0.4999098069357614, \"up\": {\"ask\": 0.5, \"ask_sz\": 126.96, \"",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786010100\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 123.47, \"b_px\": 64673.89, \"b_open\": 64693.62, \"move\": -0.0003049759775385352, \"sigma1s\": 1.7870269906121765e-05, \"z\": -1.5358922722811261, \"p_up\": 0.062282401877311155, \"up\": {\"ask\": 0.24, \"ask_sz\": 249.47, \"",
-      "mtime_utc": "2026-08-06T09:57:56Z",
-      "n_rows": 82144,
-      "size_bytes": 33105199
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786011000\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 105.24, \"b_px\": 0.06898, \"b_open\": 0.06898, \"move\": 0.0, \"sigma1s\": 0.00010648962969541158, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.7, \"ask_sz\": 29.98, \"bid\": 0.68, \"bid_sz\": 6.0}, \"down\": {\"ask\": 0.32, \"ask",
+      "mtime_utc": "2026-08-06T10:13:15Z",
+      "n_rows": 84294,
+      "size_bytes": 33980454
     }
   },
-  "snapshot_ts": "2026-08-06T09:57:56Z"
+  "snapshot_ts": "2026-08-06T10:13:16Z"
 }
