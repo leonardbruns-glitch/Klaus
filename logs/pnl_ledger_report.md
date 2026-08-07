@@ -1,1 +1,1 @@
-**STALL 2026-08-06T23:37Z — `system_status.txt`: `failed / unknown` (day 13 of failure, last active 2026-07-24T10:09:19Z); 18 consecutive zero-fill days; capital $88.750373 unchanged; data-mirror snapshot fresh (~0 min old); abort protocol — no ledger pipeline executed.**
+**STALL 2026-08-07T23:37Z — `system_status.txt`: `failed / unknown` (day 14 of failure, last active 2026-07-24T10:09:19Z); 19 consecutive zero-fill days; capital $88.750373 unchanged; data-mirror snapshot fresh (~5 min old); abort protocol — no ledger pipeline executed.**
