@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-08T00:01:28.371324+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"NATO x Russia military clash by December 31, 2026?\", \"condition_id\": \"0xf2bf04609e7458df56c9bb4b1e051286dea11da1c944bbc1dafbcc6b76904e52\", \"fav_token\": \"76326875711147697076353707331532227929486722415800396",
-      "mtime_utc": "2026-08-08T00:01:30Z",
-      "n_rows": 1150009,
-      "size_bytes": 709386546
+      "last_excerpt": "{\"ts\": \"2026-08-08T00:16:35.411033+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will 1 Fed rate cut happen in 2026?\", \"condition_id\": \"0x5e082f0b57f47a29044aa35b4c5658393122e659d5feae521c06b57cdd7f905c\", \"fav_token\": \"48058805012599375970268777474956242772204241523361869981040579395242",
+      "mtime_utc": "2026-08-08T00:16:37Z",
+      "n_rows": 1150161,
+      "size_bytes": 709479986
     },
     "hot/2026-07-28/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785196921.3033834, \"record\": \"fill_join\", \"fill_ts\": 1785196789, \"detect_lag_s\": 132.3, \"title\": \"Will the highest temperature in Wellington be 11\\u00b0C on July 2\", \"event\": \"highest-temperature-in-wellington-on-july-28-2026\", \"outcome\": \"Yes\", \"price\": 0.19, \"size\": 6.63, \"usdc\": 1.2597, \"",
@@ -317,10 +317,10 @@
     },
     "hot/2026-08-08/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1786147202.0535975, \"record\": \"fill_join\", \"fill_ts\": 1786147165, \"detect_lag_s\": 37.1, \"title\": \"Will the highest temperature in Madrid be 37\\u00b0C on August 9?\", \"event\": \"highest-temperature-in-madrid-on-august-9-2026\", \"outcome\": \"Yes\", \"price\": 0.48, \"size\": 5, \"usdc\": 2.4, \"cid\": \"0x3d",
-      "last_excerpt": "{\"ts\": 1786147321.3668787, \"record\": \"ladder\", \"event\": \"highest-temperature-in-busan-on-august-8-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \" or below on August 8?\", \"bids\": [], \"asks\": [[0.001, 11646.43], [0.002, 6305.96], [0.003, 2500.0]]}, {\"q\": \"n be 30\\u00b0C on August 8?\", \"bids\": [], \"asks\": [[",
-      "mtime_utc": "2026-08-08T00:02:01Z",
-      "n_rows": 3,
-      "size_bytes": 3014
+      "last_excerpt": "{\"ts\": 1786148161.1243637, \"record\": \"ladder\", \"event\": \"highest-temperature-in-munich-on-august-8-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \" or below on August 8?\", \"bids\": [], \"asks\": [[0.001, 179.17], [0.003, 20.0], [0.005, 587.0]]}, {\"q\": \"h be 26\\u00b0C on August 8?\", \"bids\": [], \"asks\": [[0.001",
+      "mtime_utc": "2026-08-08T00:16:01Z",
+      "n_rows": 8,
+      "size_bytes": 7566
     },
     "hot/2026-08-08/count_lock.jsonl": {
       "first_excerpt": "",
@@ -330,11 +330,11 @@
       "size_bytes": 0
     },
     "hot/2026-08-08/maker_flow.jsonl": {
-      "first_excerpt": "",
-      "last_excerpt": "",
-      "mtime_utc": "2026-08-08T00:02:28Z",
-      "n_rows": 0,
-      "size_bytes": 0
+      "first_excerpt": "{\"poll_ts\": 1786147361.2147906, \"cid\": \"0x2dd1a52793353c2265c78251307ea7d8bbfb314fe8cba543b9255578e80edc53\", \"q\": \"Will the highest temperature in Chicago be between 88-89\\u00b0F on August 7?\", \"proxyWallet\": \"0x3f0b450ec6b45633f60c16bbaabed9fdbd1ad571\", \"side\": \"SELL\", \"asset\": \"7890723056819308956",
+      "last_excerpt": "{\"poll_ts\": 1786148119.5597782, \"cid\": \"0x34d0610bc11bd78a62a5cacd4d42b2830af7aae9ef0c0bf8408067ac7fbe4f91\", \"q\": \"Will the lowest temperature in Hong Kong be 31\\u00b0C on August 9?\", \"proxyWallet\": \"0xe2d64279870666536ddd7d830e0bac5c474511ad\", \"side\": \"BUY\", \"asset\": \"439088347035739687624126151952",
+      "mtime_utc": "2026-08-08T00:15:22Z",
+      "n_rows": 1398,
+      "size_bytes": 1512410
     },
     "hot/2026-08-08/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-08T00:00:02+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-08\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 8?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.03, \"coverage_best\": {\"t\": 32, \"cost\": 2.076, \"n_legs\": 20, \"units_fillable\": 87.2, \"legs\": ",
@@ -394,11 +394,11 @@
     },
     "updown_sniper/snap_20260808.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"eth-updown-15m-1786146300\", \"asset\": \"eth\", \"step\": 900, \"t_left\": 0.04, \"b_px\": 1914.18, \"b_open\": 1915.76, \"move\": -0.0008247379630016427, \"sigma1s\": 1.9645487149562272e-05, \"z\": -59.37015477403781, \"p_up\": 0.0, \"up\": {\"ask\": 0.001, \"ask_sz\": 1397.35, \"bid\": null, \"bid_sz",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786147200\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 146.56, \"b_px\": 64907.96, \"b_open\": 64923.19, \"move\": -0.00023458489947891792, \"sigma1s\": 6.119033668657494e-06, \"z\": -3.1666806800282403, \"p_up\": 0.0007709476362096623, \"up\": {\"ask\": 0.1, \"ask_sz\": 440.48, \"",
-      "mtime_utc": "2026-08-08T00:02:33Z",
-      "n_rows": 88,
-      "size_bytes": 36018
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786148100\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 146.64, \"b_px\": 64867.7, \"b_open\": 64901.01, \"move\": -0.0005132431683266825, \"sigma1s\": 2.3023918629762004e-05, \"z\": -1.8408776151813482, \"p_up\": 0.03281974772176122, \"up\": {\"ask\": 0.08, \"ask_sz\": 200.76, \"bi",
+      "mtime_utc": "2026-08-08T00:17:33Z",
+      "n_rows": 2137,
+      "size_bytes": 873994
     }
   },
-  "snapshot_ts": "2026-08-08T00:02:33Z"
+  "snapshot_ts": "2026-08-08T00:17:33Z"
 }
