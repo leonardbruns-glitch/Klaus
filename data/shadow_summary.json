@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-09T00:50:17.069678+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will Utah Jazz win the 2027 NBA Finals?\", \"condition_id\": \"0x161f014d5eb25c2c233cdddd4ca6a82ce92b8ddebe520943e2a410d6fc3d8e7c\", \"fav_token\": \"6655664100827533393758872960649950445170263807045628326832655330",
-      "mtime_utc": "2026-08-09T00:50:19Z",
-      "n_rows": 1165671,
-      "size_bytes": 719060589
+      "last_excerpt": "{\"ts\": \"2026-08-09T01:05:24.666102+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Will Coritiba FBC win on 2026-08-08?\", \"condition_id\": \"0xa577f10d751cfdb75c2752f4db87a890d47b62b907fe53c98448871ef1d14f1c\", \"fav_token\": \"107482127238536278748490971606339497354450419316994630357407907557",
+      "mtime_utc": "2026-08-09T01:05:27Z",
+      "n_rows": 1165832,
+      "size_bytes": 719159978
     },
     "hot/2026-07-29/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785283561.4281595, \"record\": \"fill_join\", \"fill_ts\": 1785283442, \"detect_lag_s\": 119.4, \"title\": \"Will the highest temperature in Munich be 36\\u00b0C on July 30?\", \"event\": \"highest-temperature-in-munich-on-july-30-2026\", \"outcome\": \"Yes\", \"price\": 0.3900000141, \"size\": 2.836064, \"usdc\": 1.1",
@@ -317,31 +317,31 @@
     },
     "hot/2026-08-09/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1786233601.4374738, \"record\": \"fill_join\", \"fill_ts\": 1786233459, \"detect_lag_s\": 142.4, \"title\": \"Will the highest temperature in Paris be 32\\u00b0C on August 9?\", \"event\": \"highest-temperature-in-paris-on-august-9-2026\", \"outcome\": \"Yes\", \"price\": 0.16, \"size\": 5, \"usdc\": 0.8, \"cid\": \"0x140",
-      "last_excerpt": "{\"ts\": 1786236481.807705, \"record\": \"ladder\", \"event\": \"highest-temperature-in-beijing-on-august-10-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"or below on August 10?\", \"bids\": [[0.001, 1053.04]], \"asks\": [[0.002, 883.16], [0.005, 300.0], [0.01, 54.2]]}, {\"q\": \" be 29\\u00b0C on August 10?\", \"bids\": [[0",
-      "mtime_utc": "2026-08-09T00:48:02Z",
-      "n_rows": 63,
-      "size_bytes": 57320
+      "last_excerpt": "{\"ts\": 1786237561.9473963, \"record\": \"ladder\", \"event\": \"highest-temperature-in-seattle-on-august-9-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \" or below on August 9?\", \"bids\": [[0.002, 771.93], [0.001, 1592.92]], \"asks\": [[0.006, 73.0], [0.007, 300.0], [0.008, 5.0]]}, {\"q\": \"n 72-73\\u00b0F on August 9",
+      "mtime_utc": "2026-08-09T01:06:02Z",
+      "n_rows": 74,
+      "size_bytes": 67194
     },
     "hot/2026-08-09/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-09T00:00:01.437687+00:00\", \"question\": \"Will there be 6 or fewer earthquakes of magnitude 5.5 or higher worldwide from August 3 - August 9?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-08-03T00:00:00-04:00\", \"c",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-09T00:50:01.430613+00:00\", \"question\": \"Will there be 6 or fewer earthquakes of magnitude 5.5 or higher worldwide from August 3 - August 9?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-08-03T00:00:00-04:00\", \"c",
-      "mtime_utc": "2026-08-09T00:50:48Z",
-      "n_rows": 11,
-      "size_bytes": 7853
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-09T01:05:01.257090+00:00\", \"question\": \"Will there be 6 or fewer earthquakes of magnitude 5.5 or higher worldwide from August 3 - August 9?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-08-03T00:00:00-04:00\", \"c",
+      "mtime_utc": "2026-08-09T01:05:49Z",
+      "n_rows": 14,
+      "size_bytes": 9995
     },
     "hot/2026-08-09/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1786233788.2133956, \"cid\": \"0x2dddb63bd23b3c99cd998737423b7bbfdbd0bd818690d1f3a374d7fc97752317\", \"q\": \"Will the highest temperature in Seattle be between 86-87\\u00b0F on August 8?\", \"proxyWallet\": \"0xb0c85813a7a4428f1139ff91d3118a92c391fe7f\", \"side\": \"BUY\", \"asset\": \"24634356841393270581",
-      "last_excerpt": "{\"poll_ts\": 1786236718.5720391, \"cid\": \"0x7f008a4de83fa66d04a03e4175e5fab9841a9d54240a2092aceec91f16e6b25b\", \"q\": \"Will the highest temperature in Karachi be 37\\u00b0C or higher on August 10?\", \"proxyWallet\": \"0x56b1e8a859534c09ab676ba48e59bf5ca1512087\", \"side\": \"BUY\", \"asset\": \"21857906094743054449",
-      "mtime_utc": "2026-08-09T00:51:58Z",
-      "n_rows": 4843,
-      "size_bytes": 5206132
+      "last_excerpt": "{\"poll_ts\": 1786237612.1984227, \"cid\": \"0x7f008a4de83fa66d04a03e4175e5fab9841a9d54240a2092aceec91f16e6b25b\", \"q\": \"Will the highest temperature in Karachi be 37\\u00b0C or higher on August 10?\", \"proxyWallet\": \"0x168ccb6780cb215c558b38fa5087733c915c5495\", \"side\": \"BUY\", \"asset\": \"21857906094743054449",
+      "mtime_utc": "2026-08-09T01:06:53Z",
+      "n_rows": 5706,
+      "size_bytes": 6140503
     },
     "hot/2026-08-09/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-09T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-08\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 8?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": null, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": true}",
-      "last_excerpt": "{\"ts\": \"2026-08-09T00:40:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-07\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 7?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.009, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": true}",
-      "mtime_utc": "2026-08-09T00:40:36Z",
-      "n_rows": 54,
-      "size_bytes": 211881
+      "last_excerpt": "{\"ts\": \"2026-08-09T01:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-07\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 7?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.009, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": true}",
+      "mtime_utc": "2026-08-09T01:00:43Z",
+      "n_rows": 72,
+      "size_bytes": 282663
     },
     "updown_sniper/snap_20260802.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-15m-1785627900\", \"asset\": \"btc\", \"step\": 900, \"t_left\": 0.01, \"b_px\": 62823.64, \"b_open\": 62835.14, \"move\": -0.0001830186102871334, \"sigma1s\": 1.5084898266057218e-05, \"z\": -17.158047490259314, \"p_up\": 0.0, \"up\": {\"ask\": 0.01, \"ask_sz\": 1388.54, \"bid\": null, \"bid_",
@@ -394,11 +394,11 @@
     },
     "updown_sniper/snap_20260809.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786233600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.19, \"b_px\": 64962.59, \"b_open\": 64962.6, \"move\": -1.5393472552194254e-07, \"sigma1s\": 9.323263506156394e-06, \"z\": -0.0009545483527983292, \"p_up\": 0.4996191903612111, \"up\": {\"ask\": 0.57, \"ask_sz\": 46.51, \"b",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786236600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 155.4, \"b_px\": 64966.49, \"b_open\": 64966.48, \"move\": 1.5392553187609792e-07, \"sigma1s\": 9.515216162866674e-06, \"z\": 0.0012976571131629846, \"p_up\": 0.5005176901426134, \"up\": {\"ask\": 0.36, \"ask_sz\": 10.0, \"bid\"",
-      "mtime_utc": "2026-08-09T00:52:24Z",
-      "n_rows": 6841,
-      "size_bytes": 2782101
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786237500\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 147.61, \"b_px\": 64986.12, \"b_open\": 64995.62, \"move\": -0.0001461636953382639, \"sigma1s\": 9.49474460146347e-06, \"z\": -1.2670783109438013, \"p_up\": 0.10256364498221293, \"up\": {\"ask\": 0.24, \"ask_sz\": 89.3, \"bid\":",
+      "mtime_utc": "2026-08-09T01:07:32Z",
+      "n_rows": 8953,
+      "size_bytes": 3645003
     }
   },
-  "snapshot_ts": "2026-08-09T00:52:25Z"
+  "snapshot_ts": "2026-08-09T01:07:33Z"
 }
