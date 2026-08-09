@@ -1,1 +1,63 @@
-IyBHYXRlLUtlZXBlciBSZXBvcnQg4oCUIDIwMjYtMDgtMDgKCioq4pqgIFNUQUxMLTE5OiBBQk9SVCDigJQgc3lzdGVtZCBmYWlsZWQgKGRheSAxNiBwZXIgY2FsaWItbW9uaXRvci9leGVjLWF1ZGl0KTsgYWxsIGdhdGUgc2hhZG93IGZpbGVzIGNvbmZpcm1lZCBhYnNlbnQgZnJvbSBzaGFkb3dfc3VtbWFyeS5qc29uOyBuIGZyb3plbiBhY3Jvc3MgYWxsIDcgZ2F0ZXMuIE5vIHRyYW5zaXRpb25zIGZyb20gcHJpb3IgcnVuLioqCgotLS0KCiMjIEdhdGUgTGVkZ2VyCgp8IEdhdGUgfCBuIHwgKzI0aCB8IFdSIHwgUk9JIHwgQ0k5NSB8IFN0YXR1cyB8IEVUQSB8CnwtLS18LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfAp8IEcxIEJBTkRfWUVTIChkYXlzX291dMOXb2Zmc2V0w5diYW5kIHNsaWNlKSB8IGZyb3plbiB8IDAgfCDigJQgfCDigJQgfCDigJQgfCBDT0xMRUNUSU5HIHwg4oieIHwKfCBHMiBCQU5EX05PICsgUEFJUl9GQVYgfCBmcm96ZW4gfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniB8CnwgRzMgRklMTEVELXZzLUZJUkVEIGRpdmVyZ2VuY2UgfCBmcm96ZW4gfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniB8CnwgRzQgQkFTS0VUIEVYSVQgKGNhc2gtZ3JlZW4gYmFza2V0cykgfCBmcm96ZW4gfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniB8CnwgRzUgVEhFUk1PIHVwcGVyLXRhaWwgbWFrZXItTk8gfCBmcm96ZW4gfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniB8CnwgRzYgTTEtYmV0YSBsb2Nrb3V0IHNsaWNlcyB8IGZyb3plbiB8IDAgfCDigJQgfCDigJQgfCDigJQgfCBDT0xMRUNUSU5HIHwg4oieIHwKfCBHNyBTVU0tUE9TVEVEIDAuNzAtMC44NSBzbGljZSB8IGZyb3plbiB8IDAgfCDigJQgfCDigJQgfCDigJQgfCBDT0xMRUNUSU5HIHwg4oieIHwKCisyNGg9MCBjb25maXJtZWQgdmlhIHNoYWRvd19zdW1tYXJ5Lmpzb246IGJhbmRfc3RydWN0LCBleGl0MDk5X2xpdmUsIGJhc2tldF9leGl0X3NoYWRvdywgdGhlcm1vX21ha2VyLCBtZXRhcl9sb2Nrb3V0IGFic2VudCBlbnRpcmVseSDigJQgbm8gYWNjdW11bGF0aW9uIHBvc3NpYmxlIHdpdGggc3lzdGVtIGZhaWxlZC4KCi0tLQoKIyMgRGF0YSBTb3VyY2UgQXVkaXQgKDIwMjYtMDgtMDggfjA5OjE5IFVUQywgdmlhIE1DUCByZWFkcyBvZiBkYXRhLW1pcnJvcikKCnwgRmlsZSB8IExhc3QgQWN0aXZlIHwgQWdlIHwgR2F0ZShzKSB8CnwtLS18LS0tfC0tLXwtLS18CnwgZGF0YS9TTkFQU0hPVC5tZCB8IDIwMjYtMDgtMDhUMDk6MDdaIHwgNyBtaW4g4oCUIEZSRVNIIHwgYWJvcnQtY2hlY2sgfAp8IGRhdGEvc3lzdGVtX3N0YXR1cy50eHQgfCAyMDI2LTA4LTA4VDA4OjE0WiAoY29tbWl0KSB8IH4xaCB8IGFib3J0LWNoZWNrIOKGkiAqKkFCT1JUKiogKHN5c3RlbWQ6IGZhaWxlZC91bmtub3duKSB8CnwgZGF0YS90cmFkZXMuanNvbmwgfCAyMDI2LTA3LTE5ICg4MjI4IHJvd3MsIHVuY2hhbmdlZCkgfCAyMCBkYXlzIHwgRzMgfAp8IGRhdGEvYmFua3JvbGwuanNvbiB8ICQ4OC43NSAodW5jaGFuZ2VkKSB8IHN0YWJsZSB8IGNvbnRleHQgfAp8IHNoYWRvdy9iYW5kX3N0cnVjdC5qc29ubCB8IDIwMjYtMDctMjVUMDA6MTJaIHwgKioxNCBkYXlzKiogfCBHMSwgRzIsIEc3IHwKfCBzaGFkb3cvYmFuZF9zdHJ1Y3RfbGl0ZS5qc29ubCB8ICoqTkVWRVIgRVhJU1RFRCoqIHwg4oCUIHwgRzEsIEcyIGNhbm9uaWNhbCB2YWxpZGF0b3IgfAp8IHNoYWRvdy9leGl0MDk5X2xpdmUuanNvbmwgfCAyMDI2LTA3LTA3VDAwOjEwWiB8ICoqMzIgZGF5cyoqIHwgRzEsIEcyIChyZXNvbHV0aW9uIGpvaW4pIHwKfCBzaGFkb3cvYmFza2V0X2V4aXRfc2hhZG93Lmpzb25sIHwgMjAyNi0wNy0wN1QwMDoxMFogfCAqKjMyIGRheXMqKiB8IEc0IHwKfCBzaGFkb3cvdGhlcm1vX21ha2VyLmpzb25sIHwgMjAyNi0wNy0yNVQwMDoxMlogfCAqKjE0IGRheXMqKiB8IEc1IHwKfCBzaGFkb3cvbWV0YXJfbG9ja291dC5qc29ubCB8IDIwMjYtMDctMjVUMDA6MTJaIHwgKioxNCBkYXlzKiogfCBHNiB8CgoqKkNvbmZpcm1lZCB2aWEgc2hhZG93X3N1bW1hcnkuanNvbiAocmVhZCBkaXJlY3RseSBmcm9tIGRhdGEtbWlycm9yKSoqOiBnYXRlLXJlbGV2YW50IGZpbGVzIG5vdCBwcmVzZW50IGluIGFueSBhY3RpdmUgbG9nZ2VyLiBBY3RpdmUgbG9nZ2VycyAobm9uLWdhdGUpOiBmbGJfc2NyZWVuZXIgKGxpdmUpLCBiYWRhdG1hdGhfd2F0Y2ggKGxpdmUsIDIwMjYtMDgtMDhUMDk6MDZaKSwgbWFrZXJfZmxvdyAobGl2ZSksIG1pbm1heF9jb2hlcmVuY2UgKGxpdmUpLCB1cGRvd25fc25pcGVyL3NuYXBfMjAyNjA4MDggKGxpdmUsIGxhc3QgZW50cnkgMjAyNi0wOC0wOFQwOTowN1opLiBUaGVzZSBjb25maXJtIHBhcnRpYWwgc3lzdGVtIG9wZXJhdGlvbiDigJQgdGhlIGRhdGEtbWlycm9yIHRpbWVyIGFuZCBzZXZlcmFsIGJhY2tncm91bmQgbW9uaXRvcnMgYXJlIGFsaXZlLCBidXQgdGhlIGNvcmUgYmFuZC93ZWF0aGVyIHN0cmF0ZWd5IHNlcnZpY2UgcHJvZHVjaW5nIGJhbmRfc3RydWN0L3RoZXJtb19tYWtlci9tZXRhcl9sb2Nrb3V0IHNoYWRvdyBkYXRhIGlzIGZhaWxlZC4KCioqQkFORF9MSVZFPUZhbHNlLCBCQU5EX05PX0VOQUJMRUQ9RmFsc2UqKiAoZnJvbSBiYW5kX2NvbmZpZy50eHQpOiBldmVuIGlmIHNlcnZpY2Ugd2VyZSBydW5uaW5nLCBubyBiYW5kIGZpcmVzIHdvdWxkIG9jY3VyLiBHYXRlIGFjY3VtdWxhdGlvbiByZXF1aXJlcyBzeXN0ZW0gcmVzdGFydCArIHJlLWVuYWJsZSBvZiBiYW5kIHBhdGhzLgoKLS0tCgojIyBTdGF0ZSBUcmFuc2l0aW9ucyB2cyBQcmlvciAoMjAyNi0wOC0wNykKCk5vIHRyYW5zaXRpb25zLiBBbGwgNyBnYXRlcyByZW1haW4gQ09MTEVDVElORyB3aXRoIG49bnVsbC4gU1RBTEwgY291bnRlcjogMTgg4oaSICoqMTkqKi4KCioqQ29udGV4dHVhbCBzaWduYWxzIGZyb20gY28tcnVubmluZyBtb25pdG9ycyAodG9kYXkncyBjb21taXRzKToqKgotIENhbGliIG1vbml0b3IgMjAyNi0wOC0wODogImJyaWVyNz1jYXJyaWVkIGRpc3BfcmF0aW89MC43ODEgU1RBTEwgKHN5c3RlbWQtZmFpbGVkIGRheTE2KSIKLSBFeGVjIGF1ZGl0IDIwMjYtMDgtMDg6ICJTVEFMTDogZmlsbHM9Ti9BIE5PLXNoYXJlPU4vQSAoc3lzdGVtZCBmYWlsZWQgZGF5IDE1KSIKLSBQbkwgbGVkZ2VyOiAkMC4wMCBmb3IgMjAgY29uc2VjdXRpdmUgZGF5cyAobGFzdCB0cmFkZSAyMDI2LTA3LTE5KQotIEJhbmtyb2xsOiAkODguNzUgKHVuY2hhbmdlZCwgbXVsdGlwbGUgcmVzZWFyY2ggYXVkaXRzIGZsYWcgdGhpcyA8IHJ1aW5fZmxvb3IpCgotLS0KCiMjIFBST1BPU0VEIEFDVElPTlMgKGh1bWFuIHJldmlldykKCioqTm8gZ2F0ZSByZWFjaGVkIFJFQURZIG9yIFJFSkVDVEVEIOKAlCBubyBwYXJhbSBjaGFuZ2VzIHByb3Bvc2VkLioqCgpHYXRlIEVUQXMgYXJlIGFsbCDiiJ4gd2hpbGUgc3lzdGVtIHJlbWFpbnMgZmFpbGVkIGFuZCBCQU5EX0xJVkU9RmFsc2UuIE93bmVyIGFjdGlvbiByZXF1aXJlZCBiZWZvcmUgYW55IGdhdGUgY2FuIGFjY3VtdWxhdGU6CgoxLiAqKlNTSCB0byBWUFMqKiDihpIgYHN1ZG8gc3lzdGVtY3RsIHN0YXJ0IHN0d2FfZW5naW5lYCAob3IgZXF1aXZhbGVudCkg4oCUIGNvbmZpcm0gdGhlIGJhbmQvd2VhdGhlciBzdHJhdGVneSBlbmdpbmUgcmVzdGFydHMKMi4gKipDYXBpdGFsIGNoZWNrKio6IHJlc2VhcmNoIGF1ZGl0IGZsYWdnZWQgJDg4Ljc1IDwgcnVpbl9mbG9vciDigJQgdmVyaWZ5IGR5bmFtaWMgZmxvb3Igb3IgaW5qZWN0IGNhcGl0YWwgYmVmb3JlIGVuYWJsaW5nIHRyYWRpbmcKMy4gKipSZS1lbmFibGUgYmFuZCBwYXRocyoqOiBCQU5EX0xJVkU9RmFsc2UsIEJBTkRfTk9fRU5BQkxFRD1GYWxzZSBtdXN0IGJlIHNldCBUcnVlIChvd25lciBkZWNpc2lvbiBnYXRlKSBiZWZvcmUgRzEvRzIvRzQvRzUvRzYvRzcgY2FuIGFjY3VtdWxhdGU7IHRoaXMgaXMgYSBodW1hbiBkZWNpc2lvbiwgbm90IGEgZmxhZyBjaGFuZ2UgdG8gcHJvcG9zZQo0LiAqKlN0cnVjdHVyYWwgZml4IChwZXJzaXN0ZW50IGJsb2NrZXIpKio6IFBvcHVsYXRlIGBkYXRhL3NoYWRvdy9ZWVlZLU1NLUREL2JhbmRfc3RydWN0X2xpdGUuanNvbmxgIGluIGRhdGEtbWlycm9yIHNvIGNhbm9uaWNhbCB2YWxpZGF0b3IgYGFuYWx5c2lzL3dlYXRoZXIvYmFuZF9yZXNvbHV0aW9uX2pvaW4ucHlgIGNhbiBydW4uIGJhbmRfc3RydWN0X2xpdGUgaGFzIG5ldmVyIGV4aXN0ZWQgaW4gdGhpcyBicmFuY2guCgotLS0KCipSdW46IDIwMjYtMDgtMDhUMDk6MTlaIHwgUHJpb3I6IDIwMjYtMDgtMDcgcmVhZHk9MCByZWplY3RlZD0wIGNvbGxlY3Rpbmc9NyBTVEFMTC0xOCB8IFRoaXM6IFNUQUxMLTE5Kgo=
+# Gate-Keeper Report — 2026-08-09
+
+**⚠ STALL-20: ABORT — systemd failed (day 16 per calib-monitor/exec-audit); all gate shadow files confirmed absent from shadow_summary.json; n frozen across all 7 gates. No transitions from prior run.**
+
+---
+
+## Gate Ledger
+
+| Gate | n | +24h | WR | ROI | CI95 | Status | ETA |
+|---|---|---|---|---|---|---|---|
+| G1 BAND_YES (days_out×offset×band slice) | frozen | 0 | — | — | — | COLLECTING | ∞ |
+| G2 BAND_NO + PAIR_FAV | frozen | 0 | — | — | — | COLLECTING | ∞ |
+| G3 FILLED-vs-FIRED divergence | frozen | 0 | — | — | — | COLLECTING | ∞ |
+| G4 BASKET EXIT (cash-green baskets) | frozen | 0 | — | — | — | COLLECTING | ∞ |
+| G5 THERMO upper-tail maker-NO | frozen | 0 | — | — | — | COLLECTING | ∞ |
+| G6 M1-beta lockout slices | frozen | 0 | — | — | — | COLLECTING | ∞ |
+| G7 SUM-POSTED 0.70-0.85 slice | frozen | 0 | — | — | — | COLLECTING | ∞ |
+
++24h=0 confirmed via shadow_summary.json: band_struct, exit099_live, basket_exit_shadow, thermo_maker, metar_lockout absent entirely — no accumulation possible with system failed.
+
+---
+
+## Data Source Audit (2026-08-09 ~09:14 UTC, via MCP reads of data-mirror)
+
+| File | Last Active | Age | Gate(s) |
+|---|---|---|---|
+| data/SNAPSHOT.md | 2026-08-09T08:59Z | 14 min — FRESH | abort-check |
+| data/system_status.txt | 2026-08-09 (latest) | current | abort-check → **ABORT** (systemd: failed/unknown) |
+| data/trades.jsonl | 2026-07-19 (8228 rows, unchanged) | **21 days** | G3 |
+| data/bankroll.json | $88.75 (unchanged) | stable | context |
+| shadow/band_struct.jsonl | 2026-07-25T00:12Z | **15 days** | G1, G2, G7 |
+| shadow/band_struct_lite.jsonl | **NEVER EXISTED** | — | G1, G2 canonical validator |
+| shadow/exit099_live.jsonl | 2026-07-07T00:10Z | **33 days** | G1, G2 (resolution join) |
+| shadow/basket_exit_shadow.jsonl | 2026-07-07T00:10Z | **33 days** | G4 |
+| shadow/thermo_maker.jsonl | 2026-07-25T00:12Z | **15 days** | G5 |
+| shadow/metar_lockout.jsonl | 2026-07-25T00:12Z | **15 days** | G6 |
+
+**Confirmed via shadow_summary.json (read directly from data-mirror)**: gate-relevant files not present in any active logger. Active loggers (non-gate): flb_screener (live, 09:10 UTC today), badatmath_watch (live, hot/2026-08-09, 09:10 UTC), maker_flow (live), updown_sniper/snap_20260809 (live, 09:14 UTC), minmax_coherence (live), count_lock (live). These confirm partial system operation — the data-mirror timer and several background monitors are alive, but the core band/weather strategy service producing band_struct/thermo_maker/metar_lockout shadow data is failed.
+
+**BAND_LIVE=False, BAND_NO_ENABLED=False** (from band_config.txt): even if service were running, no band fires would occur. Gate accumulation requires system restart + re-enable of band paths.
+
+---
+
+## State Transitions vs Prior (2026-08-08)
+
+No transitions. All 7 gates remain COLLECTING with n=null. STALL counter: 19 → **20**.
+
+---
+
+## PROPOSED ACTIONS (human review)
+
+**No gate reached READY or REJECTED — no param changes proposed.**
+
+Gate ETAs are all ∞ while system remains failed and BAND_LIVE=False. Owner action required before any gate can accumulate:
+
+1. **SSH to VPS** → `sudo systemctl start stwa_engine` (or equivalent) — confirm the band/weather strategy engine restarts
+2. **Capital check**: bankroll $88.75 — verify dynamic floor or inject capital before enabling trading
+3. **Re-enable band paths**: BAND_LIVE=False, BAND_NO_ENABLED=False must be set True (owner decision gate) before G1/G2/G4/G5/G6/G7 can accumulate; this is a human decision, not a flag change to propose
+4. **Structural fix (persistent blocker)**: Populate `data/shadow/YYYY-MM-DD/band_struct_lite.jsonl` in data-mirror so canonical validator `analysis/weather/band_resolution_join.py` can run. band_struct_lite has never existed in this branch.
+
+---
+
+*Run: 2026-08-09T09:14Z | Prior: 2026-08-08 ready=0 rejected=0 collecting=7 STALL-19 | This: STALL-20*
