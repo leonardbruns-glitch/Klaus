@@ -1,34 +1,20 @@
-# Calib Monitor Report — 2026-08-08T08:15:00Z
+# Klaus Calibration & Dispersion Monitor — 2026-08-09T08:16:02Z
 
-**STALL — ABORT: `system_status.txt` shows `failed/unknown` — not 'active'. Systemd down day 16 (since 2026-07-24).**
+**STATUS: STALLED — ABORT CONDITION MET**
 
-No new pricer_eval_s50 data. Snapshot is fresh (2026-08-08T08:06:46Z). System timer running, main service dead.
+`system_status.txt` absent from `data-mirror` branch; `data/SNAPSHOT.md` absent; no shadow pricer logs found. Cannot verify `klaus systemd: active`. All five pipeline sections require data that does not exist in the repository. No calibration or dispersion metrics can be computed this run.
 
----
+## What was checked
+- `data-mirror` branch root: no `SNAPSHOT.md`, `system_status.txt`, `band_config.txt`, `shadow_summary.json`, `trades.jsonl`, or `state_log.md` present
+- `data/shadow/` directory: does not exist
+- `logs/` directory on `claude/find-lag-parameter-rFQ0N`: does not exist (first run)
+- Both `data-mirror` (SHA `6f2db14`) and `claude/find-lag-parameter-rFQ0N` resolve to the same underlying tree as `claude/momentum-scalper-bot-zcncG` — the data-mirror branch appears to contain only source code, not live VPS data exports
 
-## Carried Metrics (last computed 2026-07-26)
+## Action required
+The VPS data-push pipeline is not writing to the `data-mirror` branch. The monitor cannot run until the following files are present:
+- `data/SNAPSHOT.md` (with timestamp <6h old)
+- `data/system_status.txt` (must contain `klaus systemd: active`)
+- `data/shadow/<date>/stwa_pricer_eval_s50.jsonl`
+- `data/shadow/<date>/band_struct_lite.jsonl`
 
-| Metric | Value | Status |
-|---|---|---|
-| brier7 | 0.055 | carried, 13d stale |
-| ece7 | ~0 | carried, 13d stale |
-| disp_ratio7 | **0.781** | **ALERT: < 1.10 threshold — ACTIVE 13d** |
-| stall_days | 16 | since 2026-07-24 |
-
-**The dispersion edge is decaying.** Last ratio 0.781 means implied width is only 78% of realized — the band premium was already inverted when last measurable. It has not been reassessable for 13 days. The edge-decay alarm remains active.
-
-Pipeline stages 1–3 (Brier/ECE/rho, proxy lane, dispersion gauge) all require pricer_eval_s50 rows. None exist. Skipped.
-
-Isotonic staleness unchanged from prior report: deployed curve 63 days old, candidate (2026-07-23) has material +0.055/+0.168 tail divergence, promotion blocked while service is down.
-
-## Transitions vs 2026-08-07
-
-No changes. stall_days incremented 15 → 16. All three alerts active and unchanged.
-
-## ALERTS
-
-**STALL** (day 16): `failed/unknown` since 2026-07-24. Stages 1–3 cannot run.
-
-**S3_CARRIED — DISPERSION RATIO BELOW THRESHOLD**: disp_ratio7=0.781 < 1.10. Edge decay alarm active since 2026-07-26, unrefreshable.
-
-**ISOTONIC_STALE**: Deployed isotonic 63d old. Candidate 15d old, material tail divergence. Promotion blocked.
+No metrics reported. No alerts fired (no data). Recommend investigating the VPS cron that pushes data to `data-mirror`.
