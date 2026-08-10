@@ -1,12 +1,19 @@
 {
-  "date": "2026-08-09",
-  "run_ts": "2026-08-09T08:16:02Z",
+  "date": "2026-08-10",
+  "run_ts": "2026-08-10T08:17:16Z",
   "status": "STALLED",
-  "abort_reason": "system_status.txt missing from data-mirror branch; SNAPSHOT.md missing",
+  "abort_reason": "systemd: failed/unknown (day 17); last active 2026-07-24",
   "brier7": null,
   "ece7": null,
   "rho7": null,
   "disp_ratio7": null,
-  "alerts": [],
-  "prior_state": null
+  "prior_brier7": 0.055,
+  "prior_ece7": 0.0,
+  "prior_disp_ratio7": 0.781,
+  "prior_date": "2026-07-26",
+  "alerts": [
+    "STALL: systemd failed day 17 — no metrics computable",
+    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 15+ consecutive runs)"
+  ],
+  "note": "data-mirror now working (unlike 2026-08-09 run). Isotonic candidate delta last seen 2026-08-06: +0.055 at grid[0.95], +0.168 at grid[1.0]. disp_ratio carried at 0.781; alert unresolved."
 }
