@@ -1,1 +1,40 @@
-IyBHYXRlLUtlZXBlciBSZXBvcnQg4oCUIDIwMjYtMDgtMTBUMDk6MTdaCgoqKlNUQUxMICMyMSDigJQgQUJPUlQ6IGBzeXN0ZW1kOiBmYWlsZWQvdW5rbm93bmAgKGRheSAxNyBzaW5jZSAyMDI2LTA3LTI0IHNodXRkb3duKS4gU2VydmljZSBzdGF0dXMgaXMgbm90IGBhY3RpdmVgLioqCgpTbmFwc2hvdDogYDIwMjYtMDgtMTBUMDk6MTc6MzNaYCAoZnJlc2gsIE5PVCA+IDZoIG9sZCkuIEFib3J0IHRyaWdnZXJlZCBieSBzZXJ2aWNlLXN0YXR1cyBjaGVjayBvbmx5LgpCYW5rcm9sbDogJDg4Ljc1MDM3MyAodW5jaGFuZ2VkKS4gQWxsIHRyYWRpbmcgcGF0aHMgZGlzYWJsZWQ6IGBCQU5EX0xJVkU9RmFsc2VgLCBgQkFORF9OT19FTkFCTEVEPUZhbHNlYCwgYFNUV0FfUkVHVUxBUl9ZRVNfRU5BQkxFRD1GYWxzZWAsIGBTVFdBX1JFR1VMQVJfTk9fRU5BQkxFRD1GYWxzZWAuCgotLS0KCiMjIEdhdGUgTGVkZ2VyCgp8IGdhdGUgfCBuIHwgKzI0aCB8IFdSIHwgUk9JIHwgQ0k5NSB8IHN0YXR1cyB8IEVUQSB8CnwtLS18LS0tfC0tLXwtLS18LS0tfC0tLXwtLS18LS0tfAp8IEcxIEJBTkRfWUVTIHBlciBzbGljZSAoZDAvMS8yIMOXIG9mZiAwLzEvMiDDlyBwcmljZSBiYW5kKSB8IG51bGwgfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniAoYmFuZF9zdHJ1Y3QgZGFyayAxNmQ7IGJhbmRfc3RydWN0X2xpdGUgbmV2ZXIgZXhpc3RlZCkgfAp8IEcyIEJBTkRfTk8gKyBQQUlSX0ZBViBsZWdzIHwgbnVsbCB8IDAgfCDigJQgfCDigJQgfCDigJQgfCBDT0xMRUNUSU5HIHwg4oieIChiYW5kX3N0cnVjdCBkYXJrIDE2ZDsgZXhpdDA5OV9saXZlIGRhcmsgMzRkOyBCQU5EX05PX0VOQUJMRUQ9RmFsc2Ugc2luY2UgMjAyNi0wNy0wMikgfAp8IEczIEZJTExFRC12cy1GSVJFRCBkaXZlcmdlbmNlIHwgbnVsbCB8IDAgfCDigJQgfCDigJQgfCDigJQgfCBDT0xMRUNUSU5HIHwg4oieICh0cmFkZXMuanNvbmwgZGVhZCAyMDI2LTA3LTE5OyBubyBuZXcgZmlsbHMgaW4gMjJkKSB8CnwgRzQgQkFTS0VUX0VYSVQgKGNhc2ggZ3JlZW4gYmFza2V0cykgfCBudWxsIHwgMCB8IOKAlCB8IOKAlCB8IOKAlCB8IENPTExFQ1RJTkcgfCDiiJ4gKGJhc2tldF9leGl0X3NoYWRvdyBkYXJrIDM0ZDsgYWJzZW50IGZyb20gc2hhZG93X3N1bW1hcnkpIHwKfCBHNSBUSEVSTU8gdXBwZXItdGFpbCBtYWtlci1OTyB8IG51bGwgfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniAodGhlcm1vX21ha2VyIGRhcmsgMTZkOyBhYnNlbnQgZnJvbSBzaGFkb3dfc3VtbWFyeSkgfAp8IEc2IE0xLWJldGEgTUVUQVIgbG9ja291dCBzbGljZXMgfCBudWxsIHwgMCB8IOKAlCB8IOKAlCB8IOKAlCB8IENPTExFQ1RJTkcgfCDiiJ4gKG1ldGFyX2xvY2tvdXQgZGFyayAxNmQ7IGFic2VudCBmcm9tIHNoYWRvd19zdW1tYXJ5KSB8CnwgRzcgU1VNX1BPU1RFRCBbMC43MCwwLjg1XSBzbGljZSB8IG51bGwgfCAwIHwg4oCUIHwg4oCUIHwg4oCUIHwgQ09MTEVDVElORyB8IOKIniAoYmFuZF9zdHJ1Y3QgZGFyayAxNmQ7IGJhbmRfc3RydWN0X2xpdGUgbmV2ZXIgZXhpc3RlZCkgfAoKQWxsIGdhdGUgc2hhZG93IGZpbGVzIGNvbmZpcm1lZCBhYnNlbnQgZnJvbSBgZGF0YS9zaGFkb3dfc3VtbWFyeS5qc29uYCAobm8gYmFuZF9zdHJ1Y3QsIGV4aXQwOTlfbGl2ZSwgYmFza2V0X2V4aXRfc2hhZG93LCB0aGVybW9fbWFrZXIsIG1ldGFyX2xvY2tvdXQgZW50cmllcykuIE9ubHkgYWN0aXZlIGxvZ2dlcnMgdG9kYXk6IGJhZGF0bWF0aF93YXRjaCwgbWFrZXJfZmxvdywgbWlubWF4X2NvaGVyZW5jZSwgY291bnRfbG9jaywgdXBkb3duX3NuaXBlci9zbmFwXyosIGZsYl9zY3JlZW5lci4KCi0tLQoKIyMgU3RhdGUgVHJhbnNpdGlvbnMgdnMgUHJpb3IgUnVuICgyMDI2LTA4LTA5VDA5OjE0WikKCk5vbmUuIEFsbCA3IGdhdGVzIGZyb3plbiBhdCBgbj1udWxsLCBDT0xMRUNUSU5HYC4gTm8gZGF0YSBhY2N1bXVsYXRlZC4gTm8gdHJhbnNpdGlvbnMgcG9zc2libGUuCgotLS0KCiMjIFBST1BPU0VEIEFDVElPTlMgKGh1bWFuIHJldmlldykKCk5vbmUuIE5vIGdhdGUgaGFzIHJlYWNoZWQgUkVBRFkgb3IgUkVKRUNURUQgdGhpcyBydW4uCgpTdGFuZGluZyBhY3Rpb24gKHVuY2hhbmdlZCBzaW5jZSAyMDI2LTA3LTI2KTogKipTU0ggdG8gVlBTIOKGkiByZXN0YXJ0IGBrbGF1c2Agc3lzdGVtZCBzZXJ2aWNlIOKGkiB2ZXJpZnkgYGFjdGl2ZWAgc3RhdHVzLioqIEdhdGUgYWNjdW11bGF0aW9uIGlzIGNvbXBsZXRlbHkgZnJvemVuIHdoaWxlIHNlcnZpY2UgaXMgZG93bi4gRGF0YSBtaXJyb3IgdGltZXIgY29udGludWVzIHRvIHJ1biAoc25hcHNob3QgZnJlc2gpLCBidXQgYWxsIHRyYWRpbmctcGF0aCBzaGFkb3cgbG9nZ2VycyBhcmUgZGFyay4KCi0tLQoKKnJ1bl90czogMjAyNi0wOC0xMFQwOToxNzowMFogfCBzdGFsbF9jb3VudDogMjEgfCBwcmlvcl9ydW46IDIwMjYtMDgtMDlUMDk6MTQ6MDBaIHwgYWJvcnQ6IHN5c3RlbWRfZmFpbGVkX2RheTE3Kgo=
+# Gate-Keeper Report — 2026-08-11T09:15Z
+
+**STALL #22 — ABORT: `systemd: failed/unknown` (day 18 since 2026-07-24 shutdown). Service status is not `active`.**
+
+Snapshot: `2026-08-11T09:10:03Z` (fresh, NOT > 6h old). Abort triggered by service-status check only.
+Bankroll: $88.750373 (unchanged). All trading paths disabled: `BAND_LIVE=False`, `BAND_NO_ENABLED=False`, `STWA_REGULAR_YES_ENABLED=False`, `STWA_REGULAR_NO_ENABLED=False`.
+
+---
+
+## Gate Ledger
+
+| gate | n | +24h | WR | ROI | CI95 | status | ETA |
+|---|---|---|---|---|---|---|---|
+| G1 BAND_YES per slice (d0/1/2 × off 0/1/2 × price band) | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 17d; band_struct_lite never existed) |
+| G2 BAND_NO + PAIR_FAV legs | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 17d; exit099_live dark 35d; BAND_NO_ENABLED=False since 2026-07-02) |
+| G3 FILLED-vs-FIRED divergence | null | 0 | — | — | — | COLLECTING | ∞ (trades.jsonl dead 2026-07-19; no fills in 23 days) |
+| G4 BASKET_EXIT (cash green baskets) | null | 0 | — | — | — | COLLECTING | ∞ (basket_exit_shadow dark 35d; absent from shadow_summary) |
+| G5 THERMO upper-tail maker-NO | null | 0 | — | — | — | COLLECTING | ∞ (thermo_maker dark 17d; absent from shadow_summary) |
+| G6 M1-beta METAR lockout slices | null | 0 | — | — | — | COLLECTING | ∞ (metar_lockout dark 17d; absent from shadow_summary) |
+| G7 SUM_POSTED [0.70,0.85] slice | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 17d; band_struct_lite never existed) |
+
+All gate shadow files confirmed absent from `data/shadow_summary.json` (no band_struct, exit099_live, basket_exit_shadow, thermo_maker, metar_lockout entries). Only active loggers today: badatmath_watch, maker_flow, minmax_coherence, count_lock, updown_sniper/snap_*, flb_screener.
+
+---
+
+## State Transitions vs Prior Run (2026-08-10T09:17Z)
+
+None. All 7 gates frozen at `n=null, COLLECTING`. No data accumulated. No transitions possible.
+
+---
+
+## PROPOSED ACTIONS (human review)
+
+None. No gate has reached READY or REJECTED this run.
+
+Standing action (unchanged since 2026-07-26): **SSH to VPS → restart `klaus` systemd service → verify `active` status.** Gate accumulation is completely frozen while service is down. Data mirror timer continues to run (snapshot fresh), but all trading-path shadow loggers are dark.
+
+---
+
+*run_ts: 2026-08-11T09:15:00Z | stall_count: 22 | prior_run: 2026-08-10T09:17:00Z | abort: systemd_failed_day18*
