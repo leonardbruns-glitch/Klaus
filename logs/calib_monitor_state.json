@@ -1,8 +1,8 @@
 {
-  "date": "2026-08-11",
-  "run_ts": "2026-08-11T08:09Z",
+  "date": "2026-08-12",
+  "run_ts": "2026-08-12T08:20Z",
   "status": "STALLED",
-  "abort_reason": "systemd: failed/unknown (day 18); last active 2026-07-24",
+  "abort_reason": "systemd: failed/unknown (day 19); last active 2026-07-24",
   "brier7": null,
   "ece7": null,
   "rho7": null,
@@ -12,8 +12,8 @@
   "prior_disp_ratio7": 0.781,
   "prior_date": "2026-07-26",
   "alerts": [
-    "STALL: systemd failed day 18 — no metrics computable",
-    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 16+ consecutive runs)"
+    "STALL: systemd failed day 19 — no metrics computable",
+    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 17+ consecutive runs)"
   ],
-  "note": "Shadow loggers active through 08:08 UTC (badatmath_watch, maker_flow, minmax_coherence, count_lock, flb_screener). All live paths disabled. No metric transitions vs prior run. Isotonic candidate delta last seen 2026-08-06: +0.055 at grid[0.95], +0.168 at grid[1.0]. disp_ratio carried at 0.781; alert unresolved."
+  "note": "Shadow loggers active through 08:16 UTC today (badatmath_watch: 127 rows through 07:14, maker_flow: 44656 rows, minmax_coherence: 509 rows, count_lock: 99 rows). All live paths disabled. No metric transitions vs prior run. Isotonic candidate delta last seen 2026-08-06: +0.055 at grid[0.95], +0.168 at grid[1.0]. disp_ratio carried at 0.781; alert unresolved."
 }
