@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-12T00:36:54.207053+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will JD Vance win the 2028 US Presidential Election?\", \"condition_id\": \"0x7ad403c3508f8e3912940fd1a913f227591145ca0614074208e0b962d5fcc422\", \"fav_token\": \"944768292016044084634534264544802124598872679171222",
-      "mtime_utc": "2026-08-12T00:36:56Z",
-      "n_rows": 1211584,
-      "size_bytes": 747550805
+      "last_excerpt": "{\"ts\": \"2026-08-12T00:52:01.861192+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will JD Vance win the 2028 US Presidential Election?\", \"condition_id\": \"0x7ad403c3508f8e3912940fd1a913f227591145ca0614074208e0b962d5fcc422\", \"fav_token\": \"944768292016044084634534264544802124598872679171222",
+      "mtime_utc": "2026-08-12T00:52:04Z",
+      "n_rows": 1211737,
+      "size_bytes": 747645403
     },
     "hot/2026-08-01/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785542642.052651, \"record\": \"ladder\", \"event\": \"highest-temperature-in-denver-on-july-31-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"F or below on July 31?\", \"bids\": [], \"asks\": [[0.001, 10688.36], [0.002, 8545.02], [0.003, 1040.0]]}, {\"q\": \"en 78-79\\u00b0F on July 31?\", \"bids\": [], \"asks\": [[0",
@@ -324,24 +324,24 @@
     },
     "hot/2026-08-12/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-12T00:00:01.292669+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-12T00:35:01.998533+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
-      "mtime_utc": "2026-08-12T00:36:05Z",
-      "n_rows": 8,
-      "size_bytes": 5694
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-12T00:50:01.240909+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
+      "mtime_utc": "2026-08-12T00:51:02Z",
+      "n_rows": 11,
+      "size_bytes": 7830
     },
     "hot/2026-08-12/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1786492892.101217, \"cid\": \"0x7b31cdc4d98bd66d0b68b2246b9dca31898a3ac40b99094ac5ad046f01f3020b\", \"q\": \"Will the highest temperature in Buenos Aires be 10\\u00b0C on August 11?\", \"proxyWallet\": \"0xfe8a44919d6ea7e80e861e18e2b9e490adc779a9\", \"side\": \"SELL\", \"asset\": \"1572328207882000941131371",
-      "last_excerpt": "{\"poll_ts\": 1786495094.1357718, \"cid\": \"0x66cc0c44a9dd3f9529467bb2053af656e6e5964998095ae353e242cd53b86274\", \"q\": \"Will the highest temperature in Cape Town be 23\\u00b0C on August 13?\", \"proxyWallet\": \"0xd1b07a32ef537e889b6134eaefc704f2c7307efc\", \"side\": \"BUY\", \"asset\": \"7846300314872158280308656271",
-      "mtime_utc": "2026-08-12T00:38:15Z",
-      "n_rows": 3082,
-      "size_bytes": 3323421
+      "last_excerpt": "{\"poll_ts\": 1786495997.1582212, \"cid\": \"0x2f0a791062c4186776cefc611e09c661855e9c308b1bece251690aab9dc11126\", \"q\": \"Will a 6.0+ earthquake occur in Indonesia by August 31?\", \"proxyWallet\": \"0xaff389b0c6e066057c44c25fae7277880b276ecc\", \"side\": \"BUY\", \"asset\": \"40138879111808445259814497533244474432985",
+      "mtime_utc": "2026-08-12T00:53:17Z",
+      "n_rows": 3912,
+      "size_bytes": 4213178
     },
     "hot/2026-08-12/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-12T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-12\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 12?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.25, \"coverage_best\": {\"t\": 29, \"cost\": 1.158, \"n_legs\": 15, \"units_fillable\": 120.0, \"legs\"",
-      "last_excerpt": "{\"ts\": \"2026-08-12T00:20:01+00:00\", \"city\": \"seoul-(incheon)\", \"date\": \"2026-08-13\", \"unit\": \"c\", \"title\": \"Lowest temperature in Seoul (Incheon) on August 13?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.154, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_bl",
-      "mtime_utc": "2026-08-12T00:20:34Z",
-      "n_rows": 36,
-      "size_bytes": 129025
+      "last_excerpt": "{\"ts\": \"2026-08-12T00:40:01+00:00\", \"city\": \"seoul-(incheon)\", \"date\": \"2026-08-13\", \"unit\": \"c\", \"title\": \"Lowest temperature in Seoul (Incheon) on August 13?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.124, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_bl",
+      "mtime_utc": "2026-08-12T00:40:36Z",
+      "n_rows": 54,
+      "size_bytes": 193598
     },
     "updown_sniper/snap_20260805.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1785888000\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.27, \"b_px\": 64106.55, \"b_open\": 64106.55, \"move\": 0.0, \"sigma1s\": 3.204474928854404e-05, \"z\": 0.0, \"p_up\": 0.5, \"up\": {\"ask\": 0.52, \"ask_sz\": 441.95, \"bid\": 0.51, \"bid_sz\": 9.0}, \"down\": {\"ask\": 0.49, \"as",
@@ -394,11 +394,11 @@
     },
     "updown_sniper/snap_20260812.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786492800\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.24, \"b_px\": 63600.01, \"b_open\": 63600.0, \"move\": 1.5723270441192483e-07, \"sigma1s\": 1.4515168026522298e-05, \"z\": 0.000626192875781858, \"p_up\": 0.5002498147975094, \"up\": {\"ask\": 0.41, \"ask_sz\": 744.2, \"bid",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786494900\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 87.21, \"b_px\": 0.07216, \"b_open\": 0.07215, \"move\": 0.0001386001386001201, \"sigma1s\": 8.72259047155984e-05, \"z\": 0.17014737934617205, \"p_up\": 0.56755288331013, \"up\": {\"ask\": 0.73, \"ask_sz\": 36.0, \"bid\": 0.72",
-      "mtime_utc": "2026-08-12T00:38:32Z",
-      "n_rows": 4859,
-      "size_bytes": 1987242
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786495800\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 62.89, \"b_px\": 0.07232, \"b_open\": 0.07227, \"move\": 0.0006918500069184041, \"sigma1s\": 9.210882661280878e-05, \"z\": 0.9471487683770249, \"p_up\": 0.8282185115178496, \"up\": {\"ask\": 0.98, \"ask_sz\": 12.36, \"bid\": 0",
+      "mtime_utc": "2026-08-12T00:53:57Z",
+      "n_rows": 7032,
+      "size_bytes": 2873503
     }
   },
-  "snapshot_ts": "2026-08-12T00:38:33Z"
+  "snapshot_ts": "2026-08-12T00:53:56Z"
 }
