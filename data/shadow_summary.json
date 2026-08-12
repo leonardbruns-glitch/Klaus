@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-12T22:44:20.766880+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Israel closes its airspace by August 31?\", \"condition_id\": \"0x12aa595f4883b1a856dcf8155b87e89a8d098b5ad8a7781c75804fd13d166718\", \"fav_token\": \"428617895794409428137603937348147131263987327919060925542658261",
-      "mtime_utc": "2026-08-12T22:44:23Z",
-      "n_rows": 1225555,
-      "size_bytes": 756226883
+      "last_excerpt": "{\"ts\": \"2026-08-12T22:59:28.812971+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Will the price of Bitcoin be above $60,000 on August 13?\", \"condition_id\": \"0xd7b960233faf96fe8e10213372f7245248eb72cabbcb9a6b76c09802ccafb6b1\", \"fav_token\": \"60463823359392765409338033918803983915714240788",
+      "mtime_utc": "2026-08-12T22:59:30Z",
+      "n_rows": 1225704,
+      "size_bytes": 756319719
     },
     "hot/2026-08-02/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785628801.9216907, \"record\": \"fill_join\", \"fill_ts\": 1785628695, \"detect_lag_s\": 106.9, \"title\": \"Will the highest temperature in Milan be 35\\u00b0C on August 3?\", \"event\": \"highest-temperature-in-milan-on-august-3-2026\", \"outcome\": \"Yes\", \"price\": 0.38, \"size\": 30, \"usdc\": 11.4, \"cid\": \"0xb",
@@ -289,24 +289,24 @@
     },
     "hot/2026-08-12/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1786493161.3114133, \"record\": \"fill_join\", \"fill_ts\": 1786493074, \"detect_lag_s\": 87.3, \"title\": \"Will the highest temperature in New York City be between 88-\", \"event\": \"highest-temperature-in-nyc-on-august-12-2026\", \"outcome\": \"Yes\", \"price\": 0.26, \"size\": 75, \"usdc\": 20.2215, \"cid\": \"0x8e4",
-      "last_excerpt": "{\"ts\": 1786574641.172184, \"record\": \"fill_join\", \"fill_ts\": 1786574581, \"detect_lag_s\": 60.2, \"title\": \"Will the highest temperature in Amsterdam be 33\\u00b0C on August \", \"event\": \"highest-temperature-in-amsterdam-on-august-13-2026\", \"outcome\": \"No\", \"price\": 0.64, \"size\": 10, \"usdc\": 6.5152, \"cid\"",
-      "mtime_utc": "2026-08-12T22:44:01Z",
-      "n_rows": 712,
-      "size_bytes": 638801
+      "last_excerpt": "{\"ts\": 1786575361.4648178, \"record\": \"ladder\", \"event\": \"highest-temperature-in-london-on-august-14-2026\", \"n_buckets\": 11, \"books\": [{\"q\": \"or below on August 14?\", \"bids\": [], \"asks\": [[0.02, 150.27], [0.03, 35.0], [0.04, 119.82]]}, {\"q\": \" be 30\\u00b0C on August 14?\", \"bids\": [[0.03, 18.82], [0.0",
+      "mtime_utc": "2026-08-12T22:56:01Z",
+      "n_rows": 728,
+      "size_bytes": 653263
     },
     "hot/2026-08-12/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-12T00:00:01.292669+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-12T22:40:01.427535+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
-      "mtime_utc": "2026-08-12T22:41:01Z",
-      "n_rows": 273,
-      "size_bytes": 194376
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-12T22:55:01.734195+00:00\", \"question\": \"Will there be exactly 0 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
+      "mtime_utc": "2026-08-12T22:55:54Z",
+      "n_rows": 276,
+      "size_bytes": 196512
     },
     "hot/2026-08-12/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1786492892.101217, \"cid\": \"0x7b31cdc4d98bd66d0b68b2246b9dca31898a3ac40b99094ac5ad046f01f3020b\", \"q\": \"Will the highest temperature in Buenos Aires be 10\\u00b0C on August 11?\", \"proxyWallet\": \"0xfe8a44919d6ea7e80e861e18e2b9e490adc779a9\", \"side\": \"SELL\", \"asset\": \"1572328207882000941131371",
-      "last_excerpt": "{\"poll_ts\": 1786574679.3719068, \"cid\": \"0xeaa2758287f18efd83d81fd8177cfcf869d07e589838825e93756db946f485d6\", \"q\": \"Will the lowest temperature in Paris be 23\\u00b0C on August 14?\", \"proxyWallet\": \"0x23385042f967a476e6612fadc19da73c6c58a7f7\", \"side\": \"BUY\", \"asset\": \"835615288443390546771656633049869",
-      "mtime_utc": "2026-08-12T22:44:40Z",
-      "n_rows": 252088,
-      "size_bytes": 271949065
+      "last_excerpt": "{\"poll_ts\": 1786575576.2813623, \"cid\": \"0xd0f8839def81cfab7722d7d410d322f4c03d0f216d14a699125d72b7bb44dae7\", \"q\": \"Will the lowest temperature in Paris be 26\\u00b0C on August 14?\", \"proxyWallet\": \"0xe40aaa5ce1dac0b7dc24c9d0284f27e17c3fe4a2\", \"side\": \"BUY\", \"asset\": \"115673094316775615710332221524082",
+      "mtime_utc": "2026-08-12T22:59:37Z",
+      "n_rows": 253129,
+      "size_bytes": 273080905
     },
     "hot/2026-08-12/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-12T00:00:01+00:00\", \"city\": \"hong-kong\", \"date\": \"2026-08-12\", \"unit\": \"c\", \"title\": \"Lowest temperature in Hong Kong on August 12?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.25, \"coverage_best\": {\"t\": 29, \"cost\": 1.158, \"n_legs\": 15, \"units_fillable\": 120.0, \"legs\"",
@@ -366,11 +366,11 @@
     },
     "updown_sniper/snap_20260812.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786492800\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.24, \"b_px\": 63600.01, \"b_open\": 63600.0, \"move\": 1.5723270441192483e-07, \"sigma1s\": 1.4515168026522298e-05, \"z\": 0.000626192875781858, \"p_up\": 0.5002498147975094, \"up\": {\"ask\": 0.41, \"ask_sz\": 744.2, \"bid",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786574400\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 8.57, \"b_px\": 0.06939, \"b_open\": 0.06937, \"move\": 0.00028830906732002504, \"sigma1s\": 8.52050219527698e-05, \"z\": 1.1557000430268825, \"p_up\": 0.8760980647147809, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.9",
-      "mtime_utc": "2026-08-12T22:44:51Z",
-      "n_rows": 190560,
-      "size_bytes": 78055651
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786575300\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 8.48, \"b_px\": 0.06945, \"b_open\": 0.06942, \"move\": 0.0004321521175454368, \"sigma1s\": 8.006778198855058e-05, \"z\": 1.8531649576382152, \"p_up\": 0.9680706406706393, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.9",
+      "mtime_utc": "2026-08-12T22:59:51Z",
+      "n_rows": 192673,
+      "size_bytes": 78919764
     }
   },
-  "snapshot_ts": "2026-08-12T22:44:51Z"
+  "snapshot_ts": "2026-08-12T22:59:51Z"
 }
