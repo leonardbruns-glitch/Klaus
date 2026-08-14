@@ -1,10 +1,10 @@
-# Klaus Calibration & Dispersion Monitor — 2026-08-13T08:30Z
+# Klaus Calibration & Dispersion Monitor — 2026-08-14T08:30Z
 
-**STALL — systemd: failed/unknown (day 20). Abort condition met. No calibration or dispersion metrics computable.**
+**STALL — systemd: failed/unknown (day 21). Abort condition met. No calibration or dispersion metrics computable.**
 
 ## Abort Reason
 
-`system_status.txt` reads `failed unknown` for `## klaus systemd:` — not `active`. Abort condition met per monitor rules. Snapshot freshness: 2026-08-13T08:07:16Z — current (within 6h window) ✓.
+`system_status.txt` reads `failed unknown` for `## klaus systemd:` — not `active`. Abort condition met per monitor rules. Snapshot freshness: 2026-08-14T08:30:11Z — current (within 6h window) ✓.
 
 ---
 
@@ -12,30 +12,31 @@
 
 | Field | Value |
 |---|---|
-| Stall duration | Day 20 (last active: 2026-07-24 10:09:19 UTC) |
-| Snapshot freshness | 2026-08-13T08:07:16Z ✓ |
+| Stall duration | Day 21 (last active: 2026-07-24 10:09:19 UTC) |
+| Snapshot freshness | 2026-08-14T08:30:11Z ✓ |
 | Bankroll | $88.750373 (unchanged; 0 open positions) |
 | Trade rows | 8228 (unchanged since stall) |
 | All live paths | DISABLED (BAND_LIVE=False, BAND_NO=False, STWA_YES/NO=False) |
 
-**Shadow loggers active today (through 08:07 UTC)**:
-- `badatmath_watch.jsonl`: 405 rows (through ~08:04 UTC) — fill-join and ladder records
-- `maker_flow.jsonl`: 39,117 rows (through ~08:06 UTC) — CLOB order-book polling
-- `minmax_coherence.jsonl`: 493 rows (through ~08:00 UTC)
-- `count_lock.jsonl`: 98 rows (through ~08:05 UTC)
-- `flb_screener.jsonl`: 1,232,003 rows (through 08:04 UTC) — market screener running
+**Shadow loggers active today (through 08:30 UTC)**:
+- `flb_screener.jsonl`: 1,247,116 rows (through 08:28 UTC) — market screener running continuously
+- `maker_flow.jsonl` (hot/2026-08-14): 48,578 rows (through 08:30 UTC) — CLOB order-book polling
+- `badatmath_watch.jsonl` (hot/2026-08-14): 1,261 rows (through 07:42 UTC) — fill-join and ladder records
+- `minmax_coherence.jsonl` (hot/2026-08-14): 432 rows (through 08:20 UTC)
+- `count_lock.jsonl` (hot/2026-08-14): 102 rows (through 08:26 UTC)
+- `updown_sniper/snap_20260814.jsonl`: 71,460 rows (through 08:30 UTC) — updown sniper running
 
-Market data is flowing. Weather markets are resolving (badatmath_watch fill_join records confirm this). The data gap is entirely on the STWA pricer/calibration side, which requires the VPS service to be running.
+Market data is flowing and weather markets are resolving (badatmath_watch fill_join records confirm live resolution). The data gap is entirely on the STWA pricer/calibration side, which requires the VPS klausbot service to be running.
 
 ---
 
 ## 1. SETTLED LANE
 
-**Blocked.** No `stwa_pricer_eval_s50.jsonl` files exist in any `data/shadow/<date>/` subdirectory for 2026-08-08 through 2026-08-12. Shadow subdirectories each contain only `badatmath_watch.jsonl`. The STWA pricer has not written any output since the service failed on 2026-07-24. Cannot compute 7d Brier, ECE, or rank-rho.
+**Blocked.** No `stwa_pricer_eval_s50.jsonl` files exist in any `data/shadow/<date>/` subdirectory for any date since 2026-07-24. Shadow subdirectories (hot/2026-08-04 through hot/2026-08-14) each contain only non-pricer loggers (badatmath_watch, maker_flow, minmax_coherence, count_lock). The STWA pricer has produced zero output since the service failed 2026-07-24. Cannot compute 7d Brier, ECE, or rank-rho.
 
-**Last known (2026-07-26, carried forward — day 20)**:
-- brier7: 0.055 (alert threshold >0.15) — OK, but 20 days stale
-- ece7: ~0.0 (alert threshold >0.05) — OK, but 20 days stale
+**Last known (2026-07-26, carried forward — day 21)**:
+- brier7: 0.055 (alert threshold >0.15) — OK, but 19 days stale
+- ece7: ~0.0 (alert threshold >0.05) — OK, but 19 days stale
 - rho7: not recorded
 
 ---
@@ -48,11 +49,11 @@ Market data is flowing. Weather markets are resolving (badatmath_watch fill_join
 
 ## 3. DISPERSION GAUGE ← PRIMARY EDGE VARIABLE
 
-**Blocked — alert sustained.** No resolved market labels with p_cal since 2026-07-26. Cannot compute 7d implied/realized width ratio.
+**Blocked — alert sustained (19th consecutive run).** No resolved market labels with p_cal since 2026-07-26. Cannot compute 7d implied/realized width ratio.
 
-**Last known disp_ratio7: 0.781** (from 2026-07-26). Alert threshold: 1.10. This is the 18th consecutive monitor run with the alert firing.
+**Last known disp_ratio7: 0.781** (from 2026-07-26). Alert threshold: 1.10. This is the **19th consecutive monitor run** with the dispersion alert firing.
 
-The dispersion premium — the central load-bearing assumption of the band strategy (implied sigma > realized sigma, ratio ≥ 1.10) — has not been verified for 20 days. The last confirmed value of 0.781 is materially below threshold. Whether it has recovered, stayed flat, or compressed further is unknown. Silence is not absolution.
+The dispersion premium — the central load-bearing assumption of the band strategy (implied sigma > realized sigma, ratio ≥ 1.10) — has not been verified for 21 days. The last confirmed value of 0.781 is materially below threshold. Whether it has recovered, stayed flat, or compressed further is unknown. Silence is not absolution. The edge is unverified and last-known-below-threshold.
 
 **Regional breakdown**: Cannot update. Last known breakdown carried from 2026-07-26 report.
 
@@ -62,7 +63,7 @@ The dispersion premium — the central load-bearing assumption of the band strat
 
 ## 4. ISOTONIC STALENESS
 
-Direct comparison performed (both files readable from repo):
+No change from prior reports. Both files remain readable from repo:
 
 | grid | deployed (2026-06-06) | candidate (2026-07-23) | delta | material? |
 |---|---|---|---|---|
@@ -77,19 +78,21 @@ Direct comparison performed (both files readable from repo):
 | **0.95** | **0.3822** | **0.4374** | **+0.0552** | **YES** |
 | **1.00** | **0.6316** | **0.8000** | **+0.1684** | **YES** |
 
-Candidate fit: n_live=3,392 over 8 live calendar days (refit 2026-07-23); OOS Brier raw=0.0637, calibrated=0.0638 (calibration nearly inert on this sample).
+Candidate fit: n_live=3,392 over 8 live calendar days (refit 2026-07-23). Deployed: n_live=0 (hist-only, refit 2026-06-06). **69 days without isotonic promotion** (was 68 yesterday).
 
-Deployed: n_live=0 (hist-only, refit 2026-06-06). 68 days without isotonic promotion.
-
-**Interpretation**: The candidate shifts p_cal UP materially at the high end of the raw-score distribution (grid 0.95, 1.0). High-confidence STWA signals would be calibrated ~0.44 (candidate) instead of ~0.38 (deployed). This expands the effective confidence range for near-certain calls. Direction of shift: p_cal increases for high raw scores. This would increase band fire-rate on high-confidence events if applied and if the service were running. Candidate shows no degradation in Brier vs deployed baseline (reference 0.114; candidate OOS 0.064 on live slice only).
-
-Promotion of the candidate is blocked anyway while the service is down. Recommend promoting immediately upon VPS restart, before any live trading resumes.
+**Interpretation**: Candidate shifts p_cal UP materially at the high end of the raw-score distribution. High-confidence STWA signals calibrated ~0.44 (candidate) vs ~0.38 (deployed). Promotion blocked while service is down. Recommend promoting immediately upon VPS restart before any live trading resumes.
 
 ---
 
 ## 5. STATE
 
-No metric transitions vs prior report (2026-08-12). All live metrics null. disp_ratio alert still firing (sustained, 18th consecutive run). Isotonic gap: 68 days. No change in system status.
+No metric transitions vs prior report (2026-08-13). All live metrics null. disp_ratio alert still firing (sustained, 19th consecutive run). Isotonic gap: 69 days. No change in system status. No change in bankroll. No change in open positions.
+
+**Diff vs prior state**:
+- `stall_day`: 20 → 21
+- `disp_ratio_alert_run`: 18 → 19
+- `isotonic_days_since_promotion`: 68 → 69
+- all else: no change
 
 ---
 
@@ -97,15 +100,15 @@ No metric transitions vs prior report (2026-08-12). All live metrics null. disp_
 
 ### ALERT 1: DISPERSION RATIO BELOW 1.10
 
-Last known disp_ratio7 = **0.781** vs threshold 1.10. Alert has fired on every monitor run since at least 2026-07-10. This is the 18th consecutive firing.
+Last known disp_ratio7 = **0.781** vs threshold 1.10. Alert has fired on every monitor run since at least 2026-07-10. This is the **19th consecutive firing**.
 
-The dispersion edge — the one quantity this monitor exists to guard — has not been verified for 20 days. The edge premise (implied sigma > realized sigma by ≥10%) was last measured below threshold. The strategy's live paths are all disabled, so there is no active bleed. But resumption planning must treat disp_ratio as **unknown and last-known-below-threshold** until fresh data is computed after VPS restart.
+The dispersion edge — the one quantity this monitor exists to guard — has not been verified for 21 days. The edge premise (implied sigma > realized sigma by ≥10%) was last measured below threshold. The strategy's live paths are all disabled, so there is no active bleed. But resumption planning must treat disp_ratio as **unknown and last-known-below-threshold** until fresh data is computed after VPS restart.
 
 ---
 
 ## Recommendations (report-only — no code edits made)
 
-1. **SSH VPS → restart service**: 20 days of downtime with shadow loggers accumulating data. The market data gap cannot be recovered, but fresh pricer-eval rows will start accruing immediately upon restart.
+1. **SSH VPS → restart service**: 21 days of downtime with shadow loggers accumulating data. Fresh pricer-eval rows will start accruing immediately upon restart.
 2. **Allow 1–2 settled market-days before live-path resumption**: Need resolved labels to compute fresh disp_ratio before trusting the edge premise.
 3. **Promote isotonic candidate on restart**: Candidate (refit 2026-07-23, n_live=3,392) is materially better-fitted than deployed (refit 2026-06-06, n_live=0). Material upward shift at grid[0.95, 1.0]. Promote on restart before live trading.
 4. **disp_ratio is the gate**: Do not re-enable BAND_LIVE or any live path until fresh disp_ratio7 ≥ 1.10 is confirmed over ≥7 resolved days.
