@@ -4,67 +4,67 @@
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; band_struct.jsonl dark 2026-07-25 (19d); band_struct_lite never existed in data-mirror"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; band_struct.jsonl dark 2026-07-25 (20d); band_struct_lite never existed in data-mirror"
   },
   "gate2_band_no_pair_fav": {
     "n": null,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; band_struct.jsonl dark 19d; exit099_live dark 2026-07-07 (37d); BAND_NO_ENABLED=False since 2026-07-02"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; band_struct.jsonl dark 20d; exit099_live dark 2026-07-07 (38d); BAND_NO_ENABLED=False since 2026-07-02"
   },
   "gate3_filled_vs_fired": {
     "n": null,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; trades.jsonl last live row 2026-07-19; no fills in 25 days; no maker fills expected"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; trades.jsonl last live row 2026-07-19; no fills in 26+ days; no maker fills expected"
   },
   "gate4_basket_exit": {
     "n": null,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; basket_exit_shadow.jsonl dark 2026-07-07 (37d); absent from shadow_summary"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; basket_exit_shadow.jsonl dark 2026-07-07 (38d); absent from shadow_summary"
   },
   "gate5_thermo": {
     "n": null,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; thermo_maker.jsonl dark 2026-07-25 (19d); absent from shadow_summary"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; thermo_maker.jsonl dark 2026-07-25 (20d); absent from shadow_summary"
   },
   "gate6_metar_lockout": {
     "n": null,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; metar_lockout.jsonl dark 2026-07-25 (19d); absent from shadow_summary"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; metar_lockout.jsonl dark 2026-07-25 (20d); absent from shadow_summary"
   },
   "gate7_sum_posted": {
     "n": null,
     "status": "COLLECTING",
     "roi": null,
     "ci95": [null, null],
-    "ts": "2026-08-13T09:15:00Z",
-    "note": "frozen; band_struct.jsonl dark 19d (sum_posted field source); band_struct_lite never existed"
+    "ts": "2026-08-14T09:31:00Z",
+    "note": "frozen; band_struct.jsonl dark 20d (sum_posted field source); band_struct_lite never existed"
   },
   "_meta": {
-    "run_ts": "2026-08-13T09:15:00Z",
-    "stall_count": 24,
-    "abort_reason": "systemd_failed_day20",
+    "run_ts": "2026-08-14T09:31:00Z",
+    "stall_count": 25,
+    "abort_reason": "systemd_failed_day21",
     "system_status": "FAILED",
-    "prior_run": "2026-08-12T09:17:00Z",
+    "prior_run": "2026-08-13T09:15:00Z",
     "prior_collecting": 7,
     "prior_ready": 0,
     "prior_rejected": 0,
-    "data_access": "PARTIAL - git fetch succeeded (unlike prior run); all gate shadow files absent from shadow_summary (confirmed dark 19-37d)",
-    "note": "n values null; all gate shadow files absent from shadow_summary.json; no transitions possible; BAND_LIVE=False BAND_NO_ENABLED=False; stall day 20"
+    "data_access": "PARTIAL - sparse git checkout succeeded; all gate shadow files absent (confirmed dark 20-38d)",
+    "note": "n values null; all gate shadow files remain dark; no transitions possible; BAND_LIVE=False BAND_NO_ENABLED=False; stall day 21"
   }
 }
