@@ -1,1 +1,3 @@
-IyBLbGF1cyBQbkwgTGVkZ2VyIOKAlCAyMDI2LTA4LTE0CgoqKlNUQUxMIChkYXkgMjEpKiog4oCUIGBzeXN0ZW1fc3RhdHVzLnR4dGAgcmVwb3J0cyBgZmFpbGVkL3Vua25vd25gOyBhYm9ydCBwcm90b2NvbCBpbnZva2VkLiBObyBmaWxscyBmb3IgMjYgY29uc2VjdXRpdmUgZGF5cy4gQ2FwaXRhbCB1bmNoYW5nZWQgYXQgJDg4Ljc1MDM3My4gU1NIIHRvIFZQUyDihpIgYHN5c3RlbWN0bCBzdGFydCBrbGF1c2JvdGAgcmVxdWlyZWQgYmVmb3JlIGFueSBsZWRnZXIgY2FuIGJlIGNvbXB1dGVkLgo=
+# Klaus PnL Ledger — 2026-08-15 (23:37 UTC)
+
+**STALL — bot service FAILED (day 22). Capital unchanged at $88.750373. 27 consecutive zero-fill days. SSH to VPS required to diagnose and restart.**
