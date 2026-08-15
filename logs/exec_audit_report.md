@@ -1,3 +1,7 @@
-# Exec Audit 2026-08-14 — ABORT
+# Klaus Exec Audit — 2026-08-15
 
-**ABORT: systemd status `failed unknown` (not active) — service down since 2026-07-24 (day 21). No fills, no live path. Snapshot fresh (07:14 UTC, ~0h old). Bankroll $88.75, 0 open positions. BAND_LIVE=False, BAND_NO_ENABLED=False. SSH to VPS and `systemctl start klausbot` to resume.**
+**ABORT: systemd failed/unknown (not active) — snapshot 2026-08-15T07:04:46Z (10 min old, within 6h window). Bot has been down since 2026-07-24 10:09:19 UTC (22 days). No fills occurred. No analysis produced — running the fill/queue/markout pipeline on a dead system would fabricate data.**
+
+---
+
+*3-line summary: fills/day = N/A (system down 22 days). NO-share = N/A. Binding constraint = VPS systemd unit in failed state; no trades, no positions, no resting quotes.*
