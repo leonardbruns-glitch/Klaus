@@ -1,1 +1,69 @@
-IyBSZXNlYXJjaCBBdWRpdCAyMDI2LTA4LTE0VDExMDBaIOKAlCBTVEFMTCBkYXkgMjEKCioqQUJPUlQ6IGBzeXN0ZW1kOiBmYWlsZWQvdW5rbm93bmAgKG5vdCBhY3RpdmUpIOKAlCBzZXJ2aWNlIGRvd24gc2luY2UgMjAyNi0wNy0yNCAoZGF5IDIxKS4gQWxsIGZvdXIgc3BlY2lhbGlzdCByZXBvcnRzIGNvbmZpcm0gYWJvcnQgKGV4ZWMgMDc6MTQsIGNhbGliIDA4OjMwLCBnYXRla2VlcGVyIDA5OjMxLCBwbmwgMjM6MzcgcHJpb3IgZGF5KS4gU25hcHNob3QgZnJlc2ggKDIwMjYtMDgtMTRUMTA6MzI6MTZaLCB+MC41aCBvbGQpLiBCYW5rcm9sbCAkODguNzUsIDAgb3BlbiBwb3NpdGlvbnMsIDAgbGl2ZSBwYXRocy4gTm8gYW5hbHlzaXMgZmFicmljYXRlZC4qKgoKLS0tCgojIyBTdGFsbCBDb250ZXh0IChmcm9tIHNwZWNpYWxpc3QgcmVwb3J0cyDigJQgbm8gZmFicmljYXRpb24pCgp8IEZpZWxkIHwgVmFsdWUgfAp8LS0tfC0tLXwKfCBTZXJ2aWNlIHN0YXR1cyB8IGZhaWxlZC91bmtub3duIOKAlCBpbnRlbnRpb25hbCAob3duZXIgc2h1dGRvd24gMjAyNi0wNy0yNCAxMDowOSBVVEMpIHwKfCBTdGFsbCBkdXJhdGlvbiB8IDIxIGRheXMgfAp8IFRyYWRlIHJvd3MgfCA4LDIyOCAodW5jaGFuZ2VkIHNpbmNlIHN0YWxsKSB8CnwgQ2FwaXRhbCB8ICQ4OC43NTAzNzMgKCQyMS41MCBsb29wICsgJDY3LjI1IG93bmVyLW1hbnVhbCwgQ0xPQi1leGFjdCkgfAp8IE9wZW4gcG9zaXRpb25zIHwgMCB8CnwgQ29uc2VjdXRpdmUgemVyby1maWxsIGRheXMgfCAyNSB8CnwgQkFORF9MSVZFIHwgRmFsc2UgKGRpc2FybWVkIDIwMjYtMDctMDY7IGVxdWl0eSA8IDUwJSBvZiAzMGQgSFcgJDIyMi45MCkgfAp8IEJBTkRfTk9fRU5BQkxFRCB8IEZhbHNlIChyYWlsLWhhbHQgMjAyNi0wNy0wMiwgbj01MSBXUiAzOS4yJSkgfAp8IEc4IHVwZG93bl9jcm9zc2luZyB8IEtJTExFRCAyMDI2LTA3LTI2IChXUiAwLjk1MjggPCBCRSAwLjk2NTEgYXQgbj0xMjcpIHwKfCBBbGwgZ2F0ZXMgfCBDT0xMRUNUSU5HL251bGwg4oCUIEVUQXMgYWxsIGluZmluaXR5IChzaGFkb3cgbG9nZ2VycyBkYXJrIDIwLTM4ZCBlYWNoKSB8CnwgZGlzcF9yYXRpbzcgKGxhc3Qga25vd24pIHwgMC43ODEgKHRocmVzaG9sZCAxLjEwKSDigJQgMjFkIHVudmVyaWZpZWQsIGFsZXJ0IHN1c3RhaW5lZCB8CnwgSXNvdG9uaWMgY2FuZGlkYXRlIHN0YWxlbmVzcyB8IDY5IGRheXMgd2l0aG91dCBwcm9tb3Rpb24gfAp8IFNoYWRvdyBsb2dnZXJzIHJ1bm5pbmcgfCBZRVM6IGZsYl9zY3JlZW5lciAoMS4yTSByb3dzKSwgbWFrZXJfZmxvdyAoNDhrKSwgYmFkYXRtYXRoX3dhdGNoICgxLjNrKSB8CnwgTG9vcCBtb2RlIHwgV0VFS0xZLU9OTFkgcGVyIG93bmVyIGRpcmVjdGl2ZTsgZGFpbHkrbGl2ZW5lc3MgdGltZXJzIGRpc2FibGVkIHwKClNoYWRvdyBsb2dnZXJzIGFyZSBhY2N1bXVsYXRpbmcgbWFya2V0IGRhdGEgY29udGludW91c2x5LiBUaGUgc2VydmljZSBvdXRhZ2UgaXMgZW50aXJlbHkgb24gdGhlIFNUV0EgcHJpY2VyL2JhbmQtZW5naW5lIHNpZGUuIFdlYXRoZXIgbWFya2V0cyBjb250aW51ZSB0byByZXNvbHZlIChiYWRhdG1hdGhfd2F0Y2ggZmlsbF9qb2luIHJlY29yZHMgY29uZmlybSBsaXZlIHJlc29sdXRpb24pLgoKIyMgS2V5IFN0YWxsIEZhY3RzCgoxLiAqKkludGVudGlvbmFsIHN0b3AqKjogT3duZXIgc2h1dCBkb3duIDIwMjYtMDctMjQgMTA6MDkgVVRDIGFuZCBkaXNhYmxlZCB0aW1lcnMuIExvb3AgaXMgV0VFS0xZLU9OTFkuIFJlc2VhcmNoL2V4ZWMvY2FsaWIvZ2F0ZWtlZXBlciByb3V0aW5lcyBhcmUgcnVubmluZyB2aWEgdGhlaXIgb3duIGNyb24gKGluZGVwZW5kZW50IG9mIGtsYXVzYm90IHNlcnZpY2UpLgoyLiAqKk5vIHBhdGggaXMgZWxpZ2libGUgdG8gYXJtKio6IEJBTkRfTElWRSBkaXNhcm1lZCAoZXF1aXR5IDwgNTAlIEhXKTsgQkFORF9OTyByYWlsLWhhbHRlZDsgRzgga2lsbGVkOyBTVFdBIFlFUy9OTyBvZmYuIEFsbCBnYXRlcyBDT0xMRUNUSU5HIHdpdGggaW5maW5pdHkgRVRBcyB3aGlsZSBzZXJ2aWNlIGlzIGRvd24uCjMuICoqRGlzcGVyc2lvbiBlZGdlIHVudmVyaWZpZWQqKjogZGlzcF9yYXRpbzcgbGFzdCBrbm93biAwLjc4MSwgYWxlcnQgZmlyaW5nIDIxIGNvbnNlY3V0aXZlIHJ1bnMuIFRoaXMgaXMgdGhlIHNpbmdsZSBtb3N0IGltcG9ydGFudCBtZXRyaWMgZm9yIGFueSByZXN1bXB0aW9uIGRlY2lzaW9uIOKAlCBiZWxvdyAxLjEwIHRocmVzaG9sZCBhdCBsYXN0IHJlYWQuCjQuICoqSXNvdG9uaWMgY2FuZGlkYXRlIHJlYWR5Kio6IHJlZml0IDIwMjYtMDctMjMsIG5fbGl2ZT0zLDM5MiwgKzUuNXBwIGF0IDAuOTUtZ3JpZC4gNjkgZGF5cyB3aXRob3V0IHByb21vdGlvbi4gUHJvbW90ZSBvbiByZXN0YXJ0IGJlZm9yZSBhbnkgbGl2ZSB0cmFkaW5nLgo1LiAqKk1ha2VyIHJlYmF0ZSBvdXRzdGFuZGluZyoqOiB+JDMuOTE3IHVwcGVyIGJvdW5kIGluIHBVU0QgdW5jbGFpbWVkIHBlciBwbmxfbGVkZ2VyLiBPd25lciBzaG91bGQgdmVyaWZ5IGluIFBvbHltYXJrZXQgd2FsbGV0LgoKIyMgUFJPUE9TRUQgQUNUSU9OUyAoaHVtYW4gcmV2aWV3KQoKKipUaGUgZW50aXJlIGNvbXBvdW5kaW5nIGNoYWluIGlzIGJsb2NrZWQgYnkgb25lIGJpbmFyeSBjb25kaXRpb246IHRoZSBrbGF1c2JvdCBzZXJ2aWNlIGlzIG5vdCBydW5uaW5nLioqCgotICoqQTAgW1BSRVJFUVVJU0lURV0qKjogU1NIIHRvIFZQUyA0NS44NS4yNTEuMTczIOKGkiBgc3lzdGVtY3RsIHN0YXJ0IGtsYXVzYm90YCDihpIgdmVyaWZ5IGFjdGl2ZSAocnVubmluZykuCi0gKipBMSBbYmVmb3JlIGxpdmUgcGF0aHNdKio6IEFmdGVyIHJlc3RhcnQsIGFsbG93IDEtMiByZXNvbHZlZCBtYXJrZXQtZGF5cyBmb3IgZnJlc2ggcHJpY2VyLWV2YWwgcm93cywgdGhlbiBjb21wdXRlIGZyZXNoIGRpc3BfcmF0aW83LiBEbyBOT1QgcmUtZW5hYmxlIEJBTkRfTElWRSBvciBhbnkgbGl2ZSBwYXRoIHVudGlsIGRpc3BfcmF0aW83ID49IDEuMTAgb3ZlciA+PSA3IHJlc29sdmVkIGRheXMuCi0gKipBMiBbb24gcmVzdGFydF0qKjogUHJvbW90ZSBpc290b25pYyBjYW5kaWRhdGUgKDY5IGRheXMgc3RhbGUsIG1hdGVyaWFsbHkgYmV0dGVyLWZpdHRlZCkgYmVmb3JlIGxpdmUgdHJhZGluZyByZXN1bWVzLiBPbmUgcGFyYW1ldGVyIGNoYW5nZSwgemVybyByaXNrIHdoaWxlIHNlcnZpY2UgaXMgb2ZmLgotICoqQTMgW2FmdGVyIGRpc3BfcmF0aW8gY29uZmlybWVkXSoqOiBSZWFzc2VzcyBCQU5EX0xJVkUgZWxpZ2liaWxpdHkuIEVxdWl0eSAkODguNzUgPiAkNzUgd2Vla2x5IGZsb29yLiBUaGUgZXF1aXR5L0hXIHJhdGlvIG5lZWRzIHJlY2FsY3VsYXRpb24gYWZ0ZXIgMjEgZGF5cyBvZiBubyBIVyBtb3ZlbWVudC4KCipObyBzdHJhdGVneSBjb2RlIGVkaXRzIG1hZGUuIFJFUE9SVC1PTkxZLioK
+# Research Audit 2026-08-15T1030Z — STALL day 22
+
+**ABORT: `systemd: failed/unknown` (not active) — service down since 2026-07-24 10:09 UTC (day 22). All four specialist reports confirm abort (exec 07:07, calib 08:07, gatekeeper 09:13, pnl 23:37 prior day). Snapshot fresh (2026-08-15T09:06Z, <1h old). Bankroll $88.750373, 0 open positions, 0 live paths. No analysis fabricated.**
+
+---
+
+## Stall Context (from specialist reports — no fabrication)
+
+| Field | Value |
+|---|---|
+| Service status | failed/unknown — intentional (owner shutdown 2026-07-24 10:09 UTC, EVOLVE 2026-07-26) |
+| Stall duration | 22 days |
+| Trade rows | 8,228 (unchanged since stall; last fill ~2026-07-19) |
+| Capital | $88.750373 (frozen, CLOB-exact) |
+| Open positions | 0 |
+| Consecutive zero-fill days | 26 |
+| BAND_LIVE | False |
+| BAND_NO_ENABLED | False |
+| STWA_REGULAR_YES/NO_ENABLED | False |
+| All gates | COLLECTING/null — ETAs all infinity |
+
+## Delta vs Prior Report (2026-08-14)
+
+| Metric | 2026-08-14 | 2026-08-15 | Change |
+|---|---|---|---|
+| Stall day | 21 | 22 | +1 |
+| disp_ratio7 alert run | 19 | 20 | +1 |
+| Isotonic days since promotion | 69 | 70 | +1 |
+| Bankroll | $88.750373 | $88.750373 | 0 |
+| Trade rows | 8,228 | 8,228 | 0 |
+| Open positions | 0 | 0 | 0 |
+
+## Shadow Loggers (from calib_monitor — active without VPS)
+
+| Logger | Rows today (through 08:05 UTC) |
+|---|---|
+| flb_screener.jsonl | 1,262,560 |
+| updown_sniper/snap_20260815.jsonl | 67,627 |
+| maker_flow.jsonl | 36,855 |
+| minmax_coherence.jsonl | 522 |
+| count_lock.jsonl | 582 |
+| badatmath_watch.jsonl | 11 (all ladder type, 0 fill_joins) |
+
+## Critical Pre-Resume Gates (state unchanged from prior report)
+
+1. **disp_ratio7 = 0.781** (last known 2026-07-26; threshold 1.10; **20th consecutive alert firing**). Edge premise unverified 22 days. The band strategy's central load-bearing assumption (implied sigma > realized sigma by ≥10%) was last measured 29pp BELOW threshold. Do NOT re-enable any live path until fresh disp_ratio7 ≥ 1.10 confirmed over ≥7 resolved days post-restart.
+
+2. **Isotonic promotion pending (70 days)** — Candidate (refit 2026-07-23, n_live=3,392) materially outperforms deployed (refit 2026-06-06, n_live=0). Material gap:
+
+   | p_cal grid | deployed | candidate | delta |
+   |---|---|---|---|
+   | 0.95 | 0.3822 | 0.4374 | **+5.5pp** |
+   | 1.00 | 0.6316 | 0.8000 | **+16.8pp** |
+   | 0.00–0.90 | within ±2pp | — | immaterial |
+
+   Promote immediately upon VPS restart, **before** any live trading resumes.
+
+3. **G8 updown_crossing KILLED (2026-07-26)** — WR 0.9528 < BE 0.9651 at n=127. Permanent. Do not revisit.
+
+## PROPOSED ACTIONS (human review)
+
+**No action taken — stall protocol active.** Unanimous recommendation from all four specialist reports:
+
+1. **SSH to VPS → `systemctl start klausbot`** — immediately restores STWA pricer, band_struct, THERMO, M1-beta; shadow loggers already accumulating data (22 days of screener + updown sniper rows ready for analysis).
+2. **Allow 1–2 settled market days post-restart** — fresh disp_ratio7 computation requires resolved labels, which take ≥1 settlement cycle after pricer comes online.
+3. **Promote isotonic candidate on restart** (before live trading) — material calibration improvement banked 70 days; will shift high-confidence signal p_cal from ~0.38 → ~0.44.
+4. **disp_ratio7 is the hard gate** — do not set BAND_LIVE=True until fresh disp_ratio7 ≥ 1.10 confirmed over ≥7 consecutive resolved days. Last known value (0.781) is materially below threshold and 22 days stale.
+
+*Nothing changed today. Stall continues. Compounding clock stopped at day 22.*
