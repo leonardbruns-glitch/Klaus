@@ -1,8 +1,8 @@
 {
-  "date": "2026-08-14",
-  "run_ts": "2026-08-14T08:30Z",
+  "date": "2026-08-15",
+  "run_ts": "2026-08-15T08:05Z",
   "status": "STALLED",
-  "abort_reason": "systemd: failed/unknown (day 21); last active 2026-07-24",
+  "abort_reason": "systemd: failed/unknown (day 22); last active 2026-07-24",
   "brier7": null,
   "ece7": null,
   "rho7": null,
@@ -11,25 +11,25 @@
   "prior_ece7": 0.0,
   "prior_disp_ratio7": 0.781,
   "prior_date": "2026-07-26",
-  "disp_ratio_alert_consecutive_runs": 19,
+  "disp_ratio_alert_consecutive_runs": 20,
   "alerts": [
-    "STALL: systemd failed day 21 — no metrics computable",
-    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 19 consecutive runs)"
+    "STALL: systemd failed day 22 — no metrics computable",
+    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 20 consecutive runs)"
   ],
   "isotonic_candidate_delta": {
     "grid_0.95": {"deployed": 0.3822, "candidate": 0.4374, "delta": 0.0552, "material": true},
     "grid_1.00": {"deployed": 0.6316, "candidate": 0.8000, "delta": 0.1684, "material": true},
     "candidate_refit_utc": "2026-07-23T09:30:44+00:00",
     "deployed_refit_utc": "2026-06-06T22:27:08+00:00",
-    "days_since_promotion": 69
+    "days_since_promotion": 70
   },
   "shadow_loggers_today": {
-    "flb_screener": {"n_rows": 1247116, "last_ts": "2026-08-14T08:28:42Z"},
-    "maker_flow": {"n_rows": 48578, "last_ts": "2026-08-14T08:30:10Z"},
-    "badatmath_watch": {"n_rows": 1261, "last_ts": "2026-08-14T07:42:01Z"},
-    "minmax_coherence": {"n_rows": 432, "last_ts": "2026-08-14T08:20:45Z"},
-    "count_lock": {"n_rows": 102, "last_ts": "2026-08-14T08:26:00Z"},
-    "updown_sniper_snap": {"n_rows": 71460, "last_ts": "2026-08-14T08:30:11Z"}
+    "flb_screener": {"n_rows": 1262560, "last_ts": "2026-08-15T08:03:10Z"},
+    "maker_flow": {"n_rows": 36855, "last_ts": "2026-08-15T08:03:40Z"},
+    "badatmath_watch": {"n_rows": 11, "last_ts": "2026-08-15T08:04:01Z"},
+    "minmax_coherence": {"n_rows": 522, "last_ts": "2026-08-15T08:00:39Z"},
+    "count_lock": {"n_rows": 582, "last_ts": "2026-08-15T08:00:52Z"},
+    "updown_sniper_snap": {"n_rows": 67627, "last_ts": "2026-08-15T08:05:16Z"}
   },
-  "note": "Day 21 stall. No stwa_pricer_eval_s50 files in any data/shadow/<date>/ subdirectory. Shadow loggers (non-pricer) running normally. Isotonic candidate delta confirmed: +0.0552 at grid[0.95], +0.1684 at grid[1.0]. 69 days since isotonic promotion. disp_ratio carried at 0.781; alert unresolved — 19th consecutive run. No transitions vs day 20."
+  "note": "Day 22 stall. No stwa_pricer_eval_s50 files in any data/shadow/<date>/ subdirectory. Shadow loggers (non-pricer) running normally. Isotonic candidate delta confirmed: +0.0552 at grid[0.95], +0.1684 at grid[1.0]. 70 days since isotonic promotion. disp_ratio carried at 0.781; alert unresolved — 20th consecutive run. No transitions vs day 21."
 }
