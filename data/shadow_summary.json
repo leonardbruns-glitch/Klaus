@@ -2,10 +2,10 @@
   "loggers": {
     "flb_screener.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-06-05T16:08:04.139112+00:00\", \"category\": \"other\", \"question\": \"Strait of Hormuz traffic returns to normal by end of June?\", \"fav_token\": \"77669758102929718590160851391714019116736856202333459817343190730743895177270\", \"fav_last\": 0.815, \"best_bid\": 0.81, \"best_ask\": 0.83, \"spread\": 0.0",
-      "last_excerpt": "{\"ts\": \"2026-08-16T04:15:10.901200+00:00\", \"category\": \"other\", \"in_play\": false, \"question\": \"Will Elon Musk post 320-339 tweets from August 14 to August 21, 2026?\", \"condition_id\": \"0xe4a89a1fb27fa8ce0353dfb2367d3981b183d0c2ae6575aa77a23f28858824ec\", \"fav_token\": \"104261429306356084151295514123545",
-      "mtime_utc": "2026-08-16T04:15:13Z",
-      "n_rows": 1275467,
-      "size_bytes": 787263307
+      "last_excerpt": "{\"ts\": \"2026-08-16T04:30:19.903977+00:00\", \"category\": \"other\", \"in_play\": true, \"question\": \"Strait of Hormuz traffic returns to normal by September 30?\", \"condition_id\": \"0xa08a5ce99e14ce0b22767af6f16c08a2ab012249444c20887193a9a3e98e11fc\", \"fav_token\": \"11134447534296978411670297557772398254967403",
+      "mtime_utc": "2026-08-16T04:30:22Z",
+      "n_rows": 1275640,
+      "size_bytes": 787370906
     },
     "hot/2026-08-06/badatmath_watch.jsonl": {
       "first_excerpt": "{\"ts\": 1785987721.8941364, \"record\": \"fill_join\", \"fill_ts\": 1785987623, \"detect_lag_s\": 98.9, \"title\": \"Will the highest temperature in Toronto be 28\\u00b0C on August 7?\", \"event\": \"highest-temperature-in-toronto-on-august-7-2026\", \"outcome\": \"Yes\", \"price\": 0.13, \"size\": 306, \"usdc\": 41.51043, \"ci",
@@ -296,24 +296,24 @@
     },
     "hot/2026-08-16/count_lock.jsonl": {
       "first_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-16T00:00:01.113721+00:00\", \"question\": \"Will there be 6 or fewer earthquakes of magnitude 5.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 5.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", ",
-      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-16T04:15:01.180509+00:00\", \"question\": \"Will there be exactly 2 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
-      "mtime_utc": "2026-08-16T04:16:12Z",
-      "n_rows": 618,
-      "size_bytes": 441941
+      "last_excerpt": "{\"schema_version\": 1, \"record_type\": \"count_lock\", \"family\": \"quake\", \"ts_utc\": \"2026-08-16T04:30:02.003328+00:00\", \"question\": \"Will there be exactly 2 earthquakes of magnitude 6.5 or higher worldwide from August 10 - August 16?\", \"mag_threshold\": 6.5, \"window_start\": \"2026-08-10T00:00:00-04:00\", \"",
+      "mtime_utc": "2026-08-16T04:31:10Z",
+      "n_rows": 654,
+      "size_bytes": 467691
     },
     "hot/2026-08-16/maker_flow.jsonl": {
       "first_excerpt": "{\"poll_ts\": 1786838418.0981424, \"cid\": \"0xb9bebca0082bd8fe27436f83d7448ead79dc57592c2284fced36a6f339d2b827\", \"q\": \"Will the highest temperature in Hong Kong be 34\\u00b0C on August 15?\", \"proxyWallet\": \"0xd42e66610bb537ab27e60898513ff1fecbc7c84a\", \"side\": \"BUY\", \"asset\": \"8732770914630794599845487721",
-      "last_excerpt": "{\"poll_ts\": 1786853945.2638211, \"cid\": \"0x668edc6b335216003312c2b6df615749b87da0a1acaaf0894f79340c627bae48\", \"q\": \"Will the lowest temperature in Miami be between 72-73\\u00b0F on August 17?\", \"proxyWallet\": \"0x9d8ac9598dce49bdcf1856a453a07f76fc0894cb\", \"side\": \"BUY\", \"asset\": \"9740156456642719701342",
-      "mtime_utc": "2026-08-16T04:19:07Z",
-      "n_rows": 17845,
-      "size_bytes": 19272275
+      "last_excerpt": "{\"poll_ts\": 1786854847.320068, \"cid\": \"0xc4bff583a83ebbbf606c8efc4c5fa8bb226b466dcc6d580fcede7ce08561411c\", \"q\": \"Will the highest temperature in Los Angeles be between 70-71\\u00b0F on August 17?\", \"proxyWallet\": \"0xe7b8cd82baa1100b78352eaab20b5bbe2c578d65\", \"side\": \"BUY\", \"asset\": \"4932514784276432",
+      "mtime_utc": "2026-08-16T04:34:11Z",
+      "n_rows": 19003,
+      "size_bytes": 20525430
     },
     "hot/2026-08-16/minmax_coherence.jsonl": {
       "first_excerpt": "{\"ts\": \"2026-08-16T00:00:01+00:00\", \"city\": \"nyc\", \"date\": \"2026-08-15\", \"unit\": \"f\", \"title\": \"Lowest temperature in NYC on August 15?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 1.021, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
-      "last_excerpt": "{\"ts\": \"2026-08-16T04:00:01+00:00\", \"city\": \"miami\", \"date\": \"2026-08-17\", \"unit\": \"f\", \"title\": \"Lowest temperature in Miami on August 17?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 2.13, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
-      "mtime_utc": "2026-08-16T04:00:45Z",
-      "n_rows": 248,
-      "size_bytes": 1306533
+      "last_excerpt": "{\"ts\": \"2026-08-16T04:20:01+00:00\", \"city\": \"miami\", \"date\": \"2026-08-17\", \"unit\": \"f\", \"title\": \"Lowest temperature in Miami on August 17?\", \"has_max_pair\": true, \"min_ladder_n\": 11, \"min_sum_ask\": 2.02, \"coverage_best\": null, \"coverage_all\": [], \"min_lockout\": null, \"oracle_blocked\": false}",
+      "mtime_utc": "2026-08-16T04:20:40Z",
+      "n_rows": 268,
+      "size_bytes": 1412825
     },
     "updown_sniper/snap_20260809.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786233600\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.19, \"b_px\": 64962.59, \"b_open\": 64962.6, \"move\": -1.5393472552194254e-07, \"sigma1s\": 9.323263506156394e-06, \"z\": -0.0009545483527983292, \"p_up\": 0.4996191903612111, \"up\": {\"ask\": 0.57, \"ask_sz\": 46.51, \"b",
@@ -366,11 +366,11 @@
     },
     "updown_sniper/snap_20260816.jsonl": {
       "first_excerpt": "{\"type\": \"snap\", \"slug\": \"btc-updown-5m-1786838400\", \"asset\": \"btc\", \"step\": 300, \"t_left\": 299.62, \"b_px\": 63086.01, \"b_open\": 63086.0, \"move\": 1.5851377477282824e-07, \"sigma1s\": 7.0737663613907145e-06, \"z\": 0.0012945869384597042, \"p_up\": 0.5005164653211449, \"up\": {\"ask\": 0.53, \"ask_sz\": 20.0, \"bid",
-      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786853700\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 53.37, \"b_px\": 0.06988, \"b_open\": 0.06983, \"move\": 0.000716024631247203, \"sigma1s\": 6.0106004089318236e-05, \"z\": 1.6306419802889658, \"p_up\": 0.9485170571806374, \"up\": {\"ask\": null, \"ask_sz\": null, \"bid\": 0.",
-      "mtime_utc": "2026-08-16T04:19:06Z",
-      "n_rows": 35902,
-      "size_bytes": 14547021
+      "last_excerpt": "{\"type\": \"snap\", \"slug\": \"doge-updown-5m-1786854600\", \"asset\": \"doge\", \"step\": 300, \"t_left\": 43.43, \"b_px\": 0.06986, \"b_open\": 0.0699, \"move\": -0.0005722460658083017, \"sigma1s\": 6.043560828232066e-05, \"z\": -1.436794552519788, \"p_up\": 0.07538818936621977, \"up\": {\"ask\": 0.01, \"ask_sz\": 363.01, \"bid\":",
+      "mtime_utc": "2026-08-16T04:34:16Z",
+      "n_rows": 38018,
+      "size_bytes": 15403089
     }
   },
-  "snapshot_ts": "2026-08-16T04:19:06Z"
+  "snapshot_ts": "2026-08-16T04:34:16Z"
 }
