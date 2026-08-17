@@ -1,36 +1,31 @@
-# Gate-Keeper Report — 2026-08-16T09:09Z
+# Gate-Keeper Report — 2026-08-17
 
-**STALL #27 — ABORT: `systemd: failed/unknown` (day 23 since 2026-07-24 shutdown). Service status is not `active`.**
-
-Snapshot: `2026-08-16T09:09:16Z` (fresh, <30 min old). Abort triggered by service-status check only. No new data accumulated on any gate.
-Bankroll: $88.750373 (unchanged, 23 days zero-activity). All trading paths disabled: `BAND_LIVE=False`, `BAND_NO_ENABLED=False`, `STWA_REGULAR_YES_ENABLED=False`, `STWA_REGULAR_NO_ENABLED=False`.
-
-**Observation**: UPDOWN sniper snap data IS actively collecting today (`updown_sniper/snap_20260816.jsonl`: 76,269 rows as of 09:09 UTC), as are `hot/2026-08-16/` loggers (maker_flow, count_lock, minmax_coherence, badatmath_watch). These are separate from the main STWA/band systemd service. None of the 7 gate-relevant shadow files (band_struct, thermo_maker, basket_exit_shadow, metar_lockout, exit099_live) appear in shadow_summary — all remain dark.
+**STALL DAY 28 — ABORT**: SNAPSHOT stale (last: 2026-08-16T11:26:01Z, age >24h); `system_status.txt` reports `systemd: failed/unknown`; no gate transitions possible.
 
 ---
 
-## Gate Ledger
+## Ledger (unchanged from prior run 2026-08-16T09:09:00Z)
 
-| gate | n | +24h | WR | ROI | CI95 | status | ETA |
+| Gate | n | +24h | WR | ROI | CI95 | Status | ETA |
 |---|---|---|---|---|---|---|---|
-| G1 BAND_YES per slice (d0/1/2 × off 0/1/2 × price band) | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark since 2026-07-25 [22d]; band_struct_lite never in data-mirror) |
-| G2 BAND_NO + PAIR_FAV legs | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 22d; exit099_live dark since 2026-07-07 [40d]; BAND_NO_ENABLED=False since 2026-07-02) |
-| G3 FILLED-vs-FIRED divergence | null | 0 | — | — | — | COLLECTING | ∞ (trades.jsonl last live row 2026-07-19; no fills 28d; no maker fills expected) |
-| G4 BASKET_EXIT (cash green baskets) | null | 0 | — | — | — | COLLECTING | ∞ (basket_exit_shadow dark since 2026-07-07 [40d]; absent from shadow_summary) |
-| G5 THERMO upper-tail maker-NO | null | 0 | — | — | — | COLLECTING | ∞ (thermo_maker dark since 2026-07-25 [22d]; absent from shadow_summary) |
-| G6 M1-beta METAR lockout slices | null | 0 | — | — | — | COLLECTING | ∞ (metar_lockout dark since 2026-07-25 [22d]; absent from shadow_summary) |
-| G7 SUM_POSTED [0.70,0.85] slice | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 22d; band_struct_lite never existed; sum_posted field unavailable) |
+| G1 BAND YES (per slice) | null | 0 | — | — | — | COLLECTING | ∞ (data dark 24d) |
+| G2 BAND NO + PAIR_FAV | null | 0 | — | — | — | COLLECTING | ∞ (BAND_NO_ENABLED=False; dark 41d) |
+| G3 FILLED vs FIRED | null | 0 | — | — | — | COLLECTING | ∞ (no live fills since 2026-07-19) |
+| G4 BASKET EXIT | null | 0 | — | — | — | COLLECTING | ∞ (shadow dark 41d) |
+| G5 THERMO upper-tail | null | 0 | — | — | — | COLLECTING | ∞ (shadow dark 23d) |
+| G6 METAR lockout | null | 0 | — | — | — | COLLECTING | ∞ (shadow dark 23d) |
+| G7 SUM-POSTED 0.70-0.85 | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 23d) |
 
----
+## State Transitions vs Prior Run
 
-## State Transitions vs Prior Run (2026-08-15T09:13Z)
-
-None. All gates remain COLLECTING/null (stall day 22 → 23). Zero n accumulated in last 24h. All gate-relevant shadow files remain dark.
-
----
+None. All gates frozen at n=null for 23–41+ days depending on source. No new data entered any gate since last live activity. Stall count advances from 27 → 28.
 
 ## PROPOSED ACTIONS (human review)
 
-None. No gate has newly reached READY or REJECTED.
+No gate has reached READY or REJECTED — no automated flag/param changes proposed.
 
-**Context**: System intentionally stopped since 2026-07-24 (owner directive, EVOLVE 2026-07-26). Main STWA/band systemd service has been `failed` for 23 consecutive days. Gatekeeper cannot accumulate n without active trading. The UPDOWN sniper and hot-logger infrastructure appears still operational as a separate process. Stall loop continues until Klaus is restarted on VPS or owner formally closes these gates.
+**Critical finding — system has been halted for 28+ days:**
+
+The data-mirror has received no new snapshots since 2026-08-16T11:26:01Z (>24h gap as of this run). Per `system_status.txt`, `systemd: failed/unknown`. Per commit history, owner intentionally stopped Klaus on 2026-07-24 with daily/liveness timers disabled (WEEKLY-ONLY loop since 2026-07-26 EVOLVE commit). All shadow data sources went dark on 2026-07-25 (band, thermo, metar) or earlier (basket_exit, exit099_live on 2026-07-07). No gate can accumulate n until Klaus is restarted.
+
+**The gate-keeper cannot certify, reject, or transition any slice while the system is down.** Gate validation is structurally blocked until the VPS service is restored.
