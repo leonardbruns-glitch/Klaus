@@ -1,8 +1,8 @@
 {
-  "date": "2026-08-16",
-  "run_ts": "2026-08-16T08:15Z",
+  "date": "2026-08-17",
+  "run_ts": "2026-08-17T00:00Z",
   "status": "STALLED",
-  "abort_reason": "systemd: failed/unknown (day 23); last active 2026-07-24",
+  "abort_reason": "snapshot >24h old (2026-08-16T11:26:01Z); systemd: failed/unknown (day 24); last active 2026-07-24",
   "brier7": null,
   "ece7": null,
   "rho7": null,
@@ -11,25 +11,21 @@
   "prior_ece7": 0.0,
   "prior_disp_ratio7": 0.781,
   "prior_date": "2026-07-26",
-  "disp_ratio_alert_consecutive_runs": 21,
+  "disp_ratio_alert_consecutive_runs": 22,
   "alerts": [
-    "STALL: systemd failed day 23 — no metrics computable",
-    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 21 consecutive runs)"
+    "STALL: systemd failed day 24 — no metrics computable",
+    "DISPERSION: disp_ratio7 last known 0.781 < 1.10 alert threshold (sustained, 22 consecutive runs)"
   ],
   "isotonic_candidate_delta": {
     "grid_0.95": {"deployed": 0.3822, "candidate": 0.4374, "delta": 0.0552, "material": true},
     "grid_1.00": {"deployed": 0.6316, "candidate": 0.8000, "delta": 0.1684, "material": true},
     "candidate_refit_utc": "2026-07-23T09:30:44+00:00",
     "deployed_refit_utc": "2026-06-06T22:27:08+00:00",
-    "days_since_promotion": 71
+    "days_since_promotion": 72
   },
   "shadow_loggers_today": {
-    "flb_screener": {"n_rows": 1278193, "last_ts": "2026-08-16T08:07:41Z"},
-    "maker_flow": {"n_rows": 40802, "last_ts": "2026-08-16T08:07:23Z"},
-    "badatmath_watch": {"n_rows": 1, "last_ts": "2026-08-16T02:36:01Z"},
-    "minmax_coherence": {"n_rows": 531, "last_ts": "2026-08-16T08:00:47Z"},
-    "count_lock": {"n_rows": 1170, "last_ts": "2026-08-16T08:05:12Z"},
-    "updown_sniper_snap": {"n_rows": 67662, "last_ts": "2026-08-16T08:07:41Z"}
+    "note": "no pricer shadow data; non-pricer loggers last seen 2026-08-16T08:07Z (stale)"
   },
-  "note": "Day 23 stall. No stwa_pricer_eval_s50 files in any data/shadow/<date>/ subdirectory (confirmed through hot/2026-08-16). Shadow loggers (non-pricer) running normally. Isotonic candidate delta unchanged: +0.0552 at grid[0.95], +0.1684 at grid[1.0]. 71 days since isotonic promotion. disp_ratio carried at 0.781; alert unresolved — 21st consecutive run. No transitions vs day 22."
+  "transitions_vs_prior": "none — disp_ratio_alert_consecutive_runs 21->22; all else unchanged",
+  "note": "Day 24 stall. Both abort conditions met: snapshot >24h, systemd not active. No stwa_pricer_eval_s50 files in any shadow subdirectory (consistent with all prior stall runs). Isotonic candidate delta unchanged at +0.1684 at grid[1.0], now 72 days unmerged. disp_ratio carried at 0.781 — 22nd consecutive alert run."
 }

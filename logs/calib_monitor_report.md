@@ -1,112 +1,75 @@
-# Klaus Calibration & Dispersion Monitor — 2026-08-16T08:15Z
+# Klaus Calib Monitor — 2026-08-17 — STALL (day 24)
 
-**STALL — systemd: failed/unknown (day 23). Abort condition met. No calibration or dispersion metrics computable.**
-
-## Abort Reason
-
-`system_status.txt` reads `failed unknown` for `## klaus systemd:` — not `active`. Abort condition met per monitor rules. Snapshot freshness: 2026-08-16T08:07:41Z — current (within 6h window) ✓.
+**ABORT: snapshot_ts `2026-08-16T11:26:01Z` is >24h old (limit: 6h); `systemd: failed/unknown` — no metrics computable. One-line stall header, exiting.**
 
 ---
 
-## System Context
+## ABORT REASON
 
-| Field | Value |
-|---|---|
-| Stall duration | Day 23 (last active: 2026-07-24 10:09:19 UTC) |
-| Snapshot freshness | 2026-08-16T08:07:41Z ✓ |
-| Bankroll | $88.750373 (unchanged; 0 open positions) |
-| Trade rows | 8228 (unchanged since stall) |
-| All live paths | DISABLED (BAND_LIVE=False, BAND_NO=False, STWA_YES/NO=False) |
+Both pre-flight abort conditions triggered:
 
-**Shadow loggers active today (through 08:07 UTC)**:
-- `flb_screener.jsonl`: 1,278,193 rows (through 08:07 UTC) — market screener running continuously
-- `maker_flow.jsonl` (hot/2026-08-16): 40,802 rows (through 08:07 UTC) — CLOB order-book polling
-- `badatmath_watch.jsonl` (hot/2026-08-16): 1 row (through 02:36 UTC, early day; ladder type only)
-- `minmax_coherence.jsonl` (hot/2026-08-16): 531 rows (through 08:00 UTC)
-- `count_lock.jsonl` (hot/2026-08-16): 1,170 rows (through 08:05 UTC)
-- `updown_sniper/snap_20260816.jsonl`: 67,662 rows (through 08:07 UTC) — updown sniper running
+| Condition | Value | Threshold | Status |
+|---|---|---|---|
+| snapshot age | >24h (2026-08-16T11:26:01Z) | ≤6h | FAIL |
+| systemd status | `failed / unknown` | `active` | FAIL |
 
-Weather markets continue resolving daily (badatmath_watch fill_join records in prior days confirm real outcomes). The data gap is entirely on the STWA pricer/calibration side, which requires the VPS klausbot service to be running.
+System has been down continuously since **2026-07-24T10:09:19Z** (24 days). No stwa_pricer_eval_s50 data is available in any `data/shadow/<date>/` subdirectory through today (confirmed via data-mirror shadow_summary.json, consistent with prior 23 stall runs).
 
 ---
 
-## 1. SETTLED LANE
+## CARRIED METRICS (last valid state: 2026-07-26)
 
-**Blocked.** No `stwa_pricer_eval_s50.jsonl` files in any `data/shadow/<date>/` subdirectory for any date since 2026-07-24. All hot/ directories (2026-08-06 through 2026-08-16) contain only non-pricer loggers (badatmath_watch, maker_flow, minmax_coherence, count_lock). The STWA pricer has produced zero output for 23 days. Cannot compute 7d Brier, ECE, or rank-rho.
+No new computation possible. Metrics below are carried forward unchanged.
 
-**Last known (2026-07-26, carried forward — day 23)**:
-- brier7: 0.055 (alert threshold >0.15) — OK, but 21 days stale
-- ece7: ~0.0 (alert threshold >0.05) — OK, but 21 days stale
-- rho7: not recorded
-
----
-
-## 2. PROXY LANE
-
-**Blocked.** No p_cal values available — pricer not running. `minmax_coherence.jsonl` records market ladder structure but does not carry p_cal. Cannot compute proxy-lane divergence.
+| Metric | Last Known | Alert Threshold | Status |
+|---|---|---|---|
+| brier7 | 0.055 | >0.15 | OK |
+| ece7 | ~0.000 | >0.05 | OK |
+| rank-rho | — | <+0.15 | unknown |
+| **disp_ratio7** | **0.781** | **<1.10** | **ALERT (day 22)** |
 
 ---
 
-## 3. DISPERSION GAUGE ← PRIMARY EDGE VARIABLE
+## SECTIONS (stub — all require live data)
 
-**Blocked — alert sustained (21st consecutive run).** No resolved market labels with p_cal since 2026-07-26. Cannot compute 7d implied/realized width ratio.
+### 1. SETTLED LANE
+No pricer_eval_s50 data. Cannot compute.
 
-**Last known disp_ratio7: 0.781** (from 2026-07-26). Alert threshold: 1.10. This is the **21st consecutive monitor run** with the dispersion alert firing.
+### 2. PROXY LANE
+No today's pricer rows. Cannot compute.
 
-The dispersion premium — the central load-bearing assumption of the band strategy (implied sigma > realized sigma, ratio ≥ 1.10) — has not been verified for 23 days. The last confirmed value of 0.781 is materially below threshold. Whether it has recovered, stayed flat, or compressed further is unknown. Silence is not absolution. The edge is unverified and last-known-below-threshold.
+### 3. DISPERSION GAUGE (critical)
+**ALERT (pre-registered, 22nd consecutive run):** `disp_ratio7 = 0.781 < 1.10`. The dispersion premium the band strategy harvests is compressing — or more precisely, has been unobservable for 24 days while the last measured value was already below threshold. This alert has been sustained since the first measurement below 1.10. The edge premise (implied sigma > realized sigma) is unconfirmed. **The edge may be decaying or already gone.**
 
-**Regional breakdown**: Cannot update. Last known breakdown carried from 2026-07-26 report.
+No new data to update the ratio. Carried at 0.781.
 
----
+### 4. ISOTONIC STALENESS
+Candidate not promoted. As of last check (2026-07-26):
 
-## 4. ISOTONIC STALENESS
-
-No change from prior reports. Both files remain readable from repo:
-
-| grid | deployed (2026-06-06) | candidate (2026-07-23) | delta | material? |
+| Grid point | Deployed | Candidate | Delta | Material |
 |---|---|---|---|---|
-| 0.00 | 0.0000 | 0.0042 | +0.0042 | no |
-| 0.05 | 0.0695 | 0.0708 | +0.0013 | no |
-| 0.10 | 0.1340 | 0.1255 | -0.0085 | no |
-| 0.15 | 0.1828 | 0.1831 | +0.0003 | no |
-| 0.20 | 0.2663 | 0.2697 | +0.0034 | no |
-| 0.25 | 0.3557 | 0.3373 | -0.0184 | no |
-| 0.30–0.85 | 0.3801 (flat) | 0.3748 (flat) | -0.0053 | no |
-| 0.90 | 0.3801 | 0.3919 | +0.0118 | no |
-| **0.95** | **0.3822** | **0.4374** | **+0.0552** | **YES** |
-| **1.00** | **0.6316** | **0.8000** | **+0.1684** | **YES** |
+| 0.95 | 0.3822 | 0.4374 | +0.0552 | YES |
+| 1.00 | 0.6316 | 0.8000 | +0.1684 | YES |
 
-Candidate fit: n_live=3,392 over 8 live calendar days (refit 2026-07-23). Deployed: n_live=0 (hist-only, refit 2026-06-06). **71 days without isotonic promotion** (was 70 yesterday).
+- Candidate refit: 2026-07-23T09:30:44Z
+- Deployed refit: 2026-06-06T22:27:08Z
+- **Days since promotion: 72 days** — the candidate calibration is materially different and aging. When the system comes back up, the live-refit cron on the VPS should promote this.
 
-**Interpretation**: Candidate shifts p_cal UP materially at the high end of the raw-score distribution. Promotion blocked while service is down. Recommend promoting immediately upon VPS restart before any live trading resumes.
+### 5. STATE DIFF
+No transitions vs prior run (2026-08-16). `disp_ratio_alert_consecutive_runs` incremented 21 → 22.
 
 ---
 
-## 5. STATE
+## ALERTS (pre-registered only)
 
-No metric transitions vs prior report (2026-08-15). All live metrics null. disp_ratio alert still firing (sustained, 21st consecutive run). Isotonic gap: 71 days. No change in system status, bankroll, or open positions.
-
-**Diff vs prior state**:
-- `stall_day`: 22 → 23
-- `disp_ratio_alert_run`: 20 → 21
-- `isotonic_days_since_promotion`: 70 → 71
-- all else: no change
+**[ACTIVE] DISPERSION RATIO ALERT — 22nd consecutive run**
+`disp_ratio7 = 0.781 < 1.10` (last known). The dispersion edge premise is not confirmed live. This is not a "pending" situation — 22 consecutive monitoring runs without a reading above threshold. If the system restarts and the ratio does not recover above 1.10 on fresh data, the band strategy's core edge claim is falsified and trading should halt.
 
 ---
 
-## ALERTS (pre-registered, fired)
+## RECOMMENDATIONS (report-only; do NOT edit configs)
 
-### ALERT 1: DISPERSION RATIO BELOW 1.10
-
-Last known disp_ratio7 = **0.781** vs threshold 1.10. Alert has fired on every monitor run since at least 2026-07-10. This is the **21st consecutive firing**.
-
-The dispersion edge — the one quantity this monitor exists to guard — has not been verified for 23 days. The edge premise (implied sigma > realized sigma by ≥10%) was last measured below threshold. The strategy's live paths are all disabled, so there is no active bleed. But resumption planning must treat disp_ratio as **unknown and last-known-below-threshold** until fresh data is computed after VPS restart.
-
----
-
-## Recommendations (report-only — no code edits made)
-
-1. **SSH VPS → restart service**: 23 days of downtime with shadow loggers accumulating data. Fresh pricer-eval rows will start accruing immediately upon restart.
-2. **Allow 1–2 settled market-days before live-path resumption**: Need resolved labels to compute fresh disp_ratio before trusting the edge premise.
-3. **Promote isotonic candidate on restart**: Candidate (refit 2026-07-23, n_live=3,392) is materially better-fitted than deployed (refit 2026-06-06, n_live=0). Material upward shift at grid[0.95, 1.0]. Promote on restart before live trading.
-4. **disp_ratio is the gate**: Do not re-enable BAND_LIVE or any live path until fresh disp_ratio7 ≥ 1.10 is confirmed over ≥7 resolved days.
+1. **VPS restart required.** System has been dead 24 days. SSH to VPS, check `systemctl status klaus`, restart service.
+2. **Pricer eval pipeline.** Once live, confirm `stwa_pricer_eval_s50.jsonl` is writing to `data/shadow/<date>/` — it has been absent for all 24 stall days.
+3. **Isotonic candidate promotion.** 72 days since last promotion; candidate delta is material (+0.168 at grid 1.0). The VPS live-refit cron should promote when it next runs post-restart.
+4. **Dispersion ratio.** First metric to recompute when data resumes. If it does not recover above 1.10 within 7 trading days, escalate to strategy review.
