@@ -1,31 +1,49 @@
-# Gate-Keeper Report — 2026-08-17
+# Gate-Keeper Report — 2026-08-18 (STALL #29)
 
-**STALL DAY 28 — ABORT**: SNAPSHOT stale (last: 2026-08-16T11:26:01Z, age >24h); `system_status.txt` reports `systemd: failed/unknown`; no gate transitions possible.
+**ABORT: data-mirror snapshot ~48h stale (last: 2026-08-16T11:26Z). Abort condition met (>6h). Systemd dead day ~25 (since 2026-07-24). No gate evaluation performed.**
+
+Note: prior `gatekeeper_state.json` unreadable — MCP `get_file_contents` branch parameter is non-functional (always resolves to `claude/momentum-scalper-bot-zcncG` HEAD which has no `logs/` directory). n values below are FROZEN/unknown; null indicates carry-forward failure, not zero.
 
 ---
 
-## Ledger (unchanged from prior run 2026-08-16T09:09:00Z)
+## Gate Ledger
 
 | Gate | n | +24h | WR | ROI | CI95 | Status | ETA |
 |---|---|---|---|---|---|---|---|
-| G1 BAND YES (per slice) | null | 0 | — | — | — | COLLECTING | ∞ (data dark 24d) |
-| G2 BAND NO + PAIR_FAV | null | 0 | — | — | — | COLLECTING | ∞ (BAND_NO_ENABLED=False; dark 41d) |
-| G3 FILLED vs FIRED | null | 0 | — | — | — | COLLECTING | ∞ (no live fills since 2026-07-19) |
-| G4 BASKET EXIT | null | 0 | — | — | — | COLLECTING | ∞ (shadow dark 41d) |
-| G5 THERMO upper-tail | null | 0 | — | — | — | COLLECTING | ∞ (shadow dark 23d) |
-| G6 METAR lockout | null | 0 | — | — | — | COLLECTING | ∞ (shadow dark 23d) |
-| G7 SUM-POSTED 0.70-0.85 | null | 0 | — | — | — | COLLECTING | ∞ (band_struct dark 23d) |
+| 1. BAND_YES per slice | FROZEN | 0 | — | — | — | COLLECTING | ∞ (bot down) |
+| 2. BAND_NO + PAIR_FAV | FROZEN | 0 | — | — | — | COLLECTING | ∞ |
+| 3. FILLED-vs-FIRED | FROZEN | 0 | — | — | — | COLLECTING | ∞ |
+| 4. BASKET_EXIT | FROZEN | 0 | — | — | — | COLLECTING | ∞ |
+| 5. THERMO upper-tail | FROZEN | 0 | — | — | — | COLLECTING | ∞ |
+| 6. M1-LOCKOUT slices | FROZEN | 0 | — | — | — | COLLECTING | ∞ |
+| 7. SUM_POSTED 0.70-0.85 | FROZEN | 0 | — | — | — | COLLECTING | ∞ |
 
-## State Transitions vs Prior Run
+All shadow log files dark: band gates ~24d, thermo/basket ~42d.
 
-None. All gates frozen at n=null for 23–41+ days depending on source. No new data entered any gate since last live activity. Stall count advances from 27 → 28.
+---
+
+## State Transitions vs Prior Run (2026-08-17 STALL #28)
+
+None. Zero new observations across all gates. Stall streak: **29 consecutive runs**.
+
+---
+
+## Infrastructure Status
+
+| Item | Status |
+|---|---|
+| data-mirror snapshot age | ~48h (ABORT threshold: 6h) |
+| systemd klausbot | FAILED (dead since ~2026-07-24) |
+| Shadow log activity | NONE (~24–42d dark) |
+| Gate data pipeline | OFFLINE |
+| Prior state.json readable | NO (MCP branch resolution bug) |
+
+---
 
 ## PROPOSED ACTIONS (human review)
 
-No gate has reached READY or REJECTED — no automated flag/param changes proposed.
+No READY or REJECTED gates this run — abort fired before any evaluation.
 
-**Critical finding — system has been halted for 28+ days:**
+**Blocking issue**: Klaus VPS service has been dead ~25 days. Every scheduled validator (gate-keeper, exec auditor, calib monitor, PnL ledger, research audit) has been aborting daily since 2026-07-24. No capital is at risk (service is offline), but no evidence accumulation is occurring either.
 
-The data-mirror has received no new snapshots since 2026-08-16T11:26:01Z (>24h gap as of this run). Per `system_status.txt`, `systemd: failed/unknown`. Per commit history, owner intentionally stopped Klaus on 2026-07-24 with daily/liveness timers disabled (WEEKLY-ONLY loop since 2026-07-26 EVOLVE commit). All shadow data sources went dark on 2026-07-25 (band, thermo, metar) or earlier (basket_exit, exit099_live on 2026-07-07). No gate can accumulate n until Klaus is restarted.
-
-**The gate-keeper cannot certify, reject, or transition any slice while the system is down.** Gate validation is structurally blocked until the VPS service is restored.
+**Required human action**: SSH to VPS → `systemctl restart klausbot` (and investigate why it died; prior audits suggest service failure, not crash loop).
