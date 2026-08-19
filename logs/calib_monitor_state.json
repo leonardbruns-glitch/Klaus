@@ -1,1 +1,12 @@
-{"date": "2026-08-18", "brier7": null, "ece7": null, "rho7": null, "disp_ratio7": null, "alerts": ["STALL: data-mirror pipeline not running — data/SNAPSHOT.md and data/system_status.txt absent from data-mirror branch"], "status": "aborted_no_data"}
+{
+  "date": "2026-08-19",
+  "status": "STALL",
+  "reason": "data-mirror branch contains no weather/STWA/band data files; system_status.txt absent",
+  "brier7": null,
+  "ece7": null,
+  "rho7": null,
+  "disp_ratio7": null,
+  "alerts": [
+    "DATA_INFRASTRUCTURE_ABSENT: data-mirror branch has no shadow/, SNAPSHOT.md, system_status.txt, band_config.txt, or pricer_eval files. Cannot evaluate any pipeline section. Edge health unknown."
+  ]
+}
