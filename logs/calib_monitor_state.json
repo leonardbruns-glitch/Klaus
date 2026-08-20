@@ -1,12 +1,16 @@
 {
-  "date": "2026-08-19",
+  "date": "2026-08-20",
   "status": "STALL",
-  "reason": "data-mirror branch contains no weather/STWA/band data files; system_status.txt absent",
+  "reason": "snapshot stale 4d (2026-08-16T11:26:01Z); systemd failed day 27 since 2026-07-24; no new pricer/band/shadow data",
   "brier7": null,
   "ece7": null,
   "rho7": null,
   "disp_ratio7": null,
+  "last_known_brier7": 0.055,
+  "last_known_disp_ratio7": 0.781,
+  "last_known_date": "2026-07-26",
   "alerts": [
-    "DATA_INFRASTRUCTURE_ABSENT: data-mirror branch has no shadow/, SNAPSHOT.md, system_status.txt, band_config.txt, or pricer_eval files. Cannot evaluate any pipeline section. Edge health unknown."
+    "STALL: systemd failed/unknown since 2026-07-24 (day 27+); snapshot 4 days stale",
+    "DISP_RATIO_COMPRESSION (carried, stale): last confirmed disp_ratio7=0.781 < threshold 1.10 — dispersion edge decay finding unresolved"
   ]
 }
