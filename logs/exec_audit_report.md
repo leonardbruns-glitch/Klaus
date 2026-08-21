@@ -1,8 +1,11 @@
-# Exec Audit Report — 2026-08-20 UTC
+# Exec Audit Report — 2026-08-21 UTC
 
-**ABORT: data-mirror stalled — last snapshot 2026-08-16T11:26:01Z (~96h ago, threshold 6h). Analysis halted; no fabricated metrics.**
+**ABORT: STALL** — snapshot timestamp 2026-08-16T11:26:01Z is ~5 days old (threshold: 6h); `system_status.txt` confirms `klaus systemd: failed unknown` (not active). No live data available — analysis suppressed per task rules.
 
-Last `data-mirror` commit: `762a6d497b27` — `snapshot 2026-08-16T11:26:01Z` (pushed 2026-08-16T11:26:05Z).
-The VPS data-mirror push script has not produced a commit in ~4 days. `system_status.txt` unreachable (no current snapshot).
+Last known state (from 2026-08-16 snapshot):
+- Bot has been down since ~2026-07-24 (last ActiveEnterTimestamp)
+- 0 open positions
+- Bankroll last recorded: $88.750373
+- Commit history shows STALL entries back to 2026-07-24 with no recovery
 
-Audit cannot proceed. Required action: investigate VPS / `data_mirror_push.py` cron on the live host.
+Required action: SSH to VPS → `systemctl start klaus` → verify `data_mirror_push.py` cron is running.
