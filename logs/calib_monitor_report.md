@@ -1,34 +1,32 @@
-# Calib Monitor Report — 2026-08-21
+# Calibration & Dispersion Monitor — 2026-08-22
 
-**STALL — ABORT:** `data-mirror` snapshot is 5 days stale (last: 2026-08-16T11:26:01Z; limit: 6h). Klaus systemd status: `failed/unknown` since 2026-07-24 (day 28). Owner shutdown confirmed in EVOLVE commit 2026-07-26 (`daily+liveness timers disabled → loop WEEKLY-ONLY`). No new pricer, band, or trade data since prior stall series. Cannot evaluate any pipeline section.
+**STATUS: STALL — ABORT**
 
-## Last Known Values (from commit trail, 2026-07-26 — **26+ days stale**)
+---
 
-| Metric | Value | Threshold | Status |
-|---|---|---|---|
-| brier7 | 0.055 | <0.15 | OK (stale) |
-| ece7 | ~0 | <0.05 | OK (stale) |
-| rho7 | n/a | >+0.15 | unknown |
-| disp_ratio7 | **0.781** | ≥1.10 | **ALERT (stale)** |
+## Abort Condition
 
-## State Diff vs 2026-08-20
+Data-mirror branch last snapshot: `2026-08-16T11:26:01Z`  
+Age at run time: **~6 days** (threshold: 6 hours)  
+Abort rule triggered: snapshot > 6h old.
 
-- snapshot_age: 4d → **5d** (still frozen at 2026-08-16T11:26:01Z; data-mirror timer not recovering)
-- stall_day: 27 → **28**
-- No new data on any monitored channel
+## Continuity Note
 
-## ALERTS (pre-registered, carried from 2026-07-26)
+This is the seventh consecutive monitoring session to abort with the same stall:
+- 2026-08-22 07:11 UTC — Exec Audit ABORTED (data-mirror 6d stale)
+- 2026-08-21 10:26 UTC — Research Audit STALLED (data-mirror 5d stale)
+- 2026-08-21 08:16 UTC — Calib Monitor STALL (systemd-failed day 28, snapshot 5d stale)
+- 2026-08-21 07:14 UTC — Exec Audit ABORT (systemd failed, snapshot 5d stale)
+- 2026-08-20 10:27 UTC — Research Audit STALL (data-mirror runtime files absent)
 
-- **DISP_RATIO_COMPRESSION:** Last confirmed 7d median dispersion ratio = 0.781, below the 1.10 floor. The band's implied > realized width premium has been compressing. Edge decay finding stands until fresh data shows otherwise. This alarm predates the shutdown and has not been resolved.
+Prior commit messages reference VPS systemd as **failed**. The data-mirror push timer has not run since 2026-08-16T11:26:01Z.
 
-## Sections Not Evaluated
+## No Data Available
 
-1. **SETTLED LANE** — no resolved pricer rows available (no shadow data in mirror)
-2. **PROXY LANE** — no today's p_cal rows available
-3. **DISPERSION GAUGE** — cannot recompute; last known ratio 0.781 (alert threshold ≥1.10)
-4. **ISOTONIC STALENESS** — cannot diff; no fresh candidate file in mirror
-5. **STATE** — written with last-known values carried forward, marked stale
+No analysis can be performed without live data. Sections 1–5 of the pipeline (Settled Lane, Proxy Lane, Dispersion Gauge, Isotonic Staleness, State diff) are all blocked.
 
-## Action Required
+## ALERTS
 
-Klaus service has been dead for 28 days. The data-mirror snapshot is frozen at 2026-08-16 (5 days stale). SSH to VPS and restart the service before any calibration work can resume. The dispersion ratio alert (0.781 < 1.10) from day 23–26 of the stall is unresolved and carried forward.
+No pre-registered calibration alerts can be evaluated. The absence of data is itself the operative condition.
+
+**Action required (human):** SSH to VPS and check/restart the Klaus systemd service and data-mirror push timer. Until data-mirror resumes pushing, all monitoring routines will continue to abort.

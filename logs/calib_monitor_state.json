@@ -1,16 +1,11 @@
 {
-  "date": "2026-08-21",
+  "date": "2026-08-22",
   "status": "STALL",
-  "reason": "snapshot stale 5d (2026-08-16T11:26:01Z); systemd failed day 28 since 2026-07-24; no new pricer/band/shadow data",
+  "abort_reason": "data-mirror snapshot 6d stale (last: 2026-08-16T11:26:01Z)",
   "brier7": null,
   "ece7": null,
   "rho7": null,
   "disp_ratio7": null,
-  "last_known_brier7": 0.055,
-  "last_known_disp_ratio7": 0.781,
-  "last_known_date": "2026-07-26",
-  "alerts": [
-    "STALL: systemd failed/unknown since 2026-07-24 (day 28); snapshot 5 days stale",
-    "DISP_RATIO_COMPRESSION (carried, stale): last confirmed disp_ratio7=0.781 < threshold 1.10 — dispersion edge decay finding unresolved"
-  ]
+  "alerts": [],
+  "consecutive_stall_days": 6
 }
