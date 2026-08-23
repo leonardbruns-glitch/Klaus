@@ -1,32 +1,35 @@
-# Calibration & Dispersion Monitor — 2026-08-22
+# Calibration & Dispersion Monitor — 2026-08-23
 
-**STATUS: STALL — ABORT**
-
----
+**STALLED — data-mirror has not pushed since 2026-08-16T11:26:01Z (7 days dead). Cannot compute any metrics. VPS data-mirror service requires immediate investigation.**
 
 ## Abort Condition
 
-Data-mirror branch last snapshot: `2026-08-16T11:26:01Z`  
-Age at run time: **~6 days** (threshold: 6 hours)  
-Abort rule triggered: snapshot > 6h old.
+| Check | Result |
+|---|---|
+| Last data-mirror commit | `2026-08-16T11:26:01Z` |
+| Age at report time | ~167 hours |
+| Threshold | 6 hours |
+| Verdict | **ABORT — stale by 161 hours** |
 
-## Continuity Note
+## What This Means
 
-This is the seventh consecutive monitoring session to abort with the same stall:
-- 2026-08-22 07:11 UTC — Exec Audit ABORTED (data-mirror 6d stale)
-- 2026-08-21 10:26 UTC — Research Audit STALLED (data-mirror 5d stale)
-- 2026-08-21 08:16 UTC — Calib Monitor STALL (systemd-failed day 28, snapshot 5d stale)
-- 2026-08-21 07:14 UTC — Exec Audit ABORT (systemd failed, snapshot 5d stale)
-- 2026-08-20 10:27 UTC — Research Audit STALL (data-mirror runtime files absent)
+The VPS running Klaus has not pushed a snapshot to the `data-mirror` branch in 7 days. All five pipeline sections (Settled Lane, Proxy Lane, Dispersion Gauge, Isotonic Staleness, State) require live data from this branch and cannot run.
 
-Prior commit messages reference VPS systemd as **failed**. The data-mirror push timer has not run since 2026-08-16T11:26:01Z.
+Possible causes:
+- Klaus systemd service crashed or was stopped
+- VPS is unreachable / rebooted without auto-restart
+- data-mirror push cron failed (auth, disk, or network issue)
+- Repository access revoked
 
-## No Data Available
+## Required Action
 
-No analysis can be performed without live data. Sections 1–5 of the pipeline (Settled Lane, Proxy Lane, Dispersion Gauge, Isotonic Staleness, State diff) are all blocked.
+SSH to the VPS and check:
+1. `systemctl status klaus` — is the service running?
+2. `journalctl -u klaus -n 100` — any crash logs?
+3. `git -C /path/to/Klaus push origin data-mirror` — can it push?
+
+No calibration assessment possible until the mirror resumes. This monitor will re-run on its next scheduled firing; if data-mirror is still stale, it will abort again.
 
 ## ALERTS
 
-No pre-registered calibration alerts can be evaluated. The absence of data is itself the operative condition.
-
-**Action required (human):** SSH to VPS and check/restart the Klaus systemd service and data-mirror push timer. Until data-mirror resumes pushing, all monitoring routines will continue to abort.
+- **[OPERATIONAL]** data-mirror dead 7 days — no model or dispersion data available. Klaus may be running blind or not running at all.
