@@ -23,12 +23,14 @@ except ImportError:
 
 @dataclass
 class BankrollConfig:
-    total: float = 100.0
-    base_stake: float = 5.0           # reduced $10→$5: 20-trade live data shows -$16 loss, 30% WR
-    scaled_stake: float = 5.0         # flat — heat-check disabled; raise after 50 trades WR>55%
+    total: float = 109.66             # updated: 2026-04-18, capital=$109.66
+    base_stake: float = 50.0          # 2026-05-07 (user directive: 30→50, concurrent cap 1)
+    scaled_stake: float = 50.0        # flat — heat-check disabled
     heat_trigger_wins: int = 999      # heat-check disabled — all 4 heat losses were SL exits costing -$14.36
-    max_open_positions: int = 3       # data collection phase — allow more concurrent trades
-    max_daily_loss: float = 10.0      # stop after -$10/day (CLAUDE.md); was $40 — too permissive
+    max_open_positions: int = 2       # 2026-05-07 user instruction: 1→2 BOND positions max concurrent
+    max_daily_loss_pct: float = 0.14   # 2026-06-05: armed ~-$10/day halt — the ONE backstop on the loosened band gate (ruin_floor stays off per user)
+    weekly_floor: float = 0.0         # disabled
+    ruin_floor: float = 89.16         # RATCHETED 2026-07-07 (EVOLVE daily): 0.40 × trailing-30d high-water $222.90 (measured 2026-07-05) per INVARIANTS #2 formula, HW > $100. Comparator now tracks cash + engine positions + ladder-at-cost (main._ladder_open_cost), so this no longer false-trips on ladder fires. Ratchet-up-only; unattended agents may never lower it. (Was 40.0, armed 2026-07-02.)
     post_close_cooldown: float = 0.0  # disabled — data collection phase
     min_entry_price: float = 0.03     # reject tokens below 3¢ (near-zero liquidity)
 
@@ -92,7 +94,8 @@ class MomentumConfig:
 @dataclass
 class ExecutionConfig:
     ob_scan_interval: float = 1.0      # seconds between order-book refreshes
-    hard_exit_seconds: int = 180       # forced exit if not profitable within 3 min
+    hard_exit_seconds: int = 240       # raised 180→240: lag_analysis shows main PM reprice at 135-225s
+                                       # 180s was cutting trades right before the repricing cluster
     no_trade_last_sec: int = 45        # exit 45s before window end — OBs thin below this
     entry_price_buffer: float = 0.05   # limit buy at price * (1 + buffer), capped at 0.30
     cascade_levels: int = 3            # sell in 3 tranches
@@ -101,6 +104,12 @@ class ExecutionConfig:
     slippage_tolerance: float = 0.02   # reject fill if slippage > 2 %
     retry_attempts: int = 3
     retry_delay: float = 0.5           # seconds between retries
+    min_hold_seconds: float = 30.0     # Phase 1 immunity zone — soft exits disabled before this
+    signal_flip_delay: float = 5.0     # Phase 2: SIGNAL_FLIPPED must persist this long before firing
+    pt_objective: float = 0.22         # Stage-1 profit target (flat 22%)
+    max_trade_duration: float = 210.0  # Phase 3: hard close at this many seconds
+    entry_slip_cap: float = 0.035      # reject fill if entry slippage > 3.5%
+    catastrophic_sl_pct: float = 0.45  # Phase 1 only: exit immediately if loss exceeds this
 
 
 @dataclass
@@ -126,17 +135,34 @@ class EdgeConfig:
     # Strategy: trade all hours, collect data, then tighten to proven edge windows.
     allowed_hours_utc: List[int] = field(default_factory=lambda: [])
 
-    # Macro event score discount: during 13:30 UTC macro window (CPI/NFP/claims),
-    # lower the effective min_score threshold to capture the mispricing lag.
-    # Research: 30s-2min window after macro data release is the primary edge source.
-    macro_window_hours: List[int] = field(default_factory=lambda: [13, 14])
-    macro_score_discount: float = 0.08   # subtract from effective threshold during macro window
+    # Blocked hours (UTC). Takes precedence over allowed_hours_utc.
+    # n=540 data: hr=07 WR=12.5% (n=8, PF=0.13) — kill switch threshold.
+    # hr=02 CONFIRMED BLOCKED: n=15 old WR=26.7% + n=8 recent WR=0% = n=23 combined,
+    #   consistent 0-27% WR across both datasets. -$5.58 in last 25 trades alone.
+    #   Single macro snap reversal at 02:xx hit BTC+ETH+SOL simultaneously (correlated loss).
+    #   Meets kill switch criteria (<35% WR over 20+ trades). Blocked 2026-04-12.
+    # hr=06 BLOCKED 2026-04-15: BOND data n=14 WR=29% net=-$18.09 (European open volatility)
+    # hr=08 BLOCKED 2026-04-15: BOND data n=11 WR=45% net=-$18.86 (European open volatility)
+    # hr=13,14 BLOCKED 2026-04-15: sniper data WR=25% n=12 avg=-$3.5 (NYSE open volatility)
+    # hr=22 is the crown jewel: WR=73.3%, PF=7.10, +$69.8 (n=30) — never block.
+    blocked_hours_utc: List[int] = field(default_factory=lambda: [])
+    # Full-hour BOND block: no entries at all during these UTC hours.
+    # 00=midnight reset, 08=EU open, 13=NYSE open, 18=NYSE midday spike, 20=late US session.
+    bond_blocked_hours_utc: List[int] = field(default_factory=lambda: [])
+    bond_volatile_hour_starts: List[int] = field(default_factory=lambda: [6])  # first 15 min only
+    bond_volatile_minutes_gate: int = 15
 
-    # Per-asset minimum momentum score multiplier.
-    # BTC needs much higher confidence to overcome its 6% baseline WR.
-    # ETH gets a discount as the strongest performer.
+    # Macro event score discount: REMOVED — live data shows UTC 13-14h is the worst
+    # performing window (n=12, WR=25%, avg=-$3.5). Discount was sending more trades into
+    # the worst hours. Keep macro_window_hours for future reference only.
+    macro_window_hours: List[int] = field(default_factory=lambda: [13, 14])
+    macro_score_discount: float = 0.0   # disabled: live data n=12 WR=25% avg=-$3.5 at UTC 13-14h
+
+    # Per-asset minimum momentum score multiplier — disabled 2026-04-08.
+    # Was BTC=1.40 based on n=12 WR=25% (stale). N=31 BTC now shows WR=51.6%.
+    # BTC still protected by per_asset_min_delta_pct=0.13 + lag kill zones.
     asset_score_multiplier: dict = field(default_factory=lambda: {
-        "BTC": 1.0,   # TEST MODE — no multiplier penalty (prod=1.05)
+        "BTC": 1.0,
         "ETH": 1.0,
         "SOL": 1.0,
     })
@@ -158,6 +184,30 @@ class EdgeConfig:
     # SOL paused: 28.6% WR over 7 sniper trades (live data 2026-03-31).
     # Revisit when SOL has 20+ sniper trades with confirmed edge.
     sniper_excluded_assets: List[str] = field(default_factory=lambda: [])  # all assets active — gathering data
+
+    # Per-asset minimum delta (absolute %). Takes precedence over global _session_min_delta.
+    # Full delta analysis 2026-04-12 (delta x asset x WR):
+    #
+    #   BTC 0.12-0.18%: n=73  WR=46.7%  net=-$32.30 — broken across all sub-buckets
+    #   BTC 0.18-0.22%: n=4   WR=75%    net=+$7.71  — first profitable BTC zone
+    #   BTC 0.22-0.28%: n=5   WR=60%    net=+$5.57
+    #
+    #   ETH 0.12-0.18%: n=41  WR=41%    net=-$38.57 — catastrophic; 0.15-0.18 avg=-$2.45/trade
+    #   ETH 0.18-0.22%: n=11  WR=63.6%  net=+$13.02 — clean reversal, first profitable ETH zone
+    #   ETH 0.22+:      n=7   WR=100%   net=+$15.95
+    #
+    #   SOL 0.12-0.15%: n=44  WR=63.6%  net=+$21.70 — best performing zone across all assets
+    #   SOL 0.15-0.18%: n=16  WR=56.2%  net=+$2.41
+    #   SOL 0.18-0.22%: n=8   WR=37.5%  net=-$13.64 — drops off hard (watch for max_delta gate)
+    #
+    # YES vs NO at delta>=0.18: YES WR=100% n=9 net=+$14.55 vs NO WR=47% n=19 net=-$1.15
+    # Asymmetry noted — Binance up-moves close PM lag more reliably than down-moves.
+    # Not gated yet (n=9 YES is thin); collect 20+ before adding directional filter.
+    per_asset_min_delta_pct: dict = field(default_factory=lambda: {
+        "BTC": 0.0,   # 2026-04-22 (user directive: upstream floor off; per-mode enforced)
+        "ETH": 0.0,
+        "SOL": 0.0,
+    })
 
     # Cross-asset cascade: when one asset fires a strong signal, correlated
     # assets get a score discount (easier entry) — BTC moves first, ETH/SOL follow.
@@ -186,6 +236,87 @@ class MarketConfig:
 
 
 @dataclass
+class SignalGatesConfig:
+    """
+    Feature flags for new signal gates. All default OFF (data collection only).
+
+    Each gate starts as False — data is LOGGED but trading is NOT affected.
+    Enable a gate only after reviewing cond_wr / liq / funding / coinbase_div
+    fields in trades.jsonl and confirming the signal has predictive value.
+
+    NEVER enable a gate without n≥20 trades showing the correlation.
+    """
+    # ── Signal 1: Conditional WR gate ────────────────────────────────────────
+    # Blocks entries where our historical WR for (regime, window_size_s) < min_wr
+    # AND we have at least min_n trades of evidence.
+    # Data shows QUIET_DEAD=0% WR, QUIET_FLOW=33% WR — enable after n≥10 per bucket.
+    conditional_wr_gate: bool = False      # True = block low-WR conditions
+    conditional_wr_min:  float = 0.35     # minimum WR to allow entry
+    conditional_wr_min_n: int = 10        # minimum n before gate activates
+
+    # ── Signal 2: Liquidation cascade gate ───────────────────────────────────
+    # Blocks entry if a large cascade liquidation happened in the last 60s
+    # IN THE SAME DIRECTION as our trade (indicates price may still be in free-fall).
+    # Example: we want BUY_YES (price up), but $2M of long liquidations just fired
+    # → someone pushed price down to trigger those longs → cascade may continue.
+    liquidation_gate: bool = False         # True = block on large cascade
+    liquidation_threshold: float = 500_000 # $ threshold for "large" liquidation
+
+    # ── Signal 3: Funding rate gate ───────────────────────────────────────────
+    # Blocks/reduces confidence when funding rate is extreme AND aligns with
+    # our direction (crowded trade = vulnerable to flush).
+    # funding_rate in ExternalSignal is annualised APR (e.g. 0.0001*3*365*100=10.95%).
+    # 8h rate equivalent: APR / (3*365) * 100 → 10.95% APR = 0.01% per 8h.
+    # ENABLED: live data n=11 negative-funding trades → WR=18.2%, −$29.3 net.
+    # Negative funding (shorts crowded) + BUY_NO (also short) = crowded flush risk.
+    # 3% APR threshold was too aggressive: it blocked ALL NO trades in normal bear markets
+    # (observed: ETH -4.4% APR, SOL -12.1% APR both blocked → zero NO trades possible).
+    # -4.4% to -12% APR is normal crypto bear market funding, not crowded-short extreme.
+    # True squeeze risk = -30% to -200% APR (capitulation events). Raised to 20% APR.
+    # n=11 original data doesn't specify funding level of losing trades — 3% was not justified.
+    funding_gate: bool = True              # ENABLED: data confirms crowded-short flush pattern
+    funding_extreme_apr: float = 20.0     # raised 3→20%: 3% blocked all NO in normal bear market; true crowded shorts = -30%+ APR
+
+    # ── Signal 4: Cross-exchange divergence gate ──────────────────────────────
+    # Blocks entry if Binance moved significantly but Coinbase price hasn't moved
+    # (divergence > threshold). Large divergence = Binance-isolated move = suspicious.
+    # Normal divergence is <0.05% due to arbitrageurs. >0.15% = uncorroborated move.
+    cross_exchange_gate: bool = False      # True = block on large divergence
+    cross_exchange_div_threshold: float = 0.20  # % divergence to consider suspicious
+
+
+@dataclass
+class DeadZoneConfig:
+    """
+    Flat-market / volatility filters for TERMINAL entries.
+    All thresholds default to 0.0 (disabled). Enable after reviewing logs.
+
+    How to read the log fields (all prefixed term_dz_):
+      term_dz_range_usd   — 60-min BTC H-L range in USD
+      term_dz_er          — Kaufman ER (0=chop, 1=clean trend)
+      term_dz_atr_ratio   — current 15-min ATR / 4h baseline ATR
+
+    Enable a gate by setting the threshold to a non-zero value in this config.
+    Recommended starting values once n≥100: range_min_usd=50, er_min=0.25, atr_spike_ratio=1.5
+    """
+    # Minimum 60-min spot H-L range (USD). Skip if BTC < this (flat/dead market).
+    # Dynamic alternative: set range_pct_of_price=0.001 and range_use_pct=True
+    # for 0.1% of spot price (≈$100 at BTC=$100k), which scales with price.
+    range_min_usd: float = 0.0           # 0 = disabled
+    range_pct_of_price: float = 0.001    # 0.1% of spot — used only when range_use_pct=True
+    range_use_pct: bool = False          # if True, use pct threshold instead of fixed USD
+
+    # Kaufman Efficiency Ratio minimum (14-period 1m closes).
+    # Below this = price is chopping, not trending. 0 = disabled.
+    er_min: float = 0.0                  # 0 = disabled; suggested 0.25 after validation
+
+    # Relative ATR spike ratio. If current 15-min ATR > ratio × 4h baseline, skip.
+    # Protects against whipsaw conditions (high spreads, rapid reversals).
+    # 0.0 = disabled; >0 enables the gate.
+    atr_spike_ratio: float = 0.0         # 0 = disabled; suggested 1.5 after validation
+
+
+@dataclass
 class AnalyticsConfig:
     log_dir: str = "logs"
     trade_log: str = "logs/trades.jsonl"
@@ -204,6 +335,8 @@ class KlausConfig:
     markets: MarketConfig = field(default_factory=MarketConfig)
     analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
     edge: EdgeConfig = field(default_factory=EdgeConfig)
+    signal_gates: SignalGatesConfig = field(default_factory=SignalGatesConfig)
+    dead_zone: DeadZoneConfig = field(default_factory=DeadZoneConfig)
 
     # ── Auth ─────────────────────────────────────────────────────────────────
     # Accepts old-bot naming (PRIVATE_KEY / FUNDER_ADDRESS) or Klaus naming.
@@ -222,7 +355,7 @@ class KlausConfig:
     # ── Safety ───────────────────────────────────────────────────────────────
     # Set DRY_RUN=false in .env (or change here) to go live.
     dry_run: bool = field(
-        default_factory=lambda: os.getenv("DRY_RUN", "true").lower() != "false"
+        default_factory=lambda: os.getenv("DRY_RUN", "true").strip().lower() != "false"
     )
 
 

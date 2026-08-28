@@ -1,0 +1,14 @@
+[Unit]
+Description=Klaus UPDOWN-SNIPER shadow recorder (no orders, public reads only)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Klaus
+ExecStart=/usr/bin/python3 /root/Klaus/strategy/updown_shadow.py
+Restart=always
+RestartSec=10
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

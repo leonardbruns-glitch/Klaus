@@ -1,0 +1,9 @@
+[Unit]
+Description=Klaus EVOLVE repair agent (started by liveness watchdog on crash-loop)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/Klaus/ops/evolve/run_agent.sh repair
+TimeoutStartSec=5400
+Nice=5

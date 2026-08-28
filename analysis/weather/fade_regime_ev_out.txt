@@ -1,0 +1,27 @@
+  miami: 43 mkts
+  dallas: 42 mkts
+  houston: 43 mkts
+  austin: 43 mkts
+  chicago: 43 mkts
+  atlanta: 42 mkts
+  los-angeles: 43 mkts
+  nyc: 43 mkts
+  denver: 43 mkts
+  seattle: 42 mkts
+  san-francisco: 43 mkts
+
+=== n=470 resolved city-days; 470 regime-tagged ===
+overall gap mean=+0.77F  cross-rate=42%
+
+--- GAP (period-hourly) + CROSS-RATE by regime ---
+  clear+calm    n=  32  gap mean=+0.99F med=+0.90F  cross=41%
+  mixed         n= 101  gap mean=+0.68F med=+0.90F  cross=33%
+  cloudy/windy  n= 337  gap mean=+0.78F med=+0.90F  cross=45%
+
+--- FADE-NO EV by regime (cross days, per $1; the live edge) ---
+  ALL          n=  89  meanEV=+0.224  WR=99%  total=+19.90
+  clear+calm    n=   4  meanEV=+0.223  WR=100%  total=+0.89
+  mixed         n=  11  meanEV=+0.257  WR=100%  total=+2.83
+  cloudy/windy  n=  74  meanEV=+0.219  WR=99%  total=+16.18
+
+(thesis: clear+calm gap >> cloudy/windy gap, and clear+calm fade EV the fattest)

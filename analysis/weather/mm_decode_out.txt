@@ -1,0 +1,51 @@
+city weather markets found: 926  (scanning first 120)
+unique txs: 13393 | markets w/ txs: 120 | known takers: 2142 | data-api side: {'SELL': 3708, 'BUY': 9685}
+receipts decoded: 300 | OrderFilled events: 786
+exchange contracts: {'0xe2222d279d744050d28e00520010520000310f59': 786}
+inferred operator: 0xe2222d279d744050d28e00520010520000310f59  (votes=[('0xe2222d279d744050d28e00520010520000310f59', 300), ('0xb06a0eae498750ed0acac7e1f759f741c56e52f5', 19), ('0x2b5920274740ca61745eeb077587bf5bb4ff9db6', 13)])
+
+classification: {'MAKER_FILL': 486, 'TAKER_FILL': 300}
+
+=== DISTINCT MAKERS (the MMs): 169 ===  total maker-fills: 486
+maker address                                mk_fills      %  #mkts also_taker
+0x8796b01a723066063eba805833778c276162eb9f         26   5.3%     15         30
+0x613b668ef24d3a37417cb5756c5943cae761da44         23   4.7%     15         23
+0xeab7b0a830a1755f1296fee950b3080e3529b389         21   4.3%     14          0
+0x3329cfc2b8d8ceb8d198f081bdf4262f421f43a6         17   3.5%     14          0
+0x26123cbf0f4820f7e70408a8c054ba7615c05289         14   2.9%     10          0
+0x3424c2959434dc4cc1c18bc3f86137558c1d5d5e         12   2.5%     11          0
+0xf56ccbb9d8158ae1dda67207d1f76acf2f81ad84         10   2.1%      9          0
+0x7c592216c70d0384c97d4b06ffe5318254f40c2c         10   2.1%      8         11
+0x57dedd62596dd4f85c7ebe5317e07d22795ecd90         10   2.1%      8         12
+0xf87c7529fce35f2c74a06aeadb7b24ac67bfcfcb          8   1.6%      5          9
+0x2d0fbf6995692cc56f21171a9993be04436a81aa          7   1.4%      3          8
+0x957f0f337bc175a8113defe2a1f60b12fdd2aee0          7   1.4%      5          7
+0x6aa2d3399729991261ba820339a090b0c90105fb          7   1.4%      3          7
+0x1cff246298c8013ca2d1f84d0b43c9316e0e6cff          7   1.4%      7          8
+0x0e9599b4392fc5936f106e64eb1abc8db78dfca0          6   1.2%      6          0
+0x104171232971a6db8cf938f76fdbebbb81c5f452          5   1.0%      4          8
+0x7a4126074ece8dffeb2178f68d4ff0e8bf5a2562          5   1.0%      3          6
+0xb7334890631e59ef6917461ccd931b01cb4dcdcd          5   1.0%      5          5
+0x443f44ca2d9cc3d2c3e913d4882a61851078a5d4          5   1.0%      2          0
+0xdc3ffc7857b75c8cb2b01413c7696e7d4728f038          5   1.0%      3          0
+
+MAKER-side concentration (= the liquidity providers):
+  top-1  makers = 5.3% of maker-fills
+  top-2  makers = 10.1% of maker-fills
+  top-3  makers = 14.4% of maker-fills
+  top-5  makers = 20.8% of maker-fills
+  top-10 makers = 31.1% of maker-fills
+
+cross-market recurrence (markets sampled here: 120):
+  makers in >=3 distinct markets: 32  (these are the systematic MMs)
+  makers in exactly 1 market    : 109  (one-off / market-local)
+    0x8796b01a723066063eba805833778c276162eb9f  15 markets, 26 maker-fills
+    0x613b668ef24d3a37417cb5756c5943cae761da44  15 markets, 23 maker-fills
+    0xeab7b0a830a1755f1296fee950b3080e3529b389  14 markets, 21 maker-fills
+    0x3329cfc2b8d8ceb8d198f081bdf4262f421f43a6  14 markets, 17 maker-fills
+    0x3424c2959434dc4cc1c18bc3f86137558c1d5d5e  11 markets, 12 maker-fills
+    0x26123cbf0f4820f7e70408a8c054ba7615c05289  10 markets, 14 maker-fills
+    0xf56ccbb9d8158ae1dda67207d1f76acf2f81ad84  9 markets, 10 maker-fills
+    0x7c592216c70d0384c97d4b06ffe5318254f40c2c  8 markets, 10 maker-fills
+
+wrote analysis/weather/mm_decode_out.json

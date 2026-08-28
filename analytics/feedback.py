@@ -46,6 +46,7 @@ class TradeRecord:
     gross_pnl: float
     fee_paid: float          # derived: gross_pnl - net_pnl (always matches bankroll)
     net_pnl: float           # authoritative: from risk manager (same number that updates bankroll)
+    best_ask: float          # market ask at entry — execution quality
     slippage_entry: float
     slippage_exit: float
     exit_reason: str         # TAKE_PROFIT / STOP_LOSS / HARD_EXIT / MANUAL
@@ -80,7 +81,10 @@ class TradeRecord:
     sniper_pm_ask_at_trigger: float = 0.0  # PM ask when Binance delta first fired
     sniper_pm_drift_at_entry: float = 0.0  # PM ask drift from trigger→entry (analytics only)
     sniper_lag_remaining: float = 0.0      # fraction of expected PM move unpriced at entry (1.0=max lag)
+    quality_score: int = 0                 # pre-entry quality gate score (lag+mom+regime+vpin)
     regime: str = ""                       # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
+    binance_price_at_entry: float = 0.0    # Binance spot price at fill — baseline for reversal detection
+    binance_reversal_count_at_exit: int = 0  # consecutive cycles Binance was reversed at exit moment
 
     # Window context
     window_size_s: int = 0            # 300 (5m) or 900 (15m) — key for separate analysis
@@ -98,6 +102,23 @@ class TradeRecord:
     ob_depth_at_entry: float = 0.0      # total OB depth (top-5 bids+asks in shares) at entry
     pre_entry_momentum_pct: float = 0.0 # spot 1m price change at entry (momentum context)
 
+    # Price range during hold — volatility experienced from entry to exit
+    max_price_seen: float = 0.0         # highest token price observed while position was open
+    min_price_seen: float = 0.0         # lowest token price observed while position was open
+    max_favourable_pct: float = 0.0     # best point reached as % from entry (how much we "had")
+    max_adverse_pct: float = 0.0        # worst point reached as % from entry (how deep the dip)
+    t_fav_s: float = 0.0               # seconds from open to when max_favourable_pct was reached
+    t_adv_s: float = 0.0               # seconds from open to when max_adverse_pct was reached
+    # Bounce-from-MAE: max price increase within 10s after the last new low, as % of entry.
+    # Separates reversals (fast bounce) from collapses (no bounce). Meaningful when MAE > 40%.
+    mae_bounce_10s_pct: float = 0.0
+
+    # Window resolution outcome — populated async at window_end+60s for all trades
+    # Answers: did the market resolve in our predicted direction regardless of how we exited?
+    window_outcome_price: float = 0.0   # token price at window resolution (0 = not yet known)
+    entered_correctly: Optional[bool] = None  # True if resolution_price ≥ 0.80 (our token won)
+    exit_price_uncertain: bool = False  # True when exit_price is a live-bid fallback (no fills confirmed)
+
     # LLM recommendation tracking — veto disabled, recording for validation
     llm_rec: str = ""             # "ENTER" or "SKIP" — what LLM recommended at entry
     llm_rec_conf: float = 0.0    # LLM confidence in its recommendation (0.0 if no signal)
@@ -108,6 +129,109 @@ class TradeRecord:
     capital_before: float = 0.0
     capital_after: float = 0.0   # always capital_before + net_pnl (not bankroll snapshot)
     is_live: bool = False         # False = dry-run/stub; True = real CLOB trade
+    # ── New signal fields (data collection — gates in config.signal_gates) ────
+    # Signal 1: Conditional WR for (regime, window_size_s) at entry time
+    cond_wr: float = 0.5          # historical WR for this condition (0.5 = no data yet)
+    cond_n: int = 0               # n trades used to compute cond_wr
+    # Signal 2: Liquidation cascade in last 60s at entry time
+    liq_long_60s: float = 0.0    # $ of long liquidations (price pushed DOWN)
+    liq_short_60s: float = 0.0   # $ of short liquidations (price pushed UP)
+    # Signal 3: Funding rate at entry (annualised APR %)
+    funding_rate_pct: float = 0.0 # positive=longs crowded, negative=shorts crowded
+    # Signal 4: Cross-exchange divergence at entry
+    coinbase_price: float = 0.0   # Coinbase spot price (0 = not available)
+    cross_exchange_div_pct: float = 0.0  # (binance-coinbase)/coinbase*100
+    # Resolution oracle: Chainlink price at window end (Polymarket's authoritative source)
+    chainlink_price: float = 0.0   # Chainlink oracle price at resolution (0 = not fetched)
+    # Signal 5: 5-second Binance velocity at entry (data collection only)
+    velocity_5s_pct: float = 0.0   # % Binance price change in last 5s (positive=up, negative=down)
+    move_age_s: float = 999.0      # seconds since last >0.02% Binance tick (999=no recent move)
+    # Post-entry path classification (SMOOTH_RUNNER / EARLY_CHOP / DEAD_DRIFT)
+    # Diagnostic label only — not used by any entry/exit rule.
+    path_class: str = ""
+    path_confidence: int = 0       # 0–100
+    path_reason: str = ""
+    entry_snap_30s_pct: float = 0.0   # token return vs entry at T+30s (0 if not captured)
+    entry_snap_60s_pct: float = 0.0   # token return vs entry at T+60s (0 if not captured)
+    bond_outcome_direction: str = ""  # "up" or "down" — which asset direction makes YES resolve 1
+    bond_entry_class: str = ""        # BOND zone/velocity at entry e.g. "CORE/hot", "IMPULSE/hot"
+    # EARLY-zone adj_edge modifier instrumentation (evaluation phase — analytics only)
+    bond_delta_penalty: float = 0.0        # 0.0–0.30, proportional |delta|>0.05 soft penalty applied
+    bond_weak_vel_penalty: float = 0.0     # 0.0–0.15, weak-vel sole-confirmation penalty applied
+    bond_macro_regime: str = ""            # Layer-1 regime at entry: TREND_UP / TREND_DOWN / CHOP
+    # Raw entry primitives — direct inputs to entry decision (analytics only)
+    bond_delta_at_entry: float = 0.0       # raw _bond_delta at entry (signed %)
+    bond_adj_edge_at_entry: float = 0.0    # _adjusted_edge = edge × regime_weight
+    bond_vel_at_entry: float = 0.0         # velocity magnitude at entry (%/s, unsigned)
+    # BOND_STAB entry-quality classification (drives pre-entry stake scaling)
+    bond_stab_class: str = ""              # CLEAN / NOISY / HIGH_RISK / FATAL
+    bond_stability_score: int = 0          # 0–5, count of bad quality flags
+    bond_stab_xp_bad: bool = False
+    bond_stab_slip_bad: bool = False
+    bond_stab_delta_bad: bool = False
+    bond_stab_edge_weak: bool = False
+    bond_stab_vel_flat: bool = False
+    # Pre-entry trajectory — what the market was doing for the 30s before entry
+    bond_delta_accel_30s: float = 0.0
+    bond_accel_15s: float = 0.0
+    bond_edge_drift_30s: float = 0.0
+    bond_accel_sustained: bool = False
+    bond_has_hist: bool = False
+    bond_smooth_delta_60s: float = 0.0
+    bond_entry_zone: str = ""
+    # pre_score (Layer 1 — strictly pre-causal, observation mode, no gating)
+    pre_score: float = 0.0
+    pre_score_version: str = ""
+    pre_score_schema_hash: str = ""
+    pre_score_validity: str = ""
+    pre_score_accel:  float = 0.0
+    pre_score_daccel: float = 0.0
+    pre_score_edge:   float = 0.0
+    pre_score_stab:   float = 0.0
+    pre_score_vel:    float = 0.0
+    pre_score_class:  float = 0.0
+    # Non-binding LLM bond advisor shadow decision (observation only — never blocks trade)
+    bond_llm_decision: str = ""    # "TAKE" or "SKIP"
+    bond_llm_conf: float = 0.0     # 0.50–0.95
+    bond_llm_reason: str = ""      # max 12-word explanation
+    bond_llm_tp_pct: float = 0.0   # LLM's shadow take-profit % target
+    bond_llm_sl_pct: float = 0.0   # LLM's shadow stop-loss % limit
+    bond_llm_shadow_pnl: float = 0.0  # shadow gross P&L: what LLM would have made
+    # ── TERMINAL entry observations (data collection only, no gating) ──────────
+    term_vpin: float = 0.0           # VPIN at entry from Binance aggTrade
+    term_spot_delta_30s: float = 0.0 # Binance spot % change in last 30s
+    term_spot_delta_60s: float = 0.0 # Binance spot % change in last 60s
+    term_spot_delta_5s: float = 0.0  # Binance spot % change vs 5s ago (lead-lag signal)
+    term_spot_delta_5m: float = 0.0  # Binance spot % change from 5m window open
+    term_ask_spread_pct: float = 0.0 # (ask - bid) / ask * 100 at entry
+    term_ask_qty: float = 0.0        # shares at best ask at entry
+    term_ob_imbalance: float = 0.0   # (top3_bid - top3_ask) / total; +1=buy pressure
+    term_ob_depth: float = 0.0       # total size of top-3 bids + asks at entry
+    term_remaining_s: float = 0.0    # seconds to window end at signal time
+    term_token_delta_3s: float = 0.0   # token ask % change vs 3s ago
+    term_token_delta_5s: float = 0.0   # token ask % change vs 5s ago
+    term_tok_tick_count_5s: int = 0    # number of OB ticks in last 5s
+    term_tok_tick_count_30s: int = 0   # distinct ask price changes in last 30s
+    term_ask_stale_s: float = 999.0    # seconds since ask last changed (scan-loop)
+    term_tok_decel_ratio: float = 0.0  # d5s/d30s; near 0 = momentum stalled at entry
+    term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising)
+    term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising)
+    term_rsi: float = 0.0              # RSI from scan-loop ask history at entry (0 = < 2 data points)
+    term_ask_vwap: float = 0.0         # size-weighted avg ask price across OB levels at entry
+    term_binance_1m_pct: Optional[float] = None  # kline-based 1m Binance momentum at entry
+    term_binance_5m_pct: Optional[float] = None  # kline-based 5m Binance momentum at entry
+    term_binance_60m_pct: Optional[float] = None # rolling 60m G1 regime return at entry
+    term_pre_snap_60s: float = 0.0   # token ask % change from 60s-before-window-close anchor
+    term_pre_snap_30s: float = 0.0   # token ask % change from 30s-before-window-close anchor
+    term_pre_snap_open: float = 0.0  # token ask % change from window-open anchor
+    term_snap60_eff: float = 0.0     # gate composite: pre_snap_60s if set, else tok_d60
+    term_snap30_eff: float = 0.0     # gate composite: pre_snap_30s if set, else tok_d30
+    # During-hold trajectory snapshots (MFE/MAE at T+10s and T+30s after entry)
+    traj_mfe_10s: float = 0.0   # max favourable % at T+10s
+    traj_mae_10s: float = 0.0   # max adverse % at T+10s
+    traj_mfe_30s: float = 0.0   # max favourable % at T+30s
+    traj_mae_30s: float = 0.0   # max adverse % at T+30s
+    price_at_t10s: Optional[float] = None  # token bid at exactly T-10s before window close
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +282,10 @@ class FeedbackEngine:
                 # and pollute strategy analysis. Filter by token_id prefix.
                 if d.get("token_id", "").startswith("stub_"):
                     continue
+                # ORPHAN_SELL records have no real entry data (entry_price=0.0)
+                # and zero PnL — they corrupt WR/profit-factor calculations.
+                if d.get("signal_source") == "ORPHAN" or d.get("exit_reason") == "ORPHAN_SELL":
+                    continue
 
                 rec = TradeRecord(
                     trade_id=d.get("trade_id", ""),
@@ -201,6 +329,7 @@ class FeedbackEngine:
                     sniper_pm_ask_at_trigger=d.get("sniper_pm_ask_at_trigger", 0.0),
                     sniper_pm_drift_at_entry=d.get("sniper_pm_drift_at_entry", 0.0),
                     sniper_lag_remaining=d.get("sniper_lag_remaining", 0.0),
+                    quality_score=int(d.get("quality_score", 0)),
                     regime=d.get("regime", ""),
                     window_size_s=d.get("window_size_s", 0),
                     hour_utc=d.get("hour_utc", 0),
@@ -215,6 +344,12 @@ class FeedbackEngine:
                     signal_to_fill_ms=d.get("signal_to_fill_ms", 0.0),
                     ob_depth_at_entry=d.get("ob_depth_at_entry", 0.0),
                     pre_entry_momentum_pct=d.get("pre_entry_momentum_pct", 0.0),
+                    max_price_seen=d.get("max_price_seen", 0.0),
+                    min_price_seen=d.get("min_price_seen", 0.0),
+                    max_favourable_pct=d.get("max_favourable_pct", 0.0),
+                    max_adverse_pct=d.get("max_adverse_pct", 0.0),
+                    window_outcome_price=d.get("window_outcome_price", 0.0),
+                    entered_correctly=d.get("entered_correctly", None),
                 )
                 self._recent.append(rec)
                 if d.get("trade_id", "").startswith("T"):
@@ -250,6 +385,7 @@ class FeedbackEngine:
         capital_before: float,
         heat_check_active: bool,
         consecutive_wins: int,
+        best_ask: float = 0.0,
         net_pnl_actual: Optional[float] = None,
         market_type: str = "unknown",
         is_live: bool = False,
@@ -262,6 +398,89 @@ class FeedbackEngine:
         pre_entry_momentum_pct: float = 0.0,
         llm_rec: str = "",
         llm_rec_conf: float = 0.0,
+        max_price_seen: float = 0.0,
+        min_price_seen: float = 0.0,
+        highest_price_ts: float = 0.0,
+        lowest_price_ts: float = 0.0,
+        binance_price_at_entry: float = 0.0,
+        binance_reversal_count_at_exit: int = 0,
+        velocity_5s_pct: float = 0.0,
+        move_age_s: float = 999.0,
+        path_class: str = "",
+        path_confidence: int = 0,
+        path_reason: str = "",
+        entry_snap_30s_pct: float = 0.0,
+        entry_snap_60s_pct: float = 0.0,
+        bond_entry_class: str = "",
+        bond_outcome_direction: str = "",
+        bond_macro_regime: str = "",
+        mae_bounce_10s_pct: float = 0.0,
+        bond_stab_class: str = "",
+        bond_stability_score: int = 0,
+        bond_stab_xp_bad: bool = False,
+        bond_stab_slip_bad: bool = False,
+        bond_stab_delta_bad: bool = False,
+        bond_stab_edge_weak: bool = False,
+        bond_stab_vel_flat: bool = False,
+        bond_delta_accel_30s: float = 0.0,
+        bond_accel_15s: float = 0.0,
+        bond_edge_drift_30s: float = 0.0,
+        bond_accel_sustained: bool = False,
+        bond_has_hist: bool = False,
+        bond_smooth_delta_60s: float = 0.0,
+        bond_entry_zone: str = "",
+        pre_score: float = 0.0,
+        pre_score_version: str = "",
+        pre_score_schema_hash: str = "",
+        pre_score_validity: str = "",
+        pre_score_accel: float = 0.0,
+        pre_score_daccel: float = 0.0,
+        pre_score_edge: float = 0.0,
+        pre_score_stab: float = 0.0,
+        pre_score_vel: float = 0.0,
+        pre_score_class: float = 0.0,
+        bond_llm_decision: str = "",
+        bond_llm_conf: float = 0.0,
+        bond_llm_reason: str = "",
+        bond_llm_tp_pct: float = 0.0,
+        bond_llm_sl_pct: float = 0.0,
+        term_vpin: float = 0.0,
+        term_spot_delta_5s: float = 0.0,
+        term_spot_delta_30s: float = 0.0,
+        term_spot_delta_60s: float = 0.0,
+        term_spot_delta_5m: float = 0.0,
+        term_ask_spread_pct: float = 0.0,
+        term_ask_qty: float = 0.0,
+        term_ob_imbalance: float = 0.0,
+        term_ob_depth: float = 0.0,
+        term_remaining_s: float = 0.0,
+        term_token_delta_3s: float = 0.0,
+        term_token_delta_5s: float = 0.0,
+        term_tok_tick_count_5s: int = 0,
+        term_tok_tick_count_30s: int = 0,
+        term_ask_stale_s: float = 999.0,
+        term_tok_decel_ratio: float = 0.0,
+        term_token_delta_30s: float = 0.0,
+        term_token_delta_60s: float = 0.0,
+        term_binance_1m_pct: Optional[float] = None,
+        term_binance_5m_pct: Optional[float] = None,
+        term_binance_60m_pct: Optional[float] = None,
+        term_pre_snap_60s: float = 0.0,
+        term_pre_snap_30s: float = 0.0,
+        term_pre_snap_open: float = 0.0,
+        term_snap60_eff: float = 0.0,
+        term_snap30_eff: float = 0.0,
+        term_rsi: float = 0.0,
+        term_ask_vwap: float = 0.0,
+        traj_mfe_10s: float = 0.0,
+        traj_mae_10s: float = 0.0,
+        traj_mfe_30s: float = 0.0,
+        traj_mae_30s: float = 0.0,
+        price_at_t10s: Optional[float] = None,
+        window_outcome_price: float = 0.0,
+        chainlink_price: float = 0.0,
+        exit_price_uncertain: bool = False,
+        extra_fields: dict | None = None,
     ) -> TradeRecord:
 
         self._trade_counter += 1
@@ -304,6 +523,19 @@ class FeedbackEngine:
             # Fall back to derived: gross - net (risk manager's fee estimate)
             fee_paid = gross_pnl - net_pnl
 
+        # Sanity check: fees are always a cost (≥ 0). Negative fee_paid means
+        # net_pnl_actual was wrong (e.g. EXTERNALLY_SOLD bookkeeping bug where
+        # bankroll wasn't decremented correctly). Don't corrupt analytics with it.
+        if fee_paid < 0:
+            import logging as _log
+            _log.getLogger("feedback").warning(
+                "fee_paid=%.4f < 0 for trade %s — net_pnl_actual wrong (EXTERNALLY_SOLD/partial). "
+                "Recomputing net_pnl from gross_pnl with fee=0.",
+                fee_paid, trade_id,
+            )
+            fee_paid = 0.0
+            net_pnl = gross_pnl
+
         # capital_after is always capital_before + net_pnl. Using the live bankroll
         # snapshot was wrong: if two positions close in the same cycle, the snapshot
         # includes PnL from the *other* position too.
@@ -314,8 +546,30 @@ class FeedbackEngine:
         exit_slippages = [r.slippage for r in exit_fills if r.slippage is not None]
         slippage_exit = statistics.mean(exit_slippages) if exit_slippages else 0.0
 
+        # LLM shadow P&L: apply LLM's TP/SL rules to the actual price path we observed.
+        # Uses max_price_seen / min_price_seen and their timestamps to determine which
+        # exit condition would have triggered first. Gross only (no fee model).
+        bond_llm_shadow_pnl = 0.0
+        if bond_llm_decision == "TAKE" and bond_llm_tp_pct > 0 and entry_price > 0 and shares > 0:
+            _shadow_tp_price = entry_price * (1.0 + bond_llm_tp_pct / 100.0)
+            _shadow_sl_price = entry_price * (1.0 - bond_llm_sl_pct / 100.0) if bond_llm_sl_pct > 0 else 0.0
+            _hit_tp = max_price_seen > 0 and max_price_seen >= _shadow_tp_price
+            _hit_sl = _shadow_sl_price > 0 and min_price_seen > 0 and min_price_seen <= _shadow_sl_price
+            if _hit_tp and _hit_sl:
+                _t_tp = (highest_price_ts - ts_open) if highest_price_ts > ts_open else 9999.0
+                _t_sl = (lowest_price_ts  - ts_open) if lowest_price_ts  > ts_open else 9999.0
+                _shadow_exit = _shadow_tp_price if _t_tp <= _t_sl else _shadow_sl_price
+            elif _hit_tp:
+                _shadow_exit = _shadow_tp_price
+            elif _hit_sl:
+                _shadow_exit = _shadow_sl_price
+            else:
+                _shadow_exit = exit_price  # neither triggered — LLM held to actual exit
+            bond_llm_shadow_pnl = (_shadow_exit - entry_price) * shares
+        # SKIP decision → LLM didn't trade → shadow P&L stays 0.0
+
         # Extract signal fields — handle both SniperSignal and SignalBreakdown
-        is_sniper = signal_source == "SNIPER"
+        is_sniper = signal_source in ("SNIPER", "BOND", "CONTRARIAN")
         rec = TradeRecord(
             trade_id=trade_id,
             token_id=token_id,
@@ -331,6 +585,7 @@ class FeedbackEngine:
             gross_pnl=round(gross_pnl, 4),
             fee_paid=round(fee_paid, 4),
             net_pnl=round(net_pnl, 4),
+            best_ask=round(best_ask, 4),
             slippage_entry=round(slippage_entry, 5),
             slippage_exit=round(slippage_exit, 5),
             exit_reason=exit_reason,
@@ -360,7 +615,16 @@ class FeedbackEngine:
             sniper_pm_ask_at_trigger=round(getattr(signal, "pm_ask_at_trigger", 0.0), 4) if is_sniper else 0.0,
             sniper_pm_drift_at_entry=round(getattr(signal, "pm_drift_at_entry", 0.0), 4) if is_sniper else 0.0,
             sniper_lag_remaining=round(getattr(signal, "lag_remaining_pct", 0.0), 3) if is_sniper else 0.0,
+            quality_score=int(getattr(signal, "quality_score", 0)) if is_sniper else 0,
             regime=getattr(signal, "regime", ""),
+            # New signal fields — extracted from SniperSignal if present, else 0
+            cond_wr=round(float(getattr(signal, "cond_wr", 0.5)), 3),
+            cond_n=int(getattr(signal, "cond_n", 0)),
+            liq_long_60s=round(float(getattr(signal, "liq_long_60s", 0.0)), 0),
+            liq_short_60s=round(float(getattr(signal, "liq_short_60s", 0.0)), 0),
+            funding_rate_pct=round(float(getattr(signal, "funding_rate_pct", 0.0)), 3),
+            coinbase_price=round(float(getattr(signal, "coinbase_price", 0.0)), 2),
+            cross_exchange_div_pct=round(float(getattr(signal, "cross_exchange_div_pct", 0.0)), 4),
             window_size_s=window_size_s,
             hour_utc=int(time.gmtime(ts_open).tm_hour),
             hold_seconds=round(ts_close - ts_open, 1),
@@ -376,11 +640,101 @@ class FeedbackEngine:
             is_live=is_live,
             llm_rec=llm_rec,
             llm_rec_conf=round(llm_rec_conf, 3),
+            max_price_seen=round(max_price_seen, 4),
+            min_price_seen=round(min_price_seen, 4),
+            max_favourable_pct=round((max_price_seen - entry_price) / entry_price * 100, 2) if entry_price > 0 else 0.0,
+            max_adverse_pct=round((entry_price - min_price_seen) / entry_price * 100, 2) if entry_price > 0 else 0.0,
+            t_fav_s=round(highest_price_ts, 1),
+            t_adv_s=round(lowest_price_ts, 1),
+            binance_price_at_entry=round(binance_price_at_entry, 2),
+            binance_reversal_count_at_exit=binance_reversal_count_at_exit,
+            velocity_5s_pct=round(velocity_5s_pct, 4),
+            move_age_s=round(move_age_s, 1),
+            path_class=path_class,
+            path_confidence=path_confidence,
+            path_reason=path_reason,
+            entry_snap_30s_pct=round(entry_snap_30s_pct, 2),
+            entry_snap_60s_pct=round(entry_snap_60s_pct, 2),
+            bond_entry_class=bond_entry_class,
+            bond_outcome_direction=bond_outcome_direction,
+            bond_delta_penalty=round(float(getattr(signal, "bond_delta_penalty", 0.0)), 4),
+            bond_weak_vel_penalty=round(float(getattr(signal, "bond_weak_vel_penalty", 0.0)), 4),
+            bond_macro_regime=bond_macro_regime,
+            mae_bounce_10s_pct=round(mae_bounce_10s_pct, 2),
+            bond_stab_class=bond_stab_class,
+            bond_stability_score=bond_stability_score,
+            bond_stab_xp_bad=bond_stab_xp_bad,
+            bond_stab_slip_bad=bond_stab_slip_bad,
+            bond_stab_delta_bad=bond_stab_delta_bad,
+            bond_stab_edge_weak=bond_stab_edge_weak,
+            bond_stab_vel_flat=bond_stab_vel_flat,
+            bond_delta_accel_30s=round(bond_delta_accel_30s, 4),
+            bond_accel_15s=round(bond_accel_15s, 4),
+            bond_edge_drift_30s=round(bond_edge_drift_30s, 4),
+            bond_accel_sustained=bond_accel_sustained,
+            bond_has_hist=bond_has_hist,
+            bond_smooth_delta_60s=round(bond_smooth_delta_60s, 4),
+            bond_entry_zone=bond_entry_zone,
+            pre_score=round(pre_score, 4),
+            pre_score_version=pre_score_version,
+            pre_score_schema_hash=pre_score_schema_hash,
+            pre_score_validity=pre_score_validity,
+            pre_score_accel=round(pre_score_accel, 4),
+            pre_score_daccel=round(pre_score_daccel, 4),
+            pre_score_edge=round(pre_score_edge, 4),
+            pre_score_stab=round(pre_score_stab, 4),
+            pre_score_vel=round(pre_score_vel, 4),
+            pre_score_class=round(pre_score_class, 4),
+            bond_llm_decision=bond_llm_decision,
+            bond_llm_conf=round(bond_llm_conf, 2),
+            bond_llm_reason=bond_llm_reason,
+            bond_llm_tp_pct=round(bond_llm_tp_pct, 1),
+            term_vpin=round(term_vpin, 4),
+            term_spot_delta_5s=round(term_spot_delta_5s, 4),
+            term_spot_delta_30s=round(term_spot_delta_30s, 4),
+            term_spot_delta_60s=round(term_spot_delta_60s, 4),
+            term_spot_delta_5m=round(term_spot_delta_5m, 4),
+            term_ask_spread_pct=round(term_ask_spread_pct, 4),
+            term_ask_qty=round(term_ask_qty, 2),
+            term_ob_imbalance=round(term_ob_imbalance, 4),
+            term_ob_depth=round(term_ob_depth, 2),
+            term_remaining_s=round(term_remaining_s, 1),
+            term_token_delta_3s=round(term_token_delta_3s, 4),
+            term_token_delta_5s=round(term_token_delta_5s, 4),
+            term_tok_tick_count_5s=int(term_tok_tick_count_5s),
+            term_tok_tick_count_30s=int(term_tok_tick_count_30s),
+            term_ask_stale_s=round(term_ask_stale_s, 1),
+            term_tok_decel_ratio=round(term_tok_decel_ratio, 4),
+            term_token_delta_30s=round(term_token_delta_30s, 4),
+            term_token_delta_60s=round(term_token_delta_60s, 4),
+            term_binance_1m_pct=round(term_binance_1m_pct, 4) if term_binance_1m_pct is not None else None,
+            term_binance_5m_pct=round(term_binance_5m_pct, 4) if term_binance_5m_pct is not None else None,
+            term_binance_60m_pct=round(term_binance_60m_pct, 4) if term_binance_60m_pct is not None else None,
+            term_pre_snap_60s=round(term_pre_snap_60s, 4),
+            term_pre_snap_30s=round(term_pre_snap_30s, 4),
+            term_pre_snap_open=round(term_pre_snap_open, 4),
+            term_snap60_eff=round(term_snap60_eff, 4),
+            term_snap30_eff=round(term_snap30_eff, 4),
+            term_rsi=round(term_rsi, 2),
+            term_ask_vwap=round(term_ask_vwap, 4),
+            traj_mfe_10s=round(traj_mfe_10s, 2),
+            traj_mae_10s=round(traj_mae_10s, 2),
+            traj_mfe_30s=round(traj_mfe_30s, 2),
+            traj_mae_30s=round(traj_mae_30s, 2),
+            price_at_t10s=round(price_at_t10s, 4) if price_at_t10s is not None else None,
+            bond_llm_sl_pct=round(bond_llm_sl_pct, 1),
+            bond_llm_shadow_pnl=round(bond_llm_shadow_pnl, 4),
+            window_outcome_price=round(window_outcome_price, 4),
+            chainlink_price=round(chainlink_price, 4),
+            exit_price_uncertain=exit_price_uncertain,
         )
 
         self._recent.append(rec)
         self._session_trades.append(rec)
-        self._write_jsonl(self.cfg.trade_log, asdict(rec))
+        _rec_dict = asdict(rec)
+        if extra_fields:
+            _rec_dict.update(extra_fields)
+        self._write_jsonl(self.cfg.trade_log, _rec_dict)
 
         # Run diagnostics after each trade
         diag = self.run_diagnostics()
@@ -588,6 +942,72 @@ class FeedbackEngine:
                     "net_pnl": round(sum(t.net_pnl for t in no_trades), 3)},
         }
 
+        # ── Direction breakdown (YES_UP vs YES_DOWN, all trades) ─────────────
+        # All TERMINAL trades buy YES tokens. The distinction is the market:
+        # YES_UP  ("up"):   YES resolves 1 if asset price goes UP (above threshold)
+        # YES_DOWN ("down"): YES resolves 1 if asset price goes DOWN (below threshold)
+        # Both buy YES tokens at 0.70-0.88 and win by reaching 1.0 — same token mechanics,
+        # different underlying bet. ob_imbalance and tok_d30 are identical for both
+        # (positive = bid pressure on our YES token = favorable regardless of market direction).
+        # spot_delta_30s differs: for YES_UP wins want positive, for YES_DOWN wins want negative.
+        def _dir_stats_detail(bucket: list) -> dict:
+            if not bucket:
+                return {"n": 0, "wr": 0.0, "net_pnl": 0.0,
+                        "avg_ob_imb_all": 0.0, "avg_ob_imb_wins": 0.0, "avg_ob_imb_losses": 0.0,
+                        "avg_tok_d30": 0.0, "avg_tok_d30_wins": 0.0, "avg_tok_d30_losses": 0.0,
+                        "avg_spot_d30": 0.0, "avg_spot_d30_wins": 0.0, "avg_spot_d30_losses": 0.0,
+                        "avg_ask_qty": 0.0, "avg_ask_spread_pct": 0.0}
+            wins_b   = [t for t in bucket if t.net_pnl > 0]
+            losses_b = [t for t in bucket if t.net_pnl <= 0]
+            has_term = [t for t in bucket  if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
+            wins_t   = [t for t in wins_b  if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
+            losses_t = [t for t in losses_b if t.term_ask_qty > 0 or t.term_ob_imbalance != 0]
+            has_spot = [t for t in bucket  if t.term_spot_delta_30s != 0]
+            wins_s   = [t for t in wins_b  if t.term_spot_delta_30s != 0]
+            losses_s = [t for t in losses_b if t.term_spot_delta_30s != 0]
+            return {
+                "n": len(bucket),
+                "wr": round(len(wins_b) / len(bucket), 3),
+                "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
+                "avg_ob_imb_all":     round(_avg([t.term_ob_imbalance for t in has_term]), 4),
+                "avg_ob_imb_wins":    round(_avg([t.term_ob_imbalance for t in wins_t]),   4),
+                "avg_ob_imb_losses":  round(_avg([t.term_ob_imbalance for t in losses_t]), 4),
+                "avg_tok_d30":        round(_avg([t.term_token_delta_30s for t in has_term]), 4),
+                "avg_tok_d30_wins":   round(_avg([t.term_token_delta_30s for t in wins_t]),   4),
+                "avg_tok_d30_losses": round(_avg([t.term_token_delta_30s for t in losses_t]), 4),
+                "avg_spot_d30":       round(_avg([t.term_spot_delta_30s for t in has_spot]), 4),
+                "avg_spot_d30_wins":  round(_avg([t.term_spot_delta_30s for t in wins_s]),   4),
+                "avg_spot_d30_losses":round(_avg([t.term_spot_delta_30s for t in losses_s]), 4),
+                "avg_ask_qty":        round(_avg([t.term_ask_qty for t in has_term]), 2),
+                "avg_ask_spread_pct": round(_avg([t.term_ask_spread_pct for t in has_term]), 3),
+            }
+
+        yes_up_trades   = [t for t in trades if getattr(t, "bond_outcome_direction", "") == "up"]
+        yes_down_trades = [t for t in trades if getattr(t, "bond_outcome_direction", "") == "down"]
+        by_direction = {
+            "YES_UP":   _dir_stats_detail(yes_up_trades),
+            "YES_DOWN": _dir_stats_detail(yes_down_trades),
+        }
+
+        # Per-asset × outcome-direction breakdown
+        by_asset_dir: Dict[str, dict] = {}
+        for t in trades:
+            odir = getattr(t, "bond_outcome_direction", "") or t.direction
+            key = f"{t.asset}_{odir}"
+            bucket = by_asset_dir.setdefault(key, {"trades": [], "asset": t.asset, "odir": odir})
+            bucket["trades"].append(t)
+        asset_dir_stats: Dict[str, dict] = {}
+        for key, info in by_asset_dir.items():
+            bkt = info["trades"]
+            wins_a = [t for t in bkt if t.net_pnl > 0]
+            asset_dir_stats[key] = {
+                "asset": info["asset"],
+                "direction": info["odir"],
+                "n": len(bkt),
+                "wr": round(len(wins_a) / len(bkt), 3),
+                "net_pnl": round(sum(t.net_pnl for t in bkt), 3),
+            }
+
         # ── Exit reason breakdown ─────────────────────────────────────────────
         exit_reasons: Dict[str, list] = {}
         for t in trades:
@@ -600,6 +1020,47 @@ class FeedbackEngine:
                 "avg_hold_s": round(_avg([t.hold_seconds for t in bucket]), 1),
             }
             for reason, bucket in sorted(exit_reasons.items())
+        }
+
+        # ── Lag-tier breakdown (sniper only — Kelly Criterion validation data) ──
+        # lag_remaining=1.0 = PM hasn't repriced at all = MAX opportunity (best entry).
+        # lag_remaining=0.0 = PM fully repriced = no edge remaining (worst entry).
+        # Tiers use corrected lag direction vs friend's original proposal.
+        # NOTE: analytics only — no stake changes until n>=20 per tier confirmed.
+        def _tier_stats(bucket: list) -> dict:
+            if not bucket:
+                return {"n": 0, "wr": 0.0, "net_pnl": 0.0,
+                        "avg_delta_pct": 0.0, "avg_entry_price": 0.0}
+            wins_b = [t for t in bucket if t.net_pnl > 0]
+            return {
+                "n": len(bucket),
+                "wr": round(len(wins_b) / len(bucket), 3),
+                "net_pnl": round(sum(t.net_pnl for t in bucket), 3),
+                "avg_delta_pct": _avg([t.sniper_delta_pct for t in bucket
+                                       if t.sniper_delta_pct != 0]),
+                "avg_entry_price": _avg([t.entry_price for t in bucket]),
+            }
+
+        lag_dead   = [t for t in sniper_trades if t.sniper_lag_remaining < 0.35]
+        lag_std    = [t for t in sniper_trades if 0.35 <= t.sniper_lag_remaining < 0.55]
+        lag_good   = [t for t in sniper_trades if 0.55 <= t.sniper_lag_remaining < 0.75]
+        lag_sniper = [t for t in sniper_trades if t.sniper_lag_remaining >= 0.75]
+        lag_tier_stats = {
+            "nearly_repriced_<0.35":  _tier_stats(lag_dead),
+            "moderate_0.35-0.55":     _tier_stats(lag_std),
+            "good_0.55-0.75":         _tier_stats(lag_good),
+            "max_lag_>=0.75":         _tier_stats(lag_sniper),
+        }
+
+        # ── Delta-tier breakdown (sniper only — move strength vs outcome) ────────
+        # abs(delta_pct) captures move size regardless of YES/NO direction.
+        delta_weak   = [t for t in sniper_trades if abs(t.sniper_delta_pct) < 0.08]
+        delta_std    = [t for t in sniper_trades if 0.08 <= abs(t.sniper_delta_pct) < 0.13]
+        delta_strong = [t for t in sniper_trades if abs(t.sniper_delta_pct) >= 0.13]
+        delta_tier_stats = {
+            "weak_<0.08pct":         _tier_stats(delta_weak),
+            "standard_0.08-0.13pct": _tier_stats(delta_std),
+            "strong_>=0.13pct":      _tier_stats(delta_strong),
         }
 
         metrics = {
@@ -638,6 +1099,11 @@ class FeedbackEngine:
             "prearm_stats": prearm_stats,
             "side_stats": side_stats,
             "by_exit_reason": by_exit_reason,
+            "by_direction": by_direction,
+            "asset_dir_stats": asset_dir_stats,
+            # Kelly Criterion validation data — analytics only, no stake changes yet
+            "lag_tier_stats": lag_tier_stats,
+            "delta_tier_stats": delta_tier_stats,
         }
 
         # ── Alert generation ──────────────────────────────────────────────────
@@ -881,6 +1347,52 @@ class FeedbackEngine:
             lines.append(f"  YES: n={yes_s.get('n',0):3d}  WR={yes_s.get('wr',0):.1%}  PnL=${yes_s.get('net_pnl',0):.3f}  (asset moved UP)")
             lines.append(f"  NO:  n={no_s.get('n',0):3d}  WR={no_s.get('wr',0):.1%}  PnL=${no_s.get('net_pnl',0):.3f}  (asset moved DOWN)")
 
+        # ── YES_UP vs YES_DOWN direction breakdown ────────────────────────────
+        bd = metrics.get("by_direction", {})
+        up_d   = bd.get("YES_UP",   {})
+        down_d = bd.get("YES_DOWN", {})
+        if up_d.get("n", 0) + down_d.get("n", 0) > 0:
+            lines += ["", "BY DIRECTION (YES_UP = above-threshold market / YES_DOWN = below-threshold)"]
+            lines.append("  Both buy YES tokens; both win by reaching 1.0 — market direction differs.")
+            for dname, ds in [("YES_UP", up_d), ("YES_DOWN", down_d)]:
+                if ds.get("n", 0) == 0:
+                    continue
+                lines.append(
+                    f"  {dname}: n={ds['n']:3d}  WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
+                )
+                if ds.get("avg_ask_qty", 0) > 0 or ds.get("avg_ob_imb_all", 0) != 0:
+                    lines.append(
+                        f"    ob_imb: all={ds.get('avg_ob_imb_all',0):+.3f}  "
+                        f"wins={ds.get('avg_ob_imb_wins',0):+.3f}  "
+                        f"losses={ds.get('avg_ob_imb_losses',0):+.3f}"
+                    )
+                    lines.append(
+                        f"    tok_d30: all={ds.get('avg_tok_d30',0):+.4f}%  "
+                        f"wins={ds.get('avg_tok_d30_wins',0):+.4f}%  "
+                        f"losses={ds.get('avg_tok_d30_losses',0):+.4f}%"
+                    )
+                    lines.append(
+                        f"    spot_d30: all={ds.get('avg_spot_d30',0):+.4f}%  "
+                        f"wins={ds.get('avg_spot_d30_wins',0):+.4f}%  "
+                        f"losses={ds.get('avg_spot_d30_losses',0):+.4f}%"
+                        f"  (YES_UP: positive=favorable; YES_DOWN: negative=favorable)"
+                    )
+                    lines.append(
+                        f"    ask_qty={ds.get('avg_ask_qty',0):.1f}sh  "
+                        f"spread={ds.get('avg_ask_spread_pct',0):.2f}%"
+                    )
+
+        # ── Per-asset × outcome-direction breakdown ────────────────────────────
+        ads = metrics.get("asset_dir_stats", {})
+        if ads:
+            lines += ["", "BY ASSET × DIRECTION"]
+            for key in sorted(ads.keys()):
+                ds = ads[key]
+                lines.append(
+                    f"  {ds['asset']:3s} {ds['direction']:8s}: n={ds['n']:3d}  "
+                    f"WR={ds['wr']:.1%}  PnL=${ds['net_pnl']:.3f}"
+                )
+
         # ── VPIN signal impact ────────────────────────────────────────────────
         vi = metrics.get("vpin_impact", {})
         if vi and any(v.get("n", 0) > 0 for v in vi.values()):
@@ -999,6 +1511,7 @@ class FeedbackEngine:
         shares_sold: float,
         avg_exit_price: float,
         is_live: bool = True,
+        avg_entry_price: float = 0.0,
     ) -> None:
         """
         Log an ORPHAN_SELL event to trades.jsonl.
@@ -1007,15 +1520,32 @@ class FeedbackEngine:
         but the position tracker only knows about the first. At window-end these
         are detected and sold; without logging the financial result is invisible.
 
-        Entry price is unknown (position was never tracked), so gross_pnl and
-        net_pnl are left as 0. The record exists purely for audit/reconciliation:
-        bankroll.reconcile_usdc() should be called after any orphan sell to sync
-        the internal bankroll to the actual CLOB balance.
+        If avg_entry_price is provided (recovered from CLOB BUY history), real
+        gross/net PnL is computed. Otherwise gross_pnl/net_pnl are left 0.
+        Bankroll reconciliation from CLOB USDC balance should follow any orphan sell.
         """
         self._trade_counter += 1
         trade_id = f"T{self._trade_counter:05d}_{asset}_{int(time.time())}_ORPHAN"
         self.last_trade_id = trade_id
         now = time.time()
+
+        gross_pnl = 0.0
+        fee_paid  = 0.0
+        net_pnl   = 0.0
+        stake     = 0.0
+        if avg_entry_price > 0 and shares_sold > 0:
+            stake     = round(avg_entry_price * shares_sold, 4)
+            gross_pnl = round((avg_exit_price - avg_entry_price) * shares_sold, 4)
+            fee_rate  = 0.0142 if (avg_entry_price < 0.30 or avg_entry_price > 0.70) else 0.0312
+            fee_paid  = round((avg_entry_price + avg_exit_price) * shares_sold * fee_rate, 4)
+            net_pnl   = round(gross_pnl - fee_paid, 4)
+
+        note = (
+            f"entry recovered from CLOB history @ {avg_entry_price:.4f}"
+            if avg_entry_price > 0
+            else "entry cost unknown — bankroll reconciliation required"
+        )
+
         record = {
             "trade_id": trade_id,
             "token_id": token_id,
@@ -1024,24 +1554,23 @@ class FeedbackEngine:
             "market_type": "updown",
             "signal_source": "ORPHAN",
             "exit_reason": "ORPHAN_SELL",
-            "ts_open": 0.0,           # unknown — position was never tracked
+            "ts_open": 0.0,
             "ts_close": now,
-            "entry_price": 0.0,       # unknown
+            "entry_price": round(avg_entry_price, 4),
             "exit_price": round(avg_exit_price, 4),
-            "stake": 0.0,             # unknown
+            "stake": stake,
             "shares": round(shares_sold, 4),
-            "gross_pnl": 0.0,         # unknown without entry price
-            "fee_paid": 0.0,
-            "net_pnl": 0.0,           # unknown
+            "gross_pnl": gross_pnl,
+            "fee_paid": fee_paid,
+            "net_pnl": net_pnl,
             "is_live": is_live,
             "hour_utc": int(time.gmtime(now).tm_hour),
-            "note": "double-fill orphan — entry cost unknown, bankroll reconciliation required",
+            "note": note,
         }
         self._write_jsonl(self.cfg.trade_log, record)
         logger.warning(
-            "ORPHAN_SELL logged: %s/%s %.4f shares @ %.4f (trade_id=%s) — "
-            "run bankroll reconciliation to sync USDC balance",
-            asset, side, shares_sold, avg_exit_price, trade_id,
+            "ORPHAN_SELL logged: %s/%s %.4f shares ep=%.4f xp=%.4f net=%+.3f (trade_id=%s)",
+            asset, side, shares_sold, avg_entry_price, avg_exit_price, net_pnl, trade_id,
         )
 
     def load_trade_history(self, path: Optional[str] = None) -> List[dict]:

@@ -40,6 +40,8 @@ import logging
 from data.feeds import MarketToken, OrderBook, ExternalSignal
 from strategy.momentum import Direction, FeeZone
 from analytics.regime import classify_regime
+from analytics.conditional_wr import COND_WR
+from config import CONFIG
 
 logger = logging.getLogger("window_sniper")
 
@@ -80,30 +82,31 @@ SIGMOID_K = 8.0             # steepness: 0.10% delta → 0.69 FV
 TIME_CONFIDENCE_CAP = 2.5   # max amplification of delta for time adjustment
 
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}  # kept for regime labelling only
-_DELTA_PCT_ACTIVE = 0.10   # raised 0.04→0.10: live losses all had delta=-0.072%, 0.04% too permissive
-_DELTA_PCT_QUIET  = 0.10   # same as active — small moves don't sustain in any regime
+_DELTA_PCT_ACTIVE = 0.0    # 2026-04-22 (user directive: upstream off; per-mode enforced)
+_DELTA_PCT_QUIET  = 0.0
 
-_DELTA_PCT_15M_ACTIVE       = 0.07
-_DELTA_PCT_15M_ACTIVE_EARLY = 0.10
-_DELTA_PCT_15M_QUIET        = 0.10
+_DELTA_PCT_15M_ACTIVE       = 0.0
+_DELTA_PCT_15M_ACTIVE_EARLY = 0.0
+_DELTA_PCT_15M_QUIET        = 0.0
 _EARLY_ELAPSED_CUTOFF       = 0.40
 
 MIN_EDGE = 0.05
-MIN_EDGE_VPIN = 0.03
-MIN_EDGE_BOOST = 0.02
-WINDOW_ELAPSED_MIN = 0.20
-WINDOW_ELAPSED_MAX = 0.82
+MIN_EDGE_VPIN = 0.05   # neutralised 0.03→0.05: no validation data for VPIN gate lowering (n=0 tagged trades); VPIN still adds +0.05 confidence when it agrees
+MIN_EDGE_BOOST = 0.05  # neutralised 0.02→0.05: LLM signal observational-only per CLAUDE.md; "Claude assessing Claude is conflict of interest"
+WINDOW_ELAPSED_MAX = 0.80
 VPIN_CONFIRM_THRESHOLD = 0.60
 LLM_BOOST_STRONG = 0.05
-MIN_TOKEN_ASK = 0.33
-MAX_TOKEN_ASK = 0.62
-MIN_LAG_REMAINING_5M = 0.40   # raised 0.30→0.40: scanner WR=85% at lag≥0.40 vs 76% at 0.30, EV=+0.168
-MIN_LAG_REMAINING_15M = 0.25  # kept for reference — 15m BLOCKED (see _15M_ACTIVE_ONLY)
+MIN_TOKEN_ASK = 0.05   # near-zero sanity check only — data integrity guard against stale feeds.
+                        # Real quality filtering done by lag gate + edge gate + OB gates.
+MAX_TOKEN_ASK = 0.77   # raised 0.70→0.77: user instruction 2026-04-14; 0.70-0.77 band unvalidated — lag gate (0.55) will likely still block most entries in this zone
+MAX_TOKEN_ASK_LATE = MAX_TOKEN_ASK
+MIN_LAG_REMAINING_5M = 0.55   # raised 0.45→0.55 (2026-04-15)
+MIN_LAG_REMAINING_15M = 0.55  # same
 MIN_LAG_REMAINING = MIN_LAG_REMAINING_5M  # backward compat alias (used in log lines)
-VPIN_OFFPEAK_REQUIRED = 0.35
+VPIN_OFFPEAK_REQUIRED = 0.15  # lowered 0.35→0.15: shadow data n=29 WR=69% sim_pnl=+$23.48 — all blocked trades were NO-direction in off-peak hours; VPIN<0.40 zone has best live WR (48%); gate was blocking 100% of BUY_NO signals
 
-# 15m RE-ENABLED: live data n=56 WR=44.6% vs 5m n=21 WR=14.3%
-# Shadow data was wrong — live 15m outperforms live 5m significantly.
+# 5m re-enabled 2026-04-14: collecting data with tighter gates (delta 0.15%, lag 0.55+).
+# Previous 5m WR=14.3% was under looser parameters — new data needed to validate.
 _15M_ACTIVE_ONLY = False
 
 # ── Contrarian (mean-reversion) parameters ────────────────────────────────────
@@ -112,27 +115,42 @@ _15M_ACTIVE_ONLY = False
 # Thesis: large early Polymarket moves overreact (YES tokens overpriced per Reichenbach 2025).
 # Break-even WR at TP=+150% / SL=−50%: (1−wr)×0.50 = wr×1.50 → wr ≥ 25%.
 # If early-window extreme moves reverse ≥25% of the time, EV is positive.
-CONTRARIAN_OPPONENT_MIN = 0.90  # opponent token ask must be ≥ this to trigger
-CONTRARIAN_MAX_ASK = 0.15       # we buy the cheap side at ≤ this price
-CONTRARIAN_ELAPSED_MAX = 0.40   # only first 40% of window (≈first 2min of 5m, 6min of 15m)
+CONTRARIAN_ENABLED = False       # disabled: no validated edge
+                                 # at 0.08 entry: break-even WR = 8% (vs 13% at 0.15) — very low bar
+CONTRARIAN_OPPONENT_MIN = 0.92  # raised 0.90→0.92: only when opponent is ≥0.92 (cheap side ≤0.08)
+CONTRARIAN_MAX_ASK = 0.08       # lowered 0.15→0.08: only buy at ≤8¢ — market must be extreme
+CONTRARIAN_ELAPSED_MAX = 0.70   # raised 0.40→0.70: late-window over-pricings are the observed pattern
 CONTRARIAN_ELAPSED_MIN = 0.05   # wait for 5% minimum (avoid noise at window open)
 
-WINDOW_ELAPSED_MAX_5M  = 0.40  # 5m: stop entering after 40% (180s left = full hard-exit runway)
-                                # T00040: entered at 54% elapsed → STOP_LOSS in 17s (too late)
-                                # T00035: entered at 18% elapsed → +$0.992 (early = room to breathe)
-                                # At 40%: 180s remaining ≥ hard-exit timer. At 54%: structurally broken.
-WINDOW_ELAPSED_MAX_15M = 0.80  # 15m: full 80% (still 3 min left at 80%)
+# Delta-based contrarian: small Binance moves (0.05–0.06%) tend to reverse before PM reprices.
+# Buy OPPOSITE direction token. Half stake. Skip fair-value/lag gates — pure mean-reversion bet.
+# Live data: 3 SIGNAL_FLIPPED losses at delta 0.05–0.07% → hypothesis: reversal is exploitable.
+# Validate: need n≥20 contrarian trades before crediting any edge.
+CONTRARIAN_DELTA_ENABLED  = False  # disabled: 4W/5L net=-$5.93 — correlated macro moves cause simultaneous multi-asset blowups
+CONTRARIAN_DELTA_MIN_PCT  = 0.050   # minimum abs Binance delta to trigger contrarian
+CONTRARIAN_DELTA_MAX_PCT  = 0.060   # maximum abs Binance delta to trigger contrarian
 
-# ── Pre-arm: early entry when previous window already repriced ─────────────────
-# If current window's token repriced past 0.80, next window will open at ~0.50.
-# We already have direction confirmation — enter at 5% elapsed (15s into 5m window).
-PREARM_ELAPSED_MIN = 0.20       # raised 0.15→0.20: T00173 fired at 15%/45s, reversed immediately
-                                # was 0.05 (15s) — T00155: PREARM at 36s stopped out in 38s
+BOND_ENABLED = False  # disabled 2026-05-10: switched to DISCOVER strategy (Phase 2 live entry).
+                      # Only one strategy active at a time per user instruction; flip this back
+                      # to True and set bot.discover_strategy.enabled=False to revert.
+SNIPER_ENABLED = False  # disabled 2026-04-16: isolating BOND instant-sell bug
+MOM_ENABLED = False     # disabled 2026-04-22: bond-only while exit state machine stabilises
+
+WINDOW_ELAPSED_MAX_5M  = 0.78  # raised 0.65→0.78: n=2 at 0.65+ in last 50 trades insufficient to justify ceiling
+WINDOW_ELAPSED_MAX_15M = 0.78  # at elapsed=0.78 on 15m: 198s remaining ≥ HARD_EXIT 210s so window still governs
+
+# ── Pre-arm: DISABLED 2026-04-14 ─────────────────────────────────────────────
+# Logic flaw: new window resets Binance reference to current price (delta=0%).
+# Previous window direction is irrelevant — no lag exists at new window open.
+# Trades entered at 3% elapsed with 0.57-0.68 ask, no real confirmation.
+# ETH pre-arm: hit +37.3% peak then reversed to -37% loss. Not a valid edge.
+PREARM_ENABLED = False
+PREARM_ELAPSED_MIN = 0.20
 PREARM_ASK_THRESHOLD = 0.80     # set pre-arm when current window ask > 80%
 PREARM_SUSTAIN_FACTOR = 1.0     # require FULL normal sustain — prev window confirms direction
                                 # was 0.5: reducing sustain caused low-quality early entries
 PREARM_EXPIRY_S = 600           # pre-arm expires after 10 min (2 windows) if unused
-PREARM_MAX_ASK = 0.58           # PREARM entries capped tighter than normal (0.65/0.55)
+PREARM_MAX_ASK = 0.50           # aligned with MAX_TOKEN_ASK: same stop-hunting zone applies to PREARM entries
                                 # T00036/37: pre-arm fired at 0.65+, market already priced in,
                                 # no edge → both stopped out at -$0.8. If price already
                                 # repriced in the new window, there's nothing left to capture.
@@ -195,14 +213,185 @@ class SniperSignal:
     lag_remaining_pct: float = 0.0  # fraction of expected PM move not yet priced in (1.0=max lag, 0=closed)
     regime: str = ""                # market regime at entry: ACTIVE_HOT/WARM/COLD/QUIET_FLOW/DEAD
     signal_source: str = "SNIPER"   # "SNIPER" or "CONTRARIAN" — for trade analytics split
+    # ── New data collection fields (all 4 signals) ───────────────────────────
+    # Signal 1: Conditional WR for this (regime, window_size_s) at entry time
+    cond_wr: float = 0.5            # historical WR for this condition (0.5 = no data)
+    cond_n:  int   = 0              # number of trades used to compute cond_wr
+    # Signal 2: Liquidation cascade — $ of forced liquidations in last 60s
+    liq_long_60s:  float = 0.0     # long liquidations (price was pushed DOWN)
+    liq_short_60s: float = 0.0     # short liquidations (price was pushed UP)
+    # Signal 3: Funding rate at entry (annualised APR %)
+    funding_rate_pct: float = 0.0  # positive = longs crowded, negative = shorts crowded
+    # Signal 4: Coinbase cross-exchange divergence
+    coinbase_price: float = 0.0    # Coinbase spot price at entry (0 = not available)
+    cross_exchange_div_pct: float = 0.0  # (binance - coinbase) / coinbase * 100
+    quality_score: int = 0               # additive quality score (see _compute_quality_score)
+    # ── BOND trade metadata ───────────────────────────────────────────────────
+    is_bond: bool = False             # True for high-probability bond entries (time-exit strategy)
+    bond_exit_sec: int = 0            # seconds before window close to exit (30=15m, 20=5m)
+    bond_outcome_direction: str = "down"  # "up" or "down" — which direction resolves this token
+    bond_entry_class: str = ""        # e.g. "CORE/INIT", "CORE/COLD", "STRETCH/INIT" — drives SL regime
+    # EARLY-zone adj_edge modifier instrumentation (evaluation phase — analytics only)
+    bond_delta_penalty: float = 0.0       # 0.0–0.30, additional reduction from |delta|>0.05 soft penalty
+    bond_weak_vel_penalty: float = 0.0    # 0.0–0.15, additional reduction from weak-vel sole-confirmation case
+    # Layer-1 macro regime at entry (TREND_UP / TREND_DOWN / CHOP) — for per-regime PnL attribution
+    bond_macro_regime: str = ""
+    # Raw entry primitives for post-trade analysis
+    bond_delta_at_entry: float = 0.0      # raw signed bond_delta at entry (%)
+    bond_adj_edge_at_entry: float = 0.0   # adjusted edge (edge × regime_weight)
+    bond_vel_at_entry: float = 0.0        # velocity magnitude at entry (%/s, unsigned)
+    # BOND_STAB entry-quality classification (set post-signal in _scan_bond_entries)
+    bond_stab_class: str = ""             # "CLEAN" / "NOISY" / "HIGH_RISK" / "FATAL"
+    bond_stability_score: int = 0         # 0–5, count of bad quality flags
+    bond_stab_xp_bad: bool = False        # edge/remaining-upside ratio poor
+    bond_stab_slip_bad: bool = False      # top-of-book spread ≥ 3¢
+    bond_stab_delta_bad: bool = False     # directional delta < −8% (asset against token)
+    bond_stab_edge_weak: bool = False     # raw edge < 0.08
+    bond_stab_vel_flat: bool = False      # |vel| < 0.01%/s (no directional signal)
+    # Pre-entry trajectory (30s/15s history leading into the entry moment)
+    bond_delta_accel_30s: float = 0.0     # delta change vs 30s ref (signed %)
+    bond_accel_15s: float = 0.0           # delta change vs 15s ref (persistence check)
+    bond_edge_drift_30s: float = 0.0      # edge change vs 30s ref (rising/fading)
+    bond_accel_sustained: bool = False    # 15s + 30s both built positively
+    bond_has_hist: bool = False           # 30s history available at entry
+    bond_smooth_delta_60s: float = 0.0    # 60s smoothed delta (macro regime input)
+    # Pre-entry zone label (EARLY / CORE / LATE) — needed for regime+zone bucketing
+    bond_entry_zone: str = ""
+    # ── pre_score (Layer 1, strictly causal, observation mode) ─────────────────
+    # Composite score from pre-entry features only. Frozen at entry timestamp.
+    # No forward-looking data. Used for validation; gating disabled until
+    # rolling regime+zone percentiles are calibrated (Phase B).
+    pre_score: float = 0.0
+    pre_score_version: str = ""
+    pre_score_schema_hash: str = ""    # 8-char hash of feature schema — drift detector
+    pre_score_validity: str = ""       # "PASS" or "FAIL:reason1,reason2" — leakage gate
+    pre_score_accel:  float = 0.0   # momentum persistence component
+    pre_score_daccel: float = 0.0   # directional flow alignment component
+    pre_score_edge:   float = 0.0   # edge trajectory (rising/fading) component
+    pre_score_stab:   float = 0.0   # STAB quality component
+    pre_score_vel:    float = 0.0   # velocity alignment component
+    pre_score_class:  float = 0.0   # bond_entry_class EV-prior component
+    # ── TERMINAL entry observations (data collection, no gating) ──────────────
+    term_vpin: float = 0.0           # Binance aggTrade VPIN at entry (0.5=neutral, >0.65=toxic)
+    term_spot_delta_30s: float = 0.0 # Binance spot % change in 30s before entry (signed)
+    term_spot_delta_60s: float = 0.0 # Binance spot % change in 60s before entry (signed)
+    term_spot_delta_5m: float = 0.0  # Binance spot % change from 5m window open to entry
+    term_ask_spread_pct: float = 0.0 # (best_ask - best_bid) / best_ask * 100
+    term_ask_qty: float = 0.0        # shares available at best ask (order book depth)
+    term_ob_imbalance: float = 0.0   # (top3_bid_qty - top3_ask_qty) / total; +1=buy pressure
+    term_remaining_s: float = 0.0    # seconds until window end at signal time
+    term_token_delta_30s: float = 0.0  # token ask % change vs 30s ago (+ = rising toward 1.0)
+    term_token_delta_60s: float = 0.0  # token ask % change vs 60s ago (+ = rising toward 1.0)
+    term_rsi: float = 0.0              # RSI from scan-loop ask history at entry (0 = < 2 data points)
+    term_ask_vwap: float = 0.0         # size-weighted avg ask price across OB levels at entry
+
+
+def _compute_quality_score(lag: float, abs_delta: float, regime: str, vpin: float = 0.0):
+    """
+    Pre-entry quality gate for stake sizing and hard reject.
+
+    lag_remaining: 1.0 = PM barely repriced = max opportunity (BEST)
+                   0.0 = PM fully repriced = no edge (WORST)
+
+    Tradeable lag window: 0.40–0.85
+      < 0.40: fee math argues against — at lag=0.35 expected repricing ~3.5%
+              barely covers 2.5-3% round-trip fees. 1W/2L in live data.
+      ≥ 0.85: ghost reversal territory — 0W/6L in live data. Binance move
+              peaked and reversed before PM repriced; we enter into the snap.
+              Exception: abs_delta ≥ 0.20 = genuine large spike, not noise.
+
+    Returns (score: int, breakdown: dict, hard_reject: bool, reject_reason: str)
+      hard_reject=True when: lag < 0.40  OR  lag >= 0.85 (unless abs_delta >= 0.20)
+                        OR  (lag >= 0.70 AND vpin < 0.40)
+    """
+    hard_reject = False
+    reject_reason = ""
+
+    # ── Low-lag gate: fee math requires minimum lag ───────────────────────
+    # At lag < 0.40: expected repricing ≈ 3.5%, round-trip fees ≈ 2.5-3%.
+    # Net expected gain too thin. Live data: 1W/2L at lag 0.15-0.40.
+    if lag < 0.40:
+        hard_reject = True
+        reject_reason = f"lag_too_low(<0.40,lag={lag:.2f})"
+        return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
+
+    # ── High-lag cap: ghost reversal territory ────────────────────────────
+    # Lag ≥ 0.80 without large delta = PM hasn't moved because Binance move
+    # already peaked/reversed (ghost reversal), not because lag is high.
+    # Live data n=19 at lag 0.80-0.85: WR=36.8%, net=-$27.09, avg=-$1.43
+    # Live data at lag 0.85+: dominated by EXTERNALLY_SOLD WR=35%, -$46
+    # Lowered 0.85→0.80 (2026-04-12): 0.80-0.85 zone is as bad as 0.85+.
+    # Exception: abs_delta ≥ 0.20 = genuine large spike, not noise.
+    # Cross-tab: lag≥0.75 + delta≥0.20 → WR=78% n=9 — preserve this path.
+    if lag >= 0.80 and abs_delta < 0.20:
+        hard_reject = True
+        reject_reason = f"lag_too_high(>=0.80,lag={lag:.2f},delta={abs_delta:.3f}<0.20)"
+        return 0, {"lag": 0, "mom": 0, "regime": 0, "vpin": 0}, hard_reject, reject_reason
+
+    # ── High-Lag VPIN Gate (0.70-0.85 zone) ──────────────────────────────
+    # High lag without ANY informed flow = ghost reversal risk.
+    # Lowered 0.40→0.20 (2026-04-12): avg VPIN=0.37 means 0.40 threshold was
+    # blocking the majority of high-lag candidates. VPIN 0.20-0.40 is not
+    # "no flow" — it's normal low-toxicity lag-arb territory. Only block at
+    # truly zero-flow (vpin<0.20) where ghost reversal risk is unambiguous.
+    # lag≥0.80 hard reject above already handles worst ghost reversal cases.
+    if lag >= 0.70 and vpin < 0.20:
+        hard_reject = True
+        reject_reason = f"high_lag_no_vpin(lag={lag:.2f},vpin={vpin:.2f}<0.20)"
+        return 0, {"lag": 2, "mom": 0, "regime": 0, "vpin": "GATE"}, hard_reject, reject_reason
+
+    # ── Lag scoring (tradeable window: 0.40–0.85) ─────────────────────────
+    if lag >= 0.70:
+        pts_lag = 2          # maximum edge: PM barely repriced (vpin confirmed above)
+    else:
+        pts_lag = 1          # confirmation zone: 0.40–0.70
+
+    # ── Momentum scoring (abs value — correct for both YES and NO) ────────
+    # Tier structure (2026-04-14):
+    #   >0.25%  → +2 pts  (Instant Max Stake territory: qs can reach 5 = 1.5x)
+    #   0.18-0.25% → +2 pts  (Instant Base Stake territory: qs≥3 = 1.0x with normal lag)
+    #   0.12-0.18% → +1 pt   (entry zone: sufficient edge with good lag)
+    #   <0.12%  → -1 pt   (below min delta — delta gate should have blocked this)
+    if abs_delta >= 0.18:
+        pts_mom = 2          # strong move — base or max stake depending on total qs
+    elif abs_delta >= 0.12:
+        pts_mom = 1          # entry zone
+    else:
+        pts_mom = -1         # sub-threshold (shouldn't reach here post delta gate)
+
+    # ── Regime scoring ────────────────────────────────────────────────────
+    if regime.startswith("ACTIVE_"):
+        pts_regime = 1
+    elif regime == "QUIET_DEAD":
+        pts_regime = -1
+    else:
+        pts_regime = 0
+
+    # ── VPIN scaling: DISABLED 2026-04-12 ────────────────────────────────
+    # Live data n=559 trades: VPIN has no monotonic WR relationship.
+    #   <0.30: WR=51.7% net=-$54  (best performing bucket — penalty was BACKWARDS)
+    #   0.30-0.40: WR=47.9% net=-$71
+    #   0.40-0.55: WR=49.8% net=-$74
+    # All buckets flat 48-52%. avg VPIN=0.370, 60% of trades below 0.40.
+    # This strategy fires in low-VPIN conditions by design (PM lag arbitrage,
+    # not institutional flow). VPIN penalty was dragging QS=4→3 for the best
+    # performing cohort. Removed — QS score now: lag + mom + regime only.
+    # NOTE: high_lag_no_vpin HARD REJECT (lag≥0.70 AND vpin<0.40) is separate
+    # and intentionally kept — ghost reversal risk at extreme lag needs own analysis.
+    pts_vpin = 0
+
+    score = pts_lag + pts_mom + pts_regime + pts_vpin
+    breakdown = {"lag": pts_lag, "mom": pts_mom, "regime": pts_regime, "vpin": pts_vpin}
+    return score, breakdown, hard_reject, reject_reason
 
 
 def _session_min_delta(is_15m: bool = False, elapsed_pct: float = 1.0) -> float:
     """
-    Minimum delta threshold. For 15m windows, early entries (< 40% elapsed)
-    require 1.5× the normal threshold — move hasn't confirmed yet.
-    For 5m windows, quiet hours require 0.10% delta vs 0.04% during active sessions —
-    small moves outside active hours don't sustain (T00173: -0.054% at 17:xx, SL in 42s).
+    Minimum delta threshold — window-type based, no elapsed gate.
+    All elapsed allowed; end-of-window protection handled by WINDOW_ELAPSED_MAX.
+
+    15m: flat 0.12 across all elapsed — below this = no momentum points in scoring.
+    5m:  flat 0.12 — same rationale.
     """
     if is_15m:
         if elapsed_pct < _EARLY_ELAPSED_CUTOFF:
@@ -276,10 +465,14 @@ class WindowSniper:
             else ext.spot_window_open_15m
         )
         if not spot_window_open or spot_window_open <= 0:
+            logger.debug("SNIPER BLOCK %s/%s | spot_window_open=None — kline feed not ready yet",
+                         token.asset, token.side)
             return None
 
         spot_current = ext.spot_price
         if not spot_current or spot_current <= 0:
+            logger.debug("SNIPER BLOCK %s/%s | spot_price=None — Binance feed not ready",
+                         token.asset, token.side)
             return None
 
         # ── Delta computation + sustain timer (runs before time gate) ────────────
@@ -299,6 +492,11 @@ class WindowSniper:
             if token.window_end_ts > 0 and token.window_seconds > 0 else 1.0
         )
         min_delta = _session_min_delta(is_15m=is_15m, elapsed_pct=_elapsed_pct_early)
+        # Per-asset delta override: BTC reprices faster — weak moves recover within the window.
+        # BTC n=22: delta<0.10% → WR=17%; delta≥0.12% → WR=75%. Apply stricter gate for BTC.
+        _asset_min = getattr(CONFIG.edge, "per_asset_min_delta_pct", {}).get(token.asset, 0)
+        if _asset_min > min_delta:
+            min_delta = _asset_min
         asset_direction = 1 if delta_pct > 0 else -1
         sustain_key = (token.token_id, asset_direction)
         opp_key = (token.token_id, -asset_direction)
@@ -340,21 +538,25 @@ class WindowSniper:
 
         window_start = token.window_end_ts - token.window_seconds
         elapsed = now - window_start
+
+        # Minimum 10s from window open — new window tokens have stale pricing
+        # from the previous window. Market needs time to establish fresh liquidity.
+        if elapsed < 10:
+            logger.debug(
+                "SNIPER BLOCK %s/%s | window_too_fresh=%.0fs < 10s — stale pricing from prev window",
+                token.asset, token.side, elapsed,
+            )
+            return None
         elapsed_pct = elapsed / token.window_seconds
 
-        elapsed_min = PREARM_ELAPSED_MIN if is_prearmed else WINDOW_ELAPSED_MIN
-        if elapsed_pct < elapsed_min:
-            logger.debug("SNIPER BLOCK %s/%s | time_early elapsed=%.1f%% < %.0f%%%s",
-                         token.asset, token.side, elapsed_pct*100, elapsed_min*100,
-                         " (prearmed)" if is_prearmed else "")
-            return None
+        # Elapsed dead zone removed 2026-04-12: lag/delta/regime gates are the correct
+        # filters. The 20-44% block was a blunt proxy added before those gates existed.
+        # Let lag≥0.55 + delta≥0.12% + regime gate handle quality regardless of timing.
         elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
-        if elapsed_pct > elapsed_max:
-            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% > %.0f%% (%s)",
-                         token.asset, token.side, elapsed_pct*100, elapsed_max*100,
-                         "5m" if not is_15m else "15m")
+        if elapsed_pct >= elapsed_max:
+            logger.debug("SNIPER BLOCK %s/%s | time_late elapsed=%.1f%% >= %.0f%%",
+                         token.asset, token.side, elapsed_pct*100, elapsed_max*100)
             return None
-
         # ── Sustained delta gate ───────────────────────────────────────────────
         required_sustain = _SUSTAINED_5M if not is_15m else _SUSTAINED_15M
         if is_prearmed:
@@ -372,18 +574,16 @@ class WindowSniper:
         _regime = classify_regime(hour_utc, _vpin_now)
         is_active_session = hour_utc in _HIGH_VOLUME_HOURS
 
-        # ── 15m quiet-hours gate ──────────────────────────────────────────────
-        # Shadow data: 291 blocks, 7% WR for 15m at 22 UTC. PM reprices 15m tokens
-        # too quickly in quiet sessions — the lag window collapses before we can enter.
-        # Exception: VPIN > 0.55 = informed flow present even in quiet hours.
-        if _15M_ACTIVE_ONLY and is_15m and not is_active_session:
-            if _vpin_now < 0.55:
-                logger.debug(
-                    "SNIPER BLOCK %s/%s | 15m quiet-hour (hour=%d UTC, VPIN=%.2f) "
-                    "— shadow 7%%WR@22UTC, no edge",
-                    token.asset, token.side, hour_utc, _vpin_now,
-                )
-                return None
+        # ── 5m window gate ────────────────────────────────────────────────────
+        # Disabled: live data n=21 WR=14.3% vs 15m n=56 WR=44.6%. 5m windows are
+        # capital destruction. Re-enable when n≥20 live 5m trades confirm WR>45%.
+        if _15M_ACTIVE_ONLY and not is_15m:
+            logger.debug("SNIPER BLOCK %s/%s | 5m windows disabled (_15M_ACTIVE_ONLY): live WR=14.3%% n=21",
+                         token.asset, token.side)
+            return None
+
+        # quiet-hours VPIN gate removed: live data showed VPIN<0.40 had best WR (48%).
+        # Gate was blocking the good zone and only allowing the worse zone. Removed.
 
         # ── Side alignment: only trade the winning token ───────────────────────
         if token.side == "YES" and asset_direction < 0:
@@ -422,17 +622,18 @@ class WindowSniper:
             logger.debug("SNIPER BLOCK %s/%s | ask=0 (empty OB)", token.asset, token.side)
             return None
 
-        # Hard ceiling: near-resolved tokens only (>90% priced)
-        if token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
-            if token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
+        _effective_max = MAX_TOKEN_ASK
+        if token_ask > _effective_max or token_ask < MIN_TOKEN_ASK:
+            if PREARM_ENABLED and token_ask > PREARM_ASK_THRESHOLD and prearm_key not in self._prearm:
                 self._prearm[prearm_key] = (now, token.window_end_ts)
                 logger.info(
                     "SNIPER PREARM %s/%s | ask=%.3f — next window early entry armed",
                     token.asset, token.side, token_ask,
                 )
-            _block_reason = "near_ceiling" if token_ask > MAX_TOKEN_ASK else "near_resolved"
-            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (delta=%+.3f%%)",
-                        token.asset, token.side, token_ask, _block_reason, delta_pct)
+            _block_reason = "near_ceiling" if token_ask > _effective_max else "near_resolved"
+            logger.info("SNIPER BLOCK %s/%s | ask=%.3f — %s (max=%.2f elapsed=%.0f%% delta=%+.3f%% win=%s)",
+                        token.asset, token.side, token_ask, _block_reason, _effective_max,
+                        elapsed_pct * 100, delta_pct, "15m" if is_15m else "5m")
             return None
 
         edge = fair_value - token_ask
@@ -457,19 +658,15 @@ class WindowSniper:
         # pm_drift = mechanical repricing since trigger fired (pure data, not a block).
         pm_drift = (token_ask - ask_at_trigger) if ask_at_trigger > 0 else 0.0
         expected_move = fair_value - 0.50
-        lag_remaining_pct = max(0.0, (fair_value - token_ask) / expected_move) if expected_move > 0.01 else 0.0
-        # Gate: require sufficient lag remaining — adaptive to move magnitude.
-        # Override: if absolute edge is very large (≥0.10), the lag% floor is relaxed
-        # to 15% regardless. Rationale: FV=0.979, ask=0.840 → lag=29%, edge=+0.139.
-        # The lag% penalises extreme FV (large denominator) even when uncaptured
-        # repricing in dollar terms is huge. Edge ≥ 0.10 is strong evidence either way.
-        min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING_15M
+        lag_remaining_pct = min(1.0, max(0.0, (fair_value - token_ask) / expected_move)) if expected_move > 0.01 else 0.0
+        # Gate: require sufficient lag remaining.
+        # Pre-armed entries: relaxed to 0.20 — direction already confirmed by previous window
+        # hitting 0.80+. Still requires some fresh delta in new window (Binance still moving).
+        # Normal entries: 0.55 — no prior confirmation, need sufficient unpriced gap.
         if is_prearmed:
-            min_lag = min_lag * 0.80  # pre-arm: slightly relaxed (prior window confirms direction)
-        # Edge override: only for 5m — at 15m, high edge doesn't rescue negative EV.
-        # Scanner: [15m] edge≥0.10 WR still 0% at lag≥0.25. No override for 15m.
-        if not is_15m and edge >= 0.10:
-            min_lag = min(min_lag, 0.20)   # 5m: large edge relaxes lag floor to 0.20
+            min_lag = 0.20
+        else:
+            min_lag = MIN_LAG_REMAINING_5M if not is_15m else MIN_LAG_REMAINING_15M
         if lag_remaining_pct < min_lag:
             logger.info(
                 "SNIPER BLOCK %s/%s | lag=%.0f%% < %.0f%% min (fv=%.3f ask=%.3f delta=%+.3f%%) — PM mostly repriced",
@@ -486,32 +683,57 @@ class WindowSniper:
             )
             return None
 
+
+        # ── Order book quality gates ──────────────────────────────────────────
+        # Placed AFTER price ceiling: OB gates only matter for tokens in our
+        # entry range (0.35-0.48). Near-resolved tokens (0.80+) have wide spreads
+        # by nature — blocking them here would prevent PREARM from firing.
+        #
+        # Gate 1: Spread — wide spread = illiquid market = instant slippage.
+        # At spread=0.08 you lose 4 cents vs mid before the trade even starts.
+        OB_MAX_SPREAD = 0.10
+        if ob.spread > OB_MAX_SPREAD:
+            logger.info(
+                "SNIPER BLOCK %s/%s | spread=%.3f > %.2f — illiquid OB, slippage too high",
+                token.asset, token.side, ob.spread, OB_MAX_SPREAD,
+            )
+            return None
+
+        # Gate 2: Top-of-book size — thin ask = partial fill + worse average price.
+        # Require ≥8 shares at best ask. At $0.45 entry = $3.60 = enough for $10 stake with 2 levels.
+        OB_MIN_ASK_SIZE = 8.0
+        best_ask_size = ob.asks[0][1] if ob.asks else 0.0
+        if best_ask_size < OB_MIN_ASK_SIZE:
+            logger.info(
+                "SNIPER BLOCK %s/%s | ask_size=%.1f < %.0f shares — top-of-book too thin",
+                token.asset, token.side, best_ask_size, OB_MIN_ASK_SIZE,
+            )
+            return None
+
+        # ── PM drift gate (late-entry filter) ────────────────────────────────
+        # pm_drift = how much PM ask already moved toward FV since Binance trigger.
+        # Large pm_drift = we're entering AFTER most of the repricing already happened.
+        # At that point the lag is closing and SL is the dominant outcome.
+        # Threshold: 0.04 ($4 cents) — a full 4-cent move is 8% of the $0.50 range.
+        # Exception: if edge is very large (≥0.12), drift doesn't matter — still plenty left.
+        PM_DRIFT_MAX = 0.07
+        if pm_drift > PM_DRIFT_MAX and edge < 0.12:
+            logger.info(
+                "SNIPER BLOCK %s/%s | pm_drift=%+.3f > %.2f (trigger→now: %.3f→%.3f) "
+                "— PM already repriced most of the move, late entry",
+                token.asset, token.side, pm_drift, PM_DRIFT_MAX,
+                ask_at_trigger, token_ask,
+            )
+            return None
+
         logger.debug(
             "SNIPER LAG %s/%s | remaining=%.0f%% pm_drift=%+.3f (ask %.3f→%.3f) fv=%.3f",
             token.asset, token.side, lag_remaining_pct * 100,
             pm_drift, ask_at_trigger if ask_at_trigger > 0 else token_ask, token_ask, fair_value,
         )
 
-        # ── VPIN off-peak gate ────────────────────────────────────────────────
-        # During high-info sessions (13-15 UTC), information events drive real lag.
-        # Off-peak: require minimum VPIN to confirm informed flow — filters the
-        # 0/8 WR at 18-23 UTC without a hard hour block (preserves data collection).
-        if not is_active_session:
-            vpin_for_gate = ext.vpin_score or 0.0
-            if vpin_for_gate < VPIN_OFFPEAK_REQUIRED:
-                logger.info(
-                    "SNIPER BLOCK %s/%s | off-peak VPIN=%.3f < %.2f — no informed flow (hour=%d UTC)",
-                    token.asset, token.side, vpin_for_gate, VPIN_OFFPEAK_REQUIRED, hour_utc,
-                )
-                self.last_block[(token.asset, token.side)] = SniperBlock(
-                    asset=token.asset, side=token.side, token_id=token.token_id,
-                    window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
-                    block_reason="vpin_offpeak", regime=_regime,
-                    token_ask=token_ask, fair_value=fair_value, edge=edge,
-                    lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct, elapsed_pct=elapsed_pct,
-                    vpin=vpin_for_gate, ts=now,
-                )
-                return None
+        # VPIN off-peak gate removed: same data — VPIN<0.40 had best live WR.
+        # Using VPIN as a gate blocks good trades and allows bad ones.
 
         # ── Edge gate with confirmation signals ───────────────────────────────
         macro_boost = ext.macro_boost or 0.0
@@ -568,7 +790,7 @@ class WindowSniper:
 
         # Time decay: reduce confidence as we approach the 80% cutoff
         # (less time = higher variance, less room for the market to reprice)
-        time_progress = (elapsed_pct - WINDOW_ELAPSED_MIN) / (WINDOW_ELAPSED_MAX - WINDOW_ELAPSED_MIN)
+        time_progress = elapsed_pct / WINDOW_ELAPSED_MAX
         time_factor = 1.0 - 0.20 * time_progress   # 1.0 at 25%, 0.80 at 80%
         confidence = max(0.50, confidence * time_factor)
 
@@ -605,11 +827,160 @@ class WindowSniper:
         if vpin_agrees:
             reason += f" [VPIN {vpin:.2f}]"
 
+        # ── New signals: evaluate all 4 before final decision ────────────────
+        from config import CONFIG as _CFG
+        _gates = _CFG.signal_gates
+
+        # Signal 1: Conditional WR
+        _cond_wr, _cond_n = COND_WR.get(_regime, token.window_seconds)
+        if _gates.conditional_wr_gate:
+            _block, _, _ = COND_WR.should_block(
+                _regime, token.window_seconds,
+                min_wr=_gates.conditional_wr_min,
+                min_n=_gates.conditional_wr_min_n,
+            )
+            if _block:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | COND_WR gate: %.0f%% WR (n=%d) for "
+                    "%s/%dm < %.0f%% min — known losing condition",
+                    token.asset, token.side,
+                    _cond_wr * 100, _cond_n,
+                    _regime, token.window_seconds // 60,
+                    _gates.conditional_wr_min * 100,
+                )
+                return None
+
+        # Signal 2: Liquidation cascade
+        _liq_long  = ext.liq_long_60s  if ext else 0.0
+        _liq_short = ext.liq_short_60s if ext else 0.0
+        if _gates.liquidation_gate:
+            # Long liq = price was pushed DOWN (SELL cascade). Bad for YES entries.
+            # Short liq = price was pushed UP (BUY cascade). Bad for NO entries.
+            _liq_against = (
+                _liq_long  if token.side == "YES" else _liq_short
+            )
+            if _liq_against > _gates.liquidation_threshold:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | LIQ gate: $%.0fK cascade in last 60s "
+                    "against our direction — stop-hunt may still be ongoing",
+                    token.asset, token.side, _liq_against / 1000,
+                )
+                return None
+
+        # Signal 3: Funding rate
+        _funding_apr = float(ext.funding_rate or 0.0) if ext else 0.0
+        if _gates.funding_gate and abs(_funding_apr) > _gates.funding_extreme_apr:
+            # Crowded longs (high positive funding) = risky YES entry
+            # Crowded shorts (high negative funding) = risky NO entry
+            _funding_against = (
+                (_funding_apr > 0 and token.side == "YES")
+                or (_funding_apr < 0 and token.side == "NO")
+            )
+            if _funding_against:
+                logger.info(
+                    "SNIPER BLOCK %s/%s | FUNDING gate: %.1f%% APR — "
+                    "crowded position aligned against our direction",
+                    token.asset, token.side, _funding_apr,
+                )
+                return None
+
+        # Signal 4: Cross-exchange divergence
+        _coinbase_price = float(ext.coinbase_price or 0.0) if ext else 0.0
+        _binance_price  = float(ext.spot_price or 0.0) if ext else 0.0
+        _cross_div_pct  = 0.0
+        if _coinbase_price > 0 and _binance_price > 0:
+            _cross_div_pct = (_binance_price - _coinbase_price) / _coinbase_price * 100
+        if _gates.cross_exchange_gate and _coinbase_price > 0:
+            # Large positive divergence: Binance above Coinbase = Binance-led move
+            # Large negative divergence: Binance below Coinbase = Binance-led dump
+            # Either direction is suspicious (manufactured on Binance only)
+            if abs(_cross_div_pct) > _gates.cross_exchange_div_threshold:
+                # Only block if divergence ALIGNS with the direction we're trading
+                # (i.e., the suspicious Binance move is what's generating our signal)
+                _binance_moved_our_way = (
+                    (_cross_div_pct > 0 and asset_direction > 0)  # Binance up, we're YES
+                    or (_cross_div_pct < 0 and asset_direction < 0)  # Binance down, we're NO
+                )
+                if _binance_moved_our_way:
+                    logger.info(
+                        "SNIPER BLOCK %s/%s | CROSS_EXCHANGE gate: Binance/Coinbase "
+                        "divergence=%.3f%% > %.2f%% — move not confirmed on Coinbase",
+                        token.asset, token.side, _cross_div_pct,
+                        _gates.cross_exchange_div_threshold,
+                    )
+                    return None
+
         logger.debug(
             "SNIPER %s/%s | %+.3f%% delta | FV=%.3f ask=%.3f edge=%.3f "
-            "elapsed=%.0f%% conf=%.2f composite=%.2f",
+            "elapsed=%.0f%% conf=%.2f composite=%.2f | "
+            "cond_wr=%.0f%%(%d) liq_long=$%.0fK liq_short=$%.0fK "
+            "funding=%.1f%%APR coinbase_div=%+.3f%%",
             token.asset, token.side, delta_pct, fair_value, token_ask, edge,
             elapsed_pct * 100, confidence, composite,
+            _cond_wr * 100, _cond_n,
+            _liq_long / 1000, _liq_short / 1000,
+            _funding_apr, _cross_div_pct,
+        )
+
+        # ── Quality Score Gate ────────────────────────────────────────────────
+        # Additive score from lag / momentum / regime / vpin.
+        # Hard reject: lag < 0.40 OR lag >= 0.85 (unless abs_delta >= 0.20) OR (lag >= 0.70 AND vpin < 0.40).
+        # Soft reject: score ≤ -1 (negative expected value composite).
+        # Scores also drive stake sizing in risk/manager.py.
+        _quality_score, _qbd, _hard_reject, _reject_reason = _compute_quality_score(
+            lag=lag_remaining_pct,
+            abs_delta=abs(delta_pct),
+            regime=_regime,
+            vpin=vpin,
+        )
+        # Pre-armed entries: skip low-lag hard reject (lag 0.20-0.40 allowed).
+        # Direction already confirmed by previous window hitting 0.80+.
+        if _hard_reject and is_prearmed and "lag_too_low" in _reject_reason:
+            _hard_reject = False
+            _reject_reason = ""
+            _quality_score = 1  # treat as weak signal — 0.5x stake
+        if _hard_reject:
+            logger.info(
+                "SNIPER REJECT %s/%s | HARD_REJECT %s | breakdown=%s",
+                token.asset, token.side, _reject_reason, _qbd,
+            )
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason=f"quality_hard_reject:{_reject_reason}",
+                regime=_regime, token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct,
+                elapsed_pct=elapsed_pct, vpin=vpin or 0.0, ts=now,
+            )
+            return None
+        if _quality_score <= -1:
+            logger.info(
+                "SNIPER REJECT %s/%s | quality_score=%d ≤ -1 "
+                "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d) vpin=%.2f(%+d) — negative EV",
+                token.asset, token.side, _quality_score,
+                lag_remaining_pct, _qbd["lag"],
+                abs(delta_pct), _qbd["mom"],
+                _regime, _qbd["regime"],
+                vpin, _qbd["vpin"],
+            )
+            self.last_block[(token.asset, token.side)] = SniperBlock(
+                asset=token.asset, side=token.side, token_id=token.token_id,
+                window_end_ts=token.window_end_ts, window_seconds=token.window_seconds,
+                block_reason="quality_score_reject",
+                regime=_regime, token_ask=token_ask, fair_value=fair_value, edge=edge,
+                lag_remaining_pct=lag_remaining_pct, delta_pct=delta_pct,
+                elapsed_pct=elapsed_pct, vpin=vpin or 0.0, ts=now,
+            )
+            return None
+
+        logger.info(
+            "SNIPER PASS %s/%s | quality_score=%d "
+            "lag=%.2f(%+d) mom=%.4f(%+d) regime=%s(%+d) vpin=%.2f(%+d)",
+            token.asset, token.side, _quality_score,
+            lag_remaining_pct, _qbd["lag"],
+            abs(delta_pct), _qbd["mom"],
+            _regime, _qbd["regime"],
+            vpin, _qbd["vpin"],
         )
 
         return SniperSignal(
@@ -623,7 +994,7 @@ class WindowSniper:
             entry_price=entry_price,
             confidence=confidence,
             composite=composite,
-            direction=Direction.BUY_YES,   # always "buy this token" (side already aligned above)
+            direction=Direction.BUY_YES if token.side == "YES" else Direction.BUY_NO,
             fee_zone=fee_zone,
             elapsed_pct=elapsed_pct,
             reason=reason,
@@ -634,6 +1005,15 @@ class WindowSniper:
             pm_drift_at_entry=round(pm_drift, 4),
             lag_remaining_pct=round(lag_remaining_pct, 3),
             regime=_regime,
+            # New signal fields — data collection
+            cond_wr=_cond_wr,
+            cond_n=_cond_n,
+            liq_long_60s=round(_liq_long, 0),
+            liq_short_60s=round(_liq_short, 0),
+            funding_rate_pct=round(_funding_apr, 3),
+            coinbase_price=round(_coinbase_price, 2),
+            cross_exchange_div_pct=round(_cross_div_pct, 4),
+            quality_score=_quality_score,
         )
 
     def score_contrarian(
@@ -661,11 +1041,14 @@ class WindowSniper:
         if now is None:
             now = time.time()
 
+        if not CONTRARIAN_ENABLED:
+            return None
+
         if ob is None or not ob.asks:
             return None
 
         token_ask = ob.asks[0][0]
-        if token_ask <= 0 or token_ask > CONTRARIAN_MAX_ASK:
+        if token_ask <= 0 or token_ask > MAX_TOKEN_ASK or token_ask > CONTRARIAN_MAX_ASK:
             return None
         if opponent_ask < CONTRARIAN_OPPONENT_MIN:
             return None
@@ -697,6 +1080,11 @@ class WindowSniper:
             token.asset, token.side, elapsed_pct * 100, token_ask, opponent_ask, delta_pct,
         )
 
+        # Compute cross-exchange divergence for data collection (same as score())
+        _cb_price = float(ext.coinbase_price or 0.0) if ext else 0.0
+        _bn_price  = float(ext.spot_price or 0.0) if ext else 0.0
+        _cross_div = (_bn_price - _cb_price) / _cb_price * 100 if _cb_price > 0 and _bn_price > 0 else 0.0
+
         return SniperSignal(
             asset=token.asset,
             side=token.side,
@@ -716,4 +1104,117 @@ class WindowSniper:
             vpin_at_entry=round(ext.vpin_score, 4) if ext and ext.vpin_score else 0.0,
             pm_ask_at_trigger=token_ask,
             regime="CONTRARIAN",
+            # Data collection fields — same sources as score(), no gate logic for contrarian
+            liq_long_60s=round(float(ext.liq_long_60s), 0) if ext else 0.0,
+            liq_short_60s=round(float(ext.liq_short_60s), 0) if ext else 0.0,
+            funding_rate_pct=round(float(ext.funding_rate or 0.0), 3) if ext else 0.0,
+            coinbase_price=round(_cb_price, 2),
+            cross_exchange_div_pct=round(_cross_div, 4),
+        )
+
+    def score_delta_contrarian(
+        self,
+        token: MarketToken,
+        ob: Optional[OrderBook],
+        ext: Optional[ExternalSignal],
+        now: Optional[float] = None,
+    ) -> Optional[SniperSignal]:
+        """
+        Delta-based contrarian signal.
+
+        Fires when Binance delta is in [CONTRARIAN_DELTA_MIN_PCT, CONTRARIAN_DELTA_MAX_PCT]
+        AND this token is the OPPOSITE direction to the Binance move.
+
+        Hypothesis: small Binance moves (0.05–0.06%) tend to reverse before PM reprices.
+        We bet on the reversal by buying the token that profits if Binance snaps back.
+
+        No fair-value/lag/edge gates — pure mean-reversion. Half stake (qs=0).
+        Validate n≥20 before trusting any WR signal.
+        """
+        if now is None:
+            now = time.time()
+
+        if not CONTRARIAN_DELTA_ENABLED:
+            return None
+
+        if ob is None or ext is None or not ob.asks:
+            return None
+
+        # Compute delta
+        is_15m = token.window_seconds > 300
+        ref = (ext.spot_window_open_15m or 0) if is_15m else (ext.spot_window_open_5m or 0)
+        if not ref or not ext.spot_price:
+            return None
+        delta_pct = (ext.spot_price - ref) / ref * 100
+        abs_delta = abs(delta_pct)
+
+        if abs_delta < CONTRARIAN_DELTA_MIN_PCT or abs_delta > CONTRARIAN_DELTA_MAX_PCT:
+            return None
+
+        # Only fire on the OPPOSITE token: Binance falling → YES token, rising → NO token
+        asset_direction = 1 if delta_pct > 0 else -1
+        if token.side == "YES" and asset_direction > 0:
+            return None   # Binance rising → contrarian would be NO, not YES
+        if token.side == "NO" and asset_direction < 0:
+            return None   # Binance falling → contrarian would be YES, not NO
+
+        # Basic timing gate
+        if token.window_end_ts <= 0 or token.window_seconds <= 0:
+            return None
+        window_start = token.window_end_ts - token.window_seconds
+        elapsed = now - window_start
+        if elapsed < 10:
+            return None
+        elapsed_pct = elapsed / token.window_seconds
+        elapsed_max = WINDOW_ELAPSED_MAX_5M if not is_15m else WINDOW_ELAPSED_MAX_15M
+        if elapsed_pct >= elapsed_max:
+            return None
+
+        # Ask price must be in tradeable range
+        token_ask = ob.asks[0][0]
+        if token_ask <= 0 or token_ask > MAX_TOKEN_ASK or token_ask < MIN_TOKEN_ASK:
+            return None
+
+        # Spread gate: same as normal — wide spread = too much slippage
+        if ob.spread > 0.10:
+            return None
+
+        # Regime gate: skip QUIET_DEAD (historically 0% WR, negative EV even for contrarian)
+        hour_utc = datetime.now(timezone.utc).hour
+        _vpin_now = ext.vpin_score or 0.0
+        _regime = classify_regime(hour_utc, _vpin_now)
+        if _regime == "QUIET_DEAD":
+            return None
+
+        entry_price = min(0.97, round(token_ask + 0.005, 4))
+        fee_zone = FeeZone.EXTREME if token_ask < 0.35 or token_ask > 0.65 else FeeZone.FAT_MIDDLE
+
+        reason = (
+            f"DELTA_CONTRARIAN {token.asset}/{token.side}: Binance {delta_pct:+.3f}% "
+            f"(reversal bet) | {elapsed_pct:.0%} elapsed | ask={token_ask:.3f}"
+        )
+        logger.info(
+            "SNIPER DELTA_CONTRARIAN %s/%s | delta=%+.3f%% elapsed=%.0f%% ask=%.3f regime=%s",
+            token.asset, token.side, delta_pct, elapsed_pct * 100, token_ask, _regime,
+        )
+
+        return SniperSignal(
+            asset=token.asset,
+            side=token.side,
+            asset_direction=asset_direction,
+            delta_pct=delta_pct,
+            fair_value=token_ask,   # no fair-value model for mean-reversion
+            token_ask=token_ask,
+            edge=0.0,
+            entry_price=entry_price,
+            confidence=0.55,
+            composite=0.45,
+            direction=Direction.BUY_YES if token.side == "YES" else Direction.BUY_NO,
+            fee_zone=fee_zone,
+            elapsed_pct=elapsed_pct,
+            reason=reason,
+            signal_source="CONTRARIAN_DELTA",
+            regime=_regime,
+            quality_score=0,        # half stake
+            vpin_at_entry=round(_vpin_now, 4),
         )

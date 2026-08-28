@@ -1,0 +1,25 @@
+[seed] 539 recent tokens, 1724 txhashes from logs/shadow/hot/2026-06-02/maker_flow.jsonl
+[ws] subscribed 539 tokens
+[poll] types={'book': 204, 'price_change': 4150, 'new_market': 12, 'best_bid_ask': 620, 'last_trade_price': 1} ltp=1
+[poll] types={'book': 212, 'price_change': 7784, 'new_market': 17, 'best_bid_ask': 1095, 'last_trade_price': 3} ltp=3
+[poll] types={'book': 220, 'price_change': 11649, 'new_market': 26, 'best_bid_ask': 1731, 'last_trade_price': 7} ltp=7
+[poll] types={'book': 223, 'price_change': 15140, 'new_market': 35, 'best_bid_ask': 2256, 'last_trade_price': 9} ltp=9
+[poll] types={'book': 235, 'price_change': 18905, 'new_market': 41, 'best_bid_ask': 2750, 'last_trade_price': 14} ltp=14
+[poll] types={'book': 241, 'price_change': 23520, 'new_market': 52, 'best_bid_ask': 3313, 'last_trade_price': 20} ltp=20
+[poll] types={'book': 249, 'price_change': 29114, 'new_market': 60, 'best_bid_ask': 3818, 'last_trade_price': 21} ltp=21
+
+=== event type counts === {'book': 249, 'price_change': 31438, 'new_market': 64, 'best_bid_ask': 4083, 'last_trade_price': 21}
+WS last_trade_price keys: ['asset_id', 'event_type', 'fee_rate_bps', 'market', 'price', 'side', 'size', 'timestamp', 'transaction_hash']
+[settle] sleeping 75s so data-api ingests the 21 WS trades...
+
+matched WS↔data-api by txhash: 8 / ws_ltp=21
+side agreement (WS.side == api.side): 8/8
+asset_id agreement (WS.asset_id == api.asset): 8/8
+  WS side=BUY  | api side=BUY  outcome=No  asset_match=True
+  WS side=SELL | api side=SELL outcome=Yes asset_match=True
+  WS side=BUY  | api side=BUY  outcome=No  asset_match=True
+  WS side=BUY  | api side=BUY  outcome=No  asset_match=True
+  WS side=BUY  | api side=BUY  outcome=No  asset_match=True
+  WS side=BUY  | api side=BUY  outcome=No  asset_match=True
+  WS side=SELL | api side=SELL outcome=Yes asset_match=True
+  WS side=BUY  | api side=BUY  outcome=No  asset_match=True

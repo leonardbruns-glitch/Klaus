@@ -129,7 +129,7 @@ class FillTracker:
         finally:
             self._pending.pop(order_id, None)
 
-    def pop_fill_for_token(self, token_id: str) -> Optional[dict]:
+    def pop_fill_for_token(self, token_id: str, side: Optional[str] = None) -> Optional[dict]:
         """
         Check if any buffered early fill exists for a given token_id.
 
@@ -137,18 +137,27 @@ class FillTracker:
         filled (WS buffered the event in _early_fills), this detects it so
         attempt-2 is skipped — preventing double-fill / orphan shares.
 
+        If side is provided ("BUY" or "SELL"), only returns fills matching
+        that side — prevents stale entry (BUY) fills from being returned
+        as exit (SELL) fills when they share the same token_id.
+
         Returns the fill dict and removes it from the buffer, or None if
-        no fill exists for this token.
+        no matching fill exists for this token.
         """
         for order_id, fill in list(self._early_fills.items()):
-            if fill.get("raw", {}).get("asset_id") == token_id:
-                self._early_fills.pop(order_id, None)
-                logger.warning(
-                    "pop_fill_for_token: found fill for token %s (order %s) "
-                    "— CF block was a false alarm, order already filled",
-                    token_id[:12], order_id[:12],
-                )
-                return fill
+            if fill.get("raw", {}).get("asset_id") != token_id:
+                continue
+            if side is not None:
+                fill_side = fill.get("raw", {}).get("side", "").upper()
+                if fill_side and fill_side != side.upper():
+                    continue
+            self._early_fills.pop(order_id, None)
+            logger.warning(
+                "pop_fill_for_token: found fill for token %s (order %s) "
+                "— CF block was a false alarm, order already filled",
+                token_id[:12], order_id[:12],
+            )
+            return fill
         return None
 
     @property
@@ -192,11 +201,36 @@ class FillTracker:
                         await ws.send_str(sub)
                         self._connected = True
                         logger.info("FillTracker: user channel WS connected")
+                        _last_msg_ts = asyncio.get_event_loop().time()
 
-                        async for msg in ws:
+                        while True:
                             if not self._running:
                                 break
+                            try:
+                                msg = await asyncio.wait_for(ws.receive(), timeout=9.0)
+                            except asyncio.TimeoutError:
+                                # The CLOB requires an application-level text PING
+                                # under every 10s — aiohttp's protocol-level
+                                # heartbeat does NOT count. Without it the server
+                                # goes silent and fills are missed (this was the
+                                # chronic "60s silence → reconnect" loop and the
+                                # dropped-fill-confirmation failures in main.py).
+                                try:
+                                    await ws.send_str("PING")
+                                except Exception:
+                                    break
+                                # PONGs update _last_msg_ts below, so this only
+                                # fires when even PONGs stop = connection truly dead.
+                                if asyncio.get_event_loop().time() - _last_msg_ts > 60.0:
+                                    logger.info(
+                                        "FillTracker: 60s without frames despite PINGs — reconnecting"
+                                    )
+                                    break
+                                continue
                             if msg.type == aiohttp.WSMsgType.TEXT:
+                                _last_msg_ts = asyncio.get_event_loop().time()
+                                if not msg.data or msg.data == "PONG":
+                                    continue
                                 try:
                                     payload = _json.loads(msg.data)
                                     events = payload if isinstance(payload, list) else [payload]
@@ -234,43 +268,59 @@ class FillTracker:
             return
 
         status = ev.get("status", "")
-        if status.upper() not in ("MATCHED",):
+        if status.upper() not in ("MATCHED", "MINED"):
             return
 
-        # Extract the normalised fill result once, check both maker/taker IDs
         try:
             size = float(ev.get("size", 0))
             price = float(ev.get("price", 0))
-            fill = {
-                "order_id": "",
-                "size": size,
-                "price": price,
-                "cost": round(size * price, 6),
-                "raw": ev,
-            }
         except Exception:
             return
 
+        # Collect all non-empty order IDs from the event (deduplicated, ordered)
+        all_ids: list[str] = []
         for id_field in ("taker_order_id", "maker_order_id", "id", "order_id"):
-            order_id = ev.get(id_field, "")
-            if not order_id:
-                continue
-            fill["order_id"] = order_id
-            if order_id in self._pending:
-                # Normal path: wait_fill() is already waiting
-                self._results[order_id] = fill
-                self._pending[order_id].set()
+            oid = ev.get(id_field, "")
+            if oid and oid not in all_ids:
+                all_ids.append(oid)
+
+        if not all_ids:
+            return
+
+        # Phase 1: check if ANY id matches a registered wait_fill() — fire immediately.
+        # Critical: must scan ALL ids before deciding "no match".
+        # Bug-before-fix: returning on the first non-empty id meant maker_order_id was
+        # never checked when taker_order_id was non-empty — fills stored under wrong key.
+        for oid in all_ids:
+            if oid in self._pending:
+                fill = {
+                    "order_id": oid,
+                    "size": size,
+                    "price": price,
+                    "cost": round(size * price, 6),
+                    "raw": ev,
+                }
+                self._results[oid] = fill
+                self._pending[oid].set()
                 logger.info(
                     "FillTracker: fill event → order %s | size=%.4f @ %.4f",
-                    order_id[:12], size, price,
+                    oid[:12], size, price,
                 )
                 return
-            else:
-                # Early-arrival path: wait_fill() hasn't registered yet.
-                # Buffer the fill so wait_fill() can claim it immediately.
-                self._early_fills[order_id] = fill
+
+        # Phase 2: no pending waiter — buffer under ALL ids so wait_fill() finds it
+        # regardless of which id (taker vs maker) the caller used to place the order.
+        for oid in all_ids:
+            if oid not in self._early_fills:
+                fill = {
+                    "order_id": oid,
+                    "size": size,
+                    "price": price,
+                    "cost": round(size * price, 6),
+                    "raw": ev,
+                }
+                self._early_fills[oid] = fill
                 logger.info(
                     "FillTracker: early fill buffered for order %s | size=%.4f @ %.4f",
-                    order_id[:12], size, price,
+                    oid[:12], size, price,
                 )
-                return

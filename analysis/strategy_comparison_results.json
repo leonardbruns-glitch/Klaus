@@ -1,0 +1,186 @@
+{
+  "timestamp": "2026-05-20T11:10:43.143193",
+  "mispricings_found": 8,
+  "strategy_a_repricing": {
+    "trades": 8,
+    "total_pnl": 415.0000622941167,
+    "win_rate": 1.0,
+    "results": {
+      "London": {
+        "entry": 0.4,
+        "exit": 0.788146538302268,
+        "fair": 0.8757183758914089,
+        "shares": 250.0,
+        "pnl": 97.036634575567,
+        "roi": 97.036634575567,
+        "win": true
+      },
+      "Tokyo": {
+        "entry": 0.35,
+        "exit": 0.6606130238561695,
+        "fair": 0.7340144709512995,
+        "shares": 285.7142857142857,
+        "pnl": 88.74657824461985,
+        "roi": 88.74657824461985,
+        "win": true
+      },
+      "New York City": {
+        "entry": 0.38,
+        "exit": 0.5130340860428041,
+        "fair": 0.5700378733808934,
+        "shares": 263.1578947368421,
+        "pnl": 35.00897001126421,
+        "roi": 35.00897001126421,
+        "win": true
+      },
+      "Sydney": {
+        "entry": 0.45,
+        "exit": 0.5291365969161513,
+        "fair": 0.5879295521290571,
+        "shares": 222.22222222222223,
+        "pnl": 17.585910425811406,
+        "roi": 17.585910425811406,
+        "win": true
+      },
+      "Berlin": {
+        "entry": 0.42,
+        "exit": 0.7383071977516935,
+        "fair": 0.820341330835215,
+        "shares": 238.0952380952381,
+        "pnl": 75.78742803611752,
+        "roi": 75.78742803611752,
+        "win": true
+      },
+      "Singapore": {
+        "entry": 0.41,
+        "exit": 0.5540993970476361,
+        "fair": 0.6156659967195957,
+        "shares": 243.90243902439025,
+        "pnl": 35.14619440186246,
+        "roi": 35.14619440186246,
+        "win": true
+      },
+      "Dubai": {
+        "entry": 0.35,
+        "exit": 0.45,
+        "fair": 0.5,
+        "shares": 285.7142857142857,
+        "pnl": 28.571428571428584,
+        "roi": 28.57142857142858,
+        "win": true
+      },
+      "Mexico City": {
+        "entry": 0.4,
+        "exit": 0.5484676721097825,
+        "fair": 0.609408524566425,
+        "shares": 250.0,
+        "pnl": 37.11691802744562,
+        "roi": 37.11691802744562,
+        "win": true
+      }
+    }
+  },
+  "strategy_b_resolution": {
+    "trades": 8,
+    "total_pnl": 217.71196283391407,
+    "win_rate": 0.5,
+    "results": {
+      "London": {
+        "entry": 0.4,
+        "resolution": 1.0,
+        "fair": 0.8757183758914089,
+        "actual_temp": 19.5,
+        "threshold": 18,
+        "outcome_happened": true,
+        "shares": 250.0,
+        "pnl": 150.0,
+        "roi": 150.0,
+        "win": true
+      },
+      "Tokyo": {
+        "entry": 0.35,
+        "resolution": 1.0,
+        "fair": 0.7340144709512995,
+        "actual_temp": 26.1,
+        "threshold": 25,
+        "outcome_happened": true,
+        "shares": 285.7142857142857,
+        "pnl": 185.71428571428572,
+        "roi": 185.71428571428572,
+        "win": true
+      },
+      "New York City": {
+        "entry": 0.38,
+        "resolution": 0.0,
+        "fair": 0.5700378733808934,
+        "actual_temp": 23.2,
+        "threshold": 24,
+        "outcome_happened": false,
+        "shares": 263.1578947368421,
+        "pnl": -100.0,
+        "roi": -100.0,
+        "win": false
+      },
+      "Sydney": {
+        "entry": 0.45,
+        "resolution": 0.0,
+        "fair": 0.5879295521290571,
+        "actual_temp": 27.8,
+        "threshold": 28,
+        "outcome_happened": false,
+        "shares": 222.22222222222223,
+        "pnl": -100.0,
+        "roi": -100.0,
+        "win": false
+      },
+      "Berlin": {
+        "entry": 0.42,
+        "resolution": 1.0,
+        "fair": 0.820341330835215,
+        "actual_temp": 20.8,
+        "threshold": 20,
+        "outcome_happened": true,
+        "shares": 238.0952380952381,
+        "pnl": 138.0952380952381,
+        "roi": 138.0952380952381,
+        "win": true
+      },
+      "Singapore": {
+        "entry": 0.41,
+        "resolution": 1.0,
+        "fair": 0.6156659967195957,
+        "actual_temp": 32.5,
+        "threshold": 32,
+        "outcome_happened": true,
+        "shares": 243.90243902439025,
+        "pnl": 143.90243902439025,
+        "roi": 143.90243902439025,
+        "win": true
+      },
+      "Dubai": {
+        "entry": 0.35,
+        "resolution": 0.0,
+        "fair": 0.5,
+        "actual_temp": 38.9,
+        "threshold": 40,
+        "outcome_happened": false,
+        "shares": 285.7142857142857,
+        "pnl": -100.0,
+        "roi": -100.0,
+        "win": false
+      },
+      "Mexico City": {
+        "entry": 0.4,
+        "resolution": 0.0,
+        "fair": 0.609408524566425,
+        "actual_temp": 27.6,
+        "threshold": 28,
+        "outcome_happened": false,
+        "shares": 250.0,
+        "pnl": -100.0,
+        "roi": -100.0,
+        "win": false
+      }
+    }
+  }
+}

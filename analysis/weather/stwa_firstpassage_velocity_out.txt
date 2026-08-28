@@ -1,0 +1,22 @@
+building decision table from data/stwa_asos.parquet ...
+rows: train=539,873  test=181,538  cities=50
+
+=== MECHANISM (held-out 2024, post-peak grey zone htp∈[0,3], hroom∈[0,2]) ===
+  n=21,898   overall P(new record)=0.234
+  P(new record) by velocity bin (same time/position regime):
+    v <<0: n= 4964  P(new record)=0.046
+    v  ~0: n= 9972  P(new record)=0.247
+    v >>0: n= 6930  P(new record)=0.349
+  falling(v<-0.25)=0.046  vs  rising(v>0.25)=0.349  Δ=+0.303
+
+=== PREDICTIVE ABLATION (multiclass remaining-steps, held-out 2024) ===
+  model                            Brier   logloss
+  B0 Gaussian static-CDF          0.7753    2.6703
+  B1 empirical (vel-BLIND)        0.3318    0.6381
+  M  empirical (vel-AWARE)        0.3229    0.6153
+  velocity gain  ΔBrier=+0.0088  Δlogloss=+0.0229  (HELPS)
+
+  -- POST-PEAK GREY ZONE only (n=21,898) --
+  B1 vel-BLIND                    0.3424    0.6466
+  M vel-AWARE                     0.3326    0.6244
+  velocity gain (grey zone) ΔBrier=+0.0097  (HELPS)

@@ -1,0 +1,6 @@
+[Unit]
+Description=Klaus liveness watchdog (service + heartbeat, crash-loop handoff)
+
+[Service]
+Type=oneshot
+ExecStart=/root/Klaus/ops/evolve/liveness_watchdog.sh

@@ -1,0 +1,10 @@
+[Unit]
+Description=Klaus EVOLVE actuator, 11:23 UTC (main decision window) + 21:53 UTC (verify + US resolutions)
+
+[Timer]
+OnCalendar=*-*-* 11:23:00
+OnCalendar=*-*-* 21:53:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

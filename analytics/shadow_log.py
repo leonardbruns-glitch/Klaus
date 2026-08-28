@@ -40,6 +40,140 @@ if TYPE_CHECKING:
 _SHADOW_LOG = "logs/shadow_blocks.jsonl"
 
 
+
+# ---------------------------------------------------------------------------
+# Simulate actual bot exit logic on a price sequence
+# ---------------------------------------------------------------------------
+
+# Bot exit parameters — keep in sync with config.py / risk/manager.py
+_SL_EARLY = 0.35          # -35% SL for first 150s of hold
+_SL_LATE = 0.10           # -10% SL after 150s (tightens near window end)
+_TP_STAGE1 = 0.20         # +20% TP triggers stage-1 (60% sold)
+_HARD_EXIT_S = 180        # hard exit at 180s regardless of PnL
+_STAKE = 3.0              # base stake — used only for fee calculation
+_FEE_EXTREME = 0.0142     # round-trip fee rate for extreme odds (<0.30 or >0.70)
+_FEE_MIDDLE = 0.0312      # round-trip fee rate for fat-middle (0.30–0.70)
+
+
+def _simulate_exit(
+    entry_ask: float,
+    checkpoints: list,   # list of (hold_seconds: float, ask: float | None)
+    window_seconds: int = 300,
+    elapsed_pct: float = 0.0,
+) -> dict:
+    """
+    Walk the price checkpoints and apply real bot exit logic:
+      - SL: -35% for first 150s, -10% after that (mirrors dynamic_sl in risk/manager.py)
+      - TP: +20% fires stage-1 (sells 60% at that price, 40% hard-exits at 180s)
+      - Hard exit: 180s max hold, exits at whatever price exists then
+
+    Returns dict with simulated_exit_reason, simulated_exit_price, simulated_net_pnl,
+    would_win_with_sl (bool).
+
+    NOTE: snapshots are sparse (30s, 60s, 120s, 180s). Between checkpoints we don't
+    know if SL was briefly hit. This gives an optimistic bias — the real bot would
+    stop-loss on intraperiod dips the shadow monitor misses. Accept this limitation;
+    it still beats the old "did price ever touch +20%?" measure.
+    """
+    if entry_ask <= 0:
+        return {
+            "simulated_exit_reason": None,
+            "simulated_exit_price": None,
+            "simulated_net_pnl": None,
+            "would_win_with_sl": None,
+        }
+
+    tp_price = entry_ask * (1 + _TP_STAGE1)
+    stage1_exit_price = None
+    stage1_hold_s = None
+
+    for hold_s, ask in checkpoints:
+        if ask is None:
+            continue
+
+        # Which SL applies at this hold time?
+        sl_pct = _SL_LATE if hold_s > 150 else _SL_EARLY
+        sl_price = entry_ask * (1 - sl_pct)
+
+        if stage1_exit_price is None:
+            # Pre-stage-1: check TP first, then SL
+            if ask >= tp_price:
+                stage1_exit_price = ask
+                stage1_hold_s = hold_s
+                # Stage-1 fills 60% here; 40% rides to hard exit at 180s.
+                # Continue loop to find 180s price for the remaining 40%.
+            elif ask <= sl_price:
+                # SL hit before TP — full loss
+                exit_price = ask
+                reason = f"STOP_LOSS_{int(sl_pct*100)}pct_at_{int(hold_s)}s"
+                net_pnl = _calc_net_pnl(entry_ask, exit_price)
+                return {
+                    "simulated_exit_reason": reason,
+                    "simulated_exit_price": round(exit_price, 4),
+                    "simulated_net_pnl": round(net_pnl, 4),
+                    "would_win_with_sl": False,
+                }
+
+        if hold_s >= _HARD_EXIT_S:
+            # Hard exit reached
+            if stage1_exit_price is not None:
+                # Stage-1 already done (60% @ stage1_exit_price, 40% @ hard-exit price)
+                gross_s1 = (stage1_exit_price - entry_ask) * 0.60
+                gross_s2 = (ask - entry_ask) * 0.40
+                gross = gross_s1 + gross_s2
+                fee_rate = _FEE_EXTREME if (entry_ask < 0.30 or entry_ask > 0.70) else _FEE_MIDDLE
+                exit_notional_s1 = stage1_exit_price * 0.60
+                exit_notional_s2 = ask * 0.40
+                fee_est = (entry_ask + exit_notional_s1 + exit_notional_s2) * fee_rate
+                net_pnl = (gross - fee_est) * (_STAKE / entry_ask) if entry_ask > 0 else 0.0
+                reason = f"PROFIT1_HARD_EXIT (s1@{int(stage1_hold_s)}s s2@{int(hold_s)}s)"
+                return {
+                    "simulated_exit_reason": reason,
+                    "simulated_exit_price": round(stage1_exit_price * 0.60 + ask * 0.40, 4),
+                    "simulated_net_pnl": round(net_pnl, 4),
+                    "would_win_with_sl": net_pnl > 0,
+                }
+            else:
+                # Hard exit, no TP hit — exit at current price
+                exit_price = ask
+                net_pnl = _calc_net_pnl(entry_ask, exit_price)
+                won = net_pnl > 0
+                return {
+                    "simulated_exit_reason": f"HARD_EXIT_180s",
+                    "simulated_exit_price": round(exit_price, 4),
+                    "simulated_net_pnl": round(net_pnl, 4),
+                    "would_win_with_sl": won,
+                }
+
+    # Ran out of checkpoints without hitting 180s or SL
+    if stage1_exit_price is not None:
+        # TP was hit but we don't have a 180s snapshot for the remaining 40%
+        # Conservative: assume 40% exits at stage1_exit_price (no further gain/loss)
+        net_pnl = _calc_net_pnl(entry_ask, stage1_exit_price)
+        return {
+            "simulated_exit_reason": f"PROFIT1_NO180S (s1@{int(stage1_hold_s)}s)",
+            "simulated_exit_price": round(stage1_exit_price, 4),
+            "simulated_net_pnl": round(net_pnl, 4),
+            "would_win_with_sl": net_pnl > 0,
+        }
+
+    return {
+        "simulated_exit_reason": "INCOMPLETE",
+        "simulated_exit_price": None,
+        "simulated_net_pnl": None,
+        "would_win_with_sl": None,
+    }
+
+
+def _calc_net_pnl(entry_ask: float, exit_price: float) -> float:
+    """Net PnL per $1 of stake at given entry/exit, after round-trip fees."""
+    gross_pct = (exit_price - entry_ask) / entry_ask
+    fee_rate = _FEE_EXTREME if (entry_ask < 0.30 or entry_ask > 0.70) else _FEE_MIDDLE
+    exit_notional_pct = exit_price / entry_ask  # exit_notional relative to entry
+    fee_pct = (1.0 + exit_notional_pct) * fee_rate
+    return gross_pct - fee_pct
+
+
 def log_shadow_result(
     block: SniperBlock,
     ask_at_30s: Optional[float],
@@ -47,14 +181,18 @@ def log_shadow_result(
     ask_at_120s: Optional[float],
     ask_at_window_end: Optional[float],
     llm_boost: float = 0.0,
+    ask_at_180s: Optional[float] = None,
 ) -> None:
     """
     Write a completed shadow block record to logs/shadow_blocks.jsonl.
 
     ask_at_* fields are None if the token disappeared from the OB before that
     checkpoint (e.g. window expired or feed dropped).
+
+    Simulates actual bot exit logic (TP/SL/hard-exit) on the price sequence rather
+    than the old "did price ever touch +20%?" measure which ignored stop losses.
     """
-    asks = [a for a in [ask_at_30s, ask_at_60s, ask_at_120s] if a is not None]
+    asks = [a for a in [ask_at_30s, ask_at_60s, ask_at_120s, ask_at_180s] if a is not None]
     max_ask = max(asks) if asks else None
 
     entry_ask = block.token_ask
@@ -63,6 +201,7 @@ def log_shadow_result(
         if ask_at_window_end is not None and entry_ask > 0
         else None
     )
+    # Legacy signal — kept for backwards compatibility with existing analysis scripts
     would_win_20pct = (
         max_ask >= entry_ask * 1.20
         if max_ask is not None and entry_ask > 0
@@ -72,6 +211,20 @@ def log_shadow_result(
         max_ask >= entry_ask * 1.25
         if max_ask is not None and entry_ask > 0
         else None
+    )
+
+    # Realistic simulation: apply actual TP/SL/hard-exit logic to price sequence.
+    # This is what the bot would actually have earned — not the peak price fantasy.
+    checkpoints = []
+    for hold_s, ask in [(30.0, ask_at_30s), (60.0, ask_at_60s),
+                        (120.0, ask_at_120s), (180.0, ask_at_180s)]:
+        if ask is not None:
+            checkpoints.append((hold_s, ask))
+    sim = _simulate_exit(
+        entry_ask=entry_ask,
+        checkpoints=checkpoints,
+        window_seconds=block.window_seconds,
+        elapsed_pct=block.elapsed_pct,
     )
 
     record = {
@@ -93,21 +246,27 @@ def log_shadow_result(
         "vpin": round(block.vpin, 3),
         # -- LLM opinion at block time (no API call — uses cached macro signal) --
         "llm_boost": round(llm_boost, 4),
-        # positive boost + YES side = LLM agrees; negative + NO = agrees; else disagrees
         "llm_agrees": (
             (llm_boost > 0.02 and block.side == "YES")
             or (llm_boost < -0.02 and block.side == "NO")
             if llm_boost != 0.0 else None
         ),
-        # -- counterfactual outcome --
+        # -- raw price snapshots --
         "ask_at_30s": ask_at_30s,
         "ask_at_60s": ask_at_60s,
         "ask_at_120s": ask_at_120s,
+        "ask_at_180s": ask_at_180s,
         "ask_at_window_end": ask_at_window_end,
         "max_ask_seen": round(max_ask, 4) if max_ask is not None else None,
         "pnl_if_entered": pnl_at_window_end,
+        # -- legacy signals (kept for backwards compat) --
         "would_win_20pct": would_win_20pct,
         "would_win_25pct": would_win_25pct,
+        # -- realistic simulation with actual exit logic --
+        "would_win_with_sl": sim["would_win_with_sl"],
+        "simulated_exit_reason": sim["simulated_exit_reason"],
+        "simulated_exit_price": sim["simulated_exit_price"],
+        "simulated_net_pnl": sim["simulated_net_pnl"],
     }
 
     os.makedirs("logs", exist_ok=True)

@@ -6,6 +6,7 @@ All data is normalised into typed dataclasses before reaching strategy logic.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -96,6 +97,9 @@ class MarketToken:
     window_seconds: int = 300       # window duration: 300 (5M) or 900 (15M)
     neg_risk: bool = False          # True for multi-outcome (neg-risk) markets
     tick_size: str = "0.01"         # CLOB order price tick size per market
+    outcome_direction: str = "up"   # "up" or "down" — which direction resolves this token
+                                    # Standard binary: YES→"up", NO→"down"
+                                    # Neg-risk sub-market: inferred from slug/question
 
 
 @dataclass
@@ -106,6 +110,7 @@ class ExternalSignal:
     funding_rate: Optional[float] = None     # annualised perp funding
     spot_momentum_5m: Optional[float] = None # % change on spot last 5 min
     spot_momentum_15m: Optional[float] = None
+    spot_momentum_60m: Optional[float] = None # rolling 60m return for G1 regime filter
     realized_vol_1h: Optional[float] = None  # annualised
     spot_price: Optional[float] = None       # current Binance spot price (absolute)
     spot_momentum_1m: Optional[float] = None # % change on spot last 1 min
@@ -122,6 +127,17 @@ class ExternalSignal:
     # Used by WindowSniper to compute delta from window open → fair value
     spot_window_open_5m: Optional[float] = None   # Binance price at 5M window open
     spot_window_open_15m: Optional[float] = None  # Binance price at 15M window open
+    # ── New signals (data collection — gates controlled by config flags) ──────
+    # Liquidation data: $ value of long/short liquidations in last 60s (Binance forceOrder stream)
+    # liq_long_60s  > 0 → longs being cascade-liquidated (price was pushed DOWN)
+    # liq_short_60s > 0 → shorts being cascade-liquidated (price was pushed UP)
+    # Large values near our entry = potential manufactured move / stop-hunt in progress
+    liq_long_60s: float = 0.0
+    liq_short_60s: float = 0.0
+    # Coinbase spot price for cross-exchange divergence detection
+    # If Binance moved significantly but Coinbase hasn't → Binance-isolated move (suspicious)
+    # If both moved → real institutional flow across venues
+    coinbase_price: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +295,25 @@ class PolymarketFeed:
         self.funding_rates: Dict[str, float] = {}       # asset → annualised funding rate
         self._ws_tasks: List[asyncio.Task] = []
         self._ws_ob_ts: Dict[str, float] = {}           # token_id → last WS OB update ts
+        self._token_last_move_ts: Dict[str, float] = {}  # token_id → ts of last bid tick change
+        self._token_last_bid: Dict[str, float] = {}      # token_id → last known bid price
         # Queue for sending new token subscriptions to the running CLOB WS.
         # refresh_markets() puts new token_id lists here; _run_clob_ws() drains it.
         self._clob_ws_sub_queue: asyncio.Queue = asyncio.Queue()
+        # Optional callback: fires on every BBO update with (token_id, ask_price).
+        # Used by main bot for instant TP checks without waiting for the 1s scan loop.
+        self._on_bbo_update = None
+        # Shadow trade-tape callbacks. Set by main.py after shadow pipeline starts.
+        # token_trade: callable(token_id, ev_dict) — Polymarket last_trade_price
+        # binance_trade: callable(asset, price, qty, is_buyer_maker, exchange_ts_ms)
+        # Both are non-blocking sync calls; ShadowPipeline.emit drops on full.
+        self._shadow_emit_clob_trade = None
+        self._shadow_emit_binance_trade = None
+        # Tier 1: per-event OB delta recorder. Set by main.py after pipeline
+        # starts. Fired from _handle_clob_ws_event for price_change /
+        # best_bid_ask events BEFORE the OB-rebuild section (so the pre-event
+        # snapshot is available for context).
+        self._shadow_emit_ob_delta = None
         # VPIN trackers per asset (fed from Binance aggTrade WebSocket)
         self.vpin_trackers: Dict[str, VPINTracker] = {
             "BTC": VPINTracker(),
@@ -304,8 +336,15 @@ class PolymarketFeed:
         self._spot_prev_5m: Dict[str, float] = {}     # asset → last CLOSED 5m close
         self._spot_prev_15m: Dict[str, float] = {}    # asset → last CLOSED 15m close
         self._spot_open_5m: Dict[str, float] = {}     # asset → current 5m candle open
+        self._spot_5m_high: Dict[str, float] = {}     # asset → running 5m candle high
+        self._spot_5m_low: Dict[str, float] = {}      # asset → running 5m candle low
         self._spot_open_15m: Dict[str, float] = {}    # asset → current 15m candle open
-        self._kline_ts: Dict[str, float] = {}         # asset → last kline update ts
+        self._kline_ts: Dict[str, float] = {}         # asset → last aggTrade/spot price update ts
+        self._kline_open_ts: Dict[str, float] = {}    # asset → last time kline OPEN was updated (separate from spot)
+        # Oracle sweep: cache winner direction from WS kline close event (x=True).
+        # Populated within ~0ms of window close — eliminates 258ms REST call.
+        # Format: asset → ("up"/"down", wend_ts_s)
+        self._kline_winner_cache: Dict[str, tuple] = {}
         # ── Connectivity telemetry (VPS justification data) ──────────────────
         # Each reconnect = a period where the bot had no live data.
         # Export via connectivity_stats() for session report.
@@ -314,8 +353,45 @@ class PolymarketFeed:
             "rtds_ws": 0,       # Polymarket real-time data WS
             "binance_ws": 0,    # Binance futures aggTrade WS
             "binance_kline": 0, # Binance spot kline WS
+            "binance_liq": 0,   # Binance futures liquidation WS
         }
         self._session_start_ts: float = time.time()
+        # ── New signal caches ─────────────────────────────────────────────────
+        # Liquidation events: asset → {"long": [(ts, usd_val), ...], "short": [...]}
+        # Populated by _run_binance_liq_ws(). Long liq = SELL side (price dropped).
+        self._liquidations: Dict[str, Dict[str, list]] = {
+            "BTC": {"long": [], "short": []},
+            "ETH": {"long": [], "short": []},
+            "SOL": {"long": [], "short": []},
+        }
+        # Coinbase spot prices: asset → price (USD)
+        # Populated by _poll_coinbase_prices(). Used for cross-exchange divergence.
+        self._coinbase_prices: Dict[str, float] = {}
+        # ── 5-second velocity buffer ─────────────────────────────────────────
+        # Circular buffer of (timestamp, price) tuples per asset.
+        # Fed from aggTrade WS on every tick. Used to compute:
+        #   velocity_5s  — % price change over last 5s (direction + magnitude)
+        #   move_age_s   — seconds since last tick that moved > 0.02%
+        # Logged at entry for post-session analysis; not yet used as a filter.
+        self._price_history: Dict[str, deque] = {
+            "BTC": deque(maxlen=300),   # ~5min at 1 tick/s
+            "ETH": deque(maxlen=300),
+            "SOL": deque(maxlen=300),
+        }
+        # ── Volatility / dead-zone buffers ───────────────────────────────────
+        # 5m OHLCV history (H, L, C) for closed candles — maxlen=48 = 4h baseline.
+        # Populated when a 5m kline closes (is_closed=True).
+        self._5m_ohlcv_buf: Dict[str, deque] = {
+            "BTC": deque(maxlen=48),
+            "ETH": deque(maxlen=48),
+            "SOL": deque(maxlen=48),
+        }
+        # 1m close history — maxlen=65 covers 60m G1 lookback (61 closes needed) + Kaufman ER.
+        self._1m_close_buf: Dict[str, deque] = {
+            "BTC": deque(maxlen=65),
+            "ETH": deque(maxlen=65),
+            "SOL": deque(maxlen=65),
+        }
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -360,12 +436,16 @@ class PolymarketFeed:
         else:
             # Seed bar history from CLOB prices-history so scoring starts immediately
             await self._warmup_live_bars()
+            # Pre-fill 1m close buffer so G1 regime filter works immediately
+            await self._bootstrap_1m_buf()
             # Launch WebSocket subscriptions for real-time data
             self._ws_tasks = [
                 asyncio.create_task(self._run_clob_ws()),
                 asyncio.create_task(self._run_rtds_ws()),
                 asyncio.create_task(self._run_binance_ws()),
                 asyncio.create_task(self._run_binance_kline_ws()),
+                asyncio.create_task(self._run_binance_liq_ws()),
+                asyncio.create_task(self._poll_coinbase_prices()),
             ]
 
         logger.info("Feed started; tracking %d tokens", len(self.tokens))
@@ -490,6 +570,21 @@ class PolymarketFeed:
             token = self.tokens.get(asset_id)
             if token is None:
                 return
+            # Tier 1: emit ob_delta BEFORE the OB-rebuild so the pre-event
+            # snapshot is the reference for level-rank/BBO context. Fully
+            # non-blocking; emitter must not raise.
+            if self._shadow_emit_ob_delta is not None:
+                try:
+                    self._shadow_emit_ob_delta(asset_id, ev)
+                except Exception:
+                    logger.debug("shadow ob_delta emit failed", exc_info=True)
+            # Gap sweeper: record last ob_delta timestamp + Binance price for this token
+            _gap_cb = getattr(self, "_gap_sweeper_cb", None)
+            if _gap_cb is not None:
+                try:
+                    _gap_cb(asset_id, token.asset)
+                except Exception:
+                    pass
             bids_raw = ev.get("bids", [])
             asks_raw = ev.get("asks", [])
             # best_bid_ask event has single price/size fields
@@ -520,6 +615,7 @@ class PolymarketFeed:
             asks = sorted(_parse_levels(asks_raw))
 
             if bids or asks:
+                _prev_ob = self.order_books.get(asset_id)
                 ob = OrderBook(
                     ts=time.time(), token_id=asset_id,
                     asset=token.asset, side=token.side,
@@ -527,6 +623,11 @@ class PolymarketFeed:
                 )
                 self.order_books[asset_id] = ob
                 self._ws_ob_ts[asset_id] = time.time()
+                _bid_for_move = bids[0][0] if bids else (_prev_ob.bids[0][0] if _prev_ob and _prev_ob.bids else 0.0)
+                self._record_token_bid_move(asset_id, _bid_for_move)
+                if self._on_bbo_update is not None and bids:
+                    _t = asyncio.create_task(self._on_bbo_update(asset_id, bids[0][0]))
+                    _t.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
         elif ev_type == "last_trade_price":
             price = ev.get("price")
@@ -540,6 +641,11 @@ class PolymarketFeed:
                         self._ws_ob_ts[asset_id] = time.time()
                 except Exception as _e:
                     logger.debug("WS handler error: %s", type(_e).__name__)
+            if self._shadow_emit_clob_trade is not None and asset_id in self.tokens:
+                try:
+                    self._shadow_emit_clob_trade(asset_id, ev)
+                except Exception:
+                    logger.debug("shadow token_trade emit failed", exc_info=True)
 
     async def _run_rtds_ws(self) -> None:
         """
@@ -614,22 +720,24 @@ class PolymarketFeed:
 
     async def _run_binance_ws(self) -> None:
         """
-        Subscribe to Binance futures WebSocket for:
-          1. markPrice@1s  — real-time funding rates (annualised)
-          2. aggTrade      — individual trade stream for VPIN computation
+        Subscribe to Binance SPOT WebSocket aggTrade stream for BTC/ETH/SOL.
 
         VPIN (Volume-Synchronized Probability of Informed Trading) measures order
         flow toxicity. VPIN > 0.60 + directional imbalance = momentum signal.
-        This replaces the broken volume signal in the composite scorer.
+
+        Endpoint note: Binance Futures (fstream.binance.com) is silently blocked
+        for EU/Ireland IPs (regulatory restriction), so the previous markPrice
+        +aggTrade subscription delivered zero messages from this VPS. Funding
+        rates have been 0 across all recent live trades for the same reason.
+        Switched to Binance Spot (stream.binance.com:9443) which is unrestricted;
+        markPrice/funding is futures-only so we lose that field, but it was
+        already always-zero. aggTrade is present on both spot and futures with
+        identical schema (e/E/s/a/p/q/m fields).
         """
         import json as _json
         _SYMBOL_MAP = {"BTC": "btcusdt", "ETH": "ethusdt", "SOL": "solusdt"}
-        # Combined stream: markPrice (funding) + aggTrade (VPIN)
-        _STREAMS = "/".join(
-            f"{s}@markPrice@1s/{s}@aggTrade"
-            for s in _SYMBOL_MAP.values()
-        )
-        _URL = f"{self.BINANCE_WS}/{_STREAMS}"
+        _STREAMS = "/".join(f"{s}@aggTrade" for s in _SYMBOL_MAP.values())
+        _URL = f"wss://stream.binance.com:9443/stream?streams={_STREAMS}"
 
         while self._running:
             try:
@@ -644,12 +752,16 @@ class PolymarketFeed:
 
                 async with aiohttp.ClientSession() as ws_session:
                     async with ws_session.ws_connect(_URL, ssl=_ssl_ctx, heartbeat=20) as ws:
-                        logger.info("Binance WS: subscribed to markPrice + aggTrade for BTC/ETH/SOL")
+                        logger.info("Binance WS: subscribed to aggTrade (SPOT) for BTC/ETH/SOL")
                         while self._running:
                             try:
-                                msg = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                                # heartbeat=20 (ping/pong) is the primary liveness check.
+                                # This receive timeout is a backstop for "TCP alive but
+                                # app silent" — 90s is well above markPrice@1s cadence,
+                                # avoids reconnect during legitimate quiet windows.
+                                msg = await asyncio.wait_for(ws.receive(), timeout=90.0)
                             except asyncio.TimeoutError:
-                                logger.warning("Binance WS silence timeout (30s) — forcing reconnect")
+                                logger.warning("Binance WS silence timeout (90s) — forcing reconnect")
                                 break
                             if not self._running:
                                 break
@@ -683,6 +795,7 @@ class PolymarketFeed:
                                             price = float(ev.get("p", 0))
                                             qty = float(ev.get("q", 0))
                                             is_buyer_maker = bool(ev.get("m", False))
+                                            exchange_T_ms = int(ev.get("T", 0) or 0)
                                             if price > 0 and qty > 0:
                                                 for asset, sym in _SYMBOL_MAP.items():
                                                     if symbol == sym.upper():
@@ -693,7 +806,9 @@ class PolymarketFeed:
                                                         # 2. Real-time spot price (sub-second,
                                                         #    more granular than kline 1m ticks)
                                                         self._spot_price[asset] = price
-                                                        self._kline_ts[asset] = time.time()
+                                                        _now_ts = time.time()
+                                                        self._kline_ts[asset] = _now_ts
+                                                        self._price_history[asset].append((_now_ts, price))
                                                         # 3. Delta spike detection
                                                         if self._delta_spike_cb is not None:
                                                             _open5m = self._spot_open_5m.get(asset, 0)
@@ -708,6 +823,14 @@ class PolymarketFeed:
                                                                             self._delta_spike_cb(asset, _delta, price),
                                                                             name=f"spike_{asset}",
                                                                         )
+                                                        # 4. Shadow trade tape — irrecoverable, persist now
+                                                        if self._shadow_emit_binance_trade is not None:
+                                                            try:
+                                                                self._shadow_emit_binance_trade(
+                                                                    asset, price, qty, is_buyer_maker, exchange_T_ms,
+                                                                )
+                                                            except Exception:
+                                                                logger.debug("shadow binance_trade emit failed", exc_info=True)
                                                         break
                                         except Exception as _e:
                                             logger.debug("WS handler error: %s", type(_e).__name__)
@@ -721,6 +844,31 @@ class PolymarketFeed:
                 logger.warning("Binance WS disconnected (%s) — reconnecting in 5s [total drops: %d]",
                                exc, self.reconnects["binance_ws"])
                 await asyncio.sleep(5)
+
+    async def _bootstrap_1m_buf(self) -> None:
+        """Seed 1m close buffer from Binance REST on startup — avoids 60min G1 cold-start."""
+        _SYMBOL_MAP = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT"}
+        url = "https://api.binance.com/api/v3/klines"
+        for asset, symbol in _SYMBOL_MAP.items():
+            try:
+                params = {"symbol": symbol, "interval": "1m", "limit": 66}
+                async with self._session.get(url, params=params) as resp:
+                    if resp.status != 200:
+                        logger.warning("bootstrap_1m_buf %s: HTTP %d", asset, resp.status)
+                        continue
+                    klines = await resp.json()
+                # Skip the last entry — it's the current (unclosed) candle
+                for k in klines[:-1]:
+                    close = float(k[4])
+                    if close > 0:
+                        self._1m_close_buf[asset].append(close)
+                logger.info(
+                    "bootstrap_1m_buf %s: loaded %d closes (G1_ready=%s)",
+                    asset, len(self._1m_close_buf[asset]),
+                    len(self._1m_close_buf[asset]) >= 61,
+                )
+            except Exception as exc:
+                logger.warning("bootstrap_1m_buf %s: failed — %s", asset, exc)
 
     async def _run_binance_kline_ws(self) -> None:
         """
@@ -756,9 +904,11 @@ class PolymarketFeed:
                         _last_price_log = 0.0
                         while self._running:
                             try:
-                                msg = await asyncio.wait_for(ws.receive(), timeout=30.0)
+                                # heartbeat=20 handles dead connections; 90s app
+                                # backstop avoids reconnects during quiet 1m windows.
+                                msg = await asyncio.wait_for(ws.receive(), timeout=90.0)
                             except asyncio.TimeoutError:
-                                logger.warning("Binance kline WS silence timeout (30s) — forcing reconnect")
+                                logger.warning("Binance kline WS silence timeout (90s) — forcing reconnect")
                                 break
                             if not self._running:
                                 break
@@ -800,6 +950,7 @@ class PolymarketFeed:
                                         # Only update prev when candle actually closes
                                         if is_closed:
                                             self._spot_prev_1m[asset] = close
+                                            self._1m_close_buf[asset].append(close)
                                         # Periodic price health log every 30s
                                         if now_ts - _last_price_log > 30 and asset == "BTC":
                                             _last_price_log = now_ts
@@ -815,8 +966,24 @@ class PolymarketFeed:
 
                                     elif interval == "5m":
                                         self._spot_open_5m[asset] = open_
+                                        self._kline_open_ts[asset] = now_ts
+                                        _h5_live = float(k.get("h", 0) or 0)
+                                        _l5_live = float(k.get("l", 0) or 0)
+                                        if _h5_live > 0 and _l5_live > 0:
+                                            self._spot_5m_high[asset] = _h5_live
+                                            self._spot_5m_low[asset] = _l5_live
                                         if is_closed:
                                             self._spot_prev_5m[asset] = close
+                                            _h5 = float(k.get("h", 0) or 0)
+                                            _l5 = float(k.get("l", 0) or 0)
+                                            if _h5 > 0 and _l5 > 0:
+                                                self._5m_ohlcv_buf[asset].append((_h5, _l5, close))
+                                            # Oracle sweep cache: winner direction from WS (zero-latency).
+                                            # k["T"] = close_time ms = wend*1000 - 1
+                                            if open_ > 0:
+                                                _wend = (int(k.get("T", 0)) + 1) // 1000
+                                                _dir = "up" if close >= open_ else "down"
+                                                self._kline_winner_cache[asset] = (_dir, _wend)
 
                                     elif interval == "15m":
                                         self._spot_open_15m[asset] = open_
@@ -910,13 +1077,14 @@ class PolymarketFeed:
         try:
             async with self._session.get(
                 clob_url,
-                params={"active": "true", "accepting_orders": "true", "limit": "500"},
+                params={"active": "true", "limit": "500"},
                 timeout=_disc_timeout,
             ) as resp:
                 if resp.status == 200:
                     clob_batch = _extract_list(await resp.json())
                     markets.extend(clob_batch)
-                    logger.info("CLOB /markets: %d markets fetched", len(clob_batch))
+                    _updown_in_batch = sum(1 for m in clob_batch if "updown" in (m.get("slug") or m.get("market_slug") or "").lower())
+                    logger.info("CLOB /markets: %d markets fetched (%d updown)", len(clob_batch), _updown_in_batch)
                 else:
                     logger.warning("CLOB /markets returned HTTP %d", resp.status)
         except Exception as exc:
@@ -994,8 +1162,10 @@ class PolymarketFeed:
             asset_match = next(
                 (
                     a for a in tracked
-                    if any(alias.upper() in q_upper for alias in _QUESTION_ALIASES.get(a, [a]))
-                    or any(alias in slug_field for alias in _SLUG_ALIASES.get(a, [a.lower()]))
+                    if any(re.search(r'\b' + re.escape(alias.upper()) + r'\b', q_upper)
+                           for alias in _QUESTION_ALIASES.get(a, [a]))
+                    or any(re.search(r'\b' + re.escape(alias) + r'\b', slug_field)
+                           for alias in _SLUG_ALIASES.get(a, [a.lower()]))
                 ),
                 None,
             )
@@ -1085,6 +1255,44 @@ class PolymarketFeed:
                 # UP / YES → YES side; DOWN / NO → NO side
                 side = "YES" if outcome_label.upper() in ("YES", "UP", "TRUE", "1") else "NO"
 
+                # Determine which direction resolves this token.
+                # Standard binary ("Up"/"Down" outcome labels): direct mapping.
+                # Neg-risk sub-markets have "Yes"/"No" outcome labels — infer from
+                # slug/question which outcome (Up or Down) the sub-market represents.
+                _olabel_up = outcome_label.upper() in ("UP", "YES", "TRUE", "1")
+                _odir_method = "unknown"
+                if outcome_label.upper() == "UP":
+                    outcome_direction = "up"
+                    _odir_method = "label-UP"
+                elif outcome_label.upper() == "DOWN":
+                    outcome_direction = "down"
+                    _odir_method = "label-DOWN"
+                else:
+                    # Neg-risk sub-market: infer which direction (Up/Down) this
+                    # sub-market represents. The parent question always contains both
+                    # "up" and "down" (e.g. "SOL Up or Down - 11AM"), so full-text
+                    # search is ambiguous. Use the slug suffix first — sub-market
+                    # slugs end with "-up" or "-down" (e.g. "sol-updown-11am-down").
+                    _slug_last = slug_lo.rsplit("-", 1)[-1]  # final segment
+                    if _slug_last == "down" or slug_lo.endswith("-down"):
+                        outcome_direction = "down" if _olabel_up else "up"
+                        _odir_method = "slug-suffix"
+                    elif _slug_last == "up" or slug_lo.endswith("-up"):
+                        outcome_direction = "up" if _olabel_up else "down"
+                        _odir_method = "slug-suffix"
+                    else:
+                        # Slug suffix ambiguous — fall back to side mapping.
+                        # (Question text is unreliable: "Up or Down" contains both.)
+                        outcome_direction = "up" if side == "YES" else "down"
+                        _odir_method = "side-fallback"
+                    import logging as _logging
+                    _logging.getLogger(__name__).info(
+                        "OUTCOME_DIR %s/%s: outcome_direction=%s method=%s "
+                        "label=%r slug_last=%r slug=%r question=%r",
+                        asset_match, side, outcome_direction, _odir_method,
+                        outcome_label, _slug_last, slug_lo[:80], question[:80],
+                    )
+
                 # Skip already-expired tokens
                 if window_end_ts > 0 and window_end_ts < now:
                     continue
@@ -1102,6 +1310,7 @@ class PolymarketFeed:
                     window_seconds=900 if "15m" in slug.lower() else 300,
                     neg_risk=neg_risk,
                     tick_size=tick_size,
+                    outcome_direction=outcome_direction,
                 )
                 is_new = token_id not in self.tokens
                 self.tokens[token_id] = token
@@ -1192,6 +1401,7 @@ class PolymarketFeed:
         )
         self.order_books[token_id] = ob
         self._last_ob_ts[token_id] = ob.ts
+        self._record_token_bid_move(token_id, bids[0][0] if bids else 0.0)
         # Also update _ws_ob_ts so poll_order_books doesn't re-poll this token for
         # another 1.5s. Without this, every 0.2s scan cycle re-polls ALL tokens
         # (since _ws_ob_ts is only set by WS events), causing 500+ req/s → CF blocks.
@@ -1220,16 +1430,18 @@ class PolymarketFeed:
         if self._stub_mode or not self._session:
             return
         now = time.time()
-        if now - self._last_discovery_ts < 60:
+        if now - self._last_discovery_ts < 5:
             return
         self._last_discovery_ts = now
 
-        # Purge expired tokens (window_end_ts > 0 and in the past, or within final
-        # no_trade_last_sec — those will never receive a new entry and just add noise).
-        no_trade_guard = CONFIG.execution.no_trade_last_sec
+        # Purge truly-expired tokens only (within 5s of window close or already past).
+        # Previously used no_trade_last_sec=45 here, which was erasing BOND candidates
+        # at exactly 45s remaining — the BOND LATE entry zone boundary. Now we let the
+        # BOND scanner's own remaining-window guard handle eligibility; we only purge
+        # tokens the market has actually closed.
         expired = [
             tid for tid, t in self.tokens.items()
-            if t.window_end_ts > 0 and t.window_end_ts - now < no_trade_guard
+            if t.window_end_ts > 0 and t.window_end_ts - now < 5.0
         ]
         for tid in expired:
             self.tokens.pop(tid, None)
@@ -1426,6 +1638,124 @@ class PolymarketFeed:
             self.bar_builders_5m[token_id].update(price, size, now)
             self.bar_builders_15m[token_id].update(price, size, now)
 
+    # ── New signal feeds ──────────────────────────────────────────────────────
+
+    async def _run_binance_liq_ws(self) -> None:
+        """
+        Subscribe to Binance aggregated liquidation stream (!forceOrder@arr).
+        Tracks $ value of long/short liquidations per asset in the last 60s.
+
+        Data collected (NOT a trading gate by default — see config.SIGNAL_GATES):
+          liq_long_60s  = $ of long positions force-closed (price was pushed DOWN)
+          liq_short_60s = $ of short positions force-closed (price was pushed UP)
+
+        Why this matters: stop-hunt bots push price to cascade liquidations.
+        Large liq_long_60s just before our YES entry = cascade may still be ongoing.
+        Large liq_short_60s just before our NO entry = squeeze may still be ongoing.
+
+        Failure: silently disconnects and reconnects. Never raises to caller.
+        """
+        import json as _json
+        _URL = "wss://fstream.binance.com/ws/!forceOrder@arr"
+        _ASSET_MAP = {"BTCUSDT": "BTC", "ETHUSDT": "ETH", "SOLUSDT": "SOL"}
+        _PRUNE_INTERVAL = 10.0   # prune stale entries every 10s
+        _last_prune = time.time()
+
+        while self._running:
+            try:
+                async with aiohttp.ClientSession() as ws_sess:
+                    async with ws_sess.ws_connect(_URL, heartbeat=30) as ws:
+                        logger.info("Binance liquidation WS: connected")
+                        async for msg in ws:
+                            if not self._running:
+                                return
+                            if msg.type != aiohttp.WSMsgType.TEXT:
+                                continue
+                            try:
+                                data = _json.loads(msg.data)
+                                order = data.get("o", {})
+                                symbol = order.get("s", "")
+                                asset = _ASSET_MAP.get(symbol)
+                                if not asset:
+                                    continue
+                                side = order.get("S", "")   # SELL=long liq, BUY=short liq
+                                qty   = float(order.get("z", 0) or 0)
+                                price = float(order.get("ap", 0) or 0)
+                                usd_val = qty * price
+                                if usd_val < 1000:   # ignore tiny liquidations (<$1k)
+                                    continue
+                                ts_now = time.time()
+                                liq = self._liquidations[asset]
+                                if side == "SELL":
+                                    liq["long"].append((ts_now, usd_val))
+                                elif side == "BUY":
+                                    liq["short"].append((ts_now, usd_val))
+                                # Persist to shadow for replay analysis
+                                _liq_pipeline = getattr(self, "_shadow_pipeline", None)
+                                if _liq_pipeline is not None:
+                                    try:
+                                        from data.shadow.liquidation import emit_liquidation
+                                        emit_liquidation(
+                                            _liq_pipeline,
+                                            asset=asset,
+                                            symbol=symbol,
+                                            side=side,
+                                            price=price,
+                                            qty=qty,
+                                        )
+                                    except Exception:
+                                        pass
+                                # Periodic prune — keep only last 60s
+                                if ts_now - _last_prune > _PRUNE_INTERVAL:
+                                    cutoff = ts_now - 60
+                                    for a in self._liquidations:
+                                        for k in ("long", "short"):
+                                            self._liquidations[a][k] = [
+                                                (t, v) for t, v in self._liquidations[a][k]
+                                                if t > cutoff
+                                            ]
+                                    _last_prune = ts_now
+                            except Exception:
+                                pass  # malformed message — skip
+            except Exception as exc:
+                if self._running:
+                    self.reconnects["binance_liq"] = self.reconnects.get("binance_liq", 0) + 1
+                    logger.debug("Binance liq WS reconnect: %s", exc)
+                    await asyncio.sleep(5)
+
+    async def _poll_coinbase_prices(self) -> None:
+        """
+        Poll Coinbase spot prices every 5s for cross-exchange divergence detection.
+
+        Data collected (NOT a trading gate by default — see config.SIGNAL_GATES):
+          coinbase_price = Coinbase last trade price for this asset
+
+        Cross-exchange divergence = (binance - coinbase) / coinbase × 100
+          Large positive divergence: Binance above Coinbase → Binance-led move (possible manipulation)
+          Small divergence: both exchanges agree → real institutional flow
+
+        Failure: silently retries. Never raises. Coinbase is supplementary only.
+        """
+        _PAIRS = {"BTC": "BTC-USD", "ETH": "ETH-USD", "SOL": "SOL-USD"}
+        _BASE  = "https://api.exchange.coinbase.com/products"
+
+        while self._running:
+            if self._session and not self._stub_mode:
+                for asset, pair in _PAIRS.items():
+                    try:
+                        async with self._session.get(
+                            f"{_BASE}/{pair}/ticker",
+                            timeout=aiohttp.ClientTimeout(total=3),
+                        ) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                price = float(data.get("price", 0) or 0)
+                                if price > 0:
+                                    self._coinbase_prices[asset] = price
+                    except Exception:
+                        pass  # Coinbase is supplementary — never block on failure
+            await asyncio.sleep(5)
+
     # ── External signals ─────────────────────────────────────────────────────
 
     async def fetch_external_signals(self, asset: str) -> Optional[ExternalSignal]:
@@ -1459,6 +1789,7 @@ class PolymarketFeed:
         # Spot klines: use WebSocket cache (zero-latency) or fall back to REST.
         # _run_binance_kline_ws() keeps these dicts updated in real-time.
         _KLINE_STALE_S = 3.0  # fall back to REST if cache not updated in 3s
+        _KLINE_OPEN_STALE_S = 360.0  # 5m open stale if not updated in 6min (more than one bar)
         kline_fresh = (time.time() - self._kline_ts.get(asset.upper(), 0)) < _KLINE_STALE_S
 
         if kline_fresh:
@@ -1470,6 +1801,19 @@ class PolymarketFeed:
             open_5m = self._spot_open_5m.get(asset.upper())
             open_15m = self._spot_open_15m.get(asset.upper())
 
+            # Staleness guard: if the 5m open hasn't been refreshed by a kline event
+            # in more than one full bar (6min), it's likely from a previous window.
+            # Repeated stale delta (e.g. SOL delta=-0.083% across hundreds of trades)
+            # indicates this path is serving a frozen open. Suppress the open to force
+            # delta re-computation against fresh data.
+            _open_age = time.time() - self._kline_open_ts.get(asset.upper(), 0)
+            if _open_age > _KLINE_OPEN_STALE_S and open_5m:
+                logger.warning(
+                    "KLINE_OPEN_STALE %s: 5m open=%.4f not updated in %.0fs — suppressing to force REST refresh",
+                    asset.upper(), open_5m, _open_age,
+                )
+                open_5m = None  # force slow-path on next call
+
             if c0:
                 signal.spot_price = c0
             if c0 and c1_1m and c1_1m > 0:
@@ -1478,6 +1822,12 @@ class PolymarketFeed:
                 signal.spot_momentum_5m = (c0 - c1_5m) / c1_5m * 100
             if c0 and c1_15m and c1_15m > 0:
                 signal.spot_momentum_15m = (c0 - c1_15m) / c1_15m * 100
+            # G1: rolling 60m return — needs 61 closed 1m candles in buffer
+            _buf60 = self._1m_close_buf.get(asset.upper())
+            if c0 and _buf60 and len(_buf60) >= 61:
+                _p60 = _buf60[-61]
+                if _p60 > 0:
+                    signal.spot_momentum_60m = (c0 - _p60) / _p60 * 100
             if open_5m:
                 signal.spot_window_open_5m = open_5m
             if open_15m:
@@ -1529,9 +1879,83 @@ class PolymarketFeed:
             signal.vpin_score = round(vpin_tracker.vpin, 4)
             signal.vpin_direction = vpin_tracker.direction
 
+        # ── New signals: liquidation + coinbase (data collection) ─────────────
+        # Liquidation data: sum $ value of liquidations in last 60s
+        _liq = self._liquidations.get(asset.upper(), {"long": [], "short": []})
+        _cutoff = time.time() - 60
+        signal.liq_long_60s  = round(sum(v for t, v in _liq["long"]  if t > _cutoff), 0)
+        signal.liq_short_60s = round(sum(v for t, v in _liq["short"] if t > _cutoff), 0)
+
+        # Coinbase cross-exchange price
+        _cb_price = self._coinbase_prices.get(asset.upper())
+        if _cb_price and _cb_price > 0:
+            signal.coinbase_price = _cb_price
+
         return signal
 
     # ── Convenience accessors ─────────────────────────────────────────────────
+
+    def _record_token_bid_move(self, token_id: str, bid: float) -> None:
+        """Record timestamp of last meaningful bid change (≥$0.01 absolute)."""
+        if bid <= 0:
+            return
+        prev = self._token_last_bid.get(token_id, -1.0)
+        if abs(bid - prev) >= 0.01:
+            self._token_last_move_ts[token_id] = time.time()
+            self._token_last_bid[token_id] = bid
+
+    def get_token_move_age(self, token_id: str) -> float:
+        """Seconds since the token's bid last changed by ≥$0.01. Returns 999.0 if never seen."""
+        ts = self._token_last_move_ts.get(token_id)
+        if ts is None:
+            return 999.0
+        return round(time.time() - ts, 1)
+
+    def get_velocity_5s(self, asset: str) -> tuple:
+        """
+        Compute 5-second Binance price velocity for an asset.
+
+        Returns (velocity_pct, move_age_s):
+            velocity_pct — % price change over the last 5s (positive = up, negative = down)
+                           0.0 if fewer than 2 ticks in the window
+            move_age_s   — seconds since the last tick that moved price > 0.02% in either direction
+                           999.0 if no such tick found in history (signal is cold)
+
+        Used at entry to log whether the Binance move backing the lag signal is
+        still live. Not used as a filter yet — collect n≥30 trades first.
+        """
+        hist = self._price_history.get(asset.upper())
+        if not hist or len(hist) < 2:
+            return 0.0, 999.0
+
+        now = time.time()
+        cutoff = now - 5.0
+
+        # velocity_pct: compare oldest tick in last 5s to newest tick
+        window = [(ts, px) for ts, px in hist if ts >= cutoff]
+        if len(window) >= 2:
+            oldest_px = window[0][1]
+            newest_px = window[-1][1]
+            velocity_pct = (newest_px - oldest_px) / oldest_px * 100 if oldest_px > 0 else 0.0
+        elif hist:
+            # fewer than 2 ticks in last 5s — use last known price vs 5s ago reference
+            newest_px = hist[-1][1]
+            velocity_pct = 0.0
+        else:
+            return 0.0, 999.0
+
+        # move_age_s: scan backward for last tick that moved > 0.02% from its predecessor
+        _MOVE_THRESHOLD_PCT = 0.02
+        move_age_s = 999.0
+        ticks = list(hist)
+        for i in range(len(ticks) - 1, 0, -1):
+            ts_i, px_i = ticks[i]
+            ts_prev, px_prev = ticks[i - 1]
+            if px_prev > 0 and abs((px_i - px_prev) / px_prev * 100) >= _MOVE_THRESHOLD_PCT:
+                move_age_s = now - ts_i
+                break
+
+        return round(velocity_pct, 4), round(move_age_s, 1)
 
     def register_delta_spike_callback(self, cb) -> None:
         """Register async callback fired on Binance aggTrade when delta threshold crossed."""
@@ -1544,6 +1968,43 @@ class PolymarketFeed:
     def get_bars_15m(self, token_id: str, n: int = 20) -> List[Bar]:
         builder = self.bar_builders_15m.get(token_id)
         return builder.get_bars(n) if builder else []
+
+    def get_60m_range_usd(self, asset: str) -> float:
+        """High-Low range over last 12 closed 5m bars (~60 min). 0.0 if < 3 bars."""
+        buf = self._5m_ohlcv_buf.get(asset.upper())
+        if not buf or len(buf) < 3:
+            return 0.0
+        recent = list(buf)[-12:]
+        return round(max(h for h, l, c in recent) - min(l for h, l, c in recent), 2)
+
+    def get_er(self, asset: str, n: int = 14) -> float:
+        """
+        Kaufman Efficiency Ratio over last n closed 1m bars.
+        ER = |net_move| / sum(|bar_changes|). Near 1 = clean trend, near 0 = chop.
+        Returns 1.0 (don't block) when fewer than n+1 bars are available.
+        """
+        buf = self._1m_close_buf.get(asset.upper())
+        if not buf or len(buf) < n + 1:
+            return 1.0
+        prices = list(buf)[-(n + 1):]
+        net = abs(prices[-1] - prices[0])
+        noise = sum(abs(prices[i] - prices[i - 1]) for i in range(1, len(prices)))
+        return round(net / noise, 4) if noise > 0 else 1.0
+
+    def get_atr_ratio(self, asset: str, current_bars: int = 3, baseline_bars: int = 48) -> float:
+        """
+        Recent ATR / baseline ATR ratio using closed 5m candles.
+        current_bars: last N 5m bars for 'current' ATR (default 3 = 15 min).
+        baseline_bars: full buffer depth for baseline ATR (default 48 = 4h).
+        Returns 1.0 (don't block) when fewer than current_bars+2 candles available.
+        """
+        buf = self._5m_ohlcv_buf.get(asset.upper())
+        if not buf or len(buf) < current_bars + 2:
+            return 1.0
+        bars = list(buf)
+        recent_atr = sum(h - l for h, l, c in bars[-current_bars:]) / current_bars
+        baseline_atr = sum(h - l for h, l, c in bars) / len(bars)
+        return round(recent_atr / baseline_atr, 4) if baseline_atr > 0 else 1.0
 
     def get_order_book(self, token_id: str) -> Optional[OrderBook]:
         return self.order_books.get(token_id)

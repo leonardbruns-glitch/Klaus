@@ -34,6 +34,13 @@ from typing import Optional
 
 logger = logging.getLogger("macro_engine")
 
+
+class _RateLimitError(Exception):
+    """Raised on HTTP 429 — caller should retry, not store a SKIP decision."""
+    def __init__(self, retry_after: float = 15.0):
+        self.retry_after = retry_after
+
+
 # ── Trigger thresholds by session ─────────────────────────────────────────────
 # High-volume session hours UTC: London open, NYSE open/macro, Asia open
 _HIGH_VOLUME_HOURS = {8, 9, 13, 14, 15, 22, 23, 0}
@@ -604,6 +611,442 @@ class MacroEngine:
         except Exception as exc:
             logger.debug("EXIT ADVICE failed (%s) — defaulting HOLD", exc)
             return ("HOLD", None, 0.5, f"failed ({type(exc).__name__}) — HOLD")
+
+    async def bond_advisor(
+        self,
+        asset: str,
+        direction: str,
+        entry_price: float,
+        bond_entry_class: str,
+        bond_entry_zone: str,
+        bond_delta_at_entry: float,
+        bond_delta_accel_30s: float,
+        bond_edge_drift_30s: float,
+        bond_smooth_delta_60s: float,
+        vpin: float,
+        edge: float,
+        window_size_s: int,
+        window_remaining_s: float,
+        recent_history: list | None = None,
+        research_notes: list | None = None,
+    ) -> dict:
+        """
+        Agentic entry decision. Opus requests whatever data it wants via tools,
+        then calls take or skip. No pre-selected context forced on it.
+        Returns {"decision": "TAKE"/"SKIP", "confidence": float, "reason": str,
+                 "shadow_tp_pct": float, "shadow_sl_pct": float}.
+        """
+        import json as _json
+        if not self._enabled:
+            return {"decision": "TAKE", "confidence": 0.5, "reason": "LLM disabled"}
+
+        now_utc = datetime.now(timezone.utc)
+        outcome_label = (
+            "YES (token resolves to 1.0 if asset closes UP at expiry)"
+            if "YES" in direction
+            else "NO (token resolves to 1.0 if asset closes DOWN at expiry)"
+        )
+
+        _catalog: dict = {
+            "raw_market_data": {
+                "time_utc": now_utc.strftime("%H:%M"),
+                "asset": asset,
+                "outcome": outcome_label,
+                "token_price": round(entry_price, 4),
+                "window_minutes": window_size_s // 60,
+                "window_remaining_seconds": round(window_remaining_s),
+                "binance_spot_change_60s_pct": round(bond_smooth_delta_60s, 4),
+            },
+        }
+
+        if recent_history:
+            rows = []
+            for h in recent_history[:15]:
+                pnl = float(h.get("shadow_gross_pnl", 0) or 0)
+                rows.append({
+                    "asset": h.get("asset", "?"),
+                    "outcome": h.get("direction", "?"),
+                    "entry_price": round(float(h.get("entry_price", 0) or 0), 4),
+                    "exit_price": round(float(h.get("exit_price", 0) or 0), 4),
+                    "exit_reason": h.get("exit_reason", "open"),
+                    "pnl": round(pnl, 2),
+                })
+            _catalog["price_history"] = rows
+        else:
+            _catalog["price_history"] = []
+
+        _catalog["research_notes"] = research_notes or []
+
+        tools = [
+            {
+                "name": "take",
+                "description": "Commit to a hypothesis lifecycle. You have formed a specific, falsifiable belief about this market — its direction, why it is mispriced, how long that mispricing will persist, and what would prove you wrong. Call this only when that hypothesis exists.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "direction":            {"type": "string", "description": "UP or DOWN"},
+                        "confidence":           {"type": "number", "description": "0–1 expected value conviction"},
+                        "tp_pct":               {"type": "number", "description": "Take-profit % above entry price"},
+                        "sl_pct":               {"type": "number", "description": "Stop-loss % below entry price"},
+                        "position_type":        {"type": "string", "description": "scalp | momentum | contrarian | binary_expiry"},
+                        "expected_duration_sec":{"type": "number", "description": "Expected hold time in seconds (30–3600)"},
+                        "edge_type":            {"type": "string", "description": "reversion | continuation | terminal_event"},
+                        "reason":               {"type": "string", "description": "Why this side is mispriced"},
+                    },
+                    "required": ["direction", "confidence", "tp_pct", "sl_pct",
+                                 "position_type", "expected_duration_sec", "edge_type", "reason"],
+                },
+            },
+            {
+                "name": "skip",
+                "description": "No hypothesis formed. You were unable to construct a specific, falsifiable belief about this market. Call this when the data does not support a clear thesis.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"reason": {"type": "string"}},
+                    "required": ["reason"],
+                },
+            },
+        ]
+        system_prompt = (
+            "You are no longer allowed to receive pre-interpreted trading signals "
+            "(such as \"edge\", \"zone\", \"delta acceleration\", or \"overpriced/underpriced\" labels).\n\n"
+            "Those are considered system opinions and are removed.\n\n"
+            "You will now receive ONLY raw market data:\n\n"
+            "- current price\n"
+            "- recent price history (time series)\n"
+            "- timestamp\n"
+            "- asset (BTC/ETH/SOL)\n"
+            "- outcome mapping (UP/DOWN only)\n\n"
+            "Your task is to independently infer:\n"
+            "- whether the market is mispriced\n"
+            "- whether a directional opportunity exists\n"
+            "- whether timing matters (early vs late window behavior)\n\n"
+            "You must not assume:\n"
+            "- that neutrality means no opportunity\n"
+            "- that momentum or lack of momentum is meaningful without analysis\n"
+            "- that the system's prior classification is correct\n\n"
+            "You are allowed to:\n"
+            "- invent your own structure for interpreting the market\n"
+            "- detect regimes, patterns, and inefficiencies\n"
+            "- disagree with implicit system assumptions\n"
+            "- trade aggressively or conservatively depending on your own inference\n\n"
+            "The system will NOT provide \"edge\", \"signals\", or \"recommendations\".\n\n"
+            "You are responsible for constructing your own view of the market.\n\n"
+            "Output:\n"
+            "take(direction, confidence, tp_pct, sl_pct, reason)\n"
+            "or\n"
+            "skip(reason)"
+        )
+
+        _preload = (
+            f"**Raw market data**: {json.dumps(_catalog['raw_market_data'])}\n\n"
+            f"**Price history** (last {len(_catalog['price_history'])} trades): "
+            f"{json.dumps(_catalog['price_history'])}\n\n"
+            f"**Research notes** ({len(_catalog['research_notes'])} findings): "
+            f"{json.dumps(_catalog['research_notes'])}\n\n"
+            f"Call take() or skip() now. Do not output text."
+        )
+        messages: list = [{"role": "user", "content": _preload}]
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                for _ in range(6):
+                    payload = {
+                        "model": "claude-haiku-4-5-20251001",
+                        "max_tokens": 400,
+                        "system": system_prompt,
+                        "tools": tools,
+                        "messages": messages,
+                    }
+                    async with sess.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers=headers,
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=15),
+                    ) as resp:
+                        if resp.status == 429:
+                            raise _RateLimitError(float(resp.headers.get("retry-after", 15)))
+                        if resp.status != 200:
+                            body = await resp.text()
+                            raise Exception(f"API {resp.status}: {body[:60]}")
+                        data = await resp.json()
+
+                    content_blocks = data.get("content", [])
+                    tool_results = []
+                    terminal = None
+
+                    for block in content_blocks:
+                        if block.get("type") != "tool_use":
+                            continue
+                        name = block["name"]
+                        inp = block.get("input", {})
+                        bid = block["id"]
+
+                        if name == "take":
+                            terminal = {
+                                "decision":            "TAKE",
+                                "conf":                max(0.5, min(0.95, float(inp.get("confidence", 0.6)))),
+                                "reason":              str(inp.get("reason", ""))[:80],
+                                "shadow_tp_pct":       max(3.0, min(50.0, float(inp.get("tp_pct", 15.0) or 15.0))),
+                                "shadow_sl_pct":       max(3.0, min(30.0, float(inp.get("sl_pct", 12.0) or 12.0))),
+                                "position_type":       str(inp.get("position_type", "momentum")),
+                                "expected_duration_sec": max(30.0, min(3600.0, float(inp.get("expected_duration_sec", 180) or 180))),
+                                "edge_type":           str(inp.get("edge_type", "continuation")),
+                            }
+                            break
+                        elif name == "skip":
+                            terminal = {
+                                "decision":      "SKIP",
+                                "conf":          0.5,
+                                "reason":        str(inp.get("reason", ""))[:80],
+                                "shadow_tp_pct": 15.0,
+                                "shadow_sl_pct": 12.0,
+                            }
+                            break
+                        elif name in _catalog:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": json.dumps(_catalog[name]),
+                            })
+                        else:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": f"Unknown tool: {name}",
+                                "is_error": True,
+                            })
+
+                    if terminal:
+                        _dir = "UP" if "YES" in direction else "DOWN"
+                        logger.info(
+                            "BOND_LLM %s/%s → %s conf=%.2f entry=%.3f TP=+%.0f%% SL=-%.0f%% | %s",
+                            asset, _dir, terminal["decision"], terminal["conf"],
+                            entry_price,
+                            terminal.get("shadow_tp_pct", 15.0), terminal.get("shadow_sl_pct", 12.0),
+                            terminal["reason"],
+                        )
+                        return terminal
+
+                    # LLM output text without calling a terminal tool — nudge it to decide
+                    if data.get("stop_reason") == "end_turn":
+                        messages.append({"role": "assistant", "content": content_blocks})
+                        messages.append({"role": "user", "content": "Do NOT output text. Call take() or skip() tool now."})
+                        continue
+
+                    if not tool_results:
+                        break
+
+                    messages.append({"role": "assistant", "content": content_blocks})
+                    messages.append({"role": "user", "content": tool_results})
+
+            return {"decision": "SKIP", "conf": 0.5, "reason": "no terminal decision",
+                    "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
+
+        except _RateLimitError:
+            raise
+        except Exception as exc:
+            logger.warning("bond_advisor failed (%s) — default SKIP", exc)
+            return {"decision": "SKIP", "confidence": 0.5, "reason": f"API {type(exc).__name__}: {str(exc)[:40]}",
+                    "shadow_tp_pct": 15.0, "shadow_sl_pct": 12.0}
+
+    async def bond_exit_advisor(
+        self,
+        asset: str,
+        direction: str,
+        entry_price: float,
+        current_price: float,
+        pnl_pct: float,
+        held_s: float,
+        remaining_s: float,
+        bond_delta: float = 0.0,
+        vpin: float = 0.0,
+        entry_reason: str = "",
+        entry_tp_pct: float = 0.0,
+        entry_sl_pct: float = 0.0,
+        position_type: str = "momentum",
+        expected_duration_sec: float = 180.0,
+        edge_type: str = "continuation",
+        highest_price: float = 0.0,
+        lowest_price: float = 0.0,
+        recent_history: list | None = None,
+        research_notes: list | None = None,
+    ) -> dict:
+        """
+        Agentic exit decision via aiohttp tool-use loop.
+        Haiku requests whatever data it wants, then calls exit_now or hold.
+        """
+        if not self._enabled:
+            return {"decision": "HOLD", "reason": "LLM disabled", "conf": 0.5}
+
+        _catalog = {
+            "position": {
+                "asset": asset,
+                "direction": direction,
+                "entry_price": round(entry_price, 4),
+                "current_price": round(current_price, 4),
+                "pnl_pct": round(pnl_pct, 2),
+                "held_seconds": round(held_s),
+                "remaining_seconds": round(remaining_s),
+                "peak_price": round(highest_price, 4),
+                "trough_price": round(lowest_price, 4),
+                "binance_delta_pct": round(bond_delta, 3),
+            },
+            "thesis": {
+                "position_type": position_type,
+                "edge_type": edge_type,
+                "expected_duration_sec": round(expected_duration_sec),
+                "time_decay_pct": round(held_s / max(expected_duration_sec, 1) * 100, 1),
+                "entry_reason": entry_reason,
+            },
+        }
+
+        _catalog["research_notes"] = research_notes or []
+
+        tools = [
+            # Data pre-loaded in first message — only terminal tools exposed.
+            {
+                "name": "exit_now",
+                "description": "Close the position immediately.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "confidence": {"type": "number"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["confidence", "reason"],
+                },
+            },
+            {
+                "name": "hold",
+                "description": "Keep holding. You will be called again in ~10 seconds.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "confidence": {"type": "number"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["confidence", "reason"],
+                },
+            },
+        ]
+
+        system_prompt = (
+            "You are the continuation of a hypothesis that was committed at entry.\n\n"
+            "Your task is not to decide whether to exit or hold.\n\n"
+            "Your task is to evaluate whether the original hypothesis is still valid "
+            "in probabilistic terms.\n\n"
+            "You will receive the original hypothesis: its type, edge, expected duration, "
+            "and the reason it was formed.\n\n"
+            "Ask only this:\n\n"
+            "Given current conditions, is the probabilistic basis for this hypothesis "
+            "still intact?\n\n"
+            "If the hypothesis is no longer valid → call exit_now(reason, confidence)\n"
+            "If the hypothesis is still valid → call hold(reason, confidence)\n\n"
+            "No other exit logic. No intuition. No independent signals.\n"
+            "The hypothesis is either still valid or it is not."
+        )
+        _exit_preload = (
+            f"**Position**: {json.dumps(_catalog['position'])}\n\n"
+            f"**Entry thesis**: {json.dumps(_catalog['thesis'])}\n\n"
+            f"**Research notes**: {json.dumps(_catalog.get('research_notes', []))}\n\n"
+            f"Call exit_now() or hold() now. Do not output text."
+        )
+        messages: list = [{"role": "user", "content": _exit_preload}]
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as sess:
+                for _ in range(5):
+                    payload = {
+                        "model": "claude-haiku-4-5-20251001",
+                        "max_tokens": 300,
+                        "system": system_prompt,
+                        "tools": tools,
+                        "messages": messages,
+                    }
+                    async with sess.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers=headers,
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=10),
+                    ) as resp:
+                        if resp.status == 429:
+                            raise _RateLimitError(float(resp.headers.get("retry-after", 15)))
+                        if resp.status != 200:
+                            body = await resp.text()
+                            raise Exception(f"API {resp.status}: {body[:60]}")
+                        data = await resp.json()
+
+                    content_blocks = data.get("content", [])
+                    tool_results = []
+                    terminal = None
+
+                    for block in content_blocks:
+                        if block.get("type") != "tool_use":
+                            continue
+                        name = block["name"]
+                        inp = block.get("input", {})
+                        bid = block["id"]
+
+                        if name == "exit_now":
+                            terminal = {
+                                "decision": "EXIT",
+                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
+                                "reason": str(inp.get("reason", ""))[:80],
+                            }
+                            break
+                        elif name == "hold":
+                            terminal = {
+                                "decision": "HOLD",
+                                "conf": max(0.5, min(0.95, float(inp.get("confidence", 0.7)))),
+                                "reason": str(inp.get("reason", ""))[:80],
+                            }
+                            break
+                        elif name in _catalog:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": json.dumps(_catalog[name]),
+                            })
+                        else:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": bid,
+                                "content": f"Unknown tool: {name}",
+                                "is_error": True,
+                            })
+
+                    if terminal:
+                        logger.info(
+                            "bond_exit_advisor %s/%s → %s conf=%.2f rem=%.0fs | %s",
+                            asset, direction, terminal["decision"],
+                            terminal["conf"], remaining_s, terminal["reason"],
+                        )
+                        return terminal
+
+                    if data.get("stop_reason") == "end_turn" or not tool_results:
+                        break
+
+                    messages.append({"role": "assistant", "content": content_blocks})
+                    messages.append({"role": "user", "content": tool_results})
+
+            return {"decision": "HOLD", "conf": 0.5, "reason": "no terminal decision"}
+
+        except Exception as exc:
+            logger.debug("bond_exit_advisor failed (%s) — HOLD", exc)
+            return {"decision": "HOLD", "conf": 0.5, "reason": f"API error: {type(exc).__name__}"}
 
     # ── Internal ──────────────────────────────────────────────────────────────
 

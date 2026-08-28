@@ -1,0 +1,46 @@
+locked (token,day) events: 598  | total snapshots: 51,873
+
+=== ALL DAYS: 598 events (596 multi-snapshot) ===
+  events that EVER offered a fillable cheap NO (edge>=1%): 168/598 = 28%
+  observed locked span/event: med=1554s  p90=9729s
+  fillable edge>=1% persists until (per event): med=8928s  p75=13696s  p90=19344s
+  t-since-lockout  n_snap  %fillable  med_edge  %edge>=1%  med_depth$
+            0-30s    1240        53%     0.008        26%         0.0
+           30-60s     307        57%     0.002        22%         0.0
+             1-2m    1043        50%     0.003        21%         0.0
+             2-5m    3011        56%     0.008        27%         0.0
+            5-15m    7664        62%     0.004        28%         0.0
+           15-60m   14217        74%     0.017        42%        11.6
+             >60m   24391        98%     0.110        85%        61.9
+
+=== POST-FIX (>= 2026-05-27, provenance-clean): 278 events (277 multi-snapshot) ===
+  events that EVER offered a fillable cheap NO (edge>=1%): 89/278 = 32%
+  observed locked span/event: med=1559s  p90=8928s
+  fillable edge>=1% persists until (per event): med=2869s  p75=13696s  p90=13696s
+  t-since-lockout  n_snap  %fillable  med_edge  %edge>=1%  med_depth$
+            0-30s     801        65%     0.003        25%         0.0
+           30-60s     278        59%     0.002        21%         0.0
+             1-2m     627        65%     0.002        19%         0.0
+             2-5m    1893        71%     0.003        28%         0.0
+            5-15m    4638        83%     0.002        28%         0.0
+           15-60m    8040        87%     0.003        37%         0.0
+             >60m    7459        96%     0.130        81%        48.8
+
+=== PRE-FIX (< 2026-05-27, asos-contaminated): 320 events (319 multi-snapshot) ===
+  events that EVER offered a fillable cheap NO (edge>=1%): 79/320 = 25%
+  observed locked span/event: med=1554s  p90=10857s
+  fillable edge>=1% persists until (per event): med=11655s  p75=19285s  p90=23080s
+  t-since-lockout  n_snap  %fillable  med_edge  %edge>=1%  med_depth$
+            0-30s     439        31%     0.130        28%        61.7
+           30-60s      29        34%     0.360        31%        24.3
+             1-2m     416        28%     0.140        25%        64.4
+             2-5m    1118        30%     0.160        27%        60.2
+            5-15m    3026        31%     0.120        27%        66.0
+           15-60m    6177        57%     0.120        50%        55.4
+             >60m   16932        99%     0.102        86%        68.3
+
+=== edge>=1% persistence (median window seconds) by safety margin band, POST-FIX ===
+  margin -99.0-0.5  C  n=  29  med_window=2033s  p90=13696s
+  margin   0.5-1.0  C  n=  30  med_window=1536s  p90=13696s
+  margin   1.0-2.0  C  n=  13  med_window=8928s  p90=13696s
+  margin   2.0-99.0 C  n=  25  med_window=13696s  p90=13696s

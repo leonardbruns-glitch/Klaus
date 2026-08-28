@@ -1,0 +1,3827 @@
+{
+  "_meta": {
+    "bust_thresh_c": 1.5,
+    "years": "2021-2025",
+    "reference_model": "gfs_seamless",
+    "features": [
+      "rise_rate_3h",
+      "dew_spread_m6",
+      "sky_clr_m6",
+      "wind_kt_m6",
+      "temp_anom_m6",
+      "rapid_rise"
+    ],
+    "note": "z_score > 0 means feature is higher on bust days than normal days. Threshold = bust_mean \u00b1 0.5\u00d7bust_std (\u00b10.5 sigma cutoff). Use thresholds as STRAT_4 trigger candidates."
+  },
+  "cities": {
+    "nyc": {
+      "slug": "nyc",
+      "icao": "KLGA",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 66,
+      "n_cold_bust": 45,
+      "n_normal": 1714,
+      "stats": {
+        "HOT_BUST": {
+          "n": 66,
+          "n_normal": 1714,
+          "pct_of_days": 3.7,
+          "residual_mean": 2.1,
+          "residual_p90": 2.74,
+          "rapid_rise_rate_bust": 0.379,
+          "rapid_rise_rate_normal": 0.53,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.327,
+              "bust_std": 0.508,
+              "norm_mean": 0.576,
+              "norm_std": 0.559,
+              "z_score": -0.47,
+              "n_bust": 66,
+              "n_norm": 1714
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.336,
+              "bust_std": 4.046,
+              "norm_mean": -0.057,
+              "norm_std": 3.912,
+              "z_score": 0.35,
+              "n_bust": 66,
+              "n_norm": 1714
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 9.439,
+              "bust_std": 5.177,
+              "norm_mean": 7.782,
+              "norm_std": 4.661,
+              "z_score": 0.34,
+              "n_bust": 66,
+              "n_norm": 1714
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.379,
+              "bust_std": 0.489,
+              "norm_mean": 0.53,
+              "norm_std": 0.499,
+              "z_score": -0.31,
+              "n_bust": 66,
+              "n_norm": 1714
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.461,
+              "bust_std": 0.31,
+              "norm_mean": 0.533,
+              "norm_std": 0.3,
+              "z_score": -0.24,
+              "n_bust": 66,
+              "n_norm": 1714
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 6.474,
+              "bust_std": 3.559,
+              "norm_mean": 6.469,
+              "norm_std": 3.453,
+              "z_score": 0.0,
+              "n_bust": 66,
+              "n_norm": 1714
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 45,
+          "n_normal": 1714,
+          "pct_of_days": 2.6,
+          "residual_mean": -2.18,
+          "residual_p90": -1.54,
+          "rapid_rise_rate_bust": 0.556,
+          "rapid_rise_rate_normal": 0.53,
+          "features": [
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 8.556,
+              "bust_std": 3.684,
+              "norm_mean": 7.782,
+              "norm_std": 4.661,
+              "z_score": 0.18,
+              "n_bust": 45,
+              "n_norm": 1714
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.621,
+              "bust_std": 0.578,
+              "norm_mean": 0.576,
+              "norm_std": 0.559,
+              "z_score": 0.08,
+              "n_bust": 45,
+              "n_norm": 1714
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 6.714,
+              "bust_std": 3.246,
+              "norm_mean": 6.469,
+              "norm_std": 3.453,
+              "z_score": 0.07,
+              "n_bust": 45,
+              "n_norm": 1714
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.512,
+              "bust_std": 0.304,
+              "norm_mean": 0.533,
+              "norm_std": 0.3,
+              "z_score": -0.07,
+              "n_bust": 45,
+              "n_norm": 1714
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.217,
+              "bust_std": 4.257,
+              "norm_mean": -0.057,
+              "norm_std": 3.912,
+              "z_score": 0.07,
+              "n_bust": 45,
+              "n_norm": 1714
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.556,
+              "bust_std": 0.503,
+              "norm_mean": 0.53,
+              "norm_std": 0.499,
+              "z_score": 0.05,
+              "n_bust": 45,
+              "n_norm": 1714
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "chicago": {
+      "slug": "chicago",
+      "icao": "KORD",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 60,
+      "n_cold_bust": 33,
+      "n_normal": 1732,
+      "stats": {
+        "HOT_BUST": {
+          "n": 60,
+          "n_normal": 1732,
+          "pct_of_days": 3.3,
+          "residual_mean": 1.92,
+          "residual_p90": 2.28,
+          "rapid_rise_rate_bust": 0.433,
+          "rapid_rise_rate_normal": 0.629,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.304,
+              "bust_std": 2.179,
+              "norm_mean": 4.279,
+              "norm_std": 2.378,
+              "z_score": -0.43,
+              "n_bust": 60,
+              "n_norm": 1731
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.379,
+              "bust_std": 0.336,
+              "norm_mean": 0.515,
+              "norm_std": 0.347,
+              "z_score": -0.4,
+              "n_bust": 60,
+              "n_norm": 1732
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.433,
+              "bust_std": 0.5,
+              "norm_mean": 0.629,
+              "norm_std": 0.483,
+              "z_score": -0.4,
+              "n_bust": 60,
+              "n_norm": 1732
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 8.367,
+              "bust_std": 5.837,
+              "norm_mean": 6.657,
+              "norm_std": 4.064,
+              "z_score": 0.34,
+              "n_bust": 60,
+              "n_norm": 1731
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.037,
+              "bust_std": 0.813,
+              "norm_mean": 0.235,
+              "norm_std": 0.609,
+              "z_score": -0.28,
+              "n_bust": 60,
+              "n_norm": 1731
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.482,
+              "bust_std": 6.24,
+              "norm_mean": -0.058,
+              "norm_std": 5.158,
+              "z_score": 0.27,
+              "n_bust": 60,
+              "n_norm": 1731
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 33,
+          "n_normal": 1732,
+          "pct_of_days": 1.9,
+          "residual_mean": -2.25,
+          "residual_p90": -1.54,
+          "rapid_rise_rate_bust": 0.485,
+          "rapid_rise_rate_normal": 0.629,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.012,
+              "bust_std": 0.574,
+              "norm_mean": 0.235,
+              "norm_std": 0.609,
+              "z_score": -0.42,
+              "n_bust": 33,
+              "n_norm": 1731
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 8.212,
+              "bust_std": 3.672,
+              "norm_mean": 6.657,
+              "norm_std": 4.064,
+              "z_score": 0.4,
+              "n_bust": 33,
+              "n_norm": 1731
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.485,
+              "bust_std": 0.508,
+              "norm_mean": 0.629,
+              "norm_std": 0.483,
+              "z_score": -0.29,
+              "n_bust": 33,
+              "n_norm": 1732
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.552,
+              "bust_std": 0.345,
+              "norm_mean": 0.515,
+              "norm_std": 0.347,
+              "z_score": 0.11,
+              "n_bust": 33,
+              "n_norm": 1732
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.328,
+              "bust_std": 5.048,
+              "norm_mean": -0.058,
+              "norm_std": 5.158,
+              "z_score": 0.08,
+              "n_bust": 33,
+              "n_norm": 1731
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.429,
+              "bust_std": 2.938,
+              "norm_mean": 4.279,
+              "norm_std": 2.378,
+              "z_score": 0.06,
+              "n_bust": 33,
+              "n_norm": 1731
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "los-angeles": {
+      "slug": "los-angeles",
+      "icao": "KLAX",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 5,
+      "n_cold_bust": 69,
+      "n_normal": 1751,
+      "stats": {
+        "HOT_BUST": {
+          "n": 5,
+          "n_normal": 1751,
+          "pct_of_days": 0.3,
+          "residual_mean": 2.2,
+          "residual_p90": 3.15,
+          "rapid_rise_rate_bust": 0.8,
+          "rapid_rise_rate_normal": 0.659,
+          "features": [
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.538,
+              "bust_std": 1.198,
+              "norm_mean": -0.006,
+              "norm_std": 1.926,
+              "z_score": 0.96,
+              "n_bust": 5,
+              "n_norm": 1751
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 1.148,
+              "bust_std": 1.54,
+              "norm_mean": 0.632,
+              "norm_std": 0.547,
+              "z_score": 0.45,
+              "n_bust": 5,
+              "n_norm": 1751
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.8,
+              "bust_std": 0.447,
+              "norm_mean": 0.659,
+              "norm_std": 0.474,
+              "z_score": 0.31,
+              "n_bust": 5,
+              "n_norm": 1751
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.54,
+              "bust_std": 0.42,
+              "norm_mean": 0.621,
+              "norm_std": 0.298,
+              "z_score": -0.22,
+              "n_bust": 5,
+              "n_norm": 1751
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.556,
+              "bust_std": 3.735,
+              "norm_mean": 3.818,
+              "norm_std": 4.012,
+              "z_score": 0.19,
+              "n_bust": 5,
+              "n_norm": 1751
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 3.8,
+              "bust_std": 0.837,
+              "norm_mean": 3.521,
+              "norm_std": 2.789,
+              "z_score": 0.14,
+              "n_bust": 5,
+              "n_norm": 1750
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 69,
+          "n_normal": 1751,
+          "pct_of_days": 3.8,
+          "residual_mean": -1.86,
+          "residual_p90": -1.54,
+          "rapid_rise_rate_bust": 0.739,
+          "rapid_rise_rate_normal": 0.659,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.737,
+              "bust_std": 5.094,
+              "norm_mean": 3.818,
+              "norm_std": 4.012,
+              "z_score": 0.2,
+              "n_bust": 69,
+              "n_norm": 1751
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 3.087,
+              "bust_std": 2.418,
+              "norm_mean": 3.521,
+              "norm_std": 2.789,
+              "z_score": -0.17,
+              "n_bust": 69,
+              "n_norm": 1750
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.739,
+              "bust_std": 0.442,
+              "norm_mean": 0.659,
+              "norm_std": 0.474,
+              "z_score": 0.17,
+              "n_bust": 69,
+              "n_norm": 1751
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.681,
+              "bust_std": 0.598,
+              "norm_mean": 0.632,
+              "norm_std": 0.547,
+              "z_score": 0.08,
+              "n_bust": 69,
+              "n_norm": 1751
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.049,
+              "bust_std": 2.071,
+              "norm_mean": -0.006,
+              "norm_std": 1.926,
+              "z_score": 0.03,
+              "n_bust": 69,
+              "n_norm": 1751
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.617,
+              "bust_std": 0.279,
+              "norm_mean": 0.621,
+              "norm_std": 0.298,
+              "z_score": -0.02,
+              "n_bust": 69,
+              "n_norm": 1751
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": [
+            {
+              "feature": "temp_anom_m6",
+              "direction": "above",
+              "threshold": 0.94,
+              "z_score": 0.96
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "miami": {
+      "slug": "miami",
+      "icao": "KMIA",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 137,
+      "n_cold_bust": 14,
+      "n_normal": 1674,
+      "stats": {
+        "HOT_BUST": {
+          "n": 137,
+          "n_normal": 1674,
+          "pct_of_days": 7.6,
+          "residual_mean": 1.91,
+          "residual_p90": 2.38,
+          "rapid_rise_rate_bust": 0.847,
+          "rapid_rise_rate_normal": 0.762,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.762,
+              "bust_std": 1.947,
+              "norm_mean": 3.242,
+              "norm_std": 1.787,
+              "z_score": -0.26,
+              "n_bust": 137,
+              "n_norm": 1674
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 3.248,
+              "bust_std": 3.041,
+              "norm_mean": 4.104,
+              "norm_std": 3.505,
+              "z_score": -0.26,
+              "n_bust": 137,
+              "n_norm": 1673
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.847,
+              "bust_std": 0.362,
+              "norm_mean": 0.762,
+              "norm_std": 0.426,
+              "z_score": 0.21,
+              "n_bust": 137,
+              "n_norm": 1674
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.359,
+              "bust_std": 2.253,
+              "norm_mean": 0.031,
+              "norm_std": 2.557,
+              "z_score": -0.16,
+              "n_bust": 137,
+              "n_norm": 1674
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.951,
+              "bust_std": 0.505,
+              "norm_mean": 0.908,
+              "norm_std": 0.51,
+              "z_score": 0.08,
+              "n_bust": 137,
+              "n_norm": 1673
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.649,
+              "bust_std": 0.226,
+              "norm_mean": 0.654,
+              "norm_std": 0.214,
+              "z_score": -0.03,
+              "n_bust": 137,
+              "n_norm": 1674
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 14,
+          "n_normal": 1674,
+          "pct_of_days": 0.8,
+          "residual_mean": -1.99,
+          "residual_p90": -1.54,
+          "rapid_rise_rate_bust": 0.714,
+          "rapid_rise_rate_normal": 0.762,
+          "features": [
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 2.643,
+              "bust_std": 1.985,
+              "norm_mean": 4.104,
+              "norm_std": 3.505,
+              "z_score": -0.51,
+              "n_bust": 14,
+              "n_norm": 1673
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.604,
+              "bust_std": 0.237,
+              "norm_mean": 0.654,
+              "norm_std": 0.214,
+              "z_score": -0.22,
+              "n_bust": 14,
+              "n_norm": 1674
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.979,
+              "bust_std": 0.312,
+              "norm_mean": 0.908,
+              "norm_std": 0.51,
+              "z_score": 0.17,
+              "n_bust": 14,
+              "n_norm": 1673
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.224,
+              "bust_std": 1.701,
+              "norm_mean": 0.031,
+              "norm_std": 2.557,
+              "z_score": -0.12,
+              "n_bust": 14,
+              "n_norm": 1674
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.714,
+              "bust_std": 0.469,
+              "norm_mean": 0.762,
+              "norm_std": 0.426,
+              "z_score": -0.11,
+              "n_bust": 14,
+              "n_norm": 1674
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.254,
+              "bust_std": 1.129,
+              "norm_mean": 3.242,
+              "norm_std": 1.787,
+              "z_score": 0.01,
+              "n_bust": 14,
+              "n_norm": 1674
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "san-francisco": {
+      "slug": "san-francisco",
+      "icao": "KSFO",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 56,
+      "n_cold_bust": 419,
+      "n_normal": 1350,
+      "stats": {
+        "HOT_BUST": {
+          "n": 56,
+          "n_normal": 1350,
+          "pct_of_days": 4.0,
+          "residual_mean": 1.97,
+          "residual_p90": 2.53,
+          "rapid_rise_rate_bust": 0.607,
+          "rapid_rise_rate_normal": 0.622,
+          "features": [
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.267,
+              "bust_std": 2.467,
+              "norm_mean": 0.06,
+              "norm_std": 2.133,
+              "z_score": 0.52,
+              "n_bust": 56,
+              "n_norm": 1350
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.327,
+              "bust_std": 0.565,
+              "norm_mean": 0.493,
+              "norm_std": 0.513,
+              "z_score": -0.31,
+              "n_bust": 56,
+              "n_norm": 1349
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.107,
+              "bust_std": 5.476,
+              "norm_mean": 6.071,
+              "norm_std": 4.622,
+              "z_score": 0.2,
+              "n_bust": 56,
+              "n_norm": 1350
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.403,
+              "bust_std": 1.631,
+              "norm_mean": 3.12,
+              "norm_std": 1.947,
+              "z_score": 0.16,
+              "n_bust": 56,
+              "n_norm": 1350
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.684,
+              "bust_std": 0.211,
+              "norm_mean": 0.695,
+              "norm_std": 0.242,
+              "z_score": -0.05,
+              "n_bust": 56,
+              "n_norm": 1350
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.607,
+              "bust_std": 0.493,
+              "norm_mean": 0.622,
+              "norm_std": 0.485,
+              "z_score": -0.03,
+              "n_bust": 56,
+              "n_norm": 1350
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 419,
+          "n_normal": 1350,
+          "pct_of_days": 23.7,
+          "residual_mean": -3.05,
+          "residual_p90": -1.63,
+          "rapid_rise_rate_bust": 0.811,
+          "rapid_rise_rate_normal": 0.622,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.814,
+              "bust_std": 0.537,
+              "norm_mean": 0.493,
+              "norm_std": 0.513,
+              "z_score": 0.61,
+              "n_bust": 419,
+              "n_norm": 1349
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.811,
+              "bust_std": 0.392,
+              "norm_mean": 0.622,
+              "norm_std": 0.485,
+              "z_score": 0.43,
+              "n_bust": 419,
+              "n_norm": 1350
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.543,
+              "bust_std": 1.936,
+              "norm_mean": 3.12,
+              "norm_std": 1.947,
+              "z_score": -0.3,
+              "n_bust": 419,
+              "n_norm": 1350
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.362,
+              "bust_std": 1.85,
+              "norm_mean": 0.06,
+              "norm_std": 2.133,
+              "z_score": -0.21,
+              "n_bust": 419,
+              "n_norm": 1350
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.719,
+              "bust_std": 0.221,
+              "norm_mean": 0.695,
+              "norm_std": 0.242,
+              "z_score": 0.1,
+              "n_bust": 419,
+              "n_norm": 1350
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 6.069,
+              "bust_std": 3.813,
+              "norm_mean": 6.071,
+              "norm_std": 4.622,
+              "z_score": -0.0,
+              "n_bust": 419,
+              "n_norm": 1350
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "tokyo": {
+      "slug": "tokyo",
+      "icao": "RJTT",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 119,
+      "n_cold_bust": 196,
+      "n_normal": 1429,
+      "stats": {
+        "HOT_BUST": {
+          "n": 119,
+          "n_normal": 1429,
+          "pct_of_days": 7.7,
+          "residual_mean": 1.95,
+          "residual_p90": 2.6,
+          "rapid_rise_rate_bust": 0.0,
+          "rapid_rise_rate_normal": 0.0,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 6.563,
+              "bust_std": 4.037,
+              "norm_mean": 5.737,
+              "norm_std": 3.657,
+              "z_score": 0.21,
+              "n_bust": 119,
+              "n_norm": 1428
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.555,
+              "bust_std": 3.258,
+              "norm_mean": -0.026,
+              "norm_std": 2.872,
+              "z_score": 0.19,
+              "n_bust": 119,
+              "n_norm": 1428
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 9.983,
+              "bust_std": 5.219,
+              "norm_mean": 9.043,
+              "norm_std": 4.944,
+              "z_score": 0.18,
+              "n_bust": 119,
+              "n_norm": 1428
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.655,
+              "bust_std": 1.27,
+              "norm_mean": 0.718,
+              "norm_std": 0.874,
+              "z_score": -0.06,
+              "n_bust": 119,
+              "n_norm": 1428
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.729,
+              "bust_std": 0.099,
+              "norm_mean": 0.726,
+              "norm_std": 0.104,
+              "z_score": 0.03,
+              "n_bust": 108,
+              "n_norm": 1322
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.0,
+              "bust_std": 0.0,
+              "norm_mean": 0.0,
+              "norm_std": 0.0,
+              "z_score": 0.0,
+              "n_bust": 119,
+              "n_norm": 1429
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 196,
+          "n_normal": 1429,
+          "pct_of_days": 12.1,
+          "residual_mean": -2.11,
+          "residual_p90": -1.55,
+          "rapid_rise_rate_bust": 0.0,
+          "rapid_rise_rate_normal": 0.0,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.709,
+              "bust_std": 2.822,
+              "norm_mean": 5.737,
+              "norm_std": 3.657,
+              "z_score": -0.31,
+              "n_bust": 196,
+              "n_norm": 1428
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 8.51,
+              "bust_std": 4.633,
+              "norm_mean": 9.043,
+              "norm_std": 4.944,
+              "z_score": -0.11,
+              "n_bust": 196,
+              "n_norm": 1428
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.244,
+              "bust_std": 2.959,
+              "norm_mean": -0.026,
+              "norm_std": 2.872,
+              "z_score": -0.07,
+              "n_bust": 196,
+              "n_norm": 1428
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.699,
+              "bust_std": 0.778,
+              "norm_mean": 0.718,
+              "norm_std": 0.874,
+              "z_score": -0.02,
+              "n_bust": 196,
+              "n_norm": 1428
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.728,
+              "bust_std": 0.103,
+              "norm_mean": 0.726,
+              "norm_std": 0.104,
+              "z_score": 0.01,
+              "n_bust": 187,
+              "n_norm": 1322
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.0,
+              "bust_std": 0.0,
+              "norm_mean": 0.0,
+              "norm_std": 0.0,
+              "z_score": 0.0,
+              "n_bust": 196,
+              "n_norm": 1429
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "london": {
+      "slug": "london",
+      "icao": "EGLC",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 143,
+      "n_cold_bust": 83,
+      "n_normal": 1518,
+      "stats": {
+        "HOT_BUST": {
+          "n": 143,
+          "n_normal": 1518,
+          "pct_of_days": 8.6,
+          "residual_mean": 1.87,
+          "residual_p90": 2.4,
+          "rapid_rise_rate_bust": 0.378,
+          "rapid_rise_rate_normal": 0.238,
+          "features": [
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.378,
+              "bust_std": 0.486,
+              "norm_mean": 0.238,
+              "norm_std": 0.426,
+              "z_score": 0.31,
+              "n_bust": 143,
+              "n_norm": 1518
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.0,
+              "bust_std": 1.823,
+              "norm_mean": 3.425,
+              "norm_std": 2.004,
+              "z_score": -0.22,
+              "n_bust": 143,
+              "n_norm": 1516
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.588,
+              "bust_std": 3.131,
+              "norm_mean": 0.013,
+              "norm_std": 3.007,
+              "z_score": 0.19,
+              "n_bust": 143,
+              "n_norm": 1517
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.869,
+              "bust_std": 0.708,
+              "norm_mean": 0.826,
+              "norm_std": 0.617,
+              "z_score": 0.06,
+              "n_bust": 143,
+              "n_norm": 1517
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.299,
+              "bust_std": 0.234,
+              "norm_mean": 0.287,
+              "norm_std": 0.252,
+              "z_score": 0.05,
+              "n_bust": 93,
+              "n_norm": 808
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.091,
+              "bust_std": 3.836,
+              "norm_mean": 6.941,
+              "norm_std": 3.623,
+              "z_score": 0.04,
+              "n_bust": 143,
+              "n_norm": 1517
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 83,
+          "n_normal": 1518,
+          "pct_of_days": 5.2,
+          "residual_mean": -2.08,
+          "residual_p90": -1.5,
+          "rapid_rise_rate_bust": 0.133,
+          "rapid_rise_rate_normal": 0.238,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.096,
+              "bust_std": 2.261,
+              "norm_mean": 3.425,
+              "norm_std": 2.004,
+              "z_score": 0.31,
+              "n_bust": 83,
+              "n_norm": 1516
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.216,
+              "bust_std": 0.276,
+              "norm_mean": 0.287,
+              "norm_std": 0.252,
+              "z_score": -0.27,
+              "n_bust": 59,
+              "n_norm": 808
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.133,
+              "bust_std": 0.341,
+              "norm_mean": 0.238,
+              "norm_std": 0.426,
+              "z_score": -0.27,
+              "n_bust": 83,
+              "n_norm": 1518
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.679,
+              "bust_std": 0.608,
+              "norm_mean": 0.826,
+              "norm_std": 0.617,
+              "z_score": -0.24,
+              "n_bust": 83,
+              "n_norm": 1517
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 6.398,
+              "bust_std": 2.951,
+              "norm_mean": 6.941,
+              "norm_std": 3.623,
+              "z_score": -0.16,
+              "n_bust": 83,
+              "n_norm": 1517
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.453,
+              "bust_std": 3.018,
+              "norm_mean": 0.013,
+              "norm_std": 3.007,
+              "z_score": -0.15,
+              "n_bust": 83,
+              "n_norm": 1517
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "dallas": {
+      "slug": "dallas",
+      "icao": "KDAL",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 28,
+      "n_cold_bust": 164,
+      "n_normal": 1633,
+      "stats": {
+        "HOT_BUST": {
+          "n": 28,
+          "n_normal": 1633,
+          "pct_of_days": 1.7,
+          "residual_mean": 2.02,
+          "residual_p90": 2.49,
+          "rapid_rise_rate_bust": 0.464,
+          "rapid_rise_rate_normal": 0.56,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.548,
+              "bust_std": 2.999,
+              "norm_mean": 5.374,
+              "norm_std": 3.397,
+              "z_score": -0.57,
+              "n_bust": 28,
+              "n_norm": 1632
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.157,
+              "bust_std": 0.301,
+              "norm_mean": -0.324,
+              "norm_std": 0.433,
+              "z_score": 0.45,
+              "n_bust": 28,
+              "n_norm": 1632
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.464,
+              "bust_std": 0.508,
+              "norm_mean": 0.56,
+              "norm_std": 0.497,
+              "z_score": -0.19,
+              "n_bust": 28,
+              "n_norm": 1633
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.568,
+              "bust_std": 0.347,
+              "norm_mean": 0.599,
+              "norm_std": 0.346,
+              "z_score": -0.09,
+              "n_bust": 28,
+              "n_norm": 1632
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.423,
+              "bust_std": 5.758,
+              "norm_mean": -0.046,
+              "norm_std": 4.903,
+              "z_score": -0.07,
+              "n_bust": 28,
+              "n_norm": 1632
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 6.071,
+              "bust_std": 4.936,
+              "norm_mean": 5.81,
+              "norm_std": 4.023,
+              "z_score": 0.06,
+              "n_bust": 28,
+              "n_norm": 1632
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 164,
+          "n_normal": 1633,
+          "pct_of_days": 9.1,
+          "residual_mean": -1.99,
+          "residual_p90": -1.53,
+          "rapid_rise_rate_bust": 0.524,
+          "rapid_rise_rate_normal": 0.56,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 6.751,
+              "bust_std": 4.145,
+              "norm_mean": 5.374,
+              "norm_std": 3.397,
+              "z_score": 0.36,
+              "n_bust": 164,
+              "n_norm": 1632
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.146,
+              "bust_std": 3.358,
+              "norm_mean": 5.81,
+              "norm_std": 4.023,
+              "z_score": 0.36,
+              "n_bust": 164,
+              "n_norm": 1632
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.425,
+              "bust_std": 0.447,
+              "norm_mean": -0.324,
+              "norm_std": 0.433,
+              "z_score": -0.23,
+              "n_bust": 164,
+              "n_norm": 1632
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.525,
+              "bust_std": 4.109,
+              "norm_mean": -0.046,
+              "norm_std": 4.903,
+              "z_score": 0.13,
+              "n_bust": 164,
+              "n_norm": 1632
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.524,
+              "bust_std": 0.501,
+              "norm_mean": 0.56,
+              "norm_std": 0.497,
+              "z_score": -0.07,
+              "n_bust": 164,
+              "n_norm": 1633
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.58,
+              "bust_std": 0.315,
+              "norm_mean": 0.599,
+              "norm_std": 0.346,
+              "z_score": -0.06,
+              "n_bust": 164,
+              "n_norm": 1632
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "houston": {
+      "slug": "houston",
+      "icao": "KHOU",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 69,
+      "n_cold_bust": 56,
+      "n_normal": 1700,
+      "stats": {
+        "HOT_BUST": {
+          "n": 69,
+          "n_normal": 1700,
+          "pct_of_days": 3.9,
+          "residual_mean": 1.97,
+          "residual_p90": 2.6,
+          "rapid_rise_rate_bust": 0.435,
+          "rapid_rise_rate_normal": 0.639,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.02,
+              "bust_std": 0.261,
+              "norm_mean": -0.126,
+              "norm_std": 0.366,
+              "z_score": 0.46,
+              "n_bust": 69,
+              "n_norm": 1699
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.435,
+              "bust_std": 0.499,
+              "norm_mean": 0.639,
+              "norm_std": 0.48,
+              "z_score": -0.42,
+              "n_bust": 69,
+              "n_norm": 1700
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.527,
+              "bust_std": 1.75,
+              "norm_mean": 3.346,
+              "norm_std": 2.502,
+              "z_score": -0.38,
+              "n_bust": 69,
+              "n_norm": 1699
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.45,
+              "bust_std": 0.33,
+              "norm_mean": 0.575,
+              "norm_std": 0.337,
+              "z_score": -0.38,
+              "n_bust": 69,
+              "n_norm": 1700
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.148,
+              "bust_std": 4.322,
+              "norm_mean": -0.008,
+              "norm_std": 4.322,
+              "z_score": 0.27,
+              "n_bust": 69,
+              "n_norm": 1699
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 5.914,
+              "bust_std": 4.68,
+              "norm_mean": 5.598,
+              "norm_std": 4.145,
+              "z_score": 0.07,
+              "n_bust": 69,
+              "n_norm": 1698
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 56,
+          "n_normal": 1700,
+          "pct_of_days": 3.2,
+          "residual_mean": -1.97,
+          "residual_p90": -1.56,
+          "rapid_rise_rate_bust": 0.5,
+          "rapid_rise_rate_normal": 0.639,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.433,
+              "bust_std": 0.467,
+              "norm_mean": -0.126,
+              "norm_std": 0.366,
+              "z_score": -0.73,
+              "n_bust": 56,
+              "n_norm": 1699
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 8.321,
+              "bust_std": 5.397,
+              "norm_mean": 5.598,
+              "norm_std": 4.145,
+              "z_score": 0.57,
+              "n_bust": 56,
+              "n_norm": 1698
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 5.178,
+              "bust_std": 4.278,
+              "norm_mean": 3.346,
+              "norm_std": 2.502,
+              "z_score": 0.52,
+              "n_bust": 56,
+              "n_norm": 1699
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -1.185,
+              "bust_std": 3.637,
+              "norm_mean": -0.008,
+              "norm_std": 4.322,
+              "z_score": -0.29,
+              "n_bust": 56,
+              "n_norm": 1699
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.5,
+              "bust_std": 0.505,
+              "norm_mean": 0.639,
+              "norm_std": 0.48,
+              "z_score": -0.28,
+              "n_bust": 56,
+              "n_norm": 1700
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.63,
+              "bust_std": 0.364,
+              "norm_mean": 0.575,
+              "norm_std": 0.337,
+              "z_score": 0.16,
+              "n_bust": 56,
+              "n_norm": 1700
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "seattle": {
+      "slug": "seattle",
+      "icao": "KSEA",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 106,
+      "n_cold_bust": 26,
+      "n_normal": 1693,
+      "stats": {
+        "HOT_BUST": {
+          "n": 106,
+          "n_normal": 1693,
+          "pct_of_days": 5.9,
+          "residual_mean": 1.9,
+          "residual_p90": 2.46,
+          "rapid_rise_rate_bust": 0.132,
+          "rapid_rise_rate_normal": 0.174,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.138,
+              "bust_std": 0.382,
+              "norm_mean": -0.292,
+              "norm_std": 0.377,
+              "z_score": 0.41,
+              "n_bust": 106,
+              "n_norm": 1693
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.434,
+              "bust_std": 4.464,
+              "norm_mean": 6.07,
+              "norm_std": 3.697,
+              "z_score": 0.33,
+              "n_bust": 106,
+              "n_norm": 1693
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.424,
+              "bust_std": 0.315,
+              "norm_mean": 0.495,
+              "norm_std": 0.36,
+              "z_score": -0.21,
+              "n_bust": 106,
+              "n_norm": 1693
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.332,
+              "bust_std": 2.88,
+              "norm_mean": 3.811,
+              "norm_std": 2.739,
+              "z_score": -0.17,
+              "n_bust": 106,
+              "n_norm": 1693
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.33,
+              "bust_std": 2.946,
+              "norm_mean": -0.048,
+              "norm_std": 2.975,
+              "z_score": 0.13,
+              "n_bust": 106,
+              "n_norm": 1693
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.132,
+              "bust_std": 0.34,
+              "norm_mean": 0.174,
+              "norm_std": 0.379,
+              "z_score": -0.12,
+              "n_bust": 106,
+              "n_norm": 1693
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 26,
+          "n_normal": 1693,
+          "pct_of_days": 1.5,
+          "residual_mean": -2.3,
+          "residual_p90": -1.61,
+          "rapid_rise_rate_bust": 0.077,
+          "rapid_rise_rate_normal": 0.174,
+          "features": [
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.793,
+              "bust_std": 3.811,
+              "norm_mean": -0.048,
+              "norm_std": 2.975,
+              "z_score": 0.54,
+              "n_bust": 26,
+              "n_norm": 1693
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.077,
+              "bust_std": 0.272,
+              "norm_mean": 0.174,
+              "norm_std": 0.379,
+              "z_score": -0.29,
+              "n_bust": 26,
+              "n_norm": 1693
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 5.692,
+              "bust_std": 2.753,
+              "norm_mean": 6.07,
+              "norm_std": 3.697,
+              "z_score": -0.12,
+              "n_bust": 26,
+              "n_norm": 1693
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.321,
+              "bust_std": 0.411,
+              "norm_mean": -0.292,
+              "norm_std": 0.377,
+              "z_score": -0.07,
+              "n_bust": 26,
+              "n_norm": 1693
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.91,
+              "bust_std": 2.782,
+              "norm_mean": 3.811,
+              "norm_std": 2.739,
+              "z_score": 0.04,
+              "n_bust": 26,
+              "n_norm": 1693
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.502,
+              "bust_std": 0.33,
+              "norm_mean": 0.495,
+              "norm_std": 0.36,
+              "z_score": 0.02,
+              "n_bust": 26,
+              "n_norm": 1693
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "denver": {
+      "slug": "denver",
+      "icao": "KBKF",
+      "bust_thresh": 1.5,
+      "n_total": 1817,
+      "n_hot_bust": 62,
+      "n_cold_bust": 215,
+      "n_normal": 1540,
+      "stats": {
+        "HOT_BUST": {
+          "n": 62,
+          "n_normal": 1540,
+          "pct_of_days": 3.9,
+          "residual_mean": 2.06,
+          "residual_p90": 2.88,
+          "rapid_rise_rate_bust": 0.742,
+          "rapid_rise_rate_normal": 0.794,
+          "features": [
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.016,
+              "bust_std": 3.587,
+              "norm_mean": 7.526,
+              "norm_std": 3.81,
+              "z_score": -0.14,
+              "n_bust": 62,
+              "n_norm": 1538
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 7.489,
+              "bust_std": 5.656,
+              "norm_mean": 8.152,
+              "norm_std": 5.466,
+              "z_score": -0.12,
+              "n_bust": 62,
+              "n_norm": 1538
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.742,
+              "bust_std": 0.441,
+              "norm_mean": 0.794,
+              "norm_std": 0.405,
+              "z_score": -0.12,
+              "n_bust": 62,
+              "n_norm": 1540
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.25,
+              "bust_std": 0.484,
+              "norm_mean": -0.306,
+              "norm_std": 0.551,
+              "z_score": 0.11,
+              "n_bust": 62,
+              "n_norm": 1536
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.657,
+              "bust_std": 0.295,
+              "norm_mean": 0.689,
+              "norm_std": 0.286,
+              "z_score": -0.11,
+              "n_bust": 62,
+              "n_norm": 1538
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.247,
+              "bust_std": 5.309,
+              "norm_mean": -0.033,
+              "norm_std": 4.742,
+              "z_score": -0.04,
+              "n_bust": 62,
+              "n_norm": 1538
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 215,
+          "n_normal": 1540,
+          "pct_of_days": 12.3,
+          "residual_mean": -2.71,
+          "residual_p90": -1.6,
+          "rapid_rise_rate_bust": 0.512,
+          "rapid_rise_rate_normal": 0.794,
+          "features": [
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.512,
+              "bust_std": 0.501,
+              "norm_mean": 0.794,
+              "norm_std": 0.405,
+              "z_score": -0.62,
+              "n_bust": 215,
+              "n_norm": 1540
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.562,
+              "bust_std": 0.291,
+              "norm_mean": 0.689,
+              "norm_std": 0.286,
+              "z_score": -0.44,
+              "n_bust": 214,
+              "n_norm": 1538
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.562,
+              "bust_std": 0.805,
+              "norm_mean": -0.306,
+              "norm_std": 0.551,
+              "z_score": -0.37,
+              "n_bust": 214,
+              "n_norm": 1536
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.308,
+              "bust_std": 5.073,
+              "norm_mean": -0.033,
+              "norm_std": 4.742,
+              "z_score": 0.07,
+              "n_bust": 214,
+              "n_norm": 1538
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 7.814,
+              "bust_std": 5.898,
+              "norm_mean": 8.152,
+              "norm_std": 5.466,
+              "z_score": -0.06,
+              "n_bust": 214,
+              "n_norm": 1538
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.374,
+              "bust_std": 3.863,
+              "norm_mean": 7.526,
+              "norm_std": 3.81,
+              "z_score": -0.04,
+              "n_bust": 214,
+              "n_norm": 1538
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "atlanta": {
+      "slug": "atlanta",
+      "icao": "KATL",
+      "bust_thresh": 1.5,
+      "n_total": 1825,
+      "n_hot_bust": 85,
+      "n_cold_bust": 16,
+      "n_normal": 1724,
+      "stats": {
+        "HOT_BUST": {
+          "n": 85,
+          "n_normal": 1724,
+          "pct_of_days": 4.7,
+          "residual_mean": 1.84,
+          "residual_p90": 2.28,
+          "rapid_rise_rate_bust": 0.518,
+          "rapid_rise_rate_normal": 0.672,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.513,
+              "bust_std": 1.651,
+              "norm_mean": 4.288,
+              "norm_std": 2.73,
+              "z_score": -0.79,
+              "n_bust": 85,
+              "n_norm": 1723
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 2.392,
+              "bust_std": 5.06,
+              "norm_mean": -0.102,
+              "norm_std": 4.228,
+              "z_score": 0.53,
+              "n_bust": 85,
+              "n_norm": 1723
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.518,
+              "bust_std": 0.503,
+              "norm_mean": 0.672,
+              "norm_std": 0.47,
+              "z_score": -0.32,
+              "n_bust": 85,
+              "n_norm": 1724
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.518,
+              "bust_std": 0.34,
+              "norm_mean": 0.597,
+              "norm_std": 0.319,
+              "z_score": -0.24,
+              "n_bust": 85,
+              "n_norm": 1723
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.02,
+              "bust_std": 0.361,
+              "norm_mean": -0.102,
+              "norm_std": 0.384,
+              "z_score": 0.22,
+              "n_bust": 85,
+              "n_norm": 1723
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 5.106,
+              "bust_std": 3.036,
+              "norm_mean": 5.744,
+              "norm_std": 3.655,
+              "z_score": -0.19,
+              "n_bust": 85,
+              "n_norm": 1723
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 16,
+          "n_normal": 1724,
+          "pct_of_days": 0.9,
+          "residual_mean": -2.31,
+          "residual_p90": -1.69,
+          "rapid_rise_rate_bust": 0.438,
+          "rapid_rise_rate_normal": 0.672,
+          "features": [
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 10.438,
+              "bust_std": 5.561,
+              "norm_mean": 5.744,
+              "norm_std": 3.655,
+              "z_score": 1.0,
+              "n_bust": 16,
+              "n_norm": 1723
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.333,
+              "bust_std": 0.281,
+              "norm_mean": -0.102,
+              "norm_std": 0.384,
+              "z_score": -0.69,
+              "n_bust": 16,
+              "n_norm": 1723
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.438,
+              "bust_std": 0.512,
+              "norm_mean": 0.672,
+              "norm_std": 0.47,
+              "z_score": -0.48,
+              "n_bust": 16,
+              "n_norm": 1724
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -1.771,
+              "bust_std": 3.324,
+              "norm_mean": -0.102,
+              "norm_std": 4.228,
+              "z_score": -0.44,
+              "n_bust": 16,
+              "n_norm": 1723
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 5.212,
+              "bust_std": 2.805,
+              "norm_mean": 4.288,
+              "norm_std": 2.73,
+              "z_score": 0.33,
+              "n_bust": 16,
+              "n_norm": 1723
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.659,
+              "bust_std": 0.282,
+              "norm_mean": 0.597,
+              "norm_std": 0.319,
+              "z_score": 0.21,
+              "n_bust": 16,
+              "n_norm": 1723
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": [
+            {
+              "feature": "wind_kt_m6",
+              "direction": "above",
+              "threshold": 7.66,
+              "z_score": 1.0
+            }
+          ]
+        }
+      }
+    },
+    "paris": {
+      "slug": "paris",
+      "icao": "LFPB",
+      "bust_thresh": 1.5,
+      "n_total": 1738,
+      "n_hot_bust": 85,
+      "n_cold_bust": 195,
+      "n_normal": 1458,
+      "stats": {
+        "HOT_BUST": {
+          "n": 85,
+          "n_normal": 1458,
+          "pct_of_days": 5.5,
+          "residual_mean": 1.99,
+          "residual_p90": 2.56,
+          "rapid_rise_rate_bust": 0.294,
+          "rapid_rise_rate_normal": 0.309,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.894,
+              "bust_std": 2.536,
+              "norm_mean": 3.828,
+              "norm_std": 3.068,
+              "z_score": -0.33,
+              "n_bust": 85,
+              "n_norm": 1450
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 6.024,
+              "bust_std": 3.222,
+              "norm_mean": 6.688,
+              "norm_std": 3.773,
+              "z_score": -0.19,
+              "n_bust": 85,
+              "n_norm": 1451
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.342,
+              "bust_std": 0.291,
+              "norm_mean": 0.304,
+              "norm_std": 0.295,
+              "z_score": 0.13,
+              "n_bust": 56,
+              "n_norm": 768
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.425,
+              "bust_std": 3.582,
+              "norm_mean": 0.081,
+              "norm_std": 3.576,
+              "z_score": 0.1,
+              "n_bust": 85,
+              "n_norm": 1450
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 1.012,
+              "bust_std": 0.666,
+              "norm_mean": 1.053,
+              "norm_std": 0.677,
+              "z_score": -0.06,
+              "n_bust": 85,
+              "n_norm": 1450
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.294,
+              "bust_std": 0.458,
+              "norm_mean": 0.309,
+              "norm_std": 0.462,
+              "z_score": -0.03,
+              "n_bust": 85,
+              "n_norm": 1458
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 195,
+          "n_normal": 1458,
+          "pct_of_days": 11.8,
+          "residual_mean": -2.27,
+          "residual_p90": -1.5,
+          "rapid_rise_rate_bust": 0.195,
+          "rapid_rise_rate_normal": 0.309,
+          "features": [
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.2,
+              "bust_std": 0.26,
+              "norm_mean": 0.304,
+              "norm_std": 0.295,
+              "z_score": -0.37,
+              "n_bust": 128,
+              "n_norm": 768
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.821,
+              "bust_std": 0.599,
+              "norm_mean": 1.053,
+              "norm_std": 0.677,
+              "z_score": -0.36,
+              "n_bust": 194,
+              "n_norm": 1450
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.908,
+              "bust_std": 2.7,
+              "norm_mean": 3.828,
+              "norm_std": 3.068,
+              "z_score": -0.32,
+              "n_bust": 195,
+              "n_norm": 1450
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 5.723,
+              "bust_std": 2.944,
+              "norm_mean": 6.688,
+              "norm_std": 3.773,
+              "z_score": -0.29,
+              "n_bust": 195,
+              "n_norm": 1451
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.195,
+              "bust_std": 0.397,
+              "norm_mean": 0.309,
+              "norm_std": 0.462,
+              "z_score": -0.27,
+              "n_bust": 195,
+              "n_norm": 1458
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.45,
+              "bust_std": 3.222,
+              "norm_mean": 0.081,
+              "norm_std": 3.576,
+              "z_score": -0.16,
+              "n_bust": 195,
+              "n_norm": 1450
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "madrid": {
+      "slug": "madrid",
+      "icao": "LEMD",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 473,
+      "n_cold_bust": 59,
+      "n_normal": 1212,
+      "stats": {
+        "HOT_BUST": {
+          "n": 473,
+          "n_normal": 1212,
+          "pct_of_days": 28.1,
+          "residual_mean": 1.98,
+          "residual_p90": 2.5,
+          "rapid_rise_rate_bust": 0.879,
+          "rapid_rise_rate_normal": 0.701,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 2.193,
+              "bust_std": 0.727,
+              "norm_mean": 1.733,
+              "norm_std": 0.818,
+              "z_score": 0.59,
+              "n_bust": 473,
+              "n_norm": 1211
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 8.837,
+              "bust_std": 5.922,
+              "norm_mean": 5.955,
+              "norm_std": 5.102,
+              "z_score": 0.52,
+              "n_bust": 473,
+              "n_norm": 1211
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.879,
+              "bust_std": 0.326,
+              "norm_mean": 0.701,
+              "norm_std": 0.458,
+              "z_score": 0.45,
+              "n_bust": 473,
+              "n_norm": 1212
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 3.042,
+              "bust_std": 2.557,
+              "norm_mean": 3.822,
+              "norm_std": 3.481,
+              "z_score": -0.26,
+              "n_bust": 473,
+              "n_norm": 1211
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.133,
+              "bust_std": 3.235,
+              "norm_mean": 0.051,
+              "norm_std": 3.587,
+              "z_score": -0.05,
+              "n_bust": 473,
+              "n_norm": 1211
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.536,
+              "bust_std": 0.234,
+              "norm_mean": 0.546,
+              "norm_std": 0.233,
+              "z_score": -0.04,
+              "n_bust": 105,
+              "n_norm": 493
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 59,
+          "n_normal": 1212,
+          "pct_of_days": 4.6,
+          "residual_mean": -2.33,
+          "residual_p90": -1.58,
+          "rapid_rise_rate_bust": 0.441,
+          "rapid_rise_rate_normal": 0.701,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.893,
+              "bust_std": 0.72,
+              "norm_mean": 1.733,
+              "norm_std": 0.818,
+              "z_score": -1.09,
+              "n_bust": 59,
+              "n_norm": 1211
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.153,
+              "bust_std": 2.188,
+              "norm_mean": 5.955,
+              "norm_std": 5.102,
+              "z_score": -0.97,
+              "n_bust": 59,
+              "n_norm": 1211
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.441,
+              "bust_std": 0.501,
+              "norm_mean": 0.701,
+              "norm_std": 0.458,
+              "z_score": -0.54,
+              "n_bust": 59,
+              "n_norm": 1212
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 2.61,
+              "bust_std": 2.189,
+              "norm_mean": 3.822,
+              "norm_std": 3.481,
+              "z_score": -0.42,
+              "n_bust": 59,
+              "n_norm": 1211
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.653,
+              "bust_std": 2.954,
+              "norm_mean": 0.051,
+              "norm_std": 3.587,
+              "z_score": 0.18,
+              "n_bust": 59,
+              "n_norm": 1211
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.518,
+              "bust_std": 0.246,
+              "norm_mean": 0.546,
+              "norm_std": 0.233,
+              "z_score": -0.11,
+              "n_bust": 41,
+              "n_norm": 493
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": [
+            {
+              "feature": "rise_rate_3h",
+              "direction": "below",
+              "threshold": 1.25,
+              "z_score": -1.09
+            },
+            {
+              "feature": "dew_spread_m6",
+              "direction": "below",
+              "threshold": 3.25,
+              "z_score": -0.97
+            }
+          ]
+        }
+      }
+    },
+    "amsterdam": {
+      "slug": "amsterdam",
+      "icao": "EHAM",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 69,
+      "n_cold_bust": 139,
+      "n_normal": 1536,
+      "stats": {
+        "HOT_BUST": {
+          "n": 69,
+          "n_normal": 1536,
+          "pct_of_days": 4.3,
+          "residual_mean": 1.86,
+          "residual_p90": 2.6,
+          "rapid_rise_rate_bust": 0.348,
+          "rapid_rise_rate_normal": 0.191,
+          "features": [
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.348,
+              "bust_std": 0.48,
+              "norm_mean": 0.191,
+              "norm_std": 0.394,
+              "z_score": 0.36,
+              "n_bust": 69,
+              "n_norm": 1536
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 11.13,
+              "bust_std": 5.985,
+              "norm_mean": 9.82,
+              "norm_std": 5.197,
+              "z_score": 0.23,
+              "n_bust": 69,
+              "n_norm": 1536
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.588,
+              "bust_std": 3.723,
+              "norm_mean": 0.118,
+              "norm_std": 3.158,
+              "z_score": -0.2,
+              "n_bust": 69,
+              "n_norm": 1536
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.536,
+              "bust_std": 0.703,
+              "norm_mean": 0.64,
+              "norm_std": 0.543,
+              "z_score": -0.16,
+              "n_bust": 69,
+              "n_norm": 1536
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.348,
+              "bust_std": 2.274,
+              "norm_mean": 3.702,
+              "norm_std": 2.725,
+              "z_score": -0.14,
+              "n_bust": 69,
+              "n_norm": 1536
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.689,
+              "bust_std": 0.155,
+              "norm_mean": 0.671,
+              "norm_std": 0.174,
+              "z_score": 0.11,
+              "n_bust": 61,
+              "n_norm": 1173
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 139,
+          "n_normal": 1536,
+          "pct_of_days": 8.3,
+          "residual_mean": -2.03,
+          "residual_p90": -1.5,
+          "rapid_rise_rate_bust": 0.122,
+          "rapid_rise_rate_normal": 0.191,
+          "features": [
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.489,
+              "bust_std": 3.471,
+              "norm_mean": 9.82,
+              "norm_std": 5.197,
+              "z_score": -0.53,
+              "n_bust": 139,
+              "n_norm": 1536
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.617,
+              "bust_std": 0.242,
+              "norm_mean": 0.671,
+              "norm_std": 0.174,
+              "z_score": -0.26,
+              "n_bust": 96,
+              "n_norm": 1173
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.259,
+              "bust_std": 3.265,
+              "norm_mean": 3.702,
+              "norm_std": 2.725,
+              "z_score": 0.19,
+              "n_bust": 139,
+              "n_norm": 1536
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.122,
+              "bust_std": 0.329,
+              "norm_mean": 0.191,
+              "norm_std": 0.394,
+              "z_score": -0.19,
+              "n_bust": 139,
+              "n_norm": 1536
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.061,
+              "bust_std": 3.502,
+              "norm_mean": 0.118,
+              "norm_std": 3.158,
+              "z_score": -0.05,
+              "n_bust": 139,
+              "n_norm": 1536
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.626,
+              "bust_std": 0.477,
+              "norm_mean": 0.64,
+              "norm_std": 0.543,
+              "z_score": -0.03,
+              "n_bust": 139,
+              "n_norm": 1536
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "beijing": {
+      "slug": "beijing",
+      "icao": "ZBAA",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 428,
+      "n_cold_bust": 337,
+      "n_normal": 979,
+      "stats": {
+        "HOT_BUST": {
+          "n": 428,
+          "n_normal": 979,
+          "pct_of_days": 30.4,
+          "residual_mean": 2.64,
+          "residual_p90": 4.1,
+          "rapid_rise_rate_bust": 0.348,
+          "rapid_rise_rate_normal": 0.23,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -1.679,
+              "bust_std": 0.985,
+              "norm_mean": -1.302,
+              "norm_std": 0.85,
+              "z_score": -0.41,
+              "n_bust": 428,
+              "n_norm": 979
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 20.159,
+              "bust_std": 7.983,
+              "norm_mean": 17.012,
+              "norm_std": 8.941,
+              "z_score": 0.37,
+              "n_bust": 428,
+              "n_norm": 979
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.52,
+              "bust_std": 0.271,
+              "norm_mean": 0.423,
+              "norm_std": 0.293,
+              "z_score": 0.34,
+              "n_bust": 25,
+              "n_norm": 95
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.348,
+              "bust_std": 0.477,
+              "norm_mean": 0.23,
+              "norm_std": 0.421,
+              "z_score": 0.26,
+              "n_bust": 428,
+              "n_norm": 979
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.84,
+              "bust_std": 4.319,
+              "norm_mean": -0.253,
+              "norm_std": 4.327,
+              "z_score": 0.25,
+              "n_bust": 428,
+              "n_norm": 979
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.562,
+              "bust_std": 5.147,
+              "norm_mean": 7.803,
+              "norm_std": 5.056,
+              "z_score": -0.05,
+              "n_bust": 428,
+              "n_norm": 979
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 337,
+          "n_normal": 979,
+          "pct_of_days": 25.6,
+          "residual_mean": -2.83,
+          "residual_p90": -1.6,
+          "rapid_rise_rate_bust": 0.142,
+          "rapid_rise_rate_normal": 0.23,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 11.685,
+              "bust_std": 6.598,
+              "norm_mean": 17.012,
+              "norm_std": 8.941,
+              "z_score": -0.68,
+              "n_bust": 337,
+              "n_norm": 979
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.91,
+              "bust_std": 0.697,
+              "norm_mean": -1.302,
+              "norm_std": 0.85,
+              "z_score": 0.5,
+              "n_bust": 337,
+              "n_norm": 979
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.529,
+              "bust_std": 0.261,
+              "norm_mean": 0.423,
+              "norm_std": 0.293,
+              "z_score": 0.38,
+              "n_bust": 52,
+              "n_norm": 95
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 6.265,
+              "bust_std": 3.186,
+              "norm_mean": 7.803,
+              "norm_std": 5.056,
+              "z_score": -0.36,
+              "n_bust": 337,
+              "n_norm": 979
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.142,
+              "bust_std": 0.35,
+              "norm_mean": 0.23,
+              "norm_std": 0.421,
+              "z_score": -0.23,
+              "n_bust": 337,
+              "n_norm": 979
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.145,
+              "bust_std": 4.466,
+              "norm_mean": -0.253,
+              "norm_std": 4.327,
+              "z_score": 0.02,
+              "n_bust": 337,
+              "n_norm": 979
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "shanghai": {
+      "slug": "shanghai",
+      "icao": "ZSPD",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 619,
+      "n_cold_bust": 44,
+      "n_normal": 1081,
+      "stats": {
+        "HOT_BUST": {
+          "n": 619,
+          "n_normal": 1081,
+          "pct_of_days": 36.4,
+          "residual_mean": 2.17,
+          "residual_p90": 3.0,
+          "rapid_rise_rate_bust": 0.015,
+          "rapid_rise_rate_normal": 0.028,
+          "features": [
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.481,
+              "bust_std": 0.237,
+              "norm_mean": 0.366,
+              "norm_std": 0.227,
+              "z_score": 0.5,
+              "n_bust": 226,
+              "n_norm": 517
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.966,
+              "bust_std": 0.59,
+              "norm_mean": -0.725,
+              "norm_std": 0.59,
+              "z_score": -0.41,
+              "n_bust": 619,
+              "n_norm": 1081
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 8.344,
+              "bust_std": 4.344,
+              "norm_mean": 6.992,
+              "norm_std": 4.745,
+              "z_score": 0.3,
+              "n_bust": 619,
+              "n_norm": 1081
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.528,
+              "bust_std": 3.581,
+              "norm_mean": -0.302,
+              "norm_std": 3.706,
+              "z_score": 0.23,
+              "n_bust": 619,
+              "n_norm": 1081
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.015,
+              "bust_std": 0.12,
+              "norm_mean": 0.028,
+              "norm_std": 0.164,
+              "z_score": -0.09,
+              "n_bust": 619,
+              "n_norm": 1081
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 11.321,
+              "bust_std": 3.448,
+              "norm_mean": 11.153,
+              "norm_std": 4.004,
+              "z_score": 0.05,
+              "n_bust": 619,
+              "n_norm": 1081
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 44,
+          "n_normal": 1081,
+          "pct_of_days": 3.9,
+          "residual_mean": -2.23,
+          "residual_p90": -1.6,
+          "rapid_rise_rate_bust": 0.0,
+          "rapid_rise_rate_normal": 0.028,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.591,
+              "bust_std": 3.187,
+              "norm_mean": 6.992,
+              "norm_std": 4.745,
+              "z_score": -0.84,
+              "n_bust": 44,
+              "n_norm": 1081
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.256,
+              "bust_std": 0.185,
+              "norm_mean": 0.366,
+              "norm_std": 0.227,
+              "z_score": -0.53,
+              "n_bust": 27,
+              "n_norm": 517
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.5,
+              "bust_std": 0.495,
+              "norm_mean": -0.725,
+              "norm_std": 0.59,
+              "z_score": 0.41,
+              "n_bust": 44,
+              "n_norm": 1081
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 10.162,
+              "bust_std": 3.973,
+              "norm_mean": 11.153,
+              "norm_std": 4.004,
+              "z_score": -0.25,
+              "n_bust": 44,
+              "n_norm": 1081
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.0,
+              "bust_std": 0.0,
+              "norm_mean": 0.028,
+              "norm_std": 0.164,
+              "z_score": -0.24,
+              "n_bust": 44,
+              "n_norm": 1081
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.669,
+              "bust_std": 4.081,
+              "norm_mean": -0.302,
+              "norm_std": 3.706,
+              "z_score": -0.09,
+              "n_bust": 44,
+              "n_norm": 1081
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": [
+            {
+              "feature": "dew_spread_m6",
+              "direction": "below",
+              "threshold": 5.18,
+              "z_score": -0.84
+            }
+          ]
+        }
+      }
+    },
+    "singapore": {
+      "slug": "singapore",
+      "icao": "WSSS",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 243,
+      "n_cold_bust": 92,
+      "n_normal": 1409,
+      "stats": {
+        "HOT_BUST": {
+          "n": 243,
+          "n_normal": 1409,
+          "pct_of_days": 14.7,
+          "residual_mean": 2.02,
+          "residual_p90": 2.7,
+          "rapid_rise_rate_bust": 0.029,
+          "rapid_rise_rate_normal": 0.067,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.697,
+              "bust_std": 0.554,
+              "norm_mean": -0.562,
+              "norm_std": 0.49,
+              "z_score": -0.26,
+              "n_bust": 243,
+              "n_norm": 1409
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.567,
+              "bust_std": 2.29,
+              "norm_mean": 0.036,
+              "norm_std": 1.947,
+              "z_score": 0.25,
+              "n_bust": 243,
+              "n_norm": 1409
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 6.165,
+              "bust_std": 2.761,
+              "norm_mean": 5.578,
+              "norm_std": 2.165,
+              "z_score": 0.24,
+              "n_bust": 243,
+              "n_norm": 1409
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.029,
+              "bust_std": 0.168,
+              "norm_mean": 0.067,
+              "norm_std": 0.251,
+              "z_score": -0.18,
+              "n_bust": 243,
+              "n_norm": 1409
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 8.819,
+              "bust_std": 3.345,
+              "norm_mean": 8.482,
+              "norm_std": 3.244,
+              "z_score": 0.1,
+              "n_bust": 243,
+              "n_norm": 1409
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.735,
+              "bust_std": 0.065,
+              "norm_mean": 0.734,
+              "norm_std": 0.069,
+              "z_score": 0.02,
+              "n_bust": 243,
+              "n_norm": 1409
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 92,
+          "n_normal": 1409,
+          "pct_of_days": 6.1,
+          "residual_mean": -2.18,
+          "residual_p90": -1.51,
+          "rapid_rise_rate_bust": 0.043,
+          "rapid_rise_rate_normal": 0.067,
+          "features": [
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -2.136,
+              "bust_std": 1.425,
+              "norm_mean": 0.036,
+              "norm_std": 1.947,
+              "z_score": -1.27,
+              "n_bust": 92,
+              "n_norm": 1409
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.533,
+              "bust_std": 1.448,
+              "norm_mean": 5.578,
+              "norm_std": 2.165,
+              "z_score": -1.11,
+              "n_bust": 92,
+              "n_norm": 1409
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 5.685,
+              "bust_std": 2.413,
+              "norm_mean": 8.482,
+              "norm_std": 3.244,
+              "z_score": -0.98,
+              "n_bust": 92,
+              "n_norm": 1409
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.243,
+              "bust_std": 0.313,
+              "norm_mean": -0.562,
+              "norm_std": 0.49,
+              "z_score": 0.78,
+              "n_bust": 92,
+              "n_norm": 1409
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.043,
+              "bust_std": 0.205,
+              "norm_mean": 0.067,
+              "norm_std": 0.251,
+              "z_score": -0.1,
+              "n_bust": 92,
+              "n_norm": 1409
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.73,
+              "bust_std": 0.074,
+              "norm_mean": 0.734,
+              "norm_std": 0.069,
+              "z_score": -0.05,
+              "n_bust": 92,
+              "n_norm": 1409
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": [
+            {
+              "feature": "temp_anom_m6",
+              "direction": "below",
+              "threshold": -1.42,
+              "z_score": -1.27
+            },
+            {
+              "feature": "dew_spread_m6",
+              "direction": "below",
+              "threshold": 4.26,
+              "z_score": -1.11
+            },
+            {
+              "feature": "wind_kt_m6",
+              "direction": "below",
+              "threshold": 6.89,
+              "z_score": -0.98
+            }
+          ]
+        }
+      }
+    },
+    "jakarta": {
+      "slug": "jakarta",
+      "icao": "WIHH",
+      "bust_thresh": 1.5,
+      "n_total": 1543,
+      "n_hot_bust": 310,
+      "n_cold_bust": 112,
+      "n_normal": 1121,
+      "stats": {
+        "HOT_BUST": {
+          "n": 310,
+          "n_normal": 1121,
+          "pct_of_days": 21.7,
+          "residual_mean": 2.24,
+          "residual_p90": 3.21,
+          "rapid_rise_rate_bust": 0.026,
+          "rapid_rise_rate_normal": 0.069,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 10.263,
+              "bust_std": 4.084,
+              "norm_mean": 7.866,
+              "norm_std": 3.267,
+              "z_score": 0.65,
+              "n_bust": 308,
+              "n_norm": 1107
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 10.265,
+              "bust_std": 3.665,
+              "norm_mean": 8.264,
+              "norm_std": 3.429,
+              "z_score": 0.56,
+              "n_bust": 309,
+              "n_norm": 1108
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.76,
+              "bust_std": 2.126,
+              "norm_mean": 0.016,
+              "norm_std": 2.365,
+              "z_score": 0.33,
+              "n_bust": 308,
+              "n_norm": 1107
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -1.014,
+              "bust_std": 0.561,
+              "norm_mean": -0.882,
+              "norm_std": 0.682,
+              "z_score": -0.21,
+              "n_bust": 292,
+              "n_norm": 1007
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.026,
+              "bust_std": 0.159,
+              "norm_mean": 0.069,
+              "norm_std": 0.253,
+              "z_score": -0.2,
+              "n_bust": 310,
+              "n_norm": 1121
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.528,
+              "bust_std": 0.142,
+              "norm_mean": 0.507,
+              "norm_std": 0.136,
+              "z_score": 0.15,
+              "n_bust": 301,
+              "n_norm": 1097
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 112,
+          "n_normal": 1121,
+          "pct_of_days": 9.1,
+          "residual_mean": -2.27,
+          "residual_p90": -1.5,
+          "rapid_rise_rate_bust": 0.027,
+          "rapid_rise_rate_normal": 0.069,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 4.602,
+              "bust_std": 2.626,
+              "norm_mean": 7.866,
+              "norm_std": 3.267,
+              "z_score": -1.1,
+              "n_bust": 108,
+              "n_norm": 1107
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -1.87,
+              "bust_std": 2.447,
+              "norm_mean": 0.016,
+              "norm_std": 2.365,
+              "z_score": -0.78,
+              "n_bust": 108,
+              "n_norm": 1107
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.444,
+              "bust_std": 0.556,
+              "norm_mean": -0.882,
+              "norm_std": 0.682,
+              "z_score": 0.7,
+              "n_bust": 90,
+              "n_norm": 1007
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 6.248,
+              "bust_std": 3.378,
+              "norm_mean": 8.264,
+              "norm_std": 3.429,
+              "z_score": -0.59,
+              "n_bust": 109,
+              "n_norm": 1108
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.471,
+              "bust_std": 0.137,
+              "norm_mean": 0.507,
+              "norm_std": 0.136,
+              "z_score": -0.26,
+              "n_bust": 108,
+              "n_norm": 1097
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.027,
+              "bust_std": 0.162,
+              "norm_mean": 0.069,
+              "norm_std": 0.253,
+              "z_score": -0.2,
+              "n_bust": 112,
+              "n_norm": 1121
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": [
+            {
+              "feature": "dew_spread_m6",
+              "direction": "below",
+              "threshold": 5.92,
+              "z_score": -1.1
+            }
+          ]
+        }
+      }
+    },
+    "toronto": {
+      "slug": "toronto",
+      "icao": "CYYZ",
+      "bust_thresh": 1.5,
+      "n_total": 1824,
+      "n_hot_bust": 31,
+      "n_cold_bust": 24,
+      "n_normal": 1769,
+      "stats": {
+        "HOT_BUST": {
+          "n": 31,
+          "n_normal": 1769,
+          "pct_of_days": 1.7,
+          "residual_mean": 2.05,
+          "residual_p90": 2.4,
+          "rapid_rise_rate_bust": 0.29,
+          "rapid_rise_rate_normal": 0.499,
+          "features": [
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.29,
+              "bust_std": 0.461,
+              "norm_mean": 0.499,
+              "norm_std": 0.5,
+              "z_score": -0.43,
+              "n_bust": 31,
+              "n_norm": 1769
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.452,
+              "bust_std": 0.31,
+              "norm_mean": 0.528,
+              "norm_std": 0.353,
+              "z_score": -0.23,
+              "n_bust": 31,
+              "n_norm": 1769
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.097,
+              "bust_std": 2.441,
+              "norm_mean": 3.541,
+              "norm_std": 2.679,
+              "z_score": -0.17,
+              "n_bust": 31,
+              "n_norm": 1769
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.645,
+              "bust_std": 5.161,
+              "norm_mean": 6.915,
+              "norm_std": 4.227,
+              "z_score": 0.15,
+              "n_bust": 31,
+              "n_norm": 1769
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.568,
+              "bust_std": 5.264,
+              "norm_mean": -0.007,
+              "norm_std": 4.518,
+              "z_score": 0.12,
+              "n_bust": 31,
+              "n_norm": 1769
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.043,
+              "bust_std": 0.543,
+              "norm_mean": -0.041,
+              "norm_std": 0.433,
+              "z_score": -0.0,
+              "n_bust": 31,
+              "n_norm": 1769
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 24,
+          "n_normal": 1769,
+          "pct_of_days": 1.3,
+          "residual_mean": -1.7,
+          "residual_p90": -1.5,
+          "rapid_rise_rate_bust": 0.625,
+          "rapid_rise_rate_normal": 0.499,
+          "features": [
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 5.25,
+              "bust_std": 2.739,
+              "norm_mean": 3.541,
+              "norm_std": 2.679,
+              "z_score": 0.63,
+              "n_bust": 24,
+              "n_norm": 1769
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.111,
+              "bust_std": 0.671,
+              "norm_mean": -0.041,
+              "norm_std": 0.433,
+              "z_score": 0.27,
+              "n_bust": 24,
+              "n_norm": 1769
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.625,
+              "bust_std": 0.495,
+              "norm_mean": 0.499,
+              "norm_std": 0.5,
+              "z_score": 0.25,
+              "n_bust": 24,
+              "n_norm": 1769
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.569,
+              "bust_std": 0.399,
+              "norm_mean": 0.528,
+              "norm_std": 0.353,
+              "z_score": 0.11,
+              "n_bust": 24,
+              "n_norm": 1769
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 7.375,
+              "bust_std": 4.168,
+              "norm_mean": 6.915,
+              "norm_std": 4.227,
+              "z_score": 0.11,
+              "n_bust": 24,
+              "n_norm": 1769
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.228,
+              "bust_std": 2.965,
+              "norm_mean": -0.007,
+              "norm_std": 4.518,
+              "z_score": -0.06,
+              "n_bust": 24,
+              "n_norm": 1769
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "mexico-city": {
+      "slug": "mexico-city",
+      "icao": "MMMX",
+      "bust_thresh": 1.5,
+      "n_total": 1743,
+      "n_hot_bust": 56,
+      "n_cold_bust": 288,
+      "n_normal": 1399,
+      "stats": {
+        "HOT_BUST": {
+          "n": 56,
+          "n_normal": 1399,
+          "pct_of_days": 3.8,
+          "residual_mean": 2.29,
+          "residual_p90": 2.75,
+          "rapid_rise_rate_bust": 0.661,
+          "rapid_rise_rate_normal": 0.808,
+          "features": [
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.661,
+              "bust_std": 0.478,
+              "norm_mean": 0.808,
+              "norm_std": 0.394,
+              "z_score": -0.34,
+              "n_bust": 56,
+              "n_norm": 1399
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.441,
+              "bust_std": 0.497,
+              "norm_mean": -0.557,
+              "norm_std": 0.432,
+              "z_score": 0.25,
+              "n_bust": 56,
+              "n_norm": 1382
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.61,
+              "bust_std": 0.322,
+              "norm_mean": 0.679,
+              "norm_std": 0.311,
+              "z_score": -0.22,
+              "n_bust": 56,
+              "n_norm": 1389
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.3,
+              "bust_std": 1.793,
+              "norm_mean": 0.066,
+              "norm_std": 1.933,
+              "z_score": -0.2,
+              "n_bust": 56,
+              "n_norm": 1389
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 6.875,
+              "bust_std": 5.676,
+              "norm_mean": 7.43,
+              "norm_std": 4.834,
+              "z_score": -0.11,
+              "n_bust": 56,
+              "n_norm": 1389
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 3.857,
+              "bust_std": 2.354,
+              "norm_mean": 3.667,
+              "norm_std": 2.485,
+              "z_score": 0.08,
+              "n_bust": 56,
+              "n_norm": 1389
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 288,
+          "n_normal": 1399,
+          "pct_of_days": 17.1,
+          "residual_mean": -2.11,
+          "residual_p90": -1.57,
+          "rapid_rise_rate_bust": 0.677,
+          "rapid_rise_rate_normal": 0.808,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": -0.321,
+              "bust_std": 0.338,
+              "norm_mean": -0.557,
+              "norm_std": 0.432,
+              "z_score": 0.61,
+              "n_bust": 283,
+              "n_norm": 1382
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 5.151,
+              "bust_std": 3.147,
+              "norm_mean": 7.43,
+              "norm_std": 4.834,
+              "z_score": -0.56,
+              "n_bust": 284,
+              "n_norm": 1389
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.529,
+              "bust_std": 0.277,
+              "norm_mean": 0.679,
+              "norm_std": 0.311,
+              "z_score": -0.51,
+              "n_bust": 284,
+              "n_norm": 1389
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.677,
+              "bust_std": 0.468,
+              "norm_mean": 0.808,
+              "norm_std": 0.394,
+              "z_score": -0.3,
+              "n_bust": 288,
+              "n_norm": 1399
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 4.208,
+              "bust_std": 2.44,
+              "norm_mean": 3.667,
+              "norm_std": 2.485,
+              "z_score": 0.22,
+              "n_bust": 284,
+              "n_norm": 1389
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": -0.168,
+              "bust_std": 1.752,
+              "norm_mean": 0.066,
+              "norm_std": 1.933,
+              "z_score": -0.13,
+              "n_bust": 284,
+              "n_norm": 1389
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "buenos-aires": {
+      "slug": "buenos-aires",
+      "icao": "SAEZ",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 371,
+      "n_cold_bust": 335,
+      "n_normal": 1038,
+      "stats": {
+        "HOT_BUST": {
+          "n": 371,
+          "n_normal": 1038,
+          "pct_of_days": 26.3,
+          "residual_mean": 2.27,
+          "residual_p90": 3.0,
+          "rapid_rise_rate_bust": 0.768,
+          "rapid_rise_rate_normal": 0.826,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.147,
+              "bust_std": 0.733,
+              "norm_mean": 0.383,
+              "norm_std": 0.902,
+              "z_score": -0.29,
+              "n_bust": 368,
+              "n_norm": 1036
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.768,
+              "bust_std": 0.423,
+              "norm_mean": 0.826,
+              "norm_std": 0.38,
+              "z_score": -0.14,
+              "n_bust": 371,
+              "n_norm": 1038
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.183,
+              "bust_std": 5.22,
+              "norm_mean": -0.368,
+              "norm_std": 4.849,
+              "z_score": 0.11,
+              "n_bust": 369,
+              "n_norm": 1038
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 2.268,
+              "bust_std": 2.233,
+              "norm_mean": 2.472,
+              "norm_std": 2.599,
+              "z_score": -0.08,
+              "n_bust": 369,
+              "n_norm": 1038
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.34,
+              "bust_std": 0.299,
+              "norm_mean": 0.328,
+              "norm_std": 0.292,
+              "z_score": 0.04,
+              "n_bust": 113,
+              "n_norm": 315
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 4.9,
+              "bust_std": 3.301,
+              "norm_mean": 4.766,
+              "norm_std": 3.335,
+              "z_score": 0.04,
+              "n_bust": 371,
+              "n_norm": 1037
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 335,
+          "n_normal": 1038,
+          "pct_of_days": 24.4,
+          "residual_mean": -2.57,
+          "residual_p90": -1.5,
+          "rapid_rise_rate_bust": 0.815,
+          "rapid_rise_rate_normal": 0.826,
+          "features": [
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.737,
+              "bust_std": 0.838,
+              "norm_mean": 0.383,
+              "norm_std": 0.902,
+              "z_score": 0.41,
+              "n_bust": 335,
+              "n_norm": 1036
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 1.018,
+              "bust_std": 4.06,
+              "norm_mean": -0.368,
+              "norm_std": 4.849,
+              "z_score": 0.31,
+              "n_bust": 335,
+              "n_norm": 1038
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 3.051,
+              "bust_std": 2.646,
+              "norm_mean": 2.472,
+              "norm_std": 2.599,
+              "z_score": 0.22,
+              "n_bust": 335,
+              "n_norm": 1038
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.384,
+              "bust_std": 0.318,
+              "norm_mean": 0.328,
+              "norm_std": 0.292,
+              "z_score": 0.18,
+              "n_bust": 100,
+              "n_norm": 315
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 5.072,
+              "bust_std": 2.874,
+              "norm_mean": 4.766,
+              "norm_std": 3.335,
+              "z_score": 0.1,
+              "n_bust": 335,
+              "n_norm": 1037
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.815,
+              "bust_std": 0.389,
+              "norm_mean": 0.826,
+              "norm_std": 0.38,
+              "z_score": -0.03,
+              "n_bust": 335,
+              "n_norm": 1038
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    },
+    "sao-paulo": {
+      "slug": "sao-paulo",
+      "icao": "SBGR",
+      "bust_thresh": 1.5,
+      "n_total": 1744,
+      "n_hot_bust": 266,
+      "n_cold_bust": 229,
+      "n_normal": 1249,
+      "stats": {
+        "HOT_BUST": {
+          "n": 266,
+          "n_normal": 1249,
+          "pct_of_days": 17.6,
+          "residual_mean": 2.35,
+          "residual_p90": 3.4,
+          "rapid_rise_rate_bust": 0.782,
+          "rapid_rise_rate_normal": 0.817,
+          "features": [
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.335,
+              "bust_std": 2.07,
+              "norm_mean": -0.132,
+              "norm_std": 2.595,
+              "z_score": 0.2,
+              "n_bust": 266,
+              "n_norm": 1248
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 1.278,
+              "bust_std": 1.279,
+              "norm_mean": 1.48,
+              "norm_std": 1.532,
+              "z_score": -0.14,
+              "n_bust": 266,
+              "n_norm": 1248
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.287,
+              "bust_std": 0.264,
+              "norm_mean": 0.259,
+              "norm_std": 0.251,
+              "z_score": 0.11,
+              "n_bust": 200,
+              "n_norm": 745
+            },
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.782,
+              "bust_std": 0.414,
+              "norm_mean": 0.817,
+              "norm_std": 0.387,
+              "z_score": -0.09,
+              "n_bust": 266,
+              "n_norm": 1249
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.561,
+              "bust_std": 0.478,
+              "norm_mean": 0.598,
+              "norm_std": 0.556,
+              "z_score": -0.07,
+              "n_bust": 266,
+              "n_norm": 1248
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 4.278,
+              "bust_std": 2.483,
+              "norm_mean": 4.412,
+              "norm_std": 2.91,
+              "z_score": -0.05,
+              "n_bust": 266,
+              "n_norm": 1248
+            }
+          ]
+        },
+        "COLD_BUST": {
+          "n": 229,
+          "n_normal": 1249,
+          "pct_of_days": 15.5,
+          "residual_mean": -2.64,
+          "residual_p90": -1.6,
+          "rapid_rise_rate_bust": 0.725,
+          "rapid_rise_rate_normal": 0.817,
+          "features": [
+            {
+              "feature": "rapid_rise",
+              "bust_mean": 0.725,
+              "bust_std": 0.448,
+              "norm_mean": 0.817,
+              "norm_std": 0.387,
+              "z_score": -0.22,
+              "n_bust": 229,
+              "n_norm": 1249
+            },
+            {
+              "feature": "sky_clr_m6",
+              "bust_mean": 0.208,
+              "bust_std": 0.232,
+              "norm_mean": 0.259,
+              "norm_std": 0.251,
+              "z_score": -0.21,
+              "n_bust": 154,
+              "n_norm": 745
+            },
+            {
+              "feature": "temp_anom_m6",
+              "bust_mean": 0.418,
+              "bust_std": 2.686,
+              "norm_mean": -0.132,
+              "norm_std": 2.595,
+              "z_score": 0.21,
+              "n_bust": 229,
+              "n_norm": 1248
+            },
+            {
+              "feature": "wind_kt_m6",
+              "bust_mean": 4.996,
+              "bust_std": 3.264,
+              "norm_mean": 4.412,
+              "norm_std": 2.91,
+              "z_score": 0.19,
+              "n_bust": 229,
+              "n_norm": 1248
+            },
+            {
+              "feature": "rise_rate_3h",
+              "bust_mean": 0.498,
+              "bust_std": 0.572,
+              "norm_mean": 0.598,
+              "norm_std": 0.556,
+              "z_score": -0.18,
+              "n_bust": 229,
+              "n_norm": 1248
+            },
+            {
+              "feature": "dew_spread_m6",
+              "bust_mean": 1.721,
+              "bust_std": 1.587,
+              "norm_mean": 1.48,
+              "norm_std": 1.532,
+              "z_score": 0.15,
+              "n_bust": 229,
+              "n_norm": 1248
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "HOT_BUST": {
+          "bust_type": "HOT_BUST",
+          "thresholds": []
+        },
+        "COLD_BUST": {
+          "bust_type": "COLD_BUST",
+          "thresholds": []
+        }
+      }
+    }
+  }
+}

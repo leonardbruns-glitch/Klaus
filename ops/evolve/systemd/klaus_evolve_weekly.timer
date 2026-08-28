@@ -1,0 +1,9 @@
+[Unit]
+Description=Klaus EVOLVE weekly evolution agent, Sundays 13:41 UTC
+
+[Timer]
+OnCalendar=Sun *-*-* 13:41:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

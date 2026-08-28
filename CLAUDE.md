@@ -1,232 +1,179 @@
 # Klaus — Persistent Context for Claude Code
 
-## ROLE
-You are an autonomous AI quantitative trader operating on real capital. This is not a simulation.
+## WHAT THE BOT IS DOING RIGHT NOW
+**Strategy: STWA (Spatiotemporal Weather Arbitrage)**
 
-Capital: $100. Objective: compound it systematically using Polymarket binary markets on BTC/ETH/SOL. Build a real, repeatable edge from scratch — that is the mission.
+Trades Polymarket **daily-high-temperature** markets across 51 cities. A market resolves on the **daily maximum** temperature — the supremum of the day's temperature path — rounded to a whole degree (°F or °C per market) from the official observation.
 
-**Competitive reality:**
-- 14 of the top 20 Polymarket wallets are bots. You are competing against them directly.
-- Sub-100ms execution bots capture 73% of pure arbitrage profits. Speed is not your edge.
-- 92.4% of Polymarket wallets lose money — most believed they had edge. Belief is not edge.
-- Your sustainable advantage: patient pattern recognition on systematic mispricings that speed-dependent bots ignore.
+Engine: `strategy/stwa_engine.py`, driven by `strategy/weather_arb.py`. A 51-city joint Kalman filter over 2D Langevin temperature paths produces a forecast distribution for each city's daily max; bucket win-probabilities are priced, isotonically recalibrated, and sized by Kelly.
 
-**Execution quality matters as much as signal quality:**
-- The information lag window is 30–90 seconds. After 90s the move is priced in — you have adverse selection.
-- Fee math is non-negotiable: at p=0.50 a round trip costs ~3.12% in fees. You need >52% WR just to break even at 50-cent entries. This is why the fat-middle gate exists.
-- At p=0.35: ~1.42% round trip. At p=0.20: ~1.0% round trip. Extreme odds = structural fee advantage.
-- Entry timing, fill quality, and position sizing are as important as whether the signal is correct.
+Live structure (updated 2026-06-12) — **BAND-first MAKER system** (badatmath mirror, BAND-V3 deployed 06-11). Flags in `strategy/stwa_engine.py` are AUTHORITATIVE (`data/band_config.txt` on the data-mirror snapshots them); this table drifts.
+- **STRUCT_BAND maker** (the core): one unified ROI-ordered posting queue, one cash pool — d+2 YES > d+1 YES > d+1 NO > PAIR_FAV > d+2 NO > d+0 YES(mode) > d+0 NO. Mode-centered YES band (off≤1 posted legs, Σ(posted) gate ≤0.85, real-book join-touch quoting, px floor 0.03 d+1/d+2 / 0.10 d+0, ceil ~0.45); favorite-NO overlay 0.52–0.85 on the FULL ladder incl. edge buckets (skip ±1 shoulders); PAIR_FAV both-sides quoting on converged favorites (Σ≤0.90). Cash gate `MAKER_CASH_FRAC=0.90`·free USDC (non-latching), breaker $150, dead-quote reclaim (≥6h old + ≥2¢ behind touch). NO-starvation fixed 06-12 (cash pre-check before book fetch, YES fetch sub-budget 50/80, NO rotation, `[STRUCT-BAND-Q]` cycle log).
+- **RECYCLE099** — resting 0.99/0.999 maker asks (`maker_sell`) on held winners; same-day convergence capital recycling.
+- **NEG_RISK_ARB** — Σ YES asks < 0.85 spanning set. Model-independent, always on (returns before the candidate loop).
+- **THERMO** upper-tail maker-NO — validating, capped $15/day until first 20 resolve clean.
+- **M1β lockout-NO** — official-METAR running-max lockouts, provenance-gated.
+- **Engine directional taker paths BOTH DISABLED**: `STWA_REGULAR_YES_ENABLED=False` (2026-06-05, σ-collapse disaster) and `STWA_REGULAR_NO_ENABLED=False` (2026-06-11, 0 fires in 48h + armed taker duplicate of the maker NO overlay). The 51-city Kalman engine currently allocates ~no live capital directly; band centers on the MARKET mode.
 
-**System robustness is non-negotiable:**
-- You have write access to your own performance logs. Never modify, reclassify, or selectively read trade data.
-- All kill switches are enforced in code, not just in this file. This file describes intent; code enforces it.
-- If something looks broken, say so explicitly. Silent failures compound.
-- Honesty overrides optimism. If the strategy has no edge, say so and rebuild.
+**Scale-up gate:** `band_resolution_join.py` per-side n≥100 with CI clearing zero (gate-keeper routine tracks the full ledger daily).
+
+Exit: **hold to resolution**. Tokens resolve 1.0/0.0 at daily-max settlement. No profit-target, no stop-loss — a weather position must ride intraday noise through to the diurnal peak.
+
+This is not a simulation. Capital is real. Every parameter change has a dollar cost.
+
+---
+
+## SESSION START PROTOCOL
+**MANDATORY:** Read `state_log.md` and internally summarize the last 10 entries before any analysis or code change. Never rely on prior session memory without verifying against the log. Append every session-altering decision (filter added/removed, threshold changed, rule changed, interpretation changed) with: `YYYY-MM-DD HH:MM UTC | SYSTEM/CITY | exact change | reason + evidence`. Only log meaningful state changes, not commentary.
+
+---
+
+## CODING DISCIPLINE
+1. **Think before coding** — state the goal and root cause before touching any file.
+2. **Simplicity first** — the simplest change that achieves the goal is the right change.
+3. **Surgical edits only** — change the minimum lines necessary. No cleanup, no refactoring, no extras.
+4. **Goal-driven targets** — define what success looks like (metric, threshold, behaviour) before starting. If the target isn't clear, ask.
 
 ---
 
 ## ANTI-SYCOPHANCY RULES
-These exist because AI agents systematically rationalize errors rather than correct them.
-
 1. **A losing trade is not explained away** — it is data. If the last 5 trades are losses, the strategy may be broken. Say so.
-2. **Optimistic commit messages are a red flag** — if you are writing "should improve WR" without n≥20 evidence, stop.
-3. **Never conclude edge exists from fewer than 20 trades.** Never.
-4. **If your analysis contradicts the data, the data wins.** Not the thesis. Not the architecture. The data.
-5. **Dry-run trades are not live trades.** Confirm DRY_RUN=false before analyzing live performance.
-
-## DATA INTEGRITY — NON-NEGOTIABLE
-Bad data accumulation will kill this strategy faster than bad trades.
-
-1. **Verify data before acting on it.** Before drawing any conclusion from a report, check that the underlying fields are populated. Zero values may mean "not computed" not "actually zero."
-2. **Cross-check reports against raw logs.** If the feedback report says something surprising, read `logs/trades.jsonl` directly and verify the numbers match.
-3. **Flag data bugs immediately.** If a field is always 0.0, always the same value, or never fires — that is a bug, not a signal. Fix it before it generates false alerts.
-4. **Distinguish signal absence from signal zero.** ATR=0.0 for SNIPER trades means "not measured", not "low volatility." Hurst=0.0 means "not computed", not "mean-reverting." Never conflate the two.
-5. **Orphan sells are data corruption.** A trade with entry=0.0000 or PnL=$0.000 that wasn't a deliberate dry-run is a logging bug. Count these separately, never include in WR calculations.
-6. **Audit the feedback engine itself.** The report is only as good as the code generating it. If alerts fire on fields that are structurally zero for all current trade types, the engine is broken — fix it.
+2. **Never conclude edge exists from fewer than 100 trades per bucket.** Never. At n=40–99: flag as a potential trend only, do not act.
+3. **Optimistic commit messages are a red flag** — if writing "should improve WR" without n≥100 evidence, stop.
+4. **If analysis contradicts data, data wins.** Not the thesis. Not the architecture. The data.
+5. **Shadow signals are not live entries.** Confirm `STWA_LIVE=true` and which buy paths are enabled before analysing live performance.
 
 ---
 
 ## DATA PRIMACY PROTOCOL
-Run this exact sequence at the start of every session before any analysis or changes:
-
+Run before any analysis or code change:
 ```
-1. cat logs/trades.jsonl          — count n_live, n_dryryn, confirm which is which
-2. Compute: WR, profit factor, avg_win, avg_loss, fee_bleed_ratio
-3. Compute: WR by hour UTC, WR by asset, WR by window type (5m/15m)
-4. Check: is n≥20 live trades? If not — data collection mode, minimal changes only
-5. Check: any kill switch triggered? If yes — halt before anything else
+1. Confirm STWA_LIVE=true + which paths fire (arb / NO / YES); count resolved STWA
+   positions (trades.jsonl WEATHER_STWA) and signal activity (shadow logs)
+2. Realized vs predicted edge; Brier / log-loss of p_cal vs resolution; arb capture rate
+3. Split by city, by side (YES / NO / arb), by lead-time-to-peak — city temps in LOCAL time, never UTC
+4. n≥100 per city for decisions. n=40-99: flag trends only. n<40: data collection mode, no changes
+5. Kill switch triggered? If yes — halt before anything else
 ```
 
-Only after this sequence is complete should any diagnosis or code change proceed.
+**Data integrity rules:**
+- Resolution oracle = the WU-displayed daily high, sourced from **official hourly METARs + SPECIs only** (AWC / NWS). `official_running_max_c` is populated ONLY from `{AWC, NWS}` — never from 1-min / sub-hourly ASOS spikes. The oracle does not see those; using them for lockout or running_max creates **false lockouts** (the M1β and P3 oracle-audit bugs).
+- Resolution is **whole-degree**; bucket padding is **unit-aware** (±0.5°F for °F markets, ±0.5°C for °C markets), applied once in `_parse_outcome`. Never apply a °C pad to a °F market.
+- `running_max` is monotone non-decreasing, floored to the official high; never reset by a decreasing NWP feed.
+- Only **NEG_RISK_ARB** is calibration-independent. Regular YES/NO edge rides on the isotonic recal map holding up on live 2026 resolution — treat as provisional until n≥100 confirms.
+- STWA fills reach `logs/trades.jsonl` only at resolution; they appear in `risk.open_positions` immediately. For "are we trading / what fired", read the shadow logs.
+- Cross-check the live pricer log (`logs/shadow/hot/<date>/stwa_pricer_eval.jsonl`) against ASOS / Gamma resolution before drawing any pricing conclusion.
+
+---
+
+## MATHEMATICAL CORE
+The market resolves on the **daily max = sup of the temperature path over the remaining window.** This is the keystone: maxing over the full remaining horizon over-counts "tries" — the daily max is actually decided in a narrow window around the diurnal peak. Getting this wrong was the root cause of past YES overconfidence.
+
+- **Process** — 2D Langevin (inertial OU) per city: `dX = V dt`, `dV = (−γV − κX) dt + σ dW`. Joint 51-city state with empirical spatial covariance (Ledoit-Wolf 51×51 shrinkage).
+- **State estimate** — Kalman posterior on the residual `X` (the bias-corrected NWP forecast is the drift baseline). A joint `(X,V)` 2N Kalman runs in **shadow**; under hard-coded γ=1.5 its velocity is over-damped, so live still uses position-OU + OLS velocity. Tier-3b (joint κ,γ,σ MLE refit per city) is the real unlock.
+- **Pricer (`PA_SHRUNK`, primary; reversible to `MC`)** — daily-max center = bias-corrected NWP peak + per-city `peak_bias` + **β·(observed residual now)** with **β ≈ 0.30**: the morning anomaly mean-reverts ~70% by peak (head-to-head finding; naïve β=1 momentum is +20–25% *worse* than ignoring the obs). Spread σ ≈ 1.0–1.1°C per city (validated vs ASOS — spread was already right; the failure was **mis-location**, not mis-spread). Bucket probs = differences of ONE monotone CDF with a **running-max hard floor** ⇒ coherent, Σ = 1.
+- **Recalibration** — raw MC `p_model` was 4.3× overconfident (mean 0.326 vs WR 0.075; rank-corr −0.19, anti-predictive). PA-shrunk fixed the ordering (rank-corr +0.39) but stays overconfident for p>0.5; an isotonic map `g` (fit on 2024) maps raw→calibrated (Brier 0.128→0.114, ECE→0). **YES/NO sizing uses `g(p)`; arb uses raw `p` for the Σ-coverage gate** (range-coverage, robust to per-bucket miscalibration).
+- **Allocation** — horse-race Kelly for mutually-exclusive YES buckets; fraction 0.20. (Engine independent-Kelly NO is DISABLED as of 2026-06-01 — all NO via M1β lockout harvest; the NO-sizing code remains but receives no candidates.) Bounded by a **per-city-day budget net of already-held capital** (Tier-4) so cross-time forecast drift can't accumulate mutually-exclusive YES buckets summing to >1. The YES ladder is further gated by the **width gate** (book σ > 1.10×our σ) and **PRE_PEAK only**.
+
+**Honest verdict:** only NEG_RISK_ARB is structurally sound and calibration-independent today (capacity-limited — needs Σask<1 windows + fillable depth). Directional YES/NO are the *path* to a viable edge after the math upgrades, not a guarantee. No "extreme profitability" claim is supported by current data; n≥100 live resolution decides.
+
+---
+
+## CURRENT PARAMETERS (updated 2026-06-12 — `stwa_engine.py` flags are authoritative, this table drifts)
+| Parameter | Value | Notes |
+|---|---|---|
+| Engine | STWA — 51-city joint Kalman | `strategy/stwa_engine.py` + `weather_arb.py`; allocates ~no live capital directly (band uses market mode) |
+| Live flag | `STWA_LIVE=True` + `BAND_LIVE=True` | maker band is the core live path |
+| Live paths | STRUCT_BAND maker (YES band + NO overlay + PAIR_FAV) + RECYCLE099 + NEG_RISK_ARB + THERMO (capped) + M1β lockout-NO | BAND-V3 2026-06-11 |
+| YES enable (taker) | `STWA_REGULAR_YES_ENABLED=False` | DISABLED 2026-06-05; σ-collapse disaster |
+| NO enable (taker) | `STWA_REGULAR_NO_ENABLED=False` | DISABLED 2026-06-11; armed taker duplicate of maker NO overlay |
+| Band Σ gate | Σ(posted legs) ≤ 0.85 | on the off≤1 basket actually posted, not the ±2 band |
+| Band px window | 0.03 (d+1/d+2) / 0.10 (d+0) to ~0.45 YES; NO 0.52–0.85 | real-book re-validated, join-touch never improve |
+| Maker cash gate | `MAKER_CASH_FRAC=0.90`·free USDC | non-latching; breaker $150; daily band budget unconstrained (user 06-09) |
+| Primary pricer | `PA_SHRUNK` | center = NWP_peak + peak_bias + 0.30·x_hat; reversible to `MC` |
+| Intraday weight β | 0.30 | morning residual mean-reverts ~70% by peak (data-backed) |
+| Nowcast σ-collapse | DISABLED 2026-06-06 (`NOWCAST_SIGMA_COLLAPSE=False`) | hurt calibration on every metric (Brier 0.181→0.129, ECE halved, rank-ρ up, 5× fewer false-certain buckets; n=53k–76k). σ now = validated per-month. Lockout certainty via running-max floor. Revert: True |
+| Recalibration | isotonic `g` (`config/stwa_isotonic.json`) | NO/YES Kelly uses `g(p)`; arb uses raw `p`. Map fit on flat-σ 2024 — now RE-ALIGNED (σ-collapse off). Live-refit cron `stwa_isotonic_live_refit.py` (guarded) keeps it current |
+| Kelly fraction | 0.20 | of full Kelly |
+| Edge / Kelly floor | `EDGE_MIN=0.04`, `KELLY_F_MIN=0.015` | risk-of-ruin safety |
+| Stake | min $3, max $20 | `NEG_RISK_ARB_MIN` $0.50 |
+| City-day budget | min(5%·bankroll, $15) − held | Tier-4 cross-time cap. Entry: arb ~$35–55 bankroll; 1st YES leg ~$60; full ladder ~$180 |
+| Arb threshold | Σ YES ask < 0.85 (0.80 if ≥4 legs) | NEG_RISK_ARB |
+| Prob-sum guard | `PROB_SUM_MAX=1.35` | Σ p_model above → skip city (MC bug) |
+| Exit | hold to daily-max settlement | no PT, no SL |
+| Oracle | official hourly METAR/SPECI high (AWC/NWS) | NOT 1-min ASOS |
+
+---
+
+## WEATHER EDGE MAP — what's real, what's dead
+- **LIVE — STWA** (above). The primary engine.
+- **VALIDATED companion — LOCKOUT-NO** (settlement-lock): buy NO once `running_max` has passed a bucket's ceiling (physically impossible to resolve YES) while a stale YES bid persists. WR 94.6% raw / ~100% provenance-clean. **Execution timing: buy EARLY in the lockout** (2026-06-09 census superseded the old late-window advice); oracle blocklist {VHHH, ZGSZ}; HK live only via the HKO 1-min debounced feed. Validators: `analysis/weather/lockout_{capacity,resolution_join}.py`.
+- **DEAD-ENDS — do not rebuild** (all falsified on real data 2026-05-29):
+  - *Fade-the-takers* — market is efficiently priced (Brier 0.011–0.015), taker flow is informed (follow, don't fade), and wallet edge does NOT persist (can't target "known losers").
+  - *MM-fingerprinting meta-game* — ~10 competitive cross-market MMs, deterministic but boundary-pinned; collapses into the existing lockout edge, not a distinct alpha.
+  - *Maker MVP* — adverse selection / winner's curse: you get filled exactly when wrong; −EV at touch.
+
+---
+
+## KILL SWITCHES & CAPITAL RULES
+| Metric | Floor | Action |
+|---|---|---|
+| Win rate | >45% | Flag if <35% over 20 trades |
+| Profit factor | >1.3 | Halt if <0.8 over 20 trades |
+| Daily loss | — | Halt after -$10/day |
+| Weekly bankroll | <$75 | Halt, full review |
+| Ruin floor | <$50 | Shut down entirely |
+
+Scale-up: raise stake only after WR >55% confirmed over 20+ live trades.
 
 ---
 
 ## ACTION TIERS
-
-### Tier 1 — Fully Autonomous (no documentation required)
-- Reading logs, computing stats, generating reports
-- Parameter changes within ±20% of current values when n≥20 supports it
-- Bug fixes with clear root cause
-- Commit and push
-
-### Tier 2 — Documented (commit message must cite specific data evidence)
-- Parameter changes beyond ±20%
-- New entry/exit conditions
-- Signal logic changes
-- Disabling any existing signal or filter
-
-### Tier 3 — Prohibited (never without explicit human instruction)
-- Changing base_stake beyond defined tier thresholds
-- Modifying kill switch thresholds
-- Disabling trade logging or shadow logging
-- Adding new market categories without validation data
+- **Tier 1 (autonomous)**: reads, stats, bug fixes with clear root cause, parameter changes ±20% with n≥100
+- **Tier 2 (cite data in commit)**: parameter changes >±20%, new filters, disabling a buy path
+- **Tier 3 (never without instruction)**: stake beyond defined limits, kill switch thresholds, enabling/disabling regular-YES, disabling trade logging
 
 ---
 
-## AUTONOMOUS OPERATION RULES
-1. **Data primacy protocol first** — always. Never propose changes blind.
-2. **Implement immediately** — "propose" means commit + push, not suggest.
-3. **Let data lead** — no hour, asset, or signal is assumed good or bad without evidence.
-4. **Kill switches**: enforce them automatically, no human needed.
-5. **Every session**: diagnose → fix → push → document what changed and why, citing data.
+## INFRASTRUCTURE
+- **VPS**: systemd unit `klaus` at `/root/Klaus`
+- **Deploy**: `cd /root/Klaus && git pull && systemctl restart klaus`
+- **Logs**: `tail -f /root/Klaus/logs/bot.log` or `journalctl -u klaus -f`
+- **Dev branch**: `claude/find-lag-parameter-rFQ0N`
+- **NMS feeds**: edge lives in early temperature info — 16 stations live (AWC, NWS US, NEA Singapore, IMGW Poland) giving ~9–28 min gains over AWC. Expansion candidates: SynopticData / AEMET / Météo-France / KNMI free keys, WIS2 MQTT for global BUFR.
 
----
+- **EVOLVE loop (autonomous, 2026-07-02)**: `ops/evolve/` — `CHARTER.md` (human-owned constitution) + headless-Claude actuators: daily 11:23 UTC (`klaus_evolve_daily.timer`, measures ground truth → applies charter-gated changes → deploys → verifies), weekly Sun 13:41 UTC (experiment design), repair-on-crash-loop. Mechanical liveness watchdog every 2 min (`klaus_liveness.timer`; bond_watchdog retired). Reports: `logs/evolve/`; human queue: `logs/evolve/PENDING_HUMAN.md`.
 
-## SUCCESS CRITERIA
-There is no upper limit on returns. Maximize compounding while protecting capital.
+**Development workflow (NON-NEGOTIABLE):**
+Claude edits locally → commits → pushes to dev branch → Claude SSHes into VPS to deploy. Never edit or commit on the VPS. Never `git checkout origin/...` on VPS. VPS only writes to `logs/`.
 
-| Metric | Floor | Kill Switch |
-|---|---|---|
-| Win rate | >45% | Flag if <35% over 20 trades |
-| Profit factor | >1.3 | Halt if <0.8 over 20 trades |
-| Fee bleed | <20% of gross profit | Reduce stake if >30% |
-| Max drawdown | <25% ($25) | Hard stop, full strategy review |
-| Monthly loss | — | Stop if -20% in any month |
-
----
-
-## CAPITAL & RISK RULES
-1. **Base Stake**: $3 (validation mode until edge confirmed)
-2. **Scale-up**: raise to $5 after confirmed WR >55% over 20+ live trades
-3. **Scale-up**: raise to $10 after confirmed WR >55% over 50+ live trades
-4. **Heat-Check**: scale to next tier after 2 consecutive wins. Revert after any loss.
-5. **Daily Loss Halt**: stop after -$10/day. Resume next day automatically.
-6. **Weekly Floor**: bankroll < $75 → halt, full review required.
-7. **Ruin Floor**: bankroll < $50 → shut down entirely.
-8. **No Revenge Trading**: never increase stake to recover losses.
-
----
-
-## EDGE THESIS
-Primary edge: **information lag arbitrage**
-- Sharp asset moves create windows where Polymarket tokens haven't repriced yet
-- VPIN > 0.65 from Binance aggTrade = informed order flow = additional signal
-- LLM (Claude Haiku) interprets whether moves sustain or fade
-
-**Adjacent opportunities to explore when data warrants:**
-- **High-probability bonds**: markets at 0.90–0.97 with imminent resolution — documented durable edge, 1–5% per trade, very low volatility. Scales well.
-- **Whale/bot tracking**: top 20 Polymarket wallets are mostly bots — their on-chain behavior is observable. Pattern recognition on their entries may yield signal.
-- **Cross-market lag**: if 5m window has repriced but 15m hasn't — stronger signal than either alone. Track and validate.
-
-**What the live data shows (update as trades accumulate):**
-- WR by hour: tracked in `logs/shadow_blocks.jsonl` — no hour assumed good or bad
-- WR by lag threshold: current 5m lag≥0.30, 15m lag≥0.25
-- WR by asset, window type, delta size — let patterns emerge
-
----
-
-## SIGNAL STACK
-1. **LLM Signal Engine** (`analytics/macro_engine.py`) — Claude Haiku
-   - Fires on BTC price spike OR VPIN > 0.65
-   - Returns ±0.12 directional boost to scorer
-   - **Assume this signal has no edge until data proves otherwise** — Claude assessing Claude is a conflict of interest. Require n≥20 LLM-boosted trades before crediting it with any WR improvement.
-2. **VPIN Order Flow** (`data/feeds.py`) — Binance aggTrade WebSocket
-   - VPIN > 0.60 = elevated toxicity → ±0.07 boost
-3. **Window Sniper** (`strategy/window_sniper.py`) — fair-value lag engine
-   - lag_remaining gate: fraction of PM move still unpriced
-   - Event-driven via aggTrade WebSocket (ms latency) + 5s sweep fallback
-4. **Momentum Scorer** (`strategy/momentum.py`) — base signal
-   - Breakout + EMA trend + OB imbalance + intrawindow delta
-
----
-
-## ENTRY & EXIT RULES
-- **Entry**: lag_remaining ≥ threshold + edge ≥ MIN_EDGE + time gate
-- **Token price**: 0.03–0.62 (above 0.62 = nearly fully priced, fee-adjusted EV negative)
-- **No entry**: final 60s of any window (Chainlink heartbeat uncertainty)
-- **Stage-1 exit**: sell 60% at +20% gain
-- **Stage-2 exit**: remaining 40% at +35%, or floor +12%, or 20% trailing stop
-- **Dynamic SL**: 35% stop first 2.5min, 10% stop last 2min
-- **Hard exit**: force-close after 180s regardless of PnL
-
----
-
-## FEEDBACK LOOP (every session)
-1. Run data primacy protocol (above)
-2. Diagnose: WR by asset/hour/lag/delta, fee bleed, avg win vs avg loss
-3. Check `logs/shadow_blocks.jsonl` — update strategy if pattern clear (n≥30 per hour)
-4. Implement fix, commit with data citation, push
-5. Run `python3 analytics/lag_analysis.py` after 500+ lag observations
-
----
-
-## KNOWN FAILURE MODES — CHECK YOUR OWN REASONING
-Before finalizing any session diagnosis, verify you are not doing these:
-
-- **Rationalizing losses**: attributing stop-losses to "bad luck" or "unusual conditions" without data
-- **Overfitting to recent trades**: 3 wins in a row is not edge confirmation
-- **Treating shadow WR as live WR**: shadow data is counterfactual, not actual fills
-- **Ignoring fee bleed**: a 60% WR strategy with 35% fee bleed is a losing strategy
-- **Confusing data collection mode with validation**: if n<20, you don't know if edge exists
-
----
-
-## ARCHITECTURE
-```
-main.py                       — async event loop (1s OB scan, 5s signal sweep)
-config.py                     — all tunable parameters
-data/feeds.py                 — Polymarket CLOB + Binance aggTrade WS + VPIN
-strategy/window_sniper.py     — fair-value lag engine + event-driven detection
-strategy/momentum.py          — composite scorer + TP/SL calculator
-risk/manager.py               — bankroll, position sizing, exit decisions
-execution/order_manager.py    — order placement, cascade sell, fill verification
-analytics/feedback.py         — JSONL trade logging + 30-min diagnostic reports
-analytics/macro_engine.py     — LLM signal engine (Claude Haiku, all-day)
-analytics/lag_observations.py — logs Binance price vs Polymarket price every scan
-analytics/lag_analysis.py     — retrospective Pearson correlation analysis
-analytics/shadow_log.py       — counterfactual analysis for blocked signals
-```
-
-### Current Parameters
-| Parameter | Value | Notes |
-|---|---|---|
-| min_lag_5m | 0.30 | Scanner: WR=80% at ≥0.30 |
-| min_lag_15m | 0.25 | Data collection — WR unconfirmed |
-| MAX_TOKEN_ASK | 0.62 | All entries >0.62 have been stop-losses |
-| PREARM_ELAPSED_MIN | 0.20 | 20% = 60s min before PREARM fires |
-| base_stake | $3 | Raise to $5 after WR >55% over 20 trades |
-| max_open_positions | 2 | Max $10 deployed at once |
-| max_daily_loss | $10 | Hard halt |
-
-### Infrastructure
-- **Run locally** (MacBook) for now — Cloudflare WAF blocks standard VPS
-- **Next step**: QuantVPS Dublin (~$42/mo) — purpose-built IP not on CF blocklist
-- **Development branch**: `claude/investigate-zero-entry-price-lWxej`
-
-### Run
+**Deploy command (run via SSH):**
 ```bash
-git pull && python3 main.py        # start live (DRY_RUN=false in .env)
-tail -f logs/bot.log               # watch live
-cat logs/trades.jsonl              # review trades
-python3 analytics/lag_analysis.py  # analyse Binance→Polymarket lag
+ssh root@85.137.174.86 "bash -c 'git -C /root/Klaus pull && systemctl restart klaus && systemctl is-active klaus'"
 ```
 
-### Key Design Decisions
-- ANTHROPIC_API_KEY in .env enables LLM signal engine — without it engine is silent
-- VPIN computed from Binance aggTrade WebSocket, not REST (real-time, zero latency)
-- Bar builders fall back to OB mid price when no last trade (fixes frozen-bar bug)
-- Fat-middle gate handled in risk/manager.py only — scorer doesn't know market_type
-- updown markets skip max_entry_price cap (price not bounded by 0.27)
-- Chainlink resolves at T=0 snapshot — no entries in final 60s of any window
-- LLM exit advisor disabled — observational only ("WOULD-EXIT" logged, not acted on)
-- Asset-level dedup: one position per asset regardless of window size or direction
+---
+
+## KEY DESIGN DECISIONS
+- Resolution oracle = WU-displayed daily high from **official hourly METARs + SPECIs only**; `official_running_max_c` populated ONLY from `{AWC, NWS}`, never sub-hourly point obs.
+- `NEG_RISK_ARB` returns before the candidate loop → unaffected by the YES/NO enable flags; it is the only edge that doesn't depend on model calibration.
+- Bucket padding is unit-aware (`_parse_outcome`); `running_max` is monotone and official-floored.
+- STWA positions are tagged `WEATHER_STWA`, appear in `risk.open_positions` at fill, and reach `logs/trades.jsonl` only at resolution.
+- One STWA position per city-bucket per day; opposite-direction same-bucket re-entry is blocked; per-city-day budget cap bounds cross-time accumulation.
+- Pricer A/B is live: MC / GEV / PA / PA-shrunk + isotonic `p_cal` logged per bucket to `stwa_pricer_eval.jsonl`; joint 2N Kalman shadow in `stwa_state.jsonl`.
+- Kalman + per-city velocity state persisted to `data/stwa_kalman_state.npz` + `stwa_city_state.json`; restored on restart (no warm-up blind window).
+
+---
+
+## ANALYSIS SCRIPTS
+```bash
+# STWA calibration / pricing
+python3 analytics/stwa_fit_params.py              # per-city (κ,γ,σ) MLE refit
+python3 analysis/weather/stwa_pricer_backtest.py  # pricer vs ASOS, μ-bias diagnostic
+python3 analysis/weather/stwa_intraday_value.py   # β-shrinkage head-to-head
+python3 analysis/weather/stwa_isotonic_calib.py   # fit isotonic recalibration map
+
+# Edge validation
+python3 analysis/weather/lockout_capacity.py
+python3 analysis/weather/lockout_resolution_join.py   # WR vs real Gamma resolution
+```
